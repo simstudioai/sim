@@ -16,6 +16,7 @@ import {
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
+import { formatDate } from '@/lib/core/utils/formatting'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   type ApiKey,
@@ -133,13 +134,9 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     }
   }, [shouldScrollToBottom])
 
-  const formatDate = (dateString?: string) => {
+  const formatLastUsed = (dateString?: string) => {
     if (!dateString) return 'Never'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
+    return formatDate(new Date(dateString))
   }
 
   return (
@@ -216,7 +213,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                               {key.name}
                             </span>
                             <span className='text-[13px] text-[var(--text-secondary)]'>
-                              (last used: {formatDate(key.lastUsed).toLowerCase()})
+                              (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                             </span>
                           </div>
                           <p className='truncate text-[13px] text-[var(--text-muted)]'>
@@ -251,7 +248,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                             {key.name}
                           </span>
                           <span className='text-[13px] text-[var(--text-secondary)]'>
-                            (last used: {formatDate(key.lastUsed).toLowerCase()})
+                            (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                           </span>
                         </div>
                         <p className='truncate text-[13px] text-[var(--text-muted)]'>
@@ -291,7 +288,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                                 {key.name}
                               </span>
                               <span className='text-[13px] text-[var(--text-secondary)]'>
-                                (last used: {formatDate(key.lastUsed).toLowerCase()})
+                                (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                               </span>
                             </div>
                             <p className='truncate text-[13px] text-[var(--text-muted)]'>

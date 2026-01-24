@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createSSHConnection, executeSSHCommand, sanitizeCommand } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHExecuteCommandAPI')
@@ -21,10 +22,15 @@ export async function POST(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
 
   try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized SSH execute command attempt`)
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const params = ExecuteCommandSchema.parse(body)
 
-    // Validate authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -44,7 +50,6 @@ export async function POST(request: NextRequest) {
     })
 
     try {
-      // Build command with optional working directory
       let command = sanitizeCommand(params.command)
       if (params.workingDirectory) {
         command = `cd "${params.workingDirectory}" && ${command}`

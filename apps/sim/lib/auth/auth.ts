@@ -256,6 +256,17 @@ export const auth = betterAuth({
           return { data: account }
         },
         after: async (account) => {
+          try {
+            const { ensureUserStatsExists } = await import('@/lib/billing/core/usage')
+            await ensureUserStatsExists(account.userId)
+          } catch (error) {
+            logger.error('[databaseHooks.account.create.after] Failed to ensure user stats', {
+              userId: account.userId,
+              accountId: account.id,
+              error,
+            })
+          }
+
           if (account.providerId === 'salesforce') {
             const updates: {
               accessTokenExpiresAt?: Date
@@ -462,7 +473,6 @@ export const auth = betterAuth({
   },
   emailVerification: {
     autoSignInAfterVerification: true,
-    // onEmailVerification is called by the emailOTP plugin when email is verified via OTP
     onEmailVerification: async (user) => {
       if (isHosted && user.email) {
         try {

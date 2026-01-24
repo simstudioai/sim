@@ -14,6 +14,7 @@ export interface CodeExecutionInput {
   blockOutputSchemas?: Record<string, Record<string, unknown>>
   _context?: {
     workflowId?: string
+    userId?: string
   }
   isCustomTool?: boolean
 }

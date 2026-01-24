@@ -640,6 +640,7 @@ export interface AdminDeployResult {
   isDeployed: boolean
   version: number
   deployedAt: string
+  warnings?: string[]
 }
 
 export interface AdminUndeployResult {

@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { normalizeName } from '@/executor/constants'
+import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import {
   BLOCK_OPERATIONS,
@@ -24,7 +24,7 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { filterNewEdges, mergeSubblockState } from '@/stores/workflows/utils'
+import { filterNewEdges, filterValidEdges, mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, Loop, Parallel, Position } from '@/stores/workflows/workflow/types'
 
@@ -226,9 +226,12 @@ export function useCollaborativeWorkflow() {
             case EDGES_OPERATIONS.BATCH_ADD_EDGES: {
               const { edges } = payload
               if (Array.isArray(edges) && edges.length > 0) {
-                const newEdges = filterNewEdges(edges, useWorkflowStore.getState().edges)
+                const blocks = useWorkflowStore.getState().blocks
+                const currentEdges = useWorkflowStore.getState().edges
+                const validEdges = filterValidEdges(edges, blocks)
+                const newEdges = filterNewEdges(validEdges, currentEdges)
                 if (newEdges.length > 0) {
-                  useWorkflowStore.getState().batchAddEdges(newEdges)
+                  useWorkflowStore.getState().batchAddEdges(newEdges, { skipValidation: true })
                 }
               }
               break
@@ -740,6 +743,16 @@ export function useCollaborativeWorkflow() {
         return { success: false, error: 'Block name cannot be empty' }
       }
 
+      if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedNewName)) {
+        logger.error(`Cannot rename block to reserved name: "${trimmedName}"`)
+        useNotificationStore.getState().addNotification({
+          level: 'error',
+          message: `"${trimmedName}" is a reserved name and cannot be used`,
+          workflowId: activeWorkflowId || undefined,
+        })
+        return { success: false, error: `"${trimmedName}" is a reserved name` }
+      }
+
       const currentBlocks = useWorkflowStore.getState().blocks
       const conflictingBlock = Object.entries(currentBlocks).find(
         ([blockId, block]) => blockId !== id && normalizeName(block.name) === normalizedNewName
@@ -994,7 +1007,11 @@ export function useCollaborativeWorkflow() {
 
       if (edges.length === 0) return false
 
-      const newEdges = filterNewEdges(edges, useWorkflowStore.getState().edges)
+      // Filter out invalid edges (e.g., edges targeting trigger blocks) and duplicates
+      const blocks = useWorkflowStore.getState().blocks
+      const currentEdges = useWorkflowStore.getState().edges
+      const validEdges = filterValidEdges(edges, blocks)
+      const newEdges = filterNewEdges(validEdges, currentEdges)
       if (newEdges.length === 0) return false
 
       const operationId = crypto.randomUUID()
@@ -1010,7 +1027,7 @@ export function useCollaborativeWorkflow() {
         userId: session?.user?.id || 'unknown',
       })
 
-      useWorkflowStore.getState().batchAddEdges(newEdges)
+      useWorkflowStore.getState().batchAddEdges(newEdges, { skipValidation: true })
 
       if (!options?.skipUndoRedo) {
         newEdges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
@@ -1474,9 +1491,23 @@ export function useCollaborativeWorkflow() {
 
       if (blocks.length === 0) return false
 
+      // Filter out invalid edges (e.g., edges targeting trigger blocks)
+      // Combine existing blocks with new blocks for validation
+      const existingBlocks = useWorkflowStore.getState().blocks
+      const newBlocksMap = blocks.reduce(
+        (acc, block) => {
+          acc[block.id] = block
+          return acc
+        },
+        {} as Record<string, BlockState>
+      )
+      const allBlocks = { ...existingBlocks, ...newBlocksMap }
+      const validEdges = filterValidEdges(edges, allBlocks)
+
       logger.info('Batch adding blocks collaboratively', {
         blockCount: blocks.length,
-        edgeCount: edges.length,
+        edgeCount: validEdges.length,
+        filteredEdges: edges.length - validEdges.length,
       })
 
       const operationId = crypto.randomUUID()
@@ -1486,16 +1517,18 @@ export function useCollaborativeWorkflow() {
         operation: {
           operation: BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS,
           target: OPERATION_TARGETS.BLOCKS,
-          payload: { blocks, edges, loops, parallels, subBlockValues },
+          payload: { blocks, edges: validEdges, loops, parallels, subBlockValues },
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
-      useWorkflowStore.getState().batchAddBlocks(blocks, edges, subBlockValues)
+      useWorkflowStore.getState().batchAddBlocks(blocks, validEdges, subBlockValues, {
+        skipEdgeValidation: true,
+      })
 
       if (!options?.skipUndoRedo) {
-        undoRedo.recordBatchAddBlocks(blocks, edges, subBlockValues)
+        undoRedo.recordBatchAddBlocks(blocks, validEdges, subBlockValues)
       }
 
       return true

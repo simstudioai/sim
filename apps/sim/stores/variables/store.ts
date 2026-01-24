@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import JSON5 from 'json5'
 import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
@@ -125,8 +126,7 @@ function validateVariable(variable: Variable): string | undefined {
           if (!valueToEvaluate.startsWith('{') || !valueToEvaluate.endsWith('}')) {
             return 'Not a valid object format'
           }
-          // eslint-disable-next-line no-new-func
-          const parsed = new Function(`return ${valueToEvaluate}`)()
+          const parsed = JSON5.parse(valueToEvaluate)
           if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
             return 'Not a valid object'
           }
@@ -138,12 +138,12 @@ function validateVariable(variable: Variable): string | undefined {
       }
       case 'array': {
         try {
-          const parsed = JSON.parse(String(variable.value))
+          const parsed = JSON5.parse(String(variable.value))
           if (!Array.isArray(parsed)) {
-            return 'Not a valid JSON array'
+            return 'Not a valid array'
           }
         } catch {
-          return 'Invalid JSON array syntax'
+          return 'Invalid array syntax'
         }
         return undefined
       }

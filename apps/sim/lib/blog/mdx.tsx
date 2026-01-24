@@ -61,7 +61,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       )}
     />
   ),
-  li: (props: any) => <li {...props} className={clsx('mb-2', props.className)} />,
+  li: (props: any) => <li {...props} className={clsx('mb-1', props.className)} />,
   strong: (props: any) => <strong {...props} className={clsx('font-semibold', props.className)} />,
   em: (props: any) => <em {...props} className={clsx('italic', props.className)} />,
   a: (props: any) => {

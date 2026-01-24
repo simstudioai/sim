@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { SEARCH_TOOL_COST } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
 import { executeTool } from '@/tools'
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const { searchParams: urlParams } = new URL(request.url)
     const workflowId = urlParams.get('workflowId') || undefined
 
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success || !authResult.userId) {
       const errorMessage = workflowId ? 'Workflow not found' : authResult.error || 'Unauthorized'

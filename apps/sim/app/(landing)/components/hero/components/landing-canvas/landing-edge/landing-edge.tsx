@@ -4,33 +4,29 @@ import React from 'react'
 import { type EdgeProps, getSmoothStepPath, Position } from 'reactflow'
 
 /**
- * Custom edge component with animated dotted line that floats between handles
+ * Custom edge component with animated dashed line
+ * Styled to match the application's workflow edges with rectangular handles
  * @param props - React Flow edge properties
- * @returns An animated dotted edge component
+ * @returns An animated dashed edge component
  */
 export const LandingEdge = React.memo(function LandingEdge(props: EdgeProps) {
-  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, data } =
-    props
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style } = props
 
-  // Adjust the connection points to create floating effect
-  // Account for handle size (12px) and additional spacing
-  const handleRadius = 6 // Half of handle width (12px)
-  const floatingGap = 1 // Additional gap for floating effect
-
-  // Calculate adjusted positions based on edge direction
+  // Adjust the connection points to connect flush with rectangular handles
+  // Handle width is 7px, positioned at -7px from edge
   let adjustedSourceX = sourceX
   let adjustedTargetX = targetX
 
   if (sourcePosition === Position.Right) {
-    adjustedSourceX = sourceX + handleRadius + floatingGap
+    adjustedSourceX = sourceX + 1
   } else if (sourcePosition === Position.Left) {
-    adjustedSourceX = sourceX - handleRadius - floatingGap
+    adjustedSourceX = sourceX - 1
   }
 
   if (targetPosition === Position.Left) {
-    adjustedTargetX = targetX - handleRadius - floatingGap
+    adjustedTargetX = targetX - 1
   } else if (targetPosition === Position.Right) {
-    adjustedTargetX = targetX + handleRadius + floatingGap
+    adjustedTargetX = targetX + 1
   }
 
   const [path] = getSmoothStepPath({
@@ -40,8 +36,8 @@ export const LandingEdge = React.memo(function LandingEdge(props: EdgeProps) {
     targetY,
     sourcePosition,
     targetPosition,
-    borderRadius: 20,
-    offset: 10,
+    borderRadius: 8,
+    offset: 16,
   })
 
   return (

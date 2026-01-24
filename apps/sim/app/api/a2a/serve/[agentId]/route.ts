@@ -16,6 +16,7 @@ import {
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
+import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
@@ -1118,17 +1119,13 @@ async function handlePushNotificationSet(
     )
   }
 
-  try {
-    const url = new URL(params.pushNotificationConfig.url)
-    if (url.protocol !== 'https:') {
-      return NextResponse.json(
-        createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Push notification URL must use HTTPS'),
-        { status: 400 }
-      )
-    }
-  } catch {
+  const urlValidation = validateExternalUrl(
+    params.pushNotificationConfig.url,
+    'Push notification URL'
+  )
+  if (!urlValidation.isValid) {
     return NextResponse.json(
-      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, 'Invalid push notification URL'),
+      createError(id, A2A_ERROR_CODES.INVALID_PARAMS, urlValidation.error || 'Invalid URL'),
       { status: 400 }
     )
   }

@@ -13,7 +13,7 @@ import type {
   PausePoint,
   ResumeStatus,
 } from '@/executor/types'
-import { normalizeError } from '@/executor/utils/errors'
+import { attachExecutionResult, normalizeError } from '@/executor/utils/errors'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -170,8 +170,8 @@ export class ExecutionEngine {
         metadata: this.context.metadata,
       }
 
-      if (error && typeof error === 'object') {
-        ;(error as any).executionResult = executionResult
+      if (error instanceof Error) {
+        attachExecutionResult(error, executionResult)
       }
       throw error
     }

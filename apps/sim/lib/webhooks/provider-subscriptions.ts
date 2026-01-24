@@ -30,11 +30,11 @@ export async function createTeamsSubscription(
   webhook: any,
   workflow: any,
   requestId: string
-): Promise<void> {
+): Promise<string | undefined> {
   const config = getProviderConfig(webhook)
 
   if (config.triggerId !== 'microsoftteams_chat_subscription') {
-    return
+    return undefined
   }
 
   const credentialId = config.credentialId as string | undefined
@@ -77,7 +77,7 @@ export async function createTeamsSubscription(
         teamsLogger.info(
           `[${requestId}] Teams subscription ${existingSubscriptionId} already exists for webhook ${webhook.id}`
         )
-        return
+        return existingSubscriptionId
       }
     } catch {
       teamsLogger.debug(`[${requestId}] Existing subscription check failed, will create new one`)
@@ -140,6 +140,7 @@ export async function createTeamsSubscription(
     teamsLogger.info(
       `[${requestId}] Successfully created Teams subscription ${payload.id} for webhook ${webhook.id}`
     )
+    return payload.id as string
   } catch (error: any) {
     if (
       error instanceof Error &&
@@ -1600,9 +1601,11 @@ export async function createExternalWebhookSubscription(
       externalSubscriptionCreated = true
     }
   } else if (provider === 'microsoft-teams') {
-    await createTeamsSubscription(request, webhookData, workflow, requestId)
-    externalSubscriptionCreated =
-      (providerConfig.triggerId as string | undefined) === 'microsoftteams_chat_subscription'
+    const subscriptionId = await createTeamsSubscription(request, webhookData, workflow, requestId)
+    if (subscriptionId) {
+      updatedProviderConfig = { ...updatedProviderConfig, externalSubscriptionId: subscriptionId }
+      externalSubscriptionCreated = true
+    }
   } else if (provider === 'telegram') {
     await createTelegramWebhook(request, webhookData, requestId)
     externalSubscriptionCreated = true

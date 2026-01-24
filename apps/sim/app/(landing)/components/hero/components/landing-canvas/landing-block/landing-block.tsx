@@ -1,12 +1,12 @@
 import React from 'react'
-import { BookIcon } from 'lucide-react'
 import {
-  Tag,
-  type TagProps,
+  SubBlockRow,
+  type SubBlockRowProps,
 } from '@/app/(landing)/components/hero/components/landing-canvas/landing-block/tag'
 
 /**
  * Data structure for a landing card component
+ * Matches the workflow block structure from the application
  */
 export interface LandingCardData {
   /** Icon element to display in the card header */
@@ -15,8 +15,8 @@ export interface LandingCardData {
   color: string | '#f6f6f6'
   /** Name/title of the card */
   name: string
-  /** Optional tags to display at the bottom of the card */
-  tags?: TagProps[]
+  /** Optional subblock rows to display below the header */
+  tags?: SubBlockRowProps[]
 }
 
 /**
@@ -28,7 +28,8 @@ export interface LandingBlockProps extends LandingCardData {
 }
 
 /**
- * Landing block component that displays a card with icon, name, and optional tags
+ * Landing block component that displays a card with icon, name, and optional subblock rows
+ * Styled to match the application's workflow blocks
  * @param props - Component properties including icon, color, name, tags, and className
  * @returns A styled block card component
  */
@@ -39,33 +40,37 @@ export const LandingBlock = React.memo(function LandingBlock({
   tags,
   className,
 }: LandingBlockProps) {
+  const hasContentBelowHeader = tags && tags.length > 0
+
   return (
     <div
-      className={`z-10 flex w-64 flex-col items-start gap-3 rounded-[14px] border border-[#E5E5E5] bg-[#FEFEFE] p-3 ${className ?? ''}`}
-      style={{
-        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-      }}
+      className={`z-10 flex w-[250px] flex-col rounded-[8px] border border-[#E5E5E5] bg-white ${className ?? ''}`}
     >
-      <div className='flex w-full items-center justify-between'>
-        <div className='flex items-center gap-2.5'>
+      {/* Header - matches workflow-block.tsx header styling */}
+      <div
+        className={`flex items-center justify-between p-[8px] ${hasContentBelowHeader ? 'border-[#E5E5E5] border-b' : ''}`}
+      >
+        <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
           <div
-            className='flex h-6 w-6 items-center justify-center rounded-[8px] text-white'
-            style={{ backgroundColor: color as string }}
+            className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+            style={{ background: color as string }}
           >
             {icon}
           </div>
-          <p className='text-base text-card-foreground'>{name}</p>
+          <span className='truncate font-medium text-[#171717] text-[16px]' title={name}>
+            {name}
+          </span>
         </div>
-        <BookIcon className='h-4 w-4 text-muted-foreground' />
       </div>
 
-      {tags && tags.length > 0 ? (
-        <div className='flex flex-wrap gap-2'>
+      {/* Content - SubBlock Rows matching workflow-block.tsx */}
+      {hasContentBelowHeader && (
+        <div className='flex flex-col gap-[8px] p-[8px]'>
           {tags.map((tag) => (
-            <Tag key={tag.label} icon={tag.icon} label={tag.label} />
+            <SubBlockRow key={tag.label} icon={tag.icon} label={tag.label} />
           ))}
         </div>
-      ) : null}
+      )}
     </div>
   )
 })

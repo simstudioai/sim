@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { VideoRequestBody } from '@/tools/video/types'
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   logger.info(`[${requestId}] Video generation request started`)
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

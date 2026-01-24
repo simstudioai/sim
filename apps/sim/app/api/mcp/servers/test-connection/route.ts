@@ -1,11 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { McpClient } from '@/lib/mcp/client'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
-import type { McpServerConfig, McpTransport } from '@/lib/mcp/types'
+import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
+import type { McpTransport } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
-import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpServerTestAPI')
 
@@ -17,30 +16,6 @@ export const dynamic = 'force-dynamic'
  */
 function isUrlBasedTransport(transport: McpTransport): boolean {
   return transport === 'streamable-http'
-}
-
-/**
- * Resolve environment variables in strings
- */
-function resolveEnvVars(value: string, envVars: Record<string, string>): string {
-  const missingVars: string[] = []
-  const resolvedValue = resolveEnvVarReferences(value, envVars, {
-    allowEmbedded: true,
-    resolveExactMatch: true,
-    trimKeys: true,
-    onMissing: 'keep',
-    deep: false,
-    missingKeys: missingVars,
-  }) as string
-
-  if (missingVars.length > 0) {
-    const uniqueMissing = Array.from(new Set(missingVars))
-    uniqueMissing.forEach((envKey) => {
-      logger.warn(`Environment variable "${envKey}" not found in MCP server test`)
-    })
-  }
-
-  return resolvedValue
 }
 
 interface TestConnectionRequest {
@@ -96,37 +71,28 @@ export const POST = withMcpAuth('write')(
         )
       }
 
-      let resolvedUrl = body.url
-      let resolvedHeaders = body.headers || {}
-
-      try {
-        const envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
-
-        if (resolvedUrl) {
-          resolvedUrl = resolveEnvVars(resolvedUrl, envVars)
-        }
-
-        const resolvedHeadersObj: Record<string, string> = {}
-        for (const [key, value] of Object.entries(resolvedHeaders)) {
-          resolvedHeadersObj[key] = resolveEnvVars(value, envVars)
-        }
-        resolvedHeaders = resolvedHeadersObj
-      } catch (envError) {
-        logger.warn(
-          `[${requestId}] Failed to resolve environment variables, using raw values:`,
-          envError
-        )
-      }
-
-      const testConfig: McpServerConfig = {
+      // Build initial config for resolution
+      const initialConfig = {
         id: `test-${requestId}`,
         name: body.name,
         transport: body.transport,
-        url: resolvedUrl,
-        headers: resolvedHeaders,
+        url: body.url,
+        headers: body.headers || {},
         timeout: body.timeout || 10000,
         retries: 1, // Only one retry for tests
         enabled: true,
+      }
+
+      // Resolve env vars using shared utility (non-strict mode for testing)
+      const { config: testConfig, missingVars } = await resolveMcpConfigEnvVars(
+        initialConfig,
+        userId,
+        workspaceId,
+        { strict: false }
+      )
+
+      if (missingVars.length > 0) {
+        logger.warn(`[${requestId}] Some environment variables not found:`, { missingVars })
       }
 
       const testSecurityPolicy = {

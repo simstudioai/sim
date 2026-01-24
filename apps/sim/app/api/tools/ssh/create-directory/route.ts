@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   createSSHConnection,
   escapeShellArg,
@@ -27,10 +28,15 @@ export async function POST(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
 
   try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized SSH create directory attempt`)
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const params = CreateDirectorySchema.parse(body)
 
-    // Validate authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -53,7 +59,6 @@ export async function POST(request: NextRequest) {
       const dirPath = sanitizePath(params.path)
       const escapedPath = escapeShellArg(dirPath)
 
-      // Check if directory already exists
       const checkResult = await executeSSHCommand(
         client,
         `test -d '${escapedPath}' && echo "exists"`
@@ -70,7 +75,6 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Create directory
       const mkdirFlag = params.recursive ? '-p' : ''
       const command = `mkdir ${mkdirFlag} -m ${params.permissions} '${escapedPath}'`
       const result = await executeSSHCommand(client, command)

@@ -76,11 +76,44 @@ Choose between two types of parallel execution:
 3. Drag a single block inside the parallel container
 4. Connect the block as needed
 
-### Accessing Results
+### Referencing Parallel Data
 
-After a parallel block completes, you can access aggregated results:
+There's an important distinction between referencing parallel data from **inside** vs **outside** the parallel block:
 
-- **`<parallel.results>`**: Array of results from all parallel instances
+<Tabs items={['Inside the Parallel', 'Outside the Parallel']}>
+  <Tab>
+    **Inside the parallel**, use `<parallel.>` references to access the current instance context:
+    
+    - **`<parallel.index>`**: Current instance number (0-based)
+    - **`<parallel.currentItem>`**: Item for this instance (collection-based only)
+    - **`<parallel.items>`**: Full collection being distributed (collection-based only)
+    
+    ```
+    // Inside a Function block within the parallel
+    const idx = <parallel.index>;           // 0, 1, 2, ...
+    const item = <parallel.currentItem>;    // This instance's item
+    ```
+    
+    <Callout type="info">
+      These references are only available for blocks **inside** the parallel container. They give you access to the current instance's context.
+    </Callout>
+  </Tab>
+  <Tab>
+    **Outside the parallel** (after it completes), reference the parallel block by its name to access aggregated results:
+    
+    - **`<ParallelBlockName.results>`**: Array of results from all instances
+    
+    ```
+    // If your parallel block is named "Process Tasks"
+    const allResults = <processtasks.results>;
+    // Returns: [result1, result2, result3, ...]
+    ```
+    
+    <Callout type="info">
+      After the parallel completes, use the parallel's block name (not `parallel.`) to access the collected results. The block name is normalized (lowercase, no spaces).
+    </Callout>
+  </Tab>
+</Tabs>
 
 ## Example Use Cases
 
@@ -98,11 +131,11 @@ Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evalu
 
 ### Result Aggregation
 
-Results from all parallel instances are automatically collected:
+Results from all parallel instances are automatically collected and accessible via the block name:
 
 ```javascript
-// In a Function block after the parallel
-const allResults = input.parallel.results;
+// In a Function block after a parallel named "Process Tasks"
+const allResults = <processtasks.results>;
 // Returns: [result1, result2, result3, ...]
 ```
 
@@ -158,25 +191,26 @@ Understanding when to use each:
     </ul>
   </Tab>
   <Tab>
+    Available **inside** the parallel only:
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>parallel.currentItem</strong>: Item for this instance
+        <strong>{"<parallel.index>"}</strong>: Instance number (0-based)
       </li>
       <li>
-        <strong>parallel.index</strong>: Instance number (0-based)
+        <strong>{"<parallel.currentItem>"}</strong>: Item for this instance (collection-based only)
       </li>
       <li>
-        <strong>parallel.items</strong>: Full collection (collection-based)
+        <strong>{"<parallel.items>"}</strong>: Full collection (collection-based only)
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>parallel.results</strong>: Array of all instance results
+        <strong>{"<blockname.results>"}</strong>: Array of all instance results (accessed via block name)
       </li>
       <li>
-        <strong>Access</strong>: Available in blocks after the parallel
+        <strong>Access</strong>: Available in blocks after the parallel completes
       </li>
     </ul>
   </Tab>

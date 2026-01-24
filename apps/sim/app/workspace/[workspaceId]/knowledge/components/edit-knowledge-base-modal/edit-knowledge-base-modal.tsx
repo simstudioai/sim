@@ -59,7 +59,7 @@ export function EditKnowledgeBaseModal({
     handleSubmit,
     reset,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -127,7 +127,7 @@ export function EditKnowledgeBaseModal({
                 <Textarea
                   id='description'
                   placeholder='Describe this knowledge base (optional)'
-                  rows={3}
+                  rows={4}
                   {...register('description')}
                   className={cn(errors.description && 'border-[var(--text-error)]')}
                 />
@@ -161,7 +161,7 @@ export function EditKnowledgeBaseModal({
                 <Button
                   variant='tertiary'
                   type='submit'
-                  disabled={isSubmitting || !nameValue?.trim()}
+                  disabled={isSubmitting || !nameValue?.trim() || !isDirty}
                 >
                   {isSubmitting ? 'Saving...' : 'Save'}
                 </Button>

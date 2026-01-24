@@ -14,7 +14,7 @@ import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { EDGE, normalizeName } from '@/executor/constants'
+import { EDGE, normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
@@ -63,6 +63,7 @@ type SkippedItemType =
   | 'invalid_subflow_parent'
   | 'nested_subflow_not_allowed'
   | 'duplicate_block_name'
+  | 'reserved_block_name'
   | 'duplicate_trigger'
   | 'duplicate_single_instance_block'
 
@@ -1683,12 +1684,21 @@ function applyOperationsToWorkflowState(
           }
         }
         if (params?.name !== undefined) {
-          if (!normalizeName(params.name)) {
+          const normalizedName = normalizeName(params.name)
+          if (!normalizedName) {
             logSkippedItem(skippedItems, {
               type: 'missing_required_params',
               operationType: 'edit',
               blockId: block_id,
               reason: `Cannot rename to empty name`,
+              details: { requestedName: params.name },
+            })
+          } else if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedName)) {
+            logSkippedItem(skippedItems, {
+              type: 'reserved_block_name',
+              operationType: 'edit',
+              blockId: block_id,
+              reason: `Cannot rename to "${params.name}" - this is a reserved name`,
               details: { requestedName: params.name },
             })
           } else {
@@ -1911,13 +1921,25 @@ function applyOperationsToWorkflowState(
       }
 
       case 'add': {
-        if (!params?.type || !params?.name || !normalizeName(params.name)) {
+        const addNormalizedName = params?.name ? normalizeName(params.name) : ''
+        if (!params?.type || !params?.name || !addNormalizedName) {
           logSkippedItem(skippedItems, {
             type: 'missing_required_params',
             operationType: 'add',
             blockId: block_id,
             reason: `Missing required params (type or name) for adding block "${block_id}"`,
             details: { hasType: !!params?.type, hasName: !!params?.name },
+          })
+          break
+        }
+
+        if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(addNormalizedName)) {
+          logSkippedItem(skippedItems, {
+            type: 'reserved_block_name',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Block name "${params.name}" is a reserved name and cannot be used`,
+            details: { requestedName: params.name },
           })
           break
         }

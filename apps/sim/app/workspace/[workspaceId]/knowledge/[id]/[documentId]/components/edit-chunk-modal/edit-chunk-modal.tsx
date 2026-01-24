@@ -61,6 +61,7 @@ export function EditChunkModal({
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [tokenizerOn, setTokenizerOn] = useState(false)
+  const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const error = mutationError?.message ?? null
@@ -254,6 +255,8 @@ export function EditChunkModal({
                         style={{
                           backgroundColor: getTokenBgColor(index),
                         }}
+                        onMouseEnter={() => setHoveredTokenIndex(index)}
+                        onMouseLeave={() => setHoveredTokenIndex(null)}
                       >
                         {token}
                       </span>
@@ -281,6 +284,11 @@ export function EditChunkModal({
                 <div className='flex items-center gap-[8px]'>
                   <span className='text-[12px] text-[var(--text-secondary)]'>Tokenizer</span>
                   <Switch checked={tokenizerOn} onCheckedChange={setTokenizerOn} />
+                  {tokenizerOn && hoveredTokenIndex !== null && (
+                    <span className='text-[12px] text-[var(--text-tertiary)]'>
+                      Token #{hoveredTokenIndex + 1}
+                    </span>
+                  )}
                 </div>
                 <span className='text-[12px] text-[var(--text-secondary)]'>
                   {tokenCount.toLocaleString()}

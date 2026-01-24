@@ -2,11 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/emcn'
-import {
-  getFilledPillColor,
-  USAGE_PILL_COLORS,
-  USAGE_THRESHOLDS,
-} from '@/lib/billing/client/usage-visualization'
+import { getFilledPillColor, USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client'
 
 const PILL_COUNT = 5
 

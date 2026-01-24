@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +13,7 @@ const SlackAddReactionSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       return NextResponse.json(

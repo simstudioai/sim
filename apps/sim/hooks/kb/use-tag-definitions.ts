@@ -1,10 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { createLogger } from '@sim/logger'
+import { useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { AllTagSlot } from '@/lib/knowledge/constants'
-
-const logger = createLogger('useTagDefinitions')
+import {
+  type DocumentTagDefinitionInput,
+  knowledgeKeys,
+  useDeleteDocumentTagDefinitions,
+  useDocumentTagDefinitionsQuery,
+  useSaveDocumentTagDefinitions,
+} from '@/hooks/queries/knowledge'
 
 export interface TagDefinition {
   id: string
@@ -19,57 +24,30 @@ export interface TagDefinitionInput {
   tagSlot: AllTagSlot
   displayName: string
   fieldType: string
-  // Optional: for editing existing definitions
   _originalDisplayName?: string
 }
 
 /**
- * Hook for managing KB-scoped tag definitions
- * @param knowledgeBaseId - The knowledge base ID
- * @param documentId - The document ID (required for API calls)
+ * Hook for managing document-scoped tag definitions
+ * Uses React Query as single source of truth
  */
 export function useTagDefinitions(
   knowledgeBaseId: string | null,
   documentId: string | null = null
 ) {
-  const [tagDefinitions, setTagDefinitions] = useState<TagDefinition[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const query = useDocumentTagDefinitionsQuery(knowledgeBaseId, documentId)
+  const { mutateAsync: saveTagDefinitionsMutation } = useSaveDocumentTagDefinitions()
+  const { mutateAsync: deleteTagDefinitionsMutation } = useDeleteDocumentTagDefinitions()
+
+  const tagDefinitions = (query.data ?? []) as TagDefinition[]
 
   const fetchTagDefinitions = useCallback(async () => {
-    if (!knowledgeBaseId || !documentId) {
-      setTagDefinitions([])
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`
-      )
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch tag definitions: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-
-      if (data.success && Array.isArray(data.data)) {
-        setTagDefinitions(data.data)
-      } else {
-        throw new Error('Invalid response format')
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
-      logger.error('Error fetching tag definitions:', err)
-      setError(errorMessage)
-      setTagDefinitions([])
-    } finally {
-      setIsLoading(false)
-    }
-  }, [knowledgeBaseId, documentId])
+    if (!knowledgeBaseId || !documentId) return
+    await queryClient.invalidateQueries({
+      queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId, documentId),
+    })
+  }, [queryClient, knowledgeBaseId, documentId])
 
   const saveTagDefinitions = useCallback(
     async (definitions: TagDefinitionInput[]) => {
@@ -77,43 +55,13 @@ export function useTagDefinitions(
         throw new Error('Knowledge base ID and document ID are required')
       }
 
-      // Simple validation
-      const validDefinitions = (definitions || []).filter(
-        (def) => def?.tagSlot && def.displayName && def.displayName.trim()
-      )
-
-      try {
-        const response = await fetch(
-          `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ definitions: validDefinitions }),
-          }
-        )
-
-        if (!response.ok) {
-          throw new Error(`Failed to save tag definitions: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to save tag definitions')
-        }
-
-        // Refresh the definitions after saving
-        await fetchTagDefinitions()
-
-        return data.data
-      } catch (err) {
-        logger.error('Error saving tag definitions:', err)
-        throw err
-      }
+      return saveTagDefinitionsMutation({
+        knowledgeBaseId,
+        documentId,
+        definitions: definitions as DocumentTagDefinitionInput[],
+      })
     },
-    [knowledgeBaseId, documentId, fetchTagDefinitions]
+    [knowledgeBaseId, documentId, saveTagDefinitionsMutation]
   )
 
   const deleteTagDefinitions = useCallback(async () => {
@@ -121,25 +69,11 @@ export function useTagDefinitions(
       throw new Error('Knowledge base ID and document ID are required')
     }
 
-    try {
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error(`Failed to delete tag definitions: ${response.statusText}`)
-      }
-
-      // Refresh the definitions after deleting
-      await fetchTagDefinitions()
-    } catch (err) {
-      logger.error('Error deleting tag definitions:', err)
-      throw err
-    }
-  }, [knowledgeBaseId, documentId, fetchTagDefinitions])
+    return deleteTagDefinitionsMutation({
+      knowledgeBaseId,
+      documentId,
+    })
+  }, [knowledgeBaseId, documentId, deleteTagDefinitionsMutation])
 
   const getTagLabel = useCallback(
     (tagSlot: string): string => {
@@ -156,15 +90,10 @@ export function useTagDefinitions(
     [tagDefinitions]
   )
 
-  // Auto-fetch on mount and when dependencies change
-  useEffect(() => {
-    fetchTagDefinitions()
-  }, [fetchTagDefinitions])
-
   return {
     tagDefinitions,
-    isLoading,
-    error,
+    isLoading: query.isLoading,
+    error: query.error instanceof Error ? query.error.message : null,
     fetchTagDefinitions,
     saveTagDefinitions,
     deleteTagDefinitions,

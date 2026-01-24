@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   createSSHConnection,
   escapeShellArg,
@@ -27,9 +28,16 @@ export async function POST(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
 
   try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized SSH move/rename attempt`)
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const params = MoveRenameSchema.parse(body)
 
+    // Validate SSH authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },

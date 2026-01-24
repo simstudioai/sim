@@ -237,6 +237,7 @@ interface DeployWorkflowResult {
   isDeployed: boolean
   deployedAt?: string
   apiKey?: string
+  warnings?: string[]
 }
 
 /**
@@ -272,6 +273,7 @@ export function useDeployWorkflow() {
         isDeployed: data.isDeployed ?? false,
         deployedAt: data.deployedAt,
         apiKey: data.apiKey,
+        warnings: data.warnings,
       }
     },
     onSuccess: (data, variables) => {
@@ -360,6 +362,7 @@ interface ActivateVersionVariables {
 interface ActivateVersionResult {
   deployedAt?: string
   apiKey?: string
+  warnings?: string[]
 }
 
 /**

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   createSSHConnection,
   escapeShellArg,
@@ -27,10 +28,15 @@ export async function POST(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
 
   try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized SSH delete file attempt`)
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const params = DeleteFileSchema.parse(body)
 
-    // Validate authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -53,7 +59,6 @@ export async function POST(request: NextRequest) {
       const filePath = sanitizePath(params.path)
       const escapedPath = escapeShellArg(filePath)
 
-      // Check if path exists
       const checkResult = await executeSSHCommand(
         client,
         `test -e '${escapedPath}' && echo "exists"`
@@ -62,7 +67,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Path does not exist: ${filePath}` }, { status: 404 })
       }
 
-      // Build delete command
       let command: string
       if (params.recursive) {
         command = params.force ? `rm -rf '${escapedPath}'` : `rm -r '${escapedPath}'`

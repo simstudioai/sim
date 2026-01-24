@@ -16,7 +16,8 @@ import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
-import type { ExecutionResult } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
+import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
@@ -397,7 +398,7 @@ async function executeWebhookJobInternal(
               requestId,
               userId: payload.userId,
             })
-            Object.assign(input, processedInput)
+            safeAssign(input, processedInput as Record<string, unknown>)
           }
         } else {
           logger.debug(`[${requestId}] No valid triggerId found for block ${payload.blockId}`)
@@ -577,12 +578,13 @@ async function executeWebhookJobInternal(
         deploymentVersionId,
       })
 
-      const errorWithResult = error as { executionResult?: ExecutionResult }
-      const executionResult = errorWithResult?.executionResult || {
-        success: false,
-        output: {},
-        logs: [],
-      }
+      const executionResult = hasExecutionResult(error)
+        ? error.executionResult
+        : {
+            success: false,
+            output: {},
+            logs: [],
+          }
       const { traceSpans } = buildTraceSpans(executionResult)
 
       await loggingSession.safeCompleteWithError({

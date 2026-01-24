@@ -8,6 +8,7 @@ import {
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { NormalizedBlockOutput, UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+import { safeAssign } from '@/tools/safe-assign'
 
 type ExecutionKind = 'chat' | 'manual' | 'api'
 
@@ -346,7 +347,7 @@ function buildLegacyStarterOutput(
   const finalObject = isPlainObject(finalInput) ? finalInput : undefined
 
   if (finalObject) {
-    Object.assign(output, finalObject)
+    safeAssign(output, finalObject)
     output.input = { ...finalObject }
   } else {
     output.input = finalInput

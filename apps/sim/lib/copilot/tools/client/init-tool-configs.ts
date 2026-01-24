@@ -34,17 +34,3 @@ import './workflow/set-global-workflow-variables'
 
 // User tools
 import './user/set-environment-variables'
-
-// Re-export UI config utilities for convenience
-export {
-  getSubagentLabels,
-  getToolUIConfig,
-  hasInterrupt,
-  type InterruptConfig,
-  isSpecialTool,
-  isSubagentTool,
-  type ParamsTableConfig,
-  type SecondaryActionConfig,
-  type SubagentConfig,
-  type ToolUIConfig,
-} from './ui-config'
