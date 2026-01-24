@@ -5,13 +5,14 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
+import { USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import {
+  getBillingStatus,
   getFilledPillColor,
-  USAGE_PILL_COLORS,
-  USAGE_THRESHOLDS,
-} from '@/lib/billing/client/usage-visualization'
-import { getBillingStatus, getSubscriptionStatus, getUsage } from '@/lib/billing/client/utils'
+  getSubscriptionStatus,
+  getUsage,
+} from '@/lib/billing/client/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'

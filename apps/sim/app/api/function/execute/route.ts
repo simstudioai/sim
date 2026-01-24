@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInE2B } from '@/lib/execution/e2b'
@@ -581,6 +582,12 @@ export async function POST(req: NextRequest) {
   let resolvedCode = '' // Store resolved code for error reporting
 
   try {
+    const auth = await checkInternalAuth(req)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized function execution attempt`)
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await req.json()
 
     const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')

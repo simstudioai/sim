@@ -11,21 +11,6 @@ import type { BlockMetrics, BoundingBox, Edge, GraphNode } from '@/lib/workflows
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-// Re-export layout constants for backwards compatibility
-export {
-  CONTAINER_PADDING,
-  CONTAINER_PADDING_X,
-  CONTAINER_PADDING_Y,
-  ROOT_PADDING_X,
-  ROOT_PADDING_Y,
-}
-
-// Re-export block dimensions for backwards compatibility
-export const DEFAULT_BLOCK_WIDTH = BLOCK_DIMENSIONS.FIXED_WIDTH
-export const DEFAULT_BLOCK_HEIGHT = BLOCK_DIMENSIONS.MIN_HEIGHT
-export const DEFAULT_CONTAINER_WIDTH = CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-export const DEFAULT_CONTAINER_HEIGHT = CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
-
 /**
  * Resolves a potentially undefined numeric value to a fallback
  */

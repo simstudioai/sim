@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
+import { restorePreviousVersionWebhooks, saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
 import { activateWorkflowVersion } from '@/lib/workflows/persistence/utils'
 import {
   cleanupDeploymentVersion,
@@ -85,6 +85,11 @@ export async function POST(
       return createErrorResponse('Invalid deployed state structure', 500)
     }
 
+    const scheduleValidation = validateWorkflowSchedules(blocks)
+    if (!scheduleValidation.isValid) {
+      return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
+    }
+
     const triggerSaveResult = await saveTriggerWebhooksForDeploy({
       request,
       workflowId: id,
@@ -93,6 +98,8 @@ export async function POST(
       blocks,
       requestId,
       deploymentVersionId: versionRow.id,
+      previousVersionId,
+      forceRecreateSubscriptions: true,
     })
 
     if (!triggerSaveResult.success) {
@@ -100,11 +107,6 @@ export async function POST(
         triggerSaveResult.error?.message || 'Failed to sync trigger configuration',
         triggerSaveResult.error?.status || 500
       )
-    }
-
-    const scheduleValidation = validateWorkflowSchedules(blocks)
-    if (!scheduleValidation.isValid) {
-      return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
     }
 
     const scheduleResult = await createSchedulesForDeploy(id, blocks, db, versionRow.id)
@@ -116,6 +118,15 @@ export async function POST(
         requestId,
         deploymentVersionId: versionRow.id,
       })
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData as Record<string, unknown>,
+          userId: actorUserId,
+          previousVersionId,
+          requestId,
+        })
+      }
       return createErrorResponse(scheduleResult.error || 'Failed to sync schedules', 500)
     }
 
@@ -127,6 +138,15 @@ export async function POST(
         requestId,
         deploymentVersionId: versionRow.id,
       })
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData as Record<string, unknown>,
+          userId: actorUserId,
+          previousVersionId,
+          requestId,
+        })
+      }
       return createErrorResponse(result.error || 'Failed to activate deployment', 400)
     }
 
@@ -140,6 +160,7 @@ export async function POST(
           workflow: workflowData as Record<string, unknown>,
           requestId,
           deploymentVersionId: previousVersionId,
+          skipExternalCleanup: true,
         })
         logger.info(`[${requestId}] Previous version cleanup completed`)
       } catch (cleanupError) {
@@ -157,7 +178,11 @@ export async function POST(
       context: 'activate',
     })
 
-    return createSuccessResponse({ success: true, deployedAt: result.deployedAt })
+    return createSuccessResponse({
+      success: true,
+      deployedAt: result.deployedAt,
+      warnings: triggerSaveResult.warnings,
+    })
   } catch (error: any) {
     logger.error(`[${requestId}] Error activating deployment for workflow: ${id}`, error)
     return createErrorResponse(error.message || 'Failed to activate deployment', 500)

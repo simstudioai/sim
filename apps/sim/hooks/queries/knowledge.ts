@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   ChunkData,
@@ -7,15 +8,21 @@ import type {
   KnowledgeBaseData,
 } from '@/lib/knowledge/types'
 
+const logger = createLogger('KnowledgeQueries')
+
 export const knowledgeKeys = {
   all: ['knowledge'] as const,
   list: (workspaceId?: string) => [...knowledgeKeys.all, 'list', workspaceId ?? 'all'] as const,
   detail: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.all, 'detail', knowledgeBaseId ?? ''] as const,
+  tagDefinitions: (knowledgeBaseId: string) =>
+    [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
   documents: (knowledgeBaseId: string, paramsKey: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'documents', paramsKey] as const,
   document: (knowledgeBaseId: string, documentId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'document', documentId] as const,
+  documentTagDefinitions: (knowledgeBaseId: string, documentId: string) =>
+    [...knowledgeKeys.document(knowledgeBaseId, documentId), 'tagDefinitions'] as const,
   chunks: (knowledgeBaseId: string, documentId: string, paramsKey: string) =>
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'chunks', paramsKey] as const,
 }
@@ -79,6 +86,7 @@ export interface KnowledgeDocumentsParams {
   offset?: number
   sortBy?: string
   sortOrder?: string
+  enabledFilter?: 'all' | 'enabled' | 'disabled'
 }
 
 export interface KnowledgeDocumentsResponse {
@@ -93,6 +101,7 @@ export async function fetchKnowledgeDocuments({
   offset = 0,
   sortBy,
   sortOrder,
+  enabledFilter,
 }: KnowledgeDocumentsParams): Promise<KnowledgeDocumentsResponse> {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
@@ -100,6 +109,7 @@ export async function fetchKnowledgeDocuments({
   if (sortOrder) params.set('sortOrder', sortOrder)
   params.set('limit', limit.toString())
   params.set('offset', offset.toString())
+  if (enabledFilter) params.set('enabledFilter', enabledFilter)
 
   const url = `/api/knowledge/${knowledgeBaseId}/documents${params.toString() ? `?${params.toString()}` : ''}`
   const response = await fetch(url)
@@ -212,6 +222,7 @@ export function useDocumentQuery(knowledgeBaseId?: string, documentId?: string) 
     queryFn: () => fetchDocument(knowledgeBaseId as string, documentId as string),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -222,13 +233,17 @@ export const serializeDocumentParams = (params: KnowledgeDocumentsParams) =>
     offset: params.offset ?? 0,
     sortBy: params.sortBy ?? '',
     sortOrder: params.sortOrder ?? '',
+    enabledFilter: params.enabledFilter ?? 'all',
   })
 
 export function useKnowledgeDocumentsQuery(
   params: KnowledgeDocumentsParams,
   options?: {
     enabled?: boolean
-    refetchInterval?: number | false
+    refetchInterval?:
+      | number
+      | false
+      | ((query: { state: { data?: KnowledgeDocumentsResponse } }) => number | false)
   }
 ) {
   const paramsKey = serializeDocumentParams(params)
@@ -572,7 +587,9 @@ export function useDeleteDocument() {
 export interface BulkDocumentOperationParams {
   knowledgeBaseId: string
   operation: 'enable' | 'disable' | 'delete'
-  documentIds: string[]
+  documentIds?: string[]
+  selectAll?: boolean
+  enabledFilter?: 'all' | 'enabled' | 'disabled'
 }
 
 export interface BulkDocumentOperationResult {
@@ -585,11 +602,21 @@ export async function bulkDocumentOperation({
   knowledgeBaseId,
   operation,
   documentIds,
+  selectAll,
+  enabledFilter,
 }: BulkDocumentOperationParams): Promise<BulkDocumentOperationResult> {
+  const body: Record<string, unknown> = { operation }
+  if (selectAll) {
+    body.selectAll = true
+    if (enabledFilter) body.enabledFilter = enabledFilter
+  } else {
+    body.documentIds = documentIds
+  }
+
   const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ operation, documentIds }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {
@@ -858,6 +885,31 @@ export interface TagDefinitionData {
   updatedAt: string
 }
 
+export async function fetchTagDefinitions(knowledgeBaseId: string): Promise<TagDefinitionData[]> {
+  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/tag-definitions`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch tag definitions: ${response.status} ${response.statusText}`)
+  }
+
+  const result = await response.json()
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to fetch tag definitions')
+  }
+
+  return Array.isArray(result.data) ? result.data : []
+}
+
+export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
+  return useQuery({
+    queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId ?? ''),
+    queryFn: () => fetchTagDefinitions(knowledgeBaseId as string),
+    enabled: Boolean(knowledgeBaseId),
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  })
+}
+
 export interface CreateTagDefinitionParams {
   knowledgeBaseId: string
   displayName: string
@@ -914,7 +966,7 @@ export function useCreateTagDefinition() {
     mutationFn: createTagDefinition,
     onSuccess: (_, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
       })
     },
   })
@@ -952,8 +1004,152 @@ export function useDeleteTagDefinition() {
     mutationFn: deleteTagDefinition,
     onSuccess: (_, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
       })
+    },
+  })
+}
+
+export interface DocumentTagDefinitionData {
+  id: string
+  tagSlot: string
+  displayName: string
+  fieldType: string
+  createdAt: string
+  updatedAt: string
+}
+
+export async function fetchDocumentTagDefinitions(
+  knowledgeBaseId: string,
+  documentId: string
+): Promise<DocumentTagDefinitionData[]> {
+  const response = await fetch(
+    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch document tag definitions: ${response.status} ${response.statusText}`
+    )
+  }
+
+  const result = await response.json()
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to fetch document tag definitions')
+  }
+
+  return Array.isArray(result.data) ? result.data : []
+}
+
+export function useDocumentTagDefinitionsQuery(
+  knowledgeBaseId?: string | null,
+  documentId?: string | null
+) {
+  return useQuery({
+    queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId ?? '', documentId ?? ''),
+    queryFn: () => fetchDocumentTagDefinitions(knowledgeBaseId as string, documentId as string),
+    enabled: Boolean(knowledgeBaseId && documentId),
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export interface DocumentTagDefinitionInput {
+  tagSlot: string
+  displayName: string
+  fieldType: string
+}
+
+export interface SaveDocumentTagDefinitionsParams {
+  knowledgeBaseId: string
+  documentId: string
+  definitions: DocumentTagDefinitionInput[]
+}
+
+export async function saveDocumentTagDefinitions({
+  knowledgeBaseId,
+  documentId,
+  definitions,
+}: SaveDocumentTagDefinitionsParams): Promise<DocumentTagDefinitionData[]> {
+  const validDefinitions = (definitions || []).filter(
+    (def) => def?.tagSlot && def.displayName && def.displayName.trim()
+  )
+
+  const response = await fetch(
+    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ definitions: validDefinitions }),
+    }
+  )
+
+  if (!response.ok) {
+    const result = await response.json()
+    throw new Error(result.error || 'Failed to save document tag definitions')
+  }
+
+  const result = await response.json()
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to save document tag definitions')
+  }
+
+  return result.data
+}
+
+export function useSaveDocumentTagDefinitions() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: saveDocumentTagDefinitions,
+    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId, documentId),
+      })
+    },
+    onError: (error) => {
+      logger.error('Failed to save document tag definitions:', error)
+    },
+  })
+}
+
+export interface DeleteDocumentTagDefinitionsParams {
+  knowledgeBaseId: string
+  documentId: string
+}
+
+export async function deleteDocumentTagDefinitions({
+  knowledgeBaseId,
+  documentId,
+}: DeleteDocumentTagDefinitionsParams): Promise<void> {
+  const response = await fetch(
+    `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`,
+    { method: 'DELETE' }
+  )
+
+  if (!response.ok) {
+    const result = await response.json()
+    throw new Error(result.error || 'Failed to delete document tag definitions')
+  }
+
+  const result = await response.json()
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to delete document tag definitions')
+  }
+}
+
+export function useDeleteDocumentTagDefinitions() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteDocumentTagDefinitions,
+    onSuccess: (_, { knowledgeBaseId, documentId }) => {
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentTagDefinitions(knowledgeBaseId, documentId),
+      })
+    },
+    onError: (error) => {
+      logger.error('Failed to delete document tag definitions:', error)
     },
   })
 }

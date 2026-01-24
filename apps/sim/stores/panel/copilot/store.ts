@@ -1125,6 +1125,17 @@ const sseHandlers: Record<string, SSEHandler> = {
       await get().handleNewChatCreation(context.newChatId)
     }
   },
+  title_updated: (_data, _context, get, set) => {
+    const title = _data.title
+    if (!title) return
+    const { currentChat, chats } = get()
+    if (currentChat) {
+      set({
+        currentChat: { ...currentChat, title },
+        chats: chats.map((c) => (c.id === currentChat.id ? { ...c, title } : c)),
+      })
+    }
+  },
   tool_result: (data, context, get, set) => {
     try {
       const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
@@ -2116,6 +2127,24 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
                 })
               })
           }
+        } else {
+          // Check if this is an integration tool (server-side) that should be auto-executed
+          const isIntegrationTool = !CLASS_TOOL_METADATA[name]
+          if (isIntegrationTool && isSubAgentAutoAllowed) {
+            logger.info('[SubAgent] Auto-executing integration tool (auto-allowed)', {
+              id,
+              name,
+            })
+            // Execute integration tool via the store method
+            const { executeIntegrationTool } = get()
+            executeIntegrationTool(id).catch((err) => {
+              logger.error('[SubAgent] Integration tool auto-execution failed', {
+                id,
+                name,
+                error: err?.message || err,
+              })
+            })
+          }
         }
       }
     } catch (e: any) {
@@ -2719,11 +2748,16 @@ export const useCopilotStore = create<CopilotStore>()(
         }))
       }
 
-      // Load sensitive credential IDs for masking before streaming starts
-      await get().loadSensitiveCredentialIds()
-
-      // Ensure auto-allowed tools are loaded before tool calls arrive
-      await get().loadAutoAllowedTools()
+      get()
+        .loadSensitiveCredentialIds()
+        .catch((err) => {
+          logger.warn('[Copilot] Failed to load sensitive credential IDs', err)
+        })
+      get()
+        .loadAutoAllowedTools()
+        .catch((err) => {
+          logger.warn('[Copilot] Failed to load auto-allowed tools', err)
+        })
 
       let newMessages: CopilotMessage[]
       if (revertState) {
@@ -2797,9 +2831,14 @@ export const useCopilotStore = create<CopilotStore>()(
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
 
         // Extract slash commands from contexts (lowercase) and filter them out from contexts
+        // Map UI command IDs to API command IDs (e.g., "actions" -> "superagent")
+        const uiToApiCommandMap: Record<string, string> = { actions: 'superagent' }
         const commands = contexts
           ?.filter((c) => c.kind === 'slash_command' && 'command' in c)
-          .map((c) => (c as any).command.toLowerCase()) as string[] | undefined
+          .map((c) => {
+            const uiCommand = (c as any).command.toLowerCase()
+            return uiToApiCommandMap[uiCommand] || uiCommand
+          }) as string[] | undefined
         const filteredContexts = contexts?.filter((c) => c.kind !== 'slash_command')
 
         const result = await sendStreamingMessage({
@@ -3923,11 +3962,16 @@ export const useCopilotStore = create<CopilotStore>()(
 
     loadAutoAllowedTools: async () => {
       try {
+        logger.info('[AutoAllowedTools] Loading from API...')
         const res = await fetch('/api/copilot/auto-allowed-tools')
+        logger.info('[AutoAllowedTools] Load response', { status: res.status, ok: res.ok })
         if (res.ok) {
           const data = await res.json()
-          set({ autoAllowedTools: data.autoAllowedTools || [] })
-          logger.info('[AutoAllowedTools] Loaded', { tools: data.autoAllowedTools })
+          const tools = data.autoAllowedTools || []
+          set({ autoAllowedTools: tools })
+          logger.info('[AutoAllowedTools] Loaded successfully', { count: tools.length, tools })
+        } else {
+          logger.warn('[AutoAllowedTools] Load failed with status', { status: res.status })
         }
       } catch (err) {
         logger.error('[AutoAllowedTools] Failed to load', { error: err })
@@ -3936,15 +3980,18 @@ export const useCopilotStore = create<CopilotStore>()(
 
     addAutoAllowedTool: async (toolId: string) => {
       try {
+        logger.info('[AutoAllowedTools] Adding tool...', { toolId })
         const res = await fetch('/api/copilot/auto-allowed-tools', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ toolId }),
         })
+        logger.info('[AutoAllowedTools] API response', { toolId, status: res.status, ok: res.ok })
         if (res.ok) {
           const data = await res.json()
+          logger.info('[AutoAllowedTools] API returned', { toolId, tools: data.autoAllowedTools })
           set({ autoAllowedTools: data.autoAllowedTools || [] })
-          logger.info('[AutoAllowedTools] Added tool', { toolId })
+          logger.info('[AutoAllowedTools] Added tool to store', { toolId })
 
           // Auto-execute all pending tools of the same type
           const { toolCallsById, executeIntegrationTool } = get()

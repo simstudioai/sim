@@ -1,72 +1,22 @@
-import { createLogger } from '@sim/logger'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { extractEnvVarName, isEnvVarReference } from '@/executor/constants'
-
-const logger = createLogger('EnvResolver')
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
 /**
- * Resolves environment variable references in a string value
- * Uses the same helper functions as the executor's EnvResolver
+ * Recursively resolves all environment variable references in a configuration object.
+ * Supports both exact matches (`{{VAR_NAME}}`) and embedded patterns (`https://{{HOST}}/path`).
  *
- * @param value - The string that may contain env var references
- * @param envVars - Object containing environment variable key-value pairs
- * @returns The resolved string with env vars replaced
- */
-function resolveEnvVarInString(value: string, envVars: Record<string, string>): string {
-  if (!isEnvVarReference(value)) {
-    return value
-  }
-
-  const varName = extractEnvVarName(value)
-  const resolvedValue = envVars[varName]
-
-  if (resolvedValue === undefined) {
-    logger.warn(`Environment variable not found: ${varName}`)
-    return value // Return original if not found
-  }
-
-  logger.debug(`Resolved environment variable: ${varName}`)
-  return resolvedValue
-}
-
-/**
- * Recursively resolves all environment variable references in a configuration object
- * Supports the pattern: {{VAR_NAME}}
+ * Uses `deep: true` because webhook configs have nested structures that need full resolution.
  *
  * @param config - Configuration object that may contain env var references
  * @param userId - User ID to fetch environment variables for
  * @param workspaceId - Optional workspace ID for workspace-specific env vars
  * @returns A new object with all env var references resolved
  */
-export async function resolveEnvVarsInObject(
-  config: Record<string, any>,
+export async function resolveEnvVarsInObject<T extends Record<string, unknown>>(
+  config: T,
   userId: string,
   workspaceId?: string
-): Promise<Record<string, any>> {
+): Promise<T> {
   const envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
-
-  const resolved = { ...config }
-
-  function resolveValue(value: any): any {
-    if (typeof value === 'string') {
-      return resolveEnvVarInString(value, envVars)
-    }
-    if (Array.isArray(value)) {
-      return value.map(resolveValue)
-    }
-    if (value !== null && typeof value === 'object') {
-      const resolvedObj: Record<string, any> = {}
-      for (const [key, val] of Object.entries(value)) {
-        resolvedObj[key] = resolveValue(val)
-      }
-      return resolvedObj
-    }
-    return value
-  }
-
-  for (const [key, value] of Object.entries(resolved)) {
-    resolved[key] = resolveValue(value)
-  }
-
-  return resolved
+  return resolveEnvVarReferences(config, envVars, { deep: true }) as T
 }

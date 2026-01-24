@@ -8,8 +8,13 @@ import {
 } from '@/app/(landing)/components/hero/components/landing-canvas/landing-block/landing-block'
 
 /**
+ * Handle Y offset from block top - matches HANDLE_POSITIONS.DEFAULT_Y_OFFSET
+ */
+const HANDLE_Y_OFFSET = 20
+
+/**
  * React Flow node component for the landing canvas
- * Includes CSS animations and connection handles
+ * Styled to match the application's workflow blocks
  * @param props - Component properties containing node data
  * @returns A React Flow compatible node component
  */
@@ -41,15 +46,15 @@ export const LandingNode = React.memo(function LandingNode({ data }: { data: Lan
           type='target'
           position={Position.Left}
           style={{
-            width: '12px',
-            height: '12px',
-            background: '#FEFEFE',
-            border: '1px solid #E5E5E5',
-            borderRadius: '50%',
-            top: '50%',
-            left: '-20px',
+            width: '7px',
+            height: '20px',
+            background: '#D1D1D1',
+            border: 'none',
+            borderRadius: '2px 0 0 2px',
+            top: `${HANDLE_Y_OFFSET}px`,
+            left: '-7px',
             transform: 'translateY(-50%)',
-            zIndex: 2,
+            zIndex: 10,
           }}
           isConnectable={false}
         />
@@ -59,15 +64,15 @@ export const LandingNode = React.memo(function LandingNode({ data }: { data: Lan
           type='source'
           position={Position.Right}
           style={{
-            width: '12px',
-            height: '12px',
-            background: '#FEFEFE',
-            border: '1px solid #E5E5E5',
-            borderRadius: '50%',
-            top: '50%',
-            right: '-20px',
+            width: '7px',
+            height: '20px',
+            background: '#D1D1D1',
+            border: 'none',
+            borderRadius: '0 2px 2px 0',
+            top: `${HANDLE_Y_OFFSET}px`,
+            right: '-7px',
             transform: 'translateY(-50%)',
-            zIndex: 2,
+            zIndex: 10,
           }}
           isConnectable={false}
         />

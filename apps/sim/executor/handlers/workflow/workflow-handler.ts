@@ -4,12 +4,14 @@ import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import { BlockType, DEFAULTS, HTTP } from '@/executor/constants'
+import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import type {
   BlockHandler,
   ExecutionContext,
   ExecutionResult,
   StreamingExecution,
 } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
@@ -137,39 +139,39 @@ export class WorkflowBlockHandler implements BlockHandler {
       )
 
       return mappedResult
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
       const { workflows } = useWorkflowRegistry.getState()
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
 
-      const originalError = error.message || 'Unknown error'
-      const wrappedError = new Error(
-        `Error in child workflow "${childWorkflowName}": ${originalError}`
-      )
+      const originalError = error instanceof Error ? error.message : 'Unknown error'
+      let childTraceSpans: WorkflowTraceSpan[] = []
+      let executionResult: ExecutionResult | undefined
 
-      if (error.executionResult?.logs) {
-        const executionResult = error.executionResult as ExecutionResult
+      if (hasExecutionResult(error) && error.executionResult.logs) {
+        executionResult = error.executionResult
 
         logger.info(`Extracting child trace spans from error.executionResult`, {
           hasLogs: (executionResult.logs?.length ?? 0) > 0,
           logCount: executionResult.logs?.length ?? 0,
         })
 
-        const childTraceSpans = this.captureChildWorkflowLogs(
-          executionResult,
-          childWorkflowName,
-          ctx
-        )
+        childTraceSpans = this.captureChildWorkflowLogs(executionResult, childWorkflowName, ctx)
 
         logger.info(`Captured ${childTraceSpans.length} child trace spans from failed execution`)
-        ;(wrappedError as any).childTraceSpans = childTraceSpans
-      } else if (error.childTraceSpans && Array.isArray(error.childTraceSpans)) {
-        ;(wrappedError as any).childTraceSpans = error.childTraceSpans
+      } else if (ChildWorkflowError.isChildWorkflowError(error)) {
+        childTraceSpans = error.childTraceSpans
       }
 
-      throw wrappedError
+      throw new ChildWorkflowError({
+        message: `Error in child workflow "${childWorkflowName}": ${originalError}`,
+        childWorkflowName,
+        childTraceSpans,
+        executionResult,
+        cause: error instanceof Error ? error : undefined,
+      })
     }
   }
 
@@ -441,11 +443,11 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     if (!success) {
       logger.warn(`Child workflow ${childWorkflowName} failed`)
-      const error = new Error(
-        `Error in child workflow "${childWorkflowName}": ${childResult.error || 'Child workflow execution failed'}`
-      )
-      ;(error as any).childTraceSpans = childTraceSpans || []
-      throw error
+      throw new ChildWorkflowError({
+        message: `Error in child workflow "${childWorkflowName}": ${childResult.error || 'Child workflow execution failed'}`,
+        childWorkflowName,
+        childTraceSpans: childTraceSpans || [],
+      })
     }
 
     return {

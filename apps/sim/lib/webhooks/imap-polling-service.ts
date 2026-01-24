@@ -645,7 +645,6 @@ async function processEmails(
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'X-Webhook-Secret': '',
                 'User-Agent': 'Sim/1.0',
               },
               body: JSON.stringify(payload),

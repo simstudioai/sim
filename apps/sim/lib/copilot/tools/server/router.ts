@@ -6,10 +6,7 @@ import { getBlocksAndToolsServerTool } from '@/lib/copilot/tools/server/blocks/g
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
-import {
-  KnowledgeBaseInput,
-  knowledgeBaseServerTool,
-} from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { makeApiRequestServerTool } from '@/lib/copilot/tools/server/other/make-api-request'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
@@ -28,6 +25,7 @@ import {
   GetBlocksMetadataResult,
   GetTriggerBlocksInput,
   GetTriggerBlocksResult,
+  KnowledgeBaseArgsSchema,
 } from '@/lib/copilot/tools/shared/schemas'
 
 // Generic execute response schemas (success path only for this route; errors handled via HTTP status)
@@ -90,7 +88,7 @@ export async function routeExecution(
     args = GetTriggerBlocksInput.parse(args)
   }
   if (toolName === 'knowledge_base') {
-    args = KnowledgeBaseInput.parse(args)
+    args = KnowledgeBaseArgsSchema.parse(args)
   }
 
   const result = await tool.execute(args, context)

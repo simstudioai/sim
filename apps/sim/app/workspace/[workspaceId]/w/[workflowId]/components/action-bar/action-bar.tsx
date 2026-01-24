@@ -128,7 +128,7 @@ export const ActionBar = memo(
           'dark:border-transparent dark:bg-[var(--surface-4)]'
         )}
       >
-        {!isNoteBlock && !isSubflowBlock && (
+        {!isNoteBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button

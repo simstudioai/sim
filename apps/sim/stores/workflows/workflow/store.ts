@@ -4,13 +4,17 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
-import { normalizeName } from '@/executor/constants'
+import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { filterNewEdges, getUniqueBlockName, mergeSubblockState } from '@/stores/workflows/utils'
+import {
+  filterNewEdges,
+  filterValidEdges,
+  getUniqueBlockName,
+  mergeSubblockState,
+} from '@/stores/workflows/utils'
 import type {
   Position,
   SubBlockState,
@@ -336,7 +340,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
           data?: Record<string, any>
         }>,
         edges?: Edge[],
-        subBlockValues?: Record<string, Record<string, unknown>>
+        subBlockValues?: Record<string, Record<string, unknown>>,
+        options?: { skipEdgeValidation?: boolean }
       ) => {
         const currentBlocks = get().blocks
         const currentEdges = get().edges
@@ -361,8 +366,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
 
         if (edges && edges.length > 0) {
+          // Skip validation if already validated by caller (e.g., collaborative layer)
+          const validEdges = options?.skipEdgeValidation
+            ? edges
+            : filterValidEdges(edges, newBlocks)
           const existingEdgeIds = new Set(currentEdges.map((e) => e.id))
-          for (const edge of edges) {
+          for (const edge of validEdges) {
             if (!existingEdgeIds.has(edge.id)) {
               newEdges.push({
                 id: edge.id || crypto.randomUUID(),
@@ -495,9 +504,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
         get().updateLastSaved()
       },
 
-      batchAddEdges: (edges: Edge[]) => {
+      batchAddEdges: (edges: Edge[], options?: { skipValidation?: boolean }) => {
+        const blocks = get().blocks
         const currentEdges = get().edges
-        const filtered = filterNewEdges(edges, currentEdges)
+
+        // Skip validation if already validated by caller (e.g., collaborative layer)
+        const validEdges = options?.skipValidation ? edges : filterValidEdges(edges, blocks)
+        const filtered = filterNewEdges(validEdges, currentEdges)
         const newEdges = [...currentEdges]
 
         for (const edge of filtered) {
@@ -513,7 +526,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           })
         }
 
-        const blocks = get().blocks
         set({
           blocks: { ...blocks },
           edges: newEdges,
@@ -573,7 +585,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
       ) => {
         set((state) => {
           const nextBlocks = workflowState.blocks || {}
-          const nextEdges = workflowState.edges || []
+          const nextEdges = filterValidEdges(workflowState.edges || [], nextBlocks)
           const nextLoops =
             Object.keys(workflowState.loops || {}).length > 0
               ? workflowState.loops
@@ -723,6 +735,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
           logger.error(
             `Cannot rename block to "${name}" - conflicts with "${conflictingBlock[1].name}"`
           )
+          return { success: false, changedSubblocks: [] }
+        }
+
+        if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedNewName)) {
+          logger.error(`Cannot rename block to reserved name: "${name}"`)
           return { success: false, changedSubblocks: [] }
         }
 
@@ -1079,7 +1096,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         const newState = {
           blocks: deployedState.blocks,
-          edges: deployedState.edges,
+          edges: filterValidEdges(deployedState.edges ?? [], deployedState.blocks),
           loops: deployedState.loops || {},
           parallels: deployedState.parallels || {},
           needsRedeployment: false,
@@ -1163,93 +1180,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set(newState)
 
         get().triggerUpdate()
-        // Note: Socket.IO handles real-time sync automatically
-      },
-
-      toggleBlockTriggerMode: (id: string) => {
-        const block = get().blocks[id]
-        if (!block) return
-
-        const newTriggerMode = !block.triggerMode
-
-        // When switching TO trigger mode, check if block is inside a subflow
-        if (newTriggerMode && TriggerUtils.isBlockInSubflow(id, get().blocks)) {
-          logger.warn('Cannot enable trigger mode for block inside loop or parallel subflow', {
-            blockId: id,
-            blockType: block.type,
-          })
-          return
-        }
-
-        // When switching TO trigger mode, remove all incoming connections
-        let filteredEdges = [...get().edges]
-        if (newTriggerMode) {
-          // Remove edges where this block is the target
-          filteredEdges = filteredEdges.filter((edge) => edge.target !== id)
-          logger.info(
-            `Removed ${get().edges.length - filteredEdges.length} incoming connections for trigger mode`,
-            {
-              blockId: id,
-              blockType: block.type,
-            }
-          )
-        }
-
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [id]: {
-              ...block,
-              triggerMode: newTriggerMode,
-            },
-          },
-          edges: filteredEdges,
-          loops: { ...get().loops },
-          parallels: { ...get().parallels },
-        }
-
-        set(newState)
-        get().updateLastSaved()
-
-        // Handle webhook enable/disable when toggling trigger mode
-        const handleWebhookToggle = async () => {
-          try {
-            const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-            if (!activeWorkflowId) return
-
-            // Check if there's a webhook for this block
-            const response = await fetch(
-              `/api/webhooks?workflowId=${activeWorkflowId}&blockId=${id}`
-            )
-            if (response.ok) {
-              const data = await response.json()
-              if (data.webhooks && data.webhooks.length > 0) {
-                const webhook = data.webhooks[0].webhook
-
-                // Update webhook's isActive status based on trigger mode
-                const updateResponse = await fetch(`/api/webhooks/${webhook.id}`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    isActive: newTriggerMode,
-                  }),
-                })
-
-                if (!updateResponse.ok) {
-                  logger.error('Failed to update webhook status')
-                }
-              }
-            }
-          } catch (error) {
-            logger.error('Error toggling webhook status:', error)
-          }
-        }
-
-        // Handle webhook toggle asynchronously
-        handleWebhookToggle()
-
         // Note: Socket.IO handles real-time sync automatically
       },
 

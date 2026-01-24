@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import {
   bulkDocumentOperation,
+  bulkDocumentOperationByFilter,
   createDocumentRecords,
   createSingleDocument,
   getDocuments,
@@ -57,13 +58,20 @@ const BulkCreateDocumentsSchema = z.object({
   bulk: z.literal(true),
 })
 
-const BulkUpdateDocumentsSchema = z.object({
-  operation: z.enum(['enable', 'disable', 'delete']),
-  documentIds: z
-    .array(z.string())
-    .min(1, 'At least one document ID is required')
-    .max(100, 'Cannot operate on more than 100 documents at once'),
-})
+const BulkUpdateDocumentsSchema = z
+  .object({
+    operation: z.enum(['enable', 'disable', 'delete']),
+    documentIds: z
+      .array(z.string())
+      .min(1, 'At least one document ID is required')
+      .max(100, 'Cannot operate on more than 100 documents at once')
+      .optional(),
+    selectAll: z.boolean().optional(),
+    enabledFilter: z.enum(['all', 'enabled', 'disabled']).optional(),
+  })
+  .refine((data) => data.selectAll || (data.documentIds && data.documentIds.length > 0), {
+    message: 'Either selectAll must be true or documentIds must be provided',
+  })
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = randomUUID().slice(0, 8)
@@ -90,14 +98,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const url = new URL(req.url)
-    const includeDisabled = url.searchParams.get('includeDisabled') === 'true'
+    const enabledFilter = url.searchParams.get('enabledFilter') as
+      | 'all'
+      | 'enabled'
+      | 'disabled'
+      | null
     const search = url.searchParams.get('search') || undefined
     const limit = Number.parseInt(url.searchParams.get('limit') || '50')
     const offset = Number.parseInt(url.searchParams.get('offset') || '0')
     const sortByParam = url.searchParams.get('sortBy')
     const sortOrderParam = url.searchParams.get('sortOrder')
 
-    // Validate sort parameters
     const validSortFields: DocumentSortField[] = [
       'filename',
       'fileSize',
@@ -105,6 +116,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       'chunkCount',
       'uploadedAt',
       'processingStatus',
+      'enabled',
     ]
     const validSortOrders: SortOrder[] = ['asc', 'desc']
 
@@ -120,7 +132,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const result = await getDocuments(
       knowledgeBaseId,
       {
-        includeDisabled,
+        enabledFilter: enabledFilter || undefined,
         search,
         limit,
         offset,
@@ -190,8 +202,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const createdDocuments = await createDocumentRecords(
           validatedData.documents,
           knowledgeBaseId,
-          requestId,
-          userId
+          requestId
         )
 
         logger.info(
@@ -250,16 +261,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         throw validationError
       }
     } else {
-      // Handle single document creation
       try {
         const validatedData = CreateDocumentSchema.parse(body)
 
-        const newDocument = await createSingleDocument(
-          validatedData,
-          knowledgeBaseId,
-          requestId,
-          userId
-        )
+        const newDocument = await createSingleDocument(validatedData, knowledgeBaseId, requestId)
 
         try {
           const { PlatformEvents } = await import('@/lib/core/telemetry')
@@ -294,7 +299,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (error) {
     logger.error(`[${requestId}] Error creating document`, error)
 
-    // Check if it's a storage limit error
     const errorMessage = error instanceof Error ? error.message : 'Failed to create document'
     const isStorageLimitError =
       errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')
@@ -331,16 +335,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     try {
       const validatedData = BulkUpdateDocumentsSchema.parse(body)
-      const { operation, documentIds } = validatedData
+      const { operation, documentIds, selectAll, enabledFilter } = validatedData
 
       try {
-        const result = await bulkDocumentOperation(
-          knowledgeBaseId,
-          operation,
-          documentIds,
-          requestId,
-          session.user.id
-        )
+        let result
+        if (selectAll) {
+          result = await bulkDocumentOperationByFilter(
+            knowledgeBaseId,
+            operation,
+            enabledFilter,
+            requestId
+          )
+        } else if (documentIds && documentIds.length > 0) {
+          result = await bulkDocumentOperation(knowledgeBaseId, operation, documentIds, requestId)
+        } else {
+          return NextResponse.json({ error: 'No documents specified' }, { status: 400 })
+        }
 
         return NextResponse.json({
           success: true,
