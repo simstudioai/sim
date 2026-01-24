@@ -47,7 +47,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const params = UploadFileSchema.parse(body)
 
-    // Validate SSH authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },

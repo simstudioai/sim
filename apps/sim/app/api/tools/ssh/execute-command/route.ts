@@ -31,7 +31,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const params = ExecuteCommandSchema.parse(body)
 
-    // Validate SSH authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -51,7 +50,6 @@ export async function POST(request: NextRequest) {
     })
 
     try {
-      // Build command with optional working directory
       let command = sanitizeCommand(params.command)
       if (params.workingDirectory) {
         command = `cd "${params.workingDirectory}" && ${command}`

@@ -37,7 +37,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const params = CreateDirectorySchema.parse(body)
 
-    // Validate SSH authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -60,7 +59,6 @@ export async function POST(request: NextRequest) {
       const dirPath = sanitizePath(params.path)
       const escapedPath = escapeShellArg(dirPath)
 
-      // Check if directory already exists
       const checkResult = await executeSSHCommand(
         client,
         `test -d '${escapedPath}' && echo "exists"`
@@ -77,7 +75,6 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Create directory
       const mkdirFlag = params.recursive ? '-p' : ''
       const command = `mkdir ${mkdirFlag} -m ${params.permissions} '${escapedPath}'`
       const result = await executeSSHCommand(client, command)

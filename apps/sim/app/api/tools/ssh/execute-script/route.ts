@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const params = ExecuteScriptSchema.parse(body)
 
-    // Validate SSH authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },
@@ -52,13 +51,10 @@ export async function POST(request: NextRequest) {
     })
 
     try {
-      // Create a temporary script file, execute it, and clean up
       const scriptPath = `/tmp/sim_script_${requestId}.sh`
       const escapedScriptPath = escapeShellArg(scriptPath)
       const escapedInterpreter = escapeShellArg(params.interpreter)
 
-      // Build the command to create, execute, and clean up the script
-      // Note: heredoc with quoted delimiter ('SIMEOF') prevents variable expansion
       let command = `cat > '${escapedScriptPath}' << 'SIMEOF'
 ${params.script}
 SIMEOF
