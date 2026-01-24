@@ -93,6 +93,8 @@ export async function POST(
       blocks,
       requestId,
       deploymentVersionId: versionRow.id,
+      previousVersionId,
+      forceRecreateSubscriptions: true,
     })
 
     if (!triggerSaveResult.success) {
@@ -140,6 +142,7 @@ export async function POST(
           workflow: workflowData as Record<string, unknown>,
           requestId,
           deploymentVersionId: previousVersionId,
+          skipExternalCleanup: true,
         })
         logger.info(`[${requestId}] Previous version cleanup completed`)
       } catch (cleanupError) {

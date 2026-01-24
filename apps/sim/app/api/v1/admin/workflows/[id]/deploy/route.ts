@@ -8,7 +8,11 @@ import {
   loadWorkflowFromNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
-import { createSchedulesForDeploy, validateWorkflowSchedules } from '@/lib/workflows/schedules'
+import {
+  cleanupDeploymentVersion,
+  createSchedulesForDeploy,
+  validateWorkflowSchedules,
+} from '@/lib/workflows/schedules'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -72,7 +76,17 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       deployResult.deploymentVersionId
     )
     if (!scheduleResult.success) {
-      logger.warn(`Schedule creation failed for workflow ${workflowId}: ${scheduleResult.error}`)
+      logger.error(
+        `Admin API: Schedule creation failed for workflow ${workflowId}: ${scheduleResult.error}`
+      )
+      await cleanupDeploymentVersion({
+        workflowId,
+        workflow: normalizedData as unknown as Record<string, unknown>,
+        requestId: generateRequestId(),
+        deploymentVersionId: deployResult.deploymentVersionId,
+      })
+      await undeployWorkflow({ workflowId })
+      return internalErrorResponse(scheduleResult.error || 'Failed to create schedule')
     }
 
     logger.info(`Admin API: Deployed workflow ${workflowId} as v${deployResult.version}`)

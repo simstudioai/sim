@@ -7,10 +7,21 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
-import { createExternalWebhookSubscription } from '@/lib/webhooks/provider-subscriptions'
+import {
+  cleanupExternalWebhook,
+  createExternalWebhookSubscription,
+} from '@/lib/webhooks/provider-subscriptions'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
+import {
+  configureGmailPolling,
+  configureOutlookPolling,
+  configureRssPolling,
+  syncWebhooksForCredentialSet,
+} from '@/lib/webhooks/utils.server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 
 const logger = createLogger('WebhooksAPI')
 
@@ -317,8 +328,6 @@ export async function POST(request: NextRequest) {
     const directCredentialSetId = resolvedProviderConfig?.credentialSetId as string | undefined
 
     if (directCredentialSetId || rawCredentialId) {
-      const { isCredentialSetValue, extractCredentialSetId } = await import('@/executor/constants')
-
       const credentialSetId =
         directCredentialSetId ||
         (rawCredentialId && isCredentialSetValue(rawCredentialId)
@@ -330,11 +339,6 @@ export async function POST(request: NextRequest) {
           `[${requestId}] Credential set detected for ${provider} trigger. Syncing webhooks for set ${credentialSetId}`
         )
 
-        const { getProviderIdFromServiceId } = await import('@/lib/oauth')
-        const { syncWebhooksForCredentialSet, configureGmailPolling, configureOutlookPolling } =
-          await import('@/lib/webhooks/utils.server')
-
-        // Map provider to OAuth provider ID
         const oauthProviderId = getProviderIdFromServiceId(provider)
 
         const {
@@ -545,7 +549,6 @@ export async function POST(request: NextRequest) {
       if (externalSubscriptionCreated) {
         logger.error(`[${requestId}] DB save failed, cleaning up external subscription`, dbError)
         try {
-          const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
           await cleanupExternalWebhook(
             createTempWebhookData(configToSave),
             workflowRecord,
@@ -565,7 +568,6 @@ export async function POST(request: NextRequest) {
     if (savedWebhook && provider === 'gmail') {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
       try {
-        const { configureGmailPolling } = await import('@/lib/webhooks/utils.server')
         const success = await configureGmailPolling(savedWebhook, requestId)
 
         if (!success) {
@@ -604,7 +606,6 @@ export async function POST(request: NextRequest) {
         `[${requestId}] Outlook provider detected. Setting up Outlook webhook configuration.`
       )
       try {
-        const { configureOutlookPolling } = await import('@/lib/webhooks/utils.server')
         const success = await configureOutlookPolling(savedWebhook, requestId)
 
         if (!success) {
@@ -641,7 +642,6 @@ export async function POST(request: NextRequest) {
     if (savedWebhook && provider === 'rss') {
       logger.info(`[${requestId}] RSS provider detected. Setting up RSS webhook configuration.`)
       try {
-        const { configureRssPolling } = await import('@/lib/webhooks/utils.server')
         const success = await configureRssPolling(savedWebhook, requestId)
 
         if (!success) {

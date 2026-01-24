@@ -42,6 +42,16 @@ interface SaveTriggerWebhooksInput {
   blocks: Record<string, BlockState>
   requestId: string
   deploymentVersionId?: string
+  /**
+   * The previous active version's ID. Only this version's external subscriptions
+   * will be cleaned up (along with draft webhooks). If not provided, skips cleanup.
+   */
+  previousVersionId?: string
+  /**
+   * When true, forces recreation of external subscriptions even if webhook config is unchanged.
+   * Used when activating a previous deployment version whose subscriptions were cleaned up.
+   */
+  forceRecreateSubscriptions?: boolean
 }
 
 function getSubBlockValue(block: BlockState, subBlockId: string): unknown {
@@ -309,83 +319,6 @@ async function syncCredentialSetWebhooks(params: {
   return null
 }
 
-async function createWebhookForBlock(params: {
-  request: NextRequest
-  workflowId: string
-  workflow: Record<string, unknown>
-  userId: string
-  block: BlockState
-  provider: string
-  providerConfig: Record<string, unknown>
-  triggerPath: string
-  requestId: string
-  deploymentVersionId?: string
-}): Promise<TriggerSaveError | null> {
-  const {
-    request,
-    workflowId,
-    workflow,
-    userId,
-    block,
-    provider,
-    providerConfig,
-    triggerPath,
-    requestId,
-    deploymentVersionId,
-  } = params
-
-  const webhookId = nanoid()
-  const createPayload = {
-    id: webhookId,
-    path: triggerPath,
-    provider,
-    providerConfig,
-  }
-
-  const result = await createExternalWebhookSubscription(
-    request,
-    createPayload,
-    workflow,
-    userId,
-    requestId
-  )
-
-  const updatedProviderConfig = result.updatedProviderConfig as Record<string, unknown>
-  let savedWebhook: any
-
-  try {
-    const createdRows = await db
-      .insert(webhook)
-      .values({
-        id: webhookId,
-        workflowId,
-        deploymentVersionId: deploymentVersionId || null,
-        blockId: block.id,
-        path: triggerPath,
-        provider,
-        providerConfig: updatedProviderConfig,
-        credentialSetId: (updatedProviderConfig.credentialSetId as string | undefined) || null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning()
-    savedWebhook = createdRows[0]
-  } catch (error) {
-    if (result.externalSubscriptionCreated) {
-      await cleanupExternalWebhook(createPayload, workflow, requestId)
-    }
-    throw error
-  }
-
-  const pollingError = await configurePollingIfNeeded(provider, savedWebhook, requestId)
-  if (pollingError) {
-    return pollingError
-  }
-
-  return null
-}
-
 /**
  * Saves trigger webhook configurations as part of workflow deployment.
  * Uses delete + create approach for changed/deleted webhooks.
@@ -398,22 +331,45 @@ export async function saveTriggerWebhooksForDeploy({
   blocks,
   requestId,
   deploymentVersionId,
+  previousVersionId,
+  forceRecreateSubscriptions = false,
 }: SaveTriggerWebhooksInput): Promise<TriggerSaveResult> {
-  const triggerBlocks = Object.values(blocks || {}).filter(Boolean)
+  const triggerBlocks = Object.values(blocks || {}).filter((b) => b && b.enabled !== false)
   const currentBlockIds = new Set(triggerBlocks.map((b) => b.id))
 
-  // 1. Get all existing webhooks for this workflow
-  const existingWebhooks = await db
+  // 1. Get ALL webhooks for this workflow (all versions including draft)
+  const allWorkflowWebhooks = await db
     .select()
     .from(webhook)
-    .where(
-      deploymentVersionId
-        ? and(
-            eq(webhook.workflowId, workflowId),
-            eq(webhook.deploymentVersionId, deploymentVersionId)
-          )
-        : eq(webhook.workflowId, workflowId)
+    .where(eq(webhook.workflowId, workflowId))
+
+  // Separate webhooks by version: current deployment vs others
+  const existingWebhooks: typeof allWorkflowWebhooks = []
+
+  for (const wh of allWorkflowWebhooks) {
+    if (deploymentVersionId && wh.deploymentVersionId === deploymentVersionId) {
+      existingWebhooks.push(wh)
+    }
+  }
+
+  if (previousVersionId) {
+    const webhooksToCleanup = allWorkflowWebhooks.filter(
+      (wh) => wh.deploymentVersionId === previousVersionId || wh.deploymentVersionId === null
     )
+
+    if (webhooksToCleanup.length > 0) {
+      logger.info(
+        `[${requestId}] Cleaning up ${webhooksToCleanup.length} external subscription(s) from previous version and drafts`
+      )
+      for (const wh of webhooksToCleanup) {
+        try {
+          await cleanupExternalWebhook(wh, workflow, requestId)
+        } catch (cleanupError) {
+          logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
+        }
+      }
+    }
+  }
 
   const webhooksByBlockId = new Map<string, typeof existingWebhooks>()
   for (const wh of existingWebhooks) {
@@ -477,22 +433,29 @@ export async function saveTriggerWebhooksForDeploy({
         )
       }
 
-      // Check if config changed
+      // Check if config changed or if we're forcing recreation (e.g., activating old version)
       const existingConfig = (existingWh.providerConfig as Record<string, unknown>) || {}
-      if (
+      const needsRecreation =
+        forceRecreateSubscriptions ||
         shouldRecreateExternalWebhookSubscription({
           previousProvider: existingWh.provider as string,
           nextProvider: provider,
           previousConfig: existingConfig,
           nextConfig: providerConfig,
         })
-      ) {
-        // Config changed - delete and recreate
+
+      if (needsRecreation) {
         webhooksToDelete.push(existingWh)
         blocksNeedingWebhook.push(block)
-        logger.info(`[${requestId}] Webhook config changed for block ${block.id}, will recreate`)
+        if (forceRecreateSubscriptions) {
+          logger.info(
+            `[${requestId}] Forcing webhook recreation for block ${block.id} (reactivating version)`
+          )
+        } else {
+          logger.info(`[${requestId}] Webhook config changed for block ${block.id}, will recreate`)
+        }
       }
-      // else: config unchanged, keep existing webhook
+      // else: config unchanged and not forcing recreation, keep existing webhook
     }
   }
 
@@ -555,43 +518,149 @@ export async function saveTriggerWebhooksForDeploy({
     }
   }
 
-  // 5. Create webhooks for blocks that need them
+  // 5. Create webhooks for blocks that need them (two-phase approach for atomicity)
+  const createdSubscriptions: Array<{
+    webhookId: string
+    block: BlockState
+    provider: string
+    triggerPath: string
+    updatedProviderConfig: Record<string, unknown>
+    externalSubscriptionCreated: boolean
+  }> = []
+
+  // Phase 1: Create all external subscriptions
   for (const block of blocksNeedingWebhook) {
     const config = (block as any)._webhookConfig
     if (!config) continue
 
     const { provider, providerConfig, triggerPath } = config
+    const webhookId = nanoid()
+    const createPayload = {
+      id: webhookId,
+      path: triggerPath,
+      provider,
+      providerConfig,
+    }
 
     try {
-      const createError = await createWebhookForBlock({
+      const result = await createExternalWebhookSubscription(
         request,
-        workflowId,
+        createPayload,
         workflow,
         userId,
+        requestId
+      )
+
+      createdSubscriptions.push({
+        webhookId,
         block,
         provider,
-        providerConfig,
         triggerPath,
-        requestId,
-        deploymentVersionId,
+        updatedProviderConfig: result.updatedProviderConfig as Record<string, unknown>,
+        externalSubscriptionCreated: result.externalSubscriptionCreated,
       })
-
-      if (createError) {
-        return { success: false, error: createError }
-      }
     } catch (error: any) {
-      logger.error(`[${requestId}] Failed to create webhook for ${block.id}`, error)
+      logger.error(`[${requestId}] Failed to create external subscription for ${block.id}`, error)
+      for (const sub of createdSubscriptions) {
+        if (sub.externalSubscriptionCreated) {
+          try {
+            await cleanupExternalWebhook(
+              {
+                id: sub.webhookId,
+                path: sub.triggerPath,
+                provider: sub.provider,
+                providerConfig: sub.updatedProviderConfig,
+              },
+              workflow,
+              requestId
+            )
+          } catch (cleanupError) {
+            logger.warn(
+              `[${requestId}] Failed to cleanup external subscription for ${sub.block.id}`,
+              cleanupError
+            )
+          }
+        }
+      }
+      for (const block of triggerBlocks) {
+        ;(block as any)._webhookConfig = undefined
+      }
       return {
         success: false,
         error: {
-          message: error?.message || 'Failed to save trigger configuration',
+          message: error?.message || 'Failed to create external subscription',
           status: 500,
         },
       }
     }
   }
 
-  // Clean up temp config
+  // Phase 2: Insert all DB records in a transaction
+  try {
+    await db.transaction(async (tx) => {
+      for (const sub of createdSubscriptions) {
+        await tx.insert(webhook).values({
+          id: sub.webhookId,
+          workflowId,
+          deploymentVersionId: deploymentVersionId || null,
+          blockId: sub.block.id,
+          path: sub.triggerPath,
+          provider: sub.provider,
+          providerConfig: sub.updatedProviderConfig,
+          credentialSetId:
+            (sub.updatedProviderConfig.credentialSetId as string | undefined) || null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+      }
+    })
+
+    for (const sub of createdSubscriptions) {
+      const pollingError = await configurePollingIfNeeded(
+        sub.provider,
+        { id: sub.webhookId, path: sub.triggerPath },
+        requestId
+      )
+      if (pollingError) {
+        logger.warn(`[${requestId}] Polling configuration failed for ${sub.block.id}`, pollingError)
+      }
+    }
+  } catch (error: any) {
+    logger.error(`[${requestId}] Failed to insert webhook records`, error)
+    for (const sub of createdSubscriptions) {
+      if (sub.externalSubscriptionCreated) {
+        try {
+          await cleanupExternalWebhook(
+            {
+              id: sub.webhookId,
+              path: sub.triggerPath,
+              provider: sub.provider,
+              providerConfig: sub.updatedProviderConfig,
+            },
+            workflow,
+            requestId
+          )
+        } catch (cleanupError) {
+          logger.warn(
+            `[${requestId}] Failed to cleanup external subscription for ${sub.block.id}`,
+            cleanupError
+          )
+        }
+      }
+    }
+    for (const block of triggerBlocks) {
+      ;(block as any)._webhookConfig = undefined
+    }
+    return {
+      success: false,
+      error: {
+        message: error?.message || 'Failed to save webhook records',
+        status: 500,
+      },
+    }
+  }
+
   for (const block of triggerBlocks) {
     ;(block as any)._webhookConfig = undefined
   }
@@ -602,12 +671,15 @@ export async function saveTriggerWebhooksForDeploy({
 /**
  * Clean up all webhooks for a workflow during undeploy.
  * Removes external subscriptions and deletes webhook records from the database.
+ *
+ * @param skipExternalCleanup - If true, skip external subscription cleanup (already done elsewhere)
  */
 export async function cleanupWebhooksForWorkflow(
   workflowId: string,
   workflow: Record<string, unknown>,
   requestId: string,
-  deploymentVersionId?: string
+  deploymentVersionId?: string,
+  skipExternalCleanup = false
 ): Promise<void> {
   const existingWebhooks = await db
     .select()
@@ -626,23 +698,26 @@ export async function cleanupWebhooksForWorkflow(
     return
   }
 
-  logger.info(`[${requestId}] Cleaning up ${existingWebhooks.length} webhook(s) for undeploy`, {
-    workflowId,
-    deploymentVersionId,
-    webhookIds: existingWebhooks.map((wh) => wh.id),
-  })
+  logger.info(
+    `[${requestId}] Cleaning up ${existingWebhooks.length} webhook(s) for ${skipExternalCleanup ? 'DB records only' : 'undeploy'}`,
+    {
+      workflowId,
+      deploymentVersionId,
+      webhookIds: existingWebhooks.map((wh) => wh.id),
+    }
+  )
 
-  // Clean up external subscriptions
-  for (const wh of existingWebhooks) {
-    try {
-      await cleanupExternalWebhook(wh, workflow, requestId)
-    } catch (cleanupError) {
-      logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
-      // Continue with other webhooks even if one fails
+  if (!skipExternalCleanup) {
+    for (const wh of existingWebhooks) {
+      try {
+        await cleanupExternalWebhook(wh, workflow, requestId)
+      } catch (cleanupError) {
+        logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
+        // Continue with other webhooks even if one fails
+      }
     }
   }
 
-  // Delete all webhook records
   await db
     .delete(webhook)
     .where(

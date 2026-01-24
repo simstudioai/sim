@@ -135,6 +135,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
     }
 
+    const [currentActiveVersion] = await db
+      .select({ id: workflowDeploymentVersion.id })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .limit(1)
+    const previousVersionId = currentActiveVersion?.id
+
     const deployResult = await deployWorkflow({
       workflowId: id,
       deployedBy: actorUserId,
@@ -161,6 +173,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       blocks: normalizedData.blocks,
       requestId,
       deploymentVersionId,
+      previousVersionId,
     })
 
     if (!triggerSaveResult.success) {
@@ -206,6 +219,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       logger.info(
         `[${requestId}] Schedule created for workflow ${id}: ${scheduleResult.scheduleId}`
       )
+    }
+
+    if (previousVersionId && previousVersionId !== deploymentVersionId) {
+      try {
+        logger.info(`[${requestId}] Cleaning up previous version ${previousVersionId} DB records`)
+        await cleanupDeploymentVersion({
+          workflowId: id,
+          workflow: workflowData as Record<string, unknown>,
+          requestId,
+          deploymentVersionId: previousVersionId,
+          skipExternalCleanup: true,
+        })
+      } catch (cleanupError) {
+        logger.error(
+          `[${requestId}] Failed to clean up previous version ${previousVersionId}`,
+          cleanupError
+        )
+        // Non-fatal - continue with success response
+      }
     }
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)

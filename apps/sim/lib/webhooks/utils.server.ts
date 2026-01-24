@@ -2,6 +2,7 @@ import { db, workflowDeploymentVersion } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type SecureFetchResponse,
@@ -9,7 +10,11 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation'
 import type { DbOrTx } from '@/lib/db/types'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
+import {
+  getCredentialsForCredentialSet,
+  refreshAccessTokenIfNeeded,
+} from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
 
@@ -1997,9 +2002,6 @@ export async function syncWebhooksForCredentialSet(params: {
     `[${requestId}] Syncing webhooks for credential set ${credentialSetId}, provider ${provider}`
   )
 
-  const { getCredentialsForCredentialSet } = await import('@/app/api/auth/oauth/utils')
-  const { nanoid } = await import('nanoid')
-
   // Polling providers get unique paths per credential (for independent state)
   // External webhook providers share the same path (external service sends to one URL)
   const pollingProviders = ['gmail', 'outlook', 'rss', 'imap']
@@ -2174,8 +2176,6 @@ export async function syncAllWebhooksForCredentialSet(
   const dbCtx = tx ?? db
   const syncLogger = createLogger('CredentialSetMembershipSync')
   syncLogger.info(`[${requestId}] Syncing all webhooks for credential set ${credentialSetId}`)
-
-  const { getProviderIdFromServiceId } = await import('@/lib/oauth')
 
   // Find all webhooks that use this credential set using the indexed column
   const webhooksForSet = await dbCtx

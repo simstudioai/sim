@@ -135,6 +135,19 @@ describe('Schedule Deploy Utilities', () => {
       const result = findScheduleBlocks({})
       expect(result).toHaveLength(0)
     })
+
+    it('should exclude disabled schedule blocks', () => {
+      const blocks: Record<string, BlockState> = {
+        'block-1': { id: 'block-1', type: 'schedule', enabled: true, subBlocks: {} } as BlockState,
+        'block-2': { id: 'block-2', type: 'schedule', enabled: false, subBlocks: {} } as BlockState,
+        'block-3': { id: 'block-3', type: 'schedule', subBlocks: {} } as BlockState, // enabled undefined = enabled
+      }
+
+      const result = findScheduleBlocks(blocks)
+
+      expect(result).toHaveLength(2)
+      expect(result.map((b) => b.id)).toEqual(['block-1', 'block-3'])
+    })
   })
 
   describe('validateScheduleBlock', () => {
