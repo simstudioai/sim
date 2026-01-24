@@ -2737,12 +2737,16 @@ export const useCopilotStore = create<CopilotStore>()(
         }))
       }
 
-      get().loadSensitiveCredentialIds().catch((err) => {
-        logger.warn('[Copilot] Failed to load sensitive credential IDs', err)
-      })
-      get().loadAutoAllowedTools().catch((err) => {
-        logger.warn('[Copilot] Failed to load auto-allowed tools', err)
-      })
+      get()
+        .loadSensitiveCredentialIds()
+        .catch((err) => {
+          logger.warn('[Copilot] Failed to load sensitive credential IDs', err)
+        })
+      get()
+        .loadAutoAllowedTools()
+        .catch((err) => {
+          logger.warn('[Copilot] Failed to load auto-allowed tools', err)
+        })
 
       let newMessages: CopilotMessage[]
       if (revertState) {
