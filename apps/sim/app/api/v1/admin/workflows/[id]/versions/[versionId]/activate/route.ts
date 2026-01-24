@@ -85,6 +85,11 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
 
     const workflowData = workflowRecord as Record<string, unknown>
 
+    const scheduleValidation = validateWorkflowSchedules(blocks)
+    if (!scheduleValidation.isValid) {
+      return badRequestResponse(`Invalid schedule configuration: ${scheduleValidation.error}`)
+    }
+
     const triggerSaveResult = await saveTriggerWebhooksForDeploy({
       request,
       workflowId,
@@ -105,11 +110,6 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       return internalErrorResponse(
         triggerSaveResult.error?.message || 'Failed to sync trigger configuration'
       )
-    }
-
-    const scheduleValidation = validateWorkflowSchedules(blocks)
-    if (!scheduleValidation.isValid) {
-      return badRequestResponse(`Invalid schedule configuration: ${scheduleValidation.error}`)
     }
 
     const scheduleResult = await createSchedulesForDeploy(workflowId, blocks, db, versionRow.id)

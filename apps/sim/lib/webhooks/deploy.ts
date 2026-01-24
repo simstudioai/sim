@@ -623,7 +623,14 @@ export async function saveTriggerWebhooksForDeploy({
         requestId
       )
       if (pollingError) {
-        logger.warn(`[${requestId}] Polling configuration failed for ${sub.block.id}`, pollingError)
+        logger.error(
+          `[${requestId}] Polling configuration failed for ${sub.block.id}`,
+          pollingError
+        )
+        for (const block of triggerBlocks) {
+          ;(block as any)._webhookConfig = undefined
+        }
+        return { success: false, error: pollingError }
       }
     }
   } catch (error: any) {

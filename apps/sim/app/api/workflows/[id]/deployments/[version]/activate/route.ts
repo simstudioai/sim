@@ -85,6 +85,11 @@ export async function POST(
       return createErrorResponse('Invalid deployed state structure', 500)
     }
 
+    const scheduleValidation = validateWorkflowSchedules(blocks)
+    if (!scheduleValidation.isValid) {
+      return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
+    }
+
     const triggerSaveResult = await saveTriggerWebhooksForDeploy({
       request,
       workflowId: id,
@@ -102,11 +107,6 @@ export async function POST(
         triggerSaveResult.error?.message || 'Failed to sync trigger configuration',
         triggerSaveResult.error?.status || 500
       )
-    }
-
-    const scheduleValidation = validateWorkflowSchedules(blocks)
-    if (!scheduleValidation.isValid) {
-      return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
     }
 
     const scheduleResult = await createSchedulesForDeploy(id, blocks, db, versionRow.id)
