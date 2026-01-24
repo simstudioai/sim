@@ -61,7 +61,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
@@ -1100,7 +1099,6 @@ const WorkflowContent = React.memo(() => {
   const isAutoConnectSourceCandidate = useCallback((block: BlockState): boolean => {
     if (!block.enabled) return false
     if (block.type === 'response') return false
-    if (isAnnotationOnlyBlock(block.type)) return false
     return true
   }, [])
 
@@ -1248,25 +1246,12 @@ const WorkflowContent = React.memo(() => {
       position: { x: number; y: number },
       targetBlockId: string,
       options: {
-        blockType: string
-        enableTriggerMode?: boolean
         targetParentId?: string | null
         existingChildBlocks?: { id: string; type: string; position: { x: number; y: number } }[]
         containerId?: string
       }
     ): Edge | undefined => {
       if (!autoConnectRef.current) return undefined
-
-      // Don't auto-connect starter or annotation-only blocks
-      if (options.blockType === 'starter' || isAnnotationOnlyBlock(options.blockType)) {
-        return undefined
-      }
-
-      // Check if target is a trigger block
-      const targetBlockConfig = getBlock(options.blockType)
-      const isTargetTrigger =
-        options.enableTriggerMode || targetBlockConfig?.category === 'triggers'
-      if (isTargetTrigger) return undefined
 
       // Case 1: Adding block inside a container with existing children
       if (options.existingChildBlocks && options.existingChildBlocks.length > 0) {
@@ -1375,7 +1360,6 @@ const WorkflowContent = React.memo(() => {
           const name = getUniqueBlockName(baseName, blocks)
 
           const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-            blockType: data.type,
             targetParentId: null,
           })
 
@@ -1446,8 +1430,6 @@ const WorkflowContent = React.memo(() => {
             .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
           const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
-            blockType: data.type,
-            enableTriggerMode: data.enableTriggerMode,
             targetParentId: containerInfo.loopId,
             existingChildBlocks,
             containerId: containerInfo.loopId,
@@ -1476,8 +1458,6 @@ const WorkflowContent = React.memo(() => {
           if (checkTriggerConstraints(data.type)) return
 
           const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-            blockType: data.type,
-            enableTriggerMode: data.enableTriggerMode,
             targetParentId: null,
           })
 
@@ -1533,7 +1513,6 @@ const WorkflowContent = React.memo(() => {
         const name = getUniqueBlockName(baseName, blocks)
 
         const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
-          blockType: type,
           targetParentId: null,
         })
 
@@ -1569,8 +1548,6 @@ const WorkflowContent = React.memo(() => {
       const name = getUniqueBlockName(baseName, blocks)
 
       const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
-        blockType: type,
-        enableTriggerMode,
         targetParentId: null,
       })
 
@@ -2371,18 +2348,6 @@ const WorkflowContent = React.memo(() => {
 
         if (!sourceNode || !targetNode) return
 
-        if (
-          isAnnotationOnlyBlock(sourceNode.data?.type) ||
-          isAnnotationOnlyBlock(targetNode.data?.type)
-        ) {
-          return
-        }
-
-        const targetBlock = blocks[targetNode.id]
-        if (targetBlock && TriggerUtils.isTriggerBlock(targetBlock)) {
-          return
-        }
-
         // Get parent information (handle container start node case)
         const sourceParentId =
           blocks[sourceNode.id]?.data?.parentId ||
@@ -2788,7 +2753,6 @@ const WorkflowContent = React.memo(() => {
           .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
         const autoConnectEdge = tryCreateAutoConnectEdge(relativePositionBefore, node.id, {
-          blockType: node.data?.type || '',
           targetParentId: potentialParentId,
           existingChildBlocks,
           containerId: potentialParentId,

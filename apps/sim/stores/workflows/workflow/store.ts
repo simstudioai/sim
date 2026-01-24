@@ -108,19 +108,7 @@ function filterValidEdges(
   edges: Edge[],
   blocks: Record<string, { type: string; triggerMode?: boolean }>
 ): Edge[] {
-  return edges.filter((edge) => {
-    const valid = isValidEdge(edge, blocks)
-    if (!valid) {
-      logger.warn('Filtered invalid edge', {
-        edgeId: edge.id,
-        source: edge.source,
-        target: edge.target,
-        sourceType: blocks[edge.source]?.type,
-        targetType: blocks[edge.target]?.type,
-      })
-    }
-    return valid
-  })
+  return edges.filter((edge) => isValidEdge(edge, blocks))
 }
 
 const initialState = {
