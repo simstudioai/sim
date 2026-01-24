@@ -4,6 +4,7 @@ import { memo, useEffect, useState } from 'react'
 import { Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { safelyRenderValue } from '@/lib/core/utils/formatting'
 
 /**
  * Represents a single todo item
@@ -148,7 +149,7 @@ export const TodoList = memo(function TodoList({
                     : 'text-[var(--text-primary)]'
                 )}
               >
-                {todo.content}
+                {safelyRenderValue(todo.content)}
               </span>
             </div>
           ))}
