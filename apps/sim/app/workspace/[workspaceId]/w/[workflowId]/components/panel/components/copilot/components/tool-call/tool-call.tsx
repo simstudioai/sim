@@ -1260,8 +1260,6 @@ async function handleRun(
   const instance = getClientTool(toolCall.id)
 
   if (!instance && isIntegrationTool(toolCall.name)) {
-    // Note: Don't set state to 'executing' here - executeIntegrationTool handles it internally
-    // and has a guard that skips if already executing (which would cause the tool to get stuck)
     onStateChange?.('executing')
     try {
       await useCopilotStore.getState().executeIntegrationTool(toolCall.id)
