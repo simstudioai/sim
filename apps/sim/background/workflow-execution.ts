@@ -20,7 +20,6 @@ export type WorkflowExecutionPayload = {
   input?: any
   triggerType?: CoreTriggerType
   metadata?: Record<string, any>
-  preflighted?: boolean
 }
 
 /**
@@ -52,7 +51,6 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       checkRateLimit: true,
       checkDeployment: true,
       loggingSession: loggingSession,
-      preflightEnvVars: !payload.preflighted,
     })
 
     if (!preprocessResult.success) {

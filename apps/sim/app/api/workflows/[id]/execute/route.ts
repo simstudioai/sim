@@ -116,7 +116,6 @@ type AsyncExecutionParams = {
   userId: string
   input: any
   triggerType: CoreTriggerType
-  preflighted?: boolean
 }
 
 /**
@@ -139,7 +138,6 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     userId,
     input,
     triggerType,
-    preflighted: params.preflighted,
   }
 
   try {
@@ -276,7 +274,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       requestId
     )
 
-    const shouldPreflightEnvVars = isAsyncMode && isTriggerDevEnabled
     const preprocessResult = await preprocessExecution({
       workflowId,
       userId,
@@ -285,9 +282,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       requestId,
       checkDeployment: !shouldUseDraftState,
       loggingSession,
-      preflightEnvVars: shouldPreflightEnvVars,
       useDraftState: shouldUseDraftState,
-      envUserId: isClientSession ? userId : undefined,
     })
 
     if (!preprocessResult.success) {
@@ -319,7 +314,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         userId: actorUserId,
         input,
         triggerType: loggingTriggerType,
-        preflighted: shouldPreflightEnvVars,
       })
     }
 

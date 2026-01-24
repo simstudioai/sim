@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import { createExternalWebhookSubscription } from '@/lib/webhooks/provider-subscriptions'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -298,14 +299,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let savedWebhook: any = null // Variable to hold the result of save/update
-
-    // Use the original provider config - Gmail/Outlook configuration functions will inject userId automatically
-    const finalProviderConfig = providerConfig || {}
-
-    const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
+    let savedWebhook: any = null
+    const originalProviderConfig = providerConfig || {}
     let resolvedProviderConfig = await resolveEnvVarsInObject(
-      finalProviderConfig,
+      originalProviderConfig,
       userId,
       workflowRecord.workspaceId || undefined
     )
@@ -469,6 +466,8 @@ export async function POST(request: NextRequest) {
       providerConfig: providerConfigOverride,
     })
 
+    const configToSave = { ...originalProviderConfig }
+
     try {
       const result = await createExternalWebhookSubscription(
         request,
@@ -477,7 +476,13 @@ export async function POST(request: NextRequest) {
         userId,
         requestId
       )
-      resolvedProviderConfig = result.updatedProviderConfig as Record<string, unknown>
+      const updatedConfig = result.updatedProviderConfig as Record<string, unknown>
+      for (const [key, value] of Object.entries(updatedConfig)) {
+        if (!(key in originalProviderConfig)) {
+          configToSave[key] = value
+        }
+      }
+      resolvedProviderConfig = updatedConfig
       externalSubscriptionCreated = result.externalSubscriptionCreated
     } catch (err) {
       logger.error(`[${requestId}] Error creating external webhook subscription`, err)
@@ -490,25 +495,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Now save to database (only if subscription succeeded or provider doesn't need external subscription)
     try {
       if (targetWebhookId) {
         logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`, {
           webhookId: targetWebhookId,
           provider,
-          hasCredentialId: !!(resolvedProviderConfig as any)?.credentialId,
-          credentialId: (resolvedProviderConfig as any)?.credentialId,
+          hasCredentialId: !!(configToSave as any)?.credentialId,
+          credentialId: (configToSave as any)?.credentialId,
         })
         const updatedResult = await db
           .update(webhook)
           .set({
             blockId,
             provider,
-            providerConfig: resolvedProviderConfig,
+            providerConfig: configToSave,
             credentialSetId:
-              ((resolvedProviderConfig as Record<string, unknown>)?.credentialSetId as
-                | string
-                | null) || null,
+              ((configToSave as Record<string, unknown>)?.credentialSetId as string | null) || null,
             isActive: true,
             updatedAt: new Date(),
           })
@@ -531,11 +533,9 @@ export async function POST(request: NextRequest) {
             blockId,
             path: finalPath,
             provider,
-            providerConfig: resolvedProviderConfig,
+            providerConfig: configToSave,
             credentialSetId:
-              ((resolvedProviderConfig as Record<string, unknown>)?.credentialSetId as
-                | string
-                | null) || null,
+              ((configToSave as Record<string, unknown>)?.credentialSetId as string | null) || null,
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -549,7 +549,7 @@ export async function POST(request: NextRequest) {
         try {
           const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
           await cleanupExternalWebhook(
-            createTempWebhookData(resolvedProviderConfig),
+            createTempWebhookData(configToSave),
             workflowRecord,
             requestId
           )

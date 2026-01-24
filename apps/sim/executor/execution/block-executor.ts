@@ -1,7 +1,4 @@
-import { db } from '@sim/db'
-import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   containsUserFileWithMetadata,
@@ -85,10 +82,6 @@ export class BlockExecutor {
       }
 
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-
-      if (block.metadata?.id === BlockType.AGENT && resolvedInputs.tools) {
-        resolvedInputs = await this.filterUnavailableMcpToolsForLog(ctx, resolvedInputs)
-      }
 
       if (blockLog) {
         blockLog.input = resolvedInputs
@@ -435,60 +428,6 @@ export class BlockExecutor {
     }
 
     return undefined
-  }
-
-  /**
-   * Filters out unavailable MCP tools from agent inputs for logging.
-   * Only includes tools from servers with 'connected' status.
-   */
-  private async filterUnavailableMcpToolsForLog(
-    ctx: ExecutionContext,
-    inputs: Record<string, any>
-  ): Promise<Record<string, any>> {
-    const tools = inputs.tools
-    if (!Array.isArray(tools) || tools.length === 0) return inputs
-
-    const mcpTools = tools.filter((t: any) => t.type === 'mcp')
-    if (mcpTools.length === 0) return inputs
-
-    const serverIds = [
-      ...new Set(mcpTools.map((t: any) => t.params?.serverId).filter(Boolean)),
-    ] as string[]
-    if (serverIds.length === 0) return inputs
-
-    const availableServerIds = new Set<string>()
-    if (ctx.workspaceId && serverIds.length > 0) {
-      try {
-        const servers = await db
-          .select({ id: mcpServers.id, connectionStatus: mcpServers.connectionStatus })
-          .from(mcpServers)
-          .where(
-            and(
-              eq(mcpServers.workspaceId, ctx.workspaceId),
-              inArray(mcpServers.id, serverIds),
-              isNull(mcpServers.deletedAt)
-            )
-          )
-
-        for (const server of servers) {
-          if (server.connectionStatus === 'connected') {
-            availableServerIds.add(server.id)
-          }
-        }
-      } catch (error) {
-        logger.warn('Failed to check MCP server availability for logging:', error)
-        return inputs
-      }
-    }
-
-    const filteredTools = tools.filter((tool: any) => {
-      if (tool.type !== 'mcp') return true
-      const serverId = tool.params?.serverId
-      if (!serverId) return false
-      return availableServerIds.has(serverId)
-    })
-
-    return { ...inputs, tools: filteredTools }
   }
 
   private preparePauseResumeSelfReference(

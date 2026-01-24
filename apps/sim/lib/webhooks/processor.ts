@@ -413,13 +413,7 @@ export async function findAllWebhooksForPath(
  * @returns String with all {{VARIABLE}} references replaced
  */
 function resolveEnvVars(value: string, envVars: Record<string, string>): string {
-  return resolveEnvVarReferences(value, envVars, {
-    allowEmbedded: true,
-    resolveExactMatch: true,
-    trimKeys: true,
-    onMissing: 'keep',
-    deep: false,
-  }) as string
+  return resolveEnvVarReferences(value, envVars) as string
 }
 
 /**
@@ -804,7 +798,6 @@ export async function checkWebhookPreprocessing(
       checkRateLimit: true,
       checkDeployment: true,
       workspaceId: foundWorkflow.workspaceId,
-      preflightEnvVars: isTriggerDevEnabled,
     })
 
     if (!preprocessResult.success) {

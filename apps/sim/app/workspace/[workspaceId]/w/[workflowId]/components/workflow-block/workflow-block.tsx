@@ -7,7 +7,7 @@ import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { createMcpToolId } from '@/lib/mcp/utils'
+import { createMcpToolId } from '@/lib/mcp/shared'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {

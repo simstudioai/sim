@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
 import type { McpTransport } from '@/lib/mcp/types'
-import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/utils'
 
 const logger = createLogger('useMcpServerTest')
 

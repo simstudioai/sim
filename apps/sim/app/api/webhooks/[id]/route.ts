@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth'
 import { validateInteger } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
@@ -112,9 +113,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
+    const originalProviderConfig = providerConfig
     let resolvedProviderConfig = providerConfig
     if (providerConfig) {
-      const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
       const webhookDataForResolve = await db
         .select({
           workspaceId: workflow.workspaceId,
@@ -230,19 +231,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       hasFailedCountUpdate: failedCount !== undefined,
     })
 
-    // Merge providerConfig to preserve credential-related fields
     let finalProviderConfig = webhooks[0].webhook.providerConfig
-    if (providerConfig !== undefined) {
+    if (providerConfig !== undefined && originalProviderConfig) {
       const existingConfig = existingProviderConfig
       finalProviderConfig = {
-        ...nextProviderConfig,
+        ...originalProviderConfig,
         credentialId: existingConfig.credentialId,
         credentialSetId: existingConfig.credentialSetId,
         userId: existingConfig.userId,
         historyId: existingConfig.historyId,
         lastCheckedTimestamp: existingConfig.lastCheckedTimestamp,
         setupCompleted: existingConfig.setupCompleted,
-        externalId: nextProviderConfig.externalId ?? existingConfig.externalId,
+        externalId: existingConfig.externalId,
+      }
+      for (const [key, value] of Object.entries(nextProviderConfig)) {
+        if (!(key in originalProviderConfig)) {
+          ;(finalProviderConfig as Record<string, unknown>)[key] = value
+        }
       }
     }
 

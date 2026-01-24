@@ -10,7 +10,7 @@ import { useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { McpIcon } from '@/components/icons'
-import { createMcpToolId } from '@/lib/mcp/utils'
+import { createMcpToolId } from '@/lib/mcp/shared'
 import { mcpKeys, useMcpToolsQuery } from '@/hooks/queries/mcp'
 
 const logger = createLogger('useMcpTools')

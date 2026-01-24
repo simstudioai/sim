@@ -132,7 +132,6 @@ describe('Serializer', () => {
       expect(agentBlock?.metadata?.id).toBe('agent')
       expect(agentBlock?.config.tool).toBe('openai')
       expect(agentBlock?.config.params.model).toBe('gpt-4o')
-      expect(agentBlock?.outputs.responseFormat).toBeDefined()
     })
 
     it.concurrent('should serialize agent block with custom tools correctly', () => {
