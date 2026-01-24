@@ -16,7 +16,7 @@ import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
-import type { ExecutionResult } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -578,12 +578,13 @@ async function executeWebhookJobInternal(
         deploymentVersionId,
       })
 
-      const errorWithResult = error as { executionResult?: ExecutionResult }
-      const executionResult = errorWithResult?.executionResult || {
-        success: false,
-        output: {},
-        logs: [],
-      }
+      const executionResult = hasExecutionResult(error)
+        ? error.executionResult
+        : {
+            success: false,
+            output: {},
+            logs: [],
+          }
       const { traceSpans } = buildTraceSpans(executionResult)
 
       await loggingSession.safeCompleteWithError({

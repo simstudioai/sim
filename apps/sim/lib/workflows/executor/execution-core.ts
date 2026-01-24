@@ -24,6 +24,7 @@ import type {
   IterationContext,
 } from '@/executor/execution/types'
 import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
@@ -383,20 +384,15 @@ export async function executeWorkflowCore(
   } catch (error: unknown) {
     logger.error(`[${requestId}] Execution failed:`, error)
 
-    const errorWithResult = error as {
-      executionResult?: ExecutionResult
-      message?: string
-      stack?: string
-    }
-    const executionResult = errorWithResult?.executionResult
+    const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
     const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
       totalDurationMs: executionResult?.metadata?.duration || 0,
       error: {
-        message: errorWithResult?.message || 'Execution failed',
-        stackTrace: errorWithResult?.stack,
+        message: error instanceof Error ? error.message : 'Execution failed',
+        stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,
     })

@@ -9,7 +9,7 @@ import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-m
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
-import type { ExecutionResult } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('TriggerWorkflowExecution')
@@ -160,8 +160,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       executionId,
     })
 
-    const errorWithResult = error as { executionResult?: ExecutionResult }
-    const executionResult = errorWithResult?.executionResult
+    const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
     const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
     await loggingSession.safeCompleteWithError({

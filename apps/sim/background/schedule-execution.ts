@@ -21,7 +21,7 @@ import {
 } from '@/lib/workflows/schedules/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
-import type { ExecutionResult } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('TriggerScheduleExecution')
@@ -231,8 +231,7 @@ async function runWorkflowExecution({
   } catch (error: unknown) {
     logger.error(`[${requestId}] Early failure in scheduled workflow ${payload.workflowId}`, error)
 
-    const errorWithResult = error as { executionResult?: ExecutionResult }
-    const executionResult = errorWithResult?.executionResult
+    const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
     const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
     await loggingSession.safeCompleteWithError({

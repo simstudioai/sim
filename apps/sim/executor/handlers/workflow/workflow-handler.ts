@@ -139,14 +139,14 @@ export class WorkflowBlockHandler implements BlockHandler {
       )
 
       return mappedResult
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
       const { workflows } = useWorkflowRegistry.getState()
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
 
-      const originalError = error.message || 'Unknown error'
+      const originalError = error instanceof Error ? error.message : 'Unknown error'
       let childTraceSpans: WorkflowTraceSpan[] = []
       let executionResult: ExecutionResult | undefined
 
@@ -170,7 +170,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowName,
         childTraceSpans,
         executionResult,
-        cause: error,
+        cause: error instanceof Error ? error : undefined,
       })
     }
   }
