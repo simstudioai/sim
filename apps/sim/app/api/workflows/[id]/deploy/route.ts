@@ -4,7 +4,11 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { cleanupWebhooksForWorkflow, saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
+import {
+  cleanupWebhooksForWorkflow,
+  restorePreviousVersionWebhooks,
+  saveTriggerWebhooksForDeploy,
+} from '@/lib/webhooks/deploy'
 import {
   deployWorkflow,
   loadWorkflowFromNormalizedTables,
@@ -207,6 +211,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         requestId,
         deploymentVersionId,
       })
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData as Record<string, unknown>,
+          userId: actorUserId,
+          previousVersionId,
+          requestId,
+        })
+      }
       await undeployWorkflow({ workflowId: id })
       return createErrorResponse(scheduleResult.error || 'Failed to create schedule', 500)
     }

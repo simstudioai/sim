@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
+import { restorePreviousVersionWebhooks, saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
 import { activateWorkflowVersion } from '@/lib/workflows/persistence/utils'
 import {
   cleanupDeploymentVersion,
@@ -121,6 +121,15 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
         requestId,
         deploymentVersionId: versionRow.id,
       })
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData,
+          userId: workflowRecord.userId,
+          previousVersionId,
+          requestId,
+        })
+      }
       return internalErrorResponse(scheduleResult.error || 'Failed to sync schedules')
     }
 
@@ -132,6 +141,15 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
         requestId,
         deploymentVersionId: versionRow.id,
       })
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData,
+          userId: workflowRecord.userId,
+          previousVersionId,
+          requestId,
+        })
+      }
       if (result.error === 'Deployment version not found') {
         return notFoundResponse('Deployment version')
       }

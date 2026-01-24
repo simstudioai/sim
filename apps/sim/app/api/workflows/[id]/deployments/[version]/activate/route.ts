@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
+import { restorePreviousVersionWebhooks, saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
 import { activateWorkflowVersion } from '@/lib/workflows/persistence/utils'
 import {
   cleanupDeploymentVersion,
@@ -118,6 +118,15 @@ export async function POST(
         requestId,
         deploymentVersionId: versionRow.id,
       })
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData as Record<string, unknown>,
+          userId: actorUserId,
+          previousVersionId,
+          requestId,
+        })
+      }
       return createErrorResponse(scheduleResult.error || 'Failed to sync schedules', 500)
     }
 
@@ -129,6 +138,15 @@ export async function POST(
         requestId,
         deploymentVersionId: versionRow.id,
       })
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData as Record<string, unknown>,
+          userId: actorUserId,
+          previousVersionId,
+          requestId,
+        })
+      }
       return createErrorResponse(result.error || 'Failed to activate deployment', 400)
     }
 

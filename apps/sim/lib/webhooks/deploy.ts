@@ -422,7 +422,14 @@ export async function saveTriggerWebhooksForDeploy({
     existingWebhookBlockIds: Array.from(webhooksByBlockId.keys()),
   })
 
-  // 2. Determine which webhooks to delete (orphaned or config changed)
+  type WebhookConfig = {
+    provider: string
+    providerConfig: Record<string, unknown>
+    triggerPath: string
+    triggerDef: ReturnType<typeof getTrigger>
+  }
+  const webhookConfigs = new Map<string, WebhookConfig>()
+
   const webhooksToDelete: typeof existingWebhooks = []
   const blocksNeedingWebhook: BlockState[] = []
   const blocksNeedingCredentialSetSync: BlockState[] = []
@@ -449,9 +456,8 @@ export async function saveTriggerWebhooksForDeploy({
         },
       }
     }
-    // Store config for later use
 
-    ;(block as any)._webhookConfig = { provider, providerConfig, triggerPath, triggerDef }
+    webhookConfigs.set(block.id, { provider, providerConfig, triggerPath, triggerDef })
 
     if (providerConfig.credentialSetId) {
       blocksNeedingCredentialSetSync.push(block)
@@ -523,9 +529,8 @@ export async function saveTriggerWebhooksForDeploy({
     await db.delete(webhook).where(inArray(webhook.id, idsToDelete))
   }
 
-  // 4. Sync credential set webhooks
   for (const block of blocksNeedingCredentialSetSync) {
-    const config = (block as any)._webhookConfig
+    const config = webhookConfigs.get(block.id)
     if (!config) continue
 
     const { provider, providerConfig, triggerPath } = config
@@ -568,9 +573,8 @@ export async function saveTriggerWebhooksForDeploy({
     externalSubscriptionCreated: boolean
   }> = []
 
-  // Phase 1: Create all external subscriptions
   for (const block of blocksNeedingWebhook) {
-    const config = (block as any)._webhookConfig
+    const config = webhookConfigs.get(block.id)
     if (!config) continue
 
     const { provider, providerConfig, triggerPath } = config
@@ -622,9 +626,6 @@ export async function saveTriggerWebhooksForDeploy({
           }
         }
       }
-      for (const block of triggerBlocks) {
-        ;(block as any)._webhookConfig = undefined
-      }
       await restorePreviousSubscriptions()
       return {
         success: false,
@@ -668,8 +669,33 @@ export async function saveTriggerWebhooksForDeploy({
           `[${requestId}] Polling configuration failed for ${sub.block.id}`,
           pollingError
         )
-        for (const block of triggerBlocks) {
-          ;(block as any)._webhookConfig = undefined
+        for (const otherSub of createdSubscriptions) {
+          if (otherSub.webhookId === sub.webhookId) continue
+          if (otherSub.externalSubscriptionCreated) {
+            try {
+              await cleanupExternalWebhook(
+                {
+                  id: otherSub.webhookId,
+                  path: otherSub.triggerPath,
+                  provider: otherSub.provider,
+                  providerConfig: otherSub.updatedProviderConfig,
+                },
+                workflow,
+                requestId
+              )
+            } catch (cleanupError) {
+              logger.warn(
+                `[${requestId}] Failed to cleanup external subscription for ${otherSub.block.id}`,
+                cleanupError
+              )
+            }
+          }
+        }
+        const otherWebhookIds = createdSubscriptions
+          .filter((s) => s.webhookId !== sub.webhookId)
+          .map((s) => s.webhookId)
+        if (otherWebhookIds.length > 0) {
+          await db.delete(webhook).where(inArray(webhook.id, otherWebhookIds))
         }
         await restorePreviousSubscriptions()
         return { success: false, error: pollingError }
@@ -698,9 +724,6 @@ export async function saveTriggerWebhooksForDeploy({
         }
       }
     }
-    for (const block of triggerBlocks) {
-      ;(block as any)._webhookConfig = undefined
-    }
     await restorePreviousSubscriptions()
     return {
       success: false,
@@ -709,10 +732,6 @@ export async function saveTriggerWebhooksForDeploy({
         status: 500,
       },
     }
-  }
-
-  for (const block of triggerBlocks) {
-    ;(block as any)._webhookConfig = undefined
   }
 
   return { success: true }
@@ -784,4 +803,56 @@ export async function cleanupWebhooksForWorkflow(
       ? `[${requestId}] Cleaned up webhooks for workflow ${workflowId} deployment ${deploymentVersionId}`
       : `[${requestId}] Cleaned up all webhooks for workflow ${workflowId}`
   )
+}
+
+/**
+ * Restore external subscriptions for a previous deployment version.
+ * Used when activation/deployment fails after webhooks were created,
+ * to restore the previous version's external subscriptions.
+ */
+export async function restorePreviousVersionWebhooks(params: {
+  request: NextRequest
+  workflow: Record<string, unknown>
+  userId: string
+  previousVersionId: string
+  requestId: string
+}): Promise<void> {
+  const { request, workflow, userId, previousVersionId, requestId } = params
+
+  const previousWebhooks = await db
+    .select()
+    .from(webhook)
+    .where(eq(webhook.deploymentVersionId, previousVersionId))
+
+  if (previousWebhooks.length === 0) {
+    logger.debug(`[${requestId}] No previous webhooks to restore for version ${previousVersionId}`)
+    return
+  }
+
+  logger.info(
+    `[${requestId}] Restoring ${previousWebhooks.length} external subscription(s) for previous version ${previousVersionId}`
+  )
+
+  for (const wh of previousWebhooks) {
+    try {
+      await createExternalWebhookSubscription(
+        request,
+        {
+          id: wh.id,
+          path: wh.path,
+          provider: wh.provider,
+          providerConfig: (wh.providerConfig as Record<string, unknown>) || {},
+        },
+        workflow,
+        userId,
+        requestId
+      )
+      logger.info(`[${requestId}] Restored external subscription for webhook ${wh.id}`)
+    } catch (restoreError) {
+      logger.error(
+        `[${requestId}] Failed to restore external subscription for webhook ${wh.id}`,
+        restoreError
+      )
+    }
+  }
 }
