@@ -221,8 +221,6 @@ export class BlockExecutor {
     if (ChildWorkflowError.isChildWorkflowError(error)) {
       errorOutput.childTraceSpans = error.childTraceSpans
       errorOutput.childWorkflowName = error.childWorkflowName
-    } else if (error && typeof error === 'object' && 'childTraceSpans' in error) {
-      errorOutput.childTraceSpans = (error as any).childTraceSpans
     }
 
     this.state.setBlockOutput(node.id, errorOutput, duration)
