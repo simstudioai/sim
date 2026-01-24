@@ -159,7 +159,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childTraceSpans = this.captureChildWorkflowLogs(executionResult, childWorkflowName, ctx)
 
         logger.info(`Captured ${childTraceSpans.length} child trace spans from failed execution`)
-      } else if (error.childTraceSpans && Array.isArray(error.childTraceSpans)) {
+      } else if (ChildWorkflowError.isChildWorkflowError(error)) {
         childTraceSpans = error.childTraceSpans
       }
 
