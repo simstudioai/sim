@@ -29,7 +29,6 @@ spec:
       secretName: {{ .Values.ingressInternal.tls.secretName }}
   {{- end }}
   rules:
-    # Main application
     - host: {{ .Values.ingressInternal.app.host | quote }}
       http:
         paths:
@@ -64,8 +63,6 @@ spec:
                 port:
                   number: {{ $.Values.app.service.port }}
           {{- end }}
-
-    # Realtime service
     {{- if and .Values.realtime.enabled (ne .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
     - host: {{ .Values.ingressInternal.realtime.host | quote }}
       http:
@@ -79,7 +76,7 @@ spec:
                 port:
                   number: {{ $.Values.realtime.service.port }}
           {{- end }}
-          {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (eq .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host) (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) }}
+          {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (eq .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host) }}
           {{- range .Values.ingressInternal.copilot.paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
@@ -91,8 +88,6 @@ spec:
           {{- end }}
           {{- end }}
     {{- end }}
-
-    # Copilot service
     {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (and (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host)) }}
     - host: {{ .Values.ingressInternal.copilot.host | quote }}
       http:

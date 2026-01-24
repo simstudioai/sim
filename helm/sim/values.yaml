@@ -552,64 +552,66 @@ ollama:
   extraVolumeMounts: []
 
 # Ingress configuration
+# When services share the same host, paths are consolidated into a single rule.
+# Path order: realtime paths, copilot paths, then app paths (most specific first).
+# Ensure specific paths (e.g., /socket.io, /copilot) come before catch-all paths (/).
 ingress:
-  # Enable/disable ingress
   enabled: false
-  
-  # Ingress class name
   className: nginx
-  
-  # Annotations
+
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-  
-  # Main application host configuration
+
+  # Main application (use / as catch-all)
   app:
     host: sim.local
     paths:
       - path: /
         pathType: Prefix
-  
-  # Realtime service host configuration
+
+  # Realtime service (use /socket.io when sharing host with app)
   realtime:
     host: sim-ws.local
     paths:
       - path: /
         pathType: Prefix
-  
-  # TLS configuration
+
+  # Copilot service (optional, use /copilot when sharing host)
+  # copilot:
+  #   host: sim.local
+  #   paths:
+  #     - path: /copilot
+  #       pathType: Prefix
+
   tls:
     enabled: false
     secretName: sim-tls-secret
 
 # Internal Ingress configuration
+# Same path ordering rules apply as above.
 ingressInternal:
   enabled: false
   className: nginx
   annotations: {}
 
-  # Main application
   app:
     host: sim-internal.local
     paths:
       - path: /
         pathType: Prefix
 
-  # Realtime service
   realtime:
     host: sim-internal.local
     paths:
       - path: /socket.io
         pathType: Prefix
 
-  # Copilot service (optional)
   # copilot:
   #   host: sim-internal.local
   #   paths:
   #     - path: /copilot
   #       pathType: Prefix
 
-  # TLS configuration
   tls:
     enabled: false
     secretName: sim-internal-tls-secret
