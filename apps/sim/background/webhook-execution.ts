@@ -17,7 +17,7 @@ import { getWorkflowById } from '@/lib/workflows/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
-import { safeAssign } from '@/tools/utils'
+import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')

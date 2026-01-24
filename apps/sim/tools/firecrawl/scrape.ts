@@ -1,6 +1,6 @@
 import type { ScrapeParams, ScrapeResponse } from '@/tools/firecrawl/types'
+import { safeAssign } from '@/tools/safe-assign'
 import type { ToolConfig } from '@/tools/types'
-import { safeAssign } from '@/tools/utils'
 
 export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   id: 'firecrawl_scrape',

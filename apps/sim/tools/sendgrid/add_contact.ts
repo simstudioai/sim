@@ -1,3 +1,4 @@
+import { safeAssign } from '@/tools/safe-assign'
 import type {
   AddContactParams,
   ContactResult,
@@ -5,7 +6,6 @@ import type {
   SendGridContactRequest,
 } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeAssign } from '@/tools/utils'
 
 export const sendGridAddContactTool: ToolConfig<AddContactParams, ContactResult> = {
   id: 'sendgrid_add_contact',

@@ -8,7 +8,7 @@ import {
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { NormalizedBlockOutput, UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
-import { safeAssign } from '@/tools/utils'
+import { safeAssign } from '@/tools/safe-assign'
 
 type ExecutionKind = 'chat' | 'manual' | 'api'
 

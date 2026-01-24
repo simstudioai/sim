@@ -5,9 +5,10 @@ import {
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
+import { safeAssign } from '@/tools/safe-assign'
 import { isEmptyTagValue } from '@/tools/shared/tags'
 import type { ParameterVisibility, ToolConfig } from '@/tools/types'
-import { getTool, safeAssign } from '@/tools/utils'
+import { getTool } from '@/tools/utils'
 
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
