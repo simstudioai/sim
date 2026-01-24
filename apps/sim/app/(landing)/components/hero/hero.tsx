@@ -1,16 +1,7 @@
 'use client'
 
 import React from 'react'
-import {
-  ArrowUp,
-  BinaryIcon,
-  BookIcon,
-  CalendarIcon,
-  CodeIcon,
-  Globe2Icon,
-  MessageSquareIcon,
-  VariableIcon,
-} from 'lucide-react'
+import { ArrowUp, CodeIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { type Edge, type Node, Position } from 'reactflow'
 import {
@@ -23,7 +14,6 @@ import {
   JiraIcon,
   LinearIcon,
   NotionIcon,
-  OpenAIIcon,
   OutlookIcon,
   PackageSearchIcon,
   PineconeIcon,
@@ -65,67 +55,56 @@ const SERVICE_TEMPLATES = {
 
 /**
  * Landing blocks for the canvas preview
+ * Styled to match the application's workflow blocks with subblock rows
  */
 const LANDING_BLOCKS: LandingManualBlock[] = [
   {
     id: 'schedule',
     name: 'Schedule',
     color: '#7B68EE',
-    icon: <ScheduleIcon className='h-4 w-4' />,
+    icon: <ScheduleIcon className='h-[16px] w-[16px] text-white' />,
     positions: {
       mobile: { x: 8, y: 60 },
       tablet: { x: 40, y: 120 },
       desktop: { x: 60, y: 180 },
     },
-    tags: [
-      { icon: <CalendarIcon className='h-3 w-3' />, label: '09:00AM Daily' },
-      { icon: <Globe2Icon className='h-3 w-3' />, label: 'PST' },
-    ],
+    tags: [{ label: 'Time: 09:00AM Daily' }, { label: 'Timezone: PST' }],
   },
   {
     id: 'knowledge',
     name: 'Knowledge',
     color: '#00B0B0',
-    icon: <PackageSearchIcon className='h-4 w-4' />,
+    icon: <PackageSearchIcon className='h-[16px] w-[16px] text-white' />,
     positions: {
       mobile: { x: 120, y: 140 },
       tablet: { x: 220, y: 200 },
       desktop: { x: 420, y: 241 },
     },
-    tags: [
-      { icon: <BookIcon className='h-3 w-3' />, label: 'Product Vector DB' },
-      { icon: <BinaryIcon className='h-3 w-3' />, label: 'Limit: 10' },
-    ],
+    tags: [{ label: 'Source: Product Vector DB' }, { label: 'Limit: 10' }],
   },
   {
     id: 'agent',
     name: 'Agent',
     color: '#802FFF',
-    icon: <AgentIcon className='h-4 w-4' />,
+    icon: <AgentIcon className='h-[16px] w-[16px] text-white' />,
     positions: {
       mobile: { x: 340, y: 60 },
       tablet: { x: 540, y: 120 },
       desktop: { x: 880, y: 142 },
     },
-    tags: [
-      { icon: <OpenAIIcon className='h-3 w-3' />, label: 'gpt-5' },
-      { icon: <MessageSquareIcon className='h-3 w-3' />, label: 'You are a support ag...' },
-    ],
+    tags: [{ label: 'Model: gpt-5' }, { label: 'Prompt: You are a support ag...' }],
   },
   {
     id: 'function',
     name: 'Function',
     color: '#FF402F',
-    icon: <CodeIcon className='h-4 w-4' />,
+    icon: <CodeIcon className='h-[16px] w-[16px] text-white' />,
     positions: {
       mobile: { x: 480, y: 220 },
       tablet: { x: 740, y: 280 },
       desktop: { x: 880, y: 340 },
     },
-    tags: [
-      { icon: <CodeIcon className='h-3 w-3' />, label: 'Python' },
-      { icon: <VariableIcon className='h-3 w-3' />, label: 'time = "2025-09-01...' },
-    ],
+    tags: [{ label: 'Language: Python' }, { label: 'Code: time = "2025-09-01...' }],
   },
 ]
 

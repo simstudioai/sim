@@ -10,8 +10,8 @@ export { LandingLoopNode } from './landing-canvas/landing-block/landing-loop-nod
 export { LandingNode } from './landing-canvas/landing-block/landing-node'
 export type { LoopBlockProps } from './landing-canvas/landing-block/loop-block'
 export { LoopBlock } from './landing-canvas/landing-block/loop-block'
-export type { TagProps } from './landing-canvas/landing-block/tag'
-export { Tag } from './landing-canvas/landing-block/tag'
+export type { SubBlockRowProps, TagProps } from './landing-canvas/landing-block/tag'
+export { SubBlockRow, Tag } from './landing-canvas/landing-block/tag'
 export type {
   LandingBlockNode,
   LandingCanvasProps,
