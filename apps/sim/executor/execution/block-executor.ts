@@ -13,6 +13,7 @@ import {
   isSentinelBlockType,
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
+import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
 import {
   generatePauseContextId,
@@ -213,23 +214,27 @@ export class BlockExecutor {
         ? resolvedInputs
         : ((block.config?.params as Record<string, any> | undefined) ?? {})
 
+    const errorOutput: NormalizedBlockOutput = {
+      error: errorMessage,
+    }
+
+    if (ChildWorkflowError.isChildWorkflowError(error)) {
+      errorOutput.childTraceSpans = error.childTraceSpans
+      errorOutput.childWorkflowName = error.childWorkflowName
+    } else if (error && typeof error === 'object' && 'childTraceSpans' in error) {
+      errorOutput.childTraceSpans = (error as any).childTraceSpans
+    }
+
+    this.state.setBlockOutput(node.id, errorOutput, duration)
+
     if (blockLog) {
       blockLog.endedAt = new Date().toISOString()
       blockLog.durationMs = duration
       blockLog.success = false
       blockLog.error = errorMessage
       blockLog.input = input
+      blockLog.output = this.filterOutputForLog(block, errorOutput)
     }
-
-    const errorOutput: NormalizedBlockOutput = {
-      error: errorMessage,
-    }
-
-    if (error && typeof error === 'object' && 'childTraceSpans' in error) {
-      errorOutput.childTraceSpans = (error as any).childTraceSpans
-    }
-
-    this.state.setBlockOutput(node.id, errorOutput, duration)
 
     logger.error(
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
