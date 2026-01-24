@@ -81,6 +81,7 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /** Lazy-loaded components for non-critical UI that can load after initial render */
 const LazyChat = lazy(() =>
@@ -535,8 +536,7 @@ const WorkflowContent = React.memo(() => {
     return edgesToFilter.filter((edge) => {
       const sourceBlock = blocks[edge.source]
       const targetBlock = blocks[edge.target]
-      if (!sourceBlock || !targetBlock) return false
-      return !isAnnotationOnlyBlock(sourceBlock.type) && !isAnnotationOnlyBlock(targetBlock.type)
+      return Boolean(sourceBlock && targetBlock)
     })
   }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
 
@@ -1097,6 +1097,13 @@ const WorkflowContent = React.memo(() => {
     [collaborativeBatchRemoveEdges]
   )
 
+  const isAutoConnectSourceCandidate = useCallback((block: BlockState): boolean => {
+    if (!block.enabled) return false
+    if (block.type === 'response') return false
+    if (isAnnotationOnlyBlock(block.type)) return false
+    return true
+  }, [])
+
   /** Finds the closest block to a position for auto-connect. */
   const findClosestOutput = useCallback(
     (newNodePosition: { x: number; y: number }): BlockData | null => {
@@ -1109,8 +1116,7 @@ const WorkflowContent = React.memo(() => {
         position: { x: number; y: number }
         distanceSquared: number
       } | null>((acc, [id, block]) => {
-        if (!block.enabled) return acc
-        if (block.type === 'response') return acc
+        if (!isAutoConnectSourceCandidate(block)) return acc
         const node = nodeIndex.get(id)
         if (!node) return acc
 
@@ -1140,7 +1146,7 @@ const WorkflowContent = React.memo(() => {
         position: closest.position,
       }
     },
-    [blocks, getNodes, getNodeAnchorPosition, isPointInLoopNode]
+    [blocks, getNodes, getNodeAnchorPosition, isPointInLoopNode, isAutoConnectSourceCandidate]
   )
 
   /** Determines the appropriate source handle based on block type. */
@@ -1208,7 +1214,8 @@ const WorkflowContent = React.memo(() => {
         position: { x: number; y: number }
         distanceSquared: number
       } | null>((acc, block) => {
-        if (block.type === 'response') return acc
+        const blockState = blocks[block.id]
+        if (!blockState || !isAutoConnectSourceCandidate(blockState)) return acc
         const distanceSquared =
           (block.position.x - targetPosition.x) ** 2 + (block.position.y - targetPosition.y) ** 2
         if (!acc || distanceSquared < acc.distanceSquared) {
@@ -1225,7 +1232,7 @@ const WorkflowContent = React.memo(() => {
           }
         : undefined
     },
-    []
+    [blocks, isAutoConnectSourceCandidate]
   )
 
   /**
@@ -2364,7 +2371,6 @@ const WorkflowContent = React.memo(() => {
 
         if (!sourceNode || !targetNode) return
 
-        // Prevent connections to/from annotation-only blocks (non-executable)
         if (
           isAnnotationOnlyBlock(sourceNode.data?.type) ||
           isAnnotationOnlyBlock(targetNode.data?.type)
@@ -2372,13 +2378,8 @@ const WorkflowContent = React.memo(() => {
           return
         }
 
-        // Prevent incoming connections to trigger blocks (webhook, schedule, etc.)
-        if (targetNode.data?.config?.category === 'triggers') {
-          return
-        }
-
-        // Prevent incoming connections to starter blocks (still keep separate for backward compatibility)
-        if (targetNode.data?.type === 'starter') {
+        const targetBlock = blocks[targetNode.id]
+        if (targetBlock && TriggerUtils.isTriggerBlock(targetBlock)) {
           return
         }
 
