@@ -61,6 +61,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
+import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
@@ -1099,6 +1100,7 @@ const WorkflowContent = React.memo(() => {
   const isAutoConnectSourceCandidate = useCallback((block: BlockState): boolean => {
     if (!block.enabled) return false
     if (block.type === 'response') return false
+    if (isAnnotationOnlyBlock(block.type)) return false
     return true
   }, [])
 
