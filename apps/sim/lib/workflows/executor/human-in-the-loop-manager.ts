@@ -567,6 +567,32 @@ export class PauseResumeManager {
 
       stateCopy.blockStates[stateBlockKey] = pauseBlockState
 
+      // Update the block log entry with the merged output so logs show the submission data
+      if (Array.isArray(stateCopy.blockLogs)) {
+        const blockLogIndex = stateCopy.blockLogs.findIndex(
+          (log: { blockId: string }) =>
+            log.blockId === stateBlockKey ||
+            log.blockId === pauseBlockId ||
+            log.blockId === contextId
+        )
+        if (blockLogIndex !== -1) {
+          // Filter output for logging (exclude internal fields and response)
+          const filteredOutput: Record<string, unknown> = {}
+          for (const [key, value] of Object.entries(mergedOutput)) {
+            if (key.startsWith('_')) continue
+            if (key === 'response') continue
+            filteredOutput[key] = value
+          }
+          stateCopy.blockLogs[blockLogIndex] = {
+            ...stateCopy.blockLogs[blockLogIndex],
+            blockId: stateBlockKey,
+            output: filteredOutput,
+            durationMs: pauseDurationMs,
+            endedAt: new Date().toISOString(),
+          }
+        }
+      }
+
       if (Array.isArray(stateCopy.executedBlocks)) {
         const filtered = stateCopy.executedBlocks.filter(
           (id: string) => id !== pauseBlockId && id !== contextId
