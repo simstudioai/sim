@@ -42,6 +42,7 @@ vi.mock('@sim/db', () => ({
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((...args) => ({ type: 'eq', args })),
   and: vi.fn((...args) => ({ type: 'and', args })),
+  inArray: vi.fn((...args) => ({ type: 'inArray', args })),
   sql: vi.fn((strings, ...values) => ({ type: 'sql', strings, values })),
 }))
 
@@ -684,15 +685,24 @@ describe('Schedule Deploy Utilities', () => {
   })
 
   describe('createSchedulesForDeploy', () => {
+    const createMockTx = (existingSchedules: Array<{ id: string; blockId: string }> = []) => {
+      const mockFrom = vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(existingSchedules),
+      })
+      const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
+      return {
+        insert: mockInsert,
+        delete: mockDelete,
+        select: mockSelect,
+      }
+    }
+
     it('should return success with no schedule blocks', async () => {
       const blocks: Record<string, BlockState> = {
         'block-1': { id: 'block-1', type: 'agent', subBlocks: {} } as BlockState,
       }
 
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-      }
+      const mockTx = createMockTx()
 
       const result = await createSchedulesForDeploy('workflow-1', blocks, mockTx as any)
 
@@ -713,10 +723,7 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-      }
+      const mockTx = createMockTx()
 
       const result = await createSchedulesForDeploy('workflow-1', blocks, mockTx as any)
 
@@ -740,10 +747,7 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-      }
+      const mockTx = createMockTx()
 
       const result = await createSchedulesForDeploy('workflow-1', blocks, mockTx as any)
 
@@ -765,10 +769,7 @@ describe('Schedule Deploy Utilities', () => {
         } as BlockState,
       }
 
-      const mockTx = {
-        insert: mockInsert,
-        delete: mockDelete,
-      }
+      const mockTx = createMockTx()
 
       await createSchedulesForDeploy('workflow-1', blocks, mockTx as any)
 
