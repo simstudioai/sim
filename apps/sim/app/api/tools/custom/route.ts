@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
   const workflowId = searchParams.get('workflowId')
 
   try {
-    // Use hybrid auth to support session, API key, and internal JWT
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    // Use session/internal auth to support session and internal JWT (no API key access)
+    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized custom tools access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -69,8 +69,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Check workspace permissions
-    // For internal JWT with workflowId: checkHybridAuth already resolved userId from workflow owner
-    // For session/API key: verify user has access to the workspace
+    // For internal JWT with workflowId: checkSessionOrInternalAuth already resolved userId from workflow owner
+    // For session: verify user has access to the workspace
     // For legacy (no workspaceId): skip workspace check, rely on userId match
     if (resolvedWorkspaceId && !(authResult.authType === 'internal_jwt' && workflowId)) {
       const userPermission = await getUserEntityPermissions(
@@ -116,8 +116,8 @@ export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Use hybrid auth (though this endpoint is only called from UI)
-    const authResult = await checkHybridAuth(req, { requireWorkflowId: false })
+    // Use session/internal auth (no API key access)
+    const authResult = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized custom tools update attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -193,8 +193,8 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    // Use hybrid auth (though this endpoint is only called from UI)
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    // Use session/internal auth (no API key access)
+    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized custom tool deletion attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

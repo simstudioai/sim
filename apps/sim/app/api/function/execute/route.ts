@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInE2B } from '@/lib/execution/e2b'
@@ -582,7 +582,7 @@ export async function POST(req: NextRequest) {
   let resolvedCode = '' // Store resolved code for error reporting
 
   try {
-    const auth = await checkHybridAuth(req)
+    const auth = await checkInternalAuth(req)
     if (!auth.success || !auth.userId) {
       logger.warn(`[${requestId}] Unauthorized function execution attempt`)
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })

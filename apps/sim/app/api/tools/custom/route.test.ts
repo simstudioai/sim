@@ -181,7 +181,7 @@ describe('Custom Tools API Routes', () => {
     }))
 
     vi.doMock('@/lib/auth/hybrid', () => ({
-      checkHybridAuth: vi.fn().mockResolvedValue({
+      checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
         success: true,
         userId: 'user-123',
         authType: 'session',
@@ -254,7 +254,7 @@ describe('Custom Tools API Routes', () => {
       )
 
       vi.doMock('@/lib/auth/hybrid', () => ({
-        checkHybridAuth: vi.fn().mockResolvedValue({
+        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
           success: false,
           error: 'Unauthorized',
         }),
@@ -304,7 +304,7 @@ describe('Custom Tools API Routes', () => {
   describe('POST /api/tools/custom', () => {
     it('should reject unauthorized requests', async () => {
       vi.doMock('@/lib/auth/hybrid', () => ({
-        checkHybridAuth: vi.fn().mockResolvedValue({
+        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
           success: false,
           error: 'Unauthorized',
         }),
@@ -390,7 +390,7 @@ describe('Custom Tools API Routes', () => {
 
     it('should prevent unauthorized deletion of user-scoped tool', async () => {
       vi.doMock('@/lib/auth/hybrid', () => ({
-        checkHybridAuth: vi.fn().mockResolvedValue({
+        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
           success: true,
           userId: 'user-456',
           authType: 'session',
@@ -413,7 +413,7 @@ describe('Custom Tools API Routes', () => {
 
     it('should reject unauthorized requests', async () => {
       vi.doMock('@/lib/auth/hybrid', () => ({
-        checkHybridAuth: vi.fn().mockResolvedValue({
+        checkSessionOrInternalAuth: vi.fn().mockResolvedValue({
           success: false,
           error: 'Unauthorized',
         }),
