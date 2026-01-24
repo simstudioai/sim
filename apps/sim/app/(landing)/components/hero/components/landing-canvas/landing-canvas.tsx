@@ -9,9 +9,10 @@ import { LandingFlow } from '@/app/(landing)/components/hero/components/landing-
 
 /**
  * Visual constants for landing node dimensions
+ * Matches BLOCK_DIMENSIONS from the application
  */
-export const CARD_WIDTH = 256
-export const CARD_HEIGHT = 92
+export const CARD_WIDTH = 250
+export const CARD_HEIGHT = 100
 
 /**
  * Landing block node with positioning information
