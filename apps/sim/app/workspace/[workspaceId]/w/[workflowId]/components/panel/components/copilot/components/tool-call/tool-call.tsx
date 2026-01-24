@@ -18,6 +18,8 @@ import {
 import { CopilotMarkdownRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import { SmoothStreamingText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
 import { ThinkingBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/thinking-block'
+import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
+import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks/registry'
 import type { CopilotToolCall } from '@/stores/panel'
@@ -1131,6 +1133,12 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
   }
 
   const getBlockConfig = (blockType: string) => {
+    if (blockType === 'loop') {
+      return { icon: LoopTool.icon, bgColor: LoopTool.bgColor }
+    }
+    if (blockType === 'parallel') {
+      return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
+    }
     return getBlock(blockType)
   }
 
