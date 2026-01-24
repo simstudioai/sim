@@ -4,13 +4,17 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
-import { isAnnotationOnlyBlock, normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
+import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { filterNewEdges, getUniqueBlockName, mergeSubblockState } from '@/stores/workflows/utils'
+import {
+  filterNewEdges,
+  filterValidEdges,
+  getUniqueBlockName,
+  mergeSubblockState,
+} from '@/stores/workflows/utils'
 import type {
   Position,
   SubBlockState,
@@ -89,26 +93,6 @@ function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
   }
 
   return null
-}
-
-function isValidEdge(
-  edge: Edge,
-  blocks: Record<string, { type: string; triggerMode?: boolean }>
-): boolean {
-  const sourceBlock = blocks[edge.source]
-  const targetBlock = blocks[edge.target]
-  if (!sourceBlock || !targetBlock) return false
-  if (isAnnotationOnlyBlock(sourceBlock.type)) return false
-  if (isAnnotationOnlyBlock(targetBlock.type)) return false
-  if (TriggerUtils.isTriggerBlock(targetBlock)) return false
-  return true
-}
-
-function filterValidEdges(
-  edges: Edge[],
-  blocks: Record<string, { type: string; triggerMode?: boolean }>
-): Edge[] {
-  return edges.filter((edge) => isValidEdge(edge, blocks))
 }
 
 const initialState = {
@@ -356,7 +340,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
           data?: Record<string, any>
         }>,
         edges?: Edge[],
-        subBlockValues?: Record<string, Record<string, unknown>>
+        subBlockValues?: Record<string, Record<string, unknown>>,
+        options?: { skipEdgeValidation?: boolean }
       ) => {
         const currentBlocks = get().blocks
         const currentEdges = get().edges
@@ -381,7 +366,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
 
         if (edges && edges.length > 0) {
-          const validEdges = filterValidEdges(edges, newBlocks)
+          // Skip validation if already validated by caller (e.g., collaborative layer)
+          const validEdges = options?.skipEdgeValidation
+            ? edges
+            : filterValidEdges(edges, newBlocks)
           const existingEdgeIds = new Set(currentEdges.map((e) => e.id))
           for (const edge of validEdges) {
             if (!existingEdgeIds.has(edge.id)) {
@@ -516,11 +504,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
         get().updateLastSaved()
       },
 
-      batchAddEdges: (edges: Edge[]) => {
+      batchAddEdges: (edges: Edge[], options?: { skipValidation?: boolean }) => {
         const blocks = get().blocks
         const currentEdges = get().edges
 
-        const validEdges = filterValidEdges(edges, blocks)
+        // Skip validation if already validated by caller (e.g., collaborative layer)
+        const validEdges = options?.skipValidation ? edges : filterValidEdges(edges, blocks)
         const filtered = filterNewEdges(validEdges, currentEdges)
         const newEdges = [...currentEdges]
 

@@ -203,12 +203,13 @@ export interface WorkflowActions {
   batchAddBlocks: (
     blocks: BlockState[],
     edges?: Edge[],
-    subBlockValues?: Record<string, Record<string, unknown>>
+    subBlockValues?: Record<string, Record<string, unknown>>,
+    options?: { skipEdgeValidation?: boolean }
   ) => void
   batchRemoveBlocks: (ids: string[]) => void
   batchToggleEnabled: (ids: string[]) => void
   batchToggleHandles: (ids: string[]) => void
-  batchAddEdges: (edges: Edge[]) => void
+  batchAddEdges: (edges: Edge[], options?: { skipValidation?: boolean }) => void
   batchRemoveEdges: (ids: string[]) => void
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void

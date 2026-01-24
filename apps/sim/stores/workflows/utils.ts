@@ -2,8 +2,9 @@ import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { mergeSubBlockValues, mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
-import { normalizeName } from '@/executor/constants'
+import { isAnnotationOnlyBlock, normalizeName } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type {
   BlockState,
@@ -16,6 +17,32 @@ import type {
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
+
+/**
+ * Checks if an edge is valid (source and target exist, not annotation-only, target is not a trigger)
+ */
+function isValidEdge(
+  edge: Edge,
+  blocks: Record<string, { type: string; triggerMode?: boolean }>
+): boolean {
+  const sourceBlock = blocks[edge.source]
+  const targetBlock = blocks[edge.target]
+  if (!sourceBlock || !targetBlock) return false
+  if (isAnnotationOnlyBlock(sourceBlock.type)) return false
+  if (isAnnotationOnlyBlock(targetBlock.type)) return false
+  if (TriggerUtils.isTriggerBlock(targetBlock)) return false
+  return true
+}
+
+/**
+ * Filters edges to only include valid ones (target exists and is not a trigger block)
+ */
+export function filterValidEdges(
+  edges: Edge[],
+  blocks: Record<string, { type: string; triggerMode?: boolean }>
+): Edge[] {
+  return edges.filter((edge) => isValidEdge(edge, blocks))
+}
 
 export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
   return edgesToAdd.filter((edge) => {
