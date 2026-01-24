@@ -468,6 +468,50 @@ function resolveEnvironmentVariables(
   return resolvedCode
 }
 
+/**
+ * JavaScript reserved words and built-in identifiers that should not be overwritten.
+ */
+const RESERVED_IDENTIFIERS = new Set([
+  // JavaScript reserved words
+  'break', 'case', 'catch', 'continue', 'debugger', 'default', 'delete', 'do',
+  'else', 'finally', 'for', 'function', 'if', 'in', 'instanceof', 'new',
+  'return', 'switch', 'this', 'throw', 'try', 'typeof', 'var', 'void', 'while',
+  'with', 'class', 'const', 'enum', 'export', 'extends', 'import', 'super',
+  'implements', 'interface', 'let', 'package', 'private', 'protected', 'public',
+  'static', 'yield', 'await', 'async', 'null', 'true', 'false', 'undefined',
+  // Built-in objects commonly used
+  'console', 'Math', 'JSON', 'Date', 'Array', 'Object', 'String', 'Number',
+  'Boolean', 'Error', 'Promise', 'Map', 'Set', 'Symbol', 'Proxy', 'Reflect',
+  // Execution context variables
+  'params', 'environmentVariables', 'context', 'fetch',
+])
+
+/**
+ * Injects block outputs as JavaScript variables by their normalized names.
+ * This allows users to reference blocks directly by label (e.g., `humanApproval.approved`)
+ * without requiring angle bracket syntax.
+ */
+function injectBlockVariables(
+  blockData: Record<string, unknown>,
+  blockNameMapping: Record<string, string>,
+  contextVariables: Record<string, unknown>
+): void {
+  for (const [normalizedName, blockId] of Object.entries(blockNameMapping)) {
+    // Skip reserved identifiers to avoid conflicts
+    if (RESERVED_IDENTIFIERS.has(normalizedName)) {
+      continue
+    }
+    // Skip if already defined by another resolution step
+    if (normalizedName in contextVariables) {
+      continue
+    }
+    const blockOutput = blockData[blockId]
+    if (blockOutput !== undefined) {
+      contextVariables[normalizedName] = blockOutput
+    }
+  }
+}
+
 function resolveTagVariables(
   code: string,
   blockData: Record<string, unknown>,
@@ -478,6 +522,10 @@ function resolveTagVariables(
 ): string {
   let resolvedCode = code
   const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
+
+  // Inject block outputs as direct JavaScript variables
+  // This allows `blockName.field` syntax in conditions without angle brackets
+  injectBlockVariables(blockData, blockNameMapping, contextVariables)
 
   const tagPattern = new RegExp(
     `${REFERENCE.START}([a-zA-Z_](?:[a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])?)${REFERENCE.END}`,
