@@ -1125,6 +1125,17 @@ const sseHandlers: Record<string, SSEHandler> = {
       await get().handleNewChatCreation(context.newChatId)
     }
   },
+  title_updated: (_data, _context, get, set) => {
+    const title = _data.title
+    if (!title) return
+    const { currentChat, chats } = get()
+    if (currentChat) {
+      set({
+        currentChat: { ...currentChat, title },
+        chats: chats.map((c) => (c.id === currentChat.id ? { ...c, title } : c)),
+      })
+    }
+  },
   tool_result: (data, context, get, set) => {
     try {
       const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
