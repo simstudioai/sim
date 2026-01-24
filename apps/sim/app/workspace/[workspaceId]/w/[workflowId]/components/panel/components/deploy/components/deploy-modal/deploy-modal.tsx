@@ -496,7 +496,7 @@ export function DeployModal({
                 </div>
               )}
               {apiDeployWarnings.length > 0 && (
-                <div className='mb-3 rounded-[4px] border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 text-sm dark:text-amber-400'>
+                <div className='mb-3 rounded-[4px] border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400 text-sm'>
                   <div className='font-semibold'>Deployment Warning</div>
                   {apiDeployWarnings.map((warning, index) => (
                     <div key={index}>{warning}</div>
