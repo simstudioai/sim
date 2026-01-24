@@ -352,7 +352,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             })
           })
 
-          useWorkflowStore.setState({
+          useWorkflowStore.getState().replaceWorkflowState({
             blocks: workflowState.blocks || {},
             edges: workflowState.edges || [],
             loops: workflowState.loops || {},

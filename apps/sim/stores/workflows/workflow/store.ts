@@ -4,9 +4,10 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
-import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
+import { isAnnotationOnlyBlock, normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { filterNewEdges, getUniqueBlockName, mergeSubblockState } from '@/stores/workflows/utils'
@@ -88,6 +89,26 @@ function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
   }
 
   return null
+}
+
+function isValidEdge(
+  edge: Edge,
+  blocks: Record<string, { type: string; triggerMode?: boolean }>
+): boolean {
+  const sourceBlock = blocks[edge.source]
+  const targetBlock = blocks[edge.target]
+  if (!sourceBlock || !targetBlock) return false
+  if (isAnnotationOnlyBlock(sourceBlock.type)) return false
+  if (isAnnotationOnlyBlock(targetBlock.type)) return false
+  if (TriggerUtils.isTriggerBlock(targetBlock)) return false
+  return true
+}
+
+function filterValidEdges(
+  edges: Edge[],
+  blocks: Record<string, { type: string; triggerMode?: boolean }>
+): Edge[] {
+  return edges.filter((edge) => isValidEdge(edge, blocks))
 }
 
 const initialState = {
@@ -360,8 +381,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
 
         if (edges && edges.length > 0) {
+          const validEdges = filterValidEdges(edges, newBlocks)
           const existingEdgeIds = new Set(currentEdges.map((e) => e.id))
-          for (const edge of edges) {
+          for (const edge of validEdges) {
             if (!existingEdgeIds.has(edge.id)) {
               newEdges.push({
                 id: edge.id || crypto.randomUUID(),
@@ -495,8 +517,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
       },
 
       batchAddEdges: (edges: Edge[]) => {
+        const blocks = get().blocks
         const currentEdges = get().edges
-        const filtered = filterNewEdges(edges, currentEdges)
+
+        const validEdges = filterValidEdges(edges, blocks)
+        const filtered = filterNewEdges(validEdges, currentEdges)
         const newEdges = [...currentEdges]
 
         for (const edge of filtered) {
@@ -512,7 +537,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           })
         }
 
-        const blocks = get().blocks
         set({
           blocks: { ...blocks },
           edges: newEdges,
@@ -572,7 +596,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
       ) => {
         set((state) => {
           const nextBlocks = workflowState.blocks || {}
-          const nextEdges = workflowState.edges || []
+          const nextEdges = filterValidEdges(workflowState.edges || [], nextBlocks)
           const nextLoops =
             Object.keys(workflowState.loops || {}).length > 0
               ? workflowState.loops
@@ -1083,7 +1107,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         const newState = {
           blocks: deployedState.blocks,
-          edges: deployedState.edges,
+          edges: filterValidEdges(deployedState.edges ?? [], deployedState.blocks),
           loops: deployedState.loops || {},
           parallels: deployedState.parallels || {},
           needsRedeployment: false,
