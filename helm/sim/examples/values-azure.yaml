@@ -172,8 +172,7 @@ ollama:
     OLLAMA_KEEP_ALIVE: "-1"
     OLLAMA_DEBUG: "1"
 
-# Ingress configuration (NGINX ingress controller on Azure AKS)
-# Option 1: Separate subdomains (default)
+# Ingress configuration
 ingress:
   enabled: true
   className: nginx
@@ -188,8 +187,7 @@ ingress:
       - path: /
         pathType: Prefix
 
-  # Realtime service (separate subdomain)
-  # For same-domain setup, use host: simstudio.acme.com with path: /socket.io
+  # Realtime service
   realtime:
     host: simstudio-ws.acme.com
     paths:
@@ -201,34 +199,29 @@ ingress:
     enabled: true
     secretName: simstudio-tls-secret
 
-# Internal Ingress configuration (for private access via internal load balancer)
-# Use this when you need access from within your VNet without going through the public internet
-# Supports Azure Application Gateway with private IP or NGINX with internal load balancer
+# Internal Ingress configuration
 ingressInternal:
-  enabled: false  # Set to true to enable internal ingress
-  className: azure-application-gateway  # or nginx for internal NGINX
+  enabled: false
+  className: azure-application-gateway
 
   annotations:
-    # For Azure Application Gateway with private IP:
     appgw.ingress.kubernetes.io/use-private-ip: "true"
-    # For NGINX with internal Azure Load Balancer:
-    # service.beta.kubernetes.io/azure-load-balancer-internal: "true"
 
-  # Main application (internal hostname)
+  # Main application
   app:
     host: simstudio-internal.acme.local
     paths:
       - path: /
         pathType: Prefix
 
-  # Realtime service (same host with /socket.io path for consolidated routing)
+  # Realtime service
   realtime:
     host: simstudio-internal.acme.local
     paths:
       - path: /socket.io
         pathType: Prefix
 
-  # TLS configuration (use internal CA cert if needed)
+  # TLS configuration
   tls:
     enabled: true
     secretName: simstudio-internal-tls-secret

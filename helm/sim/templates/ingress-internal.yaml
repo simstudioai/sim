@@ -18,11 +18,9 @@ spec:
   tls:
     - hosts:
         - {{ .Values.ingressInternal.app.host | quote }}
-        {{- /* Add Realtime host only if enabled and unique */ -}}
         {{- if and .Values.realtime.enabled (ne .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
         - {{ .Values.ingressInternal.realtime.host | quote }}
         {{- end }}
-        {{- /* Add Copilot host only if enabled, exists, and unique from both App and Realtime */ -}}
         {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot }}
           {{- if and (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host) }}
         - {{ .Values.ingressInternal.copilot.host | quote }}
@@ -31,11 +29,10 @@ spec:
       secretName: {{ .Values.ingressInternal.tls.secretName }}
   {{- end }}
   rules:
-    # --- Main Rule: App (plus consolidated Realtime/Copilot if hosts match) ---
+    # Main application
     - host: {{ .Values.ingressInternal.app.host | quote }}
       http:
         paths:
-          {{- /* Consolidate Realtime paths here if host matches App */ -}}
           {{- if and .Values.realtime.enabled (eq .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
           {{- range .Values.ingressInternal.realtime.paths }}
           - path: {{ .path }}
@@ -47,7 +44,6 @@ spec:
                   number: {{ $.Values.realtime.service.port }}
           {{- end }}
           {{- end }}
-          {{- /* Consolidate Copilot paths here if host matches App */ -}}
           {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (eq .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) }}
           {{- range .Values.ingressInternal.copilot.paths }}
           - path: {{ .path }}
@@ -59,7 +55,6 @@ spec:
                   number: {{ $.Values.copilot.server.service.port }}
           {{- end }}
           {{- end }}
-          {{- /* App paths are always included in this first rule */ -}}
           {{- range .Values.ingressInternal.app.paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
@@ -70,7 +65,7 @@ spec:
                   number: {{ $.Values.app.service.port }}
           {{- end }}
 
-    # --- Realtime Rule (Only if host is unique) ---
+    # Realtime service
     {{- if and .Values.realtime.enabled (ne .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
     - host: {{ .Values.ingressInternal.realtime.host | quote }}
       http:
@@ -86,7 +81,7 @@ spec:
           {{- end }}
     {{- end }}
 
-    # --- Copilot Rule (Only if host is unique from both App and Realtime) ---
+    # Copilot service
     {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (and (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host)) }}
     - host: {{ .Values.ingressInternal.copilot.host | quote }}
       http:
