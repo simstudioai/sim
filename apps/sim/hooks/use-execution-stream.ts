@@ -100,8 +100,13 @@ export function useExecutionStream() {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to start execution')
+        const errorResponse = await response.json()
+        const error = new Error(errorResponse.error || 'Failed to start execution')
+        // Attach the execution result from server response for error handling
+        if (errorResponse && typeof errorResponse === 'object') {
+          Object.assign(error, { executionResult: errorResponse })
+        }
+        throw error
       }
 
       if (!response.body) {

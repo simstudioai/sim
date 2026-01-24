@@ -30,6 +30,7 @@ import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -467,17 +468,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         return NextResponse.json(filteredResult)
-      } catch (error: any) {
-        const errorMessage = error.message || 'Unknown error'
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         logger.error(`[${requestId}] Non-SSE execution failed: ${errorMessage}`)
 
-        const executionResult = error.executionResult
+        const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
         return NextResponse.json(
           {
             success: false,
             output: executionResult?.output,
-            error: executionResult?.error || error.message || 'Execution failed',
+            error: executionResult?.error || errorMessage || 'Execution failed',
             metadata: executionResult?.metadata
               ? {
                   duration: executionResult.metadata.duration,
@@ -788,11 +789,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
           // Cleanup base64 cache for this execution
           await cleanupExecutionBase64Cache(executionId)
-        } catch (error: any) {
-          const errorMessage = error.message || 'Unknown error'
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`)
 
-          const executionResult = error.executionResult
+          const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
           sendEvent({
             type: 'execution:error',
