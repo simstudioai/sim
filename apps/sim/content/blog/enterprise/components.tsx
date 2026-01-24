@@ -39,7 +39,7 @@ export function ContactButton({ href, children }: ContactButtonProps) {
       }}
     >
       {children}
-      <span style={{ display: 'inline-flex', transition: 'transform 200ms' }}>
+      <span style={{ display: 'inline-flex' }}>
         {isHovered ? (
           <ArrowRight style={{ height: '16px', width: '16px' }} aria-hidden='true' />
         ) : (
