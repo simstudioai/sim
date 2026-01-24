@@ -11,6 +11,7 @@ import type {
   ExecutionResult,
   StreamingExecution,
 } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
@@ -148,8 +149,9 @@ export class WorkflowBlockHandler implements BlockHandler {
       const originalError = error.message || 'Unknown error'
       let childTraceSpans: WorkflowTraceSpan[] = []
       let executionResult: ExecutionResult | undefined
-      if (error.executionResult?.logs) {
-        executionResult = error.executionResult as ExecutionResult
+
+      if (hasExecutionResult(error) && error.executionResult.logs) {
+        executionResult = error.executionResult
 
         logger.info(`Extracting child trace spans from error.executionResult`, {
           hasLogs: (executionResult.logs?.length ?? 0) > 0,

@@ -1,5 +1,32 @@
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+
+/**
+ * Interface for errors that carry an ExecutionResult.
+ * Used when workflow execution fails and we want to preserve partial results.
+ */
+export interface ErrorWithExecutionResult extends Error {
+  executionResult: ExecutionResult
+}
+
+/**
+ * Type guard to check if an error carries an ExecutionResult.
+ */
+export function hasExecutionResult(error: unknown): error is ErrorWithExecutionResult {
+  return (
+    error instanceof Error &&
+    'executionResult' in error &&
+    error.executionResult != null &&
+    typeof error.executionResult === 'object'
+  )
+}
+
+/**
+ * Attaches an ExecutionResult to an error for propagation to parent workflows.
+ */
+export function attachExecutionResult(error: Error, executionResult: ExecutionResult): void {
+  Object.assign(error, { executionResult })
+}
 
 export interface BlockExecutionErrorDetails {
   block: SerializedBlock

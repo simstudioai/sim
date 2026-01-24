@@ -16,6 +16,7 @@ import {
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
@@ -74,17 +75,6 @@ function normalizeErrorMessage(error: unknown): string {
   }
 
   return WORKFLOW_EXECUTION_FAILURE_MESSAGE
-}
-
-function isExecutionResult(value: unknown): value is ExecutionResult {
-  if (!isRecord(value)) return false
-  return typeof value.success === 'boolean' && isRecord(value.output)
-}
-
-function extractExecutionResult(error: unknown): ExecutionResult | null {
-  if (!isRecord(error)) return null
-  const candidate = error.executionResult
-  return isExecutionResult(candidate) ? candidate : null
 }
 
 export function useWorkflowExecution() {
@@ -1138,11 +1128,11 @@ export function useWorkflowExecution() {
 
   const handleExecutionError = (error: unknown, options?: { executionId?: string }) => {
     const normalizedMessage = normalizeErrorMessage(error)
-    const executionResultFromError = extractExecutionResult(error)
 
     let errorResult: ExecutionResult
 
-    if (executionResultFromError) {
+    if (hasExecutionResult(error)) {
+      const executionResultFromError = error.executionResult
       const logs = Array.isArray(executionResultFromError.logs) ? executionResultFromError.logs : []
 
       errorResult = {
