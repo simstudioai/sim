@@ -2737,11 +2737,14 @@ export const useCopilotStore = create<CopilotStore>()(
         }))
       }
 
-      // Load sensitive credential IDs for masking before streaming starts
-      await get().loadSensitiveCredentialIds()
-
-      // Ensure auto-allowed tools are loaded before tool calls arrive
-      await get().loadAutoAllowedTools()
+      // Load sensitive credential IDs and auto-allowed tools in background (non-blocking)
+      // These will be ready before any tool calls arrive since SSE setup takes time
+      get().loadSensitiveCredentialIds().catch((err) => {
+        logger.warn('[Copilot] Failed to load sensitive credential IDs', err)
+      })
+      get().loadAutoAllowedTools().catch((err) => {
+        logger.warn('[Copilot] Failed to load auto-allowed tools', err)
+      })
 
       let newMessages: CopilotMessage[]
       if (revertState) {

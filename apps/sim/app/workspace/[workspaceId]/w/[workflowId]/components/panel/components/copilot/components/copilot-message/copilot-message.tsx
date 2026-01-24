@@ -78,8 +78,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       mode,
       setMode,
       isAborting,
-      maskCredentialValue,
     } = useCopilotStore()
+
+    // Use stable selector to avoid re-renders when unrelated state changes
+    const maskCredentialValue = useCopilotStore((s) => s.maskCredentialValue)
 
     const messageCheckpoints = isUser ? allMessageCheckpoints[message.id] || [] : []
     const hasCheckpoints = messageCheckpoints.length > 0 && messageCheckpoints.some((cp) => cp?.id)
@@ -265,7 +267,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         }
         return null
       })
-    }, [message.contentBlocks, isActivelyStreaming, parsedTags, isLastMessage, maskCredentialValue])
+    }, [message.contentBlocks, isActivelyStreaming, parsedTags, isLastMessage])
 
     if (isUser) {
       return (
