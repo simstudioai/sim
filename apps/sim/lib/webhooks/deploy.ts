@@ -635,7 +635,7 @@ export async function saveTriggerWebhooksForDeploy({
     for (const sub of createdSubscriptions) {
       const pollingError = await configurePollingIfNeeded(
         sub.provider,
-        { id: sub.webhookId, path: sub.triggerPath },
+        { id: sub.webhookId, path: sub.triggerPath, providerConfig: sub.updatedProviderConfig },
         requestId
       )
       if (pollingError) {
