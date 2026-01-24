@@ -347,6 +347,7 @@ export function WorkflowPreview({
           enabled: block.enabled ?? true,
           isPreviewSelected: isSelected,
           executionStatus,
+          subBlockValues: block.subBlocks,
         },
       })
     })
