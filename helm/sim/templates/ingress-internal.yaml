@@ -1,43 +1,43 @@
-{{- if .Values.ingress.enabled }}
+{{- if .Values.ingressInternal.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "sim.fullname" . }}-ingress
+  name: {{ include "sim.fullname" . }}-ingress-internal
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "sim.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+  {{- with .Values.ingressInternal.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- if .Values.ingress.className }}
-  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingressInternal.className }}
+  ingressClassName: {{ .Values.ingressInternal.className }}
   {{- end }}
-  {{- if .Values.ingress.tls.enabled }}
+  {{- if .Values.ingressInternal.tls.enabled }}
   tls:
     - hosts:
-        - {{ .Values.ingress.app.host | quote }}
+        - {{ .Values.ingressInternal.app.host | quote }}
         {{- /* Add Realtime host only if enabled and unique */ -}}
-        {{- if and .Values.realtime.enabled (ne .Values.ingress.realtime.host .Values.ingress.app.host) }}
-        - {{ .Values.ingress.realtime.host | quote }}
+        {{- if and .Values.realtime.enabled (ne .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
+        - {{ .Values.ingressInternal.realtime.host | quote }}
         {{- end }}
         {{- /* Add Copilot host only if enabled, exists, and unique from both App and Realtime */ -}}
-        {{- if and .Values.copilot.enabled .Values.ingress.copilot }}
-          {{- if and (ne .Values.ingress.copilot.host .Values.ingress.app.host) (ne .Values.ingress.copilot.host .Values.ingress.realtime.host) }}
-        - {{ .Values.ingress.copilot.host | quote }}
+        {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot }}
+          {{- if and (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host) }}
+        - {{ .Values.ingressInternal.copilot.host | quote }}
           {{- end }}
         {{- end }}
-      secretName: {{ .Values.ingress.tls.secretName }}
+      secretName: {{ .Values.ingressInternal.tls.secretName }}
   {{- end }}
   rules:
     # --- Main Rule: App (plus consolidated Realtime/Copilot if hosts match) ---
-    - host: {{ .Values.ingress.app.host | quote }}
+    - host: {{ .Values.ingressInternal.app.host | quote }}
       http:
         paths:
           {{- /* Consolidate Realtime paths here if host matches App */ -}}
-          {{- if and .Values.realtime.enabled (eq .Values.ingress.realtime.host .Values.ingress.app.host) }}
-          {{- range .Values.ingress.realtime.paths }}
+          {{- if and .Values.realtime.enabled (eq .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
+          {{- range .Values.ingressInternal.realtime.paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
             backend:
@@ -48,8 +48,8 @@ spec:
           {{- end }}
           {{- end }}
           {{- /* Consolidate Copilot paths here if host matches App */ -}}
-          {{- if and .Values.copilot.enabled .Values.ingress.copilot (eq .Values.ingress.copilot.host .Values.ingress.app.host) }}
-          {{- range .Values.ingress.copilot.paths }}
+          {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (eq .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) }}
+          {{- range .Values.ingressInternal.copilot.paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
             backend:
@@ -60,7 +60,7 @@ spec:
           {{- end }}
           {{- end }}
           {{- /* App paths are always included in this first rule */ -}}
-          {{- range .Values.ingress.app.paths }}
+          {{- range .Values.ingressInternal.app.paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
             backend:
@@ -71,11 +71,11 @@ spec:
           {{- end }}
 
     # --- Realtime Rule (Only if host is unique) ---
-    {{- if and .Values.realtime.enabled (ne .Values.ingress.realtime.host .Values.ingress.app.host) }}
-    - host: {{ .Values.ingress.realtime.host | quote }}
+    {{- if and .Values.realtime.enabled (ne .Values.ingressInternal.realtime.host .Values.ingressInternal.app.host) }}
+    - host: {{ .Values.ingressInternal.realtime.host | quote }}
       http:
         paths:
-          {{- range .Values.ingress.realtime.paths }}
+          {{- range .Values.ingressInternal.realtime.paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
             backend:
@@ -87,11 +87,11 @@ spec:
     {{- end }}
 
     # --- Copilot Rule (Only if host is unique from both App and Realtime) ---
-    {{- if and .Values.copilot.enabled .Values.ingress.copilot (and (ne .Values.ingress.copilot.host .Values.ingress.app.host) (ne .Values.ingress.copilot.host .Values.ingress.realtime.host)) }}
-    - host: {{ .Values.ingress.copilot.host | quote }}
+    {{- if and .Values.copilot.enabled .Values.ingressInternal.copilot (and (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.app.host) (ne .Values.ingressInternal.copilot.host .Values.ingressInternal.realtime.host)) }}
+    - host: {{ .Values.ingressInternal.copilot.host | quote }}
       http:
         paths:
-          {{- range .Values.ingress.copilot.paths }}
+          {{- range .Values.ingressInternal.copilot.paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
             backend:

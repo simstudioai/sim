@@ -582,6 +582,54 @@ ingress:
     enabled: false
     secretName: sim-tls-secret
 
+# Internal Ingress configuration (for private/internal access)
+# Use this when you need a separate ingress for internal traffic
+# (e.g., internal load balancer with private IP)
+ingressInternal:
+  # Enable/disable internal ingress
+  enabled: false
+
+  # Ingress class name (e.g., nginx-internal, azure-application-gateway-internal)
+  className: nginx
+
+  # Annotations (typically includes internal load balancer annotations)
+  # Example for Azure:
+  #   kubernetes.io/ingress.class: azure/application-gateway
+  #   appgw.ingress.kubernetes.io/use-private-ip: "true"
+  # Example for AWS:
+  #   alb.ingress.kubernetes.io/scheme: internal
+  # Example for GCP:
+  #   kubernetes.io/ingress.class: "gce-internal"
+  annotations: {}
+
+  # Main application host configuration
+  app:
+    host: sim-internal.local
+    paths:
+      - path: /
+        pathType: Prefix
+
+  # Realtime service host configuration
+  # Set to same host as app.host to consolidate paths under one rule
+  # Use /socket.io path when sharing the same host
+  realtime:
+    host: sim-internal.local
+    paths:
+      - path: /socket.io
+        pathType: Prefix
+
+  # Copilot service host configuration (optional)
+  # copilot:
+  #   host: sim-internal.local
+  #   paths:
+  #     - path: /copilot
+  #       pathType: Prefix
+
+  # TLS configuration
+  tls:
+    enabled: false
+    secretName: sim-internal-tls-secret
+
 # Service Account configuration
 serviceAccount:
   # Specifies whether a service account should be created
