@@ -90,6 +90,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         blockNameMapping: params.blockNameMapping || {},
         blockOutputSchemas: params.blockOutputSchemas || {},
         workflowId: params._context?.workflowId,
+        userId: params._context?.userId,
         isCustomTool: params.isCustomTool || false,
       }
     },

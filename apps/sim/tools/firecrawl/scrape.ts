@@ -1,5 +1,6 @@
 import type { ScrapeParams, ScrapeResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeAssign } from '@/tools/utils'
 
 export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   id: 'firecrawl_scrape',
@@ -64,7 +65,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
         body.zeroDataRetention = params.zeroDataRetention
 
       if (params.scrapeOptions) {
-        Object.assign(body, params.scrapeOptions)
+        safeAssign(body, params.scrapeOptions as Record<string, unknown>)
       }
 
       return body

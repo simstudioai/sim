@@ -9,6 +9,32 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('ToolsUtils')
 
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+
+/**
+ * Checks if a key is safe to use in object assignment (not a prototype pollution vector)
+ */
+export function isSafeKey(key: string): boolean {
+  return !DANGEROUS_KEYS.has(key)
+}
+
+/**
+ * Safely assigns properties from source to target, filtering out prototype pollution keys.
+ * Use this instead of Object.assign() when the source may contain user-controlled data.
+ */
+export function safeAssign<T extends object>(target: T, source: Record<string, unknown>): T {
+  if (!source || typeof source !== 'object') {
+    return target
+  }
+
+  for (const key of Object.keys(source)) {
+    if (isSafeKey(key)) {
+      ;(target as Record<string, unknown>)[key] = source[key]
+    }
+  }
+  return target
+}
+
 /**
  * Strips version suffix (_v2, _v3, etc.) from a tool ID or name
  * @example stripVersionSuffix('notion_search_v2') => 'notion_search'
@@ -320,7 +346,8 @@ export function createCustomToolRequestBody(
       workflowVariables: workflowVariables, // Workflow variables for <variable.name> resolution
       blockData: blockData, // Runtime block outputs for <block.field> resolution
       blockNameMapping: blockNameMapping, // Block name to ID mapping
-      workflowId: workflowId, // Pass workflowId for server-side context
+      workflowId: params._context?.workflowId || workflowId, // Pass workflowId for server-side context
+      userId: params._context?.userId, // Pass userId for auth context
       isCustomTool: true, // Flag to indicate this is a custom tool execution
     }
   }

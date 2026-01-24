@@ -29,7 +29,6 @@ describe('Function Execute Tool', () => {
 
   describe('Request Construction', () => {
     it.concurrent('should set correct URL for code execution', () => {
-      // Since this is an internal route, actual URL will be the concatenated base URL + path
       expect(tester.getRequestUrl({})).toBe('/api/function/execute')
     })
 
@@ -61,6 +60,7 @@ describe('Function Execute Tool', () => {
         language: 'javascript',
         timeout: 5000,
         workflowId: undefined,
+        userId: undefined,
       })
     })
 
@@ -88,6 +88,7 @@ describe('Function Execute Tool', () => {
         isCustomTool: false,
         language: 'javascript',
         workflowId: undefined,
+        userId: undefined,
       })
     })
 
@@ -107,6 +108,7 @@ describe('Function Execute Tool', () => {
         isCustomTool: false,
         language: 'javascript',
         workflowId: undefined,
+        userId: undefined,
       })
     })
   })
@@ -350,7 +352,7 @@ describe('Function Execute Tool', () => {
     it.concurrent('should handle extremely short timeout', async () => {
       const body = tester.getRequestBody({
         code: 'return 42',
-        timeout: 1, // 1ms timeout
+        timeout: 1,
       }) as { timeout: number }
 
       expect(body.timeout).toBe(1)

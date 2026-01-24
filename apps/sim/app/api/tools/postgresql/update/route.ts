@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createPostgresConnection, executeUpdate } from '@/app/api/tools/postgresql/utils'
 
 const logger = createLogger('PostgreSQLUpdateAPI')
@@ -40,6 +41,12 @@ export async function POST(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
 
   try {
+    const auth = await checkHybridAuth(request)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized PostgreSQL update attempt`)
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const params = UpdateSchema.parse(body)
 

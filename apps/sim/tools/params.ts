@@ -7,7 +7,7 @@ import {
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { isEmptyTagValue } from '@/tools/shared/tags'
 import type { ParameterVisibility, ToolConfig } from '@/tools/types'
-import { getTool } from '@/tools/utils'
+import { getTool, safeAssign } from '@/tools/utils'
 
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
@@ -450,7 +450,7 @@ export async function createLLMToolSchema(
       const enrichedSchema = await enrichmentConfig.enrichSchema(dependencyValue)
 
       if (enrichedSchema) {
-        Object.assign(propertySchema, enrichedSchema)
+        safeAssign(propertySchema, enrichedSchema as Record<string, unknown>)
         schema.properties[paramId] = propertySchema
 
         if (param.required) {
