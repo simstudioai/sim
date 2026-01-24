@@ -187,6 +187,10 @@ export function VariablesInput({
   const handleTagSelect = (newValue: string) => {
     if (!activeFieldId) return
 
+    const assignment = assignments.find((a) => a.id === activeFieldId)
+    const originalValue = assignment?.value || ''
+    const textAfterCursor = originalValue.slice(cursorPosition)
+
     updateAssignment(activeFieldId, { value: newValue })
     setShowTags(false)
 
@@ -194,7 +198,7 @@ export function VariablesInput({
       const inputEl = valueInputRefs.current[activeFieldId]
       if (inputEl) {
         inputEl.focus()
-        const newCursorPos = newValue.length
+        const newCursorPos = newValue.length - textAfterCursor.length
         inputEl.setSelectionRange(newCursorPos, newCursorPos)
       }
     }, 10)
