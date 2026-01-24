@@ -143,7 +143,16 @@ export async function checkSessionOrInternalAuth(
   options: { requireWorkflowId?: boolean } = {}
 ): Promise<AuthResult> {
   try {
-    // 1. Check for internal JWT token first
+    // 1. Reject API keys first
+    const apiKeyHeader = request.headers.get('x-api-key')
+    if (apiKeyHeader) {
+      return {
+        success: false,
+        error: 'API key access not allowed for this endpoint',
+      }
+    }
+
+    // 2. Check for internal JWT token
     const authHeader = request.headers.get('authorization')
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1]
@@ -216,22 +225,13 @@ export async function checkSessionOrInternalAuth(
       }
     }
 
-    // 2. Try session auth (for web UI)
+    // 3. Try session auth (for web UI)
     const session = await getSession()
     if (session?.user?.id) {
       return {
         success: true,
         userId: session.user.id,
         authType: 'session',
-      }
-    }
-
-    // 3. Explicitly reject API key
-    const apiKeyHeader = request.headers.get('x-api-key')
-    if (apiKeyHeader) {
-      return {
-        success: false,
-        error: 'API key access not allowed for this endpoint',
       }
     }
 
