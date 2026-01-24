@@ -80,7 +80,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       isAborting,
     } = useCopilotStore()
 
-    // Use stable selector to avoid re-renders when unrelated state changes
     const maskCredentialValue = useCopilotStore((s) => s.maskCredentialValue)
 
     const messageCheckpoints = isUser ? allMessageCheckpoints[message.id] || [] : []

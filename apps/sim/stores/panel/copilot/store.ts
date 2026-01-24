@@ -2737,8 +2737,6 @@ export const useCopilotStore = create<CopilotStore>()(
         }))
       }
 
-      // Load sensitive credential IDs and auto-allowed tools in background (non-blocking)
-      // These will be ready before any tool calls arrive since SSE setup takes time
       get().loadSensitiveCredentialIds().catch((err) => {
         logger.warn('[Copilot] Failed to load sensitive credential IDs', err)
       })
