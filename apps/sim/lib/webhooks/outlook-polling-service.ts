@@ -210,7 +210,7 @@ export async function pollOutlookWebhooks() {
         const metadata = webhookData.providerConfig as any
         const credentialId: string | undefined = metadata?.credentialId
         const userId: string | undefined = metadata?.userId
-        const credentialSetId: string | undefined = metadata?.credentialSetId
+        const credentialSetId: string | undefined = webhookData.credentialSetId ?? undefined
 
         if (!credentialId && !userId) {
           logger.error(`[${requestId}] Missing credentialId and userId for webhook ${webhookId}`)
@@ -607,7 +607,6 @@ async function processOutlookEmails(
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-Webhook-Secret': webhookData.secret || '',
               'User-Agent': 'Sim/1.0',
             },
             body: JSON.stringify(payload),

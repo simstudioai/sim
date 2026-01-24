@@ -98,9 +98,12 @@ function getMissingConfigError(scheduleType: string): string {
 
 /**
  * Find schedule blocks in a workflow's blocks
+ * Only returns enabled schedule blocks (disabled blocks are skipped)
  */
 export function findScheduleBlocks(blocks: Record<string, BlockState>): BlockState[] {
-  return Object.values(blocks).filter((block) => block.type === 'schedule')
+  return Object.values(blocks).filter(
+    (block) => block.type === 'schedule' && block.enabled !== false
+  )
 }
 
 /**

@@ -95,6 +95,7 @@ export function DeployModal({
   const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [apiDeployError, setApiDeployError] = useState<string | null>(null)
+  const [apiDeployWarnings, setApiDeployWarnings] = useState<string[]>([])
   const [isChatFormValid, setIsChatFormValid] = useState(false)
   const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
@@ -227,6 +228,7 @@ export function DeployModal({
     if (open && workflowId) {
       setActiveTab('general')
       setApiDeployError(null)
+      setApiDeployWarnings([])
     }
   }, [open, workflowId])
 
@@ -282,9 +284,13 @@ export function DeployModal({
     if (!workflowId) return
 
     setApiDeployError(null)
+    setApiDeployWarnings([])
 
     try {
-      await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      const result = await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      if (result.warnings && result.warnings.length > 0) {
+        setApiDeployWarnings(result.warnings)
+      }
       await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
@@ -297,8 +303,13 @@ export function DeployModal({
     async (version: number) => {
       if (!workflowId) return
 
+      setApiDeployWarnings([])
+
       try {
-        await activateVersionMutation.mutateAsync({ workflowId, version })
+        const result = await activateVersionMutation.mutateAsync({ workflowId, version })
+        if (result.warnings && result.warnings.length > 0) {
+          setApiDeployWarnings(result.warnings)
+        }
         await refetchDeployedState()
       } catch (error) {
         logger.error('Error promoting version:', { error })
@@ -324,9 +335,13 @@ export function DeployModal({
     if (!workflowId) return
 
     setApiDeployError(null)
+    setApiDeployWarnings([])
 
     try {
-      await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      const result = await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      if (result.warnings && result.warnings.length > 0) {
+        setApiDeployWarnings(result.warnings)
+      }
       await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
@@ -338,6 +353,7 @@ export function DeployModal({
   const handleCloseModal = useCallback(() => {
     setChatSubmitting(false)
     setApiDeployError(null)
+    setApiDeployWarnings([])
     onOpenChange(false)
   }, [onOpenChange])
 
@@ -477,6 +493,14 @@ export function DeployModal({
                 <div className='mb-3 rounded-[4px] border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
                   <div className='font-semibold'>Deployment Error</div>
                   <div>{apiDeployError}</div>
+                </div>
+              )}
+              {apiDeployWarnings.length > 0 && (
+                <div className='mb-3 rounded-[4px] border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400 text-sm'>
+                  <div className='font-semibold'>Deployment Warning</div>
+                  {apiDeployWarnings.map((warning, index) => (
+                    <div key={index}>{warning}</div>
+                  ))}
                 </div>
               )}
               <ModalTabsContent value='general'>

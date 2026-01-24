@@ -241,7 +241,6 @@ export interface WorkflowActions {
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
-  toggleBlockTriggerMode: (id: string) => void
   setDragStartPosition: (position: DragStartPosition | null) => void
   getDragStartPosition: () => DragStartPosition | null
   getWorkflowState: () => WorkflowState

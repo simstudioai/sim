@@ -4,7 +4,6 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
@@ -1168,93 +1167,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set(newState)
 
         get().triggerUpdate()
-        // Note: Socket.IO handles real-time sync automatically
-      },
-
-      toggleBlockTriggerMode: (id: string) => {
-        const block = get().blocks[id]
-        if (!block) return
-
-        const newTriggerMode = !block.triggerMode
-
-        // When switching TO trigger mode, check if block is inside a subflow
-        if (newTriggerMode && TriggerUtils.isBlockInSubflow(id, get().blocks)) {
-          logger.warn('Cannot enable trigger mode for block inside loop or parallel subflow', {
-            blockId: id,
-            blockType: block.type,
-          })
-          return
-        }
-
-        // When switching TO trigger mode, remove all incoming connections
-        let filteredEdges = [...get().edges]
-        if (newTriggerMode) {
-          // Remove edges where this block is the target
-          filteredEdges = filteredEdges.filter((edge) => edge.target !== id)
-          logger.info(
-            `Removed ${get().edges.length - filteredEdges.length} incoming connections for trigger mode`,
-            {
-              blockId: id,
-              blockType: block.type,
-            }
-          )
-        }
-
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [id]: {
-              ...block,
-              triggerMode: newTriggerMode,
-            },
-          },
-          edges: filteredEdges,
-          loops: { ...get().loops },
-          parallels: { ...get().parallels },
-        }
-
-        set(newState)
-        get().updateLastSaved()
-
-        // Handle webhook enable/disable when toggling trigger mode
-        const handleWebhookToggle = async () => {
-          try {
-            const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-            if (!activeWorkflowId) return
-
-            // Check if there's a webhook for this block
-            const response = await fetch(
-              `/api/webhooks?workflowId=${activeWorkflowId}&blockId=${id}`
-            )
-            if (response.ok) {
-              const data = await response.json()
-              if (data.webhooks && data.webhooks.length > 0) {
-                const webhook = data.webhooks[0].webhook
-
-                // Update webhook's isActive status based on trigger mode
-                const updateResponse = await fetch(`/api/webhooks/${webhook.id}`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    isActive: newTriggerMode,
-                  }),
-                })
-
-                if (!updateResponse.ok) {
-                  logger.error('Failed to update webhook status')
-                }
-              }
-            }
-          } catch (error) {
-            logger.error('Error toggling webhook status:', error)
-          }
-        }
-
-        // Handle webhook toggle asynchronously
-        handleWebhookToggle()
-
         // Note: Socket.IO handles real-time sync automatically
       },
 

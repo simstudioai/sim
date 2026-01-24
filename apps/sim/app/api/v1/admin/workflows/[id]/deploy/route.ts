@@ -1,14 +1,23 @@
-import { db, workflow } from '@sim/db'
+import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { cleanupWebhooksForWorkflow } from '@/lib/webhooks/deploy'
+import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
+import {
+  cleanupWebhooksForWorkflow,
+  restorePreviousVersionWebhooks,
+  saveTriggerWebhooksForDeploy,
+} from '@/lib/webhooks/deploy'
 import {
   deployWorkflow,
   loadWorkflowFromNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
-import { createSchedulesForDeploy, validateWorkflowSchedules } from '@/lib/workflows/schedules'
+import {
+  cleanupDeploymentVersion,
+  createSchedulesForDeploy,
+  validateWorkflowSchedules,
+} from '@/lib/workflows/schedules'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -28,10 +37,11 @@ interface RouteParams {
 
 export const POST = withAdminAuthParams<RouteParams>(async (request, context) => {
   const { id: workflowId } = await context.params
+  const requestId = generateRequestId()
 
   try {
     const [workflowRecord] = await db
-      .select({ id: workflow.id, name: workflow.name })
+      .select()
       .from(workflow)
       .where(eq(workflow.id, workflowId))
       .limit(1)
@@ -50,6 +60,18 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       return badRequestResponse(`Invalid schedule configuration: ${scheduleValidation.error}`)
     }
 
+    const [currentActiveVersion] = await db
+      .select({ id: workflowDeploymentVersion.id })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .limit(1)
+    const previousVersionId = currentActiveVersion?.id
+
     const deployResult = await deployWorkflow({
       workflowId,
       deployedBy: ADMIN_ACTOR_ID,
@@ -65,6 +87,32 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       return internalErrorResponse('Failed to resolve deployment version')
     }
 
+    const workflowData = workflowRecord as Record<string, unknown>
+
+    const triggerSaveResult = await saveTriggerWebhooksForDeploy({
+      request,
+      workflowId,
+      workflow: workflowData,
+      userId: workflowRecord.userId,
+      blocks: normalizedData.blocks,
+      requestId,
+      deploymentVersionId: deployResult.deploymentVersionId,
+      previousVersionId,
+    })
+
+    if (!triggerSaveResult.success) {
+      await cleanupDeploymentVersion({
+        workflowId,
+        workflow: workflowData,
+        requestId,
+        deploymentVersionId: deployResult.deploymentVersionId,
+      })
+      await undeployWorkflow({ workflowId })
+      return internalErrorResponse(
+        triggerSaveResult.error?.message || 'Failed to sync trigger configuration'
+      )
+    }
+
     const scheduleResult = await createSchedulesForDeploy(
       workflowId,
       normalizedData.blocks,
@@ -72,15 +120,58 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       deployResult.deploymentVersionId
     )
     if (!scheduleResult.success) {
-      logger.warn(`Schedule creation failed for workflow ${workflowId}: ${scheduleResult.error}`)
+      logger.error(
+        `[${requestId}] Admin API: Schedule creation failed for workflow ${workflowId}: ${scheduleResult.error}`
+      )
+      await cleanupDeploymentVersion({
+        workflowId,
+        workflow: workflowData,
+        requestId,
+        deploymentVersionId: deployResult.deploymentVersionId,
+      })
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData,
+          userId: workflowRecord.userId,
+          previousVersionId,
+          requestId,
+        })
+      }
+      await undeployWorkflow({ workflowId })
+      return internalErrorResponse(scheduleResult.error || 'Failed to create schedule')
     }
 
-    logger.info(`Admin API: Deployed workflow ${workflowId} as v${deployResult.version}`)
+    if (previousVersionId && previousVersionId !== deployResult.deploymentVersionId) {
+      try {
+        logger.info(`[${requestId}] Admin API: Cleaning up previous version ${previousVersionId}`)
+        await cleanupDeploymentVersion({
+          workflowId,
+          workflow: workflowData,
+          requestId,
+          deploymentVersionId: previousVersionId,
+          skipExternalCleanup: true,
+        })
+      } catch (cleanupError) {
+        logger.error(
+          `[${requestId}] Admin API: Failed to clean up previous version ${previousVersionId}`,
+          cleanupError
+        )
+      }
+    }
+
+    logger.info(
+      `[${requestId}] Admin API: Deployed workflow ${workflowId} as v${deployResult.version}`
+    )
+
+    // Sync MCP tools with the latest parameter schema
+    await syncMcpToolsForWorkflow({ workflowId, requestId, context: 'deploy' })
 
     const response: AdminDeployResult = {
       isDeployed: true,
       version: deployResult.version!,
       deployedAt: deployResult.deployedAt!.toISOString(),
+      warnings: triggerSaveResult.warnings,
     }
 
     return singleResponse(response)
@@ -105,7 +196,6 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
       return notFoundResponse('Workflow')
     }
 
-    // Clean up external webhook subscriptions before undeploying
     await cleanupWebhooksForWorkflow(
       workflowId,
       workflowRecord as Record<string, unknown>,
@@ -116,6 +206,8 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
     if (!result.success) {
       return internalErrorResponse(result.error || 'Failed to undeploy workflow')
     }
+
+    await removeMcpToolsForWorkflow(workflowId, requestId)
 
     logger.info(`Admin API: Undeployed workflow ${workflowId}`)
 

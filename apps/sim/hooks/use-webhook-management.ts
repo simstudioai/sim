@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -6,11 +6,9 @@ import { getBlock } from '@/blocks'
 import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { getTrigger, isTriggerValid } from '@/triggers'
+import { isTriggerValid } from '@/triggers'
 
 const logger = createLogger('useWebhookManagement')
-
-const CREDENTIAL_SET_PREFIX = 'credentialSet:'
 
 interface UseWebhookManagementProps {
   blockId: string
@@ -24,9 +22,6 @@ interface WebhookManagementState {
   webhookPath: string
   webhookId: string | null
   isLoading: boolean
-  isSaving: boolean
-  saveConfig: () => Promise<boolean>
-  deleteConfig: () => Promise<boolean>
 }
 
 /**
@@ -83,11 +78,9 @@ function resolveEffectiveTriggerId(
 }
 
 /**
- * Hook to manage webhook lifecycle for trigger blocks
- * Handles:
- * - Pre-generating webhook URLs based on blockId (without creating webhook)
- * - Loading existing webhooks from the API
- * - Saving and deleting webhook configurations
+ * Hook to load webhook info for trigger blocks.
+ * Used for displaying webhook URLs in the UI.
+ * Webhook creation/updates are handled by the deploy flow.
  */
 export function useWebhookManagement({
   blockId,
@@ -98,8 +91,6 @@ export function useWebhookManagement({
   const params = useParams()
   const workflowId = params.workflowId as string
 
-  const triggerDef = triggerId && isTriggerValid(triggerId) ? getTrigger(triggerId) : null
-
   const webhookId = useSubBlockStore(
     useCallback((state) => state.getValue(blockId, 'webhookId') as string | null, [blockId])
   )
@@ -107,7 +98,6 @@ export function useWebhookManagement({
     useCallback((state) => state.getValue(blockId, 'triggerPath') as string | null, [blockId])
   )
   const isLoading = useSubBlockStore((state) => state.loadingWebhooks.has(blockId))
-  const isChecked = useSubBlockStore((state) => state.checkedWebhooks.has(blockId))
 
   const webhookUrl = useMemo(() => {
     if (!webhookPath) {
@@ -117,8 +107,6 @@ export function useWebhookManagement({
     const baseUrl = getBaseUrl()
     return `${baseUrl}/api/webhooks/trigger/${webhookPath}`
   }, [webhookPath, blockId])
-
-  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (triggerId && !isPreview) {
@@ -143,7 +131,7 @@ export function useWebhookManagement({
       return
     }
 
-    const loadWebhookOrGenerateUrl = async () => {
+    const loadWebhookInfo = async () => {
       useSubBlockStore.setState((state) => ({
         loadingWebhooks: new Set([...state.loadingWebhooks, blockId]),
       }))
@@ -171,8 +159,6 @@ export function useWebhookManagement({
             if (webhook.providerConfig) {
               const effectiveTriggerId = resolveEffectiveTriggerId(blockId, triggerId, webhook)
 
-              // Filter out runtime/system fields from providerConfig before storing as triggerConfig
-              // These fields are managed by the system and should not be included in change detection
               const {
                 credentialId: _credId,
                 credentialSetId: _credSetId,
@@ -224,202 +210,14 @@ export function useWebhookManagement({
       }
     }
     if (useWebhookUrl) {
-      loadWebhookOrGenerateUrl()
+      loadWebhookInfo()
     }
   }, [isPreview, triggerId, workflowId, blockId, useWebhookUrl])
-
-  const createWebhook = async (
-    effectiveTriggerId: string | undefined,
-    selectedCredentialId: string | null
-  ): Promise<boolean> => {
-    if (!triggerDef || !effectiveTriggerId) {
-      return false
-    }
-
-    const triggerConfig = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
-
-    const isCredentialSet = selectedCredentialId?.startsWith(CREDENTIAL_SET_PREFIX)
-    const credentialSetId = isCredentialSet
-      ? selectedCredentialId!.slice(CREDENTIAL_SET_PREFIX.length)
-      : undefined
-    const credentialId = isCredentialSet ? undefined : selectedCredentialId
-
-    const webhookConfig = {
-      ...(triggerConfig || {}),
-      ...(credentialId ? { credentialId } : {}),
-      ...(credentialSetId ? { credentialSetId } : {}),
-      triggerId: effectiveTriggerId,
-    }
-
-    const path = blockId
-
-    const response = await fetch('/api/webhooks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        workflowId,
-        blockId,
-        path,
-        provider: triggerDef.provider,
-        providerConfig: webhookConfig,
-      }),
-    })
-
-    if (!response.ok) {
-      let errorMessage = 'Failed to create webhook'
-      try {
-        const errorData = await response.json()
-        errorMessage = errorData.details || errorData.error || errorMessage
-      } catch {
-        // If response is not JSON, use default message
-      }
-      logger.error('Failed to create webhook', { errorMessage })
-      throw new Error(errorMessage)
-    }
-
-    const data = await response.json()
-    const savedWebhookId = data.webhook.id
-
-    useSubBlockStore.getState().setValue(blockId, 'triggerPath', path)
-    useSubBlockStore.getState().setValue(blockId, 'triggerId', effectiveTriggerId)
-    useSubBlockStore.getState().setValue(blockId, 'webhookId', savedWebhookId)
-    useSubBlockStore.setState((state) => ({
-      checkedWebhooks: new Set([...state.checkedWebhooks, blockId]),
-    }))
-
-    logger.info('Trigger webhook created successfully', {
-      webhookId: savedWebhookId,
-      triggerId: effectiveTriggerId,
-      provider: triggerDef.provider,
-      blockId,
-    })
-
-    return true
-  }
-
-  const updateWebhook = async (
-    webhookIdToUpdate: string,
-    effectiveTriggerId: string | undefined,
-    selectedCredentialId: string | null
-  ): Promise<boolean> => {
-    const triggerConfigRaw = useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
-    const triggerConfig =
-      typeof triggerConfigRaw === 'object' && triggerConfigRaw !== null
-        ? (triggerConfigRaw as Record<string, unknown>)
-        : {}
-
-    const isCredentialSet = selectedCredentialId?.startsWith(CREDENTIAL_SET_PREFIX)
-    const credentialSetId = isCredentialSet
-      ? selectedCredentialId!.slice(CREDENTIAL_SET_PREFIX.length)
-      : undefined
-    const credentialId = isCredentialSet ? undefined : selectedCredentialId
-
-    const response = await fetch(`/api/webhooks/${webhookIdToUpdate}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        providerConfig: {
-          ...triggerConfig,
-          ...(credentialId ? { credentialId } : {}),
-          ...(credentialSetId ? { credentialSetId } : {}),
-          triggerId: effectiveTriggerId,
-        },
-      }),
-    })
-
-    if (response.status === 404) {
-      logger.warn('Webhook not found while updating, recreating', {
-        blockId,
-        lostWebhookId: webhookIdToUpdate,
-      })
-      useSubBlockStore.getState().setValue(blockId, 'webhookId', null)
-      return createWebhook(effectiveTriggerId, selectedCredentialId)
-    }
-
-    if (!response.ok) {
-      let errorMessage = 'Failed to save trigger configuration'
-      try {
-        const errorData = await response.json()
-        errorMessage = errorData.details || errorData.error || errorMessage
-      } catch {
-        // If response is not JSON, use default message
-      }
-      logger.error('Failed to save trigger config', { errorMessage })
-      throw new Error(errorMessage)
-    }
-
-    logger.info('Trigger config saved successfully', { blockId, webhookId: webhookIdToUpdate })
-    return true
-  }
-
-  const saveConfig = async (): Promise<boolean> => {
-    if (isPreview || !triggerDef) {
-      return false
-    }
-
-    const effectiveTriggerId = resolveEffectiveTriggerId(blockId, triggerId)
-
-    try {
-      setIsSaving(true)
-
-      const triggerCredentials = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials')
-      const selectedCredentialId = (triggerCredentials as string | null) || null
-
-      if (!webhookId) {
-        return createWebhook(effectiveTriggerId, selectedCredentialId)
-      }
-
-      return updateWebhook(webhookId, effectiveTriggerId, selectedCredentialId)
-    } catch (error) {
-      logger.error('Error saving trigger config:', error)
-      throw error
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const deleteConfig = async (): Promise<boolean> => {
-    if (isPreview || !webhookId) {
-      return false
-    }
-
-    try {
-      setIsSaving(true)
-
-      const response = await fetch(`/api/webhooks/${webhookId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        logger.error('Failed to delete webhook')
-        return false
-      }
-
-      useSubBlockStore.getState().setValue(blockId, 'triggerPath', '')
-      useSubBlockStore.getState().setValue(blockId, 'webhookId', null)
-      useSubBlockStore.setState((state) => {
-        const newSet = new Set(state.checkedWebhooks)
-        newSet.delete(blockId)
-        return { checkedWebhooks: newSet }
-      })
-
-      logger.info('Webhook deleted successfully')
-      return true
-    } catch (error) {
-      logger.error('Error deleting webhook:', error)
-      return false
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   return {
     webhookUrl,
     webhookPath: webhookPath || blockId,
     webhookId,
     isLoading,
-    isSaving,
-    saveConfig,
-    deleteConfig,
   }
 }
