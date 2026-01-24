@@ -226,9 +226,12 @@ export function useCollaborativeWorkflow() {
             case EDGES_OPERATIONS.BATCH_ADD_EDGES: {
               const { edges } = payload
               if (Array.isArray(edges) && edges.length > 0) {
-                const newEdges = filterNewEdges(edges, useWorkflowStore.getState().edges)
+                const blocks = useWorkflowStore.getState().blocks
+                const currentEdges = useWorkflowStore.getState().edges
+                const validEdges = filterValidEdges(edges, blocks)
+                const newEdges = filterNewEdges(validEdges, currentEdges)
                 if (newEdges.length > 0) {
-                  useWorkflowStore.getState().batchAddEdges(newEdges)
+                  useWorkflowStore.getState().batchAddEdges(newEdges, { skipValidation: true })
                 }
               }
               break
