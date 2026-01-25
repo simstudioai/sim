@@ -1,5 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
 import { createLogger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -7,6 +6,7 @@ import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
   generateToolUseId,
+  transformJSONSchema,
 } from '@/providers/anthropic/utils'
 import {
   getProviderDefaultModel,
@@ -186,12 +186,6 @@ export const anthropicProvider: ProviderConfig = {
       const schema = request.responseFormat.schema || request.responseFormat
 
       if (useNativeStructuredOutputs) {
-        // Use the official Anthropic SDK transformation which:
-        // - Adds additionalProperties: false to ALL nested objects
-        // - Removes unsupported JSON Schema constraints (minimum, maximum, minLength, etc.)
-        // - Filters string formats to supported list only
-        // - Moves unsupported constraints to description for model guidance
-        // See: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
         const transformedSchema = transformJSONSchema(schema)
         payload.output_format = {
           type: 'json_schema',
