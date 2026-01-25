@@ -178,7 +178,7 @@ export class EditWorkflowClientTool extends BaseClientTool {
   async handleReject(): Promise<void> {
     const logger = createLogger('EditWorkflowClientTool')
     logger.info('handleReject called', { toolCallId: this.toolCallId, state: this.getState() })
-    // Tool was already marked complete in execute() - this is just for UI state
+    // Tool was already marked complete in execute() - this is for UI state
     this.setState(ClientToolCallState.rejected)
   }
 
