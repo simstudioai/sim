@@ -255,12 +255,9 @@ function categorizeCommit(message: string): 'features' | 'fixes' | 'improvements
     msgLower.includes('enhance') ||
     msgLower.includes('upgrade') ||
     msgLower.includes('optimization') ||
-    msgLower.includes('add')
+    msgLower.includes('add') ||
+    msgLower.includes('update')
   ) {
-    return 'improvements'
-  }
-
-  if (msgLower.includes('update')) {
     return 'improvements'
   }
 
