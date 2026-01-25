@@ -63,9 +63,10 @@ result = client.execute_workflow("workflow-id", {"message": "Hello"}, timeout=60
 - `input` (any, optional): Input data to pass to the workflow. Dicts are spread at the root level, primitives/lists are wrapped in `{ input: value }`. File objects are automatically converted to base64.
 - `timeout` (float, keyword-only): Timeout in seconds (default: 30.0)
 - `stream` (bool, keyword-only): Enable streaming responses
+- `selected_outputs` (list, keyword-only): Block outputs to stream (e.g., `["agent1.content"]`)
 - `async_execution` (bool, keyword-only): Execute asynchronously and return execution ID
 
-**Returns:** `WorkflowExecutionResult`
+**Returns:** `WorkflowExecutionResult` or `AsyncExecutionResult`
 
 ##### get_workflow_status(workflow_id)
 
@@ -113,6 +114,73 @@ result = client.execute_workflow_sync("workflow-id", {"data": "some input"}, tim
 - `selected_outputs` (list, keyword-only): Block outputs to stream (e.g., `["agent1.content"]`)
 
 **Returns:** `WorkflowExecutionResult`
+
+##### get_job_status(task_id)
+
+Get the status of an async job.
+
+```python
+status = client.get_job_status("task-id-from-async-execution")
+print("Job status:", status)
+```
+
+**Parameters:**
+- `task_id` (str): The task ID returned from async execution
+
+**Returns:** `dict`
+
+##### execute_with_retry(workflow_id, input=None, *, timeout=30.0, stream=None, selected_outputs=None, async_execution=None, max_retries=3, initial_delay=1.0, max_delay=30.0, backoff_multiplier=2.0)
+
+Execute a workflow with automatic retry on rate limit errors.
+
+```python
+result = client.execute_with_retry(
+    "workflow-id",
+    {"message": "Hello"},
+    timeout=30.0,
+    max_retries=3,
+    initial_delay=1.0,
+    max_delay=30.0,
+    backoff_multiplier=2.0
+)
+```
+
+**Parameters:**
+- `workflow_id` (str): The ID of the workflow to execute
+- `input` (any, optional): Input data to pass to the workflow
+- `timeout` (float, keyword-only): Timeout in seconds (default: 30.0)
+- `stream` (bool, keyword-only): Enable streaming responses
+- `selected_outputs` (list, keyword-only): Block outputs to stream
+- `async_execution` (bool, keyword-only): Execute asynchronously
+- `max_retries` (int, keyword-only): Maximum retry attempts (default: 3)
+- `initial_delay` (float, keyword-only): Initial delay in seconds (default: 1.0)
+- `max_delay` (float, keyword-only): Maximum delay in seconds (default: 30.0)
+- `backoff_multiplier` (float, keyword-only): Backoff multiplier (default: 2.0)
+
+**Returns:** `WorkflowExecutionResult` or `AsyncExecutionResult`
+
+##### get_rate_limit_info()
+
+Get current rate limit information from the last API response.
+
+```python
+rate_info = client.get_rate_limit_info()
+if rate_info:
+    print("Remaining requests:", rate_info.remaining)
+```
+
+**Returns:** `RateLimitInfo` or `None`
+
+##### get_usage_limits()
+
+Get current usage limits and quota information.
+
+```python
+limits = client.get_usage_limits()
+print("Current usage:", limits.usage)
+```
+
+**Returns:** `UsageLimits`
 
 ##### set_api_key(api_key)
 
@@ -172,6 +240,39 @@ class SimStudioError(Exception):
         super().__init__(message)
         self.code = code
         self.status = status
+```
+
+### AsyncExecutionResult
+
+```python
+@dataclass
+class AsyncExecutionResult:
+    success: bool
+    task_id: str
+    status: str  # 'queued'
+    created_at: str
+    links: Dict[str, str]
+```
+
+### RateLimitInfo
+
+```python
+@dataclass
+class RateLimitInfo:
+    limit: int
+    remaining: int
+    reset: int
+    retry_after: Optional[int] = None
+```
+
+### UsageLimits
+
+```python
+@dataclass
+class UsageLimits:
+    success: bool
+    rate_limit: Dict[str, Any]
+    usage: Dict[str, Any]
 ```
 
 ## Examples
@@ -330,14 +431,14 @@ def execute_workflows_batch(workflow_data_pairs):
     """Execute multiple workflows with different input data."""
     results = []
 
-    for workflow_id, input in workflow_data_pairs:
+    for workflow_id, workflow_input in workflow_data_pairs:
         try:
             # Validate workflow before execution
             if not client.validate_workflow(workflow_id):
                 print(f"Skipping {workflow_id}: not deployed")
                 continue
 
-            result = client.execute_workflow(workflow_id, input)
+            result = client.execute_workflow(workflow_id, workflow_input)
             results.append({
                 "workflow_id": workflow_id,
                 "success": result.success,

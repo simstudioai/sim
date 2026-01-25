@@ -75,7 +75,7 @@ const result = await client.executeWorkflow('workflow-id', { message: 'Hello' },
   - `selectedOutputs` (string[]): Block outputs to stream (e.g., `["agent1.content"]`)
   - `async` (boolean): Execute asynchronously and return execution ID
 
-**Returns:** `Promise<WorkflowExecutionResult>`
+**Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
 
 ##### getWorkflowStatus(workflowId)
 
@@ -124,6 +124,71 @@ const result = await client.executeWorkflowSync('workflow-id', { data: 'some inp
   - `timeout` (number): Timeout for the initial request in milliseconds
 
 **Returns:** `Promise<WorkflowExecutionResult>`
+
+##### getJobStatus(taskId)
+
+Get the status of an async job.
+
+```typescript
+const status = await client.getJobStatus('task-id-from-async-execution');
+console.log('Job status:', status);
+```
+
+**Parameters:**
+- `taskId` (string): The task ID returned from async execution
+
+**Returns:** `Promise<any>`
+
+##### executeWithRetry(workflowId, input?, options?, retryOptions?)
+
+Execute a workflow with automatic retry on rate limit errors.
+
+```typescript
+const result = await client.executeWithRetry('workflow-id', { message: 'Hello' }, {
+  timeout: 30000
+}, {
+  maxRetries: 3,
+  initialDelay: 1000,
+  maxDelay: 30000,
+  backoffMultiplier: 2
+});
+```
+
+**Parameters:**
+- `workflowId` (string): The ID of the workflow to execute
+- `input` (any, optional): Input data to pass to the workflow
+- `options` (ExecutionOptions, optional): Execution options
+- `retryOptions` (RetryOptions, optional):
+  - `maxRetries` (number): Maximum retry attempts (default: 3)
+  - `initialDelay` (number): Initial delay in ms (default: 1000)
+  - `maxDelay` (number): Maximum delay in ms (default: 30000)
+  - `backoffMultiplier` (number): Backoff multiplier (default: 2)
+
+**Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
+
+##### getRateLimitInfo()
+
+Get current rate limit information from the last API response.
+
+```typescript
+const rateInfo = client.getRateLimitInfo();
+if (rateInfo) {
+  console.log('Remaining requests:', rateInfo.remaining);
+}
+```
+
+**Returns:** `RateLimitInfo | null`
+
+##### getUsageLimits()
+
+Get current usage limits and quota information.
+
+```typescript
+const limits = await client.getUsageLimits();
+console.log('Current usage:', limits.usage);
+```
+
+**Returns:** `Promise<UsageLimits>`
 
 ##### setApiKey(apiKey)
 
@@ -177,6 +242,81 @@ interface WorkflowStatus {
 class SimStudioError extends Error {
   code?: string;
   status?: number;
+}
+```
+
+### AsyncExecutionResult
+
+```typescript
+interface AsyncExecutionResult {
+  success: boolean;
+  taskId: string;
+  status: 'queued';
+  createdAt: string;
+  links: {
+    status: string;
+  };
+}
+```
+
+### RateLimitInfo
+
+```typescript
+interface RateLimitInfo {
+  limit: number;
+  remaining: number;
+  reset: number;
+  retryAfter?: number;
+}
+```
+
+### UsageLimits
+
+```typescript
+interface UsageLimits {
+  success: boolean;
+  rateLimit: {
+    sync: {
+      isLimited: boolean;
+      limit: number;
+      remaining: number;
+      resetAt: string;
+    };
+    async: {
+      isLimited: boolean;
+      limit: number;
+      remaining: number;
+      resetAt: string;
+    };
+    authType: string;
+  };
+  usage: {
+    currentPeriodCost: number;
+    limit: number;
+    plan: string;
+  };
+}
+```
+
+### ExecutionOptions
+
+```typescript
+interface ExecutionOptions {
+  timeout?: number;
+  stream?: boolean;
+  selectedOutputs?: string[];
+  async?: boolean;
+}
+```
+
+### RetryOptions
+
+```typescript
+interface RetryOptions {
+  maxRetries?: number;
+  initialDelay?: number;
+  maxDelay?: number;
+  backoffMultiplier?: number;
 }
 ```
 
