@@ -11,6 +11,14 @@ interface UseCanvasContextMenuProps {
   setNodes: (updater: (nodes: Node[]) => Node[]) => void
 }
 
+/**
+ * Hook for managing workflow canvas context menus.
+ *
+ * Handles right-click events on nodes, pane, and selections with proper multi-select behavior.
+ *
+ * @param props - Hook configuration
+ * @returns Context menu state and handlers
+ */
 export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasContextMenuProps) {
   const [activeMenu, setActiveMenu] = useState<MenuType>(null)
   const [position, setPosition] = useState({ x: 0, y: 0 })
