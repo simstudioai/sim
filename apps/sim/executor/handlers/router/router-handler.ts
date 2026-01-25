@@ -9,12 +9,12 @@ import type { BlockOutput } from '@/blocks/types'
 import {
   BlockType,
   DEFAULTS,
-  HTTP,
   isAgentBlockType,
   isRouterV2BlockType,
   ROUTER,
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { buildAuthHeaders } from '@/executor/utils/http'
 import { validateModelProvider } from '@/executor/utils/permission-check'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -118,9 +118,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': HTTP.CONTENT_TYPE.JSON,
-        },
+        headers: await buildAuthHeaders(),
         body: JSON.stringify(providerRequest),
       })
 
@@ -277,9 +275,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': HTTP.CONTENT_TYPE.JSON,
-        },
+        headers: await buildAuthHeaders(),
         body: JSON.stringify(providerRequest),
       })
 
