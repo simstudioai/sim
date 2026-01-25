@@ -27,6 +27,9 @@ export function registerEmitFunctions(
   emitSubblockUpdate = subblockEmit
   emitVariableUpdate = variableEmit
   currentRegisteredWorkflowId = workflowId
+  if (workflowId) {
+    useOperationQueueStore.getState().processNextOperation()
+  }
 }
 
 let currentRegisteredWorkflowId: string | null = null
@@ -262,16 +265,14 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       return
     }
 
-    const nextOperation = currentRegisteredWorkflowId
-      ? state.operations.find(
-          (op) => op.status === 'pending' && op.workflowId === currentRegisteredWorkflowId
-        )
-      : state.operations.find((op) => op.status === 'pending')
-    if (!nextOperation) {
+    if (!currentRegisteredWorkflowId) {
       return
     }
 
-    if (currentRegisteredWorkflowId && nextOperation.workflowId !== currentRegisteredWorkflowId) {
+    const nextOperation = state.operations.find(
+      (op) => op.status === 'pending' && op.workflowId === currentRegisteredWorkflowId
+    )
+    if (!nextOperation) {
       return
     }
 

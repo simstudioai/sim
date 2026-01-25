@@ -136,7 +136,7 @@ export interface SupabaseStorageUploadParams {
   bucket: string
   fileName: string
   path?: string
-  fileContent: string
+  fileData: any // UserFile object (basic mode) or string (advanced mode: base64/plain text)
   contentType?: string
   upsert?: boolean
 }

@@ -951,14 +951,25 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeSetBlockCanonicalMode = useCallback(
     (id: string, canonicalId: string, canonicalMode: 'basic' | 'advanced') => {
-      executeQueuedOperation(
-        BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE,
-        OPERATION_TARGETS.BLOCK,
-        { id, canonicalId, canonicalMode },
-        () => useWorkflowStore.getState().setBlockCanonicalMode(id, canonicalId, canonicalMode)
-      )
+      if (isBaselineDiffView) {
+        return
+      }
+
+      useWorkflowStore.getState().setBlockCanonicalMode(id, canonicalId, canonicalMode)
+
+      const operationId = crypto.randomUUID()
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE,
+          target: OPERATION_TARGETS.BLOCK,
+          payload: { id, canonicalId, canonicalMode },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
     },
-    [executeQueuedOperation]
+    [isBaselineDiffView, activeWorkflowId, addToQueue, session?.user?.id]
   )
 
   const collaborativeBatchToggleBlockHandles = useCallback(
