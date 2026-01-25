@@ -694,20 +694,11 @@ function updateCanonicalModesForInputs(
     const group = canonicalIndex.groupsById[canonicalId]
     if (!group || !isCanonicalPair(group)) continue
 
-    const subBlockConfig = blockConfig.subBlocks.find((sb) => sb.id === inputKey)
-    if (
-      !subBlockConfig?.mode ||
-      subBlockConfig.mode === 'both' ||
-      subBlockConfig.mode === 'trigger'
-    )
-      continue
-
-    const inputMode: 'basic' | 'advanced' =
-      subBlockConfig.mode === 'advanced' ? 'advanced' : 'basic'
+    const isAdvanced = group.advancedIds.includes(inputKey)
     const existingMode = canonicalModeUpdates[canonicalId]
 
-    if (!existingMode || inputMode === 'advanced') {
-      canonicalModeUpdates[canonicalId] = inputMode
+    if (!existingMode || isAdvanced) {
+      canonicalModeUpdates[canonicalId] = isAdvanced ? 'advanced' : 'basic'
     }
   }
 
