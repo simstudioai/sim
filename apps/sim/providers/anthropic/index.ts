@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
 import { createLogger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -6,7 +7,6 @@ import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
   generateToolUseId,
-  transformJSONSchema,
 } from '@/providers/anthropic/utils'
 import {
   getProviderDefaultModel,
