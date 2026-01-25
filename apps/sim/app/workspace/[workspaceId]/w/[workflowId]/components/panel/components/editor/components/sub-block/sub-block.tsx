@@ -292,7 +292,9 @@ const renderLabel = (
                 onClick={canonicalToggle?.onToggle}
                 disabled={canonicalToggleDisabledResolved}
                 aria-label={
-                  canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'
+                  canonicalToggle?.mode === 'advanced'
+                    ? 'Switch to selector'
+                    : 'Switch to manual ID'
                 }
               >
                 <ArrowLeftRight
