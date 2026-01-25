@@ -608,7 +608,7 @@ describe('SimStudioClient', () => {
       expect(requestBody).not.toHaveProperty('input') // Should not wrap in input field
     })
 
-    it('should handle null input by wrapping in input field', async () => {
+    it('should handle null input as no input (empty body)', async () => {
       const fetch = await import('node-fetch')
       const mockResponse = {
         ok: true,
@@ -629,8 +629,8 @@ describe('SimStudioClient', () => {
       const calls = vi.mocked(fetch.default).mock.calls
       const requestBody = JSON.parse(calls[0][1]?.body as string)
 
-      // null wraps in input field
-      expect(requestBody).toHaveProperty('input', null)
+      // null treated as "no input" - sends empty body (consistent with Python SDK)
+      expect(requestBody).toEqual({})
     })
   })
 })

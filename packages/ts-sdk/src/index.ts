@@ -193,7 +193,7 @@ export class SimStudioClient {
       }
 
       let jsonBody: any = {}
-      if (input !== undefined) {
+      if (input !== undefined && input !== null) {
         if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
           jsonBody = { ...input }
         } else {
