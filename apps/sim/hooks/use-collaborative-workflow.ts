@@ -957,6 +957,10 @@ export function useCollaborativeWorkflow() {
 
       useWorkflowStore.getState().setBlockCanonicalMode(id, canonicalId, canonicalMode)
 
+      if (!activeWorkflowId) {
+        return
+      }
+
       const operationId = crypto.randomUUID()
       addToQueue({
         id: operationId,
@@ -965,7 +969,7 @@ export function useCollaborativeWorkflow() {
           target: OPERATION_TARGETS.BLOCK,
           payload: { id, canonicalId, canonicalMode },
         },
-        workflowId: activeWorkflowId || '',
+        workflowId: activeWorkflowId,
         userId: session?.user?.id || 'unknown',
       })
     },
