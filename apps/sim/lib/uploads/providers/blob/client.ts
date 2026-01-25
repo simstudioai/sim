@@ -48,15 +48,15 @@ function parseConnectionString(connectionString: string): ParsedCredentials {
  * Get account credentials from BLOB_CONFIG, extracting from connection string if necessary.
  */
 function getAccountCredentials(): ParsedCredentials {
+  if (BLOB_CONFIG.connectionString) {
+    return parseConnectionString(BLOB_CONFIG.connectionString)
+  }
+
   if (BLOB_CONFIG.accountName && BLOB_CONFIG.accountKey) {
     return {
       accountName: BLOB_CONFIG.accountName,
       accountKey: BLOB_CONFIG.accountKey,
     }
-  }
-
-  if (BLOB_CONFIG.connectionString) {
-    return parseConnectionString(BLOB_CONFIG.connectionString)
   }
 
   throw new Error(
