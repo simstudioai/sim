@@ -11,9 +11,10 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
-import type { SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { EDGE, normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -667,9 +668,45 @@ function createBlockFromParams(
         }
       }
     })
+
+    if (validatedInputs) {
+      updateCanonicalModesForInputs(blockState, Object.keys(validatedInputs), blockConfig)
+    }
   }
 
   return blockState
+}
+
+function updateCanonicalModesForInputs(
+  block: { data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> } },
+  inputKeys: string[],
+  blockConfig: BlockConfig
+): void {
+  if (!blockConfig.subBlocks?.length) return
+
+  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+  const canonicalModeUpdates: Record<string, 'basic' | 'advanced'> = {}
+
+  for (const inputKey of inputKeys) {
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[inputKey]
+    if (!canonicalId) continue
+
+    const group = canonicalIndex.groupsById[canonicalId]
+    if (!group || !isCanonicalPair(group)) continue
+
+    const isAdvanced = group.advancedIds.includes(inputKey)
+    const existingMode = canonicalModeUpdates[canonicalId]
+
+    if (!existingMode || isAdvanced) {
+      canonicalModeUpdates[canonicalId] = isAdvanced ? 'advanced' : 'basic'
+    }
+  }
+
+  if (Object.keys(canonicalModeUpdates).length > 0) {
+    if (!block.data) block.data = {}
+    if (!block.data.canonicalModes) block.data.canonicalModes = {}
+    Object.assign(block.data.canonicalModes, canonicalModeUpdates)
+  }
 }
 
 /**
@@ -1654,6 +1691,15 @@ function applyOperationsToWorkflowState(
               block.data.collection = params.inputs.collection
             }
           }
+
+          const editBlockConfig = getBlock(block.type)
+          if (editBlockConfig) {
+            updateCanonicalModesForInputs(
+              block,
+              Object.keys(validationResult.validInputs),
+              editBlockConfig
+            )
+          }
         }
 
         // Update basic properties
@@ -2256,6 +2302,15 @@ function applyOperationsToWorkflowState(
                 existingBlock.subBlocks[key].value = sanitizedValue
               }
             })
+
+            const existingBlockConfig = getBlock(existingBlock.type)
+            if (existingBlockConfig) {
+              updateCanonicalModesForInputs(
+                existingBlock,
+                Object.keys(validationResult.validInputs),
+                existingBlockConfig
+              )
+            }
           }
         } else {
           // Special container types (loop, parallel) are not in the block registry but are valid
