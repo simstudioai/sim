@@ -43,22 +43,27 @@ SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
 
 #### Methods
 
-##### execute_workflow(workflow_id, input_data=None, timeout=30.0)
+##### execute_workflow(workflow_id, input=None, *, timeout=30.0, stream=None, selected_outputs=None, async_execution=None)
 
 Execute a workflow with optional input data.
 
 ```python
-result = client.execute_workflow(
-    "workflow-id",
-    input_data={"message": "Hello, world!"},
-    timeout=30.0  # 30 seconds
-)
+# With dict input (spread at root level of request body)
+result = client.execute_workflow("workflow-id", {"message": "Hello, world!"})
+
+# With primitive input (wrapped as { input: value })
+result = client.execute_workflow("workflow-id", "NVDA")
+
+# With options (keyword-only arguments)
+result = client.execute_workflow("workflow-id", {"message": "Hello"}, timeout=60.0)
 ```
 
 **Parameters:**
 - `workflow_id` (str): The ID of the workflow to execute
-- `input_data` (dict, optional): Input data to pass to the workflow. File objects are automatically converted to base64.
-- `timeout` (float): Timeout in seconds (default: 30.0)
+- `input` (any, optional): Input data to pass to the workflow. Dicts are spread at the root level, primitives/lists are wrapped in `{ input: value }`. File objects are automatically converted to base64.
+- `timeout` (float, keyword-only): Timeout in seconds (default: 30.0)
+- `stream` (bool, keyword-only): Enable streaming responses
+- `async_execution` (bool, keyword-only): Execute asynchronously and return execution ID
 
 **Returns:** `WorkflowExecutionResult`
 
@@ -92,22 +97,20 @@ if is_ready:
 
 **Returns:** `bool`
 
-##### execute_workflow_sync(workflow_id, input_data=None, timeout=30.0)
+##### execute_workflow_sync(workflow_id, input=None, *, timeout=30.0, stream=None, selected_outputs=None)
 
-Execute a workflow and poll for completion (useful for long-running workflows).
+Execute a workflow synchronously (ensures non-async mode).
 
 ```python
-result = client.execute_workflow_sync(
-    "workflow-id",
-    input_data={"data": "some input"},
-    timeout=60.0
-)
+result = client.execute_workflow_sync("workflow-id", {"data": "some input"}, timeout=60.0)
 ```
 
 **Parameters:**
 - `workflow_id` (str): The ID of the workflow to execute
-- `input_data` (dict, optional): Input data to pass to the workflow
-- `timeout` (float): Timeout for the initial request in seconds
+- `input` (any, optional): Input data to pass to the workflow
+- `timeout` (float, keyword-only): Timeout in seconds (default: 30.0)
+- `stream` (bool, keyword-only): Enable streaming responses
+- `selected_outputs` (list, keyword-only): Block outputs to stream (e.g., `["agent1.content"]`)
 
 **Returns:** `WorkflowExecutionResult`
 
@@ -191,7 +194,7 @@ def run_workflow():
         # Execute the workflow
         result = client.execute_workflow(
             "my-workflow-id",
-            input_data={
+            {
                 "message": "Process this data",
                 "user_id": "12345"
             }
@@ -298,7 +301,7 @@ client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 with open('document.pdf', 'rb') as f:
     result = client.execute_workflow(
         'workflow-id',
-        input_data={
+        {
             'documents': [f],  # Must match your workflow's "files" field name
             'instructions': 'Analyze this document'
         }
@@ -308,7 +311,7 @@ with open('document.pdf', 'rb') as f:
 with open('doc1.pdf', 'rb') as f1, open('doc2.pdf', 'rb') as f2:
     result = client.execute_workflow(
         'workflow-id',
-        input_data={
+        {
             'attachments': [f1, f2],  # Must match your workflow's "files" field name
             'query': 'Compare these documents'
         }
@@ -327,14 +330,14 @@ def execute_workflows_batch(workflow_data_pairs):
     """Execute multiple workflows with different input data."""
     results = []
 
-    for workflow_id, input_data in workflow_data_pairs:
+    for workflow_id, input in workflow_data_pairs:
         try:
             # Validate workflow before execution
             if not client.validate_workflow(workflow_id):
                 print(f"Skipping {workflow_id}: not deployed")
                 continue
 
-            result = client.execute_workflow(workflow_id, input_data)
+            result = client.execute_workflow(workflow_id, input)
             results.append({
                 "workflow_id": workflow_id,
                 "success": result.success,

@@ -47,22 +47,33 @@ new SimStudioClient(config: SimStudioConfig)
 
 #### Methods
 
-##### executeWorkflow(workflowId, options?)
+##### executeWorkflow(workflowId, input?, options?)
 
 Execute a workflow with optional input data.
 
 ```typescript
+// With object input (spread at root level of request body)
 const result = await client.executeWorkflow('workflow-id', {
-  input: { message: 'Hello, world!' },
-  timeout: 30000 // 30 seconds
+  message: 'Hello, world!'
+});
+
+// With primitive input (wrapped as { input: value })
+const result = await client.executeWorkflow('workflow-id', 'NVDA');
+
+// With options
+const result = await client.executeWorkflow('workflow-id', { message: 'Hello' }, {
+  timeout: 60000
 });
 ```
 
 **Parameters:**
 - `workflowId` (string): The ID of the workflow to execute
+- `input` (any, optional): Input data to pass to the workflow. Objects are spread at the root level, primitives/arrays are wrapped in `{ input: value }`. File objects are automatically converted to base64.
 - `options` (ExecutionOptions, optional):
-  - `input` (any): Input data to pass to the workflow. File objects are automatically converted to base64.
   - `timeout` (number): Timeout in milliseconds (default: 30000)
+  - `stream` (boolean): Enable streaming responses
+  - `selectedOutputs` (string[]): Block outputs to stream (e.g., `["agent1.content"]`)
+  - `async` (boolean): Execute asynchronously and return execution ID
 
 **Returns:** `Promise<WorkflowExecutionResult>`
 
@@ -96,21 +107,20 @@ if (isReady) {
 
 **Returns:** `Promise<boolean>`
 
-##### executeWorkflowSync(workflowId, options?)
+##### executeWorkflowSync(workflowId, input?, options?)
 
 Execute a workflow and poll for completion (useful for long-running workflows).
 
 ```typescript
-const result = await client.executeWorkflowSync('workflow-id', {
-  input: { data: 'some input' },
+const result = await client.executeWorkflowSync('workflow-id', { data: 'some input' }, {
   timeout: 60000
 });
 ```
 
 **Parameters:**
 - `workflowId` (string): The ID of the workflow to execute
+- `input` (any, optional): Input data to pass to the workflow
 - `options` (ExecutionOptions, optional):
-  - `input` (any): Input data to pass to the workflow
   - `timeout` (number): Timeout for the initial request in milliseconds
 
 **Returns:** `Promise<WorkflowExecutionResult>`
@@ -191,10 +201,8 @@ async function runWorkflow() {
 
     // Execute the workflow
     const result = await client.executeWorkflow('my-workflow-id', {
-      input: {
-        message: 'Process this data',
-        userId: '12345'
-      }
+      message: 'Process this data',
+      userId: '12345'
     });
 
     if (result.success) {
@@ -298,22 +306,18 @@ const file = new File([fileBuffer], 'document.pdf', { type: 'application/pdf' })
 
 // Include files under the field name from your API trigger's input format
 const result = await client.executeWorkflow('workflow-id', {
-  input: {
-    documents: [file],  // Field name must match your API trigger's file input field
-    instructions: 'Process this document'
-  }
+  documents: [file],  // Field name must match your API trigger's file input field
+  instructions: 'Process this document'
 });
 
 // Browser: From file input
 const handleFileUpload = async (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files || []);
+  const inputEl = event.target as HTMLInputElement;
+  const files = Array.from(inputEl.files || []);
 
   const result = await client.executeWorkflow('workflow-id', {
-    input: {
-      attachments: files,  // Field name must match your API trigger's file input field
-      query: 'Analyze these files'
-    }
+    attachments: files,  // Field name must match your API trigger's file input field
+    query: 'Analyze these files'
   });
 };
 ```
