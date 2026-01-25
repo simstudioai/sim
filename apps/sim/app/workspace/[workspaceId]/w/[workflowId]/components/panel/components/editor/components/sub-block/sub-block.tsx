@@ -284,22 +284,35 @@ const renderLabel = (
           </>
         )}
         {showCanonicalToggle && (
-          <button
-            type='button'
-            className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
-            onClick={canonicalToggle?.onToggle}
-            disabled={canonicalToggleDisabledResolved}
-            aria-label={canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'}
-          >
-            <ArrowLeftRight
-              className={cn(
-                '!h-[12px] !w-[12px]',
-                canonicalToggle?.mode === 'advanced'
-                  ? 'text-[var(--text-primary)]'
-                  : 'text-[var(--text-secondary)]'
-              )}
-            />
-          </button>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+                onClick={canonicalToggle?.onToggle}
+                disabled={canonicalToggleDisabledResolved}
+                aria-label={
+                  canonicalToggle?.mode === 'advanced' ? 'Use selector' : 'Enter manual ID'
+                }
+              >
+                <ArrowLeftRight
+                  className={cn(
+                    '!h-[12px] !w-[12px]',
+                    canonicalToggle?.mode === 'advanced'
+                      ? 'text-[var(--text-primary)]'
+                      : 'text-[var(--text-secondary)]'
+                  )}
+                />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>
+                {canonicalToggle?.mode === 'advanced'
+                  ? 'Switch to selector'
+                  : 'Switch to manual ID'}
+              </p>
+            </Tooltip.Content>
+          </Tooltip.Root>
         )}
       </div>
     </div>
