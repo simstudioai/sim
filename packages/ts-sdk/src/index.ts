@@ -26,7 +26,6 @@ export interface WorkflowStatus {
 }
 
 export interface ExecutionOptions {
-  input?: any
   timeout?: number
   stream?: boolean
   selectedOutputs?: string[]
@@ -118,10 +117,6 @@ export class SimStudioClient {
   }
 
   /**
-   * Execute a workflow with optional input data
-   * If async is true, returns immediately with a task ID
-   */
-  /**
    * Convert File objects in input to API format (base64)
    * Recursively processes nested objects and arrays
    */
@@ -170,20 +165,25 @@ export class SimStudioClient {
     return value
   }
 
+  /**
+   * Execute a workflow with optional input data
+   * @param workflowId - The ID of the workflow to execute
+   * @param input - Input data to pass to the workflow (object, primitive, or array)
+   * @param options - Execution options (timeout, stream, async, etc.)
+   */
   async executeWorkflow(
     workflowId: string,
+    input?: any,
     options: ExecutionOptions = {}
   ): Promise<WorkflowExecutionResult | AsyncExecutionResult> {
     const url = `${this.baseUrl}/api/workflows/${workflowId}/execute`
-    const { input, timeout = 30000, stream, selectedOutputs, async } = options
+    const { timeout = 30000, stream, selectedOutputs, async } = options
 
     try {
-      // Create a timeout promise
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('TIMEOUT')), timeout)
       })
 
-      // Build headers - async execution uses X-Execution-Mode header
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-API-Key': this.apiKey,
@@ -192,10 +192,15 @@ export class SimStudioClient {
         headers['X-Execution-Mode'] = 'async'
       }
 
-      // Build JSON body - spread input at root level, then add API control parameters
-      let jsonBody: any = input !== undefined ? { ...input } : {}
+      let jsonBody: any = {}
+      if (input !== undefined) {
+        if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
+          jsonBody = { ...input }
+        } else {
+          jsonBody = { input }
+        }
+      }
 
-      // Convert any File objects in the input to base64 format
       jsonBody = await this.convertFilesToBase64(jsonBody)
 
       if (stream !== undefined) {
@@ -213,10 +218,8 @@ export class SimStudioClient {
 
       const response = await Promise.race([fetchPromise, timeoutPromise])
 
-      // Extract rate limit headers
       this.updateRateLimitInfo(response)
 
-      // Handle rate limiting with retry
       if (response.status === 429) {
         const retryAfter = this.rateLimitInfo?.retryAfter || 1000
         throw new SimStudioError(
@@ -285,15 +288,18 @@ export class SimStudioClient {
   }
 
   /**
-   * Execute a workflow and poll for completion (useful for long-running workflows)
+   * Execute a workflow synchronously (ensures non-async mode)
+   * @param workflowId - The ID of the workflow to execute
+   * @param input - Input data to pass to the workflow
+   * @param options - Execution options (timeout, stream, etc.)
    */
   async executeWorkflowSync(
     workflowId: string,
+    input?: any,
     options: ExecutionOptions = {}
   ): Promise<WorkflowExecutionResult> {
-    // Ensure sync mode by explicitly setting async to false
     const syncOptions = { ...options, async: false }
-    return this.executeWorkflow(workflowId, syncOptions) as Promise<WorkflowExecutionResult>
+    return this.executeWorkflow(workflowId, input, syncOptions) as Promise<WorkflowExecutionResult>
   }
 
   /**
@@ -361,9 +367,14 @@ export class SimStudioClient {
 
   /**
    * Execute workflow with automatic retry on rate limit
+   * @param workflowId - The ID of the workflow to execute
+   * @param input - Input data to pass to the workflow
+   * @param options - Execution options (timeout, stream, async, etc.)
+   * @param retryOptions - Retry configuration (maxRetries, delays, etc.)
    */
   async executeWithRetry(
     workflowId: string,
+    input?: any,
     options: ExecutionOptions = {},
     retryOptions: RetryOptions = {}
   ): Promise<WorkflowExecutionResult | AsyncExecutionResult> {
@@ -379,7 +390,7 @@ export class SimStudioClient {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        return await this.executeWorkflow(workflowId, options)
+        return await this.executeWorkflow(workflowId, input, options)
       } catch (error: any) {
         if (!(error instanceof SimStudioError) || error.code !== 'RATE_LIMIT_EXCEEDED') {
           throw error
@@ -387,23 +398,19 @@ export class SimStudioClient {
 
         lastError = error
 
-        // Don't retry after last attempt
         if (attempt === maxRetries) {
           break
         }
 
-        // Use retry-after if provided, otherwise use exponential backoff
         const waitTime =
           error.status === 429 && this.rateLimitInfo?.retryAfter
             ? this.rateLimitInfo.retryAfter
             : Math.min(delay, maxDelay)
 
-        // Add jitter (±25%)
         const jitter = waitTime * (0.75 + Math.random() * 0.5)
 
         await new Promise((resolve) => setTimeout(resolve, jitter))
 
-        // Exponential backoff for next attempt
         delay *= backoffMultiplier
       }
     }
@@ -475,5 +482,4 @@ export class SimStudioClient {
   }
 }
 
-// Export types and classes
 export { SimStudioClient as default }

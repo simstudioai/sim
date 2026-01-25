@@ -13,7 +13,7 @@ import os
 import requests
 
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 __all__ = [
     "SimStudioClient",
     "SimStudioError",
@@ -65,15 +65,6 @@ class RateLimitInfo:
 
 
 @dataclass
-class RateLimitStatus:
-    """Rate limit status for sync/async requests."""
-    is_limited: bool
-    limit: int
-    remaining: int
-    reset_at: str
-
-
-@dataclass
 class UsageLimits:
     """Usage limits and quota information."""
     success: bool
@@ -115,7 +106,6 @@ class SimStudioClient:
         Recursively processes nested dicts and lists.
         """
         import base64
-        import io
 
         # Check if this is a file-like object
         if hasattr(value, 'read') and callable(value.read):
@@ -159,7 +149,8 @@ class SimStudioClient:
     def execute_workflow(
         self,
         workflow_id: str,
-        input_data: Optional[Dict[str, Any]] = None,
+        input: Optional[Any] = None,
+        *,
         timeout: float = 30.0,
         stream: Optional[bool] = None,
         selected_outputs: Optional[list] = None,
@@ -169,11 +160,13 @@ class SimStudioClient:
         Execute a workflow with optional input data.
         If async_execution is True, returns immediately with a task ID.
 
-        File objects in input_data will be automatically detected and converted to base64.
+        File objects in input will be automatically detected and converted to base64.
 
         Args:
             workflow_id: The ID of the workflow to execute
-            input_data: Input data to pass to the workflow (can include file-like objects)
+            input: Input data to pass to the workflow. Can be a dict (spread at root level),
+                   primitive value (string, number, bool), or list (wrapped in 'input' field).
+                   File-like objects within dicts are automatically converted to base64.
             timeout: Timeout in seconds (default: 30.0)
             stream: Enable streaming responses (default: None)
             selected_outputs: Block outputs to stream (e.g., ["agent1.content"])
@@ -193,8 +186,15 @@ class SimStudioClient:
             headers['X-Execution-Mode'] = 'async'
 
         try:
-            # Build JSON body - spread input at root level, then add API control parameters
-            body = input_data.copy() if input_data is not None else {}
+            # Build JSON body - spread dict inputs at root level, wrap primitives/lists in 'input' field
+            body = {}
+            if input is not None:
+                if isinstance(input, dict):
+                    # Dict input: spread at root level (matches curl/API behavior)
+                    body = input.copy()
+                else:
+                    # Primitive or list input: wrap in 'input' field
+                    body = {'input': input}
 
             # Convert any file objects in the input to base64 format
             body = self._convert_files_to_base64(body)
@@ -320,20 +320,18 @@ class SimStudioClient:
     def execute_workflow_sync(
         self,
         workflow_id: str,
-        input_data: Optional[Dict[str, Any]] = None,
+        input: Optional[Any] = None,
+        *,
         timeout: float = 30.0,
         stream: Optional[bool] = None,
         selected_outputs: Optional[list] = None
     ) -> WorkflowExecutionResult:
         """
-        Execute a workflow and poll for completion (useful for long-running workflows).
-
-        Note: Currently, the API is synchronous, so this method just calls execute_workflow.
-        In the future, if async execution is added, this method can be enhanced.
+        Execute a workflow synchronously (ensures non-async mode).
 
         Args:
             workflow_id: The ID of the workflow to execute
-            input_data: Input data to pass to the workflow (can include file-like objects)
+            input: Input data to pass to the workflow (can include file-like objects)
             timeout: Timeout for the initial request in seconds
             stream: Enable streaming responses (default: None)
             selected_outputs: Block outputs to stream (e.g., ["agent1.content"])
@@ -344,9 +342,14 @@ class SimStudioClient:
         Raises:
             SimStudioError: If the workflow execution fails
         """
-        # For now, the API is synchronous, so we just execute directly
-        # In the future, if async execution is added, this method can be enhanced
-        return self.execute_workflow(workflow_id, input_data, timeout, stream, selected_outputs)
+        return self.execute_workflow(
+            workflow_id,
+            input,
+            timeout=timeout,
+            stream=stream,
+            selected_outputs=selected_outputs,
+            async_execution=False
+        )
     
     def set_api_key(self, api_key: str) -> None:
         """
@@ -410,7 +413,8 @@ class SimStudioClient:
     def execute_with_retry(
         self,
         workflow_id: str,
-        input_data: Optional[Dict[str, Any]] = None,
+        input: Optional[Any] = None,
+        *,
         timeout: float = 30.0,
         stream: Optional[bool] = None,
         selected_outputs: Optional[list] = None,
@@ -425,7 +429,7 @@ class SimStudioClient:
 
         Args:
             workflow_id: The ID of the workflow to execute
-            input_data: Input data to pass to the workflow (can include file-like objects)
+            input: Input data to pass to the workflow (can include file-like objects)
             timeout: Timeout in seconds
             stream: Enable streaming responses
             selected_outputs: Block outputs to stream
@@ -448,11 +452,11 @@ class SimStudioClient:
             try:
                 return self.execute_workflow(
                     workflow_id,
-                    input_data,
-                    timeout,
-                    stream,
-                    selected_outputs,
-                    async_execution
+                    input,
+                    timeout=timeout,
+                    stream=stream,
+                    selected_outputs=selected_outputs,
+                    async_execution=async_execution
                 )
             except SimStudioError as e:
                 if e.code != 'RATE_LIMIT_EXCEEDED':
