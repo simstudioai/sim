@@ -2609,8 +2609,9 @@ async function preValidateCredentialInputs(
     model: string
   }> = []
 
-  const hostedModels = isHosted ? getHostedModels() : []
-  const hostedModelsLower = new Set(hostedModels.map((m) => m.toLowerCase()))
+  const hostedModelsLower = isHosted
+    ? new Set(getHostedModels().map((m) => m.toLowerCase()))
+    : null
 
   operations.forEach((op, opIndex) => {
     if (!op.params?.inputs || !op.params?.type) return
@@ -2635,7 +2636,7 @@ async function preValidateCredentialInputs(
     }
 
     // Check for apiKey inputs on hosted models
-    if (isHosted && op.params.inputs.apiKey) {
+    if (hostedModelsLower && op.params.inputs.apiKey) {
       const modelValue = op.params.inputs.model
       if (modelValue && typeof modelValue === 'string') {
         if (hostedModelsLower.has(modelValue.toLowerCase())) {
@@ -2658,7 +2659,7 @@ async function preValidateCredentialInputs(
   }
 
   // Deep clone operations so we can modify them
-  const filteredOperations = JSON.parse(JSON.stringify(operations)) as EditWorkflowOperation[]
+  const filteredOperations = structuredClone(operations)
 
   // Filter out apiKey inputs for hosted models
   if (hasHostedApiKeysToFilter) {
@@ -2668,19 +2669,11 @@ async function preValidateCredentialInputs(
       const op = filteredOperations[apiKeyInput.operationIndex]
       if (op.params?.inputs?.apiKey) {
         delete op.params.inputs.apiKey
-        logger.info('Removed apiKey for hosted model', {
+        logger.debug('Silently filtered apiKey for hosted model', {
           blockId: apiKeyInput.blockId,
           model: apiKeyInput.model,
         })
       }
-
-      errors.push({
-        blockId: apiKeyInput.blockId,
-        blockType: apiKeyInput.blockType,
-        field: 'apiKey',
-        value: '[redacted]',
-        error: `API key not allowed for hosted model "${apiKeyInput.model}" - platform provides the key`,
-      })
     }
   }
 
