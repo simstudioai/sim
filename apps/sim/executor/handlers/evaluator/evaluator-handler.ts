@@ -4,9 +4,9 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
+import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
+import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
 import { validateModelProvider } from '@/executor/utils/permission-check'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
@@ -143,9 +143,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': HTTP.CONTENT_TYPE.JSON,
-        },
+        headers: await buildAuthHeaders(),
         body: stringifyJSON(providerRequest),
       })
 
