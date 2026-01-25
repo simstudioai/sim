@@ -2302,6 +2302,15 @@ function applyOperationsToWorkflowState(
                 existingBlock.subBlocks[key].value = sanitizedValue
               }
             })
+
+            const existingBlockConfig = getBlock(existingBlock.type)
+            if (existingBlockConfig) {
+              updateCanonicalModesForInputs(
+                existingBlock,
+                Object.keys(validationResult.validInputs),
+                existingBlockConfig
+              )
+            }
           }
         } else {
           // Special container types (loop, parallel) are not in the block registry but are valid
