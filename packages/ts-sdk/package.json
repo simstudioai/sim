@@ -1,6 +1,6 @@
 {
   "name": "simstudio-ts-sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Sim SDK - Execute workflows programmatically",
   "type": "module",
   "exports": {

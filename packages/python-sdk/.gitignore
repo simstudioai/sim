@@ -81,4 +81,7 @@ Thumbs.db
 # mypy
 .mypy_cache/
 .dmypy.json
-dmypy.json 
+dmypy.json
+
+# uv
+uv.lock 

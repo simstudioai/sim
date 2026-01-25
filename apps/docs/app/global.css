@@ -119,6 +119,19 @@ aside#nd-sidebar {
   }
 }
 
+/* Hide TOC popover on tablet/medium screens (768px - 1279px) */
+/* Keeps it visible on mobile (<768px) for easy navigation */
+/* Desktop (>=1280px) already hides it via fumadocs xl:hidden */
+@media (min-width: 768px) and (max-width: 1279px) {
+  #nd-docs-layout {
+    --fd-toc-popover-height: 0px !important;
+  }
+
+  [data-toc-popover] {
+    display: none !important;
+  }
+}
+
 /* Desktop only: Apply custom navbar offset, sidebar width and margin offsets */
 /* On mobile, let fumadocs handle the layout natively */
 @media (min-width: 1024px) {

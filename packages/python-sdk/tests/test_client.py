@@ -91,11 +91,9 @@ def test_context_manager(mock_close):
     """Test SimStudioClient as context manager."""
     with SimStudioClient(api_key="test-api-key") as client:
         assert client.api_key == "test-api-key"
-    # Should close without error
     mock_close.assert_called_once()
 
 
-# Tests for async execution
 @patch('simstudio.requests.Session.post')
 def test_async_execution_returns_task_id(mock_post):
     """Test async execution returns AsyncExecutionResult."""
@@ -115,7 +113,7 @@ def test_async_execution_returns_task_id(mock_post):
     client = SimStudioClient(api_key="test-api-key")
     result = client.execute_workflow(
         "workflow-id",
-        input_data={"message": "Hello"},
+        {"message": "Hello"},
         async_execution=True
     )
 
@@ -124,7 +122,6 @@ def test_async_execution_returns_task_id(mock_post):
     assert result.status == "queued"
     assert result.links["status"] == "/api/jobs/task-123"
 
-    # Verify X-Execution-Mode header was set
     call_args = mock_post.call_args
     assert call_args[1]["headers"]["X-Execution-Mode"] == "async"
 
@@ -146,7 +143,7 @@ def test_sync_execution_returns_result(mock_post):
     client = SimStudioClient(api_key="test-api-key")
     result = client.execute_workflow(
         "workflow-id",
-        input_data={"message": "Hello"},
+        {"message": "Hello"},
         async_execution=False
     )
 
@@ -166,13 +163,12 @@ def test_async_header_not_set_when_false(mock_post):
     mock_post.return_value = mock_response
 
     client = SimStudioClient(api_key="test-api-key")
-    client.execute_workflow("workflow-id", input_data={"message": "Hello"})
+    client.execute_workflow("workflow-id", {"message": "Hello"})
 
     call_args = mock_post.call_args
     assert "X-Execution-Mode" not in call_args[1]["headers"]
 
 
-# Tests for job status
 @patch('simstudio.requests.Session.get')
 def test_get_job_status_success(mock_get):
     """Test getting job status."""
@@ -222,7 +218,6 @@ def test_get_job_status_not_found(mock_get):
     assert "Job not found" in str(exc_info.value)
 
 
-# Tests for retry with rate limiting
 @patch('simstudio.requests.Session.post')
 @patch('simstudio.time.sleep')
 def test_execute_with_retry_success_first_attempt(mock_sleep, mock_post):
@@ -238,7 +233,7 @@ def test_execute_with_retry_success_first_attempt(mock_sleep, mock_post):
     mock_post.return_value = mock_response
 
     client = SimStudioClient(api_key="test-api-key")
-    result = client.execute_with_retry("workflow-id", input_data={"message": "test"})
+    result = client.execute_with_retry("workflow-id", {"message": "test"})
 
     assert result.success is True
     assert mock_post.call_count == 1
@@ -278,7 +273,7 @@ def test_execute_with_retry_retries_on_rate_limit(mock_sleep, mock_post):
     client = SimStudioClient(api_key="test-api-key")
     result = client.execute_with_retry(
         "workflow-id",
-        input_data={"message": "test"},
+        {"message": "test"},
         max_retries=3,
         initial_delay=0.01
     )
@@ -307,7 +302,7 @@ def test_execute_with_retry_max_retries_exceeded(mock_sleep, mock_post):
     with pytest.raises(SimStudioError) as exc_info:
         client.execute_with_retry(
             "workflow-id",
-            input_data={"message": "test"},
+            {"message": "test"},
             max_retries=2,
             initial_delay=0.01
         )
@@ -333,13 +328,12 @@ def test_execute_with_retry_no_retry_on_other_errors(mock_post):
     client = SimStudioClient(api_key="test-api-key")
 
     with pytest.raises(SimStudioError) as exc_info:
-        client.execute_with_retry("workflow-id", input_data={"message": "test"})
+        client.execute_with_retry("workflow-id", {"message": "test"})
 
     assert "Server error" in str(exc_info.value)
     assert mock_post.call_count == 1  # No retries
 
 
-# Tests for rate limit info
 def test_get_rate_limit_info_returns_none_initially():
     """Test rate limit info is None before any API calls."""
     client = SimStudioClient(api_key="test-api-key")
@@ -362,7 +356,7 @@ def test_get_rate_limit_info_after_api_call(mock_post):
     mock_post.return_value = mock_response
 
     client = SimStudioClient(api_key="test-api-key")
-    client.execute_workflow("workflow-id", input_data={})
+    client.execute_workflow("workflow-id", {})
 
     info = client.get_rate_limit_info()
     assert info is not None
@@ -371,7 +365,6 @@ def test_get_rate_limit_info_after_api_call(mock_post):
     assert info.reset == 1704067200
 
 
-# Tests for usage limits
 @patch('simstudio.requests.Session.get')
 def test_get_usage_limits_success(mock_get):
     """Test getting usage limits."""
@@ -435,7 +428,6 @@ def test_get_usage_limits_unauthorized(mock_get):
     assert "Invalid API key" in str(exc_info.value)
 
 
-# Tests for streaming with selectedOutputs
 @patch('simstudio.requests.Session.post')
 def test_execute_workflow_with_stream_and_selected_outputs(mock_post):
     """Test execution with stream and selectedOutputs parameters."""
@@ -449,7 +441,7 @@ def test_execute_workflow_with_stream_and_selected_outputs(mock_post):
     client = SimStudioClient(api_key="test-api-key")
     client.execute_workflow(
         "workflow-id",
-        input_data={"message": "test"},
+        {"message": "test"},
         stream=True,
         selected_outputs=["agent1.content", "agent2.content"]
     )
@@ -459,4 +451,85 @@ def test_execute_workflow_with_stream_and_selected_outputs(mock_post):
 
     assert request_body["message"] == "test"
     assert request_body["stream"] is True
-    assert request_body["selectedOutputs"] == ["agent1.content", "agent2.content"] 
+    assert request_body["selectedOutputs"] == ["agent1.content", "agent2.content"]
+
+
+# Tests for primitive and list inputs
+@patch('simstudio.requests.Session.post')
+def test_execute_workflow_with_string_input(mock_post):
+    """Test execution with primitive string input wraps in input field."""
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.headers.get.return_value = None
+    mock_post.return_value = mock_response
+
+    client = SimStudioClient(api_key="test-api-key")
+    client.execute_workflow("workflow-id", "NVDA")
+
+    call_args = mock_post.call_args
+    request_body = call_args[1]["json"]
+
+    assert request_body["input"] == "NVDA"
+    assert "0" not in request_body  # Should not spread string characters
+
+
+@patch('simstudio.requests.Session.post')
+def test_execute_workflow_with_number_input(mock_post):
+    """Test execution with primitive number input wraps in input field."""
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.headers.get.return_value = None
+    mock_post.return_value = mock_response
+
+    client = SimStudioClient(api_key="test-api-key")
+    client.execute_workflow("workflow-id", 42)
+
+    call_args = mock_post.call_args
+    request_body = call_args[1]["json"]
+
+    assert request_body["input"] == 42
+
+
+@patch('simstudio.requests.Session.post')
+def test_execute_workflow_with_list_input(mock_post):
+    """Test execution with list input wraps in input field."""
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.headers.get.return_value = None
+    mock_post.return_value = mock_response
+
+    client = SimStudioClient(api_key="test-api-key")
+    client.execute_workflow("workflow-id", ["NVDA", "AAPL", "GOOG"])
+
+    call_args = mock_post.call_args
+    request_body = call_args[1]["json"]
+
+    assert request_body["input"] == ["NVDA", "AAPL", "GOOG"]
+    assert "0" not in request_body  # Should not spread list
+
+
+@patch('simstudio.requests.Session.post')
+def test_execute_workflow_with_dict_input_spreads_at_root(mock_post):
+    """Test execution with dict input spreads at root level."""
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"success": True, "output": {}}
+    mock_response.headers.get.return_value = None
+    mock_post.return_value = mock_response
+
+    client = SimStudioClient(api_key="test-api-key")
+    client.execute_workflow("workflow-id", {"ticker": "NVDA", "quantity": 100})
+
+    call_args = mock_post.call_args
+    request_body = call_args[1]["json"]
+
+    assert request_body["ticker"] == "NVDA"
+    assert request_body["quantity"] == 100
+    assert "input" not in request_body  # Should not wrap in input field 

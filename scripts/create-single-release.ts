@@ -126,7 +126,7 @@ async function fetchGitHubCommitDetails(
 
       const githubUsername = commit.author?.login || commit.committer?.login || 'unknown'
 
-      let cleanMessage = commit.commit.message.split('\n')[0] // First line only
+      let cleanMessage = commit.commit.message.split('\n')[0]
       if (prNumber) {
         cleanMessage = cleanMessage.replace(/\s*\(#\d+\)\s*$/, '')
       }
@@ -226,12 +226,23 @@ async function getCommitsBetweenVersions(
 function categorizeCommit(message: string): 'features' | 'fixes' | 'improvements' | 'other' {
   const msgLower = message.toLowerCase()
 
-  if (
-    msgLower.includes('feat') ||
-    msgLower.includes('add') ||
-    msgLower.includes('implement') ||
-    msgLower.includes('new ')
-  ) {
+  if (/^feat(\(|:|!)/.test(msgLower)) {
+    return 'features'
+  }
+
+  if (/^fix(\(|:|!)/.test(msgLower)) {
+    return 'fixes'
+  }
+
+  if (/^(improvement|improve|perf|refactor)(\(|:|!)/.test(msgLower)) {
+    return 'improvements'
+  }
+
+  if (/^(chore|docs|style|test|ci|build)(\(|:|!)/.test(msgLower)) {
+    return 'other'
+  }
+
+  if (msgLower.includes('feat') || msgLower.includes('implement') || msgLower.includes('new ')) {
     return 'features'
   }
 
@@ -242,9 +253,10 @@ function categorizeCommit(message: string): 'features' | 'fixes' | 'improvements
   if (
     msgLower.includes('improve') ||
     msgLower.includes('enhance') ||
-    msgLower.includes('update') ||
     msgLower.includes('upgrade') ||
-    msgLower.includes('optimization')
+    msgLower.includes('optimization') ||
+    msgLower.includes('add') ||
+    msgLower.includes('update')
   ) {
     return 'improvements'
   }
