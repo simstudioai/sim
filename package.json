@@ -51,5 +51,8 @@
   },
   "trustedDependencies": [
     "sharp"
-  ]
+  ],
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.71.2"
+  }
 }
