@@ -29,10 +29,10 @@ app:
   # Resource limits and requests
   resources:
     limits:
-      memory: "4Gi"
+      memory: "8Gi"
       cpu: "2000m"
     requests:
-      memory: "2Gi"
+      memory: "4Gi"
       cpu: "1000m"
 
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
@@ -232,24 +232,24 @@ app:
 realtime:
   # Enable/disable the realtime service
   enabled: true
-  
+
   # Image configuration
   image:
     repository: simstudioai/realtime
     tag: latest
     pullPolicy: Always
-  
+
   # Number of replicas
   replicaCount: 1
-  
+
   # Resource limits and requests
   resources:
     limits:
-      memory: "2Gi"
-      cpu: "1000m"
-    requests:
       memory: "1Gi"
       cpu: "500m"
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
   
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
