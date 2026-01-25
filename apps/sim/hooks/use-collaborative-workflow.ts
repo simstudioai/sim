@@ -680,6 +680,10 @@ export function useCollaborativeWorkflow() {
         previousPositions?: Map<string, { x: number; y: number; parentId?: string }>
       }
     ) => {
+      if (isBaselineDiffView) {
+        return
+      }
+
       if (!isInActiveRoom()) {
         logger.debug('Skipping batch position update - not in active workflow')
         return
@@ -725,7 +729,7 @@ export function useCollaborativeWorkflow() {
         }
       }
     },
-    [addToQueue, activeWorkflowId, session?.user?.id, isInActiveRoom, undoRedo]
+    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, isInActiveRoom, undoRedo]
   )
 
   const collaborativeUpdateBlockName = useCallback(
@@ -817,6 +821,10 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeBatchToggleBlockEnabled = useCallback(
     (ids: string[]) => {
+      if (isBaselineDiffView) {
+        return
+      }
+
       if (ids.length === 0) return
 
       const previousStates: Record<string, boolean> = {}
@@ -849,7 +857,7 @@ export function useCollaborativeWorkflow() {
 
       undoRedo.recordBatchToggleEnabled(validIds, previousStates)
     },
-    [addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
+    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
   )
 
   const collaborativeBatchUpdateParent = useCallback(
@@ -861,6 +869,10 @@ export function useCollaborativeWorkflow() {
         affectedEdges: Edge[]
       }>
     ) => {
+      if (isBaselineDiffView) {
+        return
+      }
+
       if (!isInActiveRoom()) {
         logger.debug('Skipping batch update parent - not in active workflow')
         return
@@ -931,7 +943,7 @@ export function useCollaborativeWorkflow() {
 
       logger.debug('Batch updated parent for blocks', { updateCount: updates.length })
     },
-    [isInActiveRoom, undoRedo, addToQueue, activeWorkflowId, session?.user?.id]
+    [isBaselineDiffView, isInActiveRoom, undoRedo, addToQueue, activeWorkflowId, session?.user?.id]
   )
 
   const collaborativeToggleBlockAdvancedMode = useCallback(
@@ -978,6 +990,10 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeBatchToggleBlockHandles = useCallback(
     (ids: string[]) => {
+      if (isBaselineDiffView) {
+        return
+      }
+
       if (ids.length === 0) return
 
       const previousStates: Record<string, boolean> = {}
@@ -1010,11 +1026,15 @@ export function useCollaborativeWorkflow() {
 
       undoRedo.recordBatchToggleHandles(validIds, previousStates)
     },
-    [addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
+    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
   )
 
   const collaborativeBatchAddEdges = useCallback(
     (edges: Edge[], options?: { skipUndoRedo?: boolean }) => {
+      if (isBaselineDiffView) {
+        return false
+      }
+
       if (!isInActiveRoom()) {
         logger.debug('Skipping batch add edges - not in active workflow')
         return false
@@ -1050,11 +1070,15 @@ export function useCollaborativeWorkflow() {
 
       return true
     },
-    [addToQueue, activeWorkflowId, session?.user?.id, isInActiveRoom, undoRedo]
+    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, isInActiveRoom, undoRedo]
   )
 
   const collaborativeBatchRemoveEdges = useCallback(
     (edgeIds: string[], options?: { skipUndoRedo?: boolean }) => {
+      if (isBaselineDiffView) {
+        return false
+      }
+
       if (!isInActiveRoom()) {
         logger.debug('Skipping batch remove edges - not in active workflow')
         return false
@@ -1104,7 +1128,7 @@ export function useCollaborativeWorkflow() {
       logger.info('Batch removed edges', { count: validEdgeIds.length })
       return true
     },
-    [isInActiveRoom, addToQueue, activeWorkflowId, session, undoRedo]
+    [isBaselineDiffView, isInActiveRoom, addToQueue, activeWorkflowId, session, undoRedo]
   )
 
   const collaborativeSetSubblockValue = useCallback(
@@ -1180,6 +1204,10 @@ export function useCollaborativeWorkflow() {
     (blockId: string, subblockId: string, value: any) => {
       if (isApplyingRemoteChange.current) return
 
+      if (isBaselineDiffView) {
+        return
+      }
+
       if (!isInActiveRoom()) {
         logger.debug('Skipping tag selection - not in active workflow', {
           currentWorkflowId,
@@ -1207,7 +1235,14 @@ export function useCollaborativeWorkflow() {
         userId: session?.user?.id || 'unknown',
       })
     },
-    [addToQueue, currentWorkflowId, activeWorkflowId, session?.user?.id, isInActiveRoom]
+    [
+      isBaselineDiffView,
+      addToQueue,
+      currentWorkflowId,
+      activeWorkflowId,
+      session?.user?.id,
+      isInActiveRoom,
+    ]
   )
 
   const collaborativeUpdateLoopType = useCallback(
@@ -1553,6 +1588,10 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeBatchRemoveBlocks = useCallback(
     (blockIds: string[], options?: { skipUndoRedo?: boolean }) => {
+      if (isBaselineDiffView) {
+        return false
+      }
+
       if (!isInActiveRoom()) {
         logger.debug('Skipping batch remove blocks - not in active workflow')
         return false
@@ -1634,6 +1673,7 @@ export function useCollaborativeWorkflow() {
       return true
     },
     [
+      isBaselineDiffView,
       addToQueue,
       activeWorkflowId,
       session?.user?.id,
