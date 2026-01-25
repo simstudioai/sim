@@ -27,18 +27,13 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
   const [isOpen, setIsOpen] = useState(false)
   const [position, setPosition] = useState<ContextMenuPosition>({ x: 0, y: 0 })
   const menuRef = useRef<HTMLDivElement>(null)
-  // Used to prevent click-outside dismissal when trigger is clicked
   const dismissPreventedRef = useRef(false)
 
-  /**
-   * Handle right-click event
-   */
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
 
-      // Calculate position relative to viewport
       const x = e.clientX
       const y = e.clientY
 
@@ -50,17 +45,10 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
     [onContextMenu]
   )
 
-  /**
-   * Close the context menu
-   */
   const closeMenu = useCallback(() => {
     setIsOpen(false)
   }, [])
 
-  /**
-   * Prevent the next click-outside from dismissing the menu.
-   * Call this on pointerdown of a toggle trigger to allow proper toggle behavior.
-   */
   const preventDismiss = useCallback(() => {
     dismissPreventedRef.current = true
   }, [])
@@ -72,7 +60,6 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
     if (!isOpen) return
 
     const handleClickOutside = (e: MouseEvent) => {
-      // Check if dismissal was prevented (e.g., by toggle trigger's pointerdown)
       if (dismissPreventedRef.current) {
         dismissPreventedRef.current = false
         return
@@ -82,7 +69,6 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
       }
     }
 
-    // Small delay to prevent immediate close from the same click that opened the menu
     const timeoutId = setTimeout(() => {
       document.addEventListener('click', handleClickOutside)
     }, 0)
