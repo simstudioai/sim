@@ -5,6 +5,14 @@ description: Essential actions for navigating and using the Sim workflow editor
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
+export const ActionImage = ({ src, alt }) => (
+  <img src={src} alt={alt} className="inline-block max-h-8 rounded border border-neutral-200 dark:border-neutral-700" />
+)
+
+export const ActionVideo = ({ src, alt }) => (
+  <video src={src} alt={alt} autoPlay loop muted playsInline className="inline-block max-h-8 rounded border border-neutral-200 dark:border-neutral-700" />
+)
+
 A quick lookup for everyday actions in the Sim workflow editor. For keyboard shortcuts, see [Keyboard Shortcuts](/keyboard-shortcuts).
 
 <Callout type="info">
@@ -13,67 +21,209 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
 
 ## Workspaces
 
-| Action | How |
-|--------|-----|
-| Create a workspace | Click workspace dropdown in sidebar → **New Workspace** |
-| Rename a workspace | Workspace settings → Edit name |
-| Switch workspaces | Click workspace dropdown in sidebar → Select workspace |
-| Invite team members | Workspace settings → **Team** → **Invite** |
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th><th>Preview</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Create a workspace</td>
+      <td>Click workspace dropdown → **New Workspace**</td>
+      <td><ActionVideo src="/static/quick-reference/create-workspace.mp4" alt="Create workspace" /></td>
+    </tr>
+    <tr>
+      <td>Switch workspaces</td>
+      <td>Click workspace dropdown → Select workspace</td>
+      <td><ActionVideo src="/static/quick-reference/switch-workspace.mp4" alt="Switch workspaces" /></td>
+    </tr>
+    <tr>
+      <td>Invite team members</td>
+      <td>Workspace settings → **Team** → **Invite**</td>
+      <td><ActionVideo src="/static/quick-reference/invite.mp4" alt="Invite team members" /></td>
+    </tr>
+    <tr>
+      <td>Rename a workspace</td>
+      <td>Right-click workspace → **Rename**</td>
+      <td rowSpan={4}><ActionImage src="/static/quick-reference/workspace-context-menu.png" alt="Workspace context menu" /></td>
+    </tr>
+    <tr>
+      <td>Duplicate a workspace</td>
+      <td>Right-click workspace → **Duplicate**</td>
+    </tr>
+    <tr>
+      <td>Export a workspace</td>
+      <td>Right-click workspace → **Export**</td>
+    </tr>
+    <tr>
+      <td>Delete a workspace</td>
+      <td>Right-click workspace → **Delete**</td>
+    </tr>
+  </tbody>
+</table>
 
 ## Workflows
 
-| Action | How |
-|--------|-----|
-| Create a workflow | Click **New Workflow** button or `Mod+Shift+A` |
-| Rename a workflow | Double-click workflow name in sidebar, or right-click → **Rename** |
-| Duplicate a workflow | Right-click workflow → **Duplicate** |
-| Reorder workflows | Drag workflow up/down in the sidebar list |
-| Import a workflow | Sidebar menu → **Import** → Select file |
-| Create a folder | Right-click in sidebar → **New Folder** |
-| Rename a folder | Right-click folder → **Rename** |
-| Delete a folder | Right-click folder → **Delete** |
-| Collapse/expand folder | Click folder arrow, or double-click folder |
-| Move workflow to folder | Drag workflow onto folder in sidebar |
-| Delete a workflow | Right-click workflow → **Delete** |
-| Export a workflow | Right-click workflow → **Export** |
-| Assign workflow color | Right-click workflow → **Change Color** |
-| Multi-select workflows | `Mod+Click` or `Shift+Click` workflows in sidebar |
-| Open in new tab | Right-click workflow → **Open in New Tab** |
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th><th>Preview</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Create a workflow</td>
+      <td>Click **+** button in sidebar</td>
+      <td><ActionImage src="/static/quick-reference/create-workflow.png" alt="Create workflow" /></td>
+    </tr>
+    <tr>
+      <td>Reorder / move workflows</td>
+      <td>Drag workflow up/down or onto a folder</td>
+      <td><ActionVideo src="/static/quick-reference/reordering.mp4" alt="Reorder workflows" /></td>
+    </tr>
+    <tr>
+      <td>Import a workflow</td>
+      <td>Click import button in sidebar → Select file</td>
+      <td><ActionImage src="/static/quick-reference/import-workflow.png" alt="Import workflow" /></td>
+    </tr>
+    <tr>
+      <td>Multi-select workflows</td>
+      <td>`Mod+Click` or `Shift+Click` workflows in sidebar</td>
+      <td><ActionVideo src="/static/quick-reference/multiselect.mp4" alt="Multi-select workflows" /></td>
+    </tr>
+    <tr>
+      <td>Open in new tab</td>
+      <td>Right-click workflow → **Open in New Tab**</td>
+      <td rowSpan={6}><ActionImage src="/static/quick-reference/workflow-context-menu.png" alt="Workflow context menu" /></td>
+    </tr>
+    <tr>
+      <td>Rename a workflow</td>
+      <td>Right-click workflow → **Rename**</td>
+    </tr>
+    <tr>
+      <td>Assign workflow color</td>
+      <td>Right-click workflow → **Change Color**</td>
+    </tr>
+    <tr>
+      <td>Duplicate a workflow</td>
+      <td>Right-click workflow → **Duplicate**</td>
+    </tr>
+    <tr>
+      <td>Export a workflow</td>
+      <td>Right-click workflow → **Export**</td>
+    </tr>
+    <tr>
+      <td>Delete a workflow</td>
+      <td>Right-click workflow → **Delete**</td>
+    </tr>
+    <tr>
+      <td>Rename a folder</td>
+      <td>Right-click folder → **Rename**</td>
+      <td rowSpan={6}><ActionImage src="/static/quick-reference/folder-context-menu.png" alt="Folder context menu" /></td>
+    </tr>
+    <tr>
+      <td>Create workflow in folder</td>
+      <td>Right-click folder → **Create workflow**</td>
+    </tr>
+    <tr>
+      <td>Create folder in folder</td>
+      <td>Right-click folder → **Create folder**</td>
+    </tr>
+    <tr>
+      <td>Duplicate a folder</td>
+      <td>Right-click folder → **Duplicate**</td>
+    </tr>
+    <tr>
+      <td>Export a folder</td>
+      <td>Right-click folder → **Export**</td>
+    </tr>
+    <tr>
+      <td>Delete a folder</td>
+      <td>Right-click folder → **Delete**</td>
+    </tr>
+  </tbody>
+</table>
 
 ## Blocks
 
-| Action | How |
-|--------|-----|
-| Add a block | Drag from Toolbar panel, or right-click canvas → **Add Block** |
-| Select a block | Click on the block |
-| Multi-select blocks | `Mod+Click` additional blocks, or right-drag to draw selection box |
-| Move blocks | Drag selected block(s) to new position |
-| Copy blocks | `Mod+C` with blocks selected |
-| Paste blocks | `Mod+V` to paste copied blocks |
-| Duplicate blocks | Right-click → **Duplicate** |
-| Delete blocks | `Delete` or `Backspace` key, or right-click → **Delete** |
-| Rename a block | Click block name in header, or edit in the Editor panel |
-| Enable/Disable a block | Right-click → **Enable/Disable** |
-| Toggle handle orientation | Right-click → **Toggle Handles** |
-| Toggle trigger mode | Right-click trigger block → **Toggle Trigger Mode** |
-| Configure a block | Select block → use Editor panel on right |
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th><th>Preview</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Add a block</td>
+      <td>Drag from Toolbar panel, or right-click canvas → **Add Block**</td>
+      <td><ActionVideo src="/static/quick-reference/add-block.mp4" alt="Add a block" /></td>
+    </tr>
+    <tr>
+      <td>Multi-select blocks</td>
+      <td>`Mod+Click` additional blocks, or right-drag to draw selection box</td>
+      <td><ActionVideo src="/static/quick-reference/multiselect-blocks.mp4" alt="Multi-select blocks" /></td>
+    </tr>
+    <tr>
+      <td>Copy blocks</td>
+      <td>`Mod+C` with blocks selected</td>
+      <td rowSpan={2}><ActionVideo src="/static/quick-reference/copy-paste.mp4" alt="Copy and paste blocks" /></td>
+    </tr>
+    <tr>
+      <td>Paste blocks</td>
+      <td>`Mod+V` to paste copied blocks</td>
+    </tr>
+    <tr>
+      <td>Duplicate blocks</td>
+      <td>Right-click → **Duplicate**</td>
+      <td><ActionVideo src="/static/quick-reference/duplicate-block.mp4" alt="Duplicate blocks" /></td>
+    </tr>
+    <tr>
+      <td>Delete blocks</td>
+      <td>`Delete` or `Backspace` key, or right-click → **Delete**</td>
+      <td><ActionImage src="/static/quick-reference/delete-block.png" alt="Delete block" /></td>
+    </tr>
+    <tr>
+      <td>Rename a block</td>
+      <td>Click block name in header, or edit in the Editor panel</td>
+      <td><ActionVideo src="/static/quick-reference/rename-block.mp4" alt="Rename a block" /></td>
+    </tr>
+    <tr>
+      <td>Enable/Disable a block</td>
+      <td>Right-click → **Enable/Disable**</td>
+      <td><ActionImage src="/static/quick-reference/disable-block.png" alt="Disable block" /></td>
+    </tr>
+    <tr>
+      <td>Toggle handle orientation</td>
+      <td>Right-click → **Toggle Handles**</td>
+      <td><ActionVideo src="/static/quick-reference/toggle-handles.mp4" alt="Toggle handle orientation" /></td>
+    </tr>
+    <tr>
+      <td>Configure a block</td>
+      <td>Select block → use Editor panel on right</td>
+      <td><ActionVideo src="/static/quick-reference/configure-block.mp4" alt="Configure a block" /></td>
+    </tr>
+  </tbody>
+</table>
 
 ## Connections
 
-| Action | How |
-|--------|-----|
-| Create a connection | Drag from output handle to input handle |
-| Delete a connection | Click edge to select → `Delete` key |
-| Use output in another block | Drag connection tag into input field |
-
-## Canvas Navigation
-
-| Action | How |
-|--------|-----|
-| Pan/move canvas | Left-drag on empty space, or scroll/trackpad |
-| Zoom in/out | Scroll wheel or pinch gesture |
-| Auto-layout | `Shift+L` |
-| Draw selection box | Right-drag on empty canvas area |
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th><th>Preview</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Create a connection</td>
+      <td>Drag from output handle to input handle</td>
+      <td><ActionVideo src="/static/quick-reference/connect-blocks.mp4" alt="Connect blocks" /></td>
+    </tr>
+    <tr>
+      <td>Delete a connection</td>
+      <td>Click edge to select → `Delete` key</td>
+      <td><ActionVideo src="/static/quick-reference/delete-connection.mp4" alt="Delete connection" /></td>
+    </tr>
+    <tr>
+      <td>Use output in another block</td>
+      <td>Drag connection tag into input field</td>
+      <td><ActionVideo src="/static/quick-reference/connection-tag.mp4" alt="Use connection tag" /></td>
+    </tr>
+  </tbody>
+</table>
 
 ## Panels & Views
 
@@ -83,7 +233,8 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
 | Open Toolbar tab | Press `T` or click Toolbar tab |
 | Open Editor tab | Press `E` or click Editor tab |
 | Search toolbar | `Mod+F` |
-| Toggle advanced mode | Click toggle button on input fields |
+| Search everything | `Mod+K` |
+| Toggle manual mode | Click toggle button in editor fields to switch between manual and selector |
 | Resize panels | Drag panel edge |
 | Collapse/expand sidebar | Click collapse button on sidebar |
 
@@ -123,7 +274,8 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
 | Edit workflow variable | Variables tab → Click variable to edit |
 | Delete workflow variable | Variables tab → Click delete icon on variable |
 | Add environment variable | Settings → **Environment Variables** → **Add** |
-| Reference a variable | Use `{{variableName}}` syntax in block inputs |
+| Reference a workflow variable | Use `<blockName.itemName>` syntax in block inputs |
+| Reference an environment variable | Use `{{ENV_VAR}}` syntax in block inputs |
 
 ## Credentials
 
