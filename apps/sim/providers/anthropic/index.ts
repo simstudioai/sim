@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
 import { createLogger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -185,13 +186,10 @@ export const anthropicProvider: ProviderConfig = {
       const schema = request.responseFormat.schema || request.responseFormat
 
       if (useNativeStructuredOutputs) {
-        const schemaWithConstraints = {
-          ...schema,
-          additionalProperties: false,
-        }
+        const transformedSchema = transformJSONSchema(schema)
         payload.output_format = {
           type: 'json_schema',
-          schema: schemaWithConstraints,
+          schema: transformedSchema,
         }
         logger.info(`Using native structured outputs for model: ${modelId}`)
       } else {
