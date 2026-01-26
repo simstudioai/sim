@@ -581,6 +581,18 @@ export const GmailV2Block: BlockConfig<GmailToolResponse> = {
     results: { type: 'json', description: 'Search/read summary results' },
     attachments: { type: 'json', description: 'Downloaded attachments (if enabled)' },
 
+    // Draft-specific outputs
+    draftId: {
+      type: 'string',
+      description: 'Draft ID',
+      condition: { field: 'operation', value: 'draft_gmail' },
+    },
+    messageId: {
+      type: 'string',
+      description: 'Gmail message ID for the draft',
+      condition: { field: 'operation', value: 'draft_gmail' },
+    },
+
     // Trigger outputs (unchanged)
     email_id: { type: 'string', description: 'Gmail message ID' },
     thread_id: { type: 'string', description: 'Gmail thread ID' },

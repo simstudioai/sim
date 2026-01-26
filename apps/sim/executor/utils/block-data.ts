@@ -15,12 +15,23 @@ export function getBlockSchema(
   block: SerializedBlock,
   toolConfig?: ToolConfig
 ): OutputSchema | undefined {
-  if (block.outputs && Object.keys(block.outputs).length > 0) {
+  const isTrigger =
+    block.metadata?.category === 'triggers' ||
+    (block.config?.params as Record<string, unknown> | undefined)?.triggerMode === true
+
+  // Triggers use saved outputs (defines the trigger payload schema)
+  if (isTrigger && block.outputs && Object.keys(block.outputs).length > 0) {
     return block.outputs as OutputSchema
   }
 
+  // When a tool is selected, tool outputs are the source of truth
   if (toolConfig?.outputs && Object.keys(toolConfig.outputs).length > 0) {
     return toolConfig.outputs as OutputSchema
+  }
+
+  // Fallback to saved outputs for blocks without tools
+  if (block.outputs && Object.keys(block.outputs).length > 0) {
+    return block.outputs as OutputSchema
   }
 
   return undefined
