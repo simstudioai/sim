@@ -257,15 +257,9 @@ describe('BlockResolver', () => {
       expect(result).toBe('"hello"')
     })
 
-    it.concurrent('should format string for function block in template literal', () => {
+    it.concurrent('should format object for function block', () => {
       const resolver = new BlockResolver(createTestWorkflow())
-      const result = resolver.formatValueForBlock('hello', 'function', true)
-      expect(result).toBe('hello')
-    })
-
-    it.concurrent('should format object for function block in template literal', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      const result = resolver.formatValueForBlock({ a: 1 }, 'function', true)
+      const result = resolver.formatValueForBlock({ a: 1 }, 'function')
       expect(result).toBe('{"a":1}')
     })
 
