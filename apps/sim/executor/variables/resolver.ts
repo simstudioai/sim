@@ -174,18 +174,7 @@ export class VariableResolver {
           return match
         }
 
-        const isInTemplateLiteral =
-          blockType === BlockType.FUNCTION &&
-          template.includes('${') &&
-          template.includes('}') &&
-          template.includes('`')
-
-        return this.blockResolver.formatValueForBlock(
-          resolved,
-          blockType,
-          isInTemplateLiteral,
-          language
-        )
+        return this.blockResolver.formatValueForBlock(resolved, blockType, language)
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
         return match

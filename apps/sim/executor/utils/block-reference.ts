@@ -53,34 +53,17 @@ function getProperties(schema: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
-function getFieldCaseInsensitive(
-  obj: Record<string, unknown>,
-  fieldName: string
-): unknown | undefined {
-  if (fieldName in obj) {
-    return obj[fieldName]
-  }
-  const lowerName = fieldName.toLowerCase()
-  for (const key of Object.keys(obj)) {
-    if (key.toLowerCase() === lowerName) {
-      return obj[key]
-    }
-  }
-  return undefined
-}
-
 function lookupField(schema: unknown, fieldName: string): unknown | undefined {
   if (typeof schema !== 'object' || schema === null) return undefined
   const typed = schema as Record<string, unknown>
 
-  const direct = getFieldCaseInsensitive(typed, fieldName)
-  if (direct !== undefined) {
-    return direct
+  if (fieldName in typed) {
+    return typed[fieldName]
   }
 
   const props = getProperties(schema)
-  if (props) {
-    return getFieldCaseInsensitive(props, fieldName)
+  if (props && fieldName in props) {
+    return props[fieldName]
   }
 
   return undefined
