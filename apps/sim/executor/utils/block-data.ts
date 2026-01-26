@@ -1,3 +1,4 @@
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { OutputSchema } from '@/executor/utils/block-reference'
@@ -11,6 +12,37 @@ export interface BlockDataCollection {
   blockOutputSchemas: Record<string, OutputSchema>
 }
 
+/**
+ * Triggers where inputFormat fields should be merged into outputs schema.
+ * These are blocks where users define custom fields via inputFormat that become
+ * valid output paths (e.g., <start.myField>, <webhook1.customField>).
+ */
+const TRIGGERS_WITH_INPUT_FORMAT_OUTPUTS = [
+  'start_trigger',
+  'starter',
+  'api_trigger',
+  'input_trigger',
+  'generic_webhook',
+  'human_in_the_loop',
+  'approval',
+] as const
+
+function getInputFormatFields(block: SerializedBlock): OutputSchema {
+  const inputFormat = normalizeInputFormatValue(block.config?.params?.inputFormat)
+  if (inputFormat.length === 0) {
+    return {}
+  }
+
+  const schema: OutputSchema = {}
+  for (const field of inputFormat) {
+    schema[field.name!] = {
+      type: (field.type || 'any') as 'string' | 'number' | 'boolean' | 'object' | 'array' | 'any',
+    }
+  }
+
+  return schema
+}
+
 export function getBlockSchema(
   block: SerializedBlock,
   toolConfig?: ToolConfig
@@ -19,17 +51,31 @@ export function getBlockSchema(
     block.metadata?.category === 'triggers' ||
     (block.config?.params as Record<string, unknown> | undefined)?.triggerMode === true
 
-  // Triggers use saved outputs (defines the trigger payload schema)
+  const blockType = block.metadata?.id
+
+  if (
+    isTrigger &&
+    blockType &&
+    TRIGGERS_WITH_INPUT_FORMAT_OUTPUTS.includes(
+      blockType as (typeof TRIGGERS_WITH_INPUT_FORMAT_OUTPUTS)[number]
+    )
+  ) {
+    const baseOutputs = (block.outputs as OutputSchema) || {}
+    const inputFormatFields = getInputFormatFields(block)
+    const merged = { ...baseOutputs, ...inputFormatFields }
+    if (Object.keys(merged).length > 0) {
+      return merged
+    }
+  }
+
   if (isTrigger && block.outputs && Object.keys(block.outputs).length > 0) {
     return block.outputs as OutputSchema
   }
 
-  // When a tool is selected, tool outputs are the source of truth
   if (toolConfig?.outputs && Object.keys(toolConfig.outputs).length > 0) {
     return toolConfig.outputs as OutputSchema
   }
 
-  // Fallback to saved outputs for blocks without tools
   if (block.outputs && Object.keys(block.outputs).length > 0) {
     return block.outputs as OutputSchema
   }
