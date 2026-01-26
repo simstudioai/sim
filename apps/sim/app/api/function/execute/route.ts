@@ -778,7 +778,15 @@ export async function POST(req: NextRequest) {
         } else if (typeof v === 'boolean') {
           prologue += `${k} = ${v ? 'True' : 'False'}\n`
         } else if (typeof v === 'number') {
-          prologue += `${k} = ${v}\n`
+          if (Number.isNaN(v)) {
+            prologue += `${k} = float('nan')\n`
+          } else if (v === Number.POSITIVE_INFINITY) {
+            prologue += `${k} = float('inf')\n`
+          } else if (v === Number.NEGATIVE_INFINITY) {
+            prologue += `${k} = float('-inf')\n`
+          } else {
+            prologue += `${k} = ${v}\n`
+          }
         } else {
           prologue += `${k} = json.loads(${JSON.stringify(JSON.stringify(v))})\n`
         }
