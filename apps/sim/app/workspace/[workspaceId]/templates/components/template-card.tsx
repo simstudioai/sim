@@ -214,6 +214,7 @@ function TemplateCardInner({
             defaultZoom={0.8}
             fitPadding={0.2}
             cursorStyle='pointer'
+            lightweight
           />
         ) : (
           <div className='h-full w-full bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />

@@ -18,7 +18,6 @@ import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/b
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { WorkflowPreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/block'
-import { WorkflowPreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/subflow'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowPreview')
@@ -53,13 +52,12 @@ function getPreviewBlockDimensions(block: BlockState): { width: number; height: 
 /**
  * Calculates container dimensions based on child block positions and sizes.
  * Mirrors the logic from useNodeUtilities.calculateLoopDimensions.
+ * Accepts pre-filtered childBlocks for O(1) lookup instead of filtering all blocks.
  */
-function calculateContainerDimensions(
-  containerId: string,
-  blocks: Record<string, BlockState>
-): { width: number; height: number } {
-  const childBlocks = Object.values(blocks).filter((block) => block?.data?.parentId === containerId)
-
+function calculateContainerDimensions(childBlocks: BlockState[]): {
+  width: number
+  height: number
+} {
   if (childBlocks.length === 0) {
     return {
       width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
@@ -113,8 +111,34 @@ export function getLeftmostBlockId(workflowState: WorkflowState | null | undefin
   return leftmostId
 }
 
+/**
+ * Recursively calculates the absolute position of a block,
+ * accounting for parent container offsets.
+ */
+function calculateAbsolutePosition(
+  block: BlockState,
+  blocks: Record<string, BlockState>
+): { x: number; y: number } {
+  if (!block.data?.parentId) {
+    return block.position
+  }
+
+  const parentBlock = blocks[block.data.parentId]
+  if (!parentBlock) {
+    logger.warn(`Parent block not found for child block: ${block.id}`)
+    return block.position
+  }
+
+  const parentAbsolutePosition = calculateAbsolutePosition(parentBlock, blocks)
+
+  return {
+    x: parentAbsolutePosition.x + block.position.x,
+    y: parentAbsolutePosition.y + block.position.y,
+  }
+}
+
 /** Execution status for edges/nodes in the preview */
-type ExecutionStatus = 'success' | 'error' | 'not-executed'
+export type ExecutionStatus = 'success' | 'error' | 'not-executed'
 
 interface WorkflowPreviewProps {
   workflowState: WorkflowState
@@ -136,6 +160,8 @@ interface WorkflowPreviewProps {
   executedBlocks?: Record<string, { status: string }>
   /** Currently selected block ID for highlighting */
   selectedBlockId?: string | null
+  /** Skips expensive computations for thumbnails/template previews */
+  lightweight?: boolean
 }
 
 /**
@@ -144,8 +170,6 @@ interface WorkflowPreviewProps {
  */
 const previewNodeTypes: NodeTypes = {
   workflowBlock: WorkflowPreviewBlock,
-  noteBlock: WorkflowPreviewBlock,
-  subflowNode: WorkflowPreviewSubflow,
 }
 
 // Define edge types
@@ -221,64 +245,30 @@ export function WorkflowPreview({
   cursorStyle = 'grab',
   executedBlocks,
   selectedBlockId,
+  lightweight = false,
 }: WorkflowPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const nodeTypes = previewNodeTypes
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges
 
-  const blocksStructure = useMemo(() => {
-    if (!isValidWorkflowState) return { count: 0, ids: '' }
-    return {
-      count: Object.keys(workflowState.blocks || {}).length,
-      ids: Object.keys(workflowState.blocks || {}).join(','),
-    }
-  }, [workflowState.blocks, isValidWorkflowState])
+  const workflowStructureIds = useMemo(() => {
+    if (!isValidWorkflowState) return ''
+    const blockIds = Object.keys(workflowState.blocks || {})
+    const edgeIds = (workflowState.edges || []).map((e) => e.id)
+    return [...blockIds, ...edgeIds].join(',')
+  }, [workflowState.blocks, workflowState.edges, isValidWorkflowState])
 
-  const loopsStructure = useMemo(() => {
-    if (!isValidWorkflowState) return { count: 0, ids: '' }
-    return {
-      count: Object.keys(workflowState.loops || {}).length,
-      ids: Object.keys(workflowState.loops || {}).join(','),
+  // Pre-compute parent-child relationships for O(1) lookups in container dimension calculations
+  const containerChildIndex = useMemo(() => {
+    const index: Record<string, BlockState[]> = {}
+    for (const block of Object.values(workflowState.blocks || {})) {
+      if (block?.data?.parentId) {
+        const parentId = block.data.parentId
+        if (!index[parentId]) index[parentId] = []
+        index[parentId].push(block)
+      }
     }
-  }, [workflowState.loops, isValidWorkflowState])
-
-  const parallelsStructure = useMemo(() => {
-    if (!isValidWorkflowState) return { count: 0, ids: '' }
-    return {
-      count: Object.keys(workflowState.parallels || {}).length,
-      ids: Object.keys(workflowState.parallels || {}).join(','),
-    }
-  }, [workflowState.parallels, isValidWorkflowState])
-
-  const edgesStructure = useMemo(() => {
-    if (!isValidWorkflowState) return { count: 0, ids: '' }
-    return {
-      count: workflowState.edges?.length || 0,
-      ids: workflowState.edges?.map((e) => e.id).join(',') || '',
-    }
-  }, [workflowState.edges, isValidWorkflowState])
-
-  const calculateAbsolutePosition = (
-    block: any,
-    blocks: Record<string, any>
-  ): { x: number; y: number } => {
-    if (!block.data?.parentId) {
-      return block.position
-    }
-
-    const parentBlock = blocks[block.data.parentId]
-    if (!parentBlock) {
-      logger.warn(`Parent block not found for child block: ${block.id}`)
-      return block.position
-    }
-
-    const parentAbsolutePosition = calculateAbsolutePosition(parentBlock, blocks)
-
-    return {
-      x: parentAbsolutePosition.x + block.position.x,
-      y: parentAbsolutePosition.y + block.position.y,
-    }
-  }
+    return index
+  }, [workflowState.blocks])
 
   const nodes: Node[] = useMemo(() => {
     if (!isValidWorkflowState) return []
@@ -293,21 +283,24 @@ export function WorkflowPreview({
 
       const absolutePosition = calculateAbsolutePosition(block, workflowState.blocks)
 
-      // Handle loop/parallel containers
+      // Handle loop/parallel containers - use unified workflowBlock with isSubflow flag
       if (block.type === 'loop' || block.type === 'parallel') {
         const isSelected = selectedBlockId === blockId
-        const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
+        const childBlocks = containerChildIndex[blockId] || []
+        const dimensions = calculateContainerDimensions(childBlocks)
         nodeArray.push({
           id: blockId,
-          type: 'subflowNode',
+          type: 'workflowBlock',
           position: absolutePosition,
           draggable: false,
           data: {
+            type: block.type,
             name: block.name,
+            isPreviewSelected: isSelected,
+            isSubflow: true,
+            subflowKind: block.type as 'loop' | 'parallel',
             width: dimensions.width,
             height: dimensions.height,
-            kind: block.type as 'loop' | 'parallel',
-            isPreviewSelected: isSelected,
           },
         })
         return
@@ -348,19 +341,20 @@ export function WorkflowPreview({
           isPreviewSelected: isSelected,
           executionStatus,
           subBlockValues: block.subBlocks,
+          lightweight,
         },
       })
     })
 
     return nodeArray
   }, [
-    blocksStructure,
-    loopsStructure,
-    parallelsStructure,
+    workflowStructureIds,
     workflowState.blocks,
+    containerChildIndex,
     isValidWorkflowState,
     executedBlocks,
     selectedBlockId,
+    lightweight,
   ])
 
   const edges: Edge[] = useMemo(() => {
@@ -395,7 +389,7 @@ export function WorkflowPreview({
         zIndex: executionStatus === 'success' ? 10 : 0,
       }
     })
-  }, [edgesStructure, workflowState.edges, isValidWorkflowState, executedBlocks])
+  }, [workflowStructureIds, workflowState.edges, isValidWorkflowState, executedBlocks])
 
   if (!isValidWorkflowState) {
     return (
@@ -449,7 +443,7 @@ export function WorkflowPreview({
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          nodeTypes={nodeTypes}
+          nodeTypes={previewNodeTypes}
           edgeTypes={edgeTypes}
           connectionLineType={ConnectionLineType.SmoothStep}
           fitView
@@ -489,7 +483,7 @@ export function WorkflowPreview({
           onPaneClick={onPaneClick}
         />
         <FitViewOnChange
-          nodeIds={blocksStructure.ids}
+          nodeIds={workflowStructureIds}
           fitPadding={fitPadding}
           containerRef={containerRef}
         />
