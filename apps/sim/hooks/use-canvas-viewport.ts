@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import type { Node, ReactFlowInstance } from 'reactflow'
+import { BLOCK_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 
 interface VisibleBounds {
   width: number
@@ -139,8 +140,8 @@ export function useCanvasViewport(reactFlowInstance: ReactFlowInstance | null) {
       let maxY = Number.NEGATIVE_INFINITY
 
       nodes.forEach((node) => {
-        const nodeWidth = node.width ?? 200
-        const nodeHeight = node.height ?? 100
+        const nodeWidth = node.width ?? BLOCK_DIMENSIONS.FIXED_WIDTH
+        const nodeHeight = node.height ?? BLOCK_DIMENSIONS.MIN_HEIGHT
 
         minX = Math.min(minX, node.position.x)
         minY = Math.min(minY, node.position.y)

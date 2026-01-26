@@ -1641,51 +1641,36 @@ const WorkflowContent = React.memo(() => {
   }, [screenToFlowPosition, handleToolbarDrop])
 
   /**
-   * Focus canvas on changed blocks when diff appears
-   * Focuses on new/edited blocks rather than fitting the entire workflow
+   * Focus canvas on changed blocks when diff appears.
    */
+  const pendingZoomBlockIdsRef = useRef<Set<string> | null>(null)
   const prevDiffReadyRef = useRef(false)
+
+  // Phase 1: When diff becomes ready, record which blocks we want to zoom to
+  // Phase 2 effect is located after displayNodes is defined (search for "Phase 2")
   useEffect(() => {
-    // Only focus when diff transitions from not ready to ready
     if (isDiffReady && !prevDiffReadyRef.current && diffAnalysis) {
+      // Diff just became ready - record blocks to zoom to
       const changedBlockIds = [
         ...(diffAnalysis.new_blocks || []),
         ...(diffAnalysis.edited_blocks || []),
       ]
 
       if (changedBlockIds.length > 0) {
-        const allNodes = getNodes()
-        const changedNodes = allNodes.filter((node) => changedBlockIds.includes(node.id))
-
-        if (changedNodes.length > 0) {
-          logger.info('Diff ready - focusing on changed blocks', {
-            changedBlockIds,
-            foundNodes: changedNodes.length,
-          })
-          requestAnimationFrame(() => {
-            fitViewToBounds({
-              nodes: changedNodes,
-              duration: 600,
-              padding: 0.1,
-              minZoom: 0.5,
-              maxZoom: 1.0,
-            })
-          })
-        } else {
-          logger.info('Diff ready - no changed nodes found, fitting all')
-          requestAnimationFrame(() => {
-            fitViewToBounds({ padding: 0.1, duration: 600 })
-          })
-        }
+        pendingZoomBlockIdsRef.current = new Set(changedBlockIds)
       } else {
-        logger.info('Diff ready - no changed blocks, fitting all')
+        // No specific blocks to focus on, fit all after a frame
+        pendingZoomBlockIdsRef.current = null
         requestAnimationFrame(() => {
           fitViewToBounds({ padding: 0.1, duration: 600 })
         })
       }
+    } else if (!isDiffReady && prevDiffReadyRef.current) {
+      // Diff was cleared (accepted/rejected) - cancel any pending zoom
+      pendingZoomBlockIdsRef.current = null
     }
     prevDiffReadyRef.current = isDiffReady
-  }, [isDiffReady, diffAnalysis, fitViewToBounds, getNodes])
+  }, [isDiffReady, diffAnalysis, fitViewToBounds])
 
   /** Displays trigger warning notifications. */
   useEffect(() => {
@@ -2092,6 +2077,48 @@ const WorkflowContent = React.memo(() => {
       }))
     })
   }, [derivedNodes, blocks, pendingSelection, clearPendingSelection])
+
+  // Phase 2: When displayNodes updates, check if pending zoom blocks are ready
+  // (Phase 1 is located earlier in the file where pendingZoomBlockIdsRef is defined)
+  useEffect(() => {
+    const pendingBlockIds = pendingZoomBlockIdsRef.current
+    if (!pendingBlockIds || pendingBlockIds.size === 0) {
+      return
+    }
+
+    // Find the nodes we're waiting for
+    const pendingNodes = displayNodes.filter((node) => pendingBlockIds.has(node.id))
+
+    // Check if all expected nodes are present with valid dimensions
+    const allNodesReady =
+      pendingNodes.length === pendingBlockIds.size &&
+      pendingNodes.every(
+        (node) =>
+          typeof node.width === 'number' &&
+          typeof node.height === 'number' &&
+          node.width > 0 &&
+          node.height > 0
+      )
+
+    if (allNodesReady) {
+      logger.info('Diff ready - focusing on changed blocks', {
+        changedBlockIds: Array.from(pendingBlockIds),
+        foundNodes: pendingNodes.length,
+      })
+      // Clear pending state before zooming to prevent re-triggers
+      pendingZoomBlockIdsRef.current = null
+      // Use requestAnimationFrame to ensure React has finished rendering
+      requestAnimationFrame(() => {
+        fitViewToBounds({
+          nodes: pendingNodes,
+          duration: 600,
+          padding: 0.1,
+          minZoom: 0.5,
+          maxZoom: 1.0,
+        })
+      })
+    }
+  }, [displayNodes, fitViewToBounds])
 
   /** Handles ActionBar remove-from-subflow events. */
   useEffect(() => {
