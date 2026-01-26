@@ -1,9 +1,9 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
+import { SimLogoFull } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 export function Navbar() {
@@ -27,13 +27,7 @@ export function Navbar() {
           {/* Left cluster: logo */}
           <div className='flex items-center'>
             <Link href='/' className='flex min-w-[100px] items-center'>
-              <Image
-                src='/static/logo.png'
-                alt='Sim'
-                width={72}
-                height={28}
-                className='h-7 w-auto'
-              />
+              <SimLogoFull className='h-7 w-auto' />
             </Link>
           </div>
 
