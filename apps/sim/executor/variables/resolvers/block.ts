@@ -1,10 +1,10 @@
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import {
   isReference,
   normalizeName,
   parseReferencePath,
   SPECIAL_REFERENCE_PREFIXES,
 } from '@/executor/constants'
+import { getBlockSchema } from '@/executor/utils/block-data'
 import {
   InvalidFieldError,
   type OutputSchema,
@@ -67,15 +67,9 @@ export class BlockResolver implements Resolver {
       blockData[blockId] = output
     }
 
-    const blockType = block.metadata?.id
-    const params = block.config?.params as Record<string, unknown> | undefined
-    const subBlocks = params
-      ? Object.fromEntries(Object.entries(params).map(([k, v]) => [k, { value: v }]))
-      : undefined
     const toolId = block.config?.tool
     const toolConfig = toolId ? getTool(toolId) : undefined
-    const outputSchema =
-      toolConfig?.outputs ?? (blockType ? getBlockOutputs(blockType, subBlocks) : block.outputs)
+    const outputSchema = getBlockSchema(block, toolConfig)
 
     if (outputSchema && Object.keys(outputSchema).length > 0) {
       blockOutputSchemas[blockId] = outputSchema

@@ -1,12 +1,29 @@
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { OutputSchema } from '@/executor/utils/block-reference'
+import type { SerializedBlock } from '@/serializer/types'
+import type { ToolConfig } from '@/tools/types'
+import { getTool } from '@/tools/utils'
 
 export interface BlockDataCollection {
   blockData: Record<string, unknown>
   blockNameMapping: Record<string, string>
   blockOutputSchemas: Record<string, OutputSchema>
+}
+
+export function getBlockSchema(
+  block: SerializedBlock,
+  toolConfig?: ToolConfig
+): OutputSchema | undefined {
+  if (block.outputs && Object.keys(block.outputs).length > 0) {
+    return block.outputs as OutputSchema
+  }
+
+  if (toolConfig?.outputs && Object.keys(toolConfig.outputs).length > 0) {
+    return toolConfig.outputs as OutputSchema
+  }
+
+  return undefined
 }
 
 export function collectBlockData(ctx: ExecutionContext): BlockDataCollection {
@@ -18,24 +35,21 @@ export function collectBlockData(ctx: ExecutionContext): BlockDataCollection {
     if (state.output !== undefined) {
       blockData[id] = state.output
     }
+  }
 
-    const workflowBlock = ctx.workflow?.blocks?.find((b) => b.id === id)
-    if (!workflowBlock) continue
+  const workflowBlocks = ctx.workflow?.blocks ?? []
+  for (const block of workflowBlocks) {
+    const id = block.id
 
-    if (workflowBlock.metadata?.name) {
-      blockNameMapping[normalizeName(workflowBlock.metadata.name)] = id
+    if (block.metadata?.name) {
+      blockNameMapping[normalizeName(block.metadata.name)] = id
     }
 
-    const blockType = workflowBlock.metadata?.id
-    if (blockType) {
-      const params = workflowBlock.config?.params as Record<string, unknown> | undefined
-      const subBlocks = params
-        ? Object.fromEntries(Object.entries(params).map(([k, v]) => [k, { value: v }]))
-        : undefined
-      const schema = getBlockOutputs(blockType, subBlocks)
-      if (schema && Object.keys(schema).length > 0) {
-        blockOutputSchemas[id] = schema
-      }
+    const toolId = block.config?.tool
+    const toolConfig = toolId ? getTool(toolId) : undefined
+    const schema = getBlockSchema(block, toolConfig)
+    if (schema && Object.keys(schema).length > 0) {
+      blockOutputSchemas[id] = schema
     }
   }
 
