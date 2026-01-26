@@ -20,6 +20,19 @@ export interface Resolver {
  * navigatePath({a: {b: {c: 1}}}, ['a', 'b', 'c']) => 1
  * navigatePath({items: [{name: 'test'}]}, ['items', '0', 'name']) => 'test'
  */
+function getPropertyCaseInsensitive(obj: Record<string, unknown>, key: string): unknown {
+  if (key in obj) {
+    return obj[key]
+  }
+  const lowerKey = key.toLowerCase()
+  for (const k of Object.keys(obj)) {
+    if (k.toLowerCase() === lowerKey) {
+      return obj[k]
+    }
+  }
+  return undefined
+}
+
 export function navigatePath(obj: any, path: string[]): any {
   let current = obj
   for (const part of path) {
@@ -30,7 +43,10 @@ export function navigatePath(obj: any, path: string[]): any {
     const arrayMatch = part.match(/^([^[]+)(\[.+)$/)
     if (arrayMatch) {
       const [, prop, bracketsPart] = arrayMatch
-      current = current[prop]
+      current =
+        typeof current === 'object' && current !== null
+          ? getPropertyCaseInsensitive(current, prop)
+          : undefined
       if (current === undefined || current === null) {
         return undefined
       }
@@ -49,7 +65,10 @@ export function navigatePath(obj: any, path: string[]): any {
       const index = Number.parseInt(part, 10)
       current = Array.isArray(current) ? current[index] : undefined
     } else {
-      current = current[part]
+      current =
+        typeof current === 'object' && current !== null
+          ? getPropertyCaseInsensitive(current, part)
+          : undefined
     }
   }
   return current
