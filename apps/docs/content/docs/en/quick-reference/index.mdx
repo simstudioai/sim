@@ -4,14 +4,7 @@ description: Essential actions for navigating and using the Sim workflow editor
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-
-export const ActionImage = ({ src, alt }) => (
-  <img src={src} alt={alt} className="inline-block max-h-8 rounded border border-neutral-200 dark:border-neutral-700" />
-)
-
-export const ActionVideo = ({ src, alt }) => (
-  <video src={src} alt={alt} autoPlay loop muted playsInline className="inline-block max-h-8 rounded border border-neutral-200 dark:border-neutral-700" />
-)
+import { ActionImage, ActionVideo } from '@/components/ui/action-media'
 
 A quick lookup for everyday actions in the Sim workflow editor. For keyboard shortcuts, see [Keyboard Shortcuts](/keyboard-shortcuts).
 
@@ -38,7 +31,7 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
     </tr>
     <tr>
       <td>Invite team members</td>
-      <td>Workspace settings → **Team** → **Invite**</td>
+      <td>Sidebar → **Invite**</td>
       <td><ActionVideo src="/static/quick-reference/invite.mp4" alt="Invite team members" /></td>
     </tr>
     <tr>
@@ -155,7 +148,7 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
     </tr>
     <tr>
       <td>Multi-select blocks</td>
-      <td>`Mod+Click` additional blocks, or right-drag to draw selection box</td>
+      <td>`Mod+Click` additional blocks, or shift-drag to draw selection box</td>
       <td><ActionVideo src="/static/quick-reference/multiselect-blocks.mp4" alt="Multi-select blocks" /></td>
     </tr>
     <tr>
@@ -227,62 +220,156 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
 
 ## Panels & Views
 
-| Action | How |
-|--------|-----|
-| Open Copilot tab | Press `C` or click Copilot tab |
-| Open Toolbar tab | Press `T` or click Toolbar tab |
-| Open Editor tab | Press `E` or click Editor tab |
-| Search toolbar | `Mod+F` |
-| Search everything | `Mod+K` |
-| Toggle manual mode | Click toggle button in editor fields to switch between manual and selector |
-| Resize panels | Drag panel edge |
-| Collapse/expand sidebar | Click collapse button on sidebar |
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th><th>Preview</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Search toolbar</td>
+      <td>`Mod+F`</td>
+      <td><ActionVideo src="/static/quick-reference/search-toolbar.mp4" alt="Search toolbar" /></td>
+    </tr>
+    <tr>
+      <td>Search everything</td>
+      <td>`Mod+K`</td>
+      <td><ActionImage src="/static/quick-reference/search-everything.png" alt="Search everything" /></td>
+    </tr>
+    <tr>
+      <td>Toggle manual mode</td>
+      <td>Click toggle button to switch between manual and selector</td>
+      <td><ActionImage src="/static/quick-reference/toggle-manual-mode.png" alt="Toggle manual mode" /></td>
+    </tr>
+    <tr>
+      <td>Collapse/expand sidebar</td>
+      <td>Click collapse button on sidebar</td>
+      <td><ActionVideo src="/static/quick-reference/collapse-sidebar.mp4" alt="Collapse sidebar" /></td>
+    </tr>
+  </tbody>
+</table>
 
 ## Running & Testing
 
-| Action | How |
-|--------|-----|
-| Run workflow | Click Play button or `Mod+Enter` |
-| Stop workflow | Click Stop button or `Mod+Enter` while running |
-| Test with chat | Use Chat panel on the right side |
-| Select output to view | Click dropdown in Chat panel → Select block output |
-| Clear chat history | Click clear button in Chat panel |
-| View execution logs | Open terminal panel at bottom, or `Mod+L` |
-| Filter logs by block | Click block filter in terminal |
-| Filter logs by status | Click status filter in terminal |
-| Search logs | Use search field in terminal |
-| Copy log entry | Right-click log entry → **Copy** |
-| Clear terminal | `Mod+D` |
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th><th>Preview</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Run workflow</td>
+      <td>Click Run Workflow button or `Mod+Enter`</td>
+      <td><ActionImage src="/static/quick-reference/run-workflow.png" alt="Run workflow" /></td>
+    </tr>
+    <tr>
+      <td>Stop workflow</td>
+      <td>Click Stop button or `Mod+Enter` while running</td>
+      <td><ActionImage src="/static/quick-reference/stop-workflow.png" alt="Stop workflow" /></td>
+    </tr>
+    <tr>
+      <td>Test with chat</td>
+      <td>Use Chat panel on the right side</td>
+      <td><ActionImage src="/static/quick-reference/test-chat.png" alt="Test with chat" /></td>
+    </tr>
+    <tr>
+      <td>Select output to view</td>
+      <td>Click dropdown in Chat panel → Select block output</td>
+      <td><ActionImage src="/static/quick-reference/output-select.png" alt="Select output to view" /></td>
+    </tr>
+    <tr>
+      <td>Clear chat history</td>
+      <td>Click clear button in Chat panel</td>
+      <td><ActionImage src="/static/quick-reference/clear-chat.png" alt="Clear chat history" /></td>
+    </tr>
+    <tr>
+      <td>View execution logs</td>
+      <td>Open terminal panel at bottom, or `Mod+L`</td>
+      <td><ActionImage src="/static/quick-reference/terminal.png" alt="Execution logs terminal" /></td>
+    </tr>
+    <tr>
+      <td>Filter logs by block or status</td>
+      <td>Click block filter in terminal or right-click log entry → **Filter by Block** or **Filter by Status**</td>
+      <td><ActionImage src="/static/quick-reference/filter-block.png" alt="Filter logs by block" /></td>
+    </tr>
+    <tr>
+      <td>Search logs</td>
+      <td>Use search field in terminal or right-click log entry → **Search**</td>
+      <td><ActionImage src="/static/quick-reference/terminal-search.png" alt="Search logs" /></td>
+    </tr>
+    <tr>
+      <td>Copy log entry</td>
+      <td>Clipboard Icon or Right-click log entry → **Copy**</td>
+      <td><ActionImage src="/static/quick-reference/copy-log.png" alt="Copy log entry" /></td>
+    </tr>
+    <tr>
+      <td>Clear terminal</td>
+      <td>Trash icon or `Mod+D`</td>
+      <td><ActionImage src="/static/quick-reference/clear-terminal.png" alt="Clear terminal" /></td>
+    </tr>
+  </tbody>
+</table>
 
 ## Deployment
 
-| Action | How |
-|--------|-----|
-| Deploy a workflow | Click **Deploy** button in Deploy tab |
-| Update deployment | Click **Update** when changes are detected |
-| View deployment status | Check status indicator (Live/Update/Deploy) in Deploy tab |
-| Revert deployment | Access previous versions in Deploy tab |
-| Copy webhook URL | Deploy tab → Copy webhook URL |
-| Copy API endpoint | Deploy tab → Copy API endpoint URL |
-| Set up a schedule | Add Schedule trigger block → Configure interval |
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th><th>Preview</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Deploy a workflow</td>
+      <td>Click **Deploy** button in panel</td>
+      <td><ActionImage src="/static/quick-reference/deploy.png" alt="Deploy workflow" /></td>
+    </tr>
+    <tr>
+      <td>Update deployment</td>
+      <td>Click **Update** when changes are detected</td>
+      <td><ActionImage src="/static/quick-reference/update-deployment.png" alt="Update deployment" /></td>
+    </tr>
+    <tr>
+      <td>View deployment status</td>
+      <td>Check status indicator (Live/Update/Deploy) in Deploy tab</td>
+      <td><ActionImage src="/static/quick-reference/view-deployment.png" alt="View deployment status" /></td>
+    </tr>
+    <tr>
+      <td>Revert deployment</td>
+      <td>Access previous versions in Deploy tab → **Promote to live**</td>
+      <td><ActionImage src="/static/quick-reference/promote-deployment.png" alt="Promote deployment to live" /></td>
+    </tr>
+    <tr>
+      <td>Copy API endpoint</td>
+      <td>Deploy tab → Copy API endpoint URL</td>
+      <td><ActionImage src="/static/quick-reference/copy-api.png" alt="Copy API endpoint" /></td>
+    </tr>
+  </tbody>
+</table>
 
 ## Variables
 
-| Action | How |
-|--------|-----|
-| Add workflow variable | Variables tab → **Add Variable** |
-| Edit workflow variable | Variables tab → Click variable to edit |
-| Delete workflow variable | Variables tab → Click delete icon on variable |
-| Add environment variable | Settings → **Environment Variables** → **Add** |
-| Reference a workflow variable | Use `<blockName.itemName>` syntax in block inputs |
-| Reference an environment variable | Use `{{ENV_VAR}}` syntax in block inputs |
-
-## Credentials
-
-| Action | How |
-|--------|-----|
-| Add API key | Block credential field → **Add Credential** → Enter API key |
-| Connect OAuth account | Block credential field → **Connect** → Authorize with provider |
-| Manage credentials | Settings → **Credentials** |
-| Remove credential | Settings → **Credentials** → Delete credential |
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th><th>Preview</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Add / Edit / Delete workflow variable</td>
+      <td>Panel -> Variables -> **Add Variable**, click to edit, or delete icon</td>
+      <td><ActionImage src="/static/quick-reference/variables.png" alt="Variables panel" /></td>
+    </tr>
+    <tr>
+      <td>Add environment variable</td>
+      <td>Settings → **Environment Variables** → **Add**</td>
+      <td><ActionImage src="/static/quick-reference/add-env-variable.png" alt="Add environment variable" /></td>
+    </tr>
+    <tr>
+      <td>Reference a workflow variable</td>
+      <td>Use `<blockName.itemName>` syntax in block inputs</td>
+      <td><ActionImage src="/static/quick-reference/variable-reference.png" alt="Reference workflow variable" /></td>
+    </tr>
+    <tr>
+      <td>Reference an environment variable</td>
+      <td>Use `&#123;&#123;ENV_VAR&#125;&#125;` syntax in block inputs</td>
+      <td><ActionImage src="/static/quick-reference/env-variable-reference.png" alt="Reference environment variable" /></td>
+    </tr>
+  </tbody>
+</table>
 
