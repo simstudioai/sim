@@ -246,9 +246,16 @@ function SubBlockRow({ title, value, subBlock, rawValue }: SubBlockRowProps) {
   )
 }
 
+interface SubflowContainerProps {
+  name: string
+  width?: number
+  height?: number
+  kind: 'loop' | 'parallel'
+  isPreviewSelected?: boolean
+}
+
 /**
  * Renders a subflow container (loop/parallel) for preview mode.
- * Extracted as a separate function for clarity.
  */
 function SubflowContainer({
   name,
@@ -256,13 +263,7 @@ function SubflowContainer({
   height = 300,
   kind,
   isPreviewSelected = false,
-}: {
-  name: string
-  width?: number
-  height?: number
-  kind: 'loop' | 'parallel'
-  isPreviewSelected?: boolean
-}) {
+}: SubflowContainerProps) {
   const isLoop = kind === 'loop'
   const BlockIcon = isLoop ? RepeatIcon : SplitIcon
   const blockIconBg = isLoop ? '#2FB3FF' : '#FEE12B'
