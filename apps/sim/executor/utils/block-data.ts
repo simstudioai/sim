@@ -35,7 +35,8 @@ function getInputFormatFields(block: SerializedBlock): OutputSchema {
 
   const schema: OutputSchema = {}
   for (const field of inputFormat) {
-    schema[field.name!] = {
+    if (!field.name) continue
+    schema[field.name] = {
       type: (field.type || 'any') as 'string' | 'number' | 'boolean' | 'object' | 'array' | 'any',
     }
   }
