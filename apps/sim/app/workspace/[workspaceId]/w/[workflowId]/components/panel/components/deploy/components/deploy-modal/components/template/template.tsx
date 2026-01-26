@@ -446,6 +446,7 @@ const OGCaptureContainer = forwardRef<HTMLDivElement>((_, ref) => {
         isPannable={false}
         defaultZoom={0.8}
         fitPadding={0.2}
+        lightweight
       />
     </div>
   )

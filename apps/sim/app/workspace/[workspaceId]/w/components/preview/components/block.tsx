@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useMemo } from 'react'
+import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
@@ -10,13 +11,11 @@ import {
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
+import type { ExecutionStatus } from '@/app/workspace/[workspaceId]/w/components/preview/preview'
 import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-
-/** Execution status for blocks in preview mode */
-type ExecutionStatus = 'success' | 'error' | 'not-executed'
 
 /** Subblock value structure matching workflow state */
 interface SubBlockValueEntry {
@@ -35,6 +34,16 @@ interface WorkflowPreviewBlockData {
   executionStatus?: ExecutionStatus
   /** Subblock values from the workflow state */
   subBlockValues?: Record<string, SubBlockValueEntry | unknown>
+  /** Skips expensive subblock computations for thumbnails */
+  lightweight?: boolean
+  /** Whether this is a subflow container (loop/parallel) */
+  isSubflow?: boolean
+  /** Type of subflow container */
+  subflowKind?: 'loop' | 'parallel'
+  /** Width of subflow container */
+  width?: number
+  /** Height of subflow container */
+  height?: number
 }
 
 /**
@@ -204,21 +213,16 @@ function resolveToolsDisplay(
  * - Shows '-' for other selector types that need hydration
  */
 function SubBlockRow({ title, value, subBlock, rawValue }: SubBlockRowProps) {
-  // Mask password fields
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
 
-  // Resolve various display names (synchronous access, matching WorkflowBlock priority)
   const dropdownLabel = resolveDropdownLabel(subBlock, rawValue)
   const variablesDisplay = resolveVariablesDisplay(subBlock, rawValue)
   const toolsDisplay = resolveToolsDisplay(subBlock, rawValue)
   const workflowName = resolveWorkflowName(subBlock, rawValue)
 
-  // Check if this is a selector type that needs hydration (show '-' for raw IDs)
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
 
-  // Compute final display value matching WorkflowBlock logic
-  // Priority order matches WorkflowBlock: masked > hydrated names > selector fallback > raw value
   const hydratedName = dropdownLabel || variablesDisplay || toolsDisplay || workflowName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
@@ -243,10 +247,113 @@ function SubBlockRow({ title, value, subBlock, rawValue }: SubBlockRowProps) {
 }
 
 /**
+ * Renders a subflow container (loop/parallel) for preview mode.
+ * Extracted as a separate function for clarity.
+ */
+function SubflowContainer({
+  name,
+  width = 500,
+  height = 300,
+  kind,
+  isPreviewSelected = false,
+}: {
+  name: string
+  width?: number
+  height?: number
+  kind: 'loop' | 'parallel'
+  isPreviewSelected?: boolean
+}) {
+  const isLoop = kind === 'loop'
+  const BlockIcon = isLoop ? RepeatIcon : SplitIcon
+  const blockIconBg = isLoop ? '#2FB3FF' : '#FEE12B'
+  const blockName = name || (isLoop ? 'Loop' : 'Parallel')
+
+  const startHandleId = isLoop ? 'loop-start-source' : 'parallel-start-source'
+  const endHandleId = isLoop ? 'loop-end-source' : 'parallel-end-source'
+
+  const leftHandleClass =
+    '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none'
+  const rightHandleClass =
+    '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none'
+
+  return (
+    <div
+      className='relative select-none rounded-[8px] border border-[var(--border-1)]'
+      style={{ width, height }}
+    >
+      {/* Selection ring overlay */}
+      {isPreviewSelected && (
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--brand-secondary)]' />
+      )}
+
+      {/* Target handle on left (input to the subflow) */}
+      <Handle
+        type='target'
+        position={Position.Left}
+        id='target'
+        className={leftHandleClass}
+        style={{
+          left: '-8px',
+          top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`,
+          transform: 'translateY(-50%)',
+        }}
+      />
+
+      {/* Header - matches actual subflow header structure */}
+      <div className='flex items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
+          <div
+            className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+            style={{ backgroundColor: blockIconBg }}
+          >
+            <BlockIcon className='h-[16px] w-[16px] text-white' />
+          </div>
+          <span className='font-medium text-[16px]' title={blockName}>
+            {blockName}
+          </span>
+        </div>
+      </div>
+
+      {/* Content area - matches workflow structure */}
+      <div
+        className='h-[calc(100%-50px)] pt-[16px] pr-[80px] pb-[16px] pl-[16px]'
+        style={{ position: 'relative' }}
+      >
+        {/* Subflow Start - connects to first block in subflow */}
+        <div className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[6px]'>
+          <span className='font-medium text-[14px] text-[var(--text-primary)]'>Start</span>
+          <Handle
+            type='source'
+            position={Position.Right}
+            id={startHandleId}
+            className={rightHandleClass}
+            style={{ right: '-8px', top: '50%', transform: 'translateY(-50%)' }}
+          />
+        </div>
+      </div>
+
+      {/* End source handle on right (output from the subflow) */}
+      <Handle
+        type='source'
+        position={Position.Right}
+        id={endHandleId}
+        className={rightHandleClass}
+        style={{
+          right: '-8px',
+          top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px`,
+          transform: 'translateY(-50%)',
+        }}
+      />
+    </div>
+  )
+}
+
+/**
  * Preview block component for workflow visualization.
  * Renders block header, subblock values, and handles without
  * hooks, store subscriptions, or interactive features.
  * Matches the visual structure of WorkflowBlock exactly.
+ * Also handles subflow containers (loop/parallel) when isSubflow is true.
  */
 function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>) {
   const {
@@ -258,53 +365,84 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     isPreviewSelected = false,
     executionStatus,
     subBlockValues,
+    lightweight = false,
+    isSubflow = false,
+    subflowKind,
+    width,
+    height,
   } = data
+
+  if (isSubflow && subflowKind) {
+    return (
+      <SubflowContainer
+        name={name}
+        width={width}
+        height={height}
+        kind={subflowKind}
+        isPreviewSelected={isPreviewSelected}
+      />
+    )
+  }
 
   const blockConfig = getBlock(type)
 
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () =>
+      lightweight
+        ? { groupsById: {}, canonicalIdBySubBlockId: {} }
+        : buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks, lightweight]
   )
 
   const rawValues = useMemo(() => {
-    if (!subBlockValues) return {}
+    if (lightweight || !subBlockValues) return {}
     return Object.entries(subBlockValues).reduce<Record<string, unknown>>((acc, [key, entry]) => {
       acc[key] = extractValue(entry)
       return acc
     }, {})
-  }, [subBlockValues])
+  }, [subBlockValues, lightweight])
 
   const visibleSubBlocks = useMemo(() => {
-    if (!blockConfig?.subBlocks) return []
+    if (lightweight || !blockConfig?.subBlocks) return []
 
-    const isStarterOrTrigger =
-      blockConfig.category === 'triggers' || type === 'starter' || isTrigger
+    const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
+
+    const effectiveTrigger = isTrigger || type === 'starter'
 
     return blockConfig.subBlocks.filter((subBlock) => {
       if (subBlock.hidden) return false
       if (subBlock.hideFromPreview) return false
       if (!isSubBlockFeatureEnabled(subBlock)) return false
 
-      // Handle trigger mode visibility
-      if (subBlock.mode === 'trigger' && !isStarterOrTrigger) return false
+      if (effectiveTrigger) {
+        const isValidTriggerSubblock = isPureTriggerBlock
+          ? subBlock.mode === 'trigger' || !subBlock.mode
+          : subBlock.mode === 'trigger'
+        if (!isValidTriggerSubblock) return false
+      } else {
+        if (subBlock.mode === 'trigger') return false
+      }
 
-      // Check advanced mode visibility
       if (!isSubBlockVisibleForMode(subBlock, false, canonicalIndex, rawValues, undefined)) {
         return false
       }
 
-      // Check condition visibility
       if (!subBlock.condition) return true
       return evaluateSubBlockCondition(subBlock.condition, rawValues)
     })
-  }, [blockConfig?.subBlocks, blockConfig?.category, type, isTrigger, canonicalIndex, rawValues])
+  }, [
+    lightweight,
+    blockConfig?.subBlocks,
+    blockConfig?.category,
+    blockConfig?.triggers?.enabled,
+    type,
+    isTrigger,
+    canonicalIndex,
+    rawValues,
+  ])
 
-  /**
-   * Compute condition rows for condition blocks
-   */
   const conditionRows = useMemo(() => {
-    if (type !== 'condition') return []
+    if (lightweight || type !== 'condition') return []
 
     const conditionsValue = rawValues.conditions
     const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
@@ -332,13 +470,10 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       { id: 'if', title: 'if', value: '' },
       { id: 'else', title: 'else', value: '' },
     ]
-  }, [type, rawValues])
+  }, [lightweight, type, rawValues])
 
-  /**
-   * Compute router rows for router_v2 blocks
-   */
   const routerRows = useMemo(() => {
-    if (type !== 'router_v2') return []
+    if (lightweight || type !== 'router_v2') return []
 
     const routesValue = rawValues.routes
     const raw = typeof routesValue === 'string' ? routesValue : undefined
@@ -361,7 +496,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     }
 
     return [{ id: 'route1', value: '' }]
-  }, [type, rawValues])
+  }, [lightweight, type, rawValues])
 
   if (!blockConfig) {
     return null
@@ -439,12 +574,10 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       {hasContentBelowHeader && (
         <div className='flex flex-col gap-[8px] p-[8px]'>
           {type === 'condition' ? (
-            // Condition block: render condition rows
             conditionRows.map((cond) => (
               <SubBlockRow key={cond.id} title={cond.title} value={getDisplayValue(cond.value)} />
             ))
           ) : type === 'router_v2' ? (
-            // Router block: render context + route rows
             <>
               <SubBlockRow
                 key='context'
@@ -460,7 +593,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
               ))}
             </>
           ) : (
-            // Standard blocks: render visible subblocks
             visibleSubBlocks.map((subBlock) => {
               const rawValue = rawValues[subBlock.id]
               return (
@@ -479,18 +611,102 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         </div>
       )}
 
-      {/* Source handle */}
-      <Handle
-        type='source'
-        position={horizontalHandles ? Position.Right : Position.Bottom}
-        id='source'
-        className={horizontalHandles ? horizontalHandleClass : verticalHandleClass}
-        style={
-          horizontalHandles
-            ? { right: '-7px', top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px` }
-            : { bottom: '-7px', left: '50%', transform: 'translateX(-50%)' }
-        }
-      />
+      {/* Condition block handles - one per condition branch + error */}
+      {type === 'condition' && (
+        <>
+          {conditionRows.map((cond, condIndex) => {
+            const topOffset =
+              HANDLE_POSITIONS.CONDITION_START_Y + condIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+            return (
+              <Handle
+                key={`handle-${cond.id}`}
+                type='source'
+                position={Position.Right}
+                id={`condition-${cond.id}`}
+                className={horizontalHandleClass}
+                style={{ right: '-7px', top: `${topOffset}px`, transform: 'translateY(-50%)' }}
+              />
+            )
+          })}
+          <Handle
+            type='source'
+            position={Position.Right}
+            id='error'
+            className='!border-none !bg-[var(--text-error)] !h-5 !w-[7px] !rounded-[2px]'
+            style={{
+              right: '-7px',
+              top: 'auto',
+              bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
+              transform: 'translateY(50%)',
+            }}
+          />
+        </>
+      )}
+
+      {/* Router block handles - one per route + error */}
+      {type === 'router_v2' && (
+        <>
+          {routerRows.map((route, routeIndex) => {
+            // +1 row offset for context row at the top
+            const topOffset =
+              HANDLE_POSITIONS.CONDITION_START_Y +
+              (routeIndex + 1) * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+            return (
+              <Handle
+                key={`handle-${route.id}`}
+                type='source'
+                position={Position.Right}
+                id={`router-${route.id}`}
+                className={horizontalHandleClass}
+                style={{ right: '-7px', top: `${topOffset}px`, transform: 'translateY(-50%)' }}
+              />
+            )
+          })}
+          <Handle
+            type='source'
+            position={Position.Right}
+            id='error'
+            className='!border-none !bg-[var(--text-error)] !h-5 !w-[7px] !rounded-[2px]'
+            style={{
+              right: '-7px',
+              top: 'auto',
+              bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
+              transform: 'translateY(50%)',
+            }}
+          />
+        </>
+      )}
+
+      {/* Standard block handles - source + error (not for condition, router, or response) */}
+      {type !== 'condition' && type !== 'router_v2' && type !== 'response' && (
+        <>
+          <Handle
+            type='source'
+            position={horizontalHandles ? Position.Right : Position.Bottom}
+            id='source'
+            className={horizontalHandles ? horizontalHandleClass : verticalHandleClass}
+            style={
+              horizontalHandles
+                ? { right: '-7px', top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px` }
+                : { bottom: '-7px', left: '50%', transform: 'translateX(-50%)' }
+            }
+          />
+          {shouldShowDefaultHandles && (
+            <Handle
+              type='source'
+              position={Position.Right}
+              id='error'
+              className='!border-none !bg-[var(--text-error)] !h-5 !w-[7px] !rounded-[2px]'
+              style={{
+                right: '-7px',
+                top: 'auto',
+                bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
+                transform: 'translateY(50%)',
+              }}
+            />
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -499,7 +715,6 @@ function shouldSkipPreviewBlockRender(
   prevProps: NodeProps<WorkflowPreviewBlockData>,
   nextProps: NodeProps<WorkflowPreviewBlockData>
 ): boolean {
-  // Check primitive props first (fast path)
   if (
     prevProps.id !== nextProps.id ||
     prevProps.data.type !== nextProps.data.type ||
@@ -508,12 +723,16 @@ function shouldSkipPreviewBlockRender(
     prevProps.data.horizontalHandles !== nextProps.data.horizontalHandles ||
     prevProps.data.enabled !== nextProps.data.enabled ||
     prevProps.data.isPreviewSelected !== nextProps.data.isPreviewSelected ||
-    prevProps.data.executionStatus !== nextProps.data.executionStatus
+    prevProps.data.executionStatus !== nextProps.data.executionStatus ||
+    prevProps.data.lightweight !== nextProps.data.lightweight ||
+    prevProps.data.isSubflow !== nextProps.data.isSubflow ||
+    prevProps.data.subflowKind !== nextProps.data.subflowKind ||
+    prevProps.data.width !== nextProps.data.width ||
+    prevProps.data.height !== nextProps.data.height
   ) {
     return false
   }
 
-  // Compare subBlockValues by reference first
   const prevValues = prevProps.data.subBlockValues
   const nextValues = nextProps.data.subBlockValues
 
@@ -525,7 +744,6 @@ function shouldSkipPreviewBlockRender(
     return false
   }
 
-  // Shallow compare keys and values
   const prevKeys = Object.keys(prevValues)
   const nextKeys = Object.keys(nextValues)
 

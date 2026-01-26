@@ -466,6 +466,7 @@ export function Editor() {
                               defaultZoom={0.6}
                               fitPadding={0.15}
                               cursorStyle='grab'
+                              lightweight
                             />
                           </div>
                           <Tooltip.Root>
