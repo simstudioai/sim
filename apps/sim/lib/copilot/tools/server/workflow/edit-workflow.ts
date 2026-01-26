@@ -2609,9 +2609,7 @@ async function preValidateCredentialInputs(
     model: string
   }> = []
 
-  const hostedModelsLower = isHosted
-    ? new Set(getHostedModels().map((m) => m.toLowerCase()))
-    : null
+  const hostedModelsLower = isHosted ? new Set(getHostedModels().map((m) => m.toLowerCase())) : null
 
   operations.forEach((op, opIndex) => {
     if (!op.params?.inputs || !op.params?.type) return
@@ -2668,7 +2666,7 @@ async function preValidateCredentialInputs(
     for (const apiKeyInput of hostedApiKeyInputs) {
       const op = filteredOperations[apiKeyInput.operationIndex]
       if (op.params?.inputs?.apiKey) {
-        delete op.params.inputs.apiKey
+        op.params.inputs.apiKey = undefined
         logger.debug('Silently filtered apiKey for hosted model', {
           blockId: apiKeyInput.blockId,
           model: apiKeyInput.model,
