@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { BlockType } from '@/executor/constants'
+import { BlockType, isTriggerBehavior } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -7,15 +7,7 @@ const logger = createLogger('TriggerBlockHandler')
 
 export class TriggerBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    if (block.metadata?.id === BlockType.STARTER) {
-      return true
-    }
-
-    const isTriggerCategory = block.metadata?.category === 'triggers'
-
-    const hasTriggerMode = block.config?.params?.triggerMode === true
-
-    return isTriggerCategory || hasTriggerMode
+    return isTriggerBehavior(block)
   }
 
   async execute(

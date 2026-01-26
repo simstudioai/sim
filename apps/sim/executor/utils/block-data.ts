@@ -1,5 +1,5 @@
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
-import { normalizeName } from '@/executor/constants'
+import { isTriggerBehavior, normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { OutputSchema } from '@/executor/utils/block-reference'
 import type { SerializedBlock } from '@/serializer/types'
@@ -13,18 +13,20 @@ export interface BlockDataCollection {
 }
 
 /**
- * Triggers where inputFormat fields should be merged into outputs schema.
+ * Block types where inputFormat fields should be merged into outputs schema.
  * These are blocks where users define custom fields via inputFormat that become
- * valid output paths (e.g., <start.myField>, <webhook1.customField>).
+ * valid output paths (e.g., <start.myField>, <webhook1.customField>, <hitl1.resumeField>).
+ *
+ * Note: This includes non-trigger blocks like 'starter' and 'human_in_the_loop' which
+ * have category 'blocks' but still need their inputFormat exposed as outputs.
  */
-const TRIGGERS_WITH_INPUT_FORMAT_OUTPUTS = [
+const BLOCKS_WITH_INPUT_FORMAT_OUTPUTS = [
   'start_trigger',
   'starter',
   'api_trigger',
   'input_trigger',
   'generic_webhook',
   'human_in_the_loop',
-  'approval',
 ] as const
 
 function getInputFormatFields(block: SerializedBlock): OutputSchema {
@@ -48,17 +50,15 @@ export function getBlockSchema(
   block: SerializedBlock,
   toolConfig?: ToolConfig
 ): OutputSchema | undefined {
-  const isTrigger =
-    block.metadata?.category === 'triggers' ||
-    (block.config?.params as Record<string, unknown> | undefined)?.triggerMode === true
-
   const blockType = block.metadata?.id
 
+  // For blocks that expose inputFormat as outputs, always merge them
+  // This includes both triggers (start_trigger, generic_webhook) and
+  // non-triggers (starter, human_in_the_loop) that have inputFormat
   if (
-    isTrigger &&
     blockType &&
-    TRIGGERS_WITH_INPUT_FORMAT_OUTPUTS.includes(
-      blockType as (typeof TRIGGERS_WITH_INPUT_FORMAT_OUTPUTS)[number]
+    BLOCKS_WITH_INPUT_FORMAT_OUTPUTS.includes(
+      blockType as (typeof BLOCKS_WITH_INPUT_FORMAT_OUTPUTS)[number]
     )
   ) {
     const baseOutputs = (block.outputs as OutputSchema) || {}
@@ -68,6 +68,8 @@ export function getBlockSchema(
       return merged
     }
   }
+
+  const isTrigger = isTriggerBehavior(block)
 
   if (isTrigger && block.outputs && Object.keys(block.outputs).length > 0) {
     return block.outputs as OutputSchema
