@@ -34,7 +34,7 @@ async function loadGoogleFont(font: string, weights: string, text: string): Prom
 }
 
 /**
- * Sim logo with icon and "Sim" text for OG image
+ * Sim logo with icon and "Sim" text for OG image.
  */
 function SimLogoFull() {
   return (

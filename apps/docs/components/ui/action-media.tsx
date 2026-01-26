@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { getAssetUrl } from '@/lib/utils'
+import { cn, getAssetUrl } from '@/lib/utils'
 import { Lightbox } from './lightbox'
 
 interface ActionImageProps {
@@ -31,9 +31,10 @@ export function ActionImage({ src, alt, enableLightbox = true }: ActionImageProp
         src={src}
         alt={alt}
         onClick={handleClick}
-        className={`inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700 ${
-          enableLightbox ? 'cursor-pointer transition-opacity hover:opacity-90' : ''
-        }`}
+        className={cn(
+          'inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700',
+          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-90'
+        )}
       />
       {enableLightbox && (
         <Lightbox
@@ -67,9 +68,10 @@ export function ActionVideo({ src, alt, enableLightbox = true }: ActionVideoProp
         muted
         playsInline
         onClick={handleClick}
-        className={`inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700 ${
-          enableLightbox ? 'cursor-pointer transition-opacity hover:opacity-90' : ''
-        }`}
+        className={cn(
+          'inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700',
+          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-90'
+        )}
       />
       {enableLightbox && (
         <Lightbox
