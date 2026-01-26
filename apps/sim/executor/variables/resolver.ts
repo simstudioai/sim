@@ -157,7 +157,14 @@ export class VariableResolver {
 
     let replacementError: Error | null = null
 
-    // Use generic utility for smart variable reference replacement
+    const blockType = block?.metadata?.id
+    const language =
+      blockType === BlockType.FUNCTION
+        ? ((block?.config?.params as Record<string, unknown> | undefined)?.language as
+            | string
+            | undefined)
+        : undefined
+
     let result = replaceValidReferences(template, (match) => {
       if (replacementError) return match
 
@@ -167,14 +174,18 @@ export class VariableResolver {
           return match
         }
 
-        const blockType = block?.metadata?.id
         const isInTemplateLiteral =
           blockType === BlockType.FUNCTION &&
           template.includes('${') &&
           template.includes('}') &&
           template.includes('`')
 
-        return this.blockResolver.formatValueForBlock(resolved, blockType, isInTemplateLiteral)
+        return this.blockResolver.formatValueForBlock(
+          resolved,
+          blockType,
+          isInTemplateLiteral,
+          language
+        )
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
         return match

@@ -162,14 +162,15 @@ export class BlockResolver implements Resolver {
   public formatValueForBlock(
     value: any,
     blockType: string | undefined,
-    isInTemplateLiteral = false
+    isInTemplateLiteral = false,
+    language?: string
   ): string {
     if (blockType === 'condition') {
       return this.stringifyForCondition(value)
     }
 
     if (blockType === 'function') {
-      return this.formatValueForCodeContext(value, isInTemplateLiteral)
+      return this.formatValueForCodeContext(value, isInTemplateLiteral, language)
     }
 
     if (blockType === 'response') {
@@ -210,13 +211,28 @@ export class BlockResolver implements Resolver {
     return String(value)
   }
 
-  private formatValueForCodeContext(value: any, isInTemplateLiteral: boolean): string {
+  private formatValueForCodeContext(
+    value: any,
+    isInTemplateLiteral: boolean,
+    language?: string
+  ): string {
+    const isPython = language === 'python'
+
     if (isInTemplateLiteral) {
       if (typeof value === 'string') {
         return value
       }
       if (typeof value === 'object' && value !== null) {
         return JSON.stringify(value)
+      }
+      if (typeof value === 'boolean') {
+        return isPython ? (value ? 'True' : 'False') : String(value)
+      }
+      if (value === undefined) {
+        return isPython ? 'None' : 'undefined'
+      }
+      if (value === null) {
+        return isPython ? 'None' : 'null'
       }
       return String(value)
     }
@@ -228,10 +244,13 @@ export class BlockResolver implements Resolver {
       return JSON.stringify(value)
     }
     if (value === undefined) {
-      return 'undefined'
+      return isPython ? 'None' : 'undefined'
     }
     if (value === null) {
-      return 'null'
+      return isPython ? 'None' : 'null'
+    }
+    if (typeof value === 'boolean') {
+      return isPython ? (value ? 'True' : 'False') : String(value)
     }
     return String(value)
   }

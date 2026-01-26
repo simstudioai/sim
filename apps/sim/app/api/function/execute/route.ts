@@ -387,7 +387,12 @@ function resolveWorkflowVariables(
       if (type === 'number') {
         variableValue = Number(variableValue)
       } else if (type === 'boolean') {
-        variableValue = variableValue === 'true' || variableValue === true
+        if (typeof variableValue === 'boolean') {
+          // Already a boolean, keep as-is
+        } else {
+          const normalized = String(variableValue).toLowerCase().trim()
+          variableValue = normalized === 'true' || normalized === '1'
+        }
       } else if (type === 'json' && typeof variableValue === 'string') {
         try {
           variableValue = JSON.parse(variableValue)
@@ -689,6 +694,10 @@ export async function POST(req: NextRequest) {
         for (const [k, v] of Object.entries(contextVariables)) {
           if (v === undefined) {
             prologue += `const ${k} = undefined;\n`
+          } else if (v === null) {
+            prologue += `const ${k} = null;\n`
+          } else if (typeof v === 'boolean' || typeof v === 'number') {
+            prologue += `const ${k} = ${v};\n`
           } else {
             prologue += `const ${k} = JSON.parse(${JSON.stringify(JSON.stringify(v))});\n`
           }
@@ -764,6 +773,12 @@ export async function POST(req: NextRequest) {
       for (const [k, v] of Object.entries(contextVariables)) {
         if (v === undefined) {
           prologue += `${k} = None\n`
+        } else if (v === null) {
+          prologue += `${k} = None\n`
+        } else if (typeof v === 'boolean') {
+          prologue += `${k} = ${v ? 'True' : 'False'}\n`
+        } else if (typeof v === 'number') {
+          prologue += `${k} = ${v}\n`
         } else {
           prologue += `${k} = json.loads(${JSON.stringify(JSON.stringify(v))})\n`
         }
