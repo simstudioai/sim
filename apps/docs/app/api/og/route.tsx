@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
         fontFamily: 'Geist',
       }}
     >
-      {/* Base gradient layer - subtle purple tint across the entire image */}
+      {/* Base gradient layer - subtle green tint across the entire image */}
       <div
         style={{
           position: 'absolute',
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
           width: '100%',
           height: '100%',
           background:
-            'radial-gradient(ellipse 150% 100% at 50% 100%, rgba(88, 28, 135, 0.15) 0%, rgba(88, 28, 135, 0.08) 25%, rgba(88, 28, 135, 0.03) 50%, transparent 80%)',
+            'radial-gradient(ellipse 150% 100% at 50% 100%, rgba(51, 196, 130, 0.15) 0%, rgba(51, 196, 130, 0.08) 25%, rgba(51, 196, 130, 0.03) 50%, transparent 80%)',
           display: 'flex',
         }}
       />
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
           width: '100%',
           height: '100%',
           background:
-            'radial-gradient(ellipse 100% 80% at 80% 90%, rgba(112, 31, 252, 0.12) 0%, rgba(112, 31, 252, 0.04) 40%, transparent 70%)',
+            'radial-gradient(ellipse 100% 80% at 80% 90%, rgba(51, 196, 130, 0.12) 0%, rgba(51, 196, 130, 0.04) 40%, transparent 70%)',
           display: 'flex',
         }}
       />
