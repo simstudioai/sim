@@ -383,10 +383,25 @@ function buildIntegrationTriggerOutput(
   structuredInput: Record<string, unknown>,
   hasStructured: boolean
 ): NormalizedBlockOutput {
+  const output: NormalizedBlockOutput = {}
+
   if (hasStructured) {
-    return { ...structuredInput }
+    for (const [key, value] of Object.entries(structuredInput)) {
+      output[key] = value
+    }
   }
-  return isPlainObject(workflowInput) ? (workflowInput as NormalizedBlockOutput) : {}
+
+  if (isPlainObject(workflowInput)) {
+    for (const [key, value] of Object.entries(workflowInput)) {
+      if (value !== undefined && value !== null) {
+        output[key] = value
+      } else if (!Object.hasOwn(output, key)) {
+        output[key] = value
+      }
+    }
+  }
+
+  return mergeFilesIntoOutput(output, workflowInput)
 }
 
 function extractSubBlocks(block: SerializedBlock): Record<string, unknown> | undefined {
