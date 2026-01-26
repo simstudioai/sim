@@ -12,8 +12,19 @@ interface ActionVideoProps {
   alt: string
 }
 
+/**
+ * Normalize path for blob storage
+ * - Strips leading slash
+ * - Strips 'static/' prefix
+ */
+function normalizeBlobPath(src: string): string {
+  let path = src.startsWith('/') ? src.slice(1) : src
+  path = path.replace(/^static\//, '')
+  return path
+}
+
 export function ActionImage({ src, alt }: ActionImageProps) {
-  const resolvedSrc = getAssetUrl(src.startsWith('/') ? src.slice(1) : src)
+  const resolvedSrc = src.startsWith('/') ? src : `/${src}`
 
   return (
     <img
@@ -25,7 +36,7 @@ export function ActionImage({ src, alt }: ActionImageProps) {
 }
 
 export function ActionVideo({ src, alt }: ActionVideoProps) {
-  const resolvedSrc = getAssetUrl(src.startsWith('/') ? src.slice(1) : src)
+  const resolvedSrc = getAssetUrl(normalizeBlobPath(src))
 
   return (
     <video
