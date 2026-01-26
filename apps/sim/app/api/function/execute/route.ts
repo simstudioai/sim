@@ -391,7 +391,7 @@ function resolveWorkflowVariables(
           // Already a boolean, keep as-is
         } else {
           const normalized = String(variableValue).toLowerCase().trim()
-          variableValue = normalized === 'true' || normalized === '1'
+          variableValue = normalized === 'true'
         }
       } else if (type === 'json' && typeof variableValue === 'string') {
         try {
