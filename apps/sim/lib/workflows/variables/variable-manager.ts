@@ -61,7 +61,7 @@ export class VariableManager {
         // Special case for 'anything else' in the test
         if (unquoted === 'anything else') return true
         const normalized = String(unquoted).toLowerCase().trim()
-        return normalized === 'true' || normalized === '1'
+        return normalized === 'true'
       }
 
       case 'object':

@@ -8,6 +8,7 @@ import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
+import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   createEnvVarPattern,
   createWorkflowVariablePattern,
@@ -387,7 +388,12 @@ function resolveWorkflowVariables(
       if (type === 'number') {
         variableValue = Number(variableValue)
       } else if (type === 'boolean') {
-        variableValue = variableValue === 'true' || variableValue === true
+        if (typeof variableValue === 'boolean') {
+          // Already a boolean, keep as-is
+        } else {
+          const normalized = String(variableValue).toLowerCase().trim()
+          variableValue = normalized === 'true'
+        }
       } else if (type === 'json' && typeof variableValue === 'string') {
         try {
           variableValue = JSON.parse(variableValue)
@@ -687,11 +693,7 @@ export async function POST(req: NextRequest) {
         prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
         prologueLineCount++
         for (const [k, v] of Object.entries(contextVariables)) {
-          if (v === undefined) {
-            prologue += `const ${k} = undefined;\n`
-          } else {
-            prologue += `const ${k} = JSON.parse(${JSON.stringify(JSON.stringify(v))});\n`
-          }
+          prologue += `const ${k} = ${formatLiteralForCode(v, 'javascript')};\n`
           prologueLineCount++
         }
 
@@ -762,11 +764,7 @@ export async function POST(req: NextRequest) {
       prologue += `environmentVariables = json.loads(${JSON.stringify(JSON.stringify(envVars))})\n`
       prologueLineCount++
       for (const [k, v] of Object.entries(contextVariables)) {
-        if (v === undefined) {
-          prologue += `${k} = None\n`
-        } else {
-          prologue += `${k} = json.loads(${JSON.stringify(JSON.stringify(v))})\n`
-        }
+        prologue += `${k} = ${formatLiteralForCode(v, 'python')}\n`
         prologueLineCount++
       }
       const wrapped = [
