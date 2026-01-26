@@ -13,11 +13,9 @@ interface ActionVideoProps {
 }
 
 export function ActionImage({ src, alt }: ActionImageProps) {
-  const resolvedSrc = getAssetUrl(src.startsWith('/') ? src.slice(1) : src)
-
   return (
     <img
-      src={resolvedSrc}
+      src={src}
       alt={alt}
       className='inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700'
     />
@@ -25,7 +23,7 @@ export function ActionImage({ src, alt }: ActionImageProps) {
 }
 
 export function ActionVideo({ src, alt }: ActionVideoProps) {
-  const resolvedSrc = getAssetUrl(src.startsWith('/') ? src.slice(1) : src)
+  const resolvedSrc = getAssetUrl(src)
 
   return (
     <video
