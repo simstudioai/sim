@@ -197,7 +197,7 @@ async function getCommitsBetweenVersions(
     const commitEntries = gitLog.split('\n').filter((line) => line.trim())
 
     const nonVersionCommits = commitEntries.filter((line) => {
-      const [hash, message] = line.split('|')
+      const [, message] = line.split('|')
       const isVersionCommit = message.match(/^v\d+\.\d+/)
       if (isVersionCommit) {
         console.log(`⏭️ Skipping version commit: ${message.substring(0, 50)}...`)
@@ -367,6 +367,25 @@ async function main() {
       console.log(`✅ Found previous version: ${previousCommit.version}`)
     } else {
       console.log(`ℹ️ No previous version found (this might be the first release)`)
+    }
+
+    try {
+      const existingRelease = await octokit.rest.repos.getReleaseByTag({
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        tag: targetVersion,
+      })
+      if (existingRelease.data) {
+        console.log(`ℹ️ Release ${targetVersion} already exists, skipping creation`)
+        console.log(
+          `🔗 View release: https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/${targetVersion}`
+        )
+        return
+      }
+    } catch (error: any) {
+      if (error.status !== 404) {
+        throw error
+      }
     }
 
     const releaseBody = await generateReleaseBody(versionCommit, previousCommit || undefined)
