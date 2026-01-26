@@ -123,44 +123,31 @@ function formatInlineValue(value: unknown): string {
   return String(value)
 }
 
-interface ExecutionDataSectionProps {
+interface CollapsibleSectionProps {
   title: string
-  data: unknown
+  defaultExpanded?: boolean
+  children: React.ReactNode
+  isEmpty?: boolean
+  emptyMessage?: string
+  /** Whether this section represents an error state (styles title red) */
   isError?: boolean
-  wrapText?: boolean
-  searchQuery?: string
-  currentMatchIndex?: number
-  onMatchCountChange?: (count: number) => void
-  contentRef?: React.RefObject<HTMLDivElement | null>
-  onContextMenu?: (e: React.MouseEvent) => void
 }
 
 /**
- * Collapsible section for execution data (input/output)
- * Uses Code.Viewer for proper syntax highlighting matching the logs UI
+ * Collapsible section wrapper for organizing preview editor content
  */
-function ExecutionDataSection({
+function CollapsibleSection({
   title,
-  data,
+  defaultExpanded = false,
+  children,
+  isEmpty = false,
+  emptyMessage = 'No data',
   isError = false,
-  wrapText = true,
-  searchQuery,
-  currentMatchIndex = 0,
-  onMatchCountChange,
-  contentRef,
-  onContextMenu,
-}: ExecutionDataSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
-
-  const jsonString = useMemo(() => {
-    if (!data) return ''
-    return formatValueAsJson(data)
-  }, [data])
-
-  const isEmpty = jsonString === '—' || jsonString === ''
+}: CollapsibleSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   return (
-    <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden'>
+    <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
       <div
         className='group flex cursor-pointer items-center justify-between'
         onClick={() => setIsExpanded(!isExpanded)}
@@ -199,20 +186,10 @@ function ExecutionDataSection({
         <>
           {isEmpty ? (
             <div className='rounded-[6px] bg-[var(--surface-3)] px-[10px] py-[8px]'>
-              <span className='text-[12px] text-[var(--text-tertiary)]'>No data</span>
+              <span className='text-[12px] text-[var(--text-tertiary)]'>{emptyMessage}</span>
             </div>
           ) : (
-            <div onContextMenu={onContextMenu} ref={contentRef}>
-              <Code.Viewer
-                code={jsonString}
-                language='json'
-                className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
-                wrapText={wrapText}
-                searchQuery={searchQuery}
-                currentMatchIndex={currentMatchIndex}
-                onMatchCountChange={onMatchCountChange}
-              />
-            </div>
+            children
           )}
         </>
       )}
@@ -601,7 +578,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
   }
 
   return (
-    <div className='flex-1 overflow-y-auto overflow-x-hidden pt-[5px] pb-[8px]'>
+    <div className='flex-1 overflow-y-auto overflow-x-hidden pt-[8px] pb-[8px]'>
       {/* Type Selection - matches SubflowEditor */}
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
@@ -1145,7 +1122,7 @@ function PreviewEditorContent({
 
       {/* Content area */}
       <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
-        {/* Subblocks Section */}
+        {/* Main content sections */}
         <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
           <div className='flex-1 overflow-y-auto overflow-x-hidden'>
             {/* Not Executed Banner - shown when in execution mode but block wasn't executed */}
@@ -1159,91 +1136,99 @@ function PreviewEditorContent({
               </div>
             )}
 
-            {/* Execution Input/Output (if provided) */}
-            {executionData &&
-            (executionData.input !== undefined || executionData.output !== undefined) ? (
-              <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
-                {/* Execution Status & Duration Header */}
-                {(executionData.status || executionData.durationMs !== undefined) && (
-                  <div className='flex items-center justify-between'>
-                    {executionData.status && (
-                      <Badge variant={statusVariant} size='sm' dot>
-                        <span className='capitalize'>{executionData.status}</span>
-                      </Badge>
-                    )}
-                    {executionData.durationMs !== undefined && (
-                      <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                        {formatDuration(executionData.durationMs, { precision: 2 })}
-                      </span>
-                    )}
-                  </div>
+            {/* Execution Status & Duration Header */}
+            {executionData && (executionData.status || executionData.durationMs !== undefined) && (
+              <div className='flex min-w-0 items-center justify-between overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
+                {executionData.status && (
+                  <Badge variant={statusVariant} size='sm' dot>
+                    <span className='capitalize'>{executionData.status}</span>
+                  </Badge>
                 )}
-
-                {/* Divider between Status/Duration and Input/Output */}
-                {(executionData.status || executionData.durationMs !== undefined) &&
-                  (executionData.input !== undefined || executionData.output !== undefined) && (
-                    <div className='border-[var(--border)] border-t border-dashed' />
-                  )}
-
-                {/* Input Section */}
-                {executionData.input !== undefined && (
-                  <ExecutionDataSection
-                    title='Input'
-                    data={executionData.input}
-                    wrapText={wrapText}
-                    searchQuery={isSearchActive ? searchQuery : undefined}
-                    currentMatchIndex={currentMatchIndex}
-                    onMatchCountChange={handleMatchCountChange}
-                    contentRef={contentRef}
-                    onContextMenu={handleExecutionContextMenu}
-                  />
-                )}
-
-                {/* Divider between Input and Output */}
-                {executionData.input !== undefined && executionData.output !== undefined && (
-                  <div className='border-[var(--border)] border-t border-dashed' />
-                )}
-
-                {/* Output Section */}
-                {executionData.output !== undefined && (
-                  <ExecutionDataSection
-                    title={executionData.status === 'error' ? 'Error' : 'Output'}
-                    data={executionData.output}
-                    isError={executionData.status === 'error'}
-                    wrapText={wrapText}
-                    searchQuery={isSearchActive ? searchQuery : undefined}
-                    currentMatchIndex={currentMatchIndex}
-                    onMatchCountChange={handleMatchCountChange}
-                    contentRef={contentRef}
-                    onContextMenu={handleExecutionContextMenu}
-                  />
+                {executionData.durationMs !== undefined && (
+                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    {formatDuration(executionData.durationMs, { precision: 2 })}
+                  </span>
                 )}
               </div>
-            ) : null}
+            )}
+
+            {/* Input Section - Collapsible */}
+            {executionData?.input !== undefined && (
+              <CollapsibleSection
+                title='Input'
+                defaultExpanded={false}
+                isEmpty={
+                  formatValueAsJson(executionData.input) === '—' ||
+                  formatValueAsJson(executionData.input) === ''
+                }
+                emptyMessage='No input data'
+              >
+                <div onContextMenu={handleExecutionContextMenu} ref={contentRef}>
+                  <Code.Viewer
+                    code={formatValueAsJson(executionData.input)}
+                    language='json'
+                    className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
+                    wrapText={wrapText}
+                    searchQuery={isSearchActive ? searchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                  />
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* Output Section - Collapsible, expanded by default */}
+            {executionData?.output !== undefined && (
+              <CollapsibleSection
+                title={executionData.status === 'error' ? 'Error' : 'Output'}
+                defaultExpanded={true}
+                isEmpty={
+                  formatValueAsJson(executionData.output) === '—' ||
+                  formatValueAsJson(executionData.output) === ''
+                }
+                emptyMessage='No output data'
+                isError={executionData.status === 'error'}
+              >
+                <div onContextMenu={handleExecutionContextMenu}>
+                  <Code.Viewer
+                    code={formatValueAsJson(executionData.output)}
+                    language='json'
+                    className={cn(
+                      '!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]',
+                      executionData.status === 'error' && 'text-[var(--text-error)]'
+                    )}
+                    wrapText={wrapText}
+                    searchQuery={isSearchActive ? searchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                  />
+                </div>
+              </CollapsibleSection>
+            )}
 
             {/* Subblock Values - Using SubBlock components in preview mode */}
-            <div className='readonly-preview px-[8px] py-[8px]'>
+            <div className='readonly-preview px-[8px] pt-[12px] pb-[8px]'>
               {/* CSS override to show full opacity and prevent interaction instead of dimmed disabled state */}
               <style>{`
-            .readonly-preview,
-            .readonly-preview * {
-              cursor: default !important;
-            }
-            .readonly-preview [disabled],
-            .readonly-preview [data-disabled],
-            .readonly-preview input,
-            .readonly-preview textarea,
-            .readonly-preview [role="combobox"],
-            .readonly-preview [role="slider"],
-            .readonly-preview [role="switch"],
-            .readonly-preview [role="checkbox"] {
-              opacity: 1 !important;
-              pointer-events: none;
-            }
-            .readonly-preview .opacity-50 {
-              opacity: 1 !important;
-            }
-          `}</style>
+                .readonly-preview,
+                .readonly-preview * {
+                  cursor: default !important;
+                }
+                .readonly-preview [disabled],
+                .readonly-preview [data-disabled],
+                .readonly-preview input,
+                .readonly-preview textarea,
+                .readonly-preview [role="combobox"],
+                .readonly-preview [role="slider"],
+                .readonly-preview [role="switch"],
+                .readonly-preview [role="checkbox"] {
+                  opacity: 1 !important;
+                  pointer-events: none;
+                }
+                .readonly-preview .opacity-50 {
+                  opacity: 1 !important;
+                }
+              `}</style>
               {visibleSubBlocks.length > 0 ? (
                 <div className='flex flex-col'>
                   {visibleSubBlocks.map((subBlockConfig, index) => (
