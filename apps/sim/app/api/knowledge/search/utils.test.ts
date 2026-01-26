@@ -408,6 +408,7 @@ describe('Knowledge Search Utils', () => {
             input: ['test query'],
             model: 'text-embedding-3-small',
             encoding_format: 'float',
+            dimensions: 1536,
           }),
         })
       )

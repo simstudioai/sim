@@ -10,12 +10,20 @@ Despliega Sim en tu propia infraestructura con Docker o Kubernetes.
 
 ## Requisitos
 
-| Recurso | Mínimo | Recomendado |
-|----------|---------|-------------|
-| CPU | 2 núcleos | 4+ núcleos |
-| RAM | 12 GB | 16+ GB |
-| Almacenamiento | 20 GB SSD | 50+ GB SSD |
-| Docker | 20.10+ | Última versión |
+| Recurso | Pequeño | Estándar | Producción |
+|----------|---------|----------|------------|
+| CPU | 2 núcleos | 4 núcleos | 8+ núcleos |
+| RAM | 12 GB | 16 GB | 32+ GB |
+| Almacenamiento | 20 GB SSD | 50 GB SSD | 100+ GB SSD |
+| Docker | 20.10+ | 20.10+ | Última versión |
+
+**Pequeño**: Desarrollo, pruebas, usuario único (1-5 usuarios)
+**Estándar**: Equipos (5-50 usuarios), cargas de trabajo moderadas
+**Producción**: Equipos grandes (50+ usuarios), alta disponibilidad, ejecución intensiva de workflows
+
+<Callout type="info">
+Los requisitos de recursos están determinados por la ejecución de workflows (sandboxing isolated-vm), procesamiento de archivos (análisis de documentos en memoria) y operaciones vectoriales (pgvector). La memoria suele ser el factor limitante, no la CPU. La telemetría de producción muestra que la aplicación principal usa 4-8 GB en promedio con picos de hasta 12 GB bajo carga pesada.
+</Callout>
 
 ## Inicio rápido
 

@@ -338,6 +338,11 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
   const configEqual =
     prevProps.config.id === nextProps.config.id && prevProps.config.type === nextProps.config.type
 
+  const canonicalToggleEqual =
+    !!prevProps.canonicalToggle === !!nextProps.canonicalToggle &&
+    prevProps.canonicalToggle?.mode === nextProps.canonicalToggle?.mode &&
+    prevProps.canonicalToggle?.disabled === nextProps.canonicalToggle?.disabled
+
   return (
     prevProps.blockId === nextProps.blockId &&
     configEqual &&
@@ -346,8 +351,7 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     prevProps.disabled === nextProps.disabled &&
     prevProps.fieldDiffStatus === nextProps.fieldDiffStatus &&
     prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
-    prevProps.canonicalToggle?.mode === nextProps.canonicalToggle?.mode &&
-    prevProps.canonicalToggle?.disabled === nextProps.canonicalToggle?.disabled
+    canonicalToggleEqual
   )
 }
 
