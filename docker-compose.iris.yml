@@ -1,0 +1,9 @@
+services:
+  db:
+    image: intersystemsdc/iris-community:latest
+    ports:
+      - "5432:5432"
+    environment:
+      - DB_TYPE=iris
+      - DB_DEFAULT_SCHEMA=${DB_DEFAULT_SCHEMA:-SQLUser}
+      - DB_METADATA_SCHEMA=${DB_METADATA_SCHEMA:-drizzle}

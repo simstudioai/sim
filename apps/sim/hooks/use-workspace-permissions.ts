@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { permissionTypeEnum } from '@sim/db/schema'
+import type { permissionKindEnum } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { API_ENDPOINTS } from '@/stores/constants'
 
 const logger = createLogger('useWorkspacePermissions')
 
-export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
+export type PermissionType = (typeof permissionKindEnum.enumValues)[number]
 
 export interface WorkspaceUser {
   userId: string
   email: string
   name: string | null
   image: string | null
-  permissionType: PermissionType
+  permissionKind: PermissionType
 }
 
 export interface WorkspacePermissions {
@@ -62,7 +62,7 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
       logger.info('Workspace permissions loaded', {
         workspaceId: id,
         userCount: data.total,
-        users: data.users.map((u) => ({ email: u.email, permissions: u.permissionType })),
+        users: data.users.map((u) => ({ email: u.email, permissions: u.permissionKind })),
       })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'

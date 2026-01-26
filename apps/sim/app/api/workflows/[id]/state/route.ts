@@ -106,6 +106,8 @@ const WorkflowStateSchema = z.object({
   isDeployed: z.boolean().optional(),
   deployedAt: z.coerce.date().optional(),
   variables: z.any().optional(), // Workflow variables
+  deploymentStatuses: z.record(z.any()).optional(), // Deployment status per environment
+  needsRedeployment: z.boolean().optional(), // Whether workflow needs redeployment
 })
 
 /**

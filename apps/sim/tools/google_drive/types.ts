@@ -24,7 +24,7 @@ export interface GoogleDrivePermission {
   allowFileDiscovery?: boolean
   pendingOwner?: boolean
   permissionDetails?: Array<{
-    permissionType?: string
+    permissionKind?: string
     role?: string
     inheritedFrom?: string
     inherited?: boolean

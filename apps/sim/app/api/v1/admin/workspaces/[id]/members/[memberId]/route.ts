@@ -59,7 +59,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
       .select({
         id: permissions.id,
         userId: permissions.userId,
-        permissionType: permissions.permissionType,
+        permissionKind: permissions.permissionKind,
         createdAt: permissions.createdAt,
         updatedAt: permissions.updatedAt,
         userName: user.name,
@@ -71,7 +71,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
       .where(
         and(
           eq(permissions.id, memberId),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.entityId, workspaceId)
         )
       )
@@ -85,7 +85,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
       id: memberData.id,
       workspaceId,
       userId: memberData.userId,
-      permissions: memberData.permissionType,
+      permissions: memberData.permissionKind,
       createdAt: memberData.createdAt.toISOString(),
       updatedAt: memberData.updatedAt.toISOString(),
       userName: memberData.userName,
@@ -126,14 +126,14 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       .select({
         id: permissions.id,
         userId: permissions.userId,
-        permissionType: permissions.permissionType,
+        permissionKind: permissions.permissionKind,
         createdAt: permissions.createdAt,
       })
       .from(permissions)
       .where(
         and(
           eq(permissions.id, memberId),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.entityId, workspaceId)
         )
       )
@@ -147,7 +147,7 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
 
     await db
       .update(permissions)
-      .set({ permissionType: body.permissions, updatedAt: now })
+      .set({ permissionKind: body.permissions, updatedAt: now })
       .where(eq(permissions.id, memberId))
 
     const [userData] = await db
@@ -170,7 +170,7 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
 
     logger.info(`Admin API: Updated member ${memberId} permissions to ${body.permissions}`, {
       workspaceId,
-      previousPermissions: existingMember.permissionType,
+      previousPermissions: existingMember.permissionKind,
     })
 
     return singleResponse(data)
@@ -203,7 +203,7 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (_, context) => {
       .where(
         and(
           eq(permissions.id, memberId),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.entityId, workspaceId)
         )
       )

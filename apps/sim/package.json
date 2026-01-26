@@ -16,6 +16,7 @@
     "start": "next start",
     "prepare": "cd ../.. && bun husky",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",

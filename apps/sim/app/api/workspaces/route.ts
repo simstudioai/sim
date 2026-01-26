@@ -26,11 +26,11 @@ export async function GET() {
   const userWorkspaces = await db
     .select({
       workspace: workspace,
-      permissionType: permissions.permissionType,
+      permissionKind: permissions.permissionKind,
     })
     .from(permissions)
     .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-    .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace')))
+    .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityKind, 'workspace')))
     .orderBy(desc(workspace.createdAt))
 
   if (userWorkspaces.length === 0) {
@@ -44,10 +44,10 @@ export async function GET() {
   await ensureWorkflowsHaveWorkspace(session.user.id, userWorkspaces[0].workspace.id)
 
   const workspacesWithPermissions = userWorkspaces.map(
-    ({ workspace: workspaceDetails, permissionType }) => ({
+    ({ workspace: workspaceDetails, permissionKind }) => ({
       ...workspaceDetails,
-      role: permissionType === 'admin' ? 'owner' : 'member', // Map admin to owner for compatibility
-      permissions: permissionType,
+      role: permissionKind === 'admin' ? 'owner' : 'member', // Map admin to owner for compatibility
+      permissions: permissionKind,
     })
   )
 
@@ -100,10 +100,10 @@ async function createWorkspace(userId: string, name: string) {
       // Create admin permissions for the workspace owner
       await tx.insert(permissions).values({
         id: crypto.randomUUID(),
-        entityType: 'workspace' as const,
+        entityKind: 'workspace' as const,
         entityId: workspaceId,
         userId: userId,
-        permissionType: 'admin' as const,
+        permissionKind: 'admin' as const,
         createdAt: now,
         updatedAt: now,
       })

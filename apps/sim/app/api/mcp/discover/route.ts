@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const userWorkspacePermissions = await db
       .select({ entityId: permissions.entityId })
       .from(permissions)
-      .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+      .where(and(eq(permissions.userId, userId), eq(permissions.entityKind, 'workspace')))
 
     const workspaceIds = userWorkspacePermissions.map((w) => w.entityId)
 

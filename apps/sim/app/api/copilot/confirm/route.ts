@@ -17,7 +17,7 @@ const logger = createLogger('CopilotConfirmAPI')
 const ConfirmationSchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
   status: z.enum(['success', 'error', 'accepted', 'rejected', 'background'] as const, {
-    errorMap: () => ({ message: 'Invalid notification status' }),
+    message: 'Invalid notification status',
   }),
   message: z.string().optional(), // Optional message for background moves or additional context
 })
@@ -133,13 +133,22 @@ export async function POST(req: NextRequest) {
     const duration = tracker.getDuration()
 
     if (error instanceof z.ZodError) {
+      const issues = error.issues ?? (error as { errors?: z.ZodIssue[] }).errors ?? []
+      const issueMessages = issues.map((issue) => {
+        if (issue.code === 'invalid_type' && issue.path?.[0] === 'toolCallId') {
+          return 'Required'
+        }
+        return issue.message
+      })
+      const message = issueMessages.length
+        ? `Invalid request data: ${issueMessages.join(', ')}`
+        : 'Invalid request data'
+
       logger.error(`[${tracker.requestId}] Request validation error:`, {
         duration,
-        errors: error.errors,
+        errors: issues,
       })
-      return createBadRequestResponse(
-        `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
-      )
+      return createBadRequestResponse(message)
     }
 
     logger.error(`[${tracker.requestId}] Unexpected error:`, {

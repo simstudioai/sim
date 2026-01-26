@@ -562,7 +562,7 @@ const WorkflowContent = React.memo(() => {
         userCount: workspacePermissions.total,
         permissions: workspacePermissions.users.map((u) => ({
           email: u.email,
-          permissions: u.permissionType,
+          permissions: u.permissionKind,
         })),
       })
     }

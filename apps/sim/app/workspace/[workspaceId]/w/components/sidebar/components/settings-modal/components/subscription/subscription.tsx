@@ -51,7 +51,7 @@ type TargetPlan = 'pro' | 'team'
 interface WorkspaceAdmin {
   userId: string
   email: string
-  permissionType: string
+  permissionKind: string
 }
 
 /**
@@ -236,7 +236,7 @@ export function Subscription() {
   const billedAccountUserId = workspaceData?.settings?.workspace?.billedAccountUserId ?? null
   const workspaceAdmins: WorkspaceAdmin[] =
     workspaceData?.permissions?.users?.filter(
-      (user: WorkspaceAdmin) => user.permissionType === 'admin'
+      (user: WorkspaceAdmin) => user.permissionKind === 'admin'
     ) || []
 
   const updateWorkspaceSettings = async (updates: { billedAccountUserId?: string }) => {
@@ -541,7 +541,7 @@ export function Subscription() {
         <CreditBalance
           balance={subscriptionData?.data?.creditBalance ?? 0}
           canPurchase={permissions.canEditUsageLimit}
-          entityType={subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'}
+          entityKind={subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'}
           isLoading={isLoading}
           onPurchaseComplete={() => refetchSubscription()}
         />

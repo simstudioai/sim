@@ -139,7 +139,7 @@ describe('validateWorkflowPermissions', () => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
         if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-        return Promise.resolve([{ permissionType: 'read' }])
+        return Promise.resolve([{ permissionKind: 'read' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -156,7 +156,7 @@ describe('validateWorkflowPermissions', () => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
         if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-        return Promise.resolve([{ permissionType: 'read' }])
+        return Promise.resolve([{ permissionKind: 'read' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -174,7 +174,7 @@ describe('validateWorkflowPermissions', () => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
         if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-        return Promise.resolve([{ permissionType: 'write' }])
+        return Promise.resolve([{ permissionKind: 'write' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -191,7 +191,7 @@ describe('validateWorkflowPermissions', () => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
         if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-        return Promise.resolve([{ permissionType: 'admin' }])
+        return Promise.resolve([{ permissionKind: 'admin' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -208,7 +208,7 @@ describe('validateWorkflowPermissions', () => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
         if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-        return Promise.resolve([{ permissionType: 'write' }])
+        return Promise.resolve([{ permissionKind: 'write' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -226,7 +226,7 @@ describe('validateWorkflowPermissions', () => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
         if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-        return Promise.resolve([{ permissionType: 'admin' }])
+        return Promise.resolve([{ permissionKind: 'admin' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -308,7 +308,7 @@ describe('validateWorkflowPermissions', () => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
         if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-        return Promise.resolve([{ permissionType: 'read' }])
+        return Promise.resolve([{ permissionKind: 'read' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
       const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -349,7 +349,7 @@ describe('getWorkflowAccessContext', () => {
       callCount++
       if (callCount === 1) return Promise.resolve([mockWorkflow])
       if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-      return Promise.resolve([{ permissionType: 'read' }])
+      return Promise.resolve([{ permissionKind: 'read' }])
     })
     const mockWhere = vi.fn(() => ({ limit: mockLimit }))
     const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -367,7 +367,7 @@ describe('getWorkflowAccessContext', () => {
       callCount++
       if (callCount === 1) return Promise.resolve([mockWorkflow])
       if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-      return Promise.resolve([{ permissionType: 'read' }])
+      return Promise.resolve([{ permissionKind: 'read' }])
     })
     const mockWhere = vi.fn(() => ({ limit: mockLimit }))
     const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -385,7 +385,7 @@ describe('getWorkflowAccessContext', () => {
       callCount++
       if (callCount === 1) return Promise.resolve([mockWorkflow])
       if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-      return Promise.resolve([{ permissionType: 'write' }])
+      return Promise.resolve([{ permissionKind: 'write' }])
     })
     const mockWhere = vi.fn(() => ({ limit: mockLimit }))
     const mockFrom = vi.fn(() => ({ where: mockWhere }))
@@ -421,7 +421,7 @@ describe('getWorkflowAccessContext', () => {
       callCount++
       if (callCount === 1) return Promise.resolve([mockWorkflow])
       if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-      return Promise.resolve([{ permissionType: 'admin' }])
+      return Promise.resolve([{ permissionKind: 'admin' }])
     })
     const mockWhere = vi.fn(() => ({ limit: mockLimit }))
     const mockFrom = vi.fn(() => ({ where: mockWhere }))

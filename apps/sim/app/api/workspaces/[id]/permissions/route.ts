@@ -46,7 +46,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(
         and(
           eq(permissions.entityId, workspaceId),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.userId, session.user.id)
         )
       )
@@ -137,7 +137,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           .where(
             and(
               eq(permissions.userId, update.userId),
-              eq(permissions.entityType, 'workspace'),
+              eq(permissions.entityKind, 'workspace'),
               eq(permissions.entityId, workspaceId)
             )
           )
@@ -145,9 +145,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         await tx.insert(permissions).values({
           id: crypto.randomUUID(),
           userId: update.userId,
-          entityType: 'workspace' as const,
+          entityKind: 'workspace' as const,
           entityId: workspaceId,
-          permissionType: update.permissions,
+          permissionKind: update.permissions,
           createdAt: new Date(),
           updatedAt: new Date(),
         })

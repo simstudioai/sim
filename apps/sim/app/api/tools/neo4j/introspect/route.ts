@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
     const constraints: Array<{
       name: string
       type: string
-      entityType: string
+      entityKind: string
       properties: string[]
     }> = []
     try {
@@ -129,10 +129,10 @@ export async function POST(request: NextRequest) {
       for (const record of constraintsResult.records) {
         const name = record.get('name') as string
         const type = record.get('type') as string
-        const entityType = record.get('entityType') as string
+        const entityKind = record.get('entityKind') as string
         const properties = (record.get('properties') as string[]) || []
 
-        constraints.push({ name, type, entityType, properties })
+        constraints.push({ name, type, entityKind, properties })
       }
     } catch (constraintsError) {
       logger.warn(
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const indexes: Array<{ name: string; type: string; entityType: string; properties: string[] }> =
+    const indexes: Array<{ name: string; type: string; entityKind: string; properties: string[] }> =
       []
     try {
       const indexesResult = await session.run('SHOW INDEXES')
@@ -148,10 +148,10 @@ export async function POST(request: NextRequest) {
       for (const record of indexesResult.records) {
         const name = record.get('name') as string
         const type = record.get('type') as string
-        const entityType = record.get('entityType') as string
+        const entityKind = record.get('entityKind') as string
         const properties = (record.get('properties') as string[]) || []
 
-        indexes.push({ name, type, entityType, properties })
+        indexes.push({ name, type, entityKind, properties })
       }
     } catch (indexesError) {
       logger.warn(

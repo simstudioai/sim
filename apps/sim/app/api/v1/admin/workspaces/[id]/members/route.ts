@@ -75,12 +75,12 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
       db
         .select({ count: count() })
         .from(permissions)
-        .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))),
+        .where(and(eq(permissions.entityKind, 'workspace'), eq(permissions.entityId, workspaceId))),
       db
         .select({
           id: permissions.id,
           userId: permissions.userId,
-          permissionType: permissions.permissionType,
+          permissionKind: permissions.permissionKind,
           createdAt: permissions.createdAt,
           updatedAt: permissions.updatedAt,
           userName: user.name,
@@ -89,7 +89,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
         })
         .from(permissions)
         .innerJoin(user, eq(permissions.userId, user.id))
-        .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
+        .where(and(eq(permissions.entityKind, 'workspace'), eq(permissions.entityId, workspaceId)))
         .orderBy(permissions.createdAt)
         .limit(limit)
         .offset(offset),
@@ -100,7 +100,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
       id: m.id,
       workspaceId,
       userId: m.userId,
-      permissions: m.permissionType,
+      permissions: m.permissionKind,
       createdAt: m.createdAt.toISOString(),
       updatedAt: m.updatedAt.toISOString(),
       userName: m.userName,
@@ -156,7 +156,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
     const [existingPermission] = await db
       .select({
         id: permissions.id,
-        permissionType: permissions.permissionType,
+        permissionKind: permissions.permissionKind,
         createdAt: permissions.createdAt,
         updatedAt: permissions.updatedAt,
       })
@@ -164,24 +164,24 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       .where(
         and(
           eq(permissions.userId, body.userId),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.entityId, workspaceId)
         )
       )
       .limit(1)
 
     if (existingPermission) {
-      if (existingPermission.permissionType !== body.permissions) {
+      if (existingPermission.permissionKind !== body.permissions) {
         const now = new Date()
         await db
           .update(permissions)
-          .set({ permissionType: body.permissions, updatedAt: now })
+          .set({ permissionKind: body.permissions, updatedAt: now })
           .where(eq(permissions.id, existingPermission.id))
 
         logger.info(
           `Admin API: Updated user ${body.userId} permissions in workspace ${workspaceId}`,
           {
-            previousPermissions: existingPermission.permissionType,
+            previousPermissions: existingPermission.permissionKind,
             newPermissions: body.permissions,
           }
         )
@@ -204,7 +204,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
         id: existingPermission.id,
         workspaceId,
         userId: body.userId,
-        permissions: existingPermission.permissionType,
+        permissions: existingPermission.permissionKind,
         createdAt: existingPermission.createdAt.toISOString(),
         updatedAt: existingPermission.updatedAt.toISOString(),
         userName: userData.name,
@@ -220,9 +220,9 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
     await db.insert(permissions).values({
       id: permissionId,
       userId: body.userId,
-      entityType: 'workspace',
+      entityKind: 'workspace',
       entityId: workspaceId,
-      permissionType: body.permissions,
+      permissionKind: body.permissions,
       createdAt: now,
       updatedAt: now,
     })
@@ -276,7 +276,7 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
       .where(
         and(
           eq(permissions.userId, userId),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.entityId, workspaceId)
         )
       )

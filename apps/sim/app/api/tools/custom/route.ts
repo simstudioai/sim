@@ -23,7 +23,7 @@ const CustomToolSchema = z.object({
           description: z.string().optional(),
           parameters: z.object({
             type: z.string(),
-            properties: z.record(z.any()),
+            properties: z.record(z.string(), z.any()),
             required: z.array(z.string()).optional(),
           }),
         }),
@@ -163,11 +163,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, data: resultTools })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
+        const issues =
+          validationError.issues ?? (validationError as { errors?: z.ZodIssue[] }).errors ?? []
+
         logger.warn(`[${requestId}] Invalid custom tools data`, {
-          errors: validationError.errors,
+          errors: issues,
         })
         return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.errors },
+          { error: 'Invalid request data', details: issues },
           { status: 400 }
         )
       }

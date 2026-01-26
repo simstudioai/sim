@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { credentialSet, credentialSetMember, member } from '@sim/db/schema'
+import { credentialSet, credentialSetMembership, member } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -170,7 +170,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
     }
 
-    await db.delete(credentialSetMember).where(eq(credentialSetMember.credentialSetId, id))
+    await db.delete(credentialSetMembership).where(eq(credentialSetMembership.credentialSetId, id))
     await db.delete(credentialSet).where(eq(credentialSet.id, id))
 
     logger.info('Deleted credential set', { credentialSetId: id, userId: session.user.id })

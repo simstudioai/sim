@@ -161,18 +161,6 @@ describe('Chat OTP API Route', () => {
       return createEnvMock()
     })
 
-    vi.doMock('zod', () => ({
-      z: {
-        object: vi.fn().mockReturnValue({
-          parse: vi.fn().mockImplementation((data) => data),
-        }),
-        string: vi.fn().mockReturnValue({
-          email: vi.fn().mockReturnThis(),
-          length: vi.fn().mockReturnThis(),
-        }),
-      },
-    }))
-
     mockGenerateRequestId.mockReturnValue('req-123')
     vi.doMock('@/lib/core/utils/request', () => ({
       generateRequestId: mockGenerateRequestId,

@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
       .innerJoin(
         permissions,
         and(
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.entityId, params.workspaceId),
           eq(permissions.userId, userId)
         )

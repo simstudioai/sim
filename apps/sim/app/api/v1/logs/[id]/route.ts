@@ -51,7 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .innerJoin(
         permissions,
         and(
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.entityId, workflow.workspaceId),
           eq(permissions.userId, userId)
         )

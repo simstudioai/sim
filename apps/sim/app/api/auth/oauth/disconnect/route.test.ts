@@ -40,7 +40,7 @@ describe('OAuth Disconnect API Route', () => {
 
     vi.doMock('@sim/db/schema', () => ({
       account: { userId: 'userId', providerId: 'providerId' },
-      credentialSetMember: {
+      credentialSetMembership: {
         id: 'id',
         credentialSetId: 'credentialSetId',
         userId: 'userId',

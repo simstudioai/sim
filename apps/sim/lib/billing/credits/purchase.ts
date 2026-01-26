@@ -15,7 +15,7 @@ const logger = createLogger('CreditPurchase')
  * This ensures users can use their plan's included amount plus any prepaid credits.
  */
 export async function setUsageLimitForCredits(
-  entityType: 'user' | 'organization',
+  entityKind: 'user' | 'organization',
   entityId: string,
   plan: string,
   seats: number | null,
@@ -24,11 +24,11 @@ export async function setUsageLimitForCredits(
   try {
     const { basePrice } = getPlanPricing(plan)
     const planBase =
-      entityType === 'organization' ? Number(basePrice) * (seats || 1) : Number(basePrice)
+      entityKind === 'organization' ? Number(basePrice) * (seats || 1) : Number(basePrice)
     const creditBalanceNum = Number(creditBalance)
     const newLimit = planBase + creditBalanceNum
 
-    if (entityType === 'organization') {
+    if (entityKind === 'organization') {
       const orgRows = await db
         .select({ orgUsageLimit: organization.orgUsageLimit })
         .from(organization)
@@ -81,7 +81,7 @@ export async function setUsageLimitForCredits(
       }
     }
   } catch (error) {
-    logger.error('Failed to set usage limit for credits', { entityType, entityId, error })
+    logger.error('Failed to set usage limit for credits', { entityKind, entityId, error })
   }
 }
 
@@ -124,7 +124,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
     return { success: false, error: 'Enterprise users must contact support to purchase credits' }
   }
 
-  let entityType: 'user' | 'organization' = 'user'
+  let entityKind: 'user' | 'organization' = 'user'
   let entityId = userId
 
   if (subscription.plan === 'team') {
@@ -132,7 +132,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
     if (!isAdmin) {
       return { success: false, error: 'Only organization owners and admins can purchase credits' }
     }
-    entityType = 'organization'
+    entityKind = 'organization'
     entityId = subscription.referenceId
   }
 
@@ -168,7 +168,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
 
     const creditMetadata = {
       type: 'credit_purchase',
-      entityType,
+      entityKind,
       entityId,
       amountDollars: amountDollars.toString(),
       purchasedBy: userId,
@@ -216,7 +216,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
 
     logger.info('Credit purchase invoice created and paid', {
       invoiceId: invoice.id,
-      entityType,
+      entityKind,
       entityId,
       amountDollars,
       purchasedBy: userId,

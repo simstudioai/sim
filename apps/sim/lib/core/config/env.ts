@@ -38,6 +38,8 @@ export const env = createEnv({
 
     // Database & Storage
     REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions
+    DB_DEFAULT_SCHEMA:                     z.string().optional().default('SQLUser'), // Default schema for primary backend (IRIS)
+    DB_METADATA_SCHEMA:                    z.string().optional().default('drizzle'), // Metadata schema for migrations
 
     // Payment & Billing
     STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing

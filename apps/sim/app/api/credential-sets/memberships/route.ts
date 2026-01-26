@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { credentialSet, credentialSetMember, organization } from '@sim/db/schema'
+import { credentialSet, credentialSetMembership, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -18,9 +18,9 @@ export async function GET() {
   try {
     const memberships = await db
       .select({
-        membershipId: credentialSetMember.id,
-        status: credentialSetMember.status,
-        joinedAt: credentialSetMember.joinedAt,
+        membershipId: credentialSetMembership.id,
+        status: credentialSetMembership.status,
+        joinedAt: credentialSetMembership.joinedAt,
         credentialSetId: credentialSet.id,
         credentialSetName: credentialSet.name,
         credentialSetDescription: credentialSet.description,
@@ -28,10 +28,10 @@ export async function GET() {
         organizationId: organization.id,
         organizationName: organization.name,
       })
-      .from(credentialSetMember)
-      .innerJoin(credentialSet, eq(credentialSetMember.credentialSetId, credentialSet.id))
+      .from(credentialSetMembership)
+      .innerJoin(credentialSet, eq(credentialSetMembership.credentialSetId, credentialSet.id))
       .innerJoin(organization, eq(credentialSet.organizationId, organization.id))
-      .where(eq(credentialSetMember.userId, session.user.id))
+      .where(eq(credentialSetMembership.userId, session.user.id))
 
     return NextResponse.json({ memberships })
   } catch (error) {
@@ -66,11 +66,11 @@ export async function DELETE(req: NextRequest) {
       // Find and verify membership
       const [membership] = await tx
         .select()
-        .from(credentialSetMember)
+        .from(credentialSetMembership)
         .where(
           and(
-            eq(credentialSetMember.credentialSetId, credentialSetId),
-            eq(credentialSetMember.userId, session.user.id)
+            eq(credentialSetMembership.credentialSetId, credentialSetId),
+            eq(credentialSetMembership.userId, session.user.id)
           )
         )
         .limit(1)
@@ -85,12 +85,12 @@ export async function DELETE(req: NextRequest) {
 
       // Set status to 'revoked' - this immediately blocks credential from being used
       await tx
-        .update(credentialSetMember)
+        .update(credentialSetMembership)
         .set({
           status: 'revoked',
           updatedAt: new Date(),
         })
-        .where(eq(credentialSetMember.id, membership.id))
+        .where(eq(credentialSetMembership.id, membership.id))
 
       // Sync webhooks to remove this user's credential webhooks
       const syncResult = await syncAllWebhooksForCredentialSet(credentialSetId, requestId, tx)

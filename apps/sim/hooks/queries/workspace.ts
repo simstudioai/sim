@@ -138,10 +138,10 @@ async function fetchAdminWorkspaces(userId: string | undefined): Promise<AdminWo
 
     if (permissionData.users) {
       const currentUserPermission = permissionData.users.find(
-        (user: { id: string; userId?: string; permissionType: string }) =>
+        (user: { id: string; userId?: string; permissionKind: string }) =>
           user.id === userId || user.userId === userId
       )
-      hasAdminAccess = currentUserPermission?.permissionType === 'admin'
+      hasAdminAccess = currentUserPermission?.permissionKind === 'admin'
     }
 
     const isOwner = workspace.isOwner || workspace.ownerId === userId

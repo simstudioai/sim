@@ -41,7 +41,7 @@ export async function getKnowledgeBases(
     .leftJoin(
       permissions,
       and(
-        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityKind, 'workspace'),
         eq(permissions.entityId, knowledgeBase.workspaceId),
         eq(permissions.userId, userId)
       )

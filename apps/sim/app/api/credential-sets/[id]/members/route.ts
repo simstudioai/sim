@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account, credentialSet, credentialSetMember, member, user } from '@sim/db/schema'
+import { account, credentialSet, credentialSetMembership, member, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -58,18 +58,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const members = await db
     .select({
-      id: credentialSetMember.id,
-      userId: credentialSetMember.userId,
-      status: credentialSetMember.status,
-      joinedAt: credentialSetMember.joinedAt,
-      createdAt: credentialSetMember.createdAt,
+      id: credentialSetMembership.id,
+      userId: credentialSetMembership.userId,
+      status: credentialSetMembership.status,
+      joinedAt: credentialSetMembership.joinedAt,
+      createdAt: credentialSetMembership.createdAt,
       userName: user.name,
       userEmail: user.email,
       userImage: user.image,
     })
-    .from(credentialSetMember)
-    .leftJoin(user, eq(credentialSetMember.userId, user.id))
-    .where(eq(credentialSetMember.credentialSetId, id))
+    .from(credentialSetMembership)
+    .leftJoin(user, eq(credentialSetMembership.userId, user.id))
+    .where(eq(credentialSetMembership.credentialSetId, id))
 
   // Get credentials for all active members filtered by the polling group's provider
   const activeMembers = members.filter((m) => m.status === 'active')
@@ -150,8 +150,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const [memberToRemove] = await db
       .select()
-      .from(credentialSetMember)
-      .where(and(eq(credentialSetMember.id, memberId), eq(credentialSetMember.credentialSetId, id)))
+      .from(credentialSetMembership)
+      .where(and(eq(credentialSetMembership.id, memberId), eq(credentialSetMembership.credentialSetId, id)))
       .limit(1)
 
     if (!memberToRemove) {
@@ -162,7 +162,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     // Use transaction to ensure member deletion + webhook sync are atomic
     await db.transaction(async (tx) => {
-      await tx.delete(credentialSetMember).where(eq(credentialSetMember.id, memberId))
+      await tx.delete(credentialSetMembership).where(eq(credentialSetMembership.id, memberId))
 
       const syncResult = await syncAllWebhooksForCredentialSet(id, requestId, tx)
       logger.info('Synced webhooks after member removed', {

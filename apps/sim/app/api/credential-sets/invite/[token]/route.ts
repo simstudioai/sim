@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import {
   credentialSet,
   credentialSetInvitation,
-  credentialSetMember,
+  credentialSetMembership,
   organization,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -106,11 +106,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
     const existingMember = await db
       .select()
-      .from(credentialSetMember)
+      .from(credentialSetMembership)
       .where(
         and(
-          eq(credentialSetMember.credentialSetId, invitation.credentialSetId),
-          eq(credentialSetMember.userId, session.user.id)
+          eq(credentialSetMembership.credentialSetId, invitation.credentialSetId),
+          eq(credentialSetMembership.userId, session.user.id)
         )
       )
       .limit(1)
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
     // Use transaction to ensure membership + invitation update + webhook sync are atomic
     await db.transaction(async (tx) => {
-      await tx.insert(credentialSetMember).values({
+      await tx.insert(credentialSetMembership).values({
         id: crypto.randomUUID(),
         credentialSetId: invitation.credentialSetId,
         userId: session.user.id,

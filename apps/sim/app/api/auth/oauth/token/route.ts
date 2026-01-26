@@ -25,12 +25,7 @@ const tokenRequestSchema = z
   )
 
 const tokenQuerySchema = z.object({
-  credentialId: z
-    .string({
-      required_error: 'Credential ID is required',
-      invalid_type_error: 'Credential ID is required',
-    })
-    .min(1, 'Credential ID is required'),
+  credentialId: z.string().min(1, 'Credential ID is required'),
 })
 
 /**
@@ -48,16 +43,22 @@ export async function POST(request: NextRequest) {
     const parseResult = tokenRequestSchema.safeParse(rawBody)
 
     if (!parseResult.success) {
-      const firstError = parseResult.error.errors[0]
+      const issues =
+        parseResult.error.issues ?? (parseResult.error as { errors?: z.ZodIssue[] }).errors ?? []
+      const firstError = issues[0]
       const errorMessage = firstError?.message || 'Validation failed'
+      const normalizedMessage =
+        firstError?.code === 'invalid_type' && firstError.path?.[0] === 'credentialId'
+          ? 'Credential ID is required'
+          : errorMessage
 
       logger.warn(`[${requestId}] Invalid token request`, {
-        errors: parseResult.error.errors,
+        errors: issues,
       })
 
       return NextResponse.json(
         {
-          error: errorMessage,
+          error: normalizedMessage,
         },
         { status: 400 }
       )
@@ -153,16 +154,22 @@ export async function GET(request: NextRequest) {
     const parseResult = tokenQuerySchema.safeParse(rawQuery)
 
     if (!parseResult.success) {
-      const firstError = parseResult.error.errors[0]
+      const issues =
+        parseResult.error.issues ?? (parseResult.error as { errors?: z.ZodIssue[] }).errors ?? []
+      const firstError = issues[0]
       const errorMessage = firstError?.message || 'Validation failed'
+      const normalizedMessage =
+        firstError?.code === 'invalid_type' && firstError.path?.[0] === 'credentialId'
+          ? 'Credential ID is required'
+          : errorMessage
 
       logger.warn(`[${requestId}] Invalid query parameters`, {
-        errors: parseResult.error.errors,
+        errors: issues,
       })
 
       return NextResponse.json(
         {
-          error: errorMessage,
+          error: normalizedMessage,
         },
         { status: 400 }
       )

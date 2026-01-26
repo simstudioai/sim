@@ -61,20 +61,20 @@ export function expectWorkflowAccessDenied(
  * Asserts that a user has a specific permission level.
  */
 export function expectUserHasPermission(
-  permissions: Array<{ userId: string; permissionType: PermissionType }>,
+  permissions: Array<{ userId: string; permissionKind: PermissionType }>,
   userId: string,
   expectedPermission: PermissionType
 ): void {
   const userPermission = permissions.find((p) => p.userId === userId)
   expect(userPermission).toBeDefined()
-  expect(userPermission?.permissionType).toBe(expectedPermission)
+  expect(userPermission?.permissionKind).toBe(expectedPermission)
 }
 
 /**
  * Asserts that a user has no permission.
  */
 export function expectUserHasNoPermission(
-  permissions: Array<{ userId: string; permissionType: PermissionType }>,
+  permissions: Array<{ userId: string; permissionKind: PermissionType }>,
   userId: string
 ): void {
   const userPermission = permissions.find((p) => p.userId === userId)

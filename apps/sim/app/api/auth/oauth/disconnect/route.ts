@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account, credentialSet, credentialSetMember } from '@sim/db/schema'
+import { account, credentialSet, credentialSetMembership } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, like, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('OAuthDisconnectAPI')
 
 const disconnectSchema = z.object({
-  provider: z.string({ required_error: 'Provider is required' }).min(1, 'Provider is required'),
+  provider: z.string().min(1, 'Provider is required'),
   providerId: z.string().optional(),
 })
 
@@ -35,16 +35,22 @@ export async function POST(request: NextRequest) {
     const parseResult = disconnectSchema.safeParse(rawBody)
 
     if (!parseResult.success) {
-      const firstError = parseResult.error.errors[0]
+      const issues =
+        parseResult.error.issues ?? (parseResult.error as { errors?: z.ZodIssue[] }).errors ?? []
+      const firstError = issues[0]
       const errorMessage = firstError?.message || 'Validation failed'
+      const normalizedMessage =
+        firstError?.code === 'invalid_type' && firstError.path?.[0] === 'provider'
+          ? 'Provider is required'
+          : errorMessage
 
       logger.warn(`[${requestId}] Invalid disconnect request`, {
-        errors: parseResult.error.errors,
+        errors: issues,
       })
 
       return NextResponse.json(
         {
-          error: errorMessage,
+          error: normalizedMessage,
         },
         { status: 400 }
       )
@@ -79,16 +85,16 @@ export async function POST(request: NextRequest) {
     // This removes webhooks that were using the disconnected credential
     const userMemberships = await db
       .select({
-        id: credentialSetMember.id,
-        credentialSetId: credentialSetMember.credentialSetId,
+        id: credentialSetMembership.id,
+        credentialSetId: credentialSetMembership.credentialSetId,
         providerId: credentialSet.providerId,
       })
-      .from(credentialSetMember)
-      .innerJoin(credentialSet, eq(credentialSetMember.credentialSetId, credentialSet.id))
+      .from(credentialSetMembership)
+      .innerJoin(credentialSet, eq(credentialSetMembership.credentialSetId, credentialSet.id))
       .where(
         and(
-          eq(credentialSetMember.userId, session.user.id),
-          eq(credentialSetMember.status, 'active')
+          eq(credentialSetMembership.userId, session.user.id),
+          eq(credentialSetMembership.status, 'active')
         )
       )
 

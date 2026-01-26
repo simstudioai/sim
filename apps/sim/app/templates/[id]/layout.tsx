@@ -30,7 +30,7 @@ export default async function TemplateDetailLayout({ children, params }: Templat
       })
       .from(permissions)
       .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-      .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace')))
+      .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityKind, 'workspace')))
       .orderBy(desc(workspace.createdAt))
       .limit(1)
 

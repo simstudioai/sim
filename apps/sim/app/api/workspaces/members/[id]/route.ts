@@ -50,7 +50,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       .where(
         and(
           eq(permissions.userId, userId),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.entityId, workspaceId)
         )
       )
@@ -69,15 +69,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     // Prevent removing yourself if you're the last admin
-    if (isSelf && userPermission.permissionType === 'admin') {
+    if (isSelf && userPermission.permissionKind === 'admin') {
       const otherAdmins = await db
         .select()
         .from(permissions)
         .where(
           and(
-            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityKind, 'workspace'),
             eq(permissions.entityId, workspaceId),
-            eq(permissions.permissionType, 'admin')
+            eq(permissions.permissionKind, 'admin')
           )
         )
         .then((rows) => rows.filter((row) => row.userId !== session.user.id))
@@ -96,7 +96,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       .where(
         and(
           eq(permissions.userId, userId),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.entityId, workspaceId)
         )
       )

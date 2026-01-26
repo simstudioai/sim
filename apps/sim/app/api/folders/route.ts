@@ -100,19 +100,35 @@ export async function POST(request: NextRequest) {
       const nextSortOrder = existingFolders.length > 0 ? existingFolders[0].sortOrder + 1 : 0
 
       // Insert the new folder within the same transaction
-      const [folder] = await tx
-        .insert(workflowFolder)
-        .values({
-          id,
-          name: name.trim(),
-          userId: session.user.id,
-          workspaceId,
-          parentId: parentId || null,
-          color: color || '#6B7280',
-          sortOrder: nextSortOrder,
-        })
-        .returning()
+      await tx.insert(workflowFolder).values({
+        id,
+        name: name.trim(),
+        userId: session.user.id,
+        workspaceId,
+        parentId: parentId || null,
+        color: color || '#6B7280',
+        sortOrder: nextSortOrder,
+      })
 
+      // Fallback for IRIS/pgwire where returning() might not be supported/reliable
+      const [folder] = await tx
+        .select({
+          id: workflowFolder.id,
+          name: workflowFolder.name,
+          userId: workflowFolder.userId,
+          workspaceId: workflowFolder.workspaceId,
+          parentId: workflowFolder.parentId,
+          color: workflowFolder.color,
+          sortOrder: workflowFolder.sortOrder,
+          createdAt: workflowFolder.createdAt,
+          updatedAt: workflowFolder.updatedAt,
+        })
+        .from(workflowFolder)
+        .where(eq(workflowFolder.id, id))
+        .limit(1)
+
+      console.log('Created folder object from DB keys:', Object.keys(folder))
+      console.log('Created folder object from DB values:', Object.values(folder))
       return folder
     })
 

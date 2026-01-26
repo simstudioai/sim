@@ -363,8 +363,11 @@ export async function POST(request: NextRequest) {
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
+        const issues =
+          validationError.issues ?? (validationError as { errors?: unknown[] }).errors ?? []
+
         return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.errors },
+          { error: 'Invalid request data', details: issues },
           { status: 400 }
         )
       }

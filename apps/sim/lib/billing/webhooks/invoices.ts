@@ -345,8 +345,8 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
  * Handle credit purchase invoice payment succeeded.
  */
 async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<void> {
-  const { entityType, entityId, amountDollars, purchasedBy } = invoice.metadata || {}
-  if (!entityType || !entityId || !amountDollars) {
+  const { entityKind, entityId, amountDollars, purchasedBy } = invoice.metadata || {}
+  if (!entityKind || !entityId || !amountDollars) {
     logger.error('Missing metadata in credit purchase invoice', {
       invoiceId: invoice.id,
       metadata: invoice.metadata,
@@ -354,8 +354,8 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
     return
   }
 
-  if (entityType !== 'user' && entityType !== 'organization') {
-    logger.error('Invalid entityType in credit purchase', { invoiceId: invoice.id, entityType })
+  if (entityKind !== 'user' && entityKind !== 'organization') {
+    logger.error('Invalid entityKind in credit purchase', { invoiceId: invoice.id, entityKind })
     return
   }
 
@@ -365,7 +365,7 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
     return
   }
 
-  await addCredits(entityType, entityId, amount)
+  await addCredits(entityKind, entityId, amount)
 
   const subscription = await db
     .select()
@@ -376,12 +376,12 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
   if (subscription.length > 0) {
     const sub = subscription[0]
     const { balance: newCreditBalance } = await getCreditBalance(entityId)
-    await setUsageLimitForCredits(entityType, entityId, sub.plan, sub.seats, newCreditBalance)
+    await setUsageLimitForCredits(entityKind, entityId, sub.plan, sub.seats, newCreditBalance)
   }
 
   logger.info('Credit purchase completed via webhook', {
     invoiceId: invoice.id,
-    entityType,
+    entityKind,
     entityId,
     amount,
     purchasedBy,
@@ -390,11 +390,11 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
   // Send confirmation emails
   try {
     const { balance: newBalance } = await getCreditBalance(
-      entityType === 'organization' ? entityId : purchasedBy || entityId
+      entityKind === 'organization' ? entityId : purchasedBy || entityId
     )
     let recipients: Array<{ email: string; name: string | null }> = []
 
-    if (entityType === 'organization') {
+    if (entityKind === 'organization') {
       const members = await db
         .select({ userId: member.userId, role: member.role })
         .from(member)
@@ -726,13 +726,13 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     // Apply credits to reduce overage at end of cycle
     let creditsApplied = 0
     if (remainingOverage > 0) {
-      const entityType = sub.plan === 'team' || sub.plan === 'enterprise' ? 'organization' : 'user'
+      const entityKind = sub.plan === 'team' || sub.plan === 'enterprise' ? 'organization' : 'user'
       const entityId = sub.referenceId
       const { balance: creditBalance } = await getCreditBalance(entityId)
 
       if (creditBalance > 0) {
         creditsApplied = Math.min(creditBalance, remainingOverage)
-        await removeCredits(entityType, entityId, creditsApplied)
+        await removeCredits(entityKind, entityId, creditsApplied)
         remainingOverage = remainingOverage - creditsApplied
 
         logger.info('Applied credits to reduce overage at cycle end', {

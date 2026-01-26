@@ -53,8 +53,8 @@ describe('Workspace Invitations API Route', () => {
       permissions: {
         userId: 'user_id',
         entityId: 'entity_id',
-        entityType: 'entity_type',
-        permissionType: 'permission_type',
+        entityKind: 'entity_kind',
+        permissionKind: 'permission_kind',
       },
       workspaceInvitation: {
         id: 'invitation_id',
@@ -69,7 +69,7 @@ describe('Workspace Invitations API Route', () => {
         createdAt: 'created_at',
         updatedAt: 'updated_at',
       },
-      permissionTypeEnum: { enumValues: ['admin', 'write', 'read'] as const },
+      permissionKindEnum: { enumValues: ['admin', 'write', 'read'] as const },
     }))
 
     mockResendSend = vi.fn().mockResolvedValue({ id: 'email-id' })
@@ -235,7 +235,7 @@ describe('Workspace Invitations API Route', () => {
     it('should return 404 when workspace is not found', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
       mockDbResults = [
-        [{ permissionType: 'admin' }], // User has admin permissions
+        [{ permissionKind: 'admin' }], // User has admin permissions
         [], // Workspace not found
       ]
 
@@ -254,10 +254,10 @@ describe('Workspace Invitations API Route', () => {
     it('should return 400 when user already has workspace access', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
       mockDbResults = [
-        [{ permissionType: 'admin' }], // User has admin permissions
+        [{ permissionKind: 'admin' }], // User has admin permissions
         [mockWorkspace], // Workspace exists
         [mockUser], // User exists
-        [{ permissionType: 'read' }], // User already has access
+        [{ permissionKind: 'read' }], // User already has access
       ]
 
       const { POST } = await import('@/app/api/workspaces/invitations/route')
@@ -278,7 +278,7 @@ describe('Workspace Invitations API Route', () => {
     it('should return 400 when invitation already exists', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
       mockDbResults = [
-        [{ permissionType: 'admin' }], // User has admin permissions
+        [{ permissionKind: 'admin' }], // User has admin permissions
         [mockWorkspace], // Workspace exists
         [], // User doesn't exist
         [mockInvitation], // Invitation exists
@@ -304,7 +304,7 @@ describe('Workspace Invitations API Route', () => {
         user: { id: 'user-123', name: 'Test User', email: 'sender@example.com' },
       })
       mockDbResults = [
-        [{ permissionType: 'admin' }], // User has admin permissions
+        [{ permissionKind: 'admin' }], // User has admin permissions
         [mockWorkspace], // Workspace exists
         [], // User doesn't exist
         [], // No existing invitation

@@ -118,7 +118,7 @@ export async function GET(
         .where(
           and(
             eq(permissions.entityId, invitation.workspaceId),
-            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityKind, 'workspace'),
             eq(permissions.userId, session.user.id)
           )
         )
@@ -141,10 +141,10 @@ export async function GET(
       await db.transaction(async (tx) => {
         await tx.insert(permissions).values({
           id: randomUUID(),
-          entityType: 'workspace' as const,
+          entityKind: 'workspace' as const,
           entityId: invitation.workspaceId,
           userId: session.user.id,
-          permissionType: invitation.permissions || 'read',
+          permissionKind: invitation.permissions || 'read',
           createdAt: new Date(),
           updatedAt: new Date(),
         })

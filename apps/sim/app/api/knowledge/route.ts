@@ -115,11 +115,16 @@ export async function POST(req: NextRequest) {
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
+        const issues =
+          validationError.issues ??
+          (validationError as unknown as { errors?: unknown[] }).errors ??
+          []
+
         logger.warn(`[${requestId}] Invalid knowledge base data`, {
-          errors: validationError.errors,
+          errors: issues,
         })
         return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.errors },
+          { error: 'Invalid request data', details: issues },
           { status: 400 }
         )
       }

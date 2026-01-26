@@ -19,10 +19,10 @@ export async function GET() {
   }
 
   try {
-    const { balance, entityType, entityId } = await getCreditBalance(session.user.id)
+    const { balance, entityKind, entityId } = await getCreditBalance(session.user.id)
     return NextResponse.json({
       success: true,
-      data: { balance, entityType, entityId },
+      data: { balance, entityKind, entityId },
     })
   } catch (error) {
     logger.error('Failed to get credit balance', { error, userId: session.user.id })

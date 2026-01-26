@@ -547,11 +547,11 @@ export function setupOperationsHandlers(
         socket.emit('operation-error', {
           type: 'VALIDATION_ERROR',
           message: 'Invalid operation data',
-          errors: error.errors,
+          errors: error.issues,
           operation: data.operation,
           target: data.target,
         })
-        logger.warn(`Validation error for operation from ${session.userId}:`, error.errors)
+        logger.warn(`Validation error for operation from ${session.userId}:`, error.issues)
       } else if (error instanceof Error) {
         // Handle specific database errors
         if (error.message.includes('not found')) {

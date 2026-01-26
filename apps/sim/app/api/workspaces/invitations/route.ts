@@ -3,7 +3,7 @@ import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {
   permissions,
-  type permissionTypeEnum,
+  type permissionKindEnum,
   user,
   type WorkspaceInvitationStatus,
   workspace,
@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkspaceInvitationsAPI')
 
-type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
+type PermissionType = (typeof permissionKindEnum.enumValues)[number]
 
 // Get all invitations for the user's workspaces
 export async function GET(req: NextRequest) {
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
         permissions,
         and(
           eq(permissions.entityId, workspace.id),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.userId, session.user.id)
         )
       )
@@ -102,9 +102,9 @@ export async function POST(req: NextRequest) {
       .where(
         and(
           eq(permissions.entityId, workspaceId),
-          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityKind, 'workspace'),
           eq(permissions.userId, session.user.id),
-          eq(permissions.permissionType, 'admin')
+          eq(permissions.permissionKind, 'admin')
         )
       )
       .then((rows) => rows[0])
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
         .where(
           and(
             eq(permissions.entityId, workspaceId),
-            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityKind, 'workspace'),
             eq(permissions.userId, existingUser.id)
           )
         )

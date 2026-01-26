@@ -226,7 +226,7 @@ async function executeValidation(
   if (validationType === 'pii') {
     return await validatePII({
       text: inputStr,
-      entityTypes: piiEntityTypes || [], // Empty array = detect all PII types
+      entityKinds: piiEntityTypes || [], // Empty array = detect all PII types
       mode: (piiMode as 'block' | 'mask') || 'block', // Default to block mode
       language: piiLanguage || 'en',
       requestId,

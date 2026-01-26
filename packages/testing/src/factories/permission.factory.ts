@@ -16,9 +16,9 @@ export type EntityType = 'workspace' | 'workflow' | 'organization'
 export interface Permission {
   id: string
   userId: string
-  entityType: EntityType
+  entityKind: EntityType
   entityId: string
-  permissionType: PermissionType
+  permissionKind: PermissionType
   createdAt: Date
 }
 
@@ -28,9 +28,9 @@ export interface Permission {
 export interface PermissionFactoryOptions {
   id?: string
   userId?: string
-  entityType?: EntityType
+  entityKind?: EntityType
   entityId?: string
-  permissionType?: PermissionType
+  permissionKind?: PermissionType
   createdAt?: Date
 }
 
@@ -41,9 +41,9 @@ export function createPermission(options: PermissionFactoryOptions = {}): Permis
   return {
     id: options.id ?? nanoid(8),
     userId: options.userId ?? `user-${nanoid(6)}`,
-    entityType: options.entityType ?? 'workspace',
+    entityKind: options.entityKind ?? 'workspace',
     entityId: options.entityId ?? `ws-${nanoid(6)}`,
-    permissionType: options.permissionType ?? 'read',
+    permissionKind: options.permissionKind ?? 'read',
     createdAt: options.createdAt ?? new Date(),
   }
 }
@@ -58,9 +58,9 @@ export function createAdminPermission(
 ): Permission {
   return createPermission({
     userId,
-    entityType: 'workspace',
+    entityKind: 'workspace',
     entityId: workspaceId,
-    permissionType: 'admin',
+    permissionKind: 'admin',
     ...options,
   })
 }
@@ -75,9 +75,9 @@ export function createWritePermission(
 ): Permission {
   return createPermission({
     userId,
-    entityType: 'workspace',
+    entityKind: 'workspace',
     entityId: workspaceId,
-    permissionType: 'write',
+    permissionKind: 'write',
     ...options,
   })
 }
@@ -92,9 +92,9 @@ export function createReadPermission(
 ): Permission {
   return createPermission({
     userId,
-    entityType: 'workspace',
+    entityKind: 'workspace',
     entityId: workspaceId,
-    permissionType: 'read',
+    permissionKind: 'read',
     ...options,
   })
 }

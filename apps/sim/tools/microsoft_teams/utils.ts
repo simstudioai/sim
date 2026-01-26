@@ -13,7 +13,7 @@ interface ParsedMention {
 interface TeamMember {
   id: string
   displayName: string
-  userIdentityType?: string
+  userIdentityKind?: string
 }
 
 export interface TeamsMention {
@@ -24,14 +24,14 @@ export interface TeamsMention {
         user: {
           id: string
           displayName: string
-          userIdentityType?: string
+          userIdentityKind?: string
         }
       }
     | {
         application: {
           displayName: string
           id: string
-          applicationIdentityType: 'bot'
+          applicationIdentityKind: 'bot'
         }
       }
 }
@@ -280,7 +280,7 @@ async function fetchChatMembers(chatId: string, accessToken: string): Promise<Te
   return (data.value || []).map((member: TeamMember) => ({
     id: member.id,
     displayName: member.displayName || '',
-    userIdentityType: member.userIdentityType,
+    userIdentityKind: member.userIdentityKind,
   }))
 }
 
@@ -307,7 +307,7 @@ async function fetchChannelMembers(
   return (data.value || []).map((member: TeamMember) => ({
     id: member.id,
     displayName: member.displayName || '',
-    userIdentityType: member.userIdentityType,
+    userIdentityKind: member.userIdentityKind,
   }))
 }
 
@@ -340,7 +340,7 @@ export async function resolveMentionsForChat(
     const member = findMemberByName(members, mention.name)
 
     if (member) {
-      const isBot = member.userIdentityType === 'bot'
+      const isBot = member.userIdentityKind === 'bot'
 
       if (isBot) {
         mentions.push({
@@ -350,7 +350,7 @@ export async function resolveMentionsForChat(
             application: {
               displayName: member.displayName,
               id: member.id,
-              applicationIdentityType: 'bot',
+              applicationIdentityKind: 'bot',
             },
           },
         })
@@ -362,7 +362,7 @@ export async function resolveMentionsForChat(
             user: {
               id: member.id,
               displayName: member.displayName,
-              userIdentityType: member.userIdentityType || 'aadUser',
+              userIdentityKind: member.userIdentityKind || 'aadUser',
             },
           },
         })
@@ -407,7 +407,7 @@ export async function resolveMentionsForChannel(
     const member = findMemberByName(members, mention.name)
 
     if (member) {
-      const isBot = member.userIdentityType === 'bot'
+      const isBot = member.userIdentityKind === 'bot'
 
       if (isBot) {
         mentions.push({
@@ -417,7 +417,7 @@ export async function resolveMentionsForChannel(
             application: {
               displayName: member.displayName,
               id: member.id,
-              applicationIdentityType: 'bot',
+              applicationIdentityKind: 'bot',
             },
           },
         })
@@ -429,7 +429,7 @@ export async function resolveMentionsForChannel(
             user: {
               id: member.id,
               displayName: member.displayName,
-              userIdentityType: member.userIdentityType || 'aadUser',
+              userIdentityKind: member.userIdentityKind || 'aadUser',
             },
           },
         })

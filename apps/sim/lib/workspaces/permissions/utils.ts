@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { permissions, type permissionTypeEnum, user, workspace } from '@sim/db/schema'
+import { type permissionKindEnum, permissions, user, workspace } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 
-export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
+export type PermissionType = (typeof permissionKindEnum.enumValues)[number]
 export interface WorkspaceBasic {
   id: string
 }
@@ -89,12 +89,12 @@ export async function checkWorkspaceAccess(
   }
 
   const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
+    .select({ permissionKind: permissions.permissionKind })
     .from(permissions)
     .where(
       and(
         eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityKind, 'workspace'),
         eq(permissions.entityId, workspaceId)
       )
     )
@@ -105,7 +105,7 @@ export async function checkWorkspaceAccess(
   }
 
   const canWrite =
-    permissionRow.permissionType === 'write' || permissionRow.permissionType === 'admin'
+    permissionRow.permissionKind === 'write' || permissionRow.permissionKind === 'admin'
 
   return { exists: true, hasAccess: true, canWrite, workspace: ws }
 }
@@ -114,25 +114,27 @@ export async function checkWorkspaceAccess(
  * Get the highest permission level a user has for a specific entity
  *
  * @param userId - The ID of the user to check permissions for
- * @param entityType - The type of entity (e.g., 'workspace', 'workflow', etc.)
+ * @param entityKind - The type of entity (e.g., 'workspace', 'workflow', etc.)
  * @param entityId - The ID of the specific entity
  * @returns Promise<PermissionType | null> - The highest permission the user has for the entity, or null if none
  */
 export async function getUserEntityPermissions(
   userId: string,
-  entityType: string,
+  entityKind: string,
   entityId: string
 ): Promise<PermissionType | null> {
+  console.log('getUserEntityPermissions querying:', { userId, entityKind, entityId })
   const result = await db
-    .select({ permissionType: permissions.permissionType })
+    .select({ permissionKind: permissions.permissionKind })
     .from(permissions)
     .where(
       and(
         eq(permissions.userId, userId),
-        eq(permissions.entityType, entityType),
+        eq(permissions.entityKind, entityKind),
         eq(permissions.entityId, entityId)
       )
     )
+  console.log('getUserEntityPermissions result:', result)
 
   if (result.length === 0) {
     return null
@@ -140,12 +142,12 @@ export async function getUserEntityPermissions(
 
   const permissionOrder: Record<PermissionType, number> = { admin: 3, write: 2, read: 1 }
   const highestPermission = result.reduce((highest, current) => {
-    return permissionOrder[current.permissionType] > permissionOrder[highest.permissionType]
-      ? current
-      : highest
+    const highestKind = highest.permissionKind as PermissionType
+    const currentKind = current.permissionKind as PermissionType
+    return permissionOrder[currentKind] > permissionOrder[highestKind] ? current : highest
   })
 
-  return highestPermission.permissionType
+  return highestPermission.permissionKind
 }
 
 /**
@@ -162,9 +164,9 @@ export async function hasAdminPermission(userId: string, workspaceId: string): P
     .where(
       and(
         eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityKind, 'workspace'),
         eq(permissions.entityId, workspaceId),
-        eq(permissions.permissionType, 'admin')
+        eq(permissions.permissionKind, 'admin')
       )
     )
     .limit(1)
@@ -183,7 +185,7 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     userId: string
     email: string
     name: string
-    permissionType: PermissionType
+    permissionKind: PermissionType
   }>
 > {
   const usersWithPermissions = await db
@@ -191,18 +193,18 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
       userId: user.id,
       email: user.email,
       name: user.name,
-      permissionType: permissions.permissionType,
+      permissionKind: permissions.permissionKind,
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
-    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
+    .where(and(eq(permissions.entityKind, 'workspace'), eq(permissions.entityId, workspaceId)))
     .orderBy(user.email)
 
   return usersWithPermissions.map((row) => ({
     userId: row.userId,
     email: row.email,
     name: row.name,
-    permissionType: row.permissionType,
+    permissionKind: row.permissionKind,
   }))
 }
 
@@ -269,8 +271,8 @@ export async function getManageableWorkspaces(userId: string): Promise<
     .where(
       and(
         eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.permissionType, 'admin')
+        eq(permissions.entityKind, 'workspace'),
+        eq(permissions.permissionKind, 'admin')
       )
     )
 

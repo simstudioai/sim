@@ -155,10 +155,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           .from(permissions)
           .where(
             and(
-              eq(permissions.entityType, 'workspace'),
+              eq(permissions.entityKind, 'workspace'),
               eq(permissions.entityId, workspaceId),
               eq(permissions.userId, candidateId),
-              eq(permissions.permissionType, 'admin')
+              eq(permissions.permissionKind, 'admin')
             )
           )
           .limit(1)
@@ -273,7 +273,7 @@ export async function DELETE(
       // Delete all permissions associated with this workspace
       await tx
         .delete(permissions)
-        .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
+        .where(and(eq(permissions.entityKind, 'workspace'), eq(permissions.entityId, workspaceId)))
 
       // Delete the workspace itself
       await tx.delete(workspace).where(eq(workspace.id, workspaceId))

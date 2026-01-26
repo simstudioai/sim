@@ -9,9 +9,7 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('ForgetPasswordAPI')
 
 const forgetPasswordSchema = z.object({
-  email: z
-    .string({ required_error: 'Email is required' })
-    .email('Please provide a valid email address'),
+  email: z.string().email('Please provide a valid email address'),
   redirectTo: z
     .string()
     .optional()
@@ -32,13 +30,21 @@ export async function POST(request: NextRequest) {
     const validationResult = forgetPasswordSchema.safeParse(body)
 
     if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0]
+      const issues =
+        validationResult.error.issues ??
+        (validationResult.error as { errors?: z.ZodIssue[] }).errors ??
+        []
+      const firstError = issues[0]
       const errorMessage = firstError?.message || 'Invalid request data'
+      const normalizedMessage =
+        firstError?.code === 'invalid_type' && firstError.path?.[0] === 'email'
+          ? 'Email is required'
+          : errorMessage
 
       logger.warn('Invalid forget password request data', {
         errors: validationResult.error.format(),
       })
-      return NextResponse.json({ message: errorMessage }, { status: 400 })
+      return NextResponse.json({ message: normalizedMessage }, { status: 400 })
     }
 
     const { email, redirectTo } = validationResult.data

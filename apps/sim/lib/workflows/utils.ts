@@ -47,18 +47,18 @@ export async function getWorkflowAccessContext(
 
     if (userId) {
       const [permissionRow] = await db
-        .select({ permissionType: permissions.permissionType })
+        .select({ permissionKind: permissions.permissionKind })
         .from(permissions)
         .where(
           and(
             eq(permissions.userId, userId),
-            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityKind, 'workspace'),
             eq(permissions.entityId, workflow.workspaceId)
           )
         )
         .limit(1)
 
-      workspacePermission = permissionRow?.permissionType ?? null
+      workspacePermission = permissionRow?.permissionKind ?? null
     }
   }
 

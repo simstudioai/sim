@@ -52,7 +52,9 @@ export async function GET(request: NextRequest) {
     const parseResult = credentialsQuerySchema.safeParse(rawQuery)
 
     if (!parseResult.success) {
-      const refinementError = parseResult.error.errors.find((err) => err.code === 'custom')
+      const issues =
+        parseResult.error.issues ?? (parseResult.error as { errors?: z.ZodIssue[] }).errors ?? []
+      const refinementError = issues.find((err) => err.code === 'custom')
       if (refinementError) {
         logger.warn(`[${requestId}] Invalid query parameters: ${refinementError.message}`)
         return NextResponse.json(
@@ -63,11 +65,11 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      const firstError = parseResult.error.errors[0]
+      const firstError = issues[0]
       const errorMessage = firstError?.message || 'Validation failed'
 
       logger.warn(`[${requestId}] Invalid query parameters`, {
-        errors: parseResult.error.errors,
+        errors: issues,
       })
 
       return NextResponse.json(

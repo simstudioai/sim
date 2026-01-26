@@ -93,8 +93,8 @@ export interface Neo4jIntrospectResponse extends ToolResponse {
     relationshipTypes: string[]
     nodeSchemas: Neo4jNodeSchema[]
     relationshipSchemas: Neo4jRelationshipSchema[]
-    constraints: Array<{ name: string; type: string; entityType: string; properties: string[] }>
-    indexes: Array<{ name: string; type: string; entityType: string; properties: string[] }>
+    constraints: Array<{ name: string; type: string; entityKind: string; properties: string[] }>
+    indexes: Array<{ name: string; type: string; entityKind: string; properties: string[] }>
   }
   error?: string
 }

@@ -8,7 +8,7 @@ const DEFAULT_TIMEOUT = 30000 // 30 seconds
 
 export interface PIIValidationInput {
   text: string
-  entityTypes: string[] // e.g., ["PERSON", "EMAIL_ADDRESS", "CREDIT_CARD"]
+  entityKinds: string[] // e.g., ["PERSON", "EMAIL_ADDRESS", "CREDIT_CARD"]
   mode: 'block' | 'mask' // block = fail if PII found, mask = return masked text
   language?: string // default: "en"
   requestId: string
@@ -37,18 +37,18 @@ export interface PIIValidationResult {
  * - mask: Passes validation and returns masked text with PII replaced
  */
 export async function validatePII(input: PIIValidationInput): Promise<PIIValidationResult> {
-  const { text, entityTypes, mode, language = 'en', requestId } = input
+  const { text, entityKinds, mode, language = 'en', requestId } = input
 
   logger.info(`[${requestId}] Starting PII validation`, {
     textLength: text.length,
-    entityTypes,
+    entityKinds,
     mode,
     language,
   })
 
   try {
     // Call Python script for PII detection
-    const result = await executePythonPIIDetection(text, entityTypes, mode, language, requestId)
+    const result = await executePythonPIIDetection(text, entityKinds, mode, language, requestId)
 
     logger.info(`[${requestId}] PII validation completed`, {
       passed: result.passed,
@@ -75,7 +75,7 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
  */
 async function executePythonPIIDetection(
   text: string,
-  entityTypes: string[],
+  entityKinds: string[],
   mode: string,
   language: string,
   requestId: string
@@ -103,7 +103,7 @@ async function executePythonPIIDetection(
     // Write input to stdin as JSON
     const inputData = JSON.stringify({
       text,
-      entityTypes,
+      entityKinds,
       mode,
       language,
     })

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account, credentialSetMember, workflow } from '@sim/db/schema'
+import { account, credentialSetMembership, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
@@ -350,12 +350,12 @@ export async function getCredentialsForCredentialSet(
   logger.info(`Getting credentials for credential set ${credentialSetId}, provider ${providerId}`)
 
   const members = await db
-    .select({ userId: credentialSetMember.userId })
-    .from(credentialSetMember)
+    .select({ userId: credentialSetMembership.userId })
+    .from(credentialSetMembership)
     .where(
       and(
-        eq(credentialSetMember.credentialSetId, credentialSetId),
-        eq(credentialSetMember.status, 'active')
+        eq(credentialSetMembership.credentialSetId, credentialSetId),
+        eq(credentialSetMembership.status, 'active')
       )
     )
 

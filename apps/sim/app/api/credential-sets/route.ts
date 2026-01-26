@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { credentialSet, credentialSetMember, member, organization, user } from '@sim/db/schema'
+import { credentialSet, credentialSetMembership, member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -70,11 +70,11 @@ export async function GET(req: Request) {
     sets.map(async (set) => {
       const [memberCount] = await db
         .select({ count: count() })
-        .from(credentialSetMember)
+        .from(credentialSetMembership)
         .where(
           and(
-            eq(credentialSetMember.credentialSetId, set.id),
-            eq(credentialSetMember.status, 'active')
+            eq(credentialSetMembership.credentialSetId, set.id),
+            eq(credentialSetMembership.status, 'active')
           )
         )
 

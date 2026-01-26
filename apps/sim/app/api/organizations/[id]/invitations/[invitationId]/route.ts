@@ -403,10 +403,10 @@ export async function PUT(
 
           await tx.insert(permissions).values({
             id: randomUUID(),
-            entityType: 'workspace',
+            entityKind: 'workspace',
             entityId: wsInvitation.workspaceId,
             userId: session.user.id,
-            permissionType: wsInvitation.permissions || 'read',
+            permissionKind: wsInvitation.permissions || 'read',
             createdAt: new Date(),
             updatedAt: new Date(),
           })

@@ -15,13 +15,13 @@ vi.mock('@sim/db', () => ({
 
 vi.mock('@sim/db/schema', () => ({
   permissions: {
-    permissionType: 'permission_type',
+    permissionKind: 'permission_kind',
     userId: 'user_id',
-    entityType: 'entity_type',
+    entityKind: 'entity_kind',
     entityId: 'entity_id',
     id: 'permission_id',
   },
-  permissionTypeEnum: {
+  permissionKindEnum: {
     enumValues: ['admin', 'write', 'read'] as const,
   },
   user: {
@@ -85,9 +85,9 @@ describe('Permission Utils', () => {
 
     it('should return the highest permission when user has multiple permissions', async () => {
       const mockResults = [
-        { permissionType: 'read' as PermissionType },
-        { permissionType: 'admin' as PermissionType },
-        { permissionType: 'write' as PermissionType },
+        { permissionKind: 'read' as PermissionType },
+        { permissionKind: 'admin' as PermissionType },
+        { permissionKind: 'write' as PermissionType },
       ]
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
@@ -98,7 +98,7 @@ describe('Permission Utils', () => {
     })
 
     it('should return single permission when user has only one', async () => {
-      const mockResults = [{ permissionType: 'read' as PermissionType }]
+      const mockResults = [{ permissionKind: 'read' as PermissionType }]
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
 
@@ -109,9 +109,9 @@ describe('Permission Utils', () => {
 
     it('should prioritize admin over other permissions', async () => {
       const mockResults = [
-        { permissionType: 'write' as PermissionType },
-        { permissionType: 'admin' as PermissionType },
-        { permissionType: 'read' as PermissionType },
+        { permissionKind: 'write' as PermissionType },
+        { permissionKind: 'admin' as PermissionType },
+        { permissionKind: 'read' as PermissionType },
       ]
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
@@ -122,7 +122,7 @@ describe('Permission Utils', () => {
     })
 
     it('should return write permission when user only has write access', async () => {
-      const mockResults = [{ permissionType: 'write' as PermissionType }]
+      const mockResults = [{ permissionKind: 'write' as PermissionType }]
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
 
@@ -133,8 +133,8 @@ describe('Permission Utils', () => {
 
     it('should prioritize write over read permissions', async () => {
       const mockResults = [
-        { permissionType: 'read' as PermissionType },
-        { permissionType: 'write' as PermissionType },
+        { permissionKind: 'read' as PermissionType },
+        { permissionKind: 'write' as PermissionType },
       ]
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
@@ -145,7 +145,7 @@ describe('Permission Utils', () => {
     })
 
     it('should work with workflow entity type', async () => {
-      const mockResults = [{ permissionType: 'admin' as PermissionType }]
+      const mockResults = [{ permissionKind: 'admin' as PermissionType }]
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
 
@@ -155,7 +155,7 @@ describe('Permission Utils', () => {
     })
 
     it('should work with organization entity type', async () => {
-      const mockResults = [{ permissionType: 'read' as PermissionType }]
+      const mockResults = [{ permissionKind: 'read' as PermissionType }]
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
 
@@ -165,7 +165,7 @@ describe('Permission Utils', () => {
     })
 
     it('should handle generic entity types', async () => {
-      const mockResults = [{ permissionType: 'write' as PermissionType }]
+      const mockResults = [{ permissionKind: 'write' as PermissionType }]
       const chain = createMockChain(mockResults)
       mockDb.select.mockReturnValue(chain)
 
@@ -247,7 +247,7 @@ describe('Permission Utils', () => {
           userId: 'user1',
           email: 'alice@example.com',
           name: 'Alice Smith',
-          permissionType: 'admin' as PermissionType,
+          permissionKind: 'admin' as PermissionType,
         },
       ]
 
@@ -261,7 +261,7 @@ describe('Permission Utils', () => {
           userId: 'user1',
           email: 'alice@example.com',
           name: 'Alice Smith',
-          permissionType: 'admin',
+          permissionKind: 'admin',
         },
       ])
     })
@@ -272,19 +272,19 @@ describe('Permission Utils', () => {
           userId: 'user1',
           email: 'admin@example.com',
           name: 'Admin User',
-          permissionType: 'admin' as PermissionType,
+          permissionKind: 'admin' as PermissionType,
         },
         {
           userId: 'user2',
           email: 'writer@example.com',
           name: 'Writer User',
-          permissionType: 'write' as PermissionType,
+          permissionKind: 'write' as PermissionType,
         },
         {
           userId: 'user3',
           email: 'reader@example.com',
           name: 'Reader User',
-          permissionType: 'read' as PermissionType,
+          permissionKind: 'read' as PermissionType,
         },
       ]
 
@@ -294,9 +294,9 @@ describe('Permission Utils', () => {
       const result = await getUsersWithPermissions('workspace456')
 
       expect(result).toHaveLength(3)
-      expect(result[0].permissionType).toBe('admin')
-      expect(result[1].permissionType).toBe('write')
-      expect(result[2].permissionType).toBe('read')
+      expect(result[0].permissionKind).toBe('admin')
+      expect(result[1].permissionKind).toBe('write')
+      expect(result[2].permissionKind).toBe('read')
     })
 
     it('should handle users with empty names', async () => {
@@ -305,7 +305,7 @@ describe('Permission Utils', () => {
           userId: 'user1',
           email: 'test@example.com',
           name: '',
-          permissionType: 'read' as PermissionType,
+          permissionKind: 'read' as PermissionType,
         },
       ]
 
@@ -441,7 +441,7 @@ describe('Permission Utils', () => {
     })
 
     it('should handle unicode characters in entity names', async () => {
-      const chain = createMockChain([{ permissionType: 'read' as PermissionType }])
+      const chain = createMockChain([{ permissionKind: 'read' as PermissionType }])
       mockDb.select.mockReturnValue(chain)
 
       const result = await getUserEntityPermissions('user123', '📝workspace', '🏢org-id')
@@ -755,7 +755,7 @@ describe('Permission Utils', () => {
         if (callCount === 1) {
           return createMockChain([{ id: 'workspace123', ownerId: 'other-user' }])
         }
-        return createMockChain([{ permissionType: 'admin' }])
+        return createMockChain([{ permissionKind: 'admin' }])
       })
 
       const result = await checkWorkspaceAccess('workspace123', 'user123')
@@ -772,7 +772,7 @@ describe('Permission Utils', () => {
         if (callCount === 1) {
           return createMockChain([{ id: 'workspace123', ownerId: 'other-user' }])
         }
-        return createMockChain([{ permissionType: 'write' }])
+        return createMockChain([{ permissionKind: 'write' }])
       })
 
       const result = await checkWorkspaceAccess('workspace123', 'user123')
@@ -789,7 +789,7 @@ describe('Permission Utils', () => {
         if (callCount === 1) {
           return createMockChain([{ id: 'workspace123', ownerId: 'other-user' }])
         }
-        return createMockChain([{ permissionType: 'read' }])
+        return createMockChain([{ permissionKind: 'read' }])
       })
 
       const result = await checkWorkspaceAccess('workspace123', 'user123')

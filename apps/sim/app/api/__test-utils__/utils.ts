@@ -721,9 +721,9 @@ export function mockKnowledgeSchemas() {
     permissions: {
       id: 'permission_id',
       userId: 'user_id',
-      entityType: 'entity_type',
+      entityKind: 'entity_kind',
       entityId: 'entity_id',
-      permissionType: 'permission_type',
+      permissionKind: 'permission_kind',
       createdAt: 'created_at',
       updatedAt: 'updated_at',
     },

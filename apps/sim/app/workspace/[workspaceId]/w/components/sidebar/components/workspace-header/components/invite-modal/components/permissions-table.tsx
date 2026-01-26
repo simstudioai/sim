@@ -11,7 +11,7 @@ import type { UserPermissions } from './types'
 
 export interface PermissionsTableProps {
   userPermissions: UserPermissions[]
-  onPermissionChange: (userId: string, permissionType: PermissionType) => void
+  onPermissionChange: (userId: string, permissionKind: PermissionType) => void
   onRemoveMember?: (userId: string, email: string) => void
   onRemoveInvitation?: (invitationId: string, email: string) => void
   onResendInvitation?: (invitationId: string, email: string) => void
@@ -58,13 +58,13 @@ export const PermissionsTable = ({
     () =>
       workspacePermissions?.users?.map((user) => {
         const changes = existingUserPermissionChanges[user.userId] || {}
-        const permissionType = user.permissionType || 'read'
+        const permissionKind = user.permissionKind || 'read'
 
         return {
           userId: user.userId,
           email: user.email,
-          permissionType:
-            changes.permissionType !== undefined ? changes.permissionType : permissionType,
+          permissionKind:
+            changes.permissionKind !== undefined ? changes.permissionKind : permissionKind,
           isCurrentUser: user.email === session?.user?.email,
         }
       }) || [],
@@ -76,7 +76,7 @@ export const PermissionsTable = ({
       session?.user?.email
         ? existingUsers.find((user) => user.isCurrentUser) || {
             email: session.user.email,
-            permissionType: 'admin',
+            permissionKind: 'admin',
             isCurrentUser: true,
           }
         : null,
@@ -148,9 +148,9 @@ export const PermissionsTable = ({
             const userIdentifier = user.userId || user.email
             const originalPermission = workspacePermissions?.users?.find(
               (eu) => eu.userId === user.userId
-            )?.permissionType
+            )?.permissionKind
             const currentPermission =
-              existingUserPermissionChanges[userIdentifier]?.permissionType ?? user.permissionType
+              existingUserPermissionChanges[userIdentifier]?.permissionKind ?? user.permissionKind
             const hasChanges = originalPermission && currentPermission !== originalPermission
             const isWorkspaceMember = workspacePermissions?.users?.some(
               (eu) => eu.email === user.email && eu.userId
@@ -271,13 +271,13 @@ export const PermissionsTable = ({
 
                 <div className='flex flex-shrink-0 items-center'>
                   <PermissionSelector
-                    value={user.permissionType}
+                    value={user.permissionKind}
                     onChange={(newPermission) => onPermissionChange(userIdentifier, newPermission)}
                     disabled={
                       disabled ||
                       !currentUserIsAdmin ||
                       isPendingInvitation ||
-                      (isCurrentUser && user.permissionType === 'admin')
+                      (isCurrentUser && user.permissionKind === 'admin')
                     }
                     className='w-auto'
                   />

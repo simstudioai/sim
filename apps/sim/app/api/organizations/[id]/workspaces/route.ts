@@ -55,13 +55,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           ownerId: workspace.ownerId,
           createdAt: workspace.createdAt,
           isOwner: eq(workspace.ownerId, session.user.id),
-          permissionType: permissions.permissionType,
+          permissionKind: permissions.permissionKind,
         })
         .from(workspace)
         .leftJoin(
           permissions,
           and(
-            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityKind, 'workspace'),
             eq(permissions.entityId, workspace.id),
             eq(permissions.userId, session.user.id)
           )
@@ -73,8 +73,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             // User has admin permission on the workspace
             and(
               eq(permissions.userId, session.user.id),
-              eq(permissions.entityType, 'workspace'),
-              eq(permissions.permissionType, 'admin')
+              eq(permissions.entityKind, 'workspace'),
+              eq(permissions.permissionKind, 'admin')
             )
           )
         )
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const workspacesWithInvitePermission = availableWorkspaces
         .filter((workspace) => {
           // Include if user owns the workspace OR has admin permission
-          return workspace.isOwner || workspace.permissionType === 'admin'
+          return workspace.isOwner || workspace.permissionKind === 'admin'
         })
         .map((workspace) => ({
           id: workspace.id,
@@ -117,14 +117,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           name: workspace.name,
           ownerId: workspace.ownerId,
           isOwner: eq(workspace.ownerId, memberId),
-          permissionType: permissions.permissionType,
+          permissionKind: permissions.permissionKind,
           createdAt: permissions.createdAt,
         })
         .from(workspace)
         .leftJoin(
           permissions,
           and(
-            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityKind, 'workspace'),
             eq(permissions.entityId, workspace.id),
             eq(permissions.userId, memberId)
           )
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             // Member owns the workspace
             eq(workspace.ownerId, memberId),
             // Member has permissions on the workspace
-            and(eq(permissions.userId, memberId), eq(permissions.entityType, 'workspace'))
+            and(eq(permissions.userId, memberId), eq(permissions.entityKind, 'workspace'))
           )
         )
 
@@ -142,7 +142,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         id: workspace.id,
         name: workspace.name,
         isOwner: workspace.isOwner,
-        permission: workspace.permissionType,
+        permission: workspace.permissionKind,
         joinedAt: workspace.createdAt,
         createdAt: workspace.createdAt,
       }))

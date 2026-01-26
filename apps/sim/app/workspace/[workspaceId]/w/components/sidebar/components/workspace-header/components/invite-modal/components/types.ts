@@ -5,7 +5,7 @@ export type { PermissionType }
 export interface UserPermissions {
   userId?: string
   email: string
-  permissionType: PermissionType
+  permissionKind: PermissionType
   isCurrentUser?: boolean
   isPendingInvitation?: boolean
   invitationId?: string

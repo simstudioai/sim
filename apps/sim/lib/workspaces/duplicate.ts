@@ -70,9 +70,9 @@ export async function duplicateWorkspace(
     await tx.insert(permissions).values({
       id: crypto.randomUUID(),
       userId,
-      entityType: 'workspace',
+      entityKind: 'workspace',
       entityId: newWorkspaceId,
-      permissionType: 'admin',
+      permissionKind: 'admin',
       createdAt: now,
       updatedAt: now,
     })

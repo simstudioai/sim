@@ -73,7 +73,7 @@ export interface BillingEntity {
 
 export interface BillingConfig {
   id: string
-  entityType: 'user' | 'organization'
+  entityKind: 'user' | 'organization'
   entityId: string
   usageLimit: number
   limitSetBy?: string
@@ -86,7 +86,7 @@ export interface BillingConfig {
 
 export interface UsagePeriod {
   id: string
-  entityType: 'user' | 'organization'
+  entityKind: 'user' | 'organization'
   entityId: string
   periodStart: Date
   periodEnd: Date

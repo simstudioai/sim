@@ -97,7 +97,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
             )
             .map((inv: PendingInvitation) => ({
               email: inv.email,
-              permissionType: inv.permissions,
+              permissionKind: inv.permissions,
               isPendingInvitation: true,
               invitationId: inv.id,
             })) || []
@@ -164,7 +164,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           ...prev,
           {
             email: normalized,
-            permissionType: 'read',
+            permissionKind: 'read',
           },
         ])
       }
@@ -199,24 +199,24 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   )
 
   const handlePermissionChange = useCallback(
-    (identifier: string, permissionType: PermissionType) => {
+    (identifier: string, permissionKind: PermissionType) => {
       const existingUser = workspacePermissions?.users?.find((user) => user.userId === identifier)
 
       if (existingUser) {
         setExistingUserPermissionChanges((prev) => {
           const newChanges = { ...prev }
 
-          if (existingUser.permissionType === permissionType) {
+          if (existingUser.permissionKind === permissionKind) {
             delete newChanges[identifier]
           } else {
-            newChanges[identifier] = { permissionType }
+            newChanges[identifier] = { permissionKind }
           }
 
           return newChanges
         })
       } else {
         setUserPermissions((prev) =>
-          prev.map((user) => (user.email === identifier ? { ...user, permissionType } : user))
+          prev.map((user) => (user.email === identifier ? { ...user, permissionKind } : user))
         )
       }
     },
@@ -232,7 +232,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     try {
       const updates = Object.entries(existingUserPermissionChanges).map(([userId, changes]) => ({
         userId,
-        permissions: changes.permissionType || 'read',
+        permissions: changes.permissionKind || 'read',
       }))
 
       const response = await fetch(API_ENDPOINTS.WORKSPACE_PERMISSIONS(workspaceId), {
@@ -487,7 +487,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           validEmails.map(async (email) => {
             try {
               const userPermission = userPermissions.find((up) => up.email === email)
-              const permissionType = userPermission?.permissionType || 'read'
+              const permissionKind = userPermission?.permissionKind || 'read'
 
               const response = await fetch('/api/workspaces/invitations', {
                 method: 'POST',
@@ -498,7 +498,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   workspaceId,
                   email: email,
                   role: 'member',
-                  permission: permissionType,
+                  permission: permissionKind,
                 }),
               })
 
@@ -529,11 +529,11 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           if (successfulEmails.length > 0) {
             const newPendingInvitations: UserPermissions[] = successfulEmails.map((email) => {
               const userPermission = userPermissions.find((up) => up.email === email)
-              const permissionType = userPermission?.permissionType || 'read'
+              const permissionKind = userPermission?.permissionKind || 'read'
 
               return {
                 email,
-                permissionType,
+                permissionKind,
                 isPendingInvitation: true,
               }
             })

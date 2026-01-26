@@ -69,7 +69,7 @@ export function useUserPermissions(
       }
     }
 
-    const userPerms = currentUser.permissionType || 'read'
+    const userPerms = currentUser.permissionKind || 'read'
 
     // Core permission checks
     const canAdmin = userPerms === 'admin'

@@ -88,13 +88,16 @@ export async function POST(req: NextRequest) {
     const duration = tracker.getDuration()
 
     if (error instanceof z.ZodError) {
+      const issues = error.issues ?? (error as { errors?: z.ZodIssue[] }).errors ?? []
+      const message = issues.length
+        ? `Invalid request data: ${issues.map((issue) => issue.message).join(', ')}`
+        : 'Invalid request data'
+
       logger.error(`[${tracker.requestId}] Validation error:`, {
         duration,
-        errors: error.errors,
+        errors: issues,
       })
-      return createBadRequestResponse(
-        `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
-      )
+      return createBadRequestResponse(message)
     }
 
     logger.error(`[${tracker.requestId}] Error submitting copilot feedback:`, {

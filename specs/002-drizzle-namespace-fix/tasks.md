@@ -15,8 +15,8 @@ description: "Task list for namespace resolution"
 
 **Purpose**: Confirm current schema resolution touchpoints.
 
-- [ ] T001 Inventory current schema resolution code paths in packages/db/index.ts and packages/db/drizzle.config.ts
-- [ ] T002 Inventory IRIS schema translation touchpoints in iris/sim_sql_patch.py and iris/patch_pgwire_protocol.py
+- [x] T001 Inventory current schema resolution code paths in packages/db/index.ts and packages/db/drizzle.config.ts
+- [x] T002 Inventory IRIS schema translation touchpoints in iris/sim_sql_patch.py and iris/patch_pgwire_protocol.py
 
 ---
 
@@ -24,11 +24,11 @@ description: "Task list for namespace resolution"
 
 **Purpose**: Define configurable default schema inputs and shared environment wiring.
 
-- [ ] T003 Add DB_DEFAULT_SCHEMA and DB_METADATA_SCHEMA entries to apps/sim/.env.example
-- [ ] T004 Add DB_DEFAULT_SCHEMA and DB_METADATA_SCHEMA entries to packages/db/.env.example
-- [ ] T005 Update apps/sim/lib/core/config/env.ts to surface DB_DEFAULT_SCHEMA and DB_METADATA_SCHEMA
-- [ ] T006 Update packages/db/index.ts to read DB_DEFAULT_SCHEMA/DB_METADATA_SCHEMA and default to SQLUser and current metadata schema
-- [ ] T006a Ensure packages/db runtime config honors explicit schemas in connection initialization (not just IRIS patch). Validation: ensure explicit schema queries bypass default schema mapping in runtime config.
+- [x] T003 Add DB_DEFAULT_SCHEMA and DB_METADATA_SCHEMA entries to apps/sim/.env.example
+- [x] T004 Add DB_DEFAULT_SCHEMA and DB_METADATA_SCHEMA entries to packages/db/.env.example
+- [x] T005 Update apps/sim/lib/core/config/env.ts to surface DB_DEFAULT_SCHEMA and DB_METADATA_SCHEMA
+- [x] T006 Update packages/db/index.ts to read DB_DEFAULT_SCHEMA/DB_METADATA_SCHEMA and default to SQLUser and current metadata schema
+- [x] T006a Ensure packages/db runtime config honors explicit schemas in connection initialization (not just IRIS patch). Validation: ensure explicit schema queries bypass default schema mapping in runtime config.
 
 **Checkpoint**: Configuration values available to both migration and runtime layers.
 
@@ -42,9 +42,9 @@ description: "Task list for namespace resolution"
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Update packages/db/drizzle.config.ts to apply DB_DEFAULT_SCHEMA and keep DB_METADATA_SCHEMA unchanged
-- [ ] T008 [US1] Update docker-compose.iris.yml to pass default schema configuration for migrations (DB_DEFAULT_SCHEMA)
-- [ ] T009 [US1] Update iris/sim_sql_patch.py to map unqualified schema references to DB_DEFAULT_SCHEMA when DB_TYPE=iris
+- [x] T007 [US1] Update packages/db/drizzle.config.ts to apply DB_DEFAULT_SCHEMA and keep DB_METADATA_SCHEMA unchanged
+- [x] T008 [US1] Update docker-compose.iris.yml to pass default schema configuration for migrations (DB_DEFAULT_SCHEMA)
+- [x] T009 [US1] Update iris/sim_sql_patch.py to map unqualified schema references to DB_DEFAULT_SCHEMA when DB_TYPE=iris
 - [ ] T009a [US1] Validate migration runner respects DB_DEFAULT_SCHEMA by verifying table location in IRIS
 
 **Checkpoint**: Primary backend migrations succeed without schema conflicts.
@@ -59,9 +59,9 @@ description: "Task list for namespace resolution"
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Update packages/db/index.ts to apply DB_DEFAULT_SCHEMA for runtime connections on the primary backend
-- [ ] T011 [US2] Update apps/sim/lib/core/config/env.ts to provide runtime access to DB_DEFAULT_SCHEMA
-- [ ] T012 [US2] Update iris/sim_sql_patch.py to ensure explicit schemas are not remapped
+- [x] T010 [US2] Update packages/db/index.ts to apply DB_DEFAULT_SCHEMA for runtime connections on the primary backend
+- [x] T011 [US2] Update apps/sim/lib/core/config/env.ts to provide runtime access to DB_DEFAULT_SCHEMA
+- [x] T012 [US2] Update iris/sim_sql_patch.py to ensure explicit schemas are not remapped
 
 **Checkpoint**: Runtime queries on the primary backend resolve to the default schema without errors.
 
@@ -75,9 +75,9 @@ description: "Task list for namespace resolution"
 
 ### Implementation for User Story 3
 
-- [ ] T013 [US3] Add guards in packages/db/index.ts so DB_DEFAULT_SCHEMA only applies to primary backend connections
-- [ ] T014 [US3] Add guards in packages/db/drizzle.config.ts so metadata schema behavior remains unchanged on the reference backend
-- [ ] T015 [US3] Update apps/sim/.env.example and packages/db/.env.example comments to clarify primary vs reference backend usage
+- [x] T013 [US3] Add guards in packages/db/index.ts so DB_DEFAULT_SCHEMA only applies to primary backend connections
+- [x] T014 [US3] Add guards in packages/db/drizzle.config.ts so metadata schema behavior remains unchanged on the reference backend
+- [x] T015 [US3] Update apps/sim/.env.example and packages/db/.env.example comments to clarify primary vs reference backend usage
 
 **Checkpoint**: Reference backend migrations and runtime queries behave as before.
 
@@ -87,7 +87,7 @@ description: "Task list for namespace resolution"
 
 **Purpose**: Documentation and validation alignment.
 
-- [ ] T016 [P] Update specs/002-drizzle-namespace-fix/quickstart.md with any additional verification steps discovered during implementation
+- [x] T016 [P] Update specs/002-drizzle-namespace-fix/quickstart.md with any additional verification steps discovered during implementation
 - [ ] T017 [P] Run quickstart verification steps for both stacks and record results
 
 ---

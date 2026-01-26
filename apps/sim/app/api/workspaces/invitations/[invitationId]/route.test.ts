@@ -97,10 +97,10 @@ vi.mock('@sim/db/schema', () => ({
   },
   permissions: {
     id: 'id',
-    entityType: 'entityType',
+    entityKind: 'entityKind',
     entityId: 'entityId',
     userId: 'userId',
-    permissionType: 'permissionType',
+    permissionKind: 'permissionKind',
   },
 }))
 

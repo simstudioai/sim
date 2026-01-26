@@ -20,7 +20,7 @@ const logger = createLogger('CreditBalance')
 interface CreditBalanceProps {
   balance: number
   canPurchase: boolean
-  entityType: 'user' | 'organization'
+  entityKind: 'user' | 'organization'
   isLoading?: boolean
   onPurchaseComplete?: () => void
 }
@@ -31,7 +31,7 @@ interface CreditBalanceProps {
 export function CreditBalance({
   balance,
   canPurchase,
-  entityType,
+  entityKind,
   isLoading,
   onPurchaseComplete,
 }: CreditBalanceProps) {
@@ -157,7 +157,7 @@ export function CreditBalance({
                   <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
                     <p className='text-[12px] text-[var(--text-secondary)]'>
                       Credits are non-refundable and don't expire. They'll be applied automatically
-                      to your {entityType === 'organization' ? 'team' : ''} usage.
+                      to your {entityKind === 'organization' ? 'team' : ''} usage.
                     </p>
                   </div>
                 </div>

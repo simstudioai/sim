@@ -205,18 +205,18 @@ export const auth = betterAuth({
             const requestId = crypto.randomUUID().slice(0, 8)
             const userMemberships = await db
               .select({
-                credentialSetId: schema.credentialSetMember.credentialSetId,
+                credentialSetId: schema.credentialSetMembership.credentialSetId,
                 providerId: schema.credentialSet.providerId,
               })
-              .from(schema.credentialSetMember)
+              .from(schema.credentialSetMembership)
               .innerJoin(
                 schema.credentialSet,
-                eq(schema.credentialSetMember.credentialSetId, schema.credentialSet.id)
+                eq(schema.credentialSetMembership.credentialSetId, schema.credentialSet.id)
               )
               .where(
                 and(
-                  eq(schema.credentialSetMember.userId, account.userId),
-                  eq(schema.credentialSetMember.status, 'active')
+                  eq(schema.credentialSetMembership.userId, account.userId),
+                  eq(schema.credentialSetMembership.status, 'active')
                 )
               )
 
@@ -296,18 +296,18 @@ export const auth = betterAuth({
           const requestId = crypto.randomUUID().slice(0, 8)
           const userMemberships = await db
             .select({
-              credentialSetId: schema.credentialSetMember.credentialSetId,
+              credentialSetId: schema.credentialSetMembership.credentialSetId,
               providerId: schema.credentialSet.providerId,
             })
-            .from(schema.credentialSetMember)
+            .from(schema.credentialSetMembership)
             .innerJoin(
               schema.credentialSet,
-              eq(schema.credentialSetMember.credentialSetId, schema.credentialSet.id)
+              eq(schema.credentialSetMembership.credentialSetId, schema.credentialSet.id)
             )
             .where(
               and(
-                eq(schema.credentialSetMember.userId, account.userId),
-                eq(schema.credentialSetMember.status, 'active')
+                eq(schema.credentialSetMembership.userId, account.userId),
+                eq(schema.credentialSetMembership.status, 'active')
               )
             )
 

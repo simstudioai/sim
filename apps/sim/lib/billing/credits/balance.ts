@@ -9,7 +9,7 @@ const logger = createLogger('CreditBalance')
 
 export interface CreditBalanceInfo {
   balance: number
-  entityType: 'user' | 'organization'
+  entityKind: 'user' | 'organization'
   entityId: string
 }
 
@@ -25,7 +25,7 @@ export async function getCreditBalance(userId: string): Promise<CreditBalanceInf
 
     return {
       balance: orgRows.length > 0 ? toNumber(toDecimal(orgRows[0].creditBalance)) : 0,
-      entityType: 'organization',
+      entityKind: 'organization',
       entityId: subscription.referenceId,
     }
   }
@@ -38,17 +38,17 @@ export async function getCreditBalance(userId: string): Promise<CreditBalanceInf
 
   return {
     balance: userRows.length > 0 ? toNumber(toDecimal(userRows[0].creditBalance)) : 0,
-    entityType: 'user',
+    entityKind: 'user',
     entityId: userId,
   }
 }
 
 export async function addCredits(
-  entityType: 'user' | 'organization',
+  entityKind: 'user' | 'organization',
   entityId: string,
   amount: number
 ): Promise<void> {
-  if (entityType === 'organization') {
+  if (entityKind === 'organization') {
     await db
       .update(organization)
       .set({ creditBalance: sql`${organization.creditBalance} + ${amount}` })
@@ -66,11 +66,11 @@ export async function addCredits(
 }
 
 export async function removeCredits(
-  entityType: 'user' | 'organization',
+  entityKind: 'user' | 'organization',
   entityId: string,
   amount: number
 ): Promise<void> {
-  if (entityType === 'organization') {
+  if (entityKind === 'organization') {
     await db
       .update(organization)
       .set({ creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${amount})` })
@@ -169,7 +169,7 @@ export async function deductFromCredits(userId: string, cost: number): Promise<D
       userId,
       creditsUsed,
       overflow,
-      entityType: isTeamOrEnterprise ? 'organization' : 'user',
+      entityKind: isTeamOrEnterprise ? 'organization' : 'user',
     })
   }
 

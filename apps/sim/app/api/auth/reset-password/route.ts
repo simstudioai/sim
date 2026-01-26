@@ -8,9 +8,9 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('PasswordResetAPI')
 
 const resetPasswordSchema = z.object({
-  token: z.string({ required_error: 'Token is required' }).min(1, 'Token is required'),
+  token: z.string().min(1, 'Token is required'),
   newPassword: z
-    .string({ required_error: 'Password is required' })
+    .string()
     .min(8, 'Password must be at least 8 characters long')
     .max(100, 'Password must not exceed 100 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
@@ -25,13 +25,23 @@ export async function POST(request: NextRequest) {
     const validationResult = resetPasswordSchema.safeParse(body)
 
     if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0]
+      const issues =
+        validationResult.error.issues ??
+        (validationResult.error as { errors?: z.ZodIssue[] }).errors ??
+        []
+      const firstError = issues[0]
       const errorMessage = firstError?.message || 'Invalid request data'
+      const normalizedMessage =
+        firstError?.code === 'invalid_type' && firstError.path?.[0] === 'token'
+          ? 'Token is required'
+          : firstError?.code === 'invalid_type' && firstError.path?.[0] === 'newPassword'
+            ? 'Password is required'
+            : errorMessage
 
       logger.warn('Invalid password reset request data', {
         errors: validationResult.error.format(),
       })
-      return NextResponse.json({ message: errorMessage }, { status: 400 })
+      return NextResponse.json({ message: normalizedMessage }, { status: 400 })
     }
 
     const { token, newPassword } = validationResult.data
