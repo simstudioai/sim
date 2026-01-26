@@ -8,6 +8,7 @@ import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
+import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   createEnvVarPattern,
   createWorkflowVariablePattern,
@@ -692,15 +693,7 @@ export async function POST(req: NextRequest) {
         prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
         prologueLineCount++
         for (const [k, v] of Object.entries(contextVariables)) {
-          if (v === undefined) {
-            prologue += `const ${k} = undefined;\n`
-          } else if (v === null) {
-            prologue += `const ${k} = null;\n`
-          } else if (typeof v === 'boolean' || typeof v === 'number') {
-            prologue += `const ${k} = ${v};\n`
-          } else {
-            prologue += `const ${k} = JSON.parse(${JSON.stringify(JSON.stringify(v))});\n`
-          }
+          prologue += `const ${k} = ${formatLiteralForCode(v, 'javascript')};\n`
           prologueLineCount++
         }
 
@@ -771,25 +764,7 @@ export async function POST(req: NextRequest) {
       prologue += `environmentVariables = json.loads(${JSON.stringify(JSON.stringify(envVars))})\n`
       prologueLineCount++
       for (const [k, v] of Object.entries(contextVariables)) {
-        if (v === undefined) {
-          prologue += `${k} = None\n`
-        } else if (v === null) {
-          prologue += `${k} = None\n`
-        } else if (typeof v === 'boolean') {
-          prologue += `${k} = ${v ? 'True' : 'False'}\n`
-        } else if (typeof v === 'number') {
-          if (Number.isNaN(v)) {
-            prologue += `${k} = float('nan')\n`
-          } else if (v === Number.POSITIVE_INFINITY) {
-            prologue += `${k} = float('inf')\n`
-          } else if (v === Number.NEGATIVE_INFINITY) {
-            prologue += `${k} = float('-inf')\n`
-          } else {
-            prologue += `${k} = ${v}\n`
-          }
-        } else {
-          prologue += `${k} = json.loads(${JSON.stringify(JSON.stringify(v))})\n`
-        }
+        prologue += `${k} = ${formatLiteralForCode(v, 'python')}\n`
         prologueLineCount++
       }
       const wrapped = [

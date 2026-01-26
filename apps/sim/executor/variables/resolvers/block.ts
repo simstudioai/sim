@@ -10,6 +10,7 @@ import {
   type OutputSchema,
   resolveBlockReference,
 } from '@/executor/utils/block-reference'
+import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   navigatePath,
   type ResolutionContext,
@@ -207,23 +208,6 @@ export class BlockResolver implements Resolver {
   }
 
   private formatValueForCodeContext(value: any, language?: string): string {
-    const isPython = language === 'python'
-
-    if (typeof value === 'string') {
-      return JSON.stringify(value)
-    }
-    if (typeof value === 'object' && value !== null) {
-      return JSON.stringify(value)
-    }
-    if (value === undefined) {
-      return isPython ? 'None' : 'undefined'
-    }
-    if (value === null) {
-      return isPython ? 'None' : 'null'
-    }
-    if (typeof value === 'boolean') {
-      return isPython ? (value ? 'True' : 'False') : String(value)
-    }
-    return String(value)
+    return formatLiteralForCode(value, language === 'python' ? 'python' : 'javascript')
   }
 }
