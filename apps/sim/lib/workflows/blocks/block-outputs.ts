@@ -637,7 +637,7 @@ export function getToolOutputPaths(
         continue
       }
 
-      const condition = (blockOutput as any).condition as OutputCondition | undefined
+      const condition = 'condition' in blockOutput ? blockOutput.condition : undefined
       if (condition) {
         if (evaluateOutputCondition(condition, subBlocks)) {
           filteredOutputs[key] = value
