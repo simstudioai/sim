@@ -194,12 +194,37 @@ export async function loadWorkflowFromNormalizedTables(
   workflowId: string
 ): Promise<NormalizedWorkflowData | null> {
   try {
-    // Load all components in parallel
-    const [blocks, edges, subflows] = await Promise.all([
-      db.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
-      db.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
-      db.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
-    ])
+    // Load all components
+    // Note: For IRIS with iris-pgwire, we run queries sequentially to avoid connection issues
+    // For Postgres, parallel queries would be faster but sequential is safer for IRIS
+    const IS_IRIS = process.env.DB_TYPE === 'iris'
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let blocks: any[]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let edges: any[]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let subflows: any[]
+
+    if (IS_IRIS) {
+      // Sequential queries for IRIS to avoid overwhelming iris-pgwire
+      blocks = await db
+        .select()
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, workflowId))
+      edges = await db.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId))
+      subflows = await db
+        .select()
+        .from(workflowSubflows)
+        .where(eq(workflowSubflows.workflowId, workflowId))
+    } else {
+      // Parallel queries for Postgres (faster)
+      ;[blocks, edges, subflows] = await Promise.all([
+        db.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
+        db.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
+        db.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+      ])
+    }
 
     // If no blocks found, assume this workflow hasn't been migrated yet
     if (blocks.length === 0) {
@@ -324,6 +349,136 @@ export async function loadWorkflowFromNormalizedTables(
 }
 
 /**
+ * Save workflow to normalized tables without using a transaction
+ * This is used for IRIS which doesn't support transactions properly via iris-pgwire
+ */
+async function saveWorkflowToNormalizedTablesWithoutTransaction(
+  workflowId: string,
+  state: WorkflowState,
+  blockRecords: Record<string, BlockState>,
+  canonicalLoops: Record<string, Loop>,
+  canonicalParallels: Record<string, Parallel>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Snapshot existing webhooks before deletion to preserve them through the cycle
+    let existingWebhooks: WebhookRecord[] = []
+    try {
+      existingWebhooks = await db.select().from(webhook).where(eq(webhook.workflowId, workflowId))
+    } catch (webhookError) {
+      logger.debug('Could not load webhooks before save, skipping preservation', {
+        error: webhookError instanceof Error ? webhookError.message : String(webhookError),
+      })
+    }
+
+    // Clear existing data for this workflow (sequentially for IRIS stability)
+    await db.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
+    await db.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId))
+    await db.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId))
+
+    // Insert blocks one at a time (IRIS doesn't support batch inserts via pgwire)
+    for (const block of Object.values(state.blocks)) {
+      logger.debug(`[IRIS] Inserting block ${block.id} for workflow ${workflowId}`)
+      try {
+        await db.insert(workflowBlocks).values({
+          id: block.id,
+          workflowId: workflowId,
+          type: block.type,
+          name: block.name || '',
+          positionX: String(block.position?.x || 0),
+          positionY: String(block.position?.y || 0),
+          enabled: block.enabled ?? true,
+          horizontalHandles: block.horizontalHandles ?? true,
+          advancedMode: block.advancedMode ?? false,
+          triggerMode: block.triggerMode ?? false,
+          height: String(block.height || 0),
+          subBlocks: block.subBlocks || {},
+          outputs: block.outputs || {},
+          data: block.data || {},
+        })
+        logger.debug(`[IRIS] Successfully inserted block ${block.id}`)
+      } catch (blockError) {
+        logger.error(`[IRIS] Failed to insert block ${block.id}:`, blockError)
+        throw blockError
+      }
+    }
+
+    // Insert edges one at a time
+    for (const edge of state.edges) {
+      await db.insert(workflowEdges).values({
+        id: edge.id,
+        workflowId: workflowId,
+        sourceBlockId: edge.source,
+        targetBlockId: edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        targetHandle: edge.targetHandle || null,
+      })
+    }
+
+    // Insert subflows one at a time
+    for (const loop of Object.values(canonicalLoops)) {
+      await db.insert(workflowSubflows).values({
+        id: loop.id,
+        workflowId: workflowId,
+        type: SUBFLOW_TYPES.LOOP,
+        config: loop,
+      })
+    }
+
+    for (const parallel of Object.values(canonicalParallels)) {
+      await db.insert(workflowSubflows).values({
+        id: parallel.id,
+        workflowId: workflowId,
+        type: SUBFLOW_TYPES.PARALLEL,
+        config: parallel,
+      })
+    }
+
+    // Re-insert preserved webhooks if any exist and their blocks still exist
+    if (existingWebhooks.length > 0) {
+      try {
+        const webhookInserts = existingWebhooks
+          .filter((wh) => !!state.blocks?.[wh.blockId ?? ''])
+          .map((wh) => ({
+            id: wh.id,
+            workflowId: wh.workflowId,
+            blockId: wh.blockId,
+            path: wh.path,
+            provider: wh.provider,
+            providerConfig: wh.providerConfig,
+            credentialSetId: wh.credentialSetId,
+            isActive: wh.isActive,
+            createdAt: wh.createdAt,
+            updatedAt: new Date(),
+          }))
+
+        if (webhookInserts.length > 0) {
+          await db.insert(webhook).values(webhookInserts)
+          logger.debug(`Preserved ${webhookInserts.length} webhook(s) through workflow save`, {
+            workflowId,
+          })
+        }
+      } catch (webhookInsertError) {
+        logger.warn('Could not preserve webhooks during save', {
+          error:
+            webhookInsertError instanceof Error
+              ? webhookInsertError.message
+              : String(webhookInsertError),
+          workflowId,
+        })
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    logger.error(`Error saving workflow ${workflowId} to normalized tables (no-tx):`, error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
  * Save workflow state to normalized tables
  */
 export async function saveWorkflowToNormalizedTables(
@@ -335,7 +490,21 @@ export async function saveWorkflowToNormalizedTables(
     const canonicalLoops = generateLoopBlocks(blockRecords)
     const canonicalParallels = generateParallelBlocks(blockRecords)
 
-    // Start a transaction
+    const IS_IRIS = process.env.DB_TYPE === 'iris'
+
+    // For IRIS, we can't use transactions (iris-pgwire doesn't support them properly)
+    // So we run operations sequentially without a transaction wrapper
+    if (IS_IRIS) {
+      return await saveWorkflowToNormalizedTablesWithoutTransaction(
+        workflowId,
+        state,
+        blockRecords,
+        canonicalLoops,
+        canonicalParallels
+      )
+    }
+
+    // For Postgres, use a transaction for atomicity
     await db.transaction(async (tx) => {
       // Snapshot existing webhooks before deletion to preserve them through the cycle
       let existingWebhooks: WebhookRecord[] = []

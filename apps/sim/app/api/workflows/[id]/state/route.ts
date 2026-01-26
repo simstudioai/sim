@@ -49,8 +49,8 @@ const BlockStateSchema = z.object({
   type: z.string(),
   name: z.string(),
   position: PositionSchema,
-  subBlocks: z.record(SubBlockStateSchema),
-  outputs: z.record(BlockOutputSchema),
+  subBlocks: z.record(z.string(), SubBlockStateSchema),
+  outputs: z.record(z.string(), BlockOutputSchema),
   enabled: z.boolean(),
   horizontalHandles: z.boolean().optional(),
   height: z.number().optional(),
@@ -67,12 +67,12 @@ const EdgeSchema = z.object({
   targetHandle: z.string().optional(),
   type: z.string().optional(),
   animated: z.boolean().optional(),
-  style: z.record(z.any()).optional(),
-  data: z.record(z.any()).optional(),
+  style: z.record(z.string(), z.any()).optional(),
+  data: z.record(z.string(), z.any()).optional(),
   label: z.string().optional(),
-  labelStyle: z.record(z.any()).optional(),
+  labelStyle: z.record(z.string(), z.any()).optional(),
   labelShowBg: z.boolean().optional(),
-  labelBgStyle: z.record(z.any()).optional(),
+  labelBgStyle: z.record(z.string(), z.any()).optional(),
   labelBgPadding: z.array(z.number()).optional(),
   labelBgBorderRadius: z.number().optional(),
   markerStart: z.string().optional(),
@@ -84,7 +84,7 @@ const LoopSchema = z.object({
   nodes: z.array(z.string()),
   iterations: z.number(),
   loopType: z.enum(['for', 'forEach', 'while', 'doWhile']),
-  forEachItems: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
+  forEachItems: z.union([z.array(z.any()), z.record(z.string(), z.any()), z.string()]).optional(),
   whileCondition: z.string().optional(),
   doWhileCondition: z.string().optional(),
 })
@@ -92,21 +92,21 @@ const LoopSchema = z.object({
 const ParallelSchema = z.object({
   id: z.string(),
   nodes: z.array(z.string()),
-  distribution: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
+  distribution: z.union([z.array(z.any()), z.record(z.string(), z.any()), z.string()]).optional(),
   count: z.number().optional(),
   parallelType: z.enum(['count', 'collection']).optional(),
 })
 
 const WorkflowStateSchema = z.object({
-  blocks: z.record(BlockStateSchema),
+  blocks: z.record(z.string(), BlockStateSchema),
   edges: z.array(EdgeSchema),
-  loops: z.record(LoopSchema).optional(),
-  parallels: z.record(ParallelSchema).optional(),
+  loops: z.record(z.string(), LoopSchema).optional(),
+  parallels: z.record(z.string(), ParallelSchema).optional(),
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
   deployedAt: z.coerce.date().optional(),
   variables: z.any().optional(), // Workflow variables
-  deploymentStatuses: z.record(z.any()).optional(), // Deployment status per environment
+  deploymentStatuses: z.record(z.string(), z.any()).optional(), // Deployment status per environment
   needsRedeployment: z.boolean().optional(), // Whether workflow needs redeployment
 })
 
@@ -130,7 +130,56 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const userId = session.user.id
 
     const body = await request.json()
-    const state = WorkflowStateSchema.parse(body)
+
+    // Debug: Log the incoming payload structure
+    logger.debug(
+      `[${requestId}] Incoming workflow state body`,
+      JSON.stringify({
+        hasBlocks: !!body.blocks,
+        blockIds: body.blocks ? Object.keys(body.blocks) : [],
+        hasEdges: !!body.edges,
+        edgeCount: body.edges?.length ?? 0,
+        hasLoops: !!body.loops,
+        hasParallels: !!body.parallels,
+      })
+    )
+
+    // Validate and log detailed errors
+    const parseResult = WorkflowStateSchema.safeParse(body)
+    if (!parseResult.success) {
+      const zodErrors = parseResult.error.issues
+      logger.error(
+        `[${requestId}] Zod validation failed`,
+        JSON.stringify(
+          zodErrors.map((e) => ({
+            path: e.path.join('.'),
+            code: e.code,
+            message: e.message,
+          }))
+        )
+      )
+      // Log the specific block that failed if it's a block validation error
+      for (const err of zodErrors) {
+        if (err.path[0] === 'blocks' && err.path[1]) {
+          const blockId = err.path[1] as string
+          const block = body.blocks?.[blockId]
+          logger.error(
+            `[${requestId}] Failed block data`,
+            JSON.stringify({
+              blockId,
+              blockType: block?.type,
+              blockName: block?.name,
+              hasSubBlocks: !!block?.subBlocks,
+              subBlockKeys: block?.subBlocks ? Object.keys(block.subBlocks) : [],
+              subBlockSample: block?.subBlocks ? Object.values(block.subBlocks)[0] : null,
+            })
+          )
+        }
+      }
+      throw parseResult.error
+    }
+
+    const state = parseResult.data
 
     // Fetch the workflow to check ownership/access
     const accessContext = await getWorkflowAccessContext(workflowId, userId)
@@ -284,7 +333,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid request body', details: error.errors },
+        { error: 'Invalid request body', details: error.issues },
         { status: 400 }
       )
     }

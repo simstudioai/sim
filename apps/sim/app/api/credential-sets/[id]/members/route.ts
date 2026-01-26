@@ -151,7 +151,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const [memberToRemove] = await db
       .select()
       .from(credentialSetMembership)
-      .where(and(eq(credentialSetMembership.id, memberId), eq(credentialSetMembership.credentialSetId, id)))
+      .where(
+        and(
+          eq(credentialSetMembership.id, memberId),
+          eq(credentialSetMembership.credentialSetId, id)
+        )
+      )
       .limit(1)
 
     if (!memberToRemove) {

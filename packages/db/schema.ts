@@ -13,7 +13,6 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
-  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -42,23 +41,108 @@ const indexableTextLong = (name: string, options?: any) =>
 
 /**
  * Helper for timestamp default now
+ * For IRIS: Use $defaultFn to compute at insert time (Drizzle-side)
+ * For Postgres: Use database-side default
  */
 const defaultNow = () => (IS_IRIS ? sql`CURRENT_TIMESTAMP` : sql`now()`)
 
 /**
+ * Helper to apply timestamp default - uses $defaultFn for IRIS, .default() for Postgres
+ * This ensures Drizzle computes the timestamp value for IRIS instead of relying on DB defaults
+ */
+const timestampWithDefault = (name: string) => {
+  const col = timestamp(name).notNull()
+  return IS_IRIS ? col.$defaultFn(() => new Date()) : col.default(sql`now()`)
+}
+
+const timestampWithDefaultNullable = (name: string) => {
+  const col = timestamp(name)
+  return IS_IRIS ? col.$defaultFn(() => new Date()) : col.default(sql`now()`)
+}
+
+/**
+ * Custom type for JSON columns with proper serialization for IRIS
+ * IRIS: text (with JSON string serialization)
+ * Postgres: json (native JSON)
+ */
+const irisJsonType = customType<{
+  data: any
+  driverData: string
+}>({
+  dataType() {
+    return 'text'
+  },
+  toDriver(value: any): string {
+    return JSON.stringify(value)
+  },
+  fromDriver(value: string): any {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value)
+      } catch {
+        return value
+      }
+    }
+    return value
+  },
+})
+
+const irisJsonbType = customType<{
+  data: any
+  driverData: string
+}>({
+  dataType() {
+    return 'text'
+  },
+  toDriver(value: any): string {
+    return JSON.stringify(value)
+  },
+  fromDriver(value: string): any {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value)
+      } catch {
+        return value
+      }
+    }
+    return value
+  },
+})
+
+/**
+ * Custom type for boolean columns with proper serialization for IRIS
+ * IRIS: smallint (with 0/1 serialization)
+ * Postgres: boolean (native boolean)
+ */
+const irisBooleanType = customType<{
+  data: boolean
+  driverData: number
+}>({
+  dataType() {
+    return 'smallint'
+  },
+  toDriver(value: boolean): number {
+    return value ? 1 : 0
+  },
+  fromDriver(value: number): boolean {
+    return value === 1
+  },
+})
+
+/**
  * Helper for JSON/JSONB columns
- * IRIS: text
+ * IRIS: text with JSON serialization
  * Postgres: json/jsonb
  */
-const jsonText = (name: string) => (IS_IRIS ? text(name) : json(name))
-const jsonbText = (name: string) => (IS_IRIS ? text(name) : jsonb(name))
+const jsonText = (name: string) => (IS_IRIS ? irisJsonType(name) : json(name))
+const jsonbText = (name: string) => (IS_IRIS ? irisJsonbType(name) : jsonb(name))
 
 /**
  * Helper for boolean columns
- * IRIS: smallint
+ * IRIS: smallint with 0/1 serialization
  * Postgres: boolean
  */
-const booleanType = (name: string) => (IS_IRIS ? smallint(name) : pgBoolean(name))
+const booleanType = (name: string) => (IS_IRIS ? irisBooleanType(name) : pgBoolean(name))
 
 /**
  * Helper for boolean default values
@@ -66,6 +150,15 @@ const booleanType = (name: string) => (IS_IRIS ? smallint(name) : pgBoolean(name
  * Postgres: true/false
  */
 const booleanDefault = (value: boolean) => (IS_IRIS ? (value ? 1 : 0) : value) as any
+
+/**
+ * Helper for boolean columns with defaults - uses $defaultFn for IRIS
+ * This ensures Drizzle computes the value for IRIS instead of relying on DB defaults
+ */
+const booleanWithDefault = (name: string, defaultValue: boolean) => {
+  const col = booleanType(name).notNull()
+  return IS_IRIS ? col.$defaultFn(() => defaultValue) : col.default(defaultValue)
+}
 
 /**
  * Helper for non-large text columns
@@ -113,8 +206,8 @@ export const user = pgTable('user', {
   email: indexableText('email').notNull().unique(),
   emailVerified: booleanType('email_verified').notNull(),
   image: text('image'),
-  createdAt: timestamp('created_at').notNull(),
-  updatedAt: timestamp('updated_at').notNull(),
+  createdAt: timestampWithDefault('created_at'),
+  updatedAt: timestampWithDefault('updated_at'),
   stripeCustomerId: indexableText('stripe_customer_id'),
   isSuperUser: booleanType('is_super_user').notNull().default(booleanDefault(false)),
 })
@@ -125,8 +218,8 @@ export const session = pgTable(
     id: indexableText('id').primaryKey(),
     expiresAt: timestamp('expires_at').notNull(),
     token: indexableTextLong('token').notNull().unique(),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
     ipAddress: indexableText('ip_address'),
     userAgent: text('user_agent'),
     userId: indexableText('user_id')
@@ -161,8 +254,8 @@ export const account = pgTable(
     refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
     scope: text('scope'),
     password: text('password'),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     userIdIdx: index('account_user_id_idx').on(table.userId),
@@ -185,8 +278,8 @@ export const verification = pgTable(
     identifier: indexableText('identifier').notNull(),
     value: indexableText('value').notNull(),
     expiresAt: timestamp('expires_at').notNull(),
-    createdAt: timestamp('created_at'),
-    updatedAt: timestamp('updated_at'),
+    createdAt: timestampWithDefaultNullable('created_at'),
+    updatedAt: timestampWithDefaultNullable('updated_at'),
   },
   (table) => ({
     identifierIdx: index('verification_identifier_idx').on(table.identifier),
@@ -209,8 +302,8 @@ export const workflowFolder = pgTable(
     color: shortText('color').default('#6B7280'),
     isExpanded: booleanType('is_expanded').notNull().default(booleanDefault(true)),
     sortOrder: integer('sort_order').notNull().default(0),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     userIdx: index('workflow_folder_user_idx').on(table.userId),
@@ -238,9 +331,9 @@ export const workflow = pgTable(
     name: text('name').notNull(),
     description: text('description'),
     color: text('color').notNull().default('#3972F6'),
-    lastSynced: timestamp('last_synced').notNull(),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
+    lastSynced: timestampWithDefault('last_synced'),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
     isDeployed: booleanType('is_deployed').notNull().default(booleanDefault(false)),
     deployedAt: timestamp('deployed_at'),
     runCount: integer('run_count').notNull().default(0),
@@ -268,19 +361,19 @@ export const workflowBlocks = pgTable(
     positionX: decimal('position_x').notNull(),
     positionY: decimal('position_y').notNull(),
 
-    enabled: booleanType('enabled').notNull().default(booleanDefault(true)),
-    horizontalHandles: booleanType('horizontal_handles').notNull().default(booleanDefault(true)),
-    isWide: booleanType('is_wide').notNull().default(booleanDefault(false)),
-    advancedMode: booleanType('advanced_mode').notNull().default(booleanDefault(false)),
-    triggerMode: booleanType('trigger_mode').notNull().default(booleanDefault(false)),
+    enabled: booleanWithDefault('enabled', true),
+    horizontalHandles: booleanWithDefault('horizontal_handles', true),
+    isWide: booleanWithDefault('is_wide', false),
+    advancedMode: booleanWithDefault('advanced_mode', false),
+    triggerMode: booleanWithDefault('trigger_mode', false),
     height: decimal('height').notNull().default('0'),
 
     subBlocks: jsonbText('sub_blocks').notNull().default(jsonDefault('{}')),
     outputs: jsonbText('outputs').notNull().default(jsonDefault('{}')),
     data: jsonbText('data').default(jsonDefault('{}')),
 
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
@@ -305,7 +398,7 @@ export const workflowEdges = pgTable(
     sourceHandle: indexableText('source_handle'),
     targetHandle: indexableText('target_handle'),
 
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     workflowIdIdx: index('workflow_edges_workflow_id_idx').on(table.workflowId),
@@ -331,8 +424,8 @@ export const workflowSubflows = pgTable(
     type: indexableText('type').notNull(), // 'loop' or 'parallel'
     config: jsonbText('config').notNull().default(jsonDefault('{}')),
 
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workflowIdIdx: index('workflow_subflows_workflow_id_idx').on(table.workflowId),
@@ -344,8 +437,8 @@ export const waitlist = pgTable('waitlist', {
   id: indexableText('id').primaryKey(),
   email: indexableText('email').notNull().unique(),
   status: indexableText('status').notNull().default('pending'), // pending, approved, rejected
-  createdAt: timestamp('created_at').notNull().default(defaultNow()),
-  updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+  createdAt: timestampWithDefault('created_at'),
+  updatedAt: timestampWithDefault('updated_at'),
 })
 
 export const workflowExecutionSnapshots = pgTable(
@@ -357,7 +450,7 @@ export const workflowExecutionSnapshots = pgTable(
       .references(() => workflow.id, { onDelete: 'cascade' }),
     stateHash: indexableText('state_hash').notNull(),
     stateData: jsonbText('state_data').notNull(),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     workflowIdIdx: index('workflow_snapshots_workflow_id_idx').on(table.workflowId),
@@ -400,7 +493,7 @@ export const workflowExecutionLogs = pgTable(
     executionData: jsonbText('execution_data').notNull().default(jsonDefault('{}')),
     cost: jsonbText('cost'),
     files: jsonbText('files'), // File metadata for execution files
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     workflowIdIdx: index('workflow_execution_logs_workflow_id_idx').on(table.workflowId),
@@ -443,8 +536,8 @@ export const pausedExecutions = pgTable(
     metadata: jsonbText('metadata')
       .notNull()
       .default(IS_IRIS ? sql`'{}'` : sql`'{}'::jsonb`),
-    pausedAt: timestamp('paused_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    pausedAt: timestampWithDefault('paused_at'),
+    updatedAt: timestampWithDefault('updated_at'),
     expiresAt: timestamp('expires_at'),
   },
   (table) => ({
@@ -466,7 +559,7 @@ export const resumeQueue = pgTable(
     contextId: indexableText('context_id').notNull(),
     resumeInput: jsonbText('resume_input'),
     status: indexableText('status').notNull().default('pending'),
-    queuedAt: timestamp('queued_at').notNull().default(defaultNow()),
+    queuedAt: timestampWithDefault('queued_at'),
     claimedAt: timestamp('claimed_at'),
     completedAt: timestamp('completed_at'),
     failureReason: text('failure_reason'),
@@ -488,7 +581,7 @@ export const environment = pgTable('environment', {
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One environment per user
   variables: jsonText('variables').notNull(),
-  updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+  updatedAt: timestampWithDefault('updated_at'),
 })
 
 export const workspaceEnvironment = pgTable(
@@ -499,8 +592,8 @@ export const workspaceEnvironment = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     variables: jsonText('variables').notNull().default(jsonDefault('{}')),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workspaceUnique: uniqueIndex('workspace_environment_workspace_unique').on(table.workspaceId),
@@ -517,8 +610,8 @@ export const workspaceBYOKKeys = pgTable(
     providerId: indexableText('provider_id').notNull(),
     encryptedApiKey: text('encrypted_api_key').notNull(),
     createdBy: indexableText('created_by').references(() => user.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workspaceProviderUnique: uniqueIndex('workspace_byok_provider_unique').on(
@@ -575,7 +668,7 @@ export const settings = pgTable('settings', {
     .notNull()
     .default(jsonDefault('[]')),
 
-  updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+  updatedAt: timestampWithDefault('updated_at'),
 })
 
 export const workflowSchedule = pgTable(
@@ -595,8 +688,8 @@ export const workflowSchedule = pgTable(
     failedCount: integer('failed_count').notNull().default(0), // Track consecutive failures
     status: indexableText('status').notNull().default('active'), // 'active' or 'disabled'
     lastFailedAt: timestamp('last_failed_at'), // When the schedule last failed
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => {
     return {
@@ -625,8 +718,8 @@ export const webhook = pgTable(
     credentialSetId: indexableText('credential_set_id').references(() => credentialSet.id, {
       onDelete: 'set null',
     }), // For credential set webhooks - enables efficient queries
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => {
     return {
@@ -688,8 +781,8 @@ export const workspaceNotificationSubscription = pgTable(
     createdBy: indexableText('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workspaceIdIdx: index('workspace_notification_workspace_id_idx').on(table.workspaceId),
@@ -716,8 +809,8 @@ export const workspaceNotificationDelivery = pgTable(
     responseStatus: integer('response_status'),
     responseBody: text('response_body'),
     errorMessage: text('error_message'),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     subscriptionIdIdx: index('workspace_notification_delivery_subscription_id_idx').on(
@@ -746,8 +839,8 @@ export const apiKey = pgTable(
     key: indexableTextLong('key').notNull().unique(),
     type: indexableText('type').notNull().default('personal'),
     lastUsed: timestamp('last_used'),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
     expiresAt: timestamp('expires_at'),
   },
   (table) => ({
@@ -783,7 +876,7 @@ export const userStats = pgTable('user_stats', {
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $20 for free plan, null for team/enterprise
-  usageLimitUpdatedAt: timestamp('usage_limit_updated_at').default(defaultNow()),
+  usageLimitUpdatedAt: timestampWithDefaultNullable('usage_limit_updated_at'),
   // Billing period tracking
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
@@ -800,7 +893,7 @@ export const userStats = pgTable('user_stats', {
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   // Storage tracking (for free/pro users)
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
-  lastActive: timestamp('last_active').notNull().default(defaultNow()),
+  lastActive: timestampWithDefault('last_active'),
   billingBlocked: booleanType('billing_blocked').notNull().default(booleanDefault(false)),
   billingBlockedReason: enumColumn('billing_blocked_reason', billingBlockedReasonEnum),
 })
@@ -816,8 +909,8 @@ export const customTools = pgTable(
     title: indexableText('title').notNull(),
     schema: jsonText('schema').notNull(),
     code: text('code').notNull(),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workspaceIdIdx: index('custom_tools_workspace_id_idx').on(table.workspaceId),
@@ -865,7 +958,7 @@ export const rateLimitBucket = pgTable('rate_limit_bucket', {
   key: indexableTextLong('key').primaryKey(),
   tokens: decimal('tokens').notNull(),
   lastRefillAt: timestamp('last_refill_at').notNull(),
-  updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+  updatedAt: timestampWithDefault('updated_at'),
 })
 
 export const chat = pgTable(
@@ -892,8 +985,8 @@ export const chat = pgTable(
     // Output configuration
     outputConfigs: jsonText('output_configs').default('[]'), // Array of {blockId, path} objects
 
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => {
     return {
@@ -930,8 +1023,8 @@ export const form = pgTable(
     // Branding
     showBranding: booleanType('show_branding').notNull().default(booleanDefault(true)),
 
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     identifierIdx: uniqueIndex('form_identifier_idx').on(table.identifier),
@@ -950,8 +1043,8 @@ export const organization = pgTable('organization', {
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   creditBalance: decimal('credit_balance').notNull().default('0'),
-  createdAt: timestamp('created_at').default(defaultNow()).notNull(),
-  updatedAt: timestamp('updated_at').default(defaultNow()).notNull(),
+  createdAt: timestampWithDefault('created_at'),
+  updatedAt: timestampWithDefault('updated_at'),
 })
 
 export const member = pgTable(
@@ -965,7 +1058,7 @@ export const member = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
     role: indexableText('role').notNull(), // 'admin' or 'member' - team-level permissions only
-    createdAt: timestamp('created_at').default(defaultNow()).notNull(),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     userIdUnique: uniqueIndex('member_user_id_unique').on(table.userId), // Users can only belong to one org
@@ -987,7 +1080,7 @@ export const invitation = pgTable(
     role: indexableText('role').notNull(),
     status: indexableText('status').notNull(),
     expiresAt: timestamp('expires_at').notNull(),
-    createdAt: timestamp('created_at').default(defaultNow()).notNull(),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     emailIdx: index('invitation_email_idx').on(table.email),
@@ -1007,8 +1100,8 @@ export const workspace = pgTable('workspace', {
   allowPersonalApiKeys: booleanType('allow_personal_api_keys')
     .notNull()
     .default(booleanDefault(true)),
-  createdAt: timestamp('created_at').notNull().default(defaultNow()),
-  updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+  createdAt: timestampWithDefault('created_at'),
+  updatedAt: timestampWithDefault('updated_at'),
 })
 
 export const workspaceFile = pgTable(
@@ -1025,7 +1118,7 @@ export const workspaceFile = pgTable(
     uploadedBy: indexableText('uploaded_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    uploadedAt: timestamp('uploaded_at').notNull().default(defaultNow()),
+    uploadedAt: timestampWithDefault('uploaded_at'),
   },
   (table) => ({
     workspaceIdIdx: index('workspace_file_workspace_id_idx').on(table.workspaceId),
@@ -1048,7 +1141,7 @@ export const workspaceFiles = pgTable(
     originalName: text('original_name').notNull(),
     contentType: indexableText('content_type').notNull(),
     size: integer('size').notNull(),
-    uploadedAt: timestamp('uploaded_at').notNull().default(defaultNow()),
+    uploadedAt: timestampWithDefault('uploaded_at'),
   },
   (table) => ({
     keyIdx: index('workspace_files_key_idx').on(table.key),
@@ -1084,8 +1177,8 @@ export const workspaceInvitation = pgTable('workspace_invitation', {
   permissions: enumColumn('permissions', permissionKindEnum).notNull().default('admin'),
   orgInvitationId: indexableText('org_invitation_id'),
   expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at').notNull().default(defaultNow()),
-  updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+  createdAt: timestampWithDefault('created_at'),
+  updatedAt: timestampWithDefault('updated_at'),
 })
 
 export const permissions = pgTable(
@@ -1098,8 +1191,8 @@ export const permissions = pgTable(
     entityKind: indexableText('entity_kind').notNull(), // 'workspace', 'workflow', 'organization', etc.
     entityId: indexableText('entity_id').notNull(), // ID of the workspace, workflow, etc.
     permissionKind: enumColumn('permission_kind', permissionKindEnum).notNull(), // Use enum instead of text
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     // Primary access pattern - get all permissions for a user
@@ -1143,8 +1236,8 @@ export const memory = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     key: indexableTextLong('key').notNull(),
     data: jsonbText('data').notNull(),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
     deletedAt: timestamp('deleted_at'),
   },
   (table) => {
@@ -1186,8 +1279,8 @@ export const knowledgeBase = pgTable(
     deletedAt: timestamp('deleted_at'),
 
     // Metadata and timestamps
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     // Primary access patterns
@@ -1253,7 +1346,7 @@ export const document = pgTable(
     boolean3: booleanType('boolean3'),
 
     // Timestamps
-    uploadedAt: timestamp('uploaded_at').notNull().default(defaultNow()),
+    uploadedAt: timestampWithDefault('uploaded_at'),
   },
   (table) => ({
     // Primary access pattern - filter by knowledge base
@@ -1301,8 +1394,8 @@ export const knowledgeBaseTagDefinitions = pgTable(
     }).notNull(),
     displayName: indexableText('display_name').notNull(),
     fieldType: indexableText('field_type').notNull().default('text'), // 'text', future: 'date', 'number', 'range'
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     // Ensure unique tag slot per knowledge base
@@ -1378,8 +1471,8 @@ export const embedding = pgTable(
     ),
 
     // Timestamps
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     // Primary vector search pattern
@@ -1503,12 +1596,21 @@ export const copilotChats = pgTable(
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
     title: text('title'),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    messages: jsonbText('messages').notNull().default(jsonDefault('[]')),
+    model: indexableText('model').notNull().default('claude-3-7-sonnet-latest'),
+    conversationId: indexableText('conversation_id'),
+    previewYaml: text('preview_yaml'),
+    planArtifact: text('plan_artifact'),
+    config: jsonbText('config'),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
+    userWorkflowIdx: index('copilot_chats_user_workflow_idx').on(table.userId, table.workflowId),
+    createdAtIdx: index('copilot_chats_created_at_idx').on(table.createdAt),
+    updatedAtIdx: index('copilot_chats_updated_at_idx').on(table.updatedAt),
   })
 )
 
@@ -1523,7 +1625,7 @@ export const copilotMessages = pgTable(
     content: text('content').notNull(),
     diff: text('diff'),
     metadata: jsonbText('metadata'),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     chatIdIdx: index('copilot_messages_chat_id_idx').on(table.chatId),
@@ -1542,7 +1644,7 @@ export const workflowCheckpoints = pgTable(
       .references(() => workflow.id, { onDelete: 'cascade' }),
     name: text('name'),
     data: jsonbText('data').notNull(), // Full workflow definition at checkpoint
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     workflowIdIdx: index('workflow_checkpoints_workflow_id_idx').on(table.workflowId),
@@ -1564,8 +1666,8 @@ export const templates = pgTable(
     description: text('description'),
     color: indexableText('color').notNull().default('#3972F6'),
     useCount: integer('use_count').notNull().default(0),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     categoryIdx: index('templates_category_idx').on(table.category),
@@ -1583,7 +1685,7 @@ export const templateStars = pgTable(
     templateId: indexableText('template_id')
       .notNull()
       .references(() => templates.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     userIdIdx: index('template_stars_user_id_idx').on(table.userId),
@@ -1603,7 +1705,7 @@ export const copilotFeedback = pgTable(
     rating: integer('rating').notNull(), // 1 for positive, -1 for negative
     comment: text('feedback_text'),
     metadata: jsonbText('metadata'),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     userIdIdx: index('copilot_feedback_user_id_idx').on(table.userId),
@@ -1622,7 +1724,7 @@ export const workflowDeploymentVersion = pgTable(
     definition: jsonbText('definition').notNull(),
     description: text('description'),
     deployedBy: indexableText('deployed_by').references(() => user.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     workflowIdIdx: index('workflow_deployment_workflow_id_idx').on(table.workflowId),
@@ -1639,7 +1741,7 @@ export const idempotencyKey = pgTable(
     key: indexableTextLong('key').notNull(),
     namespace: indexableText('namespace').notNull().default('default'),
     result: jsonText('result').notNull(),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
     expiresAt: timestamp('expires_at').notNull(),
   },
   (table) => ({
@@ -1655,18 +1757,48 @@ export const mcpServers = pgTable(
     workspaceId: indexableText('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
+
+    // Track who created the server, but workspace owns it
+    createdBy: indexableText('created_by').references(() => user.id, { onDelete: 'set null' }),
+
     name: text('name').notNull(),
-    url: indexableTextLong('url').notNull(),
-    icon: text('icon'),
     description: text('description'),
-    status: indexableText('status').notNull().default('active'),
-    config: jsonbText('config').default(jsonDefault('{}')),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+
+    transport: indexableText('transport').notNull(),
+    url: text('url'),
+
+    headers: jsonText('headers').default(jsonDefault('{}')),
+    timeout: integer('timeout').default(30000),
+    retries: integer('retries').default(3),
+
+    enabled: booleanWithDefault('enabled', true),
+    lastConnected: timestamp('last_connected'),
+    connectionStatus: indexableText('connection_status').default('disconnected'),
+    lastError: text('last_error'),
+
+    statusConfig: jsonbText('status_config').default(jsonDefault('{}')),
+
+    toolCount: integer('tool_count').default(0),
+    lastToolsRefresh: timestamp('last_tools_refresh'),
+    totalRequests: integer('total_requests').default(0),
+    lastUsed: timestamp('last_used'),
+
+    deletedAt: timestamp('deleted_at'),
+
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
-    workspaceIdIdx: index('mcp_servers_workspace_id_idx').on(table.workspaceId),
-    statusIdx: index('mcp_servers_status_idx').on(table.status),
+    // Primary access pattern - active servers by workspace
+    workspaceEnabledIdx: index('mcp_servers_workspace_enabled_idx').on(
+      table.workspaceId,
+      table.enabled
+    ),
+    // Soft delete pattern - workspace + not deleted
+    workspaceDeletedIdx: index('mcp_servers_workspace_deleted_idx').on(
+      table.workspaceId,
+      table.deletedAt
+    ),
   })
 )
 
@@ -1682,8 +1814,8 @@ export const ssoProvider = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     providerId: indexableText('provider_id').notNull(),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     issuerIdx: index('sso_provider_issuer_idx').on(table.issuer),
@@ -1708,8 +1840,8 @@ export const workflowMcpServer = pgTable(
     baseUrl: indexableTextLong('base_url').notNull(),
     apiKey: text('api_key'),
     status: indexableText('status').notNull().default('active'),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workspaceIdIdx: index('workflow_mcp_server_workspace_id_idx').on(table.workspaceId),
@@ -1731,8 +1863,8 @@ export const workflowMcpTool = pgTable(
     description: text('description'),
     inputSchema: jsonbText('input_schema'),
     isEnabled: booleanType('is_enabled').notNull().default(booleanDefault(true)),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     serverIdIdx: index('workflow_mcp_tool_server_id_idx').on(table.serverId),
@@ -1760,8 +1892,8 @@ export const a2aAgent = pgTable(
     endpointUrl: indexableTextLong('endpoint_url').notNull(),
     authToken: text('api_key'),
     status: indexableText('status').notNull().default('active'),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workspaceIdIdx: index('a2a_agent_workspace_id_idx').on(table.workspaceId),
@@ -1783,8 +1915,8 @@ export const credentialSet = pgTable(
     config: jsonbText('config').notNull(),
     encryptedCredentials: text('encrypted_credentials'),
     isActive: booleanType('is_active').notNull().default(booleanDefault(true)),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workspaceIdIdx: index('credential_set_workspace_id_idx').on(table.workspaceId),
@@ -1804,8 +1936,8 @@ export const credentialSetMembership = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     role: indexableText('role').notNull().default('member'), // 'owner', 'admin', 'member'
     status: indexableText('status').notNull().default('active'), // 'active', 'pending'
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     credentialSetIdIdx: index('credential_set_membership_set_id_idx').on(table.credentialSetId),
@@ -1832,8 +1964,8 @@ export const credentialSetInvitation = pgTable(
     status: indexableText('status').notNull().default('pending'),
     token: indexableTextLong('token').notNull().unique(),
     expiresAt: timestamp('expires_at').notNull(),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     credentialSetIdIdx: index('credential_set_invitation_set_id_idx').on(table.credentialSetId),
@@ -1852,8 +1984,8 @@ export const permissionGroup = pgTable(
     description: text('description'),
     permissions: jsonbText('permissions').notNull().default('[]'), // Array of permission strings or objects
     isActive: booleanType('is_active').notNull().default(booleanDefault(true)),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workspaceIdIdx: index('permission_group_workspace_id_idx').on(table.workspaceId),
@@ -1870,7 +2002,7 @@ export const permissionGroupMember = pgTable(
     userId: indexableText('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
   },
   (table) => ({
     groupIdIdx: index('permission_group_member_group_id_idx').on(table.groupId),
@@ -1896,8 +2028,8 @@ export const a2aTask = pgTable(
     error: text('error'),
     startedAt: timestamp('started_at'),
     completedAt: timestamp('completed_at'),
-    createdAt: timestamp('created_at').notNull().default(defaultNow()),
-    updatedAt: timestamp('updated_at').notNull().default(defaultNow()),
+    createdAt: timestampWithDefault('created_at'),
+    updatedAt: timestampWithDefault('updated_at'),
   },
   (table) => ({
     workspaceIdIdx: index('a2a_task_workspace_id_idx').on(table.workspaceId),

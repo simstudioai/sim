@@ -2,8 +2,8 @@ import { randomUUID } from 'crypto'
 import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {
-  permissions,
   type permissionKindEnum,
+  permissions,
   user,
   type WorkspaceInvitationStatus,
   workspace,

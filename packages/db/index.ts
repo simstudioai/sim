@@ -9,10 +9,16 @@ if (!connectionString) {
   throw new Error('Missing DATABASE_URL environment variable')
 }
 
+console.log('[DB Init] DATABASE_URL:', connectionString.replace(/:([^@:]+)@/, ':***@'))
+console.log('[DB Init] DB_TYPE:', process.env.DB_TYPE)
+
 export const DB_DEFAULT_SCHEMA = process.env.DB_DEFAULT_SCHEMA || 'SQLUser'
 export const DB_METADATA_SCHEMA = process.env.DB_METADATA_SCHEMA || 'drizzle'
 
-const poolMax = Number.parseInt(process.env.DATABASE_POOL_MAX ?? '30', 10)
+// Use a single connection for IRIS to prevent overwhelming iris-pgwire
+// iris-pgwire has stability issues with concurrent connections
+const defaultPoolMax = process.env.DB_TYPE === 'iris' ? 1 : 30
+const poolMax = Number.parseInt(process.env.DATABASE_POOL_MAX ?? String(defaultPoolMax), 10)
 
 const postgresClient = postgres(connectionString, {
   prepare: false,

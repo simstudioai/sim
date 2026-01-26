@@ -127,21 +127,28 @@ export async function POST(req: NextRequest) {
         // Silently fail
       })
 
-    await db.insert(workflow).values({
-      id: workflowId,
-      userId: session.user.id,
-      workspaceId: workspaceId || null,
-      folderId: folderId || null,
-      name,
-      description,
-      color,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
-    })
+    logger.info(`[${requestId}] About to insert workflow ${workflowId}`)
+    try {
+      await db.insert(workflow).values({
+        id: workflowId,
+        userId: session.user.id,
+        workspaceId: workspaceId || null,
+        folderId: folderId || null,
+        name,
+        description,
+        color,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+        isDeployed: false,
+        runCount: 0,
+        variables: {},
+      })
+      logger.info(`[${requestId}] Insert completed for workflow ${workflowId}`)
+    } catch (insertError) {
+      logger.error(`[${requestId}] Insert FAILED for workflow ${workflowId}`, insertError)
+      throw insertError
+    }
 
     logger.info(`[${requestId}] Successfully created empty workflow ${workflowId}`)
 
@@ -158,10 +165,10 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       logger.warn(`[${requestId}] Invalid workflow creation data`, {
-        errors: error.errors,
+        errors: error.issues,
       })
       return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
+        { error: 'Invalid request data', details: error.issues },
         { status: 400 }
       )
     }
