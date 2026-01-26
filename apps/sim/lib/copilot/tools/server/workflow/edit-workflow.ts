@@ -2659,7 +2659,7 @@ async function preValidateCredentialInputs(
   // Deep clone operations so we can modify them
   const filteredOperations = structuredClone(operations)
 
-  // Filter out apiKey inputs for hosted models
+  // Filter out apiKey inputs for hosted models and add validation errors
   if (hasHostedApiKeysToFilter) {
     logger.info('Filtering apiKey inputs for hosted models', { count: hostedApiKeyInputs.length })
 
@@ -2667,9 +2667,17 @@ async function preValidateCredentialInputs(
       const op = filteredOperations[apiKeyInput.operationIndex]
       if (op.params?.inputs?.apiKey) {
         op.params.inputs.apiKey = undefined
-        logger.debug('Silently filtered apiKey for hosted model', {
+        logger.debug('Filtered apiKey for hosted model', {
           blockId: apiKeyInput.blockId,
           model: apiKeyInput.model,
+        })
+
+        errors.push({
+          blockId: apiKeyInput.blockId,
+          blockType: apiKeyInput.blockType,
+          field: 'apiKey',
+          value: '[redacted]',
+          error: `Cannot set API key for hosted model "${apiKeyInput.model}" - API keys are managed by the platform when using hosted models`,
         })
       }
     }

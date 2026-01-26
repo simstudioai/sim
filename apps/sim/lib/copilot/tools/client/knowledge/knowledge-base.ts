@@ -10,6 +10,7 @@ import {
   type KnowledgeBaseArgs,
 } from '@/lib/copilot/tools/shared/schemas'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
  * Client tool for knowledge base operations
@@ -102,7 +103,19 @@ export class KnowledgeBaseClientTool extends BaseClientTool {
     const logger = createLogger('KnowledgeBaseClientTool')
     try {
       this.setState(ClientToolCallState.executing)
-      const payload: KnowledgeBaseArgs = { ...(args || { operation: 'list' }) }
+
+      // Get the workspace ID from the workflow registry hydration state
+      const { hydration } = useWorkflowRegistry.getState()
+      const workspaceId = hydration.workspaceId
+
+      // Build payload with workspace ID included in args
+      const payload: KnowledgeBaseArgs = {
+        ...(args || { operation: 'list' }),
+        args: {
+          ...(args?.args || {}),
+          workspaceId: args?.args?.workspaceId || workspaceId || undefined,
+        },
+      }
 
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',
