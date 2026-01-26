@@ -378,8 +378,30 @@ function buildManualTriggerOutput(
   return mergeFilesIntoOutput(output, workflowInput)
 }
 
-function buildIntegrationTriggerOutput(workflowInput: unknown): NormalizedBlockOutput {
-  return isPlainObject(workflowInput) ? (workflowInput as NormalizedBlockOutput) : {}
+function buildIntegrationTriggerOutput(
+  workflowInput: unknown,
+  structuredInput: Record<string, unknown>,
+  hasStructured: boolean
+): NormalizedBlockOutput {
+  const output: NormalizedBlockOutput = {}
+
+  if (hasStructured) {
+    for (const [key, value] of Object.entries(structuredInput)) {
+      output[key] = value
+    }
+  }
+
+  if (isPlainObject(workflowInput)) {
+    for (const [key, value] of Object.entries(workflowInput)) {
+      if (value !== undefined && value !== null) {
+        output[key] = value
+      } else if (!Object.hasOwn(output, key)) {
+        output[key] = value
+      }
+    }
+  }
+
+  return mergeFilesIntoOutput(output, workflowInput)
 }
 
 function extractSubBlocks(block: SerializedBlock): Record<string, unknown> | undefined {
@@ -428,7 +450,7 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
       return buildManualTriggerOutput(finalInput, workflowInput)
 
     case StartBlockPath.EXTERNAL_TRIGGER:
-      return buildIntegrationTriggerOutput(workflowInput)
+      return buildIntegrationTriggerOutput(workflowInput, structuredInput, hasStructured)
 
     case StartBlockPath.LEGACY_STARTER:
       return buildLegacyStarterOutput(

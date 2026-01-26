@@ -618,13 +618,6 @@ export function getToolOutputs(
   }
 }
 
-/**
- * Generates output paths for a tool-based block.
- *
- * @param blockConfig - The block configuration containing tools config
- * @param subBlocks - SubBlock values for tool selection and condition evaluation
- * @returns Array of output paths for the tool, or empty array on error
- */
 export function getToolOutputPaths(
   blockConfig: BlockConfig,
   subBlocks?: Record<string, SubBlockWithValue>
@@ -634,12 +627,22 @@ export function getToolOutputPaths(
   if (!outputs || Object.keys(outputs).length === 0) return []
 
   if (subBlocks && blockConfig.outputs) {
-    const filteredBlockOutputs = filterOutputsByCondition(blockConfig.outputs, subBlocks)
-    const allowedKeys = new Set(Object.keys(filteredBlockOutputs))
-
     const filteredOutputs: Record<string, any> = {}
+
     for (const [key, value] of Object.entries(outputs)) {
-      if (allowedKeys.has(key)) {
+      const blockOutput = blockConfig.outputs[key]
+
+      if (!blockOutput || typeof blockOutput !== 'object') {
+        filteredOutputs[key] = value
+        continue
+      }
+
+      const condition = 'condition' in blockOutput ? blockOutput.condition : undefined
+      if (condition) {
+        if (evaluateOutputCondition(condition, subBlocks)) {
+          filteredOutputs[key] = value
+        }
+      } else {
         filteredOutputs[key] = value
       }
     }
