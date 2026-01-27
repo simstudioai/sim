@@ -186,19 +186,25 @@ export function useCodeUndoRedo({
 
   const undo = useCallback(() => {
     if (!activeWorkflowId || !isEnabled) return
+    if (pendingBeforeRef.current !== null) {
+      flushPending()
+    }
     const entry = useCodeUndoRedoStore.getState().undo(activeWorkflowId, blockId, subBlockId)
     if (!entry) return
     logger.debug('Undo code edit', { blockId, subBlockId })
     applyValue(entry.before)
-  }, [activeWorkflowId, applyValue, blockId, isEnabled, subBlockId])
+  }, [activeWorkflowId, applyValue, blockId, flushPending, isEnabled, subBlockId])
 
   const redo = useCallback(() => {
     if (!activeWorkflowId || !isEnabled) return
+    if (pendingBeforeRef.current !== null) {
+      flushPending()
+    }
     const entry = useCodeUndoRedoStore.getState().redo(activeWorkflowId, blockId, subBlockId)
     if (!entry) return
     logger.debug('Redo code edit', { blockId, subBlockId })
     applyValue(entry.after)
-  }, [activeWorkflowId, applyValue, blockId, isEnabled, subBlockId])
+  }, [activeWorkflowId, applyValue, blockId, flushPending, isEnabled, subBlockId])
 
   useEffect(() => {
     if (isApplyingRef.current) return
