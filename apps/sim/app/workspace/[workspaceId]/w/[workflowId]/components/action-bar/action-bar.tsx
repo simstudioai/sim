@@ -164,29 +164,6 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled) {
-                    collaborativeBatchToggleBlockEnabled([blockId])
-                  }
-                }}
-                className={ACTION_BUTTON_STYLES}
-                disabled={disabled}
-              >
-                {isEnabled ? <Circle className={ICON_SIZE} /> : <CircleOff className={ICON_SIZE} />}
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
-
-        {!isNoteBlock && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={(e) => {
-                  e.stopPropagation()
                   if (canRunFromBlock && !disabled) {
                     handleRunFromBlock()
                   }
@@ -206,6 +183,29 @@ export const ActionBar = memo(
                 if (isInsideSubflow) return 'Cannot run from inside subflow'
                 return 'Run from this block'
               })()}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+
+        {!isNoteBlock && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (!disabled) {
+                    collaborativeBatchToggleBlockEnabled([blockId])
+                  }
+                }}
+                className={ACTION_BUTTON_STYLES}
+                disabled={disabled}
+              >
+                {isEnabled ? <Circle className={ICON_SIZE} /> : <CircleOff className={ICON_SIZE} />}
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
