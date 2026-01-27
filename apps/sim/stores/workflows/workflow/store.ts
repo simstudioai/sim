@@ -615,7 +615,20 @@ export const useWorkflowStore = create<WorkflowStore>()(
         options?: { updateLastSaved?: boolean }
       ) => {
         set((state) => {
-          const nextBlocks = workflowState.blocks || {}
+          const incomingBlocks = workflowState.blocks || {}
+
+          const nextBlocks: typeof incomingBlocks = {}
+          for (const [id, block] of Object.entries(incomingBlocks)) {
+            if (block.data?.parentId && !incomingBlocks[block.data.parentId]) {
+              nextBlocks[id] = {
+                ...block,
+                data: { ...block.data, parentId: undefined, extent: undefined },
+              }
+            } else {
+              nextBlocks[id] = block
+            }
+          }
+
           const nextEdges = filterValidEdges(workflowState.edges || [], nextBlocks)
           const nextLoops =
             Object.keys(workflowState.loops || {}).length > 0

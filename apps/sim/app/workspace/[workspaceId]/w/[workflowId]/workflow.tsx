@@ -2188,10 +2188,9 @@ const WorkflowContent = React.memo(() => {
         selected: selectedIds.has(node.id),
       }))
     })
-  }, [derivedNodes, blocks, pendingSelection, clearPendingSelection, syncPanelWithSelection])
+  }, [derivedNodes, blocks, pendingSelection, clearPendingSelection])
 
   // Phase 2: When displayNodes updates, check if pending zoom blocks are ready
-  // (Phase 1 is located earlier in the file where pendingZoomBlockIdsRef is defined)
   useEffect(() => {
     const pendingBlockIds = pendingZoomBlockIdsRef.current
     if (!pendingBlockIds || pendingBlockIds.size === 0) {
