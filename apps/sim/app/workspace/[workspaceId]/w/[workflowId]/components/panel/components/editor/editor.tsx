@@ -38,7 +38,7 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockType } from '@/blocks/types'
 import { useWorkflowState } from '@/hooks/queries/workflows'
@@ -458,7 +458,7 @@ export function Editor() {
                       ) : childWorkflowState ? (
                         <>
                           <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
-                            <WorkflowPreview
+                            <PreviewWorkflow
                               workflowState={childWorkflowState}
                               height={160}
                               width='100%'

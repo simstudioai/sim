@@ -291,7 +291,7 @@
     },
     "packages/ts-sdk": {
       "name": "simstudio-ts-sdk",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "node-fetch": "^3.3.2",
       },
