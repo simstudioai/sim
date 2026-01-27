@@ -274,7 +274,7 @@ function getEmbedInfo(url: string): EmbedInfo | null {
   const bandcampTrackMatch = url.match(/([a-zA-Z0-9-]+)\.bandcamp\.com\/track\/([a-zA-Z0-9-]+)/)
   if (bandcampTrackMatch) {
     return {
-      url: `https://bandcamp.com/EmbeddedPlayer/track=${bandcampTrackMatch[2]}/size=large/bgcol=333333/linkcol=0f91ff/tracklist=false/transparent=true/`,
+      url: `https://bandcamp.com/EmbeddedPlayer/artist=${bandcampTrackMatch[1]}/track=${bandcampTrackMatch[2]}/size=large/bgcol=333333/linkcol=0f91ff/tracklist=false/transparent=true/`,
       type: 'iframe',
       aspectRatio: '1/1',
     }
@@ -283,7 +283,7 @@ function getEmbedInfo(url: string): EmbedInfo | null {
   const bandcampAlbumMatch = url.match(/([a-zA-Z0-9-]+)\.bandcamp\.com\/album\/([a-zA-Z0-9-]+)/)
   if (bandcampAlbumMatch) {
     return {
-      url: `https://bandcamp.com/EmbeddedPlayer/album=${bandcampAlbumMatch[2]}/size=large/bgcol=333333/linkcol=0f91ff/transparent=true/`,
+      url: `https://bandcamp.com/EmbeddedPlayer/artist=${bandcampAlbumMatch[1]}/album=${bandcampAlbumMatch[2]}/size=large/bgcol=333333/linkcol=0f91ff/transparent=true/`,
       type: 'iframe',
       aspectRatio: '1/1',
     }
