@@ -796,6 +796,7 @@ export const Terminal = memo(function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
   const prevEntriesLengthRef = useRef(0)
   const prevWorkflowEntriesLengthRef = useRef(0)
+  const hasInitializedEntriesRef = useRef(false)
   const isTerminalFocusedRef = useRef(false)
   const lastExpandedHeightRef = useRef<number>(DEFAULT_EXPANDED_HEIGHT)
   const setTerminalHeight = useTerminalStore((state) => state.setTerminalHeight)
@@ -1008,11 +1009,32 @@ export const Terminal = memo(function Terminal() {
   }, [outputData])
 
   /**
+   * Reset entry tracking when switching workflows to ensure auto-open
+   * works correctly for each workflow independently.
+   */
+  useEffect(() => {
+    hasInitializedEntriesRef.current = false
+  }, [activeWorkflowId])
+
+  /**
    * Auto-open the terminal on new entries when "Open on run" is enabled.
    * This mirrors the header toggle behavior by using expandToLastHeight,
    * ensuring we always get the same smooth height transition.
+   *
+   * Skips the initial sync after console hydration to avoid auto-opening
+   * when persisted entries are restored on page refresh.
    */
   useEffect(() => {
+    if (!hasConsoleHydrated) {
+      return
+    }
+
+    if (!hasInitializedEntriesRef.current) {
+      hasInitializedEntriesRef.current = true
+      prevWorkflowEntriesLengthRef.current = allWorkflowEntries.length
+      return
+    }
+
     if (!openOnRun) {
       prevWorkflowEntriesLengthRef.current = allWorkflowEntries.length
       return
@@ -1026,7 +1048,7 @@ export const Terminal = memo(function Terminal() {
     }
 
     prevWorkflowEntriesLengthRef.current = currentLength
-  }, [allWorkflowEntries.length, expandToLastHeight, openOnRun, isExpanded])
+  }, [allWorkflowEntries.length, expandToLastHeight, openOnRun, isExpanded, hasConsoleHydrated])
 
   /**
    * Handle row click - toggle if clicking same entry
