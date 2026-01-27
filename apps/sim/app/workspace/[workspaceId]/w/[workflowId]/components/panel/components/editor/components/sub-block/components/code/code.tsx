@@ -301,15 +301,14 @@ export const Code = memo(function Code({
   const updatePromptValue = wandHook?.updatePromptValue || (() => {})
   const cancelGeneration = wandHook?.cancelGeneration || (() => {})
 
-  const { recordChange, clearHistory, recordReplace, flushPending, startSession, undo, redo } =
-    useCodeUndoRedo({
-      blockId,
-      subBlockId,
-      value: code,
-      enabled: isFunctionCode,
-      isReadOnly: readOnly || disabled || isPreview,
-      isStreaming: isAiStreaming,
-    })
+  const { recordChange, recordReplace, flushPending, startSession, undo, redo } = useCodeUndoRedo({
+    blockId,
+    subBlockId,
+    value: code,
+    enabled: isFunctionCode,
+    isReadOnly: readOnly || disabled || isPreview,
+    isStreaming: isAiStreaming,
+  })
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
     isStreaming: isAiStreaming,

@@ -154,7 +154,7 @@ export function useCodeUndoRedo({
   )
 
   const flushPending = useCallback(() => {
-    if (!pendingBeforeRef.current) return
+    if (pendingBeforeRef.current === null) return
     clearTimer()
     commitPending()
   }, [clearTimer, commitPending])
@@ -201,10 +201,21 @@ export function useCodeUndoRedo({
   }, [activeWorkflowId, applyValue, blockId, isEnabled, subBlockId])
 
   useEffect(() => {
-    if (!pendingBeforeRef.current && !isApplyingRef.current) {
-      lastCommittedValueRef.current = value ?? ''
+    if (isApplyingRef.current) return
+
+    const nextValue = value ?? ''
+
+    if (pendingBeforeRef.current !== null) {
+      if (pendingAfterRef.current !== nextValue) {
+        clearTimer()
+        resetPending()
+        lastCommittedValueRef.current = nextValue
+      }
+      return
     }
-  }, [value])
+
+    lastCommittedValueRef.current = nextValue
+  }, [clearTimer, resetPending, value])
 
   useEffect(() => {
     return () => {
