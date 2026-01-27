@@ -5,7 +5,7 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 const logger = createLogger('BrowserUseTool')
 
 const POLL_INTERVAL_MS = 5000
-const MAX_POLL_TIME_MS = 180000
+const MAX_POLL_TIME_MS = 600000 // 10 minutes
 const MAX_CONSECUTIVE_ERRORS = 3
 
 async function createSessionWithProfile(

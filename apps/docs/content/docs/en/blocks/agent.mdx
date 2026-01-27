@@ -56,6 +56,10 @@ Controls response randomness and creativity:
 - **Medium (0.3-0.7)**: Balanced creativity and focus. Good for general use.
 - **High (0.7-2.0)**: Creative and varied. Ideal for brainstorming and content generation.
 
+### Max Output Tokens
+
+Controls the maximum length of the model's response. For Anthropic models, Sim uses reliable defaults: streaming executions use the model's full capacity (e.g. 64,000 tokens for Claude 4.5), while non-streaming executions default to 8,192 to avoid timeout issues. For long-form content generation via API, explicitly set a higher value.
+
 ### API Key
 
 Your API key for the selected LLM provider. This is securely stored and used for authentication.
