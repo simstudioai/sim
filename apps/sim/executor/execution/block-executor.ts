@@ -12,6 +12,7 @@ import {
   EDGE,
   isSentinelBlockType,
   isTriggerBehavior,
+  isWorkflowBlockType,
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
@@ -154,8 +155,8 @@ export class BlockExecutor {
       this.state.setBlockOutput(node.id, normalizedOutput, duration)
 
       if (!isSentinel) {
-        const filteredOutput = this.filterOutputForLog(block, normalizedOutput)
-        this.callOnBlockComplete(ctx, node, block, resolvedInputs, filteredOutput, duration)
+        const displayOutput = this.filterOutputForDisplay(block, normalizedOutput)
+        this.callOnBlockComplete(ctx, node, block, resolvedInputs, displayOutput, duration)
       }
 
       return normalizedOutput
@@ -245,7 +246,8 @@ export class BlockExecutor {
     )
 
     if (!isSentinel) {
-      this.callOnBlockComplete(ctx, node, block, input, errorOutput, duration)
+      const displayOutput = this.filterOutputForDisplay(block, errorOutput)
+      this.callOnBlockComplete(ctx, node, block, input, displayOutput, duration)
     }
 
     const hasErrorPort = this.hasErrorPortEdge(node)
@@ -337,7 +339,9 @@ export class BlockExecutor {
     block: SerializedBlock,
     output: NormalizedBlockOutput
   ): NormalizedBlockOutput {
-    if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
+    const blockType = block.metadata?.id
+
+    if (blockType === BlockType.HUMAN_IN_THE_LOOP) {
       const filtered: NormalizedBlockOutput = {}
       for (const [key, value] of Object.entries(output)) {
         if (key.startsWith('_')) continue
@@ -358,6 +362,22 @@ export class BlockExecutor {
     }
 
     return output
+  }
+
+  private filterOutputForDisplay(
+    block: SerializedBlock,
+    output: NormalizedBlockOutput
+  ): NormalizedBlockOutput {
+    const filtered = this.filterOutputForLog(block, output)
+
+    if (isWorkflowBlockType(block.metadata?.id)) {
+      const { childTraceSpans: _, ...displayOutput } = filtered as {
+        childTraceSpans?: unknown
+      } & Record<string, unknown>
+      return displayOutput
+    }
+
+    return filtered
   }
 
   private callOnBlockStart(ctx: ExecutionContext, node: DAGNode, block: SerializedBlock): void {
