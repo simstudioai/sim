@@ -43,7 +43,7 @@ function getTwitchParent(): string {
  */
 function getEmbedInfo(url: string): EmbedInfo | null {
   const youtubeMatch = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
+    /(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
   )
   if (youtubeMatch) {
     return { url: `https://www.youtube.com/embed/${youtubeMatch[1]}`, type: 'iframe' }
@@ -68,7 +68,7 @@ function getEmbedInfo(url: string): EmbedInfo | null {
   }
 
   const twitchChannelMatch = url.match(/twitch\.tv\/([a-zA-Z0-9_]+)(?:\/|$)/)
-  if (twitchChannelMatch && !url.includes('/videos/')) {
+  if (twitchChannelMatch && !url.includes('/videos/') && !url.includes('/clip/')) {
     return {
       url: `https://player.twitch.tv/?channel=${twitchChannelMatch[1]}&parent=${getTwitchParent()}`,
       type: 'iframe',
@@ -240,11 +240,6 @@ function getEmbedInfo(url: string): EmbedInfo | null {
     return { url: `https://play.vidyard.com/${vidyardMatch[1]}`, type: 'iframe' }
   }
 
-  const muxMatch = url.match(/stream\.mux\.com\/([a-zA-Z0-9]+)/)
-  if (muxMatch) {
-    return { url: `https://stream.mux.com/${muxMatch[1]}.m3u8`, type: 'video' }
-  }
-
   const cfStreamMatch =
     url.match(/cloudflarestream\.com\/([a-zA-Z0-9]+)/) ||
     url.match(/videodelivery\.net\/([a-zA-Z0-9]+)/)
@@ -268,24 +263,6 @@ function getEmbedInfo(url: string): EmbedInfo | null {
       url: `https://www.mixcloud.com/widget/iframe/?feed=%2F${encodeURIComponent(mixcloudMatch[1])}%2F&hide_cover=1`,
       type: 'iframe',
       aspectRatio: '2/1',
-    }
-  }
-
-  const bandcampTrackMatch = url.match(/([a-zA-Z0-9-]+)\.bandcamp\.com\/track\/([a-zA-Z0-9-]+)/)
-  if (bandcampTrackMatch) {
-    return {
-      url: `https://bandcamp.com/EmbeddedPlayer/artist=${bandcampTrackMatch[1]}/track=${bandcampTrackMatch[2]}/size=large/bgcol=333333/linkcol=0f91ff/tracklist=false/transparent=true/`,
-      type: 'iframe',
-      aspectRatio: '1/1',
-    }
-  }
-
-  const bandcampAlbumMatch = url.match(/([a-zA-Z0-9-]+)\.bandcamp\.com\/album\/([a-zA-Z0-9-]+)/)
-  if (bandcampAlbumMatch) {
-    return {
-      url: `https://bandcamp.com/EmbeddedPlayer/artist=${bandcampAlbumMatch[1]}/album=${bandcampAlbumMatch[2]}/size=large/bgcol=333333/linkcol=0f91ff/transparent=true/`,
-      type: 'iframe',
-      aspectRatio: '1/1',
     }
   }
 
