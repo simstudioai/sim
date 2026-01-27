@@ -55,15 +55,10 @@ export interface WealthboxTask {
 
 // Unified metadata structure
 export interface WealthboxMetadata {
-  operation:
-    | 'read_note'
-    | 'write_note'
-    | 'read_contact'
-    | 'write_contact'
-    | 'read_task'
-    | 'write_task'
   itemId?: string
+  noteId?: string
   contactId?: string
+  taskId?: string
   itemType: 'note' | 'contact' | 'task'
   totalItems?: number
 }

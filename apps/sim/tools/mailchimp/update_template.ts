@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { MailchimpTemplate } from './types'
 import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpUpdateTemplate')
 
 export interface MailchimpUpdateTemplateParams {
   apiKey: string
@@ -16,10 +13,7 @@ export interface MailchimpUpdateTemplateResponse {
   success: boolean
   output: {
     template: MailchimpTemplate
-    metadata: {
-      operation: 'update_template'
-      templateId: string
-    }
+    template_id: string
     success: boolean
   }
 }
@@ -89,10 +83,7 @@ export const mailchimpUpdateTemplateTool: ToolConfig<
       success: true,
       output: {
         template: data,
-        metadata: {
-          operation: 'update_template' as const,
-          templateId: data.id,
-        },
+        template_id: data.id,
         success: true,
       },
     }
@@ -105,7 +96,7 @@ export const mailchimpUpdateTemplateTool: ToolConfig<
       description: 'Updated template data',
       properties: {
         template: { type: 'object', description: 'Updated template object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
+        template_id: { type: 'string', description: 'Template ID' },
         success: { type: 'boolean', description: 'Operation success' },
       },
     },

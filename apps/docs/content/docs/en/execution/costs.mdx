@@ -12,7 +12,7 @@ Sim automatically calculates costs for all workflow executions, providing transp
 
 Every workflow execution includes two cost components:
 
-**Base Execution Charge**: $0.001 per execution
+**Base Execution Charge**: $0.005 per execution
 
 **AI Model Usage**: Variable cost based on token consumption
 ```javascript
@@ -48,40 +48,40 @@ The model breakdown shows:
 
 <Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
-    **Hosted Models** - Sim provides API keys with a 2x pricing multiplier:
+    **Hosted Models** - Sim provides API keys with a 1.1x pricing multiplier for Agent blocks:
 
     **OpenAI**
     | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
     |-------|---------------------------|----------------------------|
-    | GPT-5.1 | $1.25 / $10.00 | $2.50 / $20.00 |
-    | GPT-5 | $1.25 / $10.00 | $2.50 / $20.00 |
-    | GPT-5 Mini | $0.25 / $2.00 | $0.50 / $4.00 |
-    | GPT-5 Nano | $0.05 / $0.40 | $0.10 / $0.80 |
-    | GPT-4o | $2.50 / $10.00 | $5.00 / $20.00 |
-    | GPT-4.1 | $2.00 / $8.00 | $4.00 / $16.00 |
-    | GPT-4.1 Mini | $0.40 / $1.60 | $0.80 / $3.20 |
-    | GPT-4.1 Nano | $0.10 / $0.40 | $0.20 / $0.80 |
-    | o1 | $15.00 / $60.00 | $30.00 / $120.00 |
-    | o3 | $2.00 / $8.00 | $4.00 / $16.00 |
-    | o4 Mini | $1.10 / $4.40 | $2.20 / $8.80 |
+    | GPT-5.1 | $1.25 / $10.00 | $1.38 / $11.00 |
+    | GPT-5 | $1.25 / $10.00 | $1.38 / $11.00 |
+    | GPT-5 Mini | $0.25 / $2.00 | $0.28 / $2.20 |
+    | GPT-5 Nano | $0.05 / $0.40 | $0.06 / $0.44 |
+    | GPT-4o | $2.50 / $10.00 | $2.75 / $11.00 |
+    | GPT-4.1 | $2.00 / $8.00 | $2.20 / $8.80 |
+    | GPT-4.1 Mini | $0.40 / $1.60 | $0.44 / $1.76 |
+    | GPT-4.1 Nano | $0.10 / $0.40 | $0.11 / $0.44 |
+    | o1 | $15.00 / $60.00 | $16.50 / $66.00 |
+    | o3 | $2.00 / $8.00 | $2.20 / $8.80 |
+    | o4 Mini | $1.10 / $4.40 | $1.21 / $4.84 |
 
     **Anthropic**
     | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
     |-------|---------------------------|----------------------------|
-    | Claude Opus 4.5 | $5.00 / $25.00 | $10.00 / $50.00 |
-    | Claude Opus 4.1 | $15.00 / $75.00 | $30.00 / $150.00 |
-    | Claude Sonnet 4.5 | $3.00 / $15.00 | $6.00 / $30.00 |
-    | Claude Sonnet 4.0 | $3.00 / $15.00 | $6.00 / $30.00 |
-    | Claude Haiku 4.5 | $1.00 / $5.00 | $2.00 / $10.00 |
+    | Claude Opus 4.5 | $5.00 / $25.00 | $5.50 / $27.50 |
+    | Claude Opus 4.1 | $15.00 / $75.00 | $16.50 / $82.50 |
+    | Claude Sonnet 4.5 | $3.00 / $15.00 | $3.30 / $16.50 |
+    | Claude Sonnet 4.0 | $3.00 / $15.00 | $3.30 / $16.50 |
+    | Claude Haiku 4.5 | $1.00 / $5.00 | $1.10 / $5.50 |
 
     **Google**
     | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
     |-------|---------------------------|----------------------------|
-    | Gemini 3 Pro Preview | $2.00 / $12.00 | $4.00 / $24.00 |
-    | Gemini 2.5 Pro | $1.25 / $10.00 | $2.50 / $20.00 |
-    | Gemini 2.5 Flash | $0.30 / $2.50 | $0.60 / $5.00 |
+    | Gemini 3 Pro Preview | $2.00 / $12.00 | $2.20 / $13.20 |
+    | Gemini 2.5 Pro | $1.25 / $10.00 | $1.38 / $11.00 |
+    | Gemini 2.5 Flash | $0.30 / $2.50 | $0.33 / $2.75 |
 
-    *The 2x multiplier covers infrastructure and API management costs.*
+    *The 1.1x multiplier covers infrastructure and API management costs.*
   </Tab>
 
   <Tab>
@@ -106,7 +106,28 @@ The model breakdown shows:
 
 ## Bring Your Own Key (BYOK)
 
-You can use your own API keys for hosted models (OpenAI, Anthropic, Google, Mistral) in **Settings → BYOK** to pay base prices. Keys are encrypted and apply workspace-wide.
+Use your own API keys for AI model providers instead of Sim's hosted keys to pay base prices with no markup.
+
+### Supported Providers
+
+| Provider | Usage |
+|----------|-------|
+| OpenAI | Knowledge Base embeddings, Agent block |
+| Anthropic | Agent block |
+| Google | Agent block |
+| Mistral | Knowledge Base OCR |
+
+### Setup
+
+1. Navigate to **Settings** → **BYOK** in your workspace
+2. Click **Add Key** for your provider
+3. Enter your API key and save
+
+<Callout type="info">
+  BYOK keys are encrypted at rest. Only workspace admins can manage keys.
+</Callout>
+
+When configured, workflows use your key instead of Sim's hosted keys. If removed, workflows automatically fall back to hosted keys with the multiplier.
 
 ## Cost Optimization Strategies
 

@@ -173,6 +173,12 @@ export const updateTaskDetailsTool: ToolConfig<
       type: 'object',
       description: 'The updated task details object with all properties',
     },
-    metadata: { type: 'object', description: 'Metadata including taskId' },
+    metadata: {
+      type: 'object',
+      description: 'Metadata including taskId',
+      properties: {
+        taskId: { type: 'string', description: 'Task ID' },
+      },
+    },
   },
 }

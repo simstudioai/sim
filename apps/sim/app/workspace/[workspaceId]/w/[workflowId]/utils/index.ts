@@ -1,3 +1,5 @@
 export * from './auto-layout-utils'
 export * from './block-ring-utils'
+export * from './node-position-utils'
+export * from './workflow-canvas-helpers'
 export * from './workflow-execution-utils'

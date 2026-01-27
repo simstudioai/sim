@@ -17,6 +17,7 @@ import {
 } from '@/executor/human-in-the-loop/utils'
 import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { parseObjectStrings } from '@/executor/utils/json'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
@@ -227,7 +228,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
 
       if (resumeLinks) {
         output.url = resumeLinks.uiUrl
-        // output.apiUrl = resumeLinks.apiUrl // Hidden from output
+        output.resumeEndpoint = resumeLinks.apiUrl
       }
 
       return output
@@ -265,7 +266,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
 
     if (dataMode === 'structured' && inputs.builderData) {
       const convertedData = this.convertBuilderDataToJson(inputs.builderData)
-      return this.parseObjectStrings(convertedData)
+      return parseObjectStrings(convertedData)
     }
 
     return inputs.data || {}
@@ -485,29 +486,6 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
     )
   }
 
-  private parseObjectStrings(data: any): any {
-    if (typeof data === 'string') {
-      try {
-        const parsed = JSON.parse(data)
-        if (typeof parsed === 'object' && parsed !== null) {
-          return this.parseObjectStrings(parsed)
-        }
-        return parsed
-      } catch {
-        return data
-      }
-    } else if (Array.isArray(data)) {
-      return data.map((item) => this.parseObjectStrings(item))
-    } else if (typeof data === 'object' && data !== null) {
-      const result: any = {}
-      for (const [key, value] of Object.entries(data)) {
-        result[key] = this.parseObjectStrings(value)
-      }
-      return result
-    }
-    return data
-  }
-
   private parseStatus(status?: string): number {
     if (!status) return HTTP.STATUS.OK
     const parsed = Number(status)
@@ -576,9 +554,9 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       if (context.resumeLinks.uiUrl) {
         pauseOutput.url = context.resumeLinks.uiUrl
       }
-      // if (context.resumeLinks.apiUrl) {
-      //   pauseOutput.apiUrl = context.resumeLinks.apiUrl
-      // } // Hidden from output
+      if (context.resumeLinks.apiUrl) {
+        pauseOutput.resumeEndpoint = context.resumeLinks.apiUrl
+      }
     }
 
     if (Array.isArray(context.inputFormat)) {
@@ -627,12 +605,13 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
           _context: {
             workflowId: ctx.workflowId,
             workspaceId: ctx.workspaceId,
+            isDeployedContext: ctx.isDeployedContext,
           },
           blockData: blockDataWithPause,
           blockNameMapping: blockNameMappingWithPause,
         }
 
-        const result = await executeTool(toolId, toolParams, false, false, ctx)
+        const result = await executeTool(toolId, toolParams, false, ctx)
         const durationMs = Date.now() - startTime
 
         if (!result.success) {

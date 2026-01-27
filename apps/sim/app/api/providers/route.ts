@@ -3,7 +3,9 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
@@ -20,6 +22,11 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
 
   try {
+    const auth = await checkInternalAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     logger.info(`[${requestId}] Provider API request started`, {
       timestamp: new Date().toISOString(),
       userAgent: request.headers.get('User-Agent'),
@@ -41,6 +48,9 @@ export async function POST(request: NextRequest) {
       vertexProject,
       vertexLocation,
       vertexCredential,
+      bedrockAccessKeyId,
+      bedrockSecretKey,
+      bedrockRegion,
       responseFormat,
       workflowId,
       workspaceId,
@@ -67,6 +77,9 @@ export async function POST(request: NextRequest) {
       hasVertexProject: !!vertexProject,
       hasVertexLocation: !!vertexLocation,
       hasVertexCredential: !!vertexCredential,
+      hasBedrockAccessKeyId: !!bedrockAccessKeyId,
+      hasBedrockSecretKey: !!bedrockSecretKey,
+      hasBedrockRegion: !!bedrockRegion,
       hasResponseFormat: !!responseFormat,
       workflowId,
       stream: !!stream,
@@ -78,6 +91,13 @@ export async function POST(request: NextRequest) {
       reasoningEffort,
       verbosity,
     })
+
+    if (workspaceId) {
+      const workspaceAccess = await checkWorkspaceAccess(workspaceId, auth.userId)
+      if (!workspaceAccess.hasAccess) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
 
     let finalApiKey: string | undefined = apiKey
     try {
@@ -116,6 +136,9 @@ export async function POST(request: NextRequest) {
       azureApiVersion,
       vertexProject,
       vertexLocation,
+      bedrockAccessKeyId,
+      bedrockSecretKey,
+      bedrockRegion,
       responseFormat,
       workflowId,
       workspaceId,

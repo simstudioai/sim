@@ -170,3 +170,27 @@ View file: ${data.content.html_url}`
     },
   },
 }
+
+export const createFileV2Tool: ToolConfig = {
+  id: 'github_create_file_v2',
+  name: createFileTool.name,
+  description: createFileTool.description,
+  version: '2.0.0',
+  params: createFileTool.params,
+  request: createFileTool.request,
+  oauth: createFileTool.oauth,
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        content: data.content,
+        commit: data.commit,
+      },
+    }
+  },
+  outputs: {
+    content: { type: 'json', description: 'Created file content info' },
+    commit: { type: 'json', description: 'Commit information' },
+  },
+}

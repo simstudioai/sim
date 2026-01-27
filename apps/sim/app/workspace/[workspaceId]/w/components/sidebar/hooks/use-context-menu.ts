@@ -27,16 +27,13 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
   const [isOpen, setIsOpen] = useState(false)
   const [position, setPosition] = useState<ContextMenuPosition>({ x: 0, y: 0 })
   const menuRef = useRef<HTMLDivElement>(null)
+  const dismissPreventedRef = useRef(false)
 
-  /**
-   * Handle right-click event
-   */
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
 
-      // Calculate position relative to viewport
       const x = e.clientX
       const y = e.clientY
 
@@ -48,11 +45,12 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
     [onContextMenu]
   )
 
-  /**
-   * Close the context menu
-   */
   const closeMenu = useCallback(() => {
     setIsOpen(false)
+  }, [])
+
+  const preventDismiss = useCallback(() => {
+    dismissPreventedRef.current = true
   }, [])
 
   /**
@@ -62,12 +60,15 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
     if (!isOpen) return
 
     const handleClickOutside = (e: MouseEvent) => {
+      if (dismissPreventedRef.current) {
+        dismissPreventedRef.current = false
+        return
+      }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         closeMenu()
       }
     }
 
-    // Small delay to prevent immediate close from the same click that opened the menu
     const timeoutId = setTimeout(() => {
       document.addEventListener('click', handleClickOutside)
     }, 0)
@@ -84,5 +85,6 @@ export function useContextMenu({ onContextMenu }: UseContextMenuProps = {}) {
     menuRef,
     handleContextMenu,
     closeMenu,
+    preventDismiss,
   }
 }

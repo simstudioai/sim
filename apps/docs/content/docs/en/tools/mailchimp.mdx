@@ -70,8 +70,11 @@ Retrieve a list of audiences (lists) from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Audiences data and metadata |
+| `success` | boolean | Whether the audiences were successfully retrieved |
+| `output` | object | Audiences data |
+| ↳ `lists` | json | Array of audience/list objects |
+| ↳ `total_items` | number | Total number of lists |
+| ↳ `total_returned` | number | Number of lists returned in this response |
 
 ### `mailchimp_get_audience`
 
@@ -88,8 +91,10 @@ Retrieve details of a specific audience (list) from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Audience data and metadata |
+| `success` | boolean | Whether the audience was successfully retrieved |
+| `output` | object | Audience data |
+| ↳ `list` | json | Audience/list object |
+| ↳ `list_id` | string | The unique ID of the audience |
 
 ### `mailchimp_create_audience`
 
@@ -112,6 +117,9 @@ Create a new audience (list) in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created audience data |
+| ↳ `list` | json | Created audience/list object |
+| ↳ `list_id` | string | Created audience/list ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_update_audience`
 
@@ -134,6 +142,9 @@ Update an existing audience (list) in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated audience data |
+| ↳ `list` | object | Updated audience/list object |
+| ↳ `list_id` | string | List ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_audience`
 
@@ -150,8 +161,7 @@ Delete an audience (list) from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the audience was successfully deleted |
 
 ### `mailchimp_get_members`
 
@@ -171,8 +181,11 @@ Retrieve a list of members from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Members data and metadata |
+| `success` | boolean | Whether the members were successfully retrieved |
+| `output` | object | Members data |
+| ↳ `members` | json | Array of member objects |
+| ↳ `total_items` | number | Total number of members |
+| ↳ `total_returned` | number | Number of members returned in this response |
 
 ### `mailchimp_get_member`
 
@@ -190,8 +203,10 @@ Retrieve details of a specific member from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Member data and metadata |
+| `success` | boolean | Whether the member was successfully retrieved |
+| `output` | object | Member data |
+| ↳ `member` | json | Member object |
+| ↳ `subscriber_hash` | string | The MD5 hash of the member email address |
 
 ### `mailchimp_add_member`
 
@@ -214,6 +229,9 @@ Add a new member to a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Added member data |
+| ↳ `member` | json | Added member object |
+| ↳ `subscriber_hash` | string | Subscriber hash ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_add_or_update_member`
 
@@ -237,6 +255,9 @@ Add a new member or update an existing member in a Mailchimp audience (upsert)
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Member data |
+| ↳ `member` | json | Member object |
+| ↳ `subscriber_hash` | string | Subscriber hash ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_update_member`
 
@@ -260,6 +281,9 @@ Update an existing member in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated member data |
+| ↳ `member` | object | Updated member object |
+| ↳ `subscriber_hash` | string | Subscriber hash |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_member`
 
@@ -277,8 +301,7 @@ Delete a member from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the member was successfully deleted |
 
 ### `mailchimp_archive_member`
 
@@ -298,6 +321,7 @@ Permanently archive (delete) a member from a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Archive confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_unarchive_member`
 
@@ -319,6 +343,9 @@ Restore an archived member to a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Unarchived member data |
+| ↳ `member` | object | Unarchived member object |
+| ↳ `subscriber_hash` | string | Subscriber hash |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_get_campaigns`
 
@@ -338,8 +365,11 @@ Retrieve a list of campaigns from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Campaigns data and metadata |
+| `success` | boolean | Whether the campaigns were successfully retrieved |
+| `output` | object | Campaigns data |
+| ↳ `campaigns` | json | Array of campaign objects |
+| ↳ `total_items` | number | Total number of campaigns |
+| ↳ `total_returned` | number | Number of campaigns returned in this response |
 
 ### `mailchimp_get_campaign`
 
@@ -356,8 +386,10 @@ Retrieve details of a specific campaign from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Campaign data and metadata |
+| `success` | boolean | Whether the campaign was successfully retrieved |
+| `output` | object | Campaign data |
+| ↳ `campaign` | json | Campaign object |
+| ↳ `campaign_id` | string | The unique ID of the campaign |
 
 ### `mailchimp_create_campaign`
 
@@ -378,6 +410,9 @@ Create a new campaign in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created campaign data |
+| ↳ `campaign` | json | Created campaign object |
+| ↳ `campaign_id` | string | Created campaign ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_update_campaign`
 
@@ -398,6 +433,9 @@ Update an existing campaign in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated campaign data |
+| ↳ `campaign` | object | Updated campaign object |
+| ↳ `campaign_id` | string | Campaign ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_campaign`
 
@@ -414,8 +452,7 @@ Delete a campaign from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the campaign was successfully deleted |
 
 ### `mailchimp_send_campaign`
 
@@ -434,6 +471,7 @@ Send a Mailchimp campaign
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Send confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_schedule_campaign`
 
@@ -451,8 +489,7 @@ Schedule a Mailchimp campaign to be sent at a specific time
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Schedule confirmation |
+| `success` | boolean | Whether the campaign was successfully scheduled |
 
 ### `mailchimp_unschedule_campaign`
 
@@ -471,6 +508,7 @@ Unschedule a previously scheduled Mailchimp campaign
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Unschedule confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_replicate_campaign`
 
@@ -489,6 +527,9 @@ Create a copy of an existing Mailchimp campaign
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Replicated campaign data |
+| ↳ `campaign` | object | Replicated campaign object |
+| ↳ `campaign_id` | string | Campaign ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_get_campaign_content`
 
@@ -505,8 +546,9 @@ Retrieve the HTML and plain-text content for a Mailchimp campaign
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
+| `success` | boolean | Whether the campaign content was successfully retrieved |
 | `output` | object | Campaign content data |
+| ↳ `content` | json | Campaign content object |
 
 ### `mailchimp_set_campaign_content`
 
@@ -528,6 +570,8 @@ Set the content for a Mailchimp campaign
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Campaign content data |
+| ↳ `content` | object | Campaign content object |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_get_automations`
 
@@ -545,8 +589,11 @@ Retrieve a list of automations from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Automations data and metadata |
+| `success` | boolean | Whether the automations were successfully retrieved |
+| `output` | object | Automations data |
+| ↳ `automations` | json | Array of automation objects |
+| ↳ `total_items` | number | Total number of automations |
+| ↳ `total_returned` | number | Number of automations returned in this response |
 
 ### `mailchimp_get_automation`
 
@@ -563,8 +610,10 @@ Retrieve details of a specific automation from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Automation data and metadata |
+| `success` | boolean | Whether the automation was successfully retrieved |
+| `output` | object | Automation data |
+| ↳ `automation` | json | Automation object |
+| ↳ `workflow_id` | string | The unique ID of the automation workflow |
 
 ### `mailchimp_start_automation`
 
@@ -583,6 +632,7 @@ Start all emails in a Mailchimp automation workflow
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Start confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_pause_automation`
 
@@ -601,6 +651,7 @@ Pause all emails in a Mailchimp automation workflow
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Pause confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_add_subscriber_to_automation`
 
@@ -621,6 +672,8 @@ Manually add a subscriber to a workflow email queue
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Subscriber queue data |
+| ↳ `subscriber` | json | Subscriber object |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_get_templates`
 
@@ -638,8 +691,11 @@ Retrieve a list of templates from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Templates data and metadata |
+| `success` | boolean | Whether the templates were successfully retrieved |
+| `output` | object | Templates data |
+| ↳ `templates` | json | Array of template objects |
+| ↳ `total_items` | number | Total number of templates |
+| ↳ `total_returned` | number | Number of templates returned in this response |
 
 ### `mailchimp_get_template`
 
@@ -656,8 +712,10 @@ Retrieve details of a specific template from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Template data and metadata |
+| `success` | boolean | Whether the template was successfully retrieved |
+| `output` | object | Template data |
+| ↳ `template` | json | Template object |
+| ↳ `template_id` | string | The unique ID of the template |
 
 ### `mailchimp_create_template`
 
@@ -677,6 +735,9 @@ Create a new template in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created template data |
+| ↳ `template` | json | Created template object |
+| ↳ `template_id` | string | Created template ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_update_template`
 
@@ -697,6 +758,9 @@ Update an existing template in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated template data |
+| ↳ `template` | object | Updated template object |
+| ↳ `template_id` | string | Template ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_template`
 
@@ -713,8 +777,7 @@ Delete a template from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the template was successfully deleted |
 
 ### `mailchimp_get_campaign_reports`
 
@@ -732,8 +795,11 @@ Retrieve a list of campaign reports from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Campaign reports data and metadata |
+| `success` | boolean | Whether the campaign reports were successfully retrieved |
+| `output` | object | Campaign reports data |
+| ↳ `reports` | json | Array of campaign report objects |
+| ↳ `total_items` | number | Total number of reports |
+| ↳ `total_returned` | number | Number of reports returned in this response |
 
 ### `mailchimp_get_campaign_report`
 
@@ -750,8 +816,10 @@ Retrieve the report for a specific campaign from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Campaign report data and metadata |
+| `success` | boolean | Whether the campaign report was successfully retrieved |
+| `output` | object | Campaign report data |
+| ↳ `report` | json | Campaign report object |
+| ↳ `campaign_id` | string | The unique ID of the campaign |
 
 ### `mailchimp_get_segments`
 
@@ -770,8 +838,11 @@ Retrieve a list of segments from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Segments data and metadata |
+| `success` | boolean | Whether the segments were successfully retrieved |
+| `output` | object | Segments data |
+| ↳ `segments` | json | Array of segment objects |
+| ↳ `total_items` | number | Total number of segments |
+| ↳ `total_returned` | number | Number of segments returned in this response |
 
 ### `mailchimp_get_segment`
 
@@ -789,8 +860,10 @@ Retrieve details of a specific segment from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Segment data and metadata |
+| `success` | boolean | Whether the segment was successfully retrieved |
+| `output` | object | Segment data |
+| ↳ `segment` | json | Segment object |
+| ↳ `segment_id` | string | The unique ID of the segment |
 
 ### `mailchimp_create_segment`
 
@@ -811,6 +884,9 @@ Create a new segment in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created segment data |
+| ↳ `segment` | json | Created segment object |
+| ↳ `segment_id` | string | Created segment ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_update_segment`
 
@@ -832,6 +908,9 @@ Update an existing segment in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated segment data |
+| ↳ `segment` | object | Updated segment object |
+| ↳ `segment_id` | string | Segment ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_segment`
 
@@ -849,8 +928,7 @@ Delete a segment from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the segment was successfully deleted |
 
 ### `mailchimp_get_segment_members`
 
@@ -870,8 +948,11 @@ Retrieve members of a specific segment from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Segment members data and metadata |
+| `success` | boolean | Whether the segment members were successfully retrieved |
+| `output` | object | Segment members data |
+| ↳ `members` | json | Array of member objects |
+| ↳ `total_items` | number | Total number of members |
+| ↳ `total_returned` | number | Number of members returned in this response |
 
 ### `mailchimp_add_segment_member`
 
@@ -892,6 +973,8 @@ Add a member to a specific segment in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Added member data |
+| ↳ `member` | json | Added member object |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_remove_segment_member`
 
@@ -912,6 +995,7 @@ Remove a member from a specific segment in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Removal confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_get_member_tags`
 
@@ -929,8 +1013,11 @@ Retrieve tags associated with a member in a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Member tags data and metadata |
+| `success` | boolean | Whether the member tags were successfully retrieved |
+| `output` | object | Member tags data |
+| ↳ `tags` | json | Array of tag objects |
+| ↳ `total_items` | number | Total number of tags |
+| ↳ `total_returned` | number | Number of tags returned in this response |
 
 ### `mailchimp_add_member_tags`
 
@@ -951,6 +1038,7 @@ Add tags to a member in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Tag addition confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_remove_member_tags`
 
@@ -971,6 +1059,7 @@ Remove tags from a member in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Tag removal confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_get_merge_fields`
 
@@ -989,8 +1078,11 @@ Retrieve a list of merge fields from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Merge fields data and metadata |
+| `success` | boolean | Whether the merge fields were successfully retrieved |
+| `output` | object | Merge fields data |
+| ↳ `mergeFields` | json | Array of merge field objects |
+| ↳ `total_items` | number | Total number of merge fields |
+| ↳ `total_returned` | number | Number of merge fields returned in this response |
 
 ### `mailchimp_get_merge_field`
 
@@ -1008,8 +1100,10 @@ Retrieve details of a specific merge field from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Merge field data and metadata |
+| `success` | boolean | Whether the merge field was successfully retrieved |
+| `output` | object | Merge field data |
+| ↳ `mergeField` | json | Merge field object |
+| ↳ `merge_id` | string | The unique ID of the merge field |
 
 ### `mailchimp_create_merge_field`
 
@@ -1030,6 +1124,9 @@ Create a new merge field in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created merge field data |
+| ↳ `mergeField` | json | Created merge field object |
+| ↳ `merge_id` | string | Created merge field ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_update_merge_field`
 
@@ -1050,6 +1147,9 @@ Update an existing merge field in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated merge field data |
+| ↳ `mergeField` | object | Updated merge field object |
+| ↳ `merge_id` | string | Merge field ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_merge_field`
 
@@ -1067,8 +1167,7 @@ Delete a merge field from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the merge field was successfully deleted |
 
 ### `mailchimp_get_interest_categories`
 
@@ -1087,8 +1186,11 @@ Retrieve a list of interest categories from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Interest categories data and metadata |
+| `success` | boolean | Whether the interest categories were successfully retrieved |
+| `output` | object | Interest categories data |
+| ↳ `categories` | json | Array of interest category objects |
+| ↳ `total_items` | number | Total number of categories |
+| ↳ `total_returned` | number | Number of categories returned in this response |
 
 ### `mailchimp_get_interest_category`
 
@@ -1106,8 +1208,10 @@ Retrieve details of a specific interest category from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Interest category data and metadata |
+| `success` | boolean | Whether the interest category was successfully retrieved |
+| `output` | object | Interest category data |
+| ↳ `category` | json | Interest category object |
+| ↳ `interest_category_id` | string | The unique ID of the interest category |
 
 ### `mailchimp_create_interest_category`
 
@@ -1128,6 +1232,9 @@ Create a new interest category in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created interest category data |
+| ↳ `category` | json | Created interest category object |
+| ↳ `interest_category_id` | string | Created interest category ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_update_interest_category`
 
@@ -1148,6 +1255,9 @@ Update an existing interest category in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated interest category data |
+| ↳ `category` | object | Updated interest category object |
+| ↳ `interest_category_id` | string | Interest category ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_interest_category`
 
@@ -1165,8 +1275,7 @@ Delete an interest category from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the interest category was successfully deleted |
 
 ### `mailchimp_get_interests`
 
@@ -1186,8 +1295,11 @@ Retrieve a list of interests from an interest category in a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Interests data and metadata |
+| `success` | boolean | Whether the interests were successfully retrieved |
+| `output` | object | Interests data |
+| ↳ `interests` | json | Array of interest objects |
+| ↳ `total_items` | number | Total number of interests |
+| ↳ `total_returned` | number | Number of interests returned in this response |
 
 ### `mailchimp_get_interest`
 
@@ -1206,8 +1318,10 @@ Retrieve details of a specific interest from an interest category in a Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Interest data and metadata |
+| `success` | boolean | Whether the interest was successfully retrieved |
+| `output` | object | Interest data |
+| ↳ `interest` | json | Interest object |
+| ↳ `interest_id` | string | The unique ID of the interest |
 
 ### `mailchimp_create_interest`
 
@@ -1228,6 +1342,9 @@ Create a new interest in an interest category in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created interest data |
+| ↳ `interest` | json | Created interest object |
+| ↳ `interest_id` | string | Created interest ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_update_interest`
 
@@ -1249,6 +1366,9 @@ Update an existing interest in an interest category in a Mailchimp audience
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated interest data |
+| ↳ `interest` | object | Updated interest object |
+| ↳ `interest_id` | string | Interest ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_interest`
 
@@ -1267,8 +1387,7 @@ Delete an interest from an interest category in a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the interest was successfully deleted |
 
 ### `mailchimp_get_landing_pages`
 
@@ -1286,8 +1405,11 @@ Retrieve a list of landing pages from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Landing pages data and metadata |
+| `success` | boolean | Whether the landing pages were successfully retrieved |
+| `output` | object | Landing pages data |
+| ↳ `landingPages` | json | Array of landing page objects |
+| ↳ `total_items` | number | Total number of landing pages |
+| ↳ `total_returned` | number | Number of landing pages returned in this response |
 
 ### `mailchimp_get_landing_page`
 
@@ -1304,8 +1426,10 @@ Retrieve details of a specific landing page from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Landing page data and metadata |
+| `success` | boolean | Whether the landing page was successfully retrieved |
+| `output` | object | Landing page data |
+| ↳ `landingPage` | json | Landing page object |
+| ↳ `page_id` | string | The unique ID of the landing page |
 
 ### `mailchimp_create_landing_page`
 
@@ -1325,6 +1449,9 @@ Create a new landing page in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created landing page data |
+| ↳ `landingPage` | json | Created landing page object |
+| ↳ `page_id` | string | Created landing page ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_update_landing_page`
 
@@ -1344,6 +1471,9 @@ Update an existing landing page in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated landing page data |
+| ↳ `landingPage` | object | Updated landing page object |
+| ↳ `page_id` | string | Landing page ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_landing_page`
 
@@ -1360,8 +1490,7 @@ Delete a landing page from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the landing page was successfully deleted |
 
 ### `mailchimp_publish_landing_page`
 
@@ -1380,6 +1509,7 @@ Publish a landing page in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Publish confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_unpublish_landing_page`
 
@@ -1398,6 +1528,7 @@ Unpublish a landing page in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Unpublish confirmation |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_get_batch_operations`
 
@@ -1415,8 +1546,11 @@ Retrieve a list of batch operations from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Batch operations data and metadata |
+| `success` | boolean | Whether the batch operations were successfully retrieved |
+| `output` | object | Batch operations data |
+| ↳ `batches` | json | Array of batch operation objects |
+| ↳ `total_items` | number | Total number of batch operations |
+| ↳ `total_returned` | number | Number of batch operations returned in this response |
 
 ### `mailchimp_get_batch_operation`
 
@@ -1433,8 +1567,10 @@ Retrieve details of a specific batch operation from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Batch operation data and metadata |
+| `success` | boolean | Whether the batch operation was successfully retrieved |
+| `output` | object | Batch operation data |
+| ↳ `batch` | json | Batch operation object |
+| ↳ `batch_id` | string | The unique ID of the batch operation |
 
 ### `mailchimp_create_batch_operation`
 
@@ -1453,6 +1589,9 @@ Create a new batch operation in Mailchimp
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created batch operation data |
+| ↳ `batch` | json | Created batch operation object |
+| ↳ `batch_id` | string | Created batch operation ID |
+| ↳ `success` | boolean | Operation success |
 
 ### `mailchimp_delete_batch_operation`
 
@@ -1469,12 +1608,6 @@ Delete a batch operation from Mailchimp
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Deletion confirmation |
+| `success` | boolean | Whether the batch operation was successfully deleted |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `mailchimp`

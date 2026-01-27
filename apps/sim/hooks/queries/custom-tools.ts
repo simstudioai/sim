@@ -1,10 +1,33 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import type { CustomToolDefinition, CustomToolSchema } from '@/stores/custom-tools/types'
+import { getQueryClient } from '@/app/_shell/providers/query-provider'
 
 const logger = createLogger('CustomToolsQueries')
 const API_ENDPOINT = '/api/tools/custom'
+
+export interface CustomToolSchema {
+  type: string
+  function: {
+    name: string
+    description?: string
+    parameters: {
+      type: string
+      properties: Record<string, unknown>
+      required?: string[]
+    }
+  }
+}
+
+export interface CustomToolDefinition {
+  id: string
+  workspaceId: string | null
+  userId: string | null
+  title: string
+  schema: CustomToolSchema
+  code: string
+  createdAt: string
+  updatedAt?: string
+}
 
 /**
  * Query key factories for custom tools queries
@@ -64,8 +87,39 @@ function normalizeCustomTool(tool: ApiCustomTool, workspaceId: string): CustomTo
   }
 }
 
-function syncCustomToolsToStore(tools: CustomToolDefinition[]) {
-  useCustomToolsStore.getState().setTools(tools)
+/**
+ * Extract workspaceId from the current URL path
+ * Expected format: /workspace/{workspaceId}/...
+ */
+function getWorkspaceIdFromUrl(): string | null {
+  if (typeof window === 'undefined') return null
+  const match = window.location.pathname.match(/^\/workspace\/([^/]+)/)
+  return match?.[1] ?? null
+}
+
+/**
+ * Get all custom tools from the query cache (for non-React code)
+ * If workspaceId is not provided, extracts it from the current URL
+ */
+export function getCustomTools(workspaceId?: string): CustomToolDefinition[] {
+  if (typeof window === 'undefined') return []
+  const wsId = workspaceId ?? getWorkspaceIdFromUrl()
+  if (!wsId) return []
+  const queryClient = getQueryClient()
+  return queryClient.getQueryData<CustomToolDefinition[]>(customToolsKeys.list(wsId)) ?? []
+}
+
+/**
+ * Get a specific custom tool from the query cache by ID or title (for non-React code)
+ * Custom tools are referenced by title in the system (custom_${title}), so title lookup is required.
+ * If workspaceId is not provided, extracts it from the current URL
+ */
+export function getCustomTool(
+  identifier: string,
+  workspaceId?: string
+): CustomToolDefinition | undefined {
+  const tools = getCustomTools(workspaceId)
+  return tools.find((tool) => tool.id === identifier || tool.title === identifier)
 }
 
 /**
@@ -134,19 +188,13 @@ async function fetchCustomTools(workspaceId: string): Promise<CustomToolDefiniti
  * Hook to fetch custom tools
  */
 export function useCustomTools(workspaceId: string) {
-  const query = useQuery<CustomToolDefinition[]>({
+  return useQuery<CustomToolDefinition[]>({
     queryKey: customToolsKeys.list(workspaceId),
     queryFn: () => fetchCustomTools(workspaceId),
     enabled: !!workspaceId,
     staleTime: 60 * 1000, // 1 minute - tools don't change frequently
     placeholderData: keepPreviousData,
   })
-
-  if (query.data) {
-    syncCustomToolsToStore(query.data)
-  }
-
-  return query
 }
 
 /**

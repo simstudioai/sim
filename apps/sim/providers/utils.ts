@@ -1,13 +1,14 @@
 import { createLogger, type Logger } from '@sim/logger'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
   getEmbeddingModelPricing,
   getHostedModels as getHostedModelsFromDefinitions,
+  getMaxOutputTokensForModel as getMaxOutputTokensForModelFromDefinitions,
   getMaxTemperature as getMaxTempFromDefinitions,
   getModelPricing as getModelPricingFromDefinitions,
   getModelsWithReasoningEffort,
@@ -28,10 +29,55 @@ import {
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useProvidersStore } from '@/stores/providers/store'
+import { mergeToolParameters } from '@/tools/params'
 
 const logger = createLogger('ProviderUtils')
+
+/**
+ * Checks if a workflow description is a default/placeholder description
+ */
+function isDefaultWorkflowDescription(
+  description: string | null | undefined,
+  name?: string
+): boolean {
+  if (!description) return true
+  const normalizedDesc = description.toLowerCase().trim()
+  return (
+    description === name ||
+    normalizedDesc === 'new workflow' ||
+    normalizedDesc === 'your first workflow - start building here!'
+  )
+}
+
+/**
+ * Fetches workflow metadata (name and description) from the API
+ */
+async function fetchWorkflowMetadata(
+  workflowId: string
+): Promise<{ name: string; description: string | null } | null> {
+  try {
+    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+
+    const headers = await buildAuthHeaders()
+    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+
+    const response = await fetch(url.toString(), { headers })
+    if (!response.ok) {
+      logger.warn(`Failed to fetch workflow metadata for ${workflowId}`)
+      return null
+    }
+
+    const { data } = await response.json()
+    return {
+      name: data?.name || 'Workflow',
+      description: data?.description || null,
+    }
+  } catch (error) {
+    logger.error('Error fetching workflow metadata:', error)
+    return null
+  }
+}
 
 /**
  * Client-safe provider metadata.
@@ -88,6 +134,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   'azure-openai': buildProviderMetadata('azure-openai'),
   openrouter: buildProviderMetadata('openrouter'),
   ollama: buildProviderMetadata('ollama'),
+  bedrock: buildProviderMetadata('bedrock'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
@@ -131,6 +178,9 @@ function filterBlacklistedModelsFromProviderMap(
 ): Record<string, ProviderId> {
   const filtered: Record<string, ProviderId> = {}
   for (const [model, providerId] of Object.entries(providerMap)) {
+    if (isProviderBlacklisted(providerId)) {
+      continue
+    }
     if (!isModelBlacklisted(model)) {
       filtered[model] = providerId
     }
@@ -152,22 +202,39 @@ export function getAllModelProviders(): Record<string, ProviderId> {
 
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
-  if (normalizedModel in getAllModelProviders()) {
-    return getAllModelProviders()[normalizedModel]
-  }
 
-  for (const [providerId, config] of Object.entries(providers)) {
-    if (config.modelPatterns) {
-      for (const pattern of config.modelPatterns) {
-        if (pattern.test(normalizedModel)) {
-          return providerId as ProviderId
+  let providerId: ProviderId | null = null
+
+  if (normalizedModel in getAllModelProviders()) {
+    providerId = getAllModelProviders()[normalizedModel]
+  } else {
+    for (const [id, config] of Object.entries(providers)) {
+      if (config.modelPatterns) {
+        for (const pattern of config.modelPatterns) {
+          if (pattern.test(normalizedModel)) {
+            providerId = id as ProviderId
+            break
+          }
         }
       }
+      if (providerId) break
     }
   }
 
-  logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
-  return 'ollama'
+  if (!providerId) {
+    logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
+    providerId = 'ollama'
+  }
+
+  if (isProviderBlacklisted(providerId)) {
+    throw new Error(`Provider "${providerId}" is not available`)
+  }
+
+  if (isModelBlacklisted(normalizedModel)) {
+    throw new Error(`Model "${model}" is not available`)
+  }
+
+  return providerId
 }
 
 export function getProvider(id: string): ProviderMetadata | undefined {
@@ -192,35 +259,42 @@ export function getProviderModels(providerId: ProviderId): string[] {
   return getProviderModelsFromDefinitions(providerId)
 }
 
-interface ModelBlacklist {
-  models: string[]
-  prefixes: string[]
-  envOverride?: string
+function getBlacklistedProviders(): string[] {
+  if (!env.BLACKLISTED_PROVIDERS) return []
+  return env.BLACKLISTED_PROVIDERS.split(',').map((p) => p.trim().toLowerCase())
 }
 
-const MODEL_BLACKLISTS: ModelBlacklist[] = [
-  {
-    models: ['deepseek-chat', 'deepseek-v3', 'deepseek-r1'],
-    prefixes: ['openrouter/deepseek', 'openrouter/tngtech'],
-    envOverride: 'DEEPSEEK_MODELS_ENABLED',
-  },
-]
+export function isProviderBlacklisted(providerId: string): boolean {
+  const blacklist = getBlacklistedProviders()
+  return blacklist.includes(providerId.toLowerCase())
+}
+
+/**
+ * Get the list of blacklisted models from env var.
+ * BLACKLISTED_MODELS supports:
+ * - Exact model names: "gpt-4,claude-3-opus"
+ * - Prefix patterns with *: "claude-*,gpt-4-*" (matches models starting with that prefix)
+ */
+function getBlacklistedModels(): { models: string[]; prefixes: string[] } {
+  if (!env.BLACKLISTED_MODELS) return { models: [], prefixes: [] }
+
+  const entries = env.BLACKLISTED_MODELS.split(',').map((m) => m.trim().toLowerCase())
+  const models = entries.filter((e) => !e.endsWith('*'))
+  const prefixes = entries.filter((e) => e.endsWith('*')).map((e) => e.slice(0, -1))
+
+  return { models, prefixes }
+}
 
 function isModelBlacklisted(model: string): boolean {
   const lowerModel = model.toLowerCase()
+  const blacklist = getBlacklistedModels()
 
-  for (const blacklist of MODEL_BLACKLISTS) {
-    if (blacklist.envOverride && isTruthy(getEnv(blacklist.envOverride))) {
-      continue
-    }
+  if (blacklist.models.includes(lowerModel)) {
+    return true
+  }
 
-    if (blacklist.models.includes(lowerModel)) {
-      return true
-    }
-
-    if (blacklist.prefixes.some((prefix) => lowerModel.startsWith(prefix))) {
-      return true
-    }
+  if (blacklist.prefixes.some((prefix) => lowerModel.startsWith(prefix))) {
+    return true
   }
 
   return false
@@ -346,38 +420,6 @@ export function extractAndParseJSON(content: string): any {
 }
 
 /**
- * Transforms a custom tool schema into a provider tool config
- */
-export function transformCustomTool(customTool: any): ProviderToolConfig {
-  const schema = customTool.schema
-
-  if (!schema || !schema.function) {
-    throw new Error('Invalid custom tool schema')
-  }
-
-  return {
-    id: `custom_${customTool.id}`,
-    name: schema.function.name,
-    description: schema.function.description || '',
-    params: {},
-    parameters: {
-      type: schema.function.parameters.type,
-      properties: schema.function.parameters.properties,
-      required: schema.function.parameters.required || [],
-    },
-  }
-}
-
-/**
- * Gets all available custom tools as provider tool configs
- */
-export function getCustomTools(): ProviderToolConfig[] {
-  const customTools = useCustomToolsStore.getState().getAllTools()
-
-  return customTools.map(transformCustomTool)
-}
-
-/**
  * Transforms a block tool into a provider tool config with operation selection
  *
  * @param block The block to transform
@@ -450,16 +492,30 @@ export async function transformBlockTool(
   const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
   let uniqueToolId = toolConfig.id
+  let toolName = toolConfig.name
+  let toolDescription = toolConfig.description
+
   if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
+
+    const workflowMetadata = await fetchWorkflowMetadata(userProvidedParams.workflowId)
+    if (workflowMetadata) {
+      toolName = workflowMetadata.name || toolConfig.name
+      if (
+        workflowMetadata.description &&
+        !isDefaultWorkflowDescription(workflowMetadata.description, workflowMetadata.name)
+      ) {
+        toolDescription = workflowMetadata.description
+      }
+    }
   } else if (toolId.startsWith('knowledge_') && userProvidedParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
   }
 
   return {
     id: uniqueToolId,
-    name: toolConfig.name,
-    description: toolConfig.description,
+    name: toolName,
+    description: toolDescription,
     params: userProvidedParams,
     parameters: llmSchema,
   }
@@ -593,6 +649,12 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
     return userProvidedKey || 'empty'
+  }
+
+  // Bedrock uses its own credentials (bedrockAccessKeyId/bedrockSecretKey), not apiKey
+  const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
+  if (isBedrockModel) {
+    return 'bedrock-uses-own-credentials'
   }
 
   const isOpenAIModel = provider === 'openai'
@@ -932,6 +994,18 @@ export function getThinkingLevelsForModel(model: string): string[] | null {
 }
 
 /**
+ * Get max output tokens for a specific model
+ * Returns the model's maxOutputTokens capability for streaming requests,
+ * or a conservative default (8192) for non-streaming requests to avoid timeout issues.
+ *
+ * @param model - The model ID
+ * @param streaming - Whether the request is streaming (default: false)
+ */
+export function getMaxOutputTokensForModel(model: string, streaming = false): number {
+  return getMaxOutputTokensForModelFromDefinitions(model, streaming)
+}
+
+/**
  * Prepare tool execution parameters, separating tool parameters from system parameters
  */
 export function prepareToolExecution(
@@ -939,31 +1013,21 @@ export function prepareToolExecution(
   llmArgs: Record<string, any>,
   request: {
     workflowId?: string
-    workspaceId?: string // Add workspaceId for MCP tools
+    workspaceId?: string
     chatId?: string
     userId?: string
     environmentVariables?: Record<string, any>
     workflowVariables?: Record<string, any>
     blockData?: Record<string, any>
     blockNameMapping?: Record<string, string>
+    isDeployedContext?: boolean
   }
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  const filteredUserParams: Record<string, any> = {}
-  if (tool.params) {
-    for (const [key, value] of Object.entries(tool.params)) {
-      if (value !== undefined && value !== null && value !== '') {
-        filteredUserParams[key] = value
-      }
-    }
-  }
-
-  const toolParams = {
-    ...llmArgs,
-    ...filteredUserParams,
-  }
+  // Use centralized merge logic from tools/params
+  const toolParams = mergeToolParameters(tool.params || {}, llmArgs) as Record<string, any>
 
   const executionParams = {
     ...toolParams,
@@ -974,6 +1038,9 @@ export function prepareToolExecution(
             ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
             ...(request.chatId ? { chatId: request.chatId } : {}),
             ...(request.userId ? { userId: request.userId } : {}),
+            ...(request.isDeployedContext !== undefined
+              ? { isDeployedContext: request.isDeployedContext }
+              : {}),
           },
         }
       : {}),

@@ -6,11 +6,12 @@ import {
   extractWorkflowName,
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
+  parseWorkflowJson,
+  sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
 import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 
 const logger = createLogger('useImportWorkflow')
 
@@ -33,13 +34,14 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
   const createWorkflowMutation = useCreateWorkflow()
   const queryClient = useQueryClient()
   const createFolderMutation = useCreateFolder()
+  const clearDiff = useWorkflowDiffStore((state) => state.clearDiff)
   const [isImporting, setIsImporting] = useState(false)
 
   /**
    * Import a single workflow
    */
   const importSingleWorkflow = useCallback(
-    async (content: string, filename: string, folderId?: string) => {
+    async (content: string, filename: string, folderId?: string, sortOrder?: number) => {
       const { data: workflowData, errors: parseErrors } = parseWorkflowJson(content)
 
       if (!workflowData || parseErrors.length > 0) {
@@ -48,9 +50,8 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       }
 
       const workflowName = extractWorkflowName(content, filename)
-      useWorkflowDiffStore.getState().clearDiff()
+      clearDiff()
 
-      // Extract color from metadata
       const parsedContent = JSON.parse(content)
       const workflowColor =
         parsedContent.state?.metadata?.color || parsedContent.metadata?.color || '#3972F6'
@@ -60,10 +61,10 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         description: workflowData.metadata?.description || 'Imported from JSON',
         workspaceId,
         folderId: folderId || undefined,
+        sortOrder,
       })
       const newWorkflowId = result.id
 
-      // Update workflow color if we extracted one
       if (workflowColor !== '#3972F6') {
         await fetch(`/api/workflows/${newWorkflowId}`, {
           method: 'PATCH',
@@ -72,34 +73,46 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         })
       }
 
-      // Save workflow state
       await fetch(`/api/workflows/${newWorkflowId}/state`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(workflowData),
       })
 
-      // Save variables if any
-      if (workflowData.variables && workflowData.variables.length > 0) {
-        const variablesPayload = workflowData.variables.map((v: any) => ({
-          id: typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID(),
-          workflowId: newWorkflowId,
-          name: v.name,
-          type: v.type,
-          value: v.value,
-        }))
+      if (workflowData.variables) {
+        const variablesArray = Array.isArray(workflowData.variables)
+          ? workflowData.variables
+          : Object.values(workflowData.variables)
 
-        await fetch(`/api/workflows/${newWorkflowId}/variables`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ variables: variablesPayload }),
-        })
+        if (variablesArray.length > 0) {
+          const variablesRecord: Record<
+            string,
+            { id: string; workflowId: string; name: string; type: string; value: unknown }
+          > = {}
+
+          for (const v of variablesArray) {
+            const id = typeof v.id === 'string' && v.id.trim() ? v.id : crypto.randomUUID()
+            variablesRecord[id] = {
+              id,
+              workflowId: newWorkflowId,
+              name: v.name,
+              type: v.type,
+              value: v.value,
+            }
+          }
+
+          await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ variables: variablesRecord }),
+          })
+        }
       }
 
       logger.info(`Imported workflow: ${workflowName}`)
       return newWorkflowId
     },
-    [createWorkflowMutation, workspaceId]
+    [clearDiff, createWorkflowMutation, workspaceId]
   )
 
   /**
@@ -119,7 +132,6 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         const importedWorkflowIds: string[] = []
 
         if (hasZip && fileArray.length === 1) {
-          // Import from ZIP - preserves folder structure
           const zipFile = fileArray[0]
           const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
 
@@ -130,23 +142,73 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           })
           const folderMap = new Map<string, string>()
 
+          if (metadata?.folders && metadata.folders.length > 0) {
+            type ExportedFolder = {
+              id: string
+              name: string
+              parentId: string | null
+              sortOrder?: number
+            }
+            const foldersById = new Map<string, ExportedFolder>(
+              metadata.folders.map((f) => [f.id, f])
+            )
+            const oldIdToNewId = new Map<string, string>()
+
+            const buildPath = (folderId: string): string => {
+              const pathParts: string[] = []
+              let currentId: string | null = folderId
+              while (currentId && foldersById.has(currentId)) {
+                const folder: ExportedFolder = foldersById.get(currentId)!
+                pathParts.unshift(sanitizePathSegment(folder.name))
+                currentId = folder.parentId
+              }
+              return pathParts.join('/')
+            }
+
+            const createFolderRecursive = async (folder: ExportedFolder): Promise<string> => {
+              if (oldIdToNewId.has(folder.id)) {
+                return oldIdToNewId.get(folder.id)!
+              }
+
+              let parentId = importFolder.id
+              if (folder.parentId && foldersById.has(folder.parentId)) {
+                parentId = await createFolderRecursive(foldersById.get(folder.parentId)!)
+              }
+
+              const newFolder = await createFolderMutation.mutateAsync({
+                name: folder.name,
+                workspaceId,
+                parentId,
+                sortOrder: folder.sortOrder,
+              })
+              oldIdToNewId.set(folder.id, newFolder.id)
+              folderMap.set(buildPath(folder.id), newFolder.id)
+              return newFolder.id
+            }
+
+            for (const folder of metadata.folders) {
+              await createFolderRecursive(folder)
+            }
+          }
+
           for (const workflow of extractedWorkflows) {
             try {
               let targetFolderId = importFolder.id
 
-              // Recreate nested folder structure
               if (workflow.folderPath.length > 0) {
                 const folderPathKey = workflow.folderPath.join('/')
 
-                if (!folderMap.has(folderPathKey)) {
+                if (folderMap.has(folderPathKey)) {
+                  targetFolderId = folderMap.get(folderPathKey)!
+                } else {
                   let parentId = importFolder.id
-
                   for (let i = 0; i < workflow.folderPath.length; i++) {
                     const pathSegment = workflow.folderPath.slice(0, i + 1).join('/')
+                    const folderNameForSegment = workflow.folderPath[i]
 
                     if (!folderMap.has(pathSegment)) {
                       const subFolder = await createFolderMutation.mutateAsync({
-                        name: workflow.folderPath[i],
+                        name: folderNameForSegment,
                         workspaceId,
                         parentId,
                       })
@@ -156,15 +218,15 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
                       parentId = folderMap.get(pathSegment)!
                     }
                   }
+                  targetFolderId = folderMap.get(folderPathKey)!
                 }
-
-                targetFolderId = folderMap.get(folderPathKey)!
               }
 
               const workflowId = await importSingleWorkflow(
                 workflow.content,
                 workflow.name,
-                targetFolderId
+                targetFolderId,
+                workflow.sortOrder
               )
               if (workflowId) importedWorkflowIds.push(workflowId)
             } catch (error) {
@@ -172,7 +234,6 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             }
           }
         } else if (jsonFiles.length > 0) {
-          // Import multiple JSON files or single JSON
           const extractedWorkflows = await extractWorkflowsFromFiles(jsonFiles)
 
           for (const workflow of extractedWorkflows) {
@@ -185,22 +246,21 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           }
         }
 
-        // Reload workflows and folders to show newly imported ones
         await queryClient.invalidateQueries({ queryKey: workflowKeys.list(workspaceId) })
         await queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId) })
 
         logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)
 
-        // Navigate to first imported workflow if any
         if (importedWorkflowIds.length > 0) {
-          router.push(`/workspace/${workspaceId}/w/${importedWorkflowIds[0]}`)
+          router.push(
+            `/workspace/${workspaceId}/w/${importedWorkflowIds[importedWorkflowIds.length - 1]}`
+          )
         }
       } catch (error) {
         logger.error('Failed to import workflows:', error)
       } finally {
         setIsImporting(false)
 
-        // Reset file input
         if (event.target) {
           event.target.value = ''
         }

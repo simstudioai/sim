@@ -1,5 +1,5 @@
 import { MongoClient } from 'mongodb'
-import type { MongoDBConnectionConfig } from '@/tools/mongodb/types'
+import type { MongoDBCollectionInfo, MongoDBConnectionConfig } from '@/tools/mongodb/types'
 
 export async function createMongoDBConnection(config: MongoDBConnectionConfig) {
   const credentials =
@@ -128,4 +128,60 @@ export function sanitizeCollectionName(name: string): string {
     )
   }
   return name
+}
+
+/**
+ * Introspect MongoDB to get databases, collections, and indexes
+ */
+export async function executeIntrospect(
+  client: MongoClient,
+  database?: string
+): Promise<{
+  message: string
+  databases: string[]
+  collections: MongoDBCollectionInfo[]
+}> {
+  const databases: string[] = []
+  const collections: MongoDBCollectionInfo[] = []
+
+  if (database) {
+    databases.push(database)
+    const db = client.db(database)
+    const collectionList = await db.listCollections().toArray()
+
+    for (const collInfo of collectionList) {
+      const coll = db.collection(collInfo.name)
+      const indexes = await coll.indexes()
+      const documentCount = await coll.estimatedDocumentCount()
+
+      collections.push({
+        name: collInfo.name,
+        type: collInfo.type || 'collection',
+        documentCount,
+        indexes: indexes.map((idx) => ({
+          name: idx.name || '',
+          key: idx.key as Record<string, number>,
+          unique: idx.unique || false,
+          sparse: idx.sparse,
+        })),
+      })
+    }
+  } else {
+    const admin = client.db().admin()
+    const dbList = await admin.listDatabases()
+
+    for (const dbInfo of dbList.databases) {
+      databases.push(dbInfo.name)
+    }
+  }
+
+  const message = database
+    ? `Found ${collections.length} collections in database '${database}'`
+    : `Found ${databases.length} databases`
+
+  return {
+    message,
+    databases,
+    collections,
+  }
 }

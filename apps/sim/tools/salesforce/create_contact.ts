@@ -142,7 +142,6 @@ export const salesforceCreateContactTool: ToolConfig<
         id: data.id,
         success: data.success,
         created: true,
-        metadata: { operation: 'create_contact' as const },
       },
     }
   },
@@ -156,7 +155,6 @@ export const salesforceCreateContactTool: ToolConfig<
         id: { type: 'string', description: 'Created contact ID' },
         success: { type: 'boolean', description: 'Salesforce operation success' },
         created: { type: 'boolean', description: 'Whether contact was created' },
-        metadata: { type: 'object', description: 'Operation metadata' },
       },
     },
   },

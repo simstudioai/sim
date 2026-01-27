@@ -19,8 +19,8 @@ import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
-import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 
 interface DocumentTag {
   id: string
@@ -37,6 +37,7 @@ interface DocumentTagEntryProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: any
+  previewContextValues?: Record<string, unknown>
 }
 
 /**
@@ -56,6 +57,7 @@ export function DocumentTagEntry({
   disabled = false,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: DocumentTagEntryProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
@@ -74,8 +76,12 @@ export function DocumentTagEntry({
     disabled,
   })
 
-  const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
-  const knowledgeBaseId = knowledgeBaseIdValue || null
+  const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
+  const knowledgeBaseIdValue = previewContextValues?.knowledgeBaseId ?? knowledgeBaseIdFromStore
+  const knowledgeBaseId =
+    typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
+      ? knowledgeBaseIdValue
+      : null
 
   const { tagDefinitions, isLoading } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
@@ -131,11 +137,16 @@ export function DocumentTagEntry({
   }
 
   /**
-   * Removes a tag by ID (prevents removing the last tag)
+   * Removes a tag by ID, or resets it if it's the last one
    */
   const removeTag = (id: string) => {
-    if (isReadOnly || tags.length === 1) return
-    updateTags(tags.filter((t) => t.id !== id))
+    if (isReadOnly) return
+    if (tags.length === 1) {
+      // Reset the last tag instead of removing it
+      updateTags([createDefaultTag()])
+    } else {
+      updateTags(tags.filter((t) => t.id !== id))
+    }
   }
 
   /**
@@ -222,17 +233,20 @@ export function DocumentTagEntry({
 
   /**
    * Renders the tag header with name, badge, and action buttons
+   * Shows tag name only when collapsed (as summary), generic label when expanded
    */
   const renderTagHeader = (tag: DocumentTag, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
       onClick={() => toggleCollapse(tag.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
-          {tag.tagName || `Tag ${index + 1}`}
+          {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
         </span>
-        {tag.tagName && <Badge size='sm'>{FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}</Badge>}
+        {tag.collapsed && tag.tagName && (
+          <Badge size='sm'>{FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}</Badge>
+        )}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
         <Button
@@ -247,7 +261,7 @@ export function DocumentTagEntry({
         <Button
           variant='ghost'
           onClick={() => removeTag(tag.id)}
-          disabled={isReadOnly || tags.length === 1}
+          disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
@@ -288,6 +302,7 @@ export function DocumentTagEntry({
           onKeyDown={handlers.onKeyDown}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
           onScroll={(e) => syncOverlayScroll(cellKey, e.currentTarget.scrollLeft)}
           onPaste={() =>
             setTimeout(() => {
@@ -340,7 +355,7 @@ export function DocumentTagEntry({
 
     const tagOptions: ComboboxOption[] = selectableTags.map((t) => ({
       value: t.displayName,
-      label: `${t.displayName} (${FIELD_TYPE_LABELS[t.fieldType] || 'Text'})`,
+      label: t.displayName,
     }))
 
     return (

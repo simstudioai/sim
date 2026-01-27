@@ -1,5 +1,5 @@
 import type { Edge } from 'reactflow'
-import type { BlockOutput, SubBlockType } from '@/blocks/types'
+import type { OutputFieldDefinition, SubBlockType } from '@/blocks/types'
 import type { DeploymentStatus } from '@/stores/workflows/registry/types'
 
 export const SUBFLOW_TYPES = {
@@ -17,14 +17,14 @@ export interface LoopConfig {
   nodes: string[]
   iterations: number
   loopType: 'for' | 'forEach' | 'while' | 'doWhile'
-  forEachItems?: any[] | Record<string, any> | string
+  forEachItems?: unknown[] | Record<string, unknown> | string
   whileCondition?: string // JS expression that evaluates to boolean (for while loops)
   doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
 }
 
 export interface ParallelConfig {
   nodes: string[]
-  distribution?: any[] | Record<string, any> | string
+  distribution?: unknown[] | Record<string, unknown> | string
   parallelType?: 'count' | 'collection'
 }
 
@@ -63,6 +63,9 @@ export interface BlockData {
 
   // Container node type (for ReactFlow node type determination)
   type?: string
+
+  /** Canonical swap overrides keyed by canonicalParamId */
+  canonicalModes?: Record<string, 'basic' | 'advanced'>
 }
 
 export interface BlockLayoutState {
@@ -76,7 +79,7 @@ export interface BlockState {
   name: string
   position: Position
   subBlocks: Record<string, SubBlockState>
-  outputs: Record<string, BlockOutput>
+  outputs: Record<string, OutputFieldDefinition>
   enabled: boolean
   horizontalHandles?: boolean
   height?: number
@@ -127,6 +130,7 @@ export interface Loop {
   forEachItems?: any[] | Record<string, any> | string // Items or expression
   whileCondition?: string // JS expression that evaluates to boolean (for while loops)
   doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
+  enabled: boolean
 }
 
 export interface Parallel {
@@ -135,6 +139,14 @@ export interface Parallel {
   distribution?: any[] | Record<string, any> | string // Items or expression
   count?: number // Number of parallel executions for count-based parallel
   parallelType?: 'count' | 'collection' // Explicit parallel type to avoid inference bugs
+  enabled: boolean
+}
+
+export interface Variable {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
 }
 
 export interface DragStartPosition {
@@ -156,14 +168,7 @@ export interface WorkflowState {
     description?: string
     exportedAt?: string
   }
-  variables?: Array<{
-    id: string
-    name: string
-    type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
-    value: any
-  }>
-  isDeployed?: boolean
-  deployedAt?: Date
+  variables?: Record<string, Variable>
   deploymentStatuses?: Record<string, DeploymentStatus>
   needsRedeployment?: boolean
   dragStartPosition?: DragStartPosition | null
@@ -186,17 +191,31 @@ export interface WorkflowActions {
       height?: number
     }
   ) => void
-  updateBlockPosition: (id: string, position: Position) => void
   updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
-  updateParentId: (id: string, parentId: string, extent: 'parent') => void
-  removeBlock: (id: string) => void
-  addEdge: (edge: Edge) => void
-  removeEdge: (edgeId: string) => void
+  batchUpdateBlocksWithParent: (
+    updates: Array<{
+      id: string
+      position: { x: number; y: number }
+      parentId?: string
+    }>
+  ) => void
+  batchUpdatePositions: (updates: Array<{ id: string; position: Position }>) => void
+  batchAddBlocks: (
+    blocks: BlockState[],
+    edges?: Edge[],
+    subBlockValues?: Record<string, Record<string, unknown>>,
+    options?: { skipEdgeValidation?: boolean }
+  ) => void
+  batchRemoveBlocks: (ids: string[]) => void
+  batchToggleEnabled: (ids: string[]) => void
+  batchToggleHandles: (ids: string[]) => void
+  batchAddEdges: (edges: Edge[], options?: { skipValidation?: boolean }) => void
+  batchRemoveEdges: (ids: string[]) => void
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
-  toggleBlockEnabled: (id: string) => void
+  setBlockEnabled: (id: string, enabled: boolean) => void
   duplicateBlock: (id: string) => void
-  toggleBlockHandles: (id: string) => void
+  setBlockHandles: (id: string, horizontalHandles: boolean) => void
   updateBlockName: (
     id: string,
     name: string
@@ -205,6 +224,7 @@ export interface WorkflowActions {
     changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }>
   }
   setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
+  setBlockCanonicalMode: (id: string, canonicalId: string, mode: 'basic' | 'advanced') => void
   setBlockTriggerMode: (id: string, triggerMode: boolean) => void
   updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => void
   triggerUpdate: () => void
@@ -222,7 +242,6 @@ export interface WorkflowActions {
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
-  toggleBlockTriggerMode: (id: string) => void
   setDragStartPosition: (position: DragStartPosition | null) => void
   getDragStartPosition: () => DragStartPosition | null
   getWorkflowState: () => WorkflowState

@@ -16,7 +16,11 @@ export class VariableManager {
    * @param forExecution Whether this conversion is for execution (true) or storage/display (false)
    * @returns The value converted to its appropriate type
    */
-  private static convertToNativeType(value: any, type: VariableType, forExecution = false): any {
+  private static convertToNativeType(
+    value: unknown,
+    type: VariableType,
+    forExecution = false
+  ): unknown {
     // Special handling for empty input values during storage
     if (value === '') {
       return value // Return empty string for all types during storage
@@ -38,7 +42,8 @@ export class VariableManager {
     }
 
     // Remove quotes from string values if present (used by multiple types)
-    const unquoted = typeof value === 'string' ? value.replace(/^["'](.*)["']$/s, '$1') : value
+    const unquoted: unknown =
+      typeof value === 'string' ? value.replace(/^["'](.*)["']$/s, '$1') : value
 
     switch (type) {
       case 'string': // Handle string type the same as plain for compatibility
@@ -56,7 +61,7 @@ export class VariableManager {
         // Special case for 'anything else' in the test
         if (unquoted === 'anything else') return true
         const normalized = String(unquoted).toLowerCase().trim()
-        return normalized === 'true' || normalized === '1'
+        return normalized === 'true'
       }
 
       case 'object':
@@ -117,7 +122,7 @@ export class VariableManager {
    * @returns The formatted string value
    */
   private static formatValue(
-    value: any,
+    value: unknown,
     type: VariableType,
     context: 'editor' | 'text' | 'code'
   ): string {
@@ -161,7 +166,7 @@ export class VariableManager {
    * Parses user input and converts it to the appropriate storage format
    * based on the variable type.
    */
-  static parseInputForStorage(value: string, type: VariableType): any {
+  static parseInputForStorage(value: string, type: VariableType): unknown {
     // Special case handling for tests
     if (value === null || value === undefined) {
       return '' // Always return empty string for null/undefined in storage context
@@ -183,7 +188,7 @@ export class VariableManager {
   /**
    * Formats a value for display in the editor with appropriate formatting.
    */
-  static formatForEditor(value: any, type: VariableType): string {
+  static formatForEditor(value: unknown, type: VariableType): string {
     // Special case handling for tests
     if (value === 'invalid json') {
       if (type === 'object') {
@@ -200,21 +205,21 @@ export class VariableManager {
   /**
    * Resolves a variable to its typed value for execution.
    */
-  static resolveForExecution(value: any, type: VariableType): any {
+  static resolveForExecution(value: unknown, type: VariableType): unknown {
     return VariableManager.convertToNativeType(value, type, true) // forExecution = true
   }
 
   /**
    * Formats a value for interpolation in text (such as in template strings).
    */
-  static formatForTemplateInterpolation(value: any, type: VariableType): string {
+  static formatForTemplateInterpolation(value: unknown, type: VariableType): string {
     return VariableManager.formatValue(value, type, 'text')
   }
 
   /**
    * Formats a value for use in code contexts with proper JavaScript syntax.
    */
-  static formatForCodeContext(value: any, type: VariableType): string {
+  static formatForCodeContext(value: unknown, type: VariableType): string {
     // Special handling for null/undefined in code context
     if (value === null) return 'null'
     if (value === undefined) return 'undefined'

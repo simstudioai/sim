@@ -22,9 +22,10 @@ import type { DocumentData } from '@/lib/knowledge/types'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
-} from '@/hooks/use-knowledge-base-tag-definitions'
-import { useNextAvailableSlot } from '@/hooks/use-next-available-slot'
-import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-definitions'
+} from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import { useNextAvailableSlot } from '@/hooks/kb/use-next-available-slot'
+import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/kb/use-tag-definitions'
+import { useUpdateDocumentTags } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('DocumentTagsModal')
 
@@ -58,8 +59,6 @@ function formatValueForDisplay(value: string, fieldType: string): string {
       try {
         const date = new Date(value)
         if (Number.isNaN(date.getTime())) return value
-        // For UTC dates, display the UTC date to prevent timezone shifts
-        // e.g., 2002-05-16T00:00:00.000Z should show as "May 16, 2002" not "May 15, 2002"
         if (typeof value === 'string' && (value.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(value))) {
           return new Date(
             date.getUTCFullYear(),
@@ -96,6 +95,7 @@ export function DocumentTagsModal({
   const documentTagHook = useTagDefinitions(knowledgeBaseId, documentId)
   const kbTagHook = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
   const { getNextAvailableSlot: getServerNextSlot } = useNextAvailableSlot(knowledgeBaseId)
+  const { mutateAsync: updateDocumentTags } = useUpdateDocumentTags()
 
   const { saveTagDefinitions, tagDefinitions, fetchTagDefinitions } = documentTagHook
   const { tagDefinitions: kbTagDefinitions, fetchTagDefinitions: refreshTagDefinitions } = kbTagHook
@@ -118,7 +118,6 @@ export function DocumentTagsModal({
       const definition = definitions.find((def) => def.tagSlot === slot)
 
       if (rawValue !== null && rawValue !== undefined && definition) {
-        // Convert value to string for storage
         const stringValue = String(rawValue).trim()
         if (stringValue) {
           tags.push({
@@ -142,41 +141,34 @@ export function DocumentTagsModal({
     async (tagsToSave: DocumentTag[]) => {
       if (!documentData) return
 
-      try {
-        const tagData: Record<string, string> = {}
+      const tagData: Record<string, string> = {}
 
-        // Only include tags that have values (omit empty ones)
-        // Use empty string for slots that should be cleared
-        ALL_TAG_SLOTS.forEach((slot) => {
-          const tag = tagsToSave.find((t) => t.slot === slot)
-          if (tag?.value.trim()) {
-            tagData[slot] = tag.value.trim()
-          } else {
-            // Use empty string to clear a tag (API schema expects string, not null)
-            tagData[slot] = ''
-          }
-        })
-
-        const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(tagData),
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to update document tags')
+      ALL_TAG_SLOTS.forEach((slot) => {
+        const tag = tagsToSave.find((t) => t.slot === slot)
+        if (tag?.value.trim()) {
+          tagData[slot] = tag.value.trim()
+        } else {
+          tagData[slot] = ''
         }
+      })
 
-        onDocumentUpdate?.(tagData as Record<string, string>)
-        await fetchTagDefinitions()
-      } catch (error) {
-        logger.error('Error updating document tags:', error)
-        throw error
-      }
+      await updateDocumentTags({
+        knowledgeBaseId,
+        documentId,
+        tags: tagData,
+      })
+
+      onDocumentUpdate?.(tagData)
+      await fetchTagDefinitions()
     },
-    [documentData, knowledgeBaseId, documentId, fetchTagDefinitions, onDocumentUpdate]
+    [
+      documentData,
+      knowledgeBaseId,
+      documentId,
+      updateDocumentTags,
+      fetchTagDefinitions,
+      onDocumentUpdate,
+    ]
   )
 
   const handleRemoveTag = async (index: number) => {
@@ -392,14 +384,14 @@ export function DocumentTagsModal({
 
   return (
     <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent>
+      <ModalContent size='sm'>
         <ModalHeader>
           <div className='flex items-center justify-between'>
             <span>Document Tags</span>
           </div>
         </ModalHeader>
 
-        <ModalBody className='!pb-[16px]'>
+        <ModalBody>
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='space-y-[8px]'>
               <Label>Tags</Label>
@@ -486,7 +478,7 @@ export function DocumentTagsModal({
                           />
                         )}
                         {tagNameConflict && (
-                          <span className='text-[11px] text-[var(--text-error)]'>
+                          <span className='text-[12px] text-[var(--text-error)]'>
                             A tag with this name already exists
                           </span>
                         )}
@@ -639,7 +631,7 @@ export function DocumentTagsModal({
                       />
                     )}
                     {tagNameConflict && (
-                      <span className='text-[11px] text-[var(--text-error)]'>
+                      <span className='text-[12px] text-[var(--text-error)]'>
                         A tag with this name already exists
                       </span>
                     )}

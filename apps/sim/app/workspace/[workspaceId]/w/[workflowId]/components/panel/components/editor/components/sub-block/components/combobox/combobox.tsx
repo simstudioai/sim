@@ -1,12 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
 import { useReactFlow } from 'reactflow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
+import { getDependsOnFields } from '@/blocks/utils'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { getProviderFromModel } from '@/providers/utils'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
  * Constants for ComboBox component behavior
@@ -48,9 +58,22 @@ interface ComboBoxProps {
   placeholder?: string
   /** Configuration for the sub-block */
   config: SubBlockConfig
+  /** Async function to fetch options dynamically */
+  fetchOptions?: (
+    blockId: string,
+    subBlockId: string
+  ) => Promise<Array<{ label: string; id: string }>>
+  /** Async function to fetch a single option's label by ID (for hydration) */
+  fetchOptionById?: (
+    blockId: string,
+    subBlockId: string,
+    optionId: string
+  ) => Promise<{ label: string; id: string } | null>
+  /** Field dependencies that trigger option refetch when changed */
+  dependsOn?: SubBlockConfig['dependsOn']
 }
 
-export function ComboBox({
+export const ComboBox = memo(function ComboBox({
   options,
   defaultValue,
   blockId,
@@ -61,22 +84,135 @@ export function ComboBox({
   disabled,
   placeholder = 'Type or select an option...',
   config,
+  fetchOptions,
+  fetchOptionById,
+  dependsOn,
 }: ComboBoxProps) {
   // Hooks and context
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const reactFlowInstance = useReactFlow()
 
+  // Dependency tracking for fetchOptions
+  const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
+  const dependencyValues = useStoreWithEqualityFn(
+    useSubBlockStore,
+    useCallback(
+      (state) => {
+        if (dependsOnFields.length === 0 || !activeWorkflowId) return []
+        const workflowValues = state.workflowValues[activeWorkflowId] || {}
+        const blockValues = workflowValues[blockId] || {}
+        return dependsOnFields.map((depKey) =>
+          resolveDependencyValue(depKey, blockValues, canonicalIndex, canonicalModeOverrides)
+        )
+      },
+      [dependsOnFields, activeWorkflowId, blockId, canonicalIndex, canonicalModeOverrides]
+    ),
+    isEqual
+  )
+
   // State management
   const [storeInitialized, setStoreInitialized] = useState(false)
+  const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [hydratedOption, setHydratedOption] = useState<{ label: string; id: string } | null>(null)
+  const previousDependencyValuesRef = useRef<string>('')
+
+  /**
+   * Fetches options from the async fetchOptions function if provided
+   */
+  const fetchOptionsIfNeeded = useCallback(async () => {
+    if (!fetchOptions || isPreview || disabled) return
+
+    setIsLoadingOptions(true)
+    setFetchError(null)
+    try {
+      const options = await fetchOptions(blockId, subBlockId)
+      setFetchedOptions(options)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+      setFetchError(errorMessage)
+      setFetchedOptions([])
+    } finally {
+      setIsLoadingOptions(false)
+    }
+  }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
-  // Evaluate options if provided as a function
-  const evaluatedOptions = useMemo(() => {
-    return typeof options === 'function' ? options() : options
-  }, [options])
+  // Permission-based filtering for model dropdowns
+  const { isProviderAllowed, isLoading: isPermissionLoading } = usePermissionConfig()
+
+  // Evaluate static options if provided as a function
+  const staticOptions = useMemo(() => {
+    const opts = typeof options === 'function' ? options() : options
+
+    if (subBlockId === 'model') {
+      return opts.filter((opt) => {
+        const modelId = typeof opt === 'string' ? opt : opt.id
+        try {
+          const providerId = getProviderFromModel(modelId)
+          return isProviderAllowed(providerId)
+        } catch {
+          return true
+        }
+      })
+    }
+
+    return opts
+  }, [options, subBlockId, isProviderAllowed])
+
+  // Normalize fetched options to match ComboBoxOption format
+  const normalizedFetchedOptions = useMemo((): ComboBoxOption[] => {
+    return fetchedOptions.map((opt) => ({ label: opt.label, id: opt.id }))
+  }, [fetchedOptions])
+
+  // Merge static and fetched options - fetched options take priority when available
+  const evaluatedOptions = useMemo((): ComboBoxOption[] => {
+    let opts: ComboBoxOption[] =
+      fetchOptions && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
+
+    if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
+      opts = opts.filter((opt) => {
+        const modelId = typeof opt === 'string' ? opt : opt.id
+        try {
+          const providerId = getProviderFromModel(modelId)
+          return isProviderAllowed(providerId)
+        } catch {
+          return true
+        }
+      })
+    }
+
+    // Merge hydrated option if not already present
+    if (hydratedOption) {
+      const alreadyPresent = opts.some((o) =>
+        typeof o === 'string' ? o === hydratedOption.id : o.id === hydratedOption.id
+      )
+      if (!alreadyPresent) {
+        opts = [hydratedOption, ...opts]
+      }
+    }
+
+    return opts
+  }, [
+    fetchOptions,
+    normalizedFetchedOptions,
+    staticOptions,
+    hydratedOption,
+    subBlockId,
+    isProviderAllowed,
+  ])
 
   // Convert options to Combobox format
   const comboboxOptions = useMemo((): ComboboxOption[] => {
@@ -149,16 +285,105 @@ export function ComboBox({
     setStoreInitialized(true)
   }, [])
 
-  // Set default value once store is initialized and value is undefined
+  // Set default value once store is initialized and permissions are loaded
   useEffect(() => {
-    if (
-      storeInitialized &&
-      (value === null || value === undefined) &&
-      defaultOptionValue !== undefined
-    ) {
+    if (isPermissionLoading) return
+    if (!storeInitialized) return
+    if (defaultOptionValue === undefined) return
+
+    // Only set default when no value exists (initial block add)
+    if (value === null || value === undefined) {
       setStoreValue(defaultOptionValue)
     }
-  }, [storeInitialized, value, defaultOptionValue, setStoreValue])
+  }, [storeInitialized, value, defaultOptionValue, setStoreValue, isPermissionLoading])
+
+  // Clear fetched options and hydrated option when dependencies change
+  useEffect(() => {
+    if (fetchOptions && dependsOnFields.length > 0) {
+      const currentDependencyValuesStr = JSON.stringify(dependencyValues)
+      const previousDependencyValuesStr = previousDependencyValuesRef.current
+
+      if (
+        previousDependencyValuesStr &&
+        currentDependencyValuesStr !== previousDependencyValuesStr
+      ) {
+        setFetchedOptions([])
+        setHydratedOption(null)
+      }
+
+      previousDependencyValuesRef.current = currentDependencyValuesStr
+    }
+  }, [dependencyValues, fetchOptions, dependsOnFields.length])
+
+  // Fetch options when needed (on mount, when enabled, or when dependencies change)
+  useEffect(() => {
+    if (
+      fetchOptions &&
+      !isPreview &&
+      !disabled &&
+      fetchedOptions.length === 0 &&
+      !isLoadingOptions &&
+      !fetchError
+    ) {
+      fetchOptionsIfNeeded()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchOptionsIfNeeded deps already covered above
+  }, [
+    fetchOptions,
+    isPreview,
+    disabled,
+    fetchedOptions.length,
+    isLoadingOptions,
+    fetchError,
+    dependencyValues,
+  ])
+
+  // Hydrate the stored value's label by fetching it individually
+  useEffect(() => {
+    if (!fetchOptionById || isPreview || disabled) return
+
+    const valueToHydrate = value as string | null | undefined
+    if (!valueToHydrate) return
+
+    // Skip if value is an expression (not a real ID)
+    if (valueToHydrate.startsWith('<') || valueToHydrate.includes('{{')) return
+
+    // Skip if already hydrated with the same value
+    if (hydratedOption?.id === valueToHydrate) return
+
+    // Skip if value is already in fetched options or static options
+    const alreadyInFetchedOptions = fetchedOptions.some((opt) => opt.id === valueToHydrate)
+    const alreadyInStaticOptions = staticOptions.some((opt) =>
+      typeof opt === 'string' ? opt === valueToHydrate : opt.id === valueToHydrate
+    )
+    if (alreadyInFetchedOptions || alreadyInStaticOptions) return
+
+    // Track if effect is still active (cleanup on unmount or value change)
+    let isActive = true
+
+    // Fetch the hydrated option
+    fetchOptionById(blockId, subBlockId, valueToHydrate)
+      .then((option) => {
+        if (isActive) setHydratedOption(option)
+      })
+      .catch(() => {
+        if (isActive) setHydratedOption(null)
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [
+    fetchOptionById,
+    value,
+    blockId,
+    subBlockId,
+    isPreview,
+    disabled,
+    fetchedOptions,
+    staticOptions,
+    hydratedOption?.id,
+  ])
 
   /**
    * Handles wheel event for ReactFlow zoom control
@@ -200,6 +425,18 @@ export function ComboBox({
   )
 
   /**
+   * Handles combobox open state changes to trigger option fetching
+   */
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        void fetchOptionsIfNeeded()
+      }
+    },
+    [fetchOptionsIfNeeded]
+  )
+
+  /**
    * Gets the icon for the currently selected option
    */
   const selectedOption = useMemo(() => {
@@ -228,6 +465,75 @@ export function ComboBox({
     )
   }, [inputValue, accessiblePrefixes, selectedOption, selectedOptionIcon])
 
+  const ctrlOnChangeRef = useRef<
+    ((e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
+  >(null)
+  const onDropRef = useRef<
+    ((e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
+  >(null)
+  const onDragOverRef = useRef<
+    ((e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
+  >(null)
+  const inputRefFromController = useRef<HTMLInputElement | null>(null)
+
+  const comboboxOnChange = useCallback(
+    (newValue: string) => {
+      const matchedComboboxOption = comboboxOptions.find((option) => option.value === newValue)
+      if (matchedComboboxOption) {
+        setInputValue(matchedComboboxOption.label)
+      } else {
+        setInputValue(newValue)
+      }
+
+      // Use controller's handler so env vars, tags, and DnD still work
+      const syntheticEvent = {
+        target: { value: newValue, selectionStart: newValue.length },
+      } as React.ChangeEvent<HTMLInputElement>
+      ctrlOnChangeRef.current?.(syntheticEvent)
+    },
+    [comboboxOptions, setInputValue]
+  )
+
+  const comboboxInputProps = useMemo(
+    () => ({
+      onDrop: ((e: React.DragEvent<HTMLInputElement>) => {
+        onDropRef.current?.(e)
+      }) as (e: React.DragEvent<HTMLInputElement>) => void,
+      onDragOver: ((e: React.DragEvent<HTMLInputElement>) => {
+        onDragOverRef.current?.(e)
+      }) as (e: React.DragEvent<HTMLInputElement>) => void,
+      onWheel: handleWheel,
+      autoComplete: 'off' as const,
+    }),
+    [handleWheel]
+  )
+
+  // Stable onChange for SubBlockInputController
+  const controllerOnChange = useCallback(
+    (newValue: string) => {
+      if (isPreview) {
+        return
+      }
+
+      const matchedOption = evaluatedOptions.find((option) => {
+        if (typeof option === 'string') {
+          return option === newValue
+        }
+        return option.id === newValue
+      })
+
+      // If a matching option is found, store its ID; otherwise store the raw value
+      // (allows expressions like <block.output> to be entered directly)
+      const nextValue = matchedOption
+        ? typeof matchedOption === 'string'
+          ? matchedOption
+          : matchedOption.id
+        : newValue
+      setStoreValue(nextValue)
+    },
+    [isPreview, evaluatedOptions, setStoreValue]
+  )
+
   return (
     <div className='relative w-full'>
       <SubBlockInputController
@@ -235,67 +541,43 @@ export function ComboBox({
         subBlockId={subBlockId}
         config={config}
         value={propValue}
-        onChange={(newValue) => {
-          if (isPreview) {
-            return
-          }
-
-          const matchedOption = evaluatedOptions.find((option) => {
-            if (typeof option === 'string') {
-              return option === newValue
-            }
-            return option.id === newValue
-          })
-
-          if (!matchedOption) {
-            return
-          }
-
-          const nextValue = typeof matchedOption === 'string' ? matchedOption : matchedOption.id
-          setStoreValue(nextValue)
-        }}
+        onChange={controllerOnChange}
         isPreview={isPreview}
         disabled={disabled}
         previewValue={previewValue}
       >
-        {({ ref, onChange: ctrlOnChange, onDrop, onDragOver }) => (
-          <Combobox
-            options={comboboxOptions}
-            value={inputValue}
-            selectedValue={value ?? ''}
-            onChange={(newValue) => {
-              const matchedComboboxOption = comboboxOptions.find(
-                (option) => option.value === newValue
-              )
-              if (matchedComboboxOption) {
-                setInputValue(matchedComboboxOption.label)
-              } else {
-                setInputValue(newValue)
-              }
+        {({ ref, onChange: ctrlOnChange, onDrop, onDragOver }) => {
+          // Update refs with latest handlers from render prop
+          ctrlOnChangeRef.current = ctrlOnChange
+          onDropRef.current = onDrop
+          onDragOverRef.current = onDragOver
+          // Store the input ref for passing to Combobox
+          if (ref.current) {
+            inputRefFromController.current = ref.current as HTMLInputElement
+          }
 
-              // Use controller's handler so env vars, tags, and DnD still work
-              const syntheticEvent = {
-                target: { value: newValue, selectionStart: newValue.length },
-              } as React.ChangeEvent<HTMLInputElement>
-              ctrlOnChange(syntheticEvent)
-            }}
-            placeholder={placeholder}
-            disabled={disabled}
-            editable
-            overlayContent={overlayContent}
-            inputRef={ref as React.RefObject<HTMLInputElement>}
-            filterOptions
-            searchable={config.searchable}
-            className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-[28px]')}
-            inputProps={{
-              onDrop: onDrop as (e: React.DragEvent<HTMLInputElement>) => void,
-              onDragOver: onDragOver as (e: React.DragEvent<HTMLInputElement>) => void,
-              onWheel: handleWheel,
-              autoComplete: 'off',
-            }}
-          />
-        )}
+          return (
+            <Combobox
+              options={comboboxOptions}
+              value={inputValue}
+              selectedValue={value ?? ''}
+              onChange={comboboxOnChange}
+              placeholder={placeholder}
+              disabled={disabled}
+              editable
+              overlayContent={overlayContent}
+              inputRef={ref as React.RefObject<HTMLInputElement>}
+              filterOptions
+              searchable={config.searchable}
+              className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-[28px]')}
+              inputProps={comboboxInputProps}
+              isLoading={isLoadingOptions}
+              error={fetchError}
+              onOpenChange={handleOpenChange}
+            />
+          )
+        }}
       </SubBlockInputController>
     </div>
   )
-}
+})

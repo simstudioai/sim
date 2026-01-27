@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { BookOpen, Layout, RepeatIcon, ScrollText, Search, SplitIcon } from 'lucide-react'
@@ -8,10 +8,12 @@ import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/core/utils/cn'
+import { getToolOperationsIndex } from '@/lib/search/tool-operations'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { searchItems } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/search-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { getAllBlocks } from '@/blocks'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 interface SearchModalProps {
   open: boolean
@@ -80,13 +82,102 @@ type SearchItem = {
   color?: string
   href?: string
   shortcut?: string
-  type: 'block' | 'trigger' | 'tool' | 'workflow' | 'workspace' | 'page' | 'doc'
+  type: 'block' | 'trigger' | 'tool' | 'tool-operation' | 'workflow' | 'workspace' | 'page' | 'doc'
   isCurrent?: boolean
   blockType?: string
   config?: any
+  operationId?: string
+  aliases?: string[]
 }
 
-export function SearchModal({
+interface SearchResultItemProps {
+  item: SearchItem
+  visualIndex: number
+  isSelected: boolean
+  onItemClick: (item: SearchItem) => void
+}
+
+const SearchResultItem = memo(function SearchResultItem({
+  item,
+  visualIndex,
+  isSelected,
+  onItemClick,
+}: SearchResultItemProps) {
+  const Icon = item.icon
+  const showColoredIcon =
+    item.type === 'block' ||
+    item.type === 'trigger' ||
+    item.type === 'tool' ||
+    item.type === 'tool-operation'
+  const isWorkflow = item.type === 'workflow'
+  const isWorkspace = item.type === 'workspace'
+
+  const handleClick = useCallback(() => {
+    onItemClick(item)
+  }, [onItemClick, item])
+
+  return (
+    <button
+      data-search-item-index={visualIndex}
+      onClick={handleClick}
+      onMouseDown={(e) => e.preventDefault()}
+      className={cn(
+        'group flex h-[28px] w-full items-center gap-[8px] rounded-[6px] bg-[var(--surface-4)]/60 px-[10px] text-left text-[15px] transition-all focus:outline-none',
+        isSelected ? 'bg-[var(--border)] shadow-sm' : 'hover:bg-[var(--border)]'
+      )}
+    >
+      {/* Icon - different rendering for workflows vs others */}
+      {!isWorkspace && (
+        <>
+          {isWorkflow ? (
+            <div
+              className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px]'
+              style={{ backgroundColor: item.color }}
+            />
+          ) : (
+            Icon && (
+              <div
+                className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                style={{ background: showColoredIcon ? item.bgColor : 'transparent' }}
+              >
+                <Icon
+                  className={cn(
+                    'transition-transform duration-100 group-hover:scale-110',
+                    showColoredIcon
+                      ? '!h-[10px] !w-[10px] text-white'
+                      : 'h-[14px] w-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+                  )}
+                />
+              </div>
+            )
+          )}
+        </>
+      )}
+
+      {/* Content */}
+      <span
+        className={cn(
+          'truncate font-medium',
+          isSelected
+            ? 'text-[var(--text-primary)]'
+            : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+        )}
+      >
+        {item.name}
+        {item.isCurrent && ' (current)'}
+      </span>
+
+      {/* Shortcut */}
+      {item.shortcut && (
+        <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)]'>
+          {item.shortcut}
+        </span>
+      )}
+    </button>
+  )
+})
+
+export const SearchModal = memo(function SearchModal({
   open,
   onOpenChange,
   workflows = [],
@@ -99,12 +190,14 @@ export function SearchModal({
   const router = useRouter()
   const workspaceId = params.workspaceId as string
   const brand = useBrandConfig()
+  const { filterBlocks } = usePermissionConfig()
 
   const blocks = useMemo(() => {
-    if (!isOnWorkflowPage) return []
+    if (!open || !isOnWorkflowPage) return []
 
     const allBlocks = getAllBlocks()
-    const regularBlocks = allBlocks
+    const filteredAllBlocks = filterBlocks(allBlocks)
+    const regularBlocks = filteredAllBlocks
       .filter(
         (block) => block.type !== 'starter' && !block.hideFromToolbar && block.category === 'blocks'
       )
@@ -138,16 +231,17 @@ export function SearchModal({
       },
     ]
 
-    return [...regularBlocks, ...specialBlocks]
-  }, [isOnWorkflowPage])
+    return [...regularBlocks, ...filterBlocks(specialBlocks)]
+  }, [open, isOnWorkflowPage, filterBlocks])
 
   const triggers = useMemo(() => {
-    if (!isOnWorkflowPage) return []
+    if (!open || !isOnWorkflowPage) return []
 
     const allTriggers = getTriggersForSidebar()
+    const filteredTriggers = filterBlocks(allTriggers)
     const priorityOrder = ['Start', 'Schedule', 'Webhook']
 
-    const sortedTriggers = allTriggers.sort((a, b) => {
+    const sortedTriggers = filteredTriggers.sort((a, b) => {
       const aIndex = priorityOrder.indexOf(a.name)
       const bIndex = priorityOrder.indexOf(b.name)
       const aHasPriority = aIndex !== -1
@@ -170,14 +264,15 @@ export function SearchModal({
         config: block,
       })
     )
-  }, [isOnWorkflowPage])
+  }, [open, isOnWorkflowPage, filterBlocks])
 
   const tools = useMemo(() => {
-    if (!isOnWorkflowPage) return []
+    if (!open || !isOnWorkflowPage) return []
 
     const allBlocks = getAllBlocks()
-    return allBlocks
-      .filter((block) => block.category === 'tools')
+    const filteredAllBlocks = filterBlocks(allBlocks)
+    return filteredAllBlocks
+      .filter((block) => !block.hideFromToolbar && block.category === 'tools')
       .map(
         (block): ToolItem => ({
           id: block.type,
@@ -188,7 +283,25 @@ export function SearchModal({
           type: block.type,
         })
       )
-  }, [isOnWorkflowPage])
+  }, [open, isOnWorkflowPage, filterBlocks])
+
+  const toolOperations = useMemo(() => {
+    if (!open || !isOnWorkflowPage) return []
+
+    const allowedBlockTypes = new Set(tools.map((t) => t.type))
+
+    return getToolOperationsIndex()
+      .filter((op) => allowedBlockTypes.has(op.blockType))
+      .map((op) => ({
+        id: op.id,
+        name: `${op.serviceName}: ${op.operationName}`,
+        icon: op.icon,
+        bgColor: op.bgColor,
+        blockType: op.blockType,
+        operationId: op.operationId,
+        aliases: op.aliases,
+      }))
+  }, [open, isOnWorkflowPage, tools])
 
   const pages = useMemo(
     (): PageItem[] => [
@@ -216,11 +329,13 @@ export function SearchModal({
   )
 
   const docs = useMemo((): DocItem[] => {
+    if (!open) return []
+
     const allBlocks = getAllBlocks()
     const docsItems: DocItem[] = []
 
     allBlocks.forEach((block) => {
-      if (block.docsLink) {
+      if (block.docsLink && !block.hideFromToolbar) {
         docsItems.push({
           id: `docs-${block.type}`,
           name: block.name,
@@ -232,7 +347,7 @@ export function SearchModal({
     })
 
     return docsItems
-  }, [])
+  }, [open])
 
   const allItems = useMemo((): SearchItem[] => {
     const items: SearchItem[] = []
@@ -306,6 +421,19 @@ export function SearchModal({
       })
     })
 
+    toolOperations.forEach((op) => {
+      items.push({
+        id: op.id,
+        name: op.name,
+        icon: op.icon,
+        bgColor: op.bgColor,
+        type: 'tool-operation',
+        blockType: op.blockType,
+        operationId: op.operationId,
+        aliases: op.aliases,
+      })
+    })
+
     docs.forEach((doc) => {
       items.push({
         id: doc.id,
@@ -317,10 +445,10 @@ export function SearchModal({
     })
 
     return items
-  }, [workspaces, workflows, pages, blocks, triggers, tools, docs])
+  }, [workspaces, workflows, pages, blocks, triggers, tools, toolOperations, docs])
 
   const sectionOrder = useMemo<SearchItem['type'][]>(
-    () => ['block', 'tool', 'trigger', 'workflow', 'workspace', 'page', 'doc'],
+    () => ['block', 'tool', 'trigger', 'doc', 'tool-operation', 'workflow', 'workspace', 'page'],
     []
   )
 
@@ -367,6 +495,7 @@ export function SearchModal({
       page: [],
       trigger: [],
       block: [],
+      'tool-operation': [],
       tool: [],
       doc: [],
     }
@@ -417,6 +546,17 @@ export function SearchModal({
               detail: {
                 type: item.blockType,
                 enableTriggerMode,
+              },
+            })
+            window.dispatchEvent(event)
+          }
+          break
+        case 'tool-operation':
+          if (item.blockType && item.operationId) {
+            const event = new CustomEvent('add-block-from-toolbar', {
+              detail: {
+                type: item.blockType,
+                presetOperation: item.operationId,
               },
             })
             window.dispatchEvent(event)
@@ -502,6 +642,7 @@ export function SearchModal({
     page: 'Pages',
     trigger: 'Triggers',
     block: 'Blocks',
+    'tool-operation': 'Tool Operations',
     tool: 'Tools',
     doc: 'Docs',
   }
@@ -544,78 +685,16 @@ export function SearchModal({
 
                     {/* Section items */}
                     <div className='space-y-[2px]'>
-                      {items.map((item, itemIndex) => {
-                        const Icon = item.icon
+                      {items.map((item) => {
                         const visualIndex = displayedItemsInVisualOrder.indexOf(item)
-                        const isSelected = visualIndex === selectedIndex
-                        const showColoredIcon =
-                          item.type === 'block' || item.type === 'trigger' || item.type === 'tool'
-                        const isWorkflow = item.type === 'workflow'
-                        const isWorkspace = item.type === 'workspace'
-
                         return (
-                          <button
+                          <SearchResultItem
                             key={`${item.type}-${item.id}`}
-                            data-search-item-index={visualIndex}
-                            onClick={() => handleItemClick(item)}
-                            onMouseDown={(e) => e.preventDefault()}
-                            className={cn(
-                              'group flex h-[28px] w-full items-center gap-[8px] rounded-[6px] bg-[var(--surface-4)]/60 px-[10px] text-left text-[15px] transition-all focus:outline-none',
-                              isSelected
-                                ? 'bg-[var(--border)] shadow-sm'
-                                : 'hover:bg-[var(--border)]'
-                            )}
-                          >
-                            {/* Icon - different rendering for workflows vs others */}
-                            {!isWorkspace && (
-                              <>
-                                {isWorkflow ? (
-                                  <div
-                                    className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px]'
-                                    style={{ backgroundColor: item.color }}
-                                  />
-                                ) : (
-                                  Icon && (
-                                    <div
-                                      className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-                                      style={{
-                                        background: showColoredIcon ? item.bgColor : 'transparent',
-                                      }}
-                                    >
-                                      <Icon
-                                        className={cn(
-                                          'transition-transform duration-100 group-hover:scale-110',
-                                          showColoredIcon
-                                            ? '!h-[10px] !w-[10px] text-white'
-                                            : 'h-[14px] w-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
-                                        )}
-                                      />
-                                    </div>
-                                  )
-                                )}
-                              </>
-                            )}
-
-                            {/* Content */}
-                            <span
-                              className={cn(
-                                'truncate font-medium',
-                                isSelected
-                                  ? 'text-[var(--text-primary)]'
-                                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
-                              )}
-                            >
-                              {item.name}
-                              {item.isCurrent && ' (current)'}
-                            </span>
-
-                            {/* Shortcut */}
-                            {item.shortcut && (
-                              <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)]'>
-                                {item.shortcut}
-                              </span>
-                            )}
-                          </button>
+                            item={item}
+                            visualIndex={visualIndex}
+                            isSelected={visualIndex === selectedIndex}
+                            onItemClick={handleItemClick}
+                          />
                         )
                       })}
                     </div>
@@ -634,4 +713,4 @@ export function SearchModal({
       </DialogPortal>
     </Dialog>
   )
-}
+})

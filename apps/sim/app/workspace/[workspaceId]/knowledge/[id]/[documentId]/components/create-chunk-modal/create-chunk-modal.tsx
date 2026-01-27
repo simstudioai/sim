@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import {
   Button,
   Label,
@@ -14,7 +13,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import type { DocumentData } from '@/lib/knowledge/types'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
+import { useCreateChunk } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('CreateChunkModal')
 
@@ -31,16 +30,20 @@ export function CreateChunkModal({
   document,
   knowledgeBaseId,
 }: CreateChunkModalProps) {
-  const queryClient = useQueryClient()
+  const {
+    mutate: createChunk,
+    isPending: isCreating,
+    error: mutationError,
+    reset: resetMutation,
+  } = useCreateChunk()
   const [content, setContent] = useState('')
-  const [isCreating, setIsCreating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const isProcessingRef = useRef(false)
 
+  const error = mutationError?.message ?? null
   const hasUnsavedChanges = content.trim().length > 0
 
-  const handleCreateChunk = async () => {
+  const handleCreateChunk = () => {
     if (!document || content.trim().length === 0 || isProcessingRef.current) {
       if (isProcessingRef.current) {
         logger.warn('Chunk creation already in progress, ignoring duplicate request')
@@ -48,57 +51,32 @@ export function CreateChunkModal({
       return
     }
 
-    try {
-      isProcessingRef.current = true
-      setIsCreating(true)
-      setError(null)
+    isProcessingRef.current = true
 
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${document.id}/chunks`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            content: content.trim(),
-            enabled: true,
-          }),
-        }
-      )
-
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to create chunk')
+    createChunk(
+      {
+        knowledgeBaseId,
+        documentId: document.id,
+        content: content.trim(),
+        enabled: true,
+      },
+      {
+        onSuccess: () => {
+          isProcessingRef.current = false
+          onClose()
+        },
+        onError: () => {
+          isProcessingRef.current = false
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success && result.data) {
-        logger.info('Chunk created successfully:', result.data.id)
-
-        await queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.detail(knowledgeBaseId),
-        })
-
-        onClose()
-      } else {
-        throw new Error(result.error || 'Failed to create chunk')
-      }
-    } catch (err) {
-      logger.error('Error creating chunk:', err)
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      isProcessingRef.current = false
-      setIsCreating(false)
-    }
+    )
   }
 
   const onClose = () => {
     onOpenChange(false)
     setContent('')
-    setError(null)
     setShowUnsavedChangesAlert(false)
+    resetMutation()
   }
 
   const handleCloseAttempt = () => {
@@ -123,7 +101,7 @@ export function CreateChunkModal({
           <ModalHeader>Create Chunk</ModalHeader>
 
           <form>
-            <ModalBody className='!pb-[16px]'>
+            <ModalBody>
               <div className='flex flex-col gap-[8px]'>
                 {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
 

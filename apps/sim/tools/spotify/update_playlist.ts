@@ -31,21 +31,25 @@ export const spotifyUpdatePlaylistTool: ToolConfig<
     playlistId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify playlist ID',
     },
     name: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'New name for the playlist',
     },
     description: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'New description for the playlist',
     },
     public: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Whether the playlist should be public',
     },
   },

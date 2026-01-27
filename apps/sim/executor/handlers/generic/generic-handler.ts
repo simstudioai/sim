@@ -34,14 +34,8 @@ export class GenericBlockHandler implements BlockHandler {
     if (blockType) {
       const blockConfig = getBlock(blockType)
       if (blockConfig?.tools?.config?.params) {
-        try {
-          const transformedParams = blockConfig.tools.config.params(inputs)
-          finalInputs = { ...inputs, ...transformedParams }
-        } catch (error) {
-          logger.warn(`Failed to apply parameter transformation for block type ${blockType}:`, {
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
+        const transformedParams = blockConfig.tools.config.params(inputs)
+        finalInputs = { ...inputs, ...transformedParams }
       }
 
       if (blockConfig?.inputs) {
@@ -72,9 +66,9 @@ export class GenericBlockHandler implements BlockHandler {
             workflowId: ctx.workflowId,
             workspaceId: ctx.workspaceId,
             executionId: ctx.executionId,
+            isDeployedContext: ctx.isDeployedContext,
           },
         },
-        false,
         false,
         ctx
       )

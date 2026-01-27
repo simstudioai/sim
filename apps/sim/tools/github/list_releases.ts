@@ -135,3 +135,53 @@ Summary of tags: ${releases.map((r: any) => r.tag_name).join(', ')}`
     },
   },
 }
+
+export const listReleasesV2Tool: ToolConfig<ListReleasesParams, any> = {
+  id: 'github_list_releases_v2',
+  name: listReleasesTool.name,
+  description: listReleasesTool.description,
+  version: '2.0.0',
+  params: listReleasesTool.params,
+  request: listReleasesTool.request,
+
+  transformResponse: async (response: Response) => {
+    const releases = await response.json()
+    return {
+      success: true,
+      output: {
+        items: releases.map((release: any) => ({
+          ...release,
+          body: release.body ?? null,
+          published_at: release.published_at ?? null,
+        })),
+        count: releases.length,
+      },
+    }
+  },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of release objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Release ID' },
+          tag_name: { type: 'string', description: 'Git tag name' },
+          name: { type: 'string', description: 'Release name' },
+          body: { type: 'string', description: 'Release description', optional: true },
+          html_url: { type: 'string', description: 'GitHub web URL' },
+          tarball_url: { type: 'string', description: 'Tarball download URL' },
+          zipball_url: { type: 'string', description: 'Zipball download URL' },
+          draft: { type: 'boolean', description: 'Whether this is a draft' },
+          prerelease: { type: 'boolean', description: 'Whether this is a prerelease' },
+          author: { type: 'object', description: 'Release author' },
+          assets: { type: 'array', description: 'Release assets' },
+          created_at: { type: 'string', description: 'Creation timestamp' },
+          published_at: { type: 'string', description: 'Publication timestamp', optional: true },
+        },
+      },
+    },
+    count: { type: 'number', description: 'Number of releases returned' },
+  },
+}

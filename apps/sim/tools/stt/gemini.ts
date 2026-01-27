@@ -59,7 +59,7 @@ export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
   },
 
   request: {
-    url: '/api/proxy/stt',
+    url: '/api/tools/stt',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

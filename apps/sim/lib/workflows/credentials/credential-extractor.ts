@@ -1,6 +1,16 @@
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  evaluateSubBlockCondition,
+  hasAdvancedValues,
+  isSubBlockFeatureEnabled,
+  isSubBlockVisibleForMode,
+  type SubBlockCondition,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 // Credential types based on actual patterns in the codebase
 export enum CredentialType {
@@ -48,7 +58,9 @@ const WORKSPACE_SPECIFIC_FIELDS = new Set([
  * Extract required credentials from a workflow state
  * This analyzes all blocks and their subblocks to identify credential requirements
  */
-export function extractRequiredCredentials(state: any): CredentialRequirement[] {
+export function extractRequiredCredentials(
+  state: Partial<WorkflowState> | null | undefined
+): CredentialRequirement[] {
   const credentials: CredentialRequirement[] = []
   const seen = new Set<string>()
 
@@ -57,7 +69,7 @@ export function extractRequiredCredentials(state: any): CredentialRequirement[] 
   }
 
   // Process each block
-  Object.values(state.blocks).forEach((block: any) => {
+  Object.values(state.blocks).forEach((block: BlockState) => {
     if (!block?.type) return
 
     const blockConfig = getBlock(block.type)
@@ -104,38 +116,34 @@ export function extractRequiredCredentials(state: any): CredentialRequirement[] 
     })
   })
 
-  // Helper to check visibility, respecting mode and conditions
-  function isSubBlockVisible(block: any, subBlockConfig: SubBlockConfig): boolean {
-    const mode = subBlockConfig.mode ?? 'both'
-    if (mode === 'trigger' && !block?.triggerMode) return false
-    if (mode === 'basic' && block?.advancedMode) return false
-    if (mode === 'advanced' && !block?.advancedMode) return false
+  /** Helper to check visibility, respecting mode and conditions */
+  function isSubBlockVisible(block: BlockState, subBlockConfig: SubBlockConfig): boolean {
+    if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
 
-    if (!subBlockConfig.condition) return true
+    const values = buildSubBlockValues(block?.subBlocks || {})
+    const blockConfig = getBlock(block.type)
+    const blockSubBlocks = blockConfig?.subBlocks || []
+    const canonicalIndex = buildCanonicalIndex(blockSubBlocks)
+    const effectiveAdvanced =
+      (block?.advancedMode ?? false) || hasAdvancedValues(blockSubBlocks, values, canonicalIndex)
+    const canonicalModeOverrides = block.data?.canonicalModes
 
-    const condition =
-      typeof subBlockConfig.condition === 'function'
-        ? subBlockConfig.condition()
-        : subBlockConfig.condition
+    if (subBlockConfig.mode === 'trigger' && !block?.triggerMode) return false
+    if (block?.triggerMode && subBlockConfig.mode && subBlockConfig.mode !== 'trigger') return false
 
-    const evaluate = (cond: any): boolean => {
-      const currentValue = block?.subBlocks?.[cond.field]?.value
-      const expected = cond.value
-
-      let match =
-        expected === undefined
-          ? true
-          : Array.isArray(expected)
-            ? expected.includes(currentValue)
-            : currentValue === expected
-
-      if (cond.not) match = !match
-      if (cond.and) match = match && evaluate(cond.and)
-
-      return match
+    if (
+      !isSubBlockVisibleForMode(
+        subBlockConfig,
+        effectiveAdvanced,
+        canonicalIndex,
+        values,
+        canonicalModeOverrides
+      )
+    ) {
+      return false
     }
 
-    return evaluate(condition)
+    return evaluateSubBlockCondition(subBlockConfig.condition as SubBlockCondition, values)
   }
 
   // Sort: OAuth first, then secrets, alphabetically within each type
@@ -161,6 +169,62 @@ function formatFieldName(fieldName: string): string {
     .join(' ')
 }
 
+/** Block state with mutable subBlocks for sanitization */
+interface MutableBlockState extends Omit<BlockState, 'subBlocks'> {
+  subBlocks: Record<string, SubBlockState | null | undefined>
+  data?: Record<string, unknown>
+}
+
+/**
+ * Remove malformed subBlocks from a block that may have been created by bugs.
+ * This includes subBlocks with:
+ * - Key "undefined" (caused by assigning to undefined key)
+ * - Missing required `id` field
+ * - Type "unknown" (indicates malformed data)
+ */
+function removeMalformedSubBlocks(block: MutableBlockState): void {
+  if (!block.subBlocks) return
+
+  const keysToRemove: string[] = []
+
+  Object.entries(block.subBlocks).forEach(([key, subBlock]) => {
+    // Flag subBlocks with invalid keys (literal "undefined" string)
+    if (key === 'undefined') {
+      keysToRemove.push(key)
+      return
+    }
+
+    // Flag subBlocks that are null or not objects
+    if (!subBlock || typeof subBlock !== 'object') {
+      keysToRemove.push(key)
+      return
+    }
+
+    // Flag subBlocks with type "unknown" (malformed data)
+    // Cast to string for comparison since SubBlockType doesn't include 'unknown'
+    if ((subBlock.type as string) === 'unknown') {
+      keysToRemove.push(key)
+      return
+    }
+
+    // Flag subBlocks missing required id field
+    if (!subBlock.id) {
+      keysToRemove.push(key)
+    }
+  })
+
+  // Remove the flagged keys
+  keysToRemove.forEach((key) => {
+    delete block.subBlocks[key]
+  })
+}
+
+/** Sanitized workflow state structure */
+interface SanitizedWorkflowState {
+  blocks?: Record<string, MutableBlockState>
+  [key: string]: unknown
+}
+
 /**
  * Sanitize workflow state by removing all credentials and workspace-specific data
  * This is used for both template creation and workflow export to ensure consistency
@@ -169,19 +233,22 @@ function formatFieldName(fieldName: string): string {
  * @param options - Options for sanitization behavior
  */
 export function sanitizeWorkflowForSharing(
-  state: any,
+  state: Partial<WorkflowState> | null | undefined,
   options: {
     preserveEnvVars?: boolean // Keep {{VAR}} references for export
   } = {}
-): any {
-  const sanitized = JSON.parse(JSON.stringify(state)) // Deep clone
+): SanitizedWorkflowState {
+  const sanitized = JSON.parse(JSON.stringify(state)) as SanitizedWorkflowState // Deep clone
 
   if (!sanitized?.blocks) {
     return sanitized
   }
 
-  Object.values(sanitized.blocks).forEach((block: any) => {
+  Object.values(sanitized.blocks).forEach((block: MutableBlockState) => {
     if (!block?.type) return
+
+    // First, remove any malformed subBlocks that may have been created by bugs
+    removeMalformedSubBlocks(block)
 
     const blockConfig = getBlock(block.type)
 
@@ -193,7 +260,7 @@ export function sanitizeWorkflowForSharing(
 
           // Clear OAuth credentials (type: 'oauth-input')
           if (subBlockConfig.type === 'oauth-input') {
-            block.subBlocks[subBlockConfig.id].value = null
+            block.subBlocks[subBlockConfig.id]!.value = null
           }
 
           // Clear secret fields (password: true)
@@ -201,24 +268,24 @@ export function sanitizeWorkflowForSharing(
             // Preserve environment variable references if requested
             if (
               options.preserveEnvVars &&
-              typeof subBlock.value === 'string' &&
+              typeof subBlock?.value === 'string' &&
               subBlock.value.startsWith('{{') &&
               subBlock.value.endsWith('}}')
             ) {
               // Keep the env var reference
             } else {
-              block.subBlocks[subBlockConfig.id].value = null
+              block.subBlocks[subBlockConfig.id]!.value = null
             }
           }
 
           // Clear workspace-specific selectors
           else if (WORKSPACE_SPECIFIC_TYPES.has(subBlockConfig.type)) {
-            block.subBlocks[subBlockConfig.id].value = null
+            block.subBlocks[subBlockConfig.id]!.value = null
           }
 
           // Clear workspace-specific fields by ID
           else if (WORKSPACE_SPECIFIC_FIELDS.has(subBlockConfig.id)) {
-            block.subBlocks[subBlockConfig.id].value = null
+            block.subBlocks[subBlockConfig.id]!.value = null
           }
         }
       })
@@ -226,9 +293,9 @@ export function sanitizeWorkflowForSharing(
 
     // Process subBlocks without config (fallback)
     if (block.subBlocks) {
-      Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
+      Object.entries(block.subBlocks).forEach(([key, subBlock]) => {
         // Clear workspace-specific fields by key name
-        if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
+        if (WORKSPACE_SPECIFIC_FIELDS.has(key) && subBlock) {
           subBlock.value = null
         }
       })
@@ -236,14 +303,14 @@ export function sanitizeWorkflowForSharing(
 
     // Clear data field (for backward compatibility)
     if (block.data) {
-      Object.entries(block.data).forEach(([key, value]: [string, any]) => {
+      Object.entries(block.data).forEach(([key]) => {
         // Clear anything that looks like credentials
         if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {
-          block.data[key] = null
+          block.data![key] = null
         }
         // Clear workspace-specific data
         if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
-          block.data[key] = null
+          block.data![key] = null
         }
       })
     }
@@ -256,7 +323,9 @@ export function sanitizeWorkflowForSharing(
  * Sanitize workflow state for templates (removes credentials and workspace data)
  * Wrapper for backward compatibility
  */
-export function sanitizeCredentials(state: any): any {
+export function sanitizeCredentials(
+  state: Partial<WorkflowState> | null | undefined
+): SanitizedWorkflowState {
   return sanitizeWorkflowForSharing(state, { preserveEnvVars: false })
 }
 
@@ -264,6 +333,8 @@ export function sanitizeCredentials(state: any): any {
  * Sanitize workflow state for export (preserves env vars)
  * Convenience wrapper for workflow export
  */
-export function sanitizeForExport(state: any): any {
+export function sanitizeForExport(
+  state: Partial<WorkflowState> | null | undefined
+): SanitizedWorkflowState {
   return sanitizeWorkflowForSharing(state, { preserveEnvVars: true })
 }

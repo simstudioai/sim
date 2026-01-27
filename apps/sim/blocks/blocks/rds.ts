@@ -1,8 +1,8 @@
 import { RDSIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { RdsResponse } from '@/tools/rds/types'
+import type { RdsIntrospectResponse, RdsResponse } from '@/tools/rds/types'
 
-export const RDSBlock: BlockConfig<RdsResponse> = {
+export const RDSBlock: BlockConfig<RdsResponse | RdsIntrospectResponse> = {
   type: 'rds',
   name: 'Amazon RDS',
   description: 'Connect to Amazon RDS via Data API',
@@ -23,6 +23,7 @@ export const RDSBlock: BlockConfig<RdsResponse> = {
         { label: 'Update Data', id: 'update' },
         { label: 'Delete Data', id: 'delete' },
         { label: 'Execute Raw SQL', id: 'execute' },
+        { label: 'Introspect Schema', id: 'introspect' },
       ],
       value: () => 'query',
     },
@@ -205,6 +206,35 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       placeholder: '{\n  "name": "John Doe",\n  "email": "john@example.com",\n  "active": true\n}',
       condition: { field: 'operation', value: 'insert' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert database developer. Generate a JSON object for inserting data into an Amazon RDS table based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY a valid JSON object. Do not include any explanations, markdown formatting, or additional text.
+
+### GUIDELINES
+1. Use appropriate data types (strings in quotes, numbers without, booleans as true/false)
+2. Use snake_case for field names (common database convention)
+3. Include relevant fields based on the table structure
+4. Use null for optional fields that should be empty
+
+### EXAMPLE
+User: "Insert a new customer with name, email, and premium status"
+Output:
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "is_premium": true,
+  "created_at": "NOW()"
+}`,
+        placeholder: 'Describe the data you want to insert...',
+        generationType: 'json-object',
+      },
     },
     // Set clause for updates
     {
@@ -214,6 +244,34 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       placeholder: '{\n  "name": "Jane Doe",\n  "email": "jane@example.com"\n}',
       condition: { field: 'operation', value: 'update' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert database developer. Generate a JSON object for updating data in an Amazon RDS table based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY a valid JSON object containing the fields to update. Do not include any explanations, markdown formatting, or additional text.
+
+### GUIDELINES
+1. Only include fields that need to be updated
+2. Use appropriate data types (strings in quotes, numbers without, booleans as true/false)
+3. Use snake_case for field names
+4. Consider including updated_at field if appropriate
+
+### EXAMPLE
+User: "Update the customer to inactive and clear their subscription"
+Output:
+{
+  "is_active": false,
+  "subscription_id": null,
+  "updated_at": "NOW()"
+}`,
+        placeholder: 'Describe the fields you want to update...',
+        generationType: 'json-object',
+      },
     },
     // Conditions for update/delete (parameterized for SQL injection prevention)
     {
@@ -223,6 +281,31 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       placeholder: '{\n  "id": 1\n}',
       condition: { field: 'operation', value: 'update' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for RDS WHERE conditions based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON object starting with { and ending with }
+- Each key-value pair represents a column and its expected value
+- Multiple conditions will be combined with AND
+- Use appropriate data types (strings, numbers, booleans)
+
+### EXAMPLE
+User: "Update records where user_id is 123 and status is active"
+Output:
+{
+  "user_id": 123,
+  "status": "active"
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the conditions...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'conditions',
@@ -231,10 +314,63 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       placeholder: '{\n  "id": 1\n}',
       condition: { field: 'operation', value: 'delete' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for RDS WHERE conditions based on the user's description.
+
+### CONTEXT
+{context}
+
+### GUIDELINES
+- Return ONLY a valid JSON object starting with { and ending with }
+- Each key-value pair represents a column and its expected value
+- Multiple conditions will be combined with AND
+- Use appropriate data types (strings, numbers, booleans)
+- Be careful with delete conditions - they determine which rows are removed
+
+### EXAMPLE
+User: "Delete records where status is expired and created before 2023"
+Output:
+{
+  "status": "expired",
+  "created_year": 2022
+}
+
+Return ONLY the JSON object.`,
+        placeholder: 'Describe the conditions...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'schema',
+      title: 'Schema Name',
+      type: 'short-input',
+      placeholder: 'public (PostgreSQL) or database name (MySQL)',
+      condition: { field: 'operation', value: 'introspect' },
+      required: false,
+    },
+    {
+      id: 'engine',
+      title: 'Database Engine',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto-detect', id: '' },
+        { label: 'Aurora PostgreSQL', id: 'aurora-postgresql' },
+        { label: 'Aurora MySQL', id: 'aurora-mysql' },
+      ],
+      condition: { field: 'operation', value: 'introspect' },
+      value: () => '',
     },
   ],
   tools: {
-    access: ['rds_query', 'rds_insert', 'rds_update', 'rds_delete', 'rds_execute'],
+    access: [
+      'rds_query',
+      'rds_insert',
+      'rds_update',
+      'rds_delete',
+      'rds_execute',
+      'rds_introspect',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -248,12 +384,14 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
             return 'rds_delete'
           case 'execute':
             return 'rds_execute'
+          case 'introspect':
+            return 'rds_introspect'
           default:
             throw new Error(`Invalid RDS operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { operation, data, conditions, ...rest } = params
+        const { operation, data, conditions, schema, engine, ...rest } = params
 
         // Parse JSON fields
         const parseJson = (value: unknown, fieldName: string) => {
@@ -291,6 +429,8 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
         if (rest.query) result.query = rest.query
         if (parsedConditions !== undefined) result.conditions = parsedConditions
         if (parsedData !== undefined) result.data = parsedData
+        if (schema) result.schema = schema
+        if (engine) result.engine = engine
 
         return result
       },
@@ -308,6 +448,11 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
     query: { type: 'string', description: 'SQL query to execute' },
     data: { type: 'json', description: 'Data for insert/update operations' },
     conditions: { type: 'json', description: 'Conditions for update/delete (e.g., {"id": 1})' },
+    schema: { type: 'string', description: 'Schema to introspect (for introspect operation)' },
+    engine: {
+      type: 'string',
+      description: 'Database engine (aurora-postgresql or aurora-mysql, auto-detected if not set)',
+    },
   },
   outputs: {
     message: {
@@ -321,6 +466,19 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
     rowCount: {
       type: 'number',
       description: 'Number of rows affected by the operation',
+    },
+    engine: {
+      type: 'string',
+      description: 'Detected database engine type (for introspect operation)',
+    },
+    tables: {
+      type: 'array',
+      description:
+        'Array of table schemas with columns, keys, and indexes (for introspect operation)',
+    },
+    schemas: {
+      type: 'array',
+      description: 'List of available schemas in the database (for introspect operation)',
     },
   },
 }

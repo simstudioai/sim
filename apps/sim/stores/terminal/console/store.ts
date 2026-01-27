@@ -1,18 +1,23 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
+import { createJSONStorage, devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/core/security/redaction'
+import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { useExecutionStore } from '@/stores/execution/store'
+import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
+import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
-import { useGeneralStore } from '@/stores/settings/general/store'
+import { indexedDBStorage } from '@/stores/terminal/console/storage'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
 
 const logger = createLogger('TerminalConsoleStore')
 
 /**
- * Updates a NormalizedBlockOutput with new content
+ * Maximum number of console entries to keep per workflow.
+ * Keeps the stored data size reasonable and improves performance.
  */
+const MAX_ENTRIES_PER_WORKFLOW = 1000
+
 const updateBlockOutput = (
   existingOutput: NormalizedBlockOutput | undefined,
   contentUpdate: string
@@ -23,9 +28,6 @@ const updateBlockOutput = (
   }
 }
 
-/**
- * Checks if output represents a streaming object that should be skipped
- */
 const isStreamingOutput = (output: any): boolean => {
   if (typeof ReadableStream !== 'undefined' && output instanceof ReadableStream) {
     return true
@@ -35,7 +37,6 @@ const isStreamingOutput = (output: any): boolean => {
     return false
   }
 
-  // Check for streaming indicators
   return (
     output.isStreaming === true ||
     ('executionData' in output &&
@@ -45,20 +46,15 @@ const isStreamingOutput = (output: any): boolean => {
   )
 }
 
-/**
- * Checks if entry should be skipped to prevent duplicates
- */
 const shouldSkipEntry = (output: any): boolean => {
   if (typeof output !== 'object' || !output) {
     return false
   }
 
-  // Skip raw streaming objects with both stream and executionData
   if ('stream' in output && 'executionData' in output) {
     return true
   }
 
-  // Skip raw StreamingExecution objects
   if ('stream' in output && 'execution' in output) {
     return true
   }
@@ -72,15 +68,16 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
       (set, get) => ({
         entries: [],
         isOpen: false,
+        _hasHydrated: false,
+
+        setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
 
         addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => {
           set((state) => {
-            // Skip duplicate streaming entries
             if (shouldSkipEntry(entry.output)) {
               return { entries: state.entries }
             }
 
-            // Redact API keys from output and input
             const redactedEntry = { ...entry }
             if (
               !isStreamingOutput(entry.output) &&
@@ -93,34 +90,86 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               redactedEntry.input = redactApiKeys(redactedEntry.input)
             }
 
-            // Create new entry with ID and timestamp
             const newEntry: ConsoleEntry = {
               ...redactedEntry,
               id: crypto.randomUUID(),
               timestamp: new Date().toISOString(),
             }
 
-            return { entries: [newEntry, ...state.entries] }
+            const newEntries = [newEntry, ...state.entries]
+
+            const executionsToRemove = new Set<string>()
+
+            const workflowGroups = new Map<string, ConsoleEntry[]>()
+            for (const e of newEntries) {
+              const group = workflowGroups.get(e.workflowId) || []
+              group.push(e)
+              workflowGroups.set(e.workflowId, group)
+            }
+
+            for (const [workflowId, entries] of workflowGroups) {
+              if (entries.length <= MAX_ENTRIES_PER_WORKFLOW) continue
+
+              const execOrder: string[] = []
+              const seen = new Set<string>()
+              for (const e of entries) {
+                const execId = e.executionId ?? e.id
+                if (!seen.has(execId)) {
+                  execOrder.push(execId)
+                  seen.add(execId)
+                }
+              }
+
+              const counts = new Map<string, number>()
+              for (const e of entries) {
+                const execId = e.executionId ?? e.id
+                counts.set(execId, (counts.get(execId) || 0) + 1)
+              }
+
+              let total = 0
+              const toKeep = new Set<string>()
+              for (const execId of execOrder) {
+                const c = counts.get(execId) || 0
+                if (total + c <= MAX_ENTRIES_PER_WORKFLOW) {
+                  toKeep.add(execId)
+                  total += c
+                }
+              }
+
+              for (const execId of execOrder) {
+                if (!toKeep.has(execId)) {
+                  executionsToRemove.add(`${workflowId}:${execId}`)
+                }
+              }
+            }
+
+            const trimmedEntries = newEntries.filter((e) => {
+              const key = `${e.workflowId}:${e.executionId ?? e.id}`
+              return !executionsToRemove.has(key)
+            })
+
+            return { entries: trimmedEntries }
           })
 
           const newEntry = get().entries[0]
 
-          // Surface error notifications immediately when error entries are added
-          // Only show if error notifications are enabled in settings
           if (newEntry?.error) {
-            const { isErrorNotificationsEnabled } = useGeneralStore.getState()
+            const settings = getQueryClient().getQueryData<GeneralSettings>(
+              generalSettingsKeys.settings()
+            )
+            const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
 
             if (isErrorNotificationsEnabled) {
               try {
                 const errorMessage = String(newEntry.error)
                 const blockName = newEntry.blockName || 'Unknown Block'
+                const displayMessage = `${blockName}: ${errorMessage}`
 
-                // Copilot message includes block name for better debugging context
                 const copilotMessage = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
 
                 useNotificationStore.getState().addNotification({
                   level: 'error',
-                  message: errorMessage,
+                  message: displayMessage,
                   workflowId: entry.workflowId,
                   action: {
                     type: 'copilot',
@@ -139,30 +188,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           return newEntry
         },
 
-        /**
-         * Clears console entries for a specific workflow and clears the run path
-         * @param workflowId - The workflow ID to clear entries for
-         */
         clearWorkflowConsole: (workflowId: string) => {
           set((state) => ({
             entries: state.entries.filter((entry) => entry.workflowId !== workflowId),
           }))
-          // Clear run path indicators when console is cleared
-          useExecutionStore.getState().clearRunPath()
-        },
-
-        /**
-         * Clears all console entries or entries for a specific workflow and clears the run path
-         * @param workflowId - The workflow ID to clear entries for, or null to clear all
-         * @deprecated Use clearWorkflowConsole for clearing specific workflows
-         */
-        clearConsole: (workflowId: string | null) => {
-          set((state) => ({
-            entries: workflowId
-              ? state.entries.filter((entry) => entry.workflowId !== workflowId)
-              : [],
-          }))
-          // Clear run path indicators when console is cleared
           useExecutionStore.getState().clearRunPath()
         },
 
@@ -173,9 +202,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             return
           }
 
-          /**
-           * Formats a value for CSV export
-           */
           const formatCSVValue = (value: any): string => {
             if (value === null || value === undefined) {
               return ''
@@ -183,7 +209,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
             let stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
 
-            // Escape quotes and wrap in quotes if contains special characters
             if (
               stringValue.includes('"') ||
               stringValue.includes(',') ||
@@ -232,7 +257,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
           const filename = `terminal-console-${workflowId}-${timestamp}.csv`
 
-          // Create and trigger download
           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
           const link = document.createElement('a')
 
@@ -259,18 +283,15 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => {
           set((state) => {
             const updatedEntries = state.entries.map((entry) => {
-              // Only update if both blockId and executionId match
               if (entry.blockId !== blockId || entry.executionId !== executionId) {
                 return entry
               }
 
-              // Handle simple string update
               if (typeof update === 'string') {
                 const newOutput = updateBlockOutput(entry.output, update)
                 return { ...entry, output: newOutput }
               }
 
-              // Handle complex update
               const updatedEntry = { ...entry }
 
               if (update.content !== undefined) {
@@ -327,7 +348,35 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
       }),
       {
         name: 'terminal-console-store',
+        storage: createJSONStorage(() => indexedDBStorage),
+        partialize: (state) => ({
+          entries: state.entries,
+          isOpen: state.isOpen,
+        }),
+        onRehydrateStorage: () => (_state, error) => {
+          if (error) {
+            logger.error('Failed to rehydrate console store', { error })
+          }
+        },
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<ConsoleStore> | undefined
+          return {
+            ...currentState,
+            entries: persisted?.entries ?? currentState.entries,
+            isOpen: persisted?.isOpen ?? currentState.isOpen,
+          }
+        },
       }
     )
   )
 )
+
+if (typeof window !== 'undefined') {
+  useTerminalConsoleStore.persist.onFinishHydration(() => {
+    useTerminalConsoleStore.setState({ _hasHydrated: true })
+  })
+
+  if (useTerminalConsoleStore.persist.hasHydrated()) {
+    useTerminalConsoleStore.setState({ _hasHydrated: true })
+  }
+}

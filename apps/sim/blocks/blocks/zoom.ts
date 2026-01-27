@@ -135,6 +135,22 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
         field: 'operation',
         value: ['zoom_create_meeting', 'zoom_update_meeting'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:mm:ssZ (UTC timezone).
+This is for scheduling a Zoom meeting start time.
+Examples:
+- "tomorrow at 10am" -> Calculate tomorrow's date at 10:00:00Z (adjust for user's timezone)
+- "next Monday at 2pm" -> Calculate next Monday at 14:00:00Z
+- "in 1 hour" -> Calculate 1 hour from now
+- "Friday at 3:30pm" -> Calculate next Friday at 15:30:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder:
+          'Describe the meeting time (e.g., "tomorrow at 10am", "next Monday at 2pm")...',
+        generationType: 'timestamp',
+      },
     },
     // Duration
     {
@@ -290,6 +306,21 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
         field: 'operation',
         value: ['zoom_list_recordings'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date string based on the user's description.
+The date should be in the format: yyyy-mm-dd (e.g., 2024-01-15).
+This is for filtering Zoom recordings from this date (must be within last 6 months).
+Examples:
+- "last month" -> Calculate 30 days ago in yyyy-mm-dd format
+- "beginning of this month" -> First day of current month in yyyy-mm-dd format
+- "2 weeks ago" -> Calculate 14 days ago in yyyy-mm-dd format
+- "start of last week" -> Calculate the Monday of last week
+
+Return ONLY the date string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "last month", "2 weeks ago")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'toDate',
@@ -299,6 +330,21 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
       condition: {
         field: 'operation',
         value: ['zoom_list_recordings'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date string based on the user's description.
+The date should be in the format: yyyy-mm-dd (e.g., 2024-01-15).
+This is for filtering Zoom recordings up to this date.
+Examples:
+- "today" -> Today's date in yyyy-mm-dd format
+- "yesterday" -> Yesterday's date in yyyy-mm-dd format
+- "end of last week" -> Calculate the Sunday of last week
+- "end of this month" -> Last day of current month
+
+Return ONLY the date string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "today", "yesterday")...',
+        generationType: 'timestamp',
       },
     },
     // Recording ID for delete

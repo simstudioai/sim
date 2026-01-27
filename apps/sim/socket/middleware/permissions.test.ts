@@ -207,15 +207,8 @@ describe('checkRolePermission', () => {
       { operation: 'update-name', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'toggle-enabled', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'update-parent', adminAllowed: true, writeAllowed: true, readAllowed: false },
-      { operation: 'update-wide', adminAllowed: true, writeAllowed: true, readAllowed: false },
       {
-        operation: 'update-advanced-mode',
-        adminAllowed: true,
-        writeAllowed: true,
-        readAllowed: false,
-      },
-      {
-        operation: 'update-trigger-mode',
+        operation: 'update-canonical-mode',
         adminAllowed: true,
         writeAllowed: true,
         readAllowed: false,

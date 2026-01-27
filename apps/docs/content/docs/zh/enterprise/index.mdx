@@ -1,0 +1,76 @@
+---
+title: 企业版
+description: 为具有高级安全性和合规性需求的组织提供企业级功能
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Sim 企业版为需要更高安全性、合规性和管理能力的组织提供高级功能。
+
+---
+
+## 自带密钥（BYOK）
+
+使用您自己的 API 密钥对接 AI 模型服务商，而不是使用 Sim 托管的密钥。
+
+### 支持的服务商
+
+| Provider | Usage |
+|----------|-------|
+| OpenAI | 知识库嵌入、Agent 模块 |
+| Anthropic | Agent 模块 |
+| Google | Agent 模块 |
+| Mistral | 知识库 OCR |
+
+### 配置方法
+
+1. 在您的工作区进入 **设置** → **BYOK**
+2. 为您的服务商点击 **添加密钥**
+3. 输入您的 API 密钥并保存
+
+<Callout type="warn">
+  BYOK 密钥静态加密存储。仅组织管理员和所有者可管理密钥。
+</Callout>
+
+配置后，工作流将使用您的密钥而非 Sim 托管密钥。如移除，工作流会自动切换回托管密钥。
+
+---
+
+## 单点登录（SSO）
+
+企业级身份认证，支持 SAML 2.0 和 OIDC，实现集中式身份管理。
+
+### 支持的服务商
+
+- Okta
+- Azure AD / Entra ID
+- Google Workspace
+- OneLogin
+- 任何 SAML 2.0 或 OIDC 服务商
+
+### 配置方法
+
+1. 在您的工作区进入 **设置** → **SSO**
+2. 选择您的身份提供商
+3. 使用 IdP 元数据配置连接
+4. 为您的组织启用 SSO
+
+<Callout type="info">
+  启用 SSO 后，团队成员将通过您的身份提供商进行身份验证，而不再使用邮箱/密码。
+</Callout>
+
+---
+
+## 自主部署
+
+对于自主部署场景，可通过环境变量启用企业功能：
+
+| 变量 | 描述 |
+|----------|-------------|
+| `SSO_ENABLED`，`NEXT_PUBLIC_SSO_ENABLED` | 使用 SAML/OIDC 的单点登录 |
+| `CREDENTIAL_SETS_ENABLED`，`NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | 用于邮件触发器的轮询组 |
+| `DISABLE_INVITATIONS`，`NEXT_PUBLIC_DISABLE_INVITATIONS` | 全局禁用工作区/组织邀请 |
+
+<Callout type="warn">
+  BYOK 仅适用于托管版 Sim。自托管部署需通过环境变量直接配置 AI 提供商密钥。
+</Callout>

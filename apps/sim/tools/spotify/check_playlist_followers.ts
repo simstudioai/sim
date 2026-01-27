@@ -29,11 +29,13 @@ export const spotifyCheckPlaylistFollowersTool: ToolConfig<
     playlistId: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The Spotify playlist ID',
     },
     userIds: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Comma-separated user IDs to check (max 5)',
     },
   },

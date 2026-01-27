@@ -1,11 +1,76 @@
-import { NextRequest } from 'next/server'
 /**
  * Tests for file upload API route
  *
  * @vitest-environment node
  */
+import { mockAuth, mockCryptoUuid, mockUuid, setupCommonApiMocks } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setupFileApiMocks } from '@/app/api/__test-utils__/utils'
+
+function setupFileApiMocks(
+  options: {
+    authenticated?: boolean
+    storageProvider?: 's3' | 'blob' | 'local'
+    cloudEnabled?: boolean
+  } = {}
+) {
+  const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
+
+  setupCommonApiMocks()
+  mockUuid()
+  mockCryptoUuid()
+
+  const authMocks = mockAuth()
+  if (authenticated) {
+    authMocks.setAuthenticated()
+  } else {
+    authMocks.setUnauthenticated()
+  }
+
+  vi.doMock('@/lib/auth/hybrid', () => ({
+    checkHybridAuth: vi.fn().mockResolvedValue({
+      success: authenticated,
+      userId: authenticated ? 'test-user-id' : undefined,
+      error: authenticated ? undefined : 'Unauthorized',
+    }),
+  }))
+
+  vi.doMock('@/app/api/files/authorization', () => ({
+    verifyFileAccess: vi.fn().mockResolvedValue(true),
+    verifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
+    verifyKBFileAccess: vi.fn().mockResolvedValue(true),
+    verifyCopilotFileAccess: vi.fn().mockResolvedValue(true),
+  }))
+
+  vi.doMock('@/lib/uploads/contexts/workspace', () => ({
+    uploadWorkspaceFile: vi.fn().mockResolvedValue({
+      id: 'test-file-id',
+      name: 'test.txt',
+      url: '/api/files/serve/workspace/test-workspace-id/test-file.txt',
+      size: 100,
+      type: 'text/plain',
+      key: 'workspace/test-workspace-id/1234567890-test.txt',
+      uploadedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    }),
+  }))
+
+  const uploadFileMock = vi.fn().mockResolvedValue({
+    path: '/api/files/serve/test-key.txt',
+    key: 'test-key.txt',
+    name: 'test.txt',
+    size: 100,
+    type: 'text/plain',
+  })
+
+  vi.doMock('@/lib/uploads', () => ({
+    getStorageProvider: vi.fn().mockReturnValue(storageProvider),
+    isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
+    uploadFile: uploadFileMock,
+  }))
+
+  return { auth: authMocks }
+}
 
 describe('File Upload API Route', () => {
   const createMockFormData = (files: File[], context = 'workspace'): FormData => {

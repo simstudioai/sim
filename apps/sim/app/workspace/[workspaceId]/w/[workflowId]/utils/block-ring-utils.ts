@@ -5,68 +5,99 @@ export type BlockDiffStatus = 'new' | 'edited' | null | undefined
 export type BlockRunPathStatus = 'success' | 'error' | undefined
 
 export interface BlockRingOptions {
-  isActive: boolean
+  /** Whether the block is executing (shows green pulsing ring) */
+  isExecuting: boolean
+  /** Whether the editor panel is open for this block (shows blue ring) */
+  isEditorOpen: boolean
   isPending: boolean
-  isFocused: boolean
   isDeletedBlock: boolean
   diffStatus: BlockDiffStatus
   runPathStatus: BlockRunPathStatus
+  isPreviewSelection?: boolean
+  /** Whether the block is selected via shift-click or selection box (shows blue ring) */
+  isSelected?: boolean
 }
 
 /**
  * Derives visual ring visibility and class names for workflow blocks
- * based on execution, focus, diff, deletion, and run-path states.
+ * based on editor open state, execution, diff, deletion, and run-path states.
  */
 export function getBlockRingStyles(options: BlockRingOptions): {
   hasRing: boolean
   ringClassName: string
 } {
-  const { isActive, isPending, isFocused, isDeletedBlock, diffStatus, runPathStatus } = options
+  const {
+    isExecuting,
+    isEditorOpen,
+    isPending,
+    isDeletedBlock,
+    diffStatus,
+    runPathStatus,
+    isPreviewSelection,
+    isSelected,
+  } = options
 
   const hasRing =
-    isActive ||
+    isExecuting ||
+    isEditorOpen ||
+    isSelected ||
     isPending ||
-    isFocused ||
     diffStatus === 'new' ||
     diffStatus === 'edited' ||
     isDeletedBlock ||
     !!runPathStatus
 
   const ringClassName = cn(
-    // Executing block: pulsing success ring with prominent thickness
-    isActive && 'ring-[3.5px] ring-[var(--border-success)] animate-ring-pulse',
+    // Executing block: pulsing success ring with prominent thickness (highest priority)
+    isExecuting && 'ring-[3.5px] ring-[var(--border-success)] animate-ring-pulse',
+    // Editor open, selected, or preview selection: static blue ring
+    !isExecuting &&
+      (isEditorOpen || isSelected || isPreviewSelection) &&
+      'ring-[1.75px] ring-[var(--brand-secondary)]',
     // Non-active states use standard ring utilities
-    !isActive && hasRing && 'ring-[1.75px]',
+    !isExecuting &&
+      !isEditorOpen &&
+      !isSelected &&
+      !isPreviewSelection &&
+      hasRing &&
+      'ring-[1.75px]',
     // Pending state: warning ring
-    !isActive && isPending && 'ring-[var(--warning)]',
-    // Focused (selected) state: brand ring
-    !isActive && !isPending && isFocused && 'ring-[var(--brand-secondary)]',
-    // Deleted state (highest priority after active/pending/focused)
-    !isActive && !isPending && !isFocused && isDeletedBlock && 'ring-[var(--text-error)]',
-    // Diff states
-    !isActive &&
+    !isExecuting && !isEditorOpen && !isSelected && isPending && 'ring-[var(--warning)]',
+    // Deleted state (highest priority after active/pending)
+    !isExecuting &&
+      !isEditorOpen &&
+      !isSelected &&
       !isPending &&
-      !isFocused &&
+      isDeletedBlock &&
+      'ring-[var(--text-error)]',
+    // Diff states
+    !isExecuting &&
+      !isEditorOpen &&
+      !isSelected &&
+      !isPending &&
       !isDeletedBlock &&
       diffStatus === 'new' &&
-      'ring-[var(--brand-tertiary)]',
-    !isActive &&
+      'ring-[var(--brand-tertiary-2)]',
+    !isExecuting &&
+      !isEditorOpen &&
+      !isSelected &&
       !isPending &&
-      !isFocused &&
       !isDeletedBlock &&
       diffStatus === 'edited' &&
       'ring-[var(--warning)]',
     // Run path states (lowest priority - only show if no other states active)
-    !isActive &&
+    !isExecuting &&
+      !isEditorOpen &&
+      !isSelected &&
       !isPending &&
-      !isFocused &&
       !isDeletedBlock &&
       !diffStatus &&
       runPathStatus === 'success' &&
       'ring-[var(--border-success)]',
-    !isActive &&
+    !isExecuting &&
+      !isEditorOpen &&
+      !isSelected &&
       !isPending &&
-      !isFocused &&
       !isDeletedBlock &&
       !diffStatus &&
       runPathStatus === 'error' &&

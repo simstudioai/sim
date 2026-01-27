@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { isEqual } from 'lodash'
+import { useShallow } from 'zustand/react/shallow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -51,17 +53,14 @@ export function useSubBlockValue<T = any>(
     )
   )
 
-  // Keep a ref to the latest value to prevent unnecessary re-renders
   const valueRef = useRef<T | null>(null)
 
-  // Streaming refs
   const lastEmittedValueRef = useRef<T | null>(null)
   const streamingValueRef = useRef<T | null>(null)
   const wasStreamingRef = useRef<boolean>(false)
 
-  // Get value from subblock store, keyed by active workflow id
-  // Optimized: use shallow equality comparison to prevent re-renders when other fields change
-  const storeValue = useSubBlockStore(
+  const storeValue = useStoreWithEqualityFn(
+    useSubBlockStore,
     useCallback(
       (state) => {
         // If the active workflow ID isn't available yet, return undefined so we can fall back to initialValue
@@ -70,11 +69,17 @@ export function useSubBlockValue<T = any>(
       },
       [activeWorkflowId, blockId, subBlockId]
     ),
-    (a, b) => isEqual(a, b) // Use deep equality to prevent re-renders for same values
+    (a, b) => isEqual(a, b)
   )
 
   // Check if we're in diff mode and get diff value if available
-  const { isShowingDiff, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
+  const { isShowingDiff, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore(
+    useShallow((state) => ({
+      isShowingDiff: state.isShowingDiff,
+      hasActiveDiff: state.hasActiveDiff,
+      baselineWorkflow: state.baselineWorkflow,
+    }))
+  )
   const isBaselineView = hasActiveDiff && !isShowingDiff
   const snapshotSubBlock =
     isBaselineView && baselineWorkflow
@@ -89,7 +94,8 @@ export function useSubBlockValue<T = any>(
 
   // Always call this hook unconditionally - don't wrap it in a condition
   // Optimized: only re-render if model value actually changes
-  const modelSubBlockValue = useSubBlockStore(
+  const modelSubBlockValue = useStoreWithEqualityFn(
+    useSubBlockStore,
     useCallback((state) => (blockId ? state.getValue(blockId, 'model') : null), [blockId]),
     (a, b) => a === b
   )
@@ -101,7 +107,7 @@ export function useSubBlockValue<T = any>(
   // Compute the modelValue based on block type
   const modelValue = isProviderBasedBlock ? (modelSubBlockValue as string) : null
 
-  // Emit the value to socket/DB
+  // Emit the value to socket/DB and update local store
   const emitValue = useCallback(
     (value: T) => {
       collaborativeSetSubblockValue(blockId, subBlockId, value)
@@ -155,20 +161,6 @@ export function useSubBlockValue<T = any>(
           return
         }
 
-        // Update local store immediately for UI responsiveness (non-streaming)
-        useSubBlockStore.setState((state) => ({
-          workflowValues: {
-            ...state.workflowValues,
-            [currentActiveWorkflowId]: {
-              ...state.workflowValues[currentActiveWorkflowId],
-              [blockId]: {
-                ...state.workflowValues[currentActiveWorkflowId]?.[blockId],
-                [subBlockId]: newValue,
-              },
-            },
-          },
-        }))
-
         // Handle model changes for provider-based blocks - clear API key when provider changes (non-streaming)
         if (
           subBlockId === 'model' &&
@@ -206,6 +198,8 @@ export function useSubBlockValue<T = any>(
       isStreaming,
       emitValue,
       isBaselineView,
+      collaborativeSetSubblockValue,
+      isProviderBasedBlock,
     ]
   )
 

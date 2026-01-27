@@ -1,6 +1,6 @@
+import type { PolymarketPriceHistoryEntry } from '@/tools/polymarket/types'
+import { buildClobUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketPriceHistoryEntry } from './types'
-import { buildClobUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetPriceHistoryParams {
   tokenId: string
@@ -31,27 +31,32 @@ export const polymarketGetPriceHistoryTool: ToolConfig<
       type: 'string',
       required: true,
       description: 'The CLOB token ID (from market clobTokenIds)',
+      visibility: 'user-or-llm',
     },
     interval: {
       type: 'string',
       required: false,
       description:
         'Duration ending at current time (1m, 1h, 6h, 1d, 1w, max). Mutually exclusive with startTs/endTs.',
+      visibility: 'user-or-llm',
     },
     fidelity: {
       type: 'number',
       required: false,
       description: 'Data resolution in minutes (e.g., 60 for hourly)',
+      visibility: 'user-or-llm',
     },
     startTs: {
       type: 'number',
       required: false,
       description: 'Start timestamp (Unix seconds UTC)',
+      visibility: 'user-or-llm',
     },
     endTs: {
       type: 'number',
       required: false,
       description: 'End timestamp (Unix seconds UTC)',
+      visibility: 'user-or-llm',
     },
   },
 
@@ -94,7 +99,14 @@ export const polymarketGetPriceHistoryTool: ToolConfig<
   outputs: {
     history: {
       type: 'array',
-      description: 'Array of price history entries with timestamp (t) and price (p)',
+      description: 'Array of price history entries',
+      items: {
+        type: 'object',
+        properties: {
+          t: { type: 'number', description: 'Unix timestamp' },
+          p: { type: 'number', description: 'Price at timestamp' },
+        },
+      },
     },
   },
 }

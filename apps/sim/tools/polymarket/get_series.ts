@@ -1,6 +1,6 @@
+import type { PolymarketPaginationParams, PolymarketSeries } from '@/tools/polymarket/types'
+import { buildGammaUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketPaginationParams, PolymarketSeries } from './types'
-import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetSeriesParams extends PolymarketPaginationParams {}
 
@@ -25,11 +25,13 @@ export const polymarketGetSeriesTool: ToolConfig<
       type: 'string',
       required: false,
       description: 'Number of results per page (max 50)',
+      visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
       description: 'Pagination offset (skip this many results)',
+      visibility: 'user-or-llm',
     },
   },
 
@@ -95,6 +97,26 @@ export const polymarketGetSeriesTool: ToolConfig<
     series: {
       type: 'array',
       description: 'Array of series objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Series ID' },
+          ticker: { type: 'string', description: 'Series ticker' },
+          slug: { type: 'string', description: 'Series slug' },
+          title: { type: 'string', description: 'Series title' },
+          seriesType: { type: 'string', description: 'Series type' },
+          recurrence: { type: 'string', description: 'Recurrence pattern' },
+          image: { type: 'string', description: 'Series image URL' },
+          icon: { type: 'string', description: 'Series icon URL' },
+          active: { type: 'boolean', description: 'Whether series is active' },
+          closed: { type: 'boolean', description: 'Whether series is closed' },
+          archived: { type: 'boolean', description: 'Whether series is archived' },
+          featured: { type: 'boolean', description: 'Whether series is featured' },
+          volume: { type: 'number', description: 'Total volume' },
+          liquidity: { type: 'number', description: 'Total liquidity' },
+          eventCount: { type: 'number', description: 'Number of events in series' },
+        },
+      },
     },
   },
 }

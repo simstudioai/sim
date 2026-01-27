@@ -27,6 +27,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
   Table,
   TableBody,
   TableCell,
@@ -40,13 +44,17 @@ import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/core/utils/cn'
+import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
+import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import type { DocumentData } from '@/lib/knowledge/types'
+import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import {
   ActionBar,
   AddDocumentsModal,
   BaseTagsModal,
   DocumentContextMenu,
+  RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -55,11 +63,17 @@ import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
   useKnowledgeBasesList,
-} from '@/hooks/use-knowledge'
+} from '@/hooks/kb/use-knowledge'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
-} from '@/hooks/use-knowledge-base-tag-definitions'
+} from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import {
+  useBulkDocumentOperation,
+  useDeleteDocument,
+  useDeleteKnowledgeBase,
+  useUpdateDocument,
+} from '@/hooks/queries/knowledge'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -182,8 +196,8 @@ function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) 
             </div>
           </div>
 
-          <div className='mt-[4px]'>
-            <Skeleton className='h-[21px] w-[300px] rounded-[4px]' />
+          <div>
+            <Skeleton className='mt-[4px] h-[21px] w-[300px] rounded-[4px]' />
           </div>
 
           <div className='mt-[16px] flex items-center gap-[8px]'>
@@ -201,9 +215,12 @@ function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) 
                 className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
-            <Button disabled variant='tertiary' className='h-[32px] rounded-[6px]'>
-              Add Documents
-            </Button>
+            <div className='flex items-center gap-[8px]'>
+              <Skeleton className='h-[32px] w-[52px] rounded-[6px]' />
+              <Button disabled variant='tertiary' className='h-[32px] rounded-[6px]'>
+                Add Documents
+              </Button>
+            </div>
           </div>
 
           <div className='mt-[12px] flex flex-1 flex-col overflow-hidden'>
@@ -215,71 +232,9 @@ function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) 
   )
 }
 
-/**
- * Formats a date string to relative time (e.g., "2h ago", "3d ago")
- */
-function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (diffInSeconds < 60) {
-    return 'just now'
-  }
-  if (diffInSeconds < 3600) {
-    const minutes = Math.floor(diffInSeconds / 60)
-    return `${minutes}m ago`
-  }
-  if (diffInSeconds < 86400) {
-    const hours = Math.floor(diffInSeconds / 3600)
-    return `${hours}h ago`
-  }
-  if (diffInSeconds < 604800) {
-    const days = Math.floor(diffInSeconds / 86400)
-    return `${days}d ago`
-  }
-  if (diffInSeconds < 2592000) {
-    const weeks = Math.floor(diffInSeconds / 604800)
-    return `${weeks}w ago`
-  }
-  if (diffInSeconds < 31536000) {
-    const months = Math.floor(diffInSeconds / 2592000)
-    return `${months}mo ago`
-  }
-  const years = Math.floor(diffInSeconds / 31536000)
-  return `${years}y ago`
-}
-
-/**
- * Formats a date string to absolute format for tooltip display
- */
-function formatAbsoluteDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 interface KnowledgeBaseProps {
   id: string
   knowledgeBaseName?: string
-}
-
-function getFileIcon(mimeType: string, filename: string) {
-  const IconComponent = getDocumentIcon(mimeType, filename)
-  return <IconComponent className='h-6 w-5 flex-shrink-0' />
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
 }
 
 const AnimatedLoader = ({ className }: { className?: string }) => (
@@ -329,39 +284,10 @@ const getStatusBadge = (doc: DocumentData) => {
   }
 }
 
-const TAG_SLOTS = [
-  'tag1',
-  'tag2',
-  'tag3',
-  'tag4',
-  'tag5',
-  'tag6',
-  'tag7',
-  'number1',
-  'number2',
-  'number3',
-  'number4',
-  'number5',
-  'date1',
-  'date2',
-  'boolean1',
-  'boolean2',
-  'boolean3',
-] as const
-
-type TagSlot = (typeof TAG_SLOTS)[number]
-
 interface TagValue {
-  slot: TagSlot
+  slot: AllTagSlot
   displayName: string
   value: string
-}
-
-const TAG_FIELD_TYPES: Record<string, string> = {
-  tag: 'text',
-  number: 'number',
-  date: 'date',
-  boolean: 'boolean',
 }
 
 /**
@@ -370,12 +296,12 @@ const TAG_FIELD_TYPES: Record<string, string> = {
 function getDocumentTags(doc: DocumentData, definitions: TagDefinition[]): TagValue[] {
   const result: TagValue[] = []
 
-  for (const slot of TAG_SLOTS) {
+  for (const slot of ALL_TAG_SLOTS) {
     const raw = doc[slot]
     if (raw == null) continue
 
     const def = definitions.find((d) => d.tagSlot === slot)
-    const fieldType = def?.fieldType || TAG_FIELD_TYPES[slot.replace(/\d+$/, '')] || 'text'
+    const fieldType = def?.fieldType || getFieldTypeForSlot(slot) || 'text'
 
     let value: string
     if (fieldType === 'date') {
@@ -409,8 +335,16 @@ export function KnowledgeBase({
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
 
+  const { mutate: updateDocumentMutation } = useUpdateDocument()
+  const { mutate: deleteDocumentMutation } = useDeleteDocument()
+  const { mutate: deleteKnowledgeBaseMutation, isPending: isDeleting } =
+    useDeleteKnowledgeBase(workspaceId)
+  const { mutate: bulkDocumentMutation, isPending: isBulkOperating } = useBulkDocumentOperation()
+
   const [searchQuery, setSearchQuery] = useState('')
   const [showTagsModal, setShowTagsModal] = useState(false)
+  const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
+  const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false)
 
   /**
    * Memoize the search query setter to prevent unnecessary re-renders
@@ -421,10 +355,9 @@ export function KnowledgeBase({
   }, [])
 
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
+  const [isSelectAllMode, setIsSelectAllMode] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showAddDocumentsModal, setShowAddDocumentsModal] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [showDeleteDocumentModal, setShowDeleteDocumentModal] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
@@ -432,6 +365,8 @@ export function KnowledgeBase({
   const [sortBy, setSortBy] = useState<DocumentSortField>('uploadedAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
+  const [showRenameModal, setShowRenameModal] = useState(false)
+  const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
 
   const {
     isOpen: isContextMenuOpen,
@@ -447,6 +382,7 @@ export function KnowledgeBase({
     error: knowledgeBaseError,
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
+
   const {
     documents,
     pagination,
@@ -454,6 +390,7 @@ export function KnowledgeBase({
     isFetching: isFetchingDocuments,
     isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
+    hasProcessingDocuments,
     updateDocument,
     refreshDocuments,
   } = useKnowledgeBaseDocuments(id, {
@@ -462,6 +399,14 @@ export function KnowledgeBase({
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
     sortBy,
     sortOrder,
+    refetchInterval: (data) => {
+      if (isDeleting) return false
+      const hasPending = data?.documents?.some(
+        (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
+      )
+      return hasPending ? 3000 : false
+    },
+    enabledFilter,
   })
 
   const { tagDefinitions } = useKnowledgeBaseTagDefinitions(id)
@@ -527,176 +472,153 @@ export function KnowledgeBase({
     </TableHead>
   )
 
-  useEffect(() => {
-    const hasProcessingDocuments = documents.some(
-      (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
-    )
-
-    if (!hasProcessingDocuments) return
-
-    const refreshInterval = setInterval(async () => {
-      try {
-        if (!isDeleting) {
-          await checkForDeadProcesses()
-          await refreshDocuments()
-        }
-      } catch (error) {
-        logger.error('Error refreshing documents:', error)
-      }
-    }, 3000)
-
-    return () => clearInterval(refreshInterval)
-  }, [documents, refreshDocuments, isDeleting])
-
   /**
    * Checks for documents with stale processing states and marks them as failed
    */
-  const checkForDeadProcesses = async () => {
-    const now = new Date()
-    const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
+  const checkForDeadProcesses = useCallback(
+    (docsToCheck: DocumentData[]) => {
+      const now = new Date()
+      const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
 
-    const staleDocuments = documents.filter((doc) => {
-      if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
-        return false
-      }
+      const staleDocuments = docsToCheck.filter((doc) => {
+        if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
+          return false
+        }
 
-      const processingDuration = now.getTime() - new Date(doc.processingStartedAt).getTime()
-      return processingDuration > DEAD_PROCESS_THRESHOLD_MS
-    })
+        const processingDuration = now.getTime() - new Date(doc.processingStartedAt).getTime()
+        return processingDuration > DEAD_PROCESS_THRESHOLD_MS
+      })
 
-    if (staleDocuments.length === 0) return
+      if (staleDocuments.length === 0) return
 
-    logger.warn(`Found ${staleDocuments.length} documents with dead processes`)
+      logger.warn(`Found ${staleDocuments.length} documents with dead processes`)
 
-    const markFailedPromises = staleDocuments.map(async (doc) => {
-      try {
-        const response = await fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
+      staleDocuments.forEach((doc) => {
+        updateDocumentMutation(
+          {
+            knowledgeBaseId: id,
+            documentId: doc.id,
+            updates: { markFailedDueToTimeout: true },
           },
-          body: JSON.stringify({
-            markFailedDueToTimeout: true,
-          }),
-        })
+          {
+            onSuccess: () => {
+              logger.info(
+                `Successfully marked dead process as failed for document: ${doc.filename}`
+              )
+            },
+          }
+        )
+      })
+    },
+    [id, updateDocumentMutation]
+  )
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          logger.error(`Failed to mark document ${doc.id} as failed: ${errorData.error}`)
-          return
-        }
+  useEffect(() => {
+    if (hasProcessingDocuments) {
+      checkForDeadProcesses(documents)
+    }
+  }, [hasProcessingDocuments, documents, checkForDeadProcesses])
 
-        const result = await response.json()
-        if (result.success) {
-          logger.info(`Successfully marked dead process as failed for document: ${doc.filename}`)
-        }
-      } catch (error) {
-        logger.error(`Error marking document ${doc.id} as failed:`, error)
-      }
-    })
-
-    await Promise.allSettled(markFailedPromises)
-  }
-
-  const handleToggleEnabled = async (docId: string) => {
+  const handleToggleEnabled = (docId: string) => {
     const document = documents.find((doc) => doc.id === docId)
     if (!document) return
 
     const newEnabled = !document.enabled
 
+    // Optimistic update
     updateDocument(docId, { enabled: newEnabled })
 
-    try {
-      const response = await fetch(`/api/knowledge/${id}/documents/${docId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+    updateDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        documentId: docId,
+        updates: { enabled: newEnabled },
+      },
+      {
+        onError: () => {
+          // Rollback on error
+          updateDocument(docId, { enabled: !newEnabled })
         },
-        body: JSON.stringify({
-          enabled: newEnabled,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update document')
       }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        updateDocument(docId, { enabled: !newEnabled })
-      }
-    } catch (err) {
-      updateDocument(docId, { enabled: !newEnabled })
-      logger.error('Error updating document:', err)
-    }
+    )
   }
 
   /**
    * Handles retrying a failed document processing
    */
-  const handleRetryDocument = async (docId: string) => {
-    try {
-      updateDocument(docId, {
-        processingStatus: 'pending',
-        processingError: null,
-        processingStartedAt: null,
-        processingCompletedAt: null,
-      })
+  const handleRetryDocument = (docId: string) => {
+    // Optimistic update
+    updateDocument(docId, {
+      processingStatus: 'pending',
+      processingError: null,
+      processingStartedAt: null,
+      processingCompletedAt: null,
+    })
 
-      const response = await fetch(`/api/knowledge/${id}/documents/${docId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+    updateDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        documentId: docId,
+        updates: { retryProcessing: true },
+      },
+      {
+        onSuccess: () => {
+          refreshDocuments()
+          logger.info(`Document retry initiated successfully for: ${docId}`)
         },
-        body: JSON.stringify({
-          retryProcessing: true,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to retry document processing')
+        onError: (err) => {
+          logger.error('Error retrying document:', err)
+          updateDocument(docId, {
+            processingStatus: 'failed',
+            processingError:
+              err instanceof Error ? err.message : 'Failed to retry document processing',
+          })
+        },
       }
+    )
+  }
 
-      const result = await response.json()
+  /**
+   * Opens the rename document modal
+   */
+  const handleRenameDocument = (doc: DocumentData) => {
+    setDocumentToRename(doc)
+    setShowRenameModal(true)
+  }
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to retry document processing')
-      }
+  /**
+   * Saves the renamed document
+   */
+  const handleSaveRename = async (documentId: string, newName: string) => {
+    const currentDoc = documents.find((doc) => doc.id === documentId)
+    const previousName = currentDoc?.filename
 
-      await refreshDocuments()
+    // Optimistic update
+    updateDocument(documentId, { filename: newName })
 
-      let refreshAttempts = 0
-      const maxRefreshAttempts = 3
-      const refreshInterval = setInterval(async () => {
-        try {
-          refreshAttempts++
-          await refreshDocuments()
-          if (refreshAttempts >= maxRefreshAttempts) {
-            clearInterval(refreshInterval)
-          }
-        } catch (error) {
-          logger.error('Error refreshing documents after retry:', error)
-          clearInterval(refreshInterval)
+    return new Promise<void>((resolve, reject) => {
+      updateDocumentMutation(
+        {
+          knowledgeBaseId: id,
+          documentId,
+          updates: { filename: newName },
+        },
+        {
+          onSuccess: () => {
+            logger.info(`Document renamed: ${documentId}`)
+            resolve()
+          },
+          onError: (err) => {
+            // Rollback on error
+            if (previousName !== undefined) {
+              updateDocument(documentId, { filename: previousName })
+            }
+            logger.error('Error renaming document:', err)
+            reject(err)
+          },
         }
-      }, 1000)
-
-      setTimeout(() => {
-        clearInterval(refreshInterval)
-      }, 4000)
-
-      logger.info(`Document retry initiated successfully for: ${docId}`)
-    } catch (err) {
-      logger.error('Error retrying document:', err)
-      const currentDoc = documents.find((doc) => doc.id === docId)
-      if (currentDoc) {
-        updateDocument(docId, {
-          processingStatus: 'failed',
-          processingError:
-            err instanceof Error ? err.message : 'Failed to retry document processing',
-        })
-      }
-    }
+      )
+    })
   }
 
   /**
@@ -710,35 +632,26 @@ export function KnowledgeBase({
   /**
    * Confirms and executes the deletion of a single document
    */
-  const confirmDeleteDocument = async () => {
+  const confirmDeleteDocument = () => {
     if (!documentToDelete) return
 
-    try {
-      const response = await fetch(`/api/knowledge/${id}/documents/${documentToDelete}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete document')
+    deleteDocumentMutation(
+      { knowledgeBaseId: id, documentId: documentToDelete },
+      {
+        onSuccess: () => {
+          refreshDocuments()
+          setSelectedDocuments((prev) => {
+            const newSet = new Set(prev)
+            newSet.delete(documentToDelete)
+            return newSet
+          })
+        },
+        onSettled: () => {
+          setShowDeleteDocumentModal(false)
+          setDocumentToDelete(null)
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        refreshDocuments()
-
-        setSelectedDocuments((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(documentToDelete)
-          return newSet
-        })
-      }
-    } catch (err) {
-      logger.error('Error deleting document:', err)
-    } finally {
-      setShowDeleteDocumentModal(false)
-      setDocumentToDelete(null)
-    }
+    )
   }
 
   /**
@@ -764,6 +677,7 @@ export function KnowledgeBase({
       setSelectedDocuments(new Set(documents.map((doc) => doc.id)))
     } else {
       setSelectedDocuments(new Set())
+      setIsSelectAllMode(false)
     }
   }
 
@@ -784,32 +698,18 @@ export function KnowledgeBase({
   /**
    * Handles deleting the entire knowledge base
    */
-  const handleDeleteKnowledgeBase = async () => {
+  const handleDeleteKnowledgeBase = () => {
     if (!knowledgeBase) return
 
-    try {
-      setIsDeleting(true)
-
-      const response = await fetch(`/api/knowledge/${id}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete knowledge base')
+    deleteKnowledgeBaseMutation(
+      { knowledgeBaseId: id },
+      {
+        onSuccess: () => {
+          removeKnowledgeBase(id)
+          router.push(`/workspace/${workspaceId}/knowledge`)
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        removeKnowledgeBase(id)
-        router.push(`/workspace/${workspaceId}/knowledge`)
-      } else {
-        throw new Error(result.error || 'Failed to delete knowledge base')
-      }
-    } catch (err) {
-      logger.error('Error deleting knowledge base:', err)
-      setIsDeleting(false)
-    }
+    )
   }
 
   /**
@@ -822,159 +722,175 @@ export function KnowledgeBase({
   /**
    * Handles bulk enabling of selected documents
    */
-  const handleBulkEnable = async () => {
+  const handleBulkEnable = () => {
+    if (isSelectAllMode) {
+      bulkDocumentMutation(
+        {
+          knowledgeBaseId: id,
+          operation: 'enable',
+          selectAll: true,
+          enabledFilter,
+        },
+        {
+          onSuccess: (result) => {
+            logger.info(`Successfully enabled ${result.successCount} documents`)
+            setSelectedDocuments(new Set())
+            setIsSelectAllMode(false)
+            refreshDocuments()
+          },
+        }
+      )
+      return
+    }
+
     const documentsToEnable = documents.filter(
       (doc) => selectedDocuments.has(doc.id) && !doc.enabled
     )
 
     if (documentsToEnable.length === 0) return
 
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(`/api/knowledge/${id}/documents`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+    bulkDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        operation: 'enable',
+        documentIds: documentsToEnable.map((doc) => doc.id),
+      },
+      {
+        onSuccess: (result) => {
+          result.updatedDocuments?.forEach((updatedDoc) => {
+            updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
+          })
+          logger.info(`Successfully enabled ${result.successCount} documents`)
+          setSelectedDocuments(new Set())
         },
-        body: JSON.stringify({
-          operation: 'enable',
-          documentIds: documentsToEnable.map((doc) => doc.id),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to enable documents')
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
-          updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
-        })
-
-        logger.info(`Successfully enabled ${result.data.successCount} documents`)
-      }
-
-      setSelectedDocuments(new Set())
-    } catch (err) {
-      logger.error('Error enabling documents:', err)
-    } finally {
-      setIsBulkOperating(false)
-    }
+    )
   }
 
   /**
    * Handles bulk disabling of selected documents
    */
-  const handleBulkDisable = async () => {
+  const handleBulkDisable = () => {
+    if (isSelectAllMode) {
+      bulkDocumentMutation(
+        {
+          knowledgeBaseId: id,
+          operation: 'disable',
+          selectAll: true,
+          enabledFilter,
+        },
+        {
+          onSuccess: (result) => {
+            logger.info(`Successfully disabled ${result.successCount} documents`)
+            setSelectedDocuments(new Set())
+            setIsSelectAllMode(false)
+            refreshDocuments()
+          },
+        }
+      )
+      return
+    }
+
     const documentsToDisable = documents.filter(
       (doc) => selectedDocuments.has(doc.id) && doc.enabled
     )
 
     if (documentsToDisable.length === 0) return
 
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(`/api/knowledge/${id}/documents`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+    bulkDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        operation: 'disable',
+        documentIds: documentsToDisable.map((doc) => doc.id),
+      },
+      {
+        onSuccess: (result) => {
+          result.updatedDocuments?.forEach((updatedDoc) => {
+            updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
+          })
+          logger.info(`Successfully disabled ${result.successCount} documents`)
+          setSelectedDocuments(new Set())
         },
-        body: JSON.stringify({
-          operation: 'disable',
-          documentIds: documentsToDisable.map((doc) => doc.id),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to disable documents')
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
-          updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
-        })
-
-        logger.info(`Successfully disabled ${result.data.successCount} documents`)
-      }
-
-      setSelectedDocuments(new Set())
-    } catch (err) {
-      logger.error('Error disabling documents:', err)
-    } finally {
-      setIsBulkOperating(false)
-    }
+    )
   }
 
-  /**
-   * Opens the bulk delete confirmation modal
-   */
   const handleBulkDelete = () => {
     if (selectedDocuments.size === 0) return
     setShowBulkDeleteModal(true)
   }
 
-  /**
-   * Confirms and executes the bulk deletion of selected documents
-   */
-  const confirmBulkDelete = async () => {
+  const confirmBulkDelete = () => {
+    if (isSelectAllMode) {
+      bulkDocumentMutation(
+        {
+          knowledgeBaseId: id,
+          operation: 'delete',
+          selectAll: true,
+          enabledFilter,
+        },
+        {
+          onSuccess: (result) => {
+            logger.info(`Successfully deleted ${result.successCount} documents`)
+            refreshDocuments()
+            setSelectedDocuments(new Set())
+            setIsSelectAllMode(false)
+          },
+          onSettled: () => {
+            setShowBulkDeleteModal(false)
+          },
+        }
+      )
+      return
+    }
+
     const documentsToDelete = documents.filter((doc) => selectedDocuments.has(doc.id))
 
     if (documentsToDelete.length === 0) return
 
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(`/api/knowledge/${id}/documents`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+    bulkDocumentMutation(
+      {
+        knowledgeBaseId: id,
+        operation: 'delete',
+        documentIds: documentsToDelete.map((doc) => doc.id),
+      },
+      {
+        onSuccess: (result) => {
+          logger.info(`Successfully deleted ${result.successCount} documents`)
+          refreshDocuments()
+          setSelectedDocuments(new Set())
         },
-        body: JSON.stringify({
-          operation: 'delete',
-          documentIds: documentsToDelete.map((doc) => doc.id),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete documents')
+        onSettled: () => {
+          setShowBulkDeleteModal(false)
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        logger.info(`Successfully deleted ${result.data.successCount} documents`)
-      }
-
-      await refreshDocuments()
-
-      setSelectedDocuments(new Set())
-    } catch (err) {
-      logger.error('Error deleting documents:', err)
-    } finally {
-      setIsBulkOperating(false)
-      setShowBulkDeleteModal(false)
-    }
+    )
   }
 
   const selectedDocumentsList = documents.filter((doc) => selectedDocuments.has(doc.id))
-  const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
-  const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
+  const enabledCount = isSelectAllMode
+    ? enabledFilter === 'disabled'
+      ? 0
+      : pagination.total
+    : selectedDocumentsList.filter((doc) => doc.enabled).length
+  const disabledCount = isSelectAllMode
+    ? enabledFilter === 'enabled'
+      ? 0
+      : pagination.total
+    : selectedDocumentsList.filter((doc) => !doc.enabled).length
 
-  /**
-   * Handle right-click on a document row
-   */
   const handleDocumentContextMenu = useCallback(
     (e: React.MouseEvent, doc: DocumentData) => {
+      const isCurrentlySelected = selectedDocuments.has(doc.id)
+
+      if (!isCurrentlySelected) {
+        setSelectedDocuments(new Set([doc.id]))
+      }
+
       setContextMenuDocument(doc)
       baseHandleContextMenu(e)
     },
-    [baseHandleContextMenu]
+    [selectedDocuments, baseHandleContextMenu]
   )
 
   /**
@@ -1079,11 +995,13 @@ export function KnowledgeBase({
             </div>
           </div>
 
-          {knowledgeBase?.description && (
-            <p className='mt-[4px] line-clamp-2 max-w-[40vw] font-medium text-[14px] text-[var(--text-tertiary)]'>
-              {knowledgeBase.description}
-            </p>
-          )}
+          <div>
+            {knowledgeBase?.description && (
+              <p className='mt-[4px] line-clamp-2 max-w-[40vw] font-medium text-[14px] text-[var(--text-tertiary)]'>
+                {knowledgeBase.description}
+              </p>
+            )}
+          </div>
 
           <div className='mt-[16px] flex items-center gap-[8px]'>
             <span className='text-[14px] text-[var(--text-muted)]'>
@@ -1126,21 +1044,76 @@ export function KnowledgeBase({
                 ))}
             </div>
 
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  onClick={handleAddDocuments}
-                  disabled={userPermissions.canEdit !== true}
-                  variant='tertiary'
-                  className='h-[32px] rounded-[6px]'
-                >
-                  Add Documents
-                </Button>
-              </Tooltip.Trigger>
-              {userPermissions.canEdit !== true && (
-                <Tooltip.Content>Write permission required to add documents</Tooltip.Content>
-              )}
-            </Tooltip.Root>
+            <div className='flex items-center gap-[8px]'>
+              <Popover open={isFilterPopoverOpen} onOpenChange={setIsFilterPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant='default' className='h-[32px] rounded-[6px]'>
+                    {enabledFilter === 'all'
+                      ? 'All'
+                      : enabledFilter === 'enabled'
+                        ? 'Enabled'
+                        : 'Disabled'}
+                    <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align='end' side='bottom' sideOffset={4}>
+                  <div className='flex flex-col gap-[2px]'>
+                    <PopoverItem
+                      active={enabledFilter === 'all'}
+                      onClick={() => {
+                        setEnabledFilter('all')
+                        setIsFilterPopoverOpen(false)
+                        setCurrentPage(1)
+                        setSelectedDocuments(new Set())
+                        setIsSelectAllMode(false)
+                      }}
+                    >
+                      All
+                    </PopoverItem>
+                    <PopoverItem
+                      active={enabledFilter === 'enabled'}
+                      onClick={() => {
+                        setEnabledFilter('enabled')
+                        setIsFilterPopoverOpen(false)
+                        setCurrentPage(1)
+                        setSelectedDocuments(new Set())
+                        setIsSelectAllMode(false)
+                      }}
+                    >
+                      Enabled
+                    </PopoverItem>
+                    <PopoverItem
+                      active={enabledFilter === 'disabled'}
+                      onClick={() => {
+                        setEnabledFilter('disabled')
+                        setIsFilterPopoverOpen(false)
+                        setCurrentPage(1)
+                        setSelectedDocuments(new Set())
+                        setIsSelectAllMode(false)
+                      }}
+                    >
+                      Disabled
+                    </PopoverItem>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    onClick={handleAddDocuments}
+                    disabled={userPermissions.canEdit !== true}
+                    variant='tertiary'
+                    className='h-[32px] rounded-[6px]'
+                  >
+                    Add Documents
+                  </Button>
+                </Tooltip.Trigger>
+                {userPermissions.canEdit !== true && (
+                  <Tooltip.Content>Write permission required to add documents</Tooltip.Content>
+                )}
+              </Tooltip.Root>
+            </div>
           </div>
 
           {error && !isLoadingKnowledgeBase && (
@@ -1163,14 +1136,20 @@ export function KnowledgeBase({
               <div className='mt-[10px] flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
                 <div className='text-center'>
                   <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                    {searchQuery ? 'No documents found' : 'No documents yet'}
+                    {searchQuery
+                      ? 'No documents found'
+                      : enabledFilter !== 'all'
+                        ? 'Nothing matches your filter'
+                        : 'No documents yet'}
                   </p>
                   <p className='mt-1 text-[var(--text-muted)] text-xs'>
                     {searchQuery
                       ? 'Try a different search term'
-                      : userPermissions.canEdit === true
-                        ? 'Add documents to get started'
-                        : 'Documents will appear here once added'}
+                      : enabledFilter !== 'all'
+                        ? 'Try changing the filter'
+                        : userPermissions.canEdit === true
+                          ? 'Add documents to get started'
+                          : 'Documents will appear here once added'}
                   </p>
                 </div>
               </div>
@@ -1194,7 +1173,7 @@ export function KnowledgeBase({
                     {renderSortableHeader('tokenCount', 'Tokens', 'hidden w-[8%] lg:table-cell')}
                     {renderSortableHeader('chunkCount', 'Chunks', 'w-[8%]')}
                     {renderSortableHeader('uploadedAt', 'Uploaded', 'w-[11%]')}
-                    {renderSortableHeader('processingStatus', 'Status', 'w-[10%]')}
+                    {renderSortableHeader('enabled', 'Status', 'w-[10%]')}
                     <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
                       Tags
                     </TableHead>
@@ -1211,7 +1190,9 @@ export function KnowledgeBase({
                       <TableRow
                         key={doc.id}
                         className={`${
-                          isSelected ? 'bg-[var(--surface-2)]' : 'hover:bg-[var(--surface-2)]'
+                          isSelected
+                            ? 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
+                            : 'hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]'
                         } ${doc.processingStatus === 'completed' ? 'cursor-pointer' : 'cursor-default'}`}
                         onClick={() => {
                           if (doc.processingStatus === 'completed') {
@@ -1236,7 +1217,10 @@ export function KnowledgeBase({
                         </TableCell>
                         <TableCell className='w-[180px] max-w-[180px] px-[12px] py-[8px]'>
                           <div className='flex min-w-0 items-center gap-[8px]'>
-                            {getFileIcon(doc.mimeType, doc.filename)}
+                            {(() => {
+                              const IconComponent = getDocumentIcon(doc.mimeType, doc.filename)
+                              return <IconComponent className='h-6 w-5 flex-shrink-0' />
+                            })()}
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
                                 <span
@@ -1479,15 +1463,16 @@ export function KnowledgeBase({
           <ModalHeader>Delete Knowledge Base</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete "{knowledgeBaseName}"? This will permanently delete
-              the knowledge base and all {pagination.total} document
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
+              This will permanently delete the knowledge base and all {pagination.total} document
               {pagination.total === 1 ? '' : 's'} within it.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='active'
+              variant='default'
               onClick={() => setShowDeleteDialog(false)}
               disabled={isDeleting}
             >
@@ -1505,14 +1490,16 @@ export function KnowledgeBase({
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete "
-              {documents.find((doc) => doc.id === documentToDelete)?.filename ?? 'this document'}"?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {documents.find((doc) => doc.id === documentToDelete)?.filename ?? 'this document'}
+              </span>
+              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='active'
+              variant='default'
               onClick={() => {
                 setShowDeleteDocumentModal(false)
                 setDocumentToDelete(null)
@@ -1538,7 +1525,7 @@ export function KnowledgeBase({
             </p>
           </ModalBody>
           <ModalFooter>
-            <Button variant='active' onClick={() => setShowBulkDeleteModal(false)}>
+            <Button variant='default' onClick={() => setShowBulkDeleteModal(false)}>
               Cancel
             </Button>
             <Button variant='destructive' onClick={confirmBulkDelete} disabled={isBulkOperating}>
@@ -1558,6 +1545,17 @@ export function KnowledgeBase({
         chunkingConfig={knowledgeBase?.chunkingConfig}
       />
 
+      {/* Rename Document Modal */}
+      {documentToRename && (
+        <RenameDocumentModal
+          open={showRenameModal}
+          onOpenChange={setShowRenameModal}
+          documentId={documentToRename.id}
+          initialName={documentToRename.filename}
+          onSave={handleSaveRename}
+        />
+      )}
+
       <ActionBar
         selectedCount={selectedDocuments.size}
         onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
@@ -1566,6 +1564,14 @@ export function KnowledgeBase({
         enabledCount={enabledCount}
         disabledCount={disabledCount}
         isLoading={isBulkOperating}
+        totalCount={pagination.total}
+        isAllPageSelected={isAllSelected}
+        isAllSelected={isSelectAllMode}
+        onSelectAll={() => setIsSelectAllMode(true)}
+        onClearSelectAll={() => {
+          setIsSelectAllMode(false)
+          setSelectedDocuments(new Set())
+        }}
       />
 
       <DocumentContextMenu
@@ -1580,8 +1586,11 @@ export function KnowledgeBase({
             ? getDocumentTags(contextMenuDocument, tagDefinitions).length > 0
             : false
         }
+        selectedCount={selectedDocuments.size}
+        enabledCount={enabledCount}
+        disabledCount={disabledCount}
         onOpenInNewTab={
-          contextMenuDocument
+          contextMenuDocument && selectedDocuments.size === 1
             ? () => {
                 const urlParams = new URLSearchParams({
                   kbName: knowledgeBaseName,
@@ -1594,13 +1603,26 @@ export function KnowledgeBase({
               }
             : undefined
         }
+        onRename={
+          contextMenuDocument && selectedDocuments.size === 1 && userPermissions.canEdit
+            ? () => handleRenameDocument(contextMenuDocument)
+            : undefined
+        }
         onToggleEnabled={
           contextMenuDocument && userPermissions.canEdit
-            ? () => handleToggleEnabled(contextMenuDocument.id)
+            ? selectedDocuments.size > 1
+              ? () => {
+                  if (disabledCount > 0) {
+                    handleBulkEnable()
+                  } else {
+                    handleBulkDisable()
+                  }
+                }
+              : () => handleToggleEnabled(contextMenuDocument.id)
             : undefined
         }
         onViewTags={
-          contextMenuDocument
+          contextMenuDocument && selectedDocuments.size === 1
             ? () => {
                 const urlParams = new URLSearchParams({
                   kbName: knowledgeBaseName,
@@ -1614,7 +1636,9 @@ export function KnowledgeBase({
         }
         onDelete={
           contextMenuDocument && userPermissions.canEdit
-            ? () => handleDeleteDocument(contextMenuDocument.id)
+            ? selectedDocuments.size > 1
+              ? handleBulkDelete
+              : () => handleDeleteDocument(contextMenuDocument.id)
             : undefined
         }
         onAddDocument={userPermissions.canEdit ? handleAddDocuments : undefined}

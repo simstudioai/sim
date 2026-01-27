@@ -5,7 +5,14 @@ export interface InputFormatField {
   value?: unknown
 }
 
-export const USER_FILE_ACCESSIBLE_PROPERTIES = ['id', 'name', 'url', 'size', 'type'] as const
+export const USER_FILE_ACCESSIBLE_PROPERTIES = [
+  'id',
+  'name',
+  'url',
+  'size',
+  'type',
+  'base64',
+] as const
 
 export type UserFileAccessibleProperty = (typeof USER_FILE_ACCESSIBLE_PROPERTIES)[number]
 
@@ -15,6 +22,7 @@ export const USER_FILE_PROPERTY_TYPES: Record<UserFileAccessibleProperty, string
   url: 'string',
   size: 'number',
   type: 'string',
+  base64: 'string',
 } as const
 
 export const START_BLOCK_RESERVED_FIELDS = ['input', 'conversationId', 'files'] as const

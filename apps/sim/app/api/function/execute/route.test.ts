@@ -3,9 +3,9 @@
  *
  * @vitest-environment node
  */
+import { createMockRequest, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: vi.fn().mockImplementation(async (req) => {
@@ -82,13 +82,14 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
   }),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  })),
+vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('@/lib/auth/hybrid', () => ({
+  checkInternalAuth: vi.fn().mockResolvedValue({
+    success: true,
+    userId: 'user-123',
+    authType: 'internal_jwt',
+  }),
 }))
 
 vi.mock('@/lib/execution/e2b', () => ({
@@ -117,6 +118,24 @@ describe('Function Execute API Route', () => {
   })
 
   describe('Security Tests', () => {
+    it('should reject unauthorized requests', async () => {
+      const { checkInternalAuth } = await import('@/lib/auth/hybrid')
+      vi.mocked(checkInternalAuth).mockResolvedValueOnce({
+        success: false,
+        error: 'Unauthorized',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'return "test"',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(401)
+      expect(data).toHaveProperty('error', 'Unauthorized')
+    })
+
     it.concurrent('should use isolated-vm for secure sandboxed execution', async () => {
       const req = createMockRequest('POST', {
         code: 'return "test"',
@@ -283,8 +302,11 @@ describe('Function Execute API Route', () => {
     it.concurrent('should resolve tag variables with <tag_name> syntax', async () => {
       const req = createMockRequest('POST', {
         code: 'return <email>',
-        params: {
-          email: { id: '123', subject: 'Test Email' },
+        blockData: {
+          'block-123': { id: '123', subject: 'Test Email' },
+        },
+        blockNameMapping: {
+          email: 'block-123',
         },
       })
 
@@ -312,9 +334,13 @@ describe('Function Execute API Route', () => {
     it.concurrent('should only match valid variable names in angle brackets', async () => {
       const req = createMockRequest('POST', {
         code: 'return <validVar> + "<invalid@email.com>" + <another_valid>',
-        params: {
-          validVar: 'hello',
-          another_valid: 'world',
+        blockData: {
+          'block-1': 'hello',
+          'block-2': 'world',
+        },
+        blockNameMapping: {
+          validvar: 'block-1',
+          another_valid: 'block-2',
         },
       })
 
@@ -328,28 +354,22 @@ describe('Function Execute API Route', () => {
     it.concurrent(
       'should handle Gmail webhook data with email addresses containing angle brackets',
       async () => {
-        const gmailData = {
-          email: {
-            id: '123',
-            from: 'Waleed Latif <waleed@sim.ai>',
-            to: 'User <user@example.com>',
-            subject: 'Test Email',
-            bodyText: 'Hello world',
-          },
-          rawEmail: {
-            id: '123',
-            payload: {
-              headers: [
-                { name: 'From', value: 'Waleed Latif <waleed@sim.ai>' },
-                { name: 'To', value: 'User <user@example.com>' },
-              ],
-            },
-          },
+        const emailData = {
+          id: '123',
+          from: 'Waleed Latif <waleed@sim.ai>',
+          to: 'User <user@example.com>',
+          subject: 'Test Email',
+          bodyText: 'Hello world',
         }
 
         const req = createMockRequest('POST', {
           code: 'return <email>',
-          params: gmailData,
+          blockData: {
+            'block-email': emailData,
+          },
+          blockNameMapping: {
+            email: 'block-email',
+          },
         })
 
         const response = await POST(req)
@@ -363,17 +383,20 @@ describe('Function Execute API Route', () => {
     it.concurrent(
       'should properly serialize complex email objects with special characters',
       async () => {
-        const complexEmailData = {
-          email: {
-            from: 'Test User <test@example.com>',
-            bodyHtml: '<div>HTML content with "quotes" and \'apostrophes\'</div>',
-            bodyText: 'Text with\nnewlines\tand\ttabs',
-          },
+        const emailData = {
+          from: 'Test User <test@example.com>',
+          bodyHtml: '<div>HTML content with "quotes" and \'apostrophes\'</div>',
+          bodyText: 'Text with\nnewlines\tand\ttabs',
         }
 
         const req = createMockRequest('POST', {
           code: 'return <email>',
-          params: complexEmailData,
+          blockData: {
+            'block-email': emailData,
+          },
+          blockNameMapping: {
+            email: 'block-email',
+          },
         })
 
         const response = await POST(req)
@@ -526,18 +549,23 @@ describe('Function Execute API Route', () => {
     })
 
     it.concurrent('should handle JSON serialization edge cases', async () => {
+      const complexData = {
+        special: 'chars"with\'quotes',
+        unicode: '🎉 Unicode content',
+        nested: {
+          deep: {
+            value: 'test',
+          },
+        },
+      }
+
       const req = createMockRequest('POST', {
         code: 'return <complexData>',
-        params: {
-          complexData: {
-            special: 'chars"with\'quotes',
-            unicode: '🎉 Unicode content',
-            nested: {
-              deep: {
-                value: 'test',
-              },
-            },
-          },
+        blockData: {
+          'block-complex': complexData,
+        },
+        blockNameMapping: {
+          complexdata: 'block-complex',
         },
       })
 

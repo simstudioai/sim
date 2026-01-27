@@ -8,6 +8,7 @@ import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-ke
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
 import { env } from '@/lib/core/config/env'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getWorkflowAccessContext, getWorkflowById } from '@/lib/workflows/utils'
@@ -19,6 +20,7 @@ const UpdateWorkflowSchema = z.object({
   description: z.string().optional(),
   color: z.string().optional(),
   folderId: z.string().nullable().optional(),
+  sortOrder: z.number().int().min(0).optional(),
 })
 
 /**
@@ -335,6 +337,15 @@ export async function DELETE(
 
     await db.delete(workflow).where(eq(workflow.id, workflowId))
 
+    try {
+      PlatformEvents.workflowDeleted({
+        workflowId,
+        workspaceId: workflowData.workspaceId || undefined,
+      })
+    } catch {
+      // Telemetry should not fail the operation
+    }
+
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully deleted workflow ${workflowId} in ${elapsed}ms`)
 
@@ -428,12 +439,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Build update object
-    const updateData: any = { updatedAt: new Date() }
+    const updateData: Record<string, unknown> = { updatedAt: new Date() }
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.description !== undefined) updateData.description = updates.description
     if (updates.color !== undefined) updateData.color = updates.color
     if (updates.folderId !== undefined) updateData.folderId = updates.folderId
+    if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder
 
     // Update the workflow
     const [updatedWorkflow] = await db

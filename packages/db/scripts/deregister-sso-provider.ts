@@ -18,7 +18,6 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { ssoProvider, user } from '../schema'
 
-// Simple console logger
 const logger = {
   info: (message: string, meta?: any) => {
     const timestamp = new Date().toISOString()
@@ -43,7 +42,6 @@ const logger = {
   },
 }
 
-// Get database URL from environment
 const CONNECTION_STRING = process.env.POSTGRES_URL ?? process.env.DATABASE_URL
 if (!CONNECTION_STRING) {
   console.error('❌ POSTGRES_URL or DATABASE_URL environment variable is required')
@@ -88,7 +86,6 @@ async function deregisterSSOProvider(): Promise<boolean> {
       return false
     }
 
-    // Get user
     const targetUser = await getUser(userEmail)
     if (!targetUser) {
       return false
@@ -96,7 +93,6 @@ async function deregisterSSOProvider(): Promise<boolean> {
 
     logger.info(`Found user: ${targetUser.email} (ID: ${targetUser.id})`)
 
-    // Get SSO providers for this user
     const providers = await db
       .select()
       .from(ssoProvider)
@@ -112,11 +108,9 @@ async function deregisterSSOProvider(): Promise<boolean> {
       logger.info(`  - Provider ID: ${provider.providerId}, Domain: ${provider.domain}`)
     }
 
-    // Check if specific provider ID was requested
     const specificProviderId = process.env.SSO_PROVIDER_ID
 
     if (specificProviderId) {
-      // Delete specific provider
       const providerToDelete = providers.find((p) => p.providerId === specificProviderId)
       if (!providerToDelete) {
         logger.error(`Provider '${specificProviderId}' not found for user ${targetUser.email}`)
@@ -133,7 +127,6 @@ async function deregisterSSOProvider(): Promise<boolean> {
         `✅ Successfully deleted SSO provider '${specificProviderId}' for user ${targetUser.email}`
       )
     } else {
-      // Delete all providers for this user
       await db.delete(ssoProvider).where(eq(ssoProvider.userId, targetUser.id))
 
       logger.info(
@@ -171,7 +164,6 @@ async function main() {
   }
 }
 
-// Handle script execution
 main().catch((error) => {
   logger.error('Script execution failed:', { error })
   process.exit(1)

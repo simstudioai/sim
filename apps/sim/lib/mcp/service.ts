@@ -8,8 +8,8 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { McpClient } from '@/lib/mcp/client'
+import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
   getMcpCacheType,
@@ -25,8 +25,6 @@ import type {
   McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
-import { REFERENCE } from '@/executor/constants'
-import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpService')
 
@@ -48,70 +46,18 @@ class McpService {
   }
 
   /**
-   * Resolve environment variables in strings
-   */
-  private resolveEnvVars(value: string, envVars: Record<string, string>): string {
-    const envVarPattern = createEnvVarPattern()
-    const envMatches = value.match(envVarPattern)
-    if (!envMatches) return value
-
-    let resolvedValue = value
-    const missingVars: string[] = []
-
-    for (const match of envMatches) {
-      const envKey = match
-        .slice(REFERENCE.ENV_VAR_START.length, -REFERENCE.ENV_VAR_END.length)
-        .trim()
-      const envValue = envVars[envKey]
-
-      if (envValue === undefined) {
-        missingVars.push(envKey)
-        continue
-      }
-
-      resolvedValue = resolvedValue.replace(match, envValue)
-    }
-
-    if (missingVars.length > 0) {
-      throw new Error(
-        `Missing required environment variable${missingVars.length > 1 ? 's' : ''}: ${missingVars.join(', ')}. ` +
-          `Please set ${missingVars.length > 1 ? 'these variables' : 'this variable'} in your workspace or personal environment settings.`
-      )
-    }
-
-    return resolvedValue
-  }
-
-  /**
-   * Resolve environment variables in server config
+   * Resolve environment variables in server config.
+   * Uses shared utility with strict mode (throws on missing vars).
    */
   private async resolveConfigEnvVars(
     config: McpServerConfig,
     userId: string,
     workspaceId?: string
   ): Promise<McpServerConfig> {
-    try {
-      const envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
-
-      const resolvedConfig = { ...config }
-
-      if (resolvedConfig.url) {
-        resolvedConfig.url = this.resolveEnvVars(resolvedConfig.url, envVars)
-      }
-
-      if (resolvedConfig.headers) {
-        const resolvedHeaders: Record<string, string> = {}
-        for (const [key, value] of Object.entries(resolvedConfig.headers)) {
-          resolvedHeaders[key] = this.resolveEnvVars(value, envVars)
-        }
-        resolvedConfig.headers = resolvedHeaders
-      }
-
-      return resolvedConfig
-    } catch (error) {
-      logger.error('Failed to resolve environment variables for MCP server config:', error)
-      return config
-    }
+    const { config: resolvedConfig } = await resolveMcpConfigEnvVars(config, userId, workspaceId, {
+      strict: true,
+    })
+    return resolvedConfig
   }
 
   /**

@@ -1,0 +1,77 @@
+---
+title: Enterprise
+description: Enterprise-Funktionen für Organisationen mit erweiterten
+  Sicherheits- und Compliance-Anforderungen
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Sim Enterprise bietet erweiterte Funktionen für Organisationen mit erhöhten Sicherheits-, Compliance- und Verwaltungsanforderungen.
+
+---
+
+## Bring Your Own Key (BYOK)
+
+Verwenden Sie Ihre eigenen API-Schlüssel für KI-Modellanbieter anstelle der gehosteten Schlüssel von Sim.
+
+### Unterstützte Anbieter
+
+| Anbieter | Verwendung |
+|----------|-------|
+| OpenAI | Knowledge Base-Embeddings, Agent-Block |
+| Anthropic | Agent-Block |
+| Google | Agent-Block |
+| Mistral | Knowledge Base OCR |
+
+### Einrichtung
+
+1. Navigieren Sie zu **Einstellungen** → **BYOK** in Ihrem Workspace
+2. Klicken Sie auf **Schlüssel hinzufügen** für Ihren Anbieter
+3. Geben Sie Ihren API-Schlüssel ein und speichern Sie
+
+<Callout type="warn">
+  BYOK-Schlüssel werden verschlüsselt gespeichert. Nur Organisationsadministratoren und -inhaber können Schlüssel verwalten.
+</Callout>
+
+Wenn konfiguriert, verwenden Workflows Ihren Schlüssel anstelle der gehosteten Schlüssel von Sim. Bei Entfernung wechseln Workflows automatisch zu den gehosteten Schlüsseln zurück.
+
+---
+
+## Single Sign-On (SSO)
+
+Enterprise-Authentifizierung mit SAML 2.0- und OIDC-Unterstützung für zentralisiertes Identitätsmanagement.
+
+### Unterstützte Anbieter
+
+- Okta
+- Azure AD / Entra ID
+- Google Workspace
+- OneLogin
+- Jeder SAML 2.0- oder OIDC-Anbieter
+
+### Einrichtung
+
+1. Navigieren Sie zu **Einstellungen** → **SSO** in Ihrem Workspace
+2. Wählen Sie Ihren Identitätsanbieter
+3. Konfigurieren Sie die Verbindung mithilfe der Metadaten Ihres IdP
+4. Aktivieren Sie SSO für Ihre Organisation
+
+<Callout type="info">
+  Sobald SSO aktiviert ist, authentifizieren sich Teammitglieder über Ihren Identitätsanbieter anstelle von E-Mail/Passwort.
+</Callout>
+
+---
+
+## Self-Hosted
+
+Für selbst gehostete Bereitstellungen können Enterprise-Funktionen über Umgebungsvariablen aktiviert werden:
+
+| Variable | Beschreibung |
+|----------|-------------|
+| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Single Sign-On mit SAML/OIDC |
+| `CREDENTIAL_SETS_ENABLED`, `NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED` | Polling-Gruppen für E-Mail-Trigger |
+| `DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS` | Workspace-/Organisations-Einladungen global deaktivieren |
+
+<Callout type="warn">
+  BYOK ist nur im gehosteten Sim verfügbar. Selbst gehostete Deployments konfigurieren AI-Provider-Schlüssel direkt über Umgebungsvariablen.
+</Callout>

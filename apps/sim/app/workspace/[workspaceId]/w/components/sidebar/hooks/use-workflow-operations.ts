@@ -1,13 +1,12 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { useShallow } from 'zustand/react/shallow'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useCreateWorkflow, useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import {
-  generateCreativeWorkflowName,
-  getNextWorkflowColor,
-} from '@/stores/workflows/registry/utils'
+import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('useWorkflowOperations')
 
@@ -17,19 +16,19 @@ interface UseWorkflowOperationsProps {
 
 export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProps) {
   const router = useRouter()
-  const { workflows } = useWorkflowRegistry()
+  const workflows = useWorkflowRegistry(useShallow((state) => state.workflows))
   const workflowsQuery = useWorkflows(workspaceId)
   const createWorkflowMutation = useCreateWorkflow()
 
-  /**
-   * Filter and sort workflows for the current workspace
-   */
-  const regularWorkflows = Object.values(workflows)
-    .filter((workflow) => workflow.workspaceId === workspaceId)
-    .sort((a, b) => {
-      // Sort by creation date (newest first) for stable ordering
-      return b.createdAt.getTime() - a.createdAt.getTime()
-    })
+  const regularWorkflows = useMemo(
+    () =>
+      Object.values(workflows)
+        .filter((workflow) => workflow.workspaceId === workspaceId)
+        .sort((a, b) => {
+          return b.createdAt.getTime() - a.createdAt.getTime()
+        }),
+    [workflows, workspaceId]
+  )
 
   const handleCreateWorkflow = useCallback(async (): Promise<string | null> => {
     try {
@@ -57,13 +56,11 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
   }, [createWorkflowMutation, workspaceId, router])
 
   return {
-    // State
     workflows,
     regularWorkflows,
     workflowsLoading: workflowsQuery.isLoading,
     isCreatingWorkflow: createWorkflowMutation.isPending,
 
-    // Operations
     handleCreateWorkflow,
   }
 }

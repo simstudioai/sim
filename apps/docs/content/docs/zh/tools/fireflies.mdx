@@ -1,0 +1,233 @@
+---
+title: Fireflies
+description: 与 Fireflies.ai 会议转录和录音进行交互
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="fireflies"
+  color="#100730"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Fireflies.ai](https://fireflies.ai/) 是一个会议转录与智能平台，可与 Sim 集成，让你的代理可以通过零代码自动化，直接处理会议录音、转录和洞察。
+
+Fireflies 在 Sim 中的集成提供了以下工具：
+
+- **列出会议转录：** 为你的团队或账户获取多个会议及其摘要信息。
+- **获取完整转录详情：** 访问详细转录内容，包括摘要、行动项、主题和与会者分析。
+- **上传音频或视频：** 上传音频/视频文件或提供 URL 进行转录——可选设置语言、标题、与会者，并自动获取会议笔记。
+- **搜索转录：** 通过关键词、参与者、主持人或时间范围查找会议，快速定位相关讨论。
+- **删除转录：** 从你的 Fireflies 工作区中移除特定会议转录。
+- **创建音频片段（Bites）：** 从转录中提取并高亮关键时刻，生成音频或视频片段。
+- **转录完成时触发工作流：** 使用提供的 webhook 触发器，在 Fireflies 会议转录完成后自动激活 Sim 工作流，实现基于新会议数据的实时自动化和通知。
+
+结合这些功能，你可以简化会后操作，提取结构化洞察，自动发送通知，管理录音，并围绕组织的通话编排自定义工作流——所有操作都可通过你的 API key 和 Fireflies 凭证安全完成。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Fireflies.ai 集成到工作流中。管理会议转录、为实时会议添加机器人、创建音频片段等。还可在转录完成时触发工作流。
+
+## 工具
+
+### `fireflies_list_transcripts`
+
+列出来自 Fireflies.ai 的会议记录，并可选进行筛选
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API key |
+| `keyword` | string | 否 | 按会议标题或记录内容搜索关键词 |
+| `fromDate` | string | 否 | 从此日期筛选记录（ISO 8601 格式） |
+| `toDate` | string | 否 | 筛选至此日期的记录（ISO 8601 格式） |
+| `hostEmail` | string | 否 | 按会议主持人邮箱筛选 |
+| `participants` | string | 否 | 按参与者邮箱筛选（逗号分隔） |
+| `limit` | number | 否 | 返回的最大记录数（最多 50 条） |
+| `skip` | number | 否 | 分页时跳过的记录数 |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `transcripts` | array | 记录列表 |
+| `count` | number | 返回的记录数 |
+
+### `fireflies_get_transcript`
+
+获取单条会议记录，包含摘要、行动项和分析等完整信息
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API key |
+| `transcriptId` | string | 是 | 要获取的记录 ID |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `transcript` | object | 包含完整信息的会议记录 |
+
+### `fireflies_get_user`
+
+从 Fireflies.ai 获取用户信息。如果未指定 ID，则返回当前用户信息。
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API key |
+| `userId` | string | 否 | 要检索的用户 ID（可选，默认为 API key 所有者） |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `user` | object | 用户信息 |
+
+### `fireflies_list_users`
+
+列出你在 Fireflies.ai 团队中的所有用户
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API key |
+
+#### 输出
+
+| 参数 | 类型 | 说明 |
+| --------- | ---- | ----------- |
+| `users` | array | 团队用户列表 |
+
+### `fireflies_upload_audio`
+
+上传音频文件 URL 到 Fireflies.ai 进行转录
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 说明 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API key |
+| `audioFile` | file | 否 | 要上传用于转录的音频/视频文件 |
+| `audioUrl` | string | 否 | 音频/视频文件的公开 HTTPS URL（MP3、MP4、WAV、M4A、OGG） |
+| `title` | string | 否 | 会议/转录标题 |
+| `webhook` | string | 否 | 转录完成后通知的 Webhook URL |
+| `language` | string | 否 | 转录语言代码（如 "es" 表示西班牙语，"de" 表示德语） |
+| `attendees` | string | 否 | 以 JSON 格式填写的与会者信息：\[\{"displayName": "Name", "email": "email@example.com"\}\] |
+| `clientReferenceId` | string | 否 | 用于追踪的自定义参考 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 上传是否成功 |
+| `title` | string | 上传会议的标题 |
+| `message` | string | 来自 Fireflies 的状态信息 |
+
+### `fireflies_delete_transcript`
+
+从 Fireflies.ai 删除一份转录记录
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API 密钥 |
+| `transcriptId` | string | 是 | 要删除的转录 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 转录是否已成功删除 |
+
+### `fireflies_add_to_live_meeting`
+
+将 Fireflies.ai 机器人添加到正在进行的会议中进行录音和转录
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API 密钥 |
+| `meetingLink` | string | 是 | 有效的会议 URL（如 Zoom、Google Meet、Microsoft Teams 等） |
+| `title` | string | 否 | 会议标题（最多 256 个字符） |
+| `meetingPassword` | string | 否 | 会议密码（如需要，最多 32 个字符） |
+| `duration` | number | 否 | 会议时长（分钟，15-120，默认：60） |
+| `language` | string | 否 | 转录语言代码（如 "en"、"es"、"de"） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 机器人是否已成功添加到会议中 |
+
+### `fireflies_create_bite`
+
+从转录文本的指定时间范围创建一个音频片段/高光
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API key |
+| `transcriptId` | string | 是 | 要创建片段的转录文本 ID |
+| `startTime` | number | 是 | 片段起始时间（秒） |
+| `endTime` | number | 是 | 片段结束时间（秒） |
+| `name` | string | 否 | 片段名称（最多 256 个字符） |
+| `mediaType` | string | 否 | 媒体类型："video" 或 "audio" |
+| `summary` | string | 否 | 片段摘要（最多 500 个字符） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `bite` | object | 创建的片段详情 |
+
+### `fireflies_list_bites`
+
+列出 Fireflies.ai 的音频片段/高光
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API key |
+| `transcriptId` | string | 否 | 按指定转录文本筛选片段 |
+| `mine` | boolean | 否 | 仅返回 API key 拥有者拥有的片段（默认：true） |
+| `limit` | number | 否 | 返回的片段最大数量（最多 50 个） |
+| `skip` | number | 否 | 分页时跳过的片段数量 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `bites` | array | bite/soundbite 列表 |
+
+### `fireflies_list_contacts`
+
+列出你在 Fireflies.ai 会议中的所有联系人
+
+#### 输入
+
+| 参数 | 类型 | 必填 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | 是 | Fireflies API key |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `contacts` | array | 会议联系人列表 |
+
+## 备注
+
+- 分类：`tools`
+- 类型：`fireflies`

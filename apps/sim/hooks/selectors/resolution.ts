@@ -17,6 +17,7 @@ export interface SelectorResolutionArgs {
   knowledgeBaseId?: string
   siteId?: string
   collectionId?: string
+  spreadsheetId?: string
 }
 
 const defaultContext: SelectorContext = {}
@@ -28,6 +29,8 @@ export function resolveSelectorForSubBlock(
   switch (subBlock.type) {
     case 'file-selector':
       return resolveFileSelector(subBlock, args)
+    case 'sheet-selector':
+      return resolveSheetSelector(subBlock, args)
     case 'folder-selector':
       return resolveFolderSelector(subBlock, args)
     case 'channel-selector':
@@ -58,6 +61,7 @@ function buildBaseContext(
     knowledgeBaseId: args.knowledgeBaseId,
     siteId: args.siteId,
     collectionId: args.collectionId,
+    spreadsheetId: args.spreadsheetId,
     ...extra,
   }
 }
@@ -106,6 +110,8 @@ function resolveFileSelector(
       return { key: 'google.drive', context, allowSearch: true }
     case 'google-slides':
       return { key: 'google.drive', context, allowSearch: true }
+    case 'google-forms':
+      return { key: 'google.drive', context, allowSearch: true }
     case 'onedrive': {
       const key: SelectorKey = subBlock.mimeType === 'file' ? 'onedrive.files' : 'onedrive.folders'
       return { key, context, allowSearch: true }
@@ -122,6 +128,23 @@ function resolveFileSelector(
       return { key: null, context, allowSearch: true }
     default:
       return { key: null, context, allowSearch: true }
+  }
+}
+
+function resolveSheetSelector(
+  subBlock: SubBlockConfig,
+  args: SelectorResolutionArgs
+): SelectorResolution {
+  const serviceId = subBlock.serviceId
+  const context = buildBaseContext(args)
+
+  switch (serviceId) {
+    case 'google-sheets':
+      return { key: 'google.sheets', context, allowSearch: false }
+    case 'microsoft-excel':
+      return { key: 'microsoft.excel.sheets', context, allowSearch: false }
+    default:
+      return { key: null, context, allowSearch: false }
   }
 }
 
@@ -180,10 +203,11 @@ function resolveProjectSelector(
 ): SelectorResolution {
   const serviceId = subBlock.serviceId
   const context = buildBaseContext(args)
+  const selectorId = subBlock.canonicalParamId ?? subBlock.id
 
   switch (serviceId) {
     case 'linear': {
-      const key: SelectorKey = subBlock.id === 'teamId' ? 'linear.teams' : 'linear.projects'
+      const key: SelectorKey = selectorId === 'teamId' ? 'linear.teams' : 'linear.projects'
       return { key, context, allowSearch: true }
     }
     case 'jira':

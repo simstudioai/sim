@@ -77,7 +77,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         // Project Update Operations
         { label: 'Create Project Update', id: 'linear_create_project_update' },
         { label: 'List Project Updates', id: 'linear_list_project_updates' },
-        { label: 'Create Project Link', id: 'linear_create_project_link' },
         // Notification Operations
         { label: 'List Notifications', id: 'linear_list_notifications' },
         { label: 'Update Notification', id: 'linear_update_notification' },
@@ -227,6 +226,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
           'linear_archive_project',
           'linear_delete_project',
+          'linear_create_project_update',
           'linear_list_project_updates',
         ],
       },
@@ -239,6 +239,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
           'linear_archive_project',
           'linear_delete_project',
+          'linear_create_project_update',
           'linear_list_project_updates',
           'linear_list_project_labels',
         ],
@@ -261,7 +262,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_delete_project',
           'linear_create_project_update',
           'linear_list_project_updates',
-          'linear_create_project_link',
         ],
       },
       condition: {
@@ -275,7 +275,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_delete_project',
           'linear_create_project_update',
           'linear_list_project_updates',
-          'linear_create_project_link',
           'linear_list_project_labels',
         ],
       },
@@ -317,6 +316,17 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_issue', 'linear_update_issue'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a concise Linear issue title based on the user's description.
+The title should:
+- Be clear and descriptive
+- Capture the essence of the issue
+- Be suitable for project management tracking
+
+Return ONLY the title text - no explanations.`,
+        placeholder: 'Describe the issue (e.g., "login not working", "add export feature")...',
+      },
     },
     // Description (for issue creation/update, comments, projects)
     {
@@ -333,6 +343,17 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           'linear_update_project',
         ],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a detailed description based on the user's description.
+The description should:
+- Provide context and details
+- Include acceptance criteria or requirements when applicable
+- Be professional and clear
+
+Return ONLY the description text - no explanations.`,
+        placeholder: 'Describe the details (e.g., "users report errors when logging in")...',
+      },
     },
     // Comment body
     {
@@ -347,6 +368,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_create_comment', 'linear_update_comment', 'linear_create_project_update'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comment or project update based on the user's description.
+The comment should:
+- Be professional and informative
+- Provide relevant updates or information
+- Be suitable for team collaboration
+
+Return ONLY the comment text - no explanations.`,
+        placeholder:
+          'Describe what you want to communicate (e.g., "progress update", "request for review")...',
       },
     },
     // Comment ID
@@ -384,7 +417,10 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'Name',
       type: 'short-input',
       placeholder: 'Enter name',
-      required: true,
+      required: {
+        field: 'operation',
+        value: ['linear_create_label', 'linear_create_project', 'linear_create_workflow_state'],
+      },
       condition: {
         field: 'operation',
         value: [
@@ -476,6 +512,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_search_issues'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a search query for Linear issues based on the user's description.
+The query should:
+- Be specific and targeted
+- Use relevant keywords
+- Be suitable for finding issues
+
+Return ONLY the search query - no explanations.`,
+        placeholder:
+          'Describe what you want to search for (e.g., "open bugs", "my assigned tasks")...',
+      },
     },
     // Include archived (for list operations)
     {
@@ -485,6 +533,51 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       condition: {
         field: 'operation',
         value: ['linear_read_issues', 'linear_search_issues', 'linear_list_projects'],
+      },
+    },
+    // Issue filtering options for read_issues (advanced)
+    {
+      id: 'labelIds',
+      title: 'Label IDs',
+      type: 'short-input',
+      placeholder: 'Array of label IDs to filter by',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'linear_read_issues',
+      },
+    },
+    {
+      id: 'createdAfter',
+      title: 'Created After',
+      type: 'short-input',
+      placeholder: 'Filter issues created after this date (ISO 8601 format)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'linear_read_issues',
+      },
+    },
+    {
+      id: 'updatedAfter',
+      title: 'Updated After',
+      type: 'short-input',
+      placeholder: 'Filter issues updated after this date (ISO 8601 format)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'linear_read_issues',
+      },
+    },
+    {
+      id: 'orderBy',
+      title: 'Order By',
+      type: 'short-input',
+      placeholder: 'Sort order: "createdAt" or "updatedAt" (default: "updatedAt")',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'linear_read_issues',
       },
     },
     // Cycle ID
@@ -505,9 +598,26 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'Start Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      required: {
+        field: 'operation',
+        value: ['linear_create_cycle'],
+      },
       condition: {
         field: 'operation',
         value: ['linear_create_cycle', 'linear_create_project'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Today's date
+- "next Monday" -> Calculate the next Monday
+- "start of next month" -> First day of next month
+- "in 2 weeks" -> Calculate 14 days from now
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "next Monday", "start of next month")...',
+        generationType: 'timestamp',
       },
     },
     {
@@ -515,9 +625,23 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'End Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      required: true,
       condition: {
         field: 'operation',
         value: ['linear_create_cycle'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "in 2 weeks" -> Calculate 14 days from now
+- "end of month" -> Last day of current month
+- "next Friday" -> Calculate the next Friday
+- "end of quarter" -> Last day of current quarter
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
       },
     },
     // Target date (for projects)
@@ -530,6 +654,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_project', 'linear_update_project'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "end of quarter" -> Last day of current quarter
+- "in 3 months" -> Calculate 3 months from now
+- "end of year" -> December 31 of current year
+- "next month" -> First day of next month
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the target date (e.g., "end of quarter", "in 3 months")...',
+        generationType: 'timestamp',
+      },
     },
     // Attachment URL
     {
@@ -540,7 +677,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       required: true,
       condition: {
         field: 'operation',
-        value: ['linear_create_attachment', 'linear_create_project_link'],
+        value: ['linear_create_attachment'],
       },
     },
     // Attachment title
@@ -849,6 +986,18 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a customer request description based on the user's description.
+The description should:
+- Clearly explain the customer's need or request
+- Include relevant context and details
+- Be professional and suitable for product feedback
+
+Return ONLY the description text - no explanations.`,
+        placeholder:
+          'Describe the customer request (e.g., "need bulk export feature", "integration with Slack")...',
+      },
     },
     // Customer request priority/urgency
     {
@@ -1098,6 +1247,19 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         field: 'operation',
         value: ['linear_create_project_milestone', 'linear_update_project_milestone'],
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "in 2 weeks" -> Calculate 14 days from now
+- "end of sprint" -> Calculate based on typical 2-week sprint
+- "next milestone" -> Calculate a reasonable next milestone date
+- "end of month" -> Last day of current month
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the milestone target date (e.g., "in 2 weeks", "end of month")...',
+        generationType: 'timestamp',
+      },
     },
     // Project status fields
     {
@@ -1105,6 +1267,36 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'Status Name',
       type: 'short-input',
       placeholder: 'Enter project status name',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_status'],
+      },
+    },
+    {
+      id: 'projectStatusType',
+      title: 'Status Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Backlog', id: 'backlog' },
+        { label: 'Planned', id: 'planned' },
+        { label: 'Started', id: 'started' },
+        { label: 'Paused', id: 'paused' },
+        { label: 'Completed', id: 'completed' },
+        { label: 'Canceled', id: 'canceled' },
+      ],
+      value: () => 'started',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['linear_create_project_status'],
+      },
+    },
+    {
+      id: 'projectStatusPosition',
+      title: 'Position',
+      type: 'short-input',
+      placeholder: 'Enter position (e.g. 0, 1, 2...)',
       required: true,
       condition: {
         field: 'operation',
@@ -1216,7 +1408,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       'linear_list_favorites',
       'linear_create_project_update',
       'linear_list_project_updates',
-      'linear_create_project_link',
       'linear_list_notifications',
       'linear_update_notification',
       'linear_create_customer',
@@ -1269,13 +1460,10 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         // Operation-specific param mapping
         switch (params.operation) {
           case 'linear_read_issues':
-            if (!effectiveTeamId || !effectiveProjectId) {
-              throw new Error('Team ID and Project ID are required.')
-            }
             return {
               ...baseParams,
-              teamId: effectiveTeamId,
-              projectId: effectiveProjectId,
+              teamId: effectiveTeamId || undefined,
+              projectId: effectiveProjectId || undefined,
               includeArchived: params.includeArchived,
             }
 
@@ -1289,8 +1477,8 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             }
 
           case 'linear_create_issue':
-            if (!effectiveTeamId || !effectiveProjectId) {
-              throw new Error('Team ID and Project ID are required.')
+            if (!effectiveTeamId) {
+              throw new Error('Team ID is required.')
             }
             if (!params.title?.trim()) {
               throw new Error('Title is required.')
@@ -1298,7 +1486,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             return {
               ...baseParams,
               teamId: effectiveTeamId,
-              projectId: effectiveProjectId,
+              projectId: effectiveProjectId || undefined,
               title: params.title.trim(),
               description: params.description,
               stateId: params.stateId,
@@ -1366,13 +1554,13 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             }
 
           case 'linear_update_comment':
-            if (!params.commentId?.trim() || !params.body?.trim()) {
-              throw new Error('Comment ID and body are required.')
+            if (!params.commentId?.trim()) {
+              throw new Error('Comment ID is required.')
             }
             return {
               ...baseParams,
               commentId: params.commentId.trim(),
-              body: params.body.trim(),
+              body: params.body?.trim() || undefined,
             }
 
           case 'linear_delete_comment':
@@ -1499,15 +1687,12 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             if (!effectiveTeamId || !params.name?.trim() || !params.workflowType) {
               throw new Error('Team ID, name, and workflow type are required.')
             }
-            if (!params.color?.trim()) {
-              throw new Error('Color is required for workflow state creation.')
-            }
             return {
               ...baseParams,
               teamId: effectiveTeamId,
               name: params.name.trim(),
               type: params.workflowType,
-              color: params.color.trim(),
+              color: params.color?.trim() || undefined,
             }
 
           case 'linear_update_workflow_state':
@@ -1537,15 +1722,15 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             }
 
           case 'linear_create_cycle':
-            if (!effectiveTeamId || !params.name?.trim()) {
-              throw new Error('Team ID and cycle name are required.')
+            if (!effectiveTeamId || !params.startDate?.trim() || !params.endDate?.trim()) {
+              throw new Error('Team ID, start date, and end date are required.')
             }
             return {
               ...baseParams,
               teamId: effectiveTeamId,
-              name: params.name.trim(),
-              startsAt: params.startDate,
-              endsAt: params.endDate,
+              name: params.name?.trim() || undefined,
+              startsAt: params.startDate.trim(),
+              endsAt: params.endDate.trim(),
             }
 
           case 'linear_get_active_cycle':
@@ -1660,17 +1845,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             return {
               ...baseParams,
               projectId: effectiveProjectId,
-            }
-
-          case 'linear_create_project_link':
-            if (!effectiveProjectId || !params.url?.trim()) {
-              throw new Error('Project ID and URL are required.')
-            }
-            return {
-              ...baseParams,
-              projectId: effectiveProjectId,
-              url: params.url.trim(),
-              label: params.name,
             }
 
           case 'linear_list_notifications':
@@ -1923,22 +2097,22 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             }
 
           case 'linear_add_label_to_project':
-            if (!effectiveProjectId || !params.projectLabelId?.trim()) {
+            if (!params.projectIdForMilestone?.trim() || !params.projectLabelId?.trim()) {
               throw new Error('Project ID and label ID are required.')
             }
             return {
               ...baseParams,
-              projectId: effectiveProjectId,
+              projectId: params.projectIdForMilestone.trim(),
               labelId: params.projectLabelId.trim(),
             }
 
           case 'linear_remove_label_from_project':
-            if (!effectiveProjectId || !params.projectLabelId?.trim()) {
+            if (!params.projectIdForMilestone?.trim() || !params.projectLabelId?.trim()) {
               throw new Error('Project ID and label ID are required.')
             }
             return {
               ...baseParams,
-              projectId: effectiveProjectId,
+              projectId: params.projectIdForMilestone.trim(),
               labelId: params.projectLabelId.trim(),
             }
 
@@ -1987,13 +2161,20 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
 
           // Project Status Operations
           case 'linear_create_project_status':
-            if (!params.projectStatusName?.trim() || !params.statusColor?.trim()) {
-              throw new Error('Project status name and color are required.')
+            if (
+              !params.projectStatusName?.trim() ||
+              !params.projectStatusType?.trim() ||
+              !params.statusColor?.trim() ||
+              !params.projectStatusPosition?.trim()
+            ) {
+              throw new Error('Project status name, type, color, and position are required.')
             }
             return {
               ...baseParams,
               name: params.projectStatusName.trim(),
+              type: params.projectStatusType.trim(),
               color: params.statusColor.trim(),
+              position: Number.parseFloat(params.projectStatusPosition.trim()),
               description: params.projectStatusDescription?.trim() || undefined,
               indefinite: params.projectStatusIndefinite === 'true',
             }
@@ -2052,6 +2233,16 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     estimate: { type: 'string', description: 'Estimate points' },
     query: { type: 'string', description: 'Search query' },
     includeArchived: { type: 'boolean', description: 'Include archived items' },
+    labelIds: { type: 'array', description: 'Array of label IDs to filter by' },
+    createdAfter: {
+      type: 'string',
+      description: 'Filter issues created after this date (ISO 8601)',
+    },
+    updatedAfter: {
+      type: 'string',
+      description: 'Filter issues updated after this date (ISO 8601)',
+    },
+    orderBy: { type: 'string', description: 'Sort order: createdAt or updatedAt' },
     cycleId: { type: 'string', description: 'Cycle identifier' },
     startDate: { type: 'string', description: 'Start date' },
     endDate: { type: 'string', description: 'End date' },
@@ -2160,7 +2351,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     // Project update outputs
     update: { type: 'json', description: 'Project update data' },
     updates: { type: 'json', description: 'Project updates list' },
-    link: { type: 'json', description: 'Project link data' },
     // Notification outputs
     notification: { type: 'json', description: 'Notification data' },
     notifications: { type: 'json', description: 'Notifications list' },

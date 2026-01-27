@@ -12,7 +12,10 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { ALL_TRIGGER_TYPES } from '@/lib/logs/types'
+import {
+  cleanupExecutionBase64Cache,
+  hydrateUserFilesWithBase64,
+} from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -24,20 +27,24 @@ import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import type { WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
-import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { StreamingExecution } from '@/executor/types'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
+import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
-import type { SubflowType } from '@/stores/workflows/workflow/types'
+import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
 
 const ExecuteWorkflowSchema = z.object({
   selectedOutputs: z.array(z.string()).optional().default([]),
-  triggerType: z.enum(ALL_TRIGGER_TYPES).optional(),
+  triggerType: z.enum(CORE_TRIGGER_TYPES).optional(),
   stream: z.boolean().optional(),
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
   isClientSession: z.boolean().optional(),
+  includeFileBase64: z.boolean().optional().default(true),
+  base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: z
     .object({
       blocks: z.record(z.any()),
@@ -109,7 +116,7 @@ type AsyncExecutionParams = {
   workflowId: string
   userId: string
   input: any
-  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
+  triggerType: CoreTriggerType
 }
 
 /**
@@ -212,20 +219,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       useDraftState,
       input: validatedInput,
       isClientSession = false,
+      includeFileBase64,
+      base64MaxBytes,
       workflowStateOverride,
     } = validation.data
 
-    // For API key auth, the entire body is the input (except for our control fields)
+    // For API key and internal JWT auth, the entire body is the input (except for our control fields)
     // For session auth, the input is explicitly provided in the input field
     const input =
-      auth.authType === 'api_key'
+      auth.authType === 'api_key' || auth.authType === 'internal_jwt'
         ? (() => {
             const {
               selectedOutputs,
               triggerType,
               stream,
               useDraftState,
+              includeFileBase64,
+              base64MaxBytes,
               workflowStateOverride,
+              workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               ...rest
             } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput
@@ -252,17 +264,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
 
     const executionId = uuidv4()
-    type LoggingTriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
-    let loggingTriggerType: LoggingTriggerType = 'manual'
-    if (
-      triggerType === 'api' ||
-      triggerType === 'chat' ||
-      triggerType === 'webhook' ||
-      triggerType === 'schedule' ||
-      triggerType === 'manual' ||
-      triggerType === 'mcp'
-    ) {
-      loggingTriggerType = triggerType as LoggingTriggerType
+    let loggingTriggerType: CoreTriggerType = 'manual'
+    if (CORE_TRIGGER_TYPES.includes(triggerType as CoreTriggerType)) {
+      loggingTriggerType = triggerType as CoreTriggerType
     }
     const loggingSession = new LoggingSession(
       workflowId,
@@ -279,6 +283,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       requestId,
       checkDeployment: !shouldUseDraftState,
       loggingSession,
+      useDraftState: shouldUseDraftState,
     })
 
     if (!preprocessResult.success) {
@@ -427,16 +432,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           snapshot,
           callbacks: {},
           loggingSession,
+          includeFileBase64,
+          base64MaxBytes,
         })
 
-        const hasResponseBlock = workflowHasResponseBlock(result)
+        const outputWithBase64 = includeFileBase64
+          ? ((await hydrateUserFilesWithBase64(result.output, {
+              requestId,
+              executionId,
+              maxBytes: base64MaxBytes,
+            })) as NormalizedBlockOutput)
+          : result.output
+
+        const resultWithBase64 = { ...result, output: outputWithBase64 }
+
+        // Cleanup base64 cache for this execution
+        await cleanupExecutionBase64Cache(executionId)
+
+        const hasResponseBlock = workflowHasResponseBlock(resultWithBase64)
         if (hasResponseBlock) {
-          return createHttpResponseFromBlock(result)
+          return createHttpResponseFromBlock(resultWithBase64)
         }
 
         const filteredResult = {
           success: result.success,
-          output: result.output,
+          output: outputWithBase64,
           error: result.error,
           metadata: result.metadata
             ? {
@@ -448,17 +468,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         return NextResponse.json(filteredResult)
-      } catch (error: any) {
-        const errorMessage = error.message || 'Unknown error'
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         logger.error(`[${requestId}] Non-SSE execution failed: ${errorMessage}`)
 
-        const executionResult = error.executionResult
+        const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
         return NextResponse.json(
           {
             success: false,
             output: executionResult?.output,
-            error: executionResult?.error || error.message || 'Execution failed',
+            error: executionResult?.error || errorMessage || 'Execution failed',
             metadata: executionResult?.metadata
               ? {
                   duration: executionResult.metadata.duration,
@@ -498,6 +518,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           selectedOutputs: resolvedSelectedOutputs,
           isSecureMode: false,
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+          includeFileBase64,
+          base64MaxBytes,
         },
         executionId,
       })
@@ -541,11 +563,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blockId: string,
             blockName: string,
             blockType: string,
-            iterationContext?: {
-              iterationCurrent: number
-              iterationTotal: number
-              iterationType: SubflowType
-            }
+            iterationContext?: IterationContext
           ) => {
             logger.info(`[${requestId}] 🔷 onBlockStart called:`, { blockId, blockName, blockType })
             sendEvent({
@@ -571,11 +589,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blockName: string,
             blockType: string,
             callbackData: any,
-            iterationContext?: {
-              iterationCurrent: number
-              iterationTotal: number
-              iterationType: SubflowType
-            }
+            iterationContext?: IterationContext
           ) => {
             const hasError = callbackData.output?.error
 
@@ -706,6 +720,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
             loggingSession,
             abortSignal: abortController.signal,
+            includeFileBase64,
+            base64MaxBytes,
           })
 
           if (result.status === 'paused') {
@@ -713,14 +729,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
                 executionId,
               })
+              await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
             } else {
-              await PauseResumeManager.persistPauseResult({
-                workflowId,
-                executionId,
-                pausePoints: result.pausePoints || [],
-                snapshotSeed: result.snapshotSeed,
-                executorUserId: result.metadata?.userId,
-              })
+              try {
+                await PauseResumeManager.persistPauseResult({
+                  workflowId,
+                  executionId,
+                  pausePoints: result.pausePoints || [],
+                  snapshotSeed: result.snapshotSeed,
+                  executorUserId: result.metadata?.userId,
+                })
+              } catch (pauseError) {
+                logger.error(`[${requestId}] Failed to persist pause result`, {
+                  executionId,
+                  error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+                })
+                await loggingSession.markAsFailed(
+                  `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+                )
+              }
             }
           } else {
             await PauseResumeManager.processQueuedResumes(executionId)
@@ -747,17 +774,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             workflowId,
             data: {
               success: result.success,
-              output: result.output,
+              output: includeFileBase64
+                ? await hydrateUserFilesWithBase64(result.output, {
+                    requestId,
+                    executionId,
+                    maxBytes: base64MaxBytes,
+                  })
+                : result.output,
               duration: result.metadata?.duration || 0,
               startTime: result.metadata?.startTime || startTime.toISOString(),
               endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
-        } catch (error: any) {
-          const errorMessage = error.message || 'Unknown error'
+
+          // Cleanup base64 cache for this execution
+          await cleanupExecutionBase64Cache(executionId)
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`)
 
-          const executionResult = error.executionResult
+          const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
           sendEvent({
             type: 'execution:error',

@@ -1,13 +1,11 @@
-import type React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Popover,
   PopoverAnchor,
-  PopoverBackButton,
   PopoverContent,
+  PopoverDivider,
   PopoverFolder,
   PopoverItem,
   PopoverScrollArea,
@@ -19,27 +17,56 @@ import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
-import { getBlockOutputPaths, getBlockOutputType } from '@/lib/workflows/blocks/block-outputs'
+import {
+  getBlockOutputPaths,
+  getBlockOutputType,
+  getOutputPathsFromSchema,
+  getToolOutputPaths,
+  getToolOutputType,
+} from '@/lib/workflows/blocks/block-outputs'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import { KeyboardNavigationHandler } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/components/keyboard-navigation-handler'
 import type {
   BlockTagGroup,
   NestedBlockTagGroup,
   NestedTag,
+  NestedTagChild,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/types'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import type { Variable } from '@/stores/panel/variables/types'
+import { normalizeName } from '@/executor/constants'
+import type { Variable } from '@/stores/panel'
+import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { normalizeName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import { getTool } from '@/tools/utils'
 
-const logger = createLogger('TagDropdown')
+/**
+ * Context for sharing nested navigation state between components.
+ * This enables unlimited nesting depth with a single back button.
+ */
+interface NestedNavigationContextValue {
+  /** Stack of nested tags representing current navigation depth */
+  nestedPath: NestedTag[]
+  /** Navigate into a nested folder */
+  navigateIn: (tag: NestedTag, group: NestedBlockTagGroup) => void
+  /** Navigate back one level, returns true if navigation happened, false if at root */
+  navigateBack: () => boolean
+  /** Register the base folder when it opens */
+  registerFolder: (
+    folderId: string,
+    folderTitle: string,
+    baseTag: NestedTag,
+    group: NestedBlockTagGroup
+  ) => void
+}
+
+const NestedNavigationContext = React.createContext<NestedNavigationContextValue | null>(null)
+
+/** Hook to access nested navigation state from child components */
+export const useNestedNavigation = () => React.useContext(NestedNavigationContext)
 
 /**
  * Props for the TagDropdown component
@@ -65,6 +92,12 @@ interface TagDropdownProps {
   style?: React.CSSProperties
   /** Reference to the input element for caret positioning */
   inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement>
+}
+
+interface TagComputationResult {
+  tags: string[]
+  variableInfoMap: Record<string, { type: string; id: string }>
+  blockTagGroups: BlockTagGroup[]
 }
 
 /**
@@ -208,168 +241,16 @@ const getOutputTypeForPath = (
     const blockState = useWorkflowStore.getState().blocks[blockId]
     const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
     return getBlockOutputType(block.type, outputPath, subBlocks)
-  } else {
-    const operationValue = getSubBlockValue(blockId, 'operation')
-    if (blockConfig && operationValue) {
-      return getToolOutputType(blockConfig, operationValue, outputPath)
-    }
-  }
-  return 'any'
-}
-
-/**
- * Recursively generates all output paths from an outputs schema.
- *
- * @remarks
- * Traverses nested objects and arrays to build dot-separated paths
- * for all leaf values in the schema.
- *
- * @param outputs - The outputs schema object
- * @param prefix - Current path prefix for recursion
- * @returns Array of dot-separated paths to all output fields
- */
-const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
-  const paths: string[] = []
-
-  for (const [key, value] of Object.entries(outputs)) {
-    const currentPath = prefix ? `${prefix}.${key}` : key
-
-    if (typeof value === 'string') {
-      paths.push(currentPath)
-    } else if (typeof value === 'object' && value !== null) {
-      if ('type' in value && typeof value.type === 'string') {
-        const hasNestedProperties =
-          (value.type === 'object' && value.properties) ||
-          (value.type === 'array' && value.items?.properties) ||
-          (value.type === 'array' &&
-            value.items &&
-            typeof value.items === 'object' &&
-            !('type' in value.items))
-
-        if (!hasNestedProperties) {
-          paths.push(currentPath)
-        }
-
-        if (value.type === 'object' && value.properties) {
-          paths.push(...generateOutputPaths(value.properties, currentPath))
-        } else if (value.type === 'array' && value.items?.properties) {
-          paths.push(...generateOutputPaths(value.items.properties, currentPath))
-        } else if (
-          value.type === 'array' &&
-          value.items &&
-          typeof value.items === 'object' &&
-          !('type' in value.items)
-        ) {
-          paths.push(...generateOutputPaths(value.items, currentPath))
-        }
-      } else {
-        const subPaths = generateOutputPaths(value, currentPath)
-        paths.push(...subPaths)
-      }
-    } else {
-      paths.push(currentPath)
-    }
+  } else if (blockConfig?.tools?.config?.tool) {
+    const blockState = useWorkflowStore.getState().blocks[blockId]
+    const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
+    return getToolOutputType(blockConfig, subBlocks, outputPath)
   }
 
-  return paths
-}
-
-/**
- * Recursively generates all output paths with their types from an outputs schema.
- *
- * @remarks
- * Similar to generateOutputPaths but also captures the type information
- * for each path, useful for displaying type hints in the UI.
- *
- * @param outputs - The outputs schema object
- * @param prefix - Current path prefix for recursion
- * @returns Array of objects containing path and type for each output field
- */
-const generateOutputPathsWithTypes = (
-  outputs: Record<string, any>,
-  prefix = ''
-): Array<{ path: string; type: string }> => {
-  const paths: Array<{ path: string; type: string }> = []
-
-  for (const [key, value] of Object.entries(outputs)) {
-    const currentPath = prefix ? `${prefix}.${key}` : key
-
-    if (typeof value === 'string') {
-      paths.push({ path: currentPath, type: value })
-    } else if (typeof value === 'object' && value !== null) {
-      if ('type' in value && typeof value.type === 'string') {
-        if (value.type === 'array' && value.items?.properties) {
-          paths.push({ path: currentPath, type: 'array' })
-          const subPaths = generateOutputPathsWithTypes(value.items.properties, currentPath)
-          paths.push(...subPaths)
-        } else if (value.type === 'object' && value.properties) {
-          paths.push({ path: currentPath, type: 'object' })
-          const subPaths = generateOutputPathsWithTypes(value.properties, currentPath)
-          paths.push(...subPaths)
-        } else {
-          paths.push({ path: currentPath, type: value.type })
-        }
-      } else {
-        const subPaths = generateOutputPathsWithTypes(value, currentPath)
-        paths.push(...subPaths)
-      }
-    } else {
-      paths.push({ path: currentPath, type: 'any' })
-    }
-  }
-
-  return paths
-}
-
-/**
- * Generates output paths for a tool-based block.
- *
- * @param blockConfig - The block configuration containing tools config
- * @param operation - The selected operation for the tool
- * @returns Array of output paths for the tool, or empty array on error
- */
-const generateToolOutputPaths = (blockConfig: BlockConfig, operation: string): string[] => {
-  if (!blockConfig?.tools?.config?.tool) return []
-
-  try {
-    const toolId = blockConfig.tools.config.tool({ operation })
-    if (!toolId) return []
-
-    const toolConfig = getTool(toolId)
-    if (!toolConfig?.outputs) return []
-
-    return generateOutputPaths(toolConfig.outputs)
-  } catch (error) {
-    logger.warn('Failed to get tool outputs for operation', { operation, error })
-    return []
-  }
-}
-
-/**
- * Gets the output type for a specific path in a tool's outputs.
- *
- * @param blockConfig - The block configuration containing tools config
- * @param operation - The selected operation for the tool
- * @param path - The dot-separated path to the output field
- * @returns The type of the output field, or 'any' if not found
- */
-const getToolOutputType = (blockConfig: BlockConfig, operation: string, path: string): string => {
-  if (!blockConfig?.tools?.config?.tool) return 'any'
-
-  try {
-    const toolId = blockConfig.tools.config.tool({ operation })
-    if (!toolId) return 'any'
-
-    const toolConfig = getTool(toolId)
-    if (!toolConfig?.outputs) return 'any'
-
-    const pathsWithTypes = generateOutputPathsWithTypes(toolConfig.outputs)
-    const matchingPath = pathsWithTypes.find((p) => p.path === path)
-    return matchingPath?.type || 'any'
-  } catch (error) {
-    logger.warn('Failed to get tool output type for path', { path, error })
-    return 'any'
-  }
+  const subBlocks =
+    mergedSubBlocksOverride ?? useWorkflowStore.getState().blocks[blockId]?.subBlocks
+  const triggerMode = block?.triggerMode && blockConfig?.triggers?.enabled
+  return getBlockOutputType(block?.type ?? '', outputPath, subBlocks, triggerMode)
 }
 
 /**
@@ -442,6 +323,101 @@ const getCaretViewportPosition = (
  * @param color - Background color for the icon container
  * @returns A styled icon element
  */
+/**
+ * Tree node for building nested tag hierarchy
+ */
+interface TagTreeNode {
+  key: string
+  fullTag?: string
+  children: Map<string, TagTreeNode>
+}
+
+/**
+ * Builds a recursive tree structure from flat tag paths.
+ * Converts tags like `blockname.form.info.title` into a nested tree.
+ *
+ * @param tags - Array of dot-separated tag paths
+ * @param blockName - The normalized block name (first segment of tags)
+ * @returns Array of NestedTag with recursive nestedChildren
+ */
+const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
+  const root: TagTreeNode = { key: 'root', children: new Map() }
+
+  for (const tag of tags) {
+    const parts = tag.split('.')
+    if (parts.length < 2) continue
+
+    const pathParts = parts.slice(1)
+    let current = root
+
+    for (let i = 0; i < pathParts.length; i++) {
+      const part = pathParts[i]
+      if (!current.children.has(part)) {
+        current.children.set(part, {
+          key: part,
+          children: new Map(),
+        })
+      }
+      const node = current.children.get(part)!
+
+      if (i === pathParts.length - 1) {
+        node.fullTag = tag
+      }
+      current = node
+    }
+  }
+
+  const convertToNestedTags = (
+    node: TagTreeNode,
+    parentPath: string,
+    blockPrefix: string
+  ): NestedTag[] => {
+    const result: NestedTag[] = []
+
+    for (const [key, child] of node.children) {
+      const currentPath = parentPath ? `${parentPath}.${key}` : key
+      const parentTag = `${blockPrefix}.${currentPath}`
+
+      if (child.children.size === 0) {
+        result.push({
+          key: currentPath,
+          display: key,
+          fullTag: child.fullTag || parentTag,
+        })
+      } else {
+        const nestedChildren = convertToNestedTags(child, currentPath, blockPrefix)
+
+        const leafChildren: NestedTagChild[] = []
+        const folders: NestedTag[] = []
+
+        for (const nestedChild of nestedChildren) {
+          if (nestedChild.nestedChildren || nestedChild.children) {
+            folders.push(nestedChild)
+          } else {
+            leafChildren.push({
+              key: nestedChild.key,
+              display: nestedChild.display,
+              fullTag: nestedChild.fullTag!,
+            })
+          }
+        }
+
+        result.push({
+          key: currentPath,
+          display: key,
+          parentTag,
+          children: leafChildren.length > 0 ? leafChildren : undefined,
+          nestedChildren: folders.length > 0 ? folders : undefined,
+        })
+      }
+    }
+
+    return result
+  }
+
+  return convertToNestedTags(root, '', blockName)
+}
+
 const TagIcon: React.FC<{
   icon: string | React.ComponentType<{ className?: string }>
   color: string
@@ -462,62 +438,516 @@ const TagIcon: React.FC<{
 )
 
 /**
- * Wrapper for PopoverBackButton that handles parent tag navigation.
- *
- * @remarks
- * Extends the base PopoverBackButton to support selecting the parent tag
- * when navigating back from a nested folder view.
- *
- * @param selectedIndex - Currently selected item index
- * @param setSelectedIndex - Callback to update selection
- * @param flatTagList - Flat list of all available tags
- * @param nestedBlockTagGroups - Groups of nested block tags
- * @param itemRefs - Refs to item DOM elements for scrolling
- * @returns The back button component with parent tag support
+ * Props for the recursive NestedTagRenderer component
  */
-const TagDropdownBackButton: React.FC<{
+interface NestedTagRendererProps {
+  nestedTag: NestedTag
+  group: NestedBlockTagGroup
+  flatTagList: Array<{ tag: string; group?: BlockTagGroup }>
   selectedIndex: number
   setSelectedIndex: (index: number) => void
-  flatTagList: Array<{ tag: string; group?: BlockTagGroup }>
-  nestedBlockTagGroups: NestedBlockTagGroup[]
-  itemRefs: React.MutableRefObject<Map<number, HTMLElement>>
-}> = ({ selectedIndex, setSelectedIndex, flatTagList, nestedBlockTagGroups, itemRefs }) => {
-  const { currentFolder } = usePopoverContext()
+  handleTagSelect: (tag: string, blockGroup?: BlockTagGroup) => void
+  itemRefs: React.RefObject<Map<number, HTMLElement>>
+  blocks: Record<string, BlockState>
+  getMergedSubBlocks: (blockId: string) => Record<string, any>
+}
 
-  // Find parent tag info for current folder
-  const parentTagInfo = useMemo(() => {
-    if (!currentFolder) return null
+/**
+ * Props for FolderContents with nested navigation state
+ */
+interface FolderContentsProps extends NestedTagRendererProps {
+  /** Current nested path stack for navigation within this folder */
+  nestedPath: NestedTag[]
+  /** Callback to navigate into a subfolder */
+  onNavigateIn: (nestedTag: NestedTag) => void
+}
 
-    for (const group of nestedBlockTagGroups) {
-      for (const nestedTag of group.nestedTags) {
-        const folderId = `${group.blockId}-${nestedTag.key}`
-        if (folderId === currentFolder && nestedTag.parentTag) {
-          const parentIdx = flatTagList.findIndex((item) => item.tag === nestedTag.parentTag)
-          return parentIdx >= 0 ? { index: parentIdx } : null
-        }
-      }
-    }
-    return null
-  }, [currentFolder, nestedBlockTagGroups, flatTagList])
+/**
+ * Renders the contents of a folder (leaf children + nested subfolder triggers).
+ * The parent tag is rendered as the first item in the list for selection.
+ */
+const FolderContentsInner: React.FC<FolderContentsProps> = ({
+  group,
+  flatTagList,
+  selectedIndex,
+  setSelectedIndex,
+  handleTagSelect,
+  itemRefs,
+  blocks,
+  getMergedSubBlocks,
+  nestedPath,
+  nestedTag,
+  onNavigateIn,
+}) => {
+  const { isKeyboardNav, setKeyboardNav } = usePopoverContext()
+  const currentNestedTag = nestedPath.length > 0 ? nestedPath[nestedPath.length - 1] : nestedTag
 
-  if (!parentTagInfo) {
-    return <PopoverBackButton />
-  }
-
-  const isActive = parentTagInfo.index === selectedIndex
+  const parentTagIndex = currentNestedTag.parentTag
+    ? flatTagList.findIndex((item) => item.tag === currentNestedTag.parentTag)
+    : -1
 
   return (
-    <PopoverBackButton
-      folderTitleRef={(el) => {
-        if (el) {
-          itemRefs.current.set(parentTagInfo.index, el)
+    <>
+      {/* Render parent tag as the first selectable item */}
+      {currentNestedTag.parentTag && (
+        <PopoverItem
+          active={parentTagIndex === selectedIndex && parentTagIndex >= 0}
+          onMouseEnter={() => {
+            // Skip selection update during keyboard navigation to prevent scroll-triggered selection changes
+            if (isKeyboardNav) return
+            setKeyboardNav(false)
+            if (parentTagIndex >= 0) setSelectedIndex(parentTagIndex)
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            handleTagSelect(currentNestedTag.parentTag!, group)
+          }}
+          ref={(el) => {
+            if (el && parentTagIndex >= 0) {
+              itemRefs.current?.set(parentTagIndex, el)
+            }
+          }}
+        >
+          <span className='flex-1 truncate font-medium'>{currentNestedTag.display}</span>
+        </PopoverItem>
+      )}
+
+      {/* Render leaf children as PopoverItems */}
+      {currentNestedTag.children?.map((child) => {
+        const childGlobalIndex = flatTagList.findIndex((item) => item.tag === child.fullTag)
+
+        const tagParts = child.fullTag.split('.')
+        const outputPath = tagParts.slice(1).join('.')
+
+        let childType = ''
+        const block = Object.values(blocks).find((b) => b.id === group.blockId)
+        if (block) {
+          const blockConfig = getBlock(block.type)
+          const mergedSubBlocks = getMergedSubBlocks(group.blockId)
+
+          childType = getOutputTypeForPath(
+            block,
+            blockConfig || null,
+            group.blockId,
+            outputPath,
+            mergedSubBlocks
+          )
+        }
+
+        return (
+          <PopoverItem
+            key={child.key}
+            active={childGlobalIndex === selectedIndex && childGlobalIndex >= 0}
+            onMouseEnter={() => {
+              if (isKeyboardNav) return
+              setKeyboardNav(false)
+              if (childGlobalIndex >= 0) setSelectedIndex(childGlobalIndex)
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleTagSelect(child.fullTag, group)
+            }}
+            ref={(el) => {
+              if (el && childGlobalIndex >= 0) {
+                itemRefs.current?.set(childGlobalIndex, el)
+              }
+            }}
+          >
+            <span className='flex-1 truncate'>{child.display}</span>
+            {childType && childType !== 'any' && (
+              <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
+                {childType}
+              </span>
+            )}
+          </PopoverItem>
+        )
+      })}
+
+      {/* Render nested children as clickable folder items */}
+      {currentNestedTag.nestedChildren?.map((nestedChild) => {
+        const parentGlobalIndex = nestedChild.parentTag
+          ? flatTagList.findIndex((item) => item.tag === nestedChild.parentTag)
+          : -1
+
+        return (
+          <PopoverItem
+            key={`${group.blockId}-${nestedChild.key}`}
+            active={parentGlobalIndex === selectedIndex && parentGlobalIndex >= 0}
+            onMouseEnter={() => {
+              if (isKeyboardNav) return
+              setKeyboardNav(false)
+              if (parentGlobalIndex >= 0) setSelectedIndex(parentGlobalIndex)
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              // Navigate into the subfolder on click
+              onNavigateIn(nestedChild)
+            }}
+            ref={(el) => {
+              if (el && parentGlobalIndex >= 0) {
+                itemRefs.current?.set(parentGlobalIndex, el)
+              }
+            }}
+          >
+            <span className='flex-1 truncate'>{nestedChild.display}</span>
+            <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>{'>'}</span>
+          </PopoverItem>
+        )
+      })}
+    </>
+  )
+}
+
+/**
+ * Wrapper component that uses shared nested navigation state from context.
+ * Handles registration of the base folder and navigation callbacks.
+ */
+const FolderContents: React.FC<NestedTagRendererProps> = (props) => {
+  const nestedNav = useNestedNavigation()
+  const { currentFolder } = usePopoverContext()
+
+  const nestedPath = nestedNav?.nestedPath ?? []
+
+  useEffect(() => {
+    if (nestedNav && currentFolder) {
+      const folderId = `${props.group.blockId}-${props.nestedTag.key}`
+      if (currentFolder === folderId) {
+        nestedNav.registerFolder(folderId, props.nestedTag.display, props.nestedTag, props.group)
+      }
+    }
+  }, [currentFolder, nestedNav, props.group, props.nestedTag])
+
+  const handleNavigateIn = useCallback(
+    (nestedTag: NestedTag) => {
+      nestedNav?.navigateIn(nestedTag, props.group)
+    },
+    [nestedNav, props.group]
+  )
+
+  return <FolderContentsInner {...props} nestedPath={nestedPath} onNavigateIn={handleNavigateIn} />
+}
+
+/**
+ * Recursively renders nested tags with PopoverFolder components.
+ * Handles arbitrary depth of nesting for deeply nested object structures.
+ */
+const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
+  nestedTag,
+  group,
+  flatTagList,
+  selectedIndex,
+  setSelectedIndex,
+  handleTagSelect,
+  itemRefs,
+  blocks,
+  getMergedSubBlocks,
+}) => {
+  const { isKeyboardNav, setKeyboardNav } = usePopoverContext()
+  const hasChildren = nestedTag.children && nestedTag.children.length > 0
+  const hasNestedChildren = nestedTag.nestedChildren && nestedTag.nestedChildren.length > 0
+
+  if (hasChildren || hasNestedChildren) {
+    const folderId = `${group.blockId}-${nestedTag.key}`
+
+    const parentGlobalIndex = nestedTag.parentTag
+      ? flatTagList.findIndex((item) => item.tag === nestedTag.parentTag)
+      : -1
+
+    return (
+      <PopoverFolder
+        key={folderId}
+        id={folderId}
+        title={nestedTag.display}
+        active={parentGlobalIndex === selectedIndex && parentGlobalIndex >= 0}
+        onSelect={() => {
+          if (nestedTag.parentTag) {
+            handleTagSelect(nestedTag.parentTag, group)
+          }
+        }}
+        onMouseEnter={() => {
+          if (isKeyboardNav) return
+          setKeyboardNav(false)
+          if (parentGlobalIndex >= 0) {
+            setSelectedIndex(parentGlobalIndex)
+          }
+        }}
+        ref={(el) => {
+          if (el && parentGlobalIndex >= 0) {
+            itemRefs.current?.set(parentGlobalIndex, el)
+          }
+        }}
+      >
+        <FolderContents
+          nestedTag={nestedTag}
+          group={group}
+          flatTagList={flatTagList}
+          selectedIndex={selectedIndex}
+          setSelectedIndex={setSelectedIndex}
+          handleTagSelect={handleTagSelect}
+          itemRefs={itemRefs}
+          blocks={blocks}
+          getMergedSubBlocks={getMergedSubBlocks}
+        />
+      </PopoverFolder>
+    )
+  }
+
+  // Leaf tag - render as a simple PopoverItem
+  const globalIndex = nestedTag.fullTag
+    ? flatTagList.findIndex((item) => item.tag === nestedTag.fullTag)
+    : -1
+
+  let tagDescription = ''
+
+  // Handle loop/parallel contextual tags with special types
+  if (
+    (group.blockType === 'loop' || group.blockType === 'parallel') &&
+    !nestedTag.key.includes('.')
+  ) {
+    if (nestedTag.key === 'index') {
+      tagDescription = 'number'
+    } else if (nestedTag.key === 'currentItem') {
+      tagDescription = 'any'
+    } else if (nestedTag.key === 'items') {
+      tagDescription = 'array'
+    }
+  } else if (nestedTag.fullTag) {
+    const tagParts = nestedTag.fullTag.split('.')
+    const outputPath = tagParts.slice(1).join('.')
+
+    const block = Object.values(blocks).find((b) => b.id === group.blockId)
+    if (block) {
+      const blockConfig = getBlock(block.type)
+      const mergedSubBlocks = getMergedSubBlocks(group.blockId)
+
+      tagDescription = getOutputTypeForPath(
+        block,
+        blockConfig || null,
+        group.blockId,
+        outputPath,
+        mergedSubBlocks
+      )
+    }
+  }
+
+  return (
+    <PopoverItem
+      key={`${group.blockId}-${nestedTag.key}`}
+      rootOnly
+      active={globalIndex === selectedIndex && globalIndex >= 0}
+      onMouseEnter={() => {
+        if (isKeyboardNav) return
+        setKeyboardNav(false)
+        if (globalIndex >= 0) setSelectedIndex(globalIndex)
+      }}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (nestedTag.fullTag) {
+          handleTagSelect(nestedTag.fullTag, group)
         }
       }}
-      folderTitleActive={isActive}
-      onFolderTitleMouseEnter={() => {
-        setSelectedIndex(parentTagInfo.index)
+      ref={(el) => {
+        if (el && globalIndex >= 0) {
+          itemRefs.current?.set(globalIndex, el)
+        }
       }}
-    />
+    >
+      <span className='flex-1 truncate'>{nestedTag.display}</span>
+      {tagDescription && tagDescription !== 'any' && (
+        <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
+          {tagDescription}
+        </span>
+      )}
+    </PopoverItem>
+  )
+}
+
+/**
+ * Hook to get mouse enter handler that respects keyboard navigation mode.
+ * Returns a handler that only updates selection if not in keyboard mode.
+ */
+const useKeyboardAwareMouseEnter = (
+  setSelectedIndex: (index: number) => void
+): ((index: number) => void) => {
+  const { isKeyboardNav, setKeyboardNav } = usePopoverContext()
+
+  return useCallback(
+    (index: number) => {
+      if (isKeyboardNav) return
+      setKeyboardNav(false)
+      if (index >= 0) setSelectedIndex(index)
+    },
+    [isKeyboardNav, setKeyboardNav, setSelectedIndex]
+  )
+}
+
+/**
+ * Wrapper for variable tag items that has access to popover context
+ */
+const VariableTagItem: React.FC<{
+  tag: string
+  globalIndex: number
+  selectedIndex: number
+  setSelectedIndex: (index: number) => void
+  handleTagSelect: (tag: string) => void
+  itemRefs: React.RefObject<Map<number, HTMLElement>>
+  variableInfo: { type: string; id: string } | null
+}> = ({
+  tag,
+  globalIndex,
+  selectedIndex,
+  setSelectedIndex,
+  handleTagSelect,
+  itemRefs,
+  variableInfo,
+}) => {
+  const handleMouseEnter = useKeyboardAwareMouseEnter(setSelectedIndex)
+
+  return (
+    <PopoverItem
+      key={tag}
+      rootOnly
+      active={globalIndex === selectedIndex && globalIndex >= 0}
+      onMouseEnter={() => handleMouseEnter(globalIndex)}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        handleTagSelect(tag)
+      }}
+      ref={(el) => {
+        if (el && globalIndex >= 0) {
+          itemRefs.current?.set(globalIndex, el)
+        }
+      }}
+    >
+      <span className='flex-1 truncate'>
+        {tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag}
+      </span>
+      {variableInfo && (
+        <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
+          {variableInfo.type}
+        </span>
+      )}
+    </PopoverItem>
+  )
+}
+
+/**
+ * Wrapper for block root tag items that has access to popover context
+ */
+const BlockRootTagItem: React.FC<{
+  rootTag: string
+  rootTagGlobalIndex: number
+  selectedIndex: number
+  setSelectedIndex: (index: number) => void
+  handleTagSelect: (tag: string, group?: BlockTagGroup) => void
+  itemRefs: React.RefObject<Map<number, HTMLElement>>
+  group: BlockTagGroup
+  tagIcon: string | React.ComponentType<{ className?: string }>
+  blockColor: string
+  blockName: string
+}> = ({
+  rootTag,
+  rootTagGlobalIndex,
+  selectedIndex,
+  setSelectedIndex,
+  handleTagSelect,
+  itemRefs,
+  group,
+  tagIcon,
+  blockColor,
+  blockName,
+}) => {
+  const handleMouseEnter = useKeyboardAwareMouseEnter(setSelectedIndex)
+
+  return (
+    <PopoverItem
+      rootOnly
+      active={rootTagGlobalIndex === selectedIndex && rootTagGlobalIndex >= 0}
+      onMouseEnter={() => handleMouseEnter(rootTagGlobalIndex)}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        handleTagSelect(rootTag, group)
+      }}
+      ref={(el) => {
+        if (el && rootTagGlobalIndex >= 0) {
+          itemRefs.current?.set(rootTagGlobalIndex, el)
+        }
+      }}
+    >
+      <TagIcon icon={tagIcon} color={blockColor} />
+      <span className='flex-1 truncate font-medium'>{blockName}</span>
+    </PopoverItem>
+  )
+}
+
+/**
+ * Helper component to capture popover context for nested navigation
+ */
+const PopoverContextCapture: React.FC<{
+  contextRef: React.RefObject<{
+    openFolder: (id: string, title: string, onLoad?: () => void, onSelect?: () => void) => void
+  } | null>
+}> = ({ contextRef }) => {
+  const { openFolder } = usePopoverContext()
+  useEffect(() => {
+    if (contextRef && 'current' in contextRef) {
+      ;(contextRef as { current: typeof contextRef.current }).current = { openFolder }
+    }
+  }, [openFolder, contextRef])
+  return null
+}
+
+/**
+ * Back button that handles nested navigation.
+ * When in nested folders, goes back one level at a time.
+ * At the root folder level, closes the folder.
+ */
+const TagDropdownBackButton: React.FC = () => {
+  const { isInFolder, closeFolder, colorScheme, size } = usePopoverContext()
+  const nestedNav = useNestedNavigation()
+
+  if (!isInFolder) return null
+
+  const handleBackClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    // Try to navigate back in nested path first
+    if (nestedNav?.navigateBack()) {
+      // Successfully navigated back one level
+      return
+    }
+    // At root folder level, close the folder
+    closeFolder()
+  }
+
+  // Just render the back button - the parent tag is rendered as the first item in FolderContentsInner
+  return (
+    <div
+      className={cn(
+        'flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base',
+        size === 'sm' ? 'h-[22px] text-[11px]' : 'h-[26px] text-[13px]',
+        colorScheme === 'inverted'
+          ? 'text-white hover:bg-[#363636] hover:text-white dark:text-[var(--text-primary)] dark:hover:bg-[var(--surface-5)]'
+          : 'text-[var(--text-primary)] hover:bg-[var(--border-1)]'
+      )}
+      role='button'
+      onClick={handleBackClick}
+    >
+      <svg
+        className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'}
+        fill='none'
+        viewBox='0 0 24 24'
+        stroke='currentColor'
+      >
+        <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
+      </svg>
+      <span>Back</span>
+    </div>
   )
 }
 
@@ -557,6 +987,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map())
+
+  const [nestedPath, setNestedPath] = useState<NestedTag[]>([])
+  const baseFolderRef = useRef<{
+    id: string
+    title: string
+    baseTag: NestedTag
+    group: NestedBlockTagGroup
+  } | null>(null)
+  const handleTagSelectRef = useRef<((tag: string, group?: BlockTagGroup) => void) | null>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   const { blocks, edges, loops, parallels } = useWorkflowStore(
     useShallow((state) => ({
@@ -600,14 +1040,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [inputValue, cursorPosition]
   )
 
+  const emptyVariableInfoMap: Record<string, { type: string; id: string }> = {}
+
   /**
    * Computes tags, variable info, and block tag groups
    */
-  const { tags, variableInfoMap, blockTagGroups } = useMemo(() => {
+  const { tags, variableInfoMap, blockTagGroups } = useMemo<TagComputationResult>(() => {
     if (activeSourceBlockId) {
       const sourceBlock = blocks[activeSourceBlockId]
       if (!sourceBlock) {
-        return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
+        return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
       }
 
       const blockConfig = getBlock(sourceBlock.type)
@@ -618,7 +1060,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const blockName = sourceBlock.name || sourceBlock.type
           const normalizedBlockName = normalizeName(blockName)
 
-          const outputPaths = generateOutputPaths(mockConfig.outputs)
+          const outputPaths = getOutputPathsFromSchema(mockConfig.outputs)
           const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 
           const blockTagGroups: BlockTagGroup[] = [
@@ -631,9 +1073,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             },
           ]
 
-          return { tags: blockTags, variableInfoMap: {}, blockTagGroups }
+          return { tags: blockTags, variableInfoMap: emptyVariableInfoMap, blockTagGroups }
         }
-        return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
+        return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
       }
 
       const blockName = sourceBlock.name || sourceBlock.type
@@ -754,12 +1196,25 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
+        } else if (sourceBlock.type === 'human_in_the_loop') {
+          const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
+
+          const isSelfReference = activeSourceBlockId === blockId
+
+          if (dynamicOutputs.length > 0) {
+            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
+              : allTags
+          } else {
+            const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
+            const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
+              : allTags
+          }
         } else {
-          const operationValue =
-            mergedSubBlocks?.operation?.value ?? getSubBlockValue(activeSourceBlockId, 'operation')
-          const toolOutputPaths = operationValue
-            ? generateToolOutputPaths(blockConfig, operationValue)
-            : []
+          const toolOutputPaths = getToolOutputPaths(blockConfig, mergedSubBlocks)
 
           if (toolOutputPaths.length > 0) {
             blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
@@ -791,12 +1246,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         },
       ]
 
-      return { tags: blockTags, variableInfoMap: {}, blockTagGroups }
+      return { tags: blockTags, variableInfoMap: emptyVariableInfoMap, blockTagGroups }
     }
 
     const hasInvalidBlocks = Object.values(blocks).some((block) => !block || !block.type)
     if (hasInvalidBlocks) {
-      return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
+      return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
     }
 
     const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
@@ -857,15 +1312,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     if (currentLoop && isLoopBlock) {
       containingLoopBlockId = blockId
       const loopType = currentLoop.loopType || 'for'
-      const contextualTags: string[] = ['index']
-      if (loopType === 'forEach') {
-        contextualTags.push('currentItem')
-        contextualTags.push('items')
-      }
 
       const loopBlock = blocks[blockId]
       if (loopBlock) {
         const loopBlockName = loopBlock.name || loopBlock.type
+        const normalizedLoopName = normalizeName(loopBlockName)
+        const contextualTags: string[] = [`${normalizedLoopName}.index`]
+        if (loopType === 'forEach') {
+          contextualTags.push(`${normalizedLoopName}.currentItem`)
+          contextualTags.push(`${normalizedLoopName}.items`)
+        }
 
         loopBlockGroup = {
           blockName: loopBlockName,
@@ -873,21 +1329,23 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockType: 'loop',
           tags: contextualTags,
           distance: 0,
+          isContextual: true,
         }
       }
     } else if (containingLoop) {
       const [loopId, loop] = containingLoop
       containingLoopBlockId = loopId
       const loopType = loop.loopType || 'for'
-      const contextualTags: string[] = ['index']
-      if (loopType === 'forEach') {
-        contextualTags.push('currentItem')
-        contextualTags.push('items')
-      }
 
       const containingLoopBlock = blocks[loopId]
       if (containingLoopBlock) {
         const loopBlockName = containingLoopBlock.name || containingLoopBlock.type
+        const normalizedLoopName = normalizeName(loopBlockName)
+        const contextualTags: string[] = [`${normalizedLoopName}.index`]
+        if (loopType === 'forEach') {
+          contextualTags.push(`${normalizedLoopName}.currentItem`)
+          contextualTags.push(`${normalizedLoopName}.items`)
+        }
 
         loopBlockGroup = {
           blockName: loopBlockName,
@@ -895,6 +1353,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockType: 'loop',
           tags: contextualTags,
           distance: 0,
+          isContextual: true,
         }
       }
     }
@@ -908,15 +1367,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const [parallelId, parallel] = containingParallel
       containingParallelBlockId = parallelId
       const parallelType = parallel.parallelType || 'count'
-      const contextualTags: string[] = ['index']
-      if (parallelType === 'collection') {
-        contextualTags.push('currentItem')
-        contextualTags.push('items')
-      }
 
       const containingParallelBlock = blocks[parallelId]
       if (containingParallelBlock) {
         const parallelBlockName = containingParallelBlock.name || containingParallelBlock.type
+        const normalizedParallelName = normalizeName(parallelBlockName)
+        const contextualTags: string[] = [`${normalizedParallelName}.index`]
+        if (parallelType === 'collection') {
+          contextualTags.push(`${normalizedParallelName}.currentItem`)
+          contextualTags.push(`${normalizedParallelName}.items`)
+        }
 
         parallelBlockGroup = {
           blockName: parallelBlockName,
@@ -924,6 +1384,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockType: 'parallel',
           tags: contextualTags,
           distance: 0,
+          isContextual: true,
         }
       }
     }
@@ -962,7 +1423,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const blockName = accessibleBlock.name || accessibleBlock.type
           const normalizedBlockName = normalizeName(blockName)
 
-          const outputPaths = generateOutputPaths(mockConfig.outputs)
+          const outputPaths = getOutputPathsFromSchema(mockConfig.outputs)
           let blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           blockTags = ensureRootTag(blockTags, normalizedBlockName)
 
@@ -1073,13 +1534,20 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
         } else if (accessibleBlock.type === 'human_in_the_loop') {
-          blockTags = [`${normalizedBlockName}.url`]
+          const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
+
+          const isSelfReference = accessibleBlockId === blockId
+
+          if (dynamicOutputs.length > 0) {
+            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+            blockTags = isSelfReference
+              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
+              : allTags
+          } else {
+            blockTags = [`${normalizedBlockName}.url`, `${normalizedBlockName}.resumeEndpoint`]
+          }
         } else {
-          const operationValue =
-            mergedSubBlocks?.operation?.value ?? getSubBlockValue(accessibleBlockId, 'operation')
-          const toolOutputPaths = operationValue
-            ? generateToolOutputPaths(blockConfig, operationValue)
-            : []
+          const toolOutputPaths = getToolOutputPaths(blockConfig, mergedSubBlocks)
 
           if (toolOutputPaths.length > 0) {
             blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
@@ -1089,6 +1557,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               mergedSubBlocks,
               accessibleBlock.triggerMode
             )
+
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
         }
@@ -1152,7 +1621,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   const filteredTags = useMemo(() => {
     if (!searchTerm) return tags
-    return tags.filter((tag) => tag.toLowerCase().includes(searchTerm))
+    return tags.filter((tag: string) => tag.toLowerCase().includes(searchTerm))
   }, [tags, searchTerm])
 
   const { variableTags, filteredBlockTagGroups } = useMemo(() => {
@@ -1181,71 +1650,31 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   const nestedBlockTagGroups: NestedBlockTagGroup[] = useMemo(() => {
     return filteredBlockTagGroups.map((group: BlockTagGroup) => {
-      const nestedTags: NestedTag[] = []
-      const groupedTags: Record<
-        string,
-        Array<{ key: string; display: string; fullTag: string }>
-      > = {}
-      const directTags: Array<{ key: string; display: string; fullTag: string }> = []
+      const normalizedBlockName = normalizeName(group.blockName)
+      const directTags: NestedTag[] = []
+      const tagsForTree: string[] = []
 
       group.tags.forEach((tag: string) => {
         const tagParts = tag.split('.')
-        if (tagParts.length >= 3) {
-          const parent = tagParts[1]
-          const child = tagParts.slice(2).join('.')
 
-          if (!groupedTags[parent]) {
-            groupedTags[parent] = []
-          }
-          groupedTags[parent].push({
-            key: `${parent}.${child}`,
-            display: child,
+        if (tagParts.length === 1) {
+          directTags.push({
+            key: tag,
+            display: tag,
+            fullTag: tag,
+          })
+        } else if (tagParts.length === 2) {
+          directTags.push({
+            key: tagParts[1],
+            display: tagParts[1],
             fullTag: tag,
           })
         } else {
-          const path = tagParts.slice(1).join('.')
-          if (
-            (group.blockType === 'loop' || group.blockType === 'parallel') &&
-            tagParts.length === 1
-          ) {
-            directTags.push({
-              key: tag,
-              display: tag,
-              fullTag: tag,
-            })
-          } else {
-            directTags.push({
-              key: path || group.blockName,
-              display: path || group.blockName,
-              fullTag: tag,
-            })
-          }
+          tagsForTree.push(tag)
         }
       })
 
-      directTags.forEach((directTag) => {
-        nestedTags.push(directTag)
-      })
-
-      Object.entries(groupedTags).forEach(([parent, children]) => {
-        const firstChildTag = children[0]?.fullTag
-        if (firstChildTag) {
-          const tagParts = firstChildTag.split('.')
-          const parentTag = `${tagParts[0]}.${parent}`
-          nestedTags.push({
-            key: parent,
-            display: parent,
-            parentTag: parentTag,
-            children: children,
-          })
-        } else {
-          nestedTags.push({
-            key: parent,
-            display: parent,
-            children: children,
-          })
-        }
-      })
+      const nestedTags = [...directTags, ...buildNestedTagTree(tagsForTree, normalizedBlockName)]
 
       return {
         ...group,
@@ -1261,6 +1690,32 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       list.push({ tag })
     })
 
+    const flattenNestedTag = (nestedTag: NestedTag, group: BlockTagGroup, rootTag: string) => {
+      if (nestedTag.fullTag === rootTag) {
+        return
+      }
+
+      if (nestedTag.parentTag) {
+        list.push({ tag: nestedTag.parentTag, group })
+      }
+
+      if (nestedTag.fullTag && !nestedTag.children && !nestedTag.nestedChildren) {
+        list.push({ tag: nestedTag.fullTag, group })
+      }
+
+      if (nestedTag.children) {
+        nestedTag.children.forEach((child) => {
+          list.push({ tag: child.fullTag, group })
+        })
+      }
+
+      if (nestedTag.nestedChildren) {
+        nestedTag.nestedChildren.forEach((nestedChild) => {
+          flattenNestedTag(nestedChild, group, rootTag)
+        })
+      }
+    }
+
     nestedBlockTagGroups.forEach((group) => {
       const normalizedBlockName = normalizeName(group.blockName)
       const rootTagFromTags = group.tags.find((tag) => tag === normalizedBlockName)
@@ -1269,21 +1724,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       list.push({ tag: rootTag, group })
 
       group.nestedTags.forEach((nestedTag) => {
-        if (nestedTag.fullTag === rootTag) {
-          return
-        }
-
-        if (nestedTag.parentTag) {
-          list.push({ tag: nestedTag.parentTag, group })
-        }
-        if (nestedTag.fullTag) {
-          list.push({ tag: nestedTag.fullTag, group })
-        }
-        if (nestedTag.children) {
-          nestedTag.children.forEach((child) => {
-            list.push({ tag: child.fullTag, group })
-          })
-        }
+        flattenNestedTag(nestedTag, group, rootTag)
       })
     })
 
@@ -1296,7 +1737,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     const element = itemRefs.current.get(selectedIndex)
     if (element) {
       element.scrollIntoView({
-        behavior: 'smooth',
+        behavior: 'auto',
         block: 'nearest',
       })
     }
@@ -1321,7 +1762,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const textAfterCursor = liveValue.slice(liveCursor)
 
       const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
-      if (lastOpenBracket === -1) return
 
       let processedTag = tag
 
@@ -1340,7 +1780,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           mergedSubBlocks
         )
 
-        if (fieldType === 'files' || fieldType === 'array') {
+        if (fieldType === 'files' || fieldType === 'file[]' || fieldType === 'array') {
           const blockName = parts[0]
           const remainingPath = parts.slice(2).join('.')
           processedTag = `${blockName}.${arrayFieldName}[0].${remainingPath}`
@@ -1357,33 +1797,131 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           processedTag = tag
         }
       } else if (
-        blockGroup &&
+        blockGroup?.isContextual &&
         (blockGroup.blockType === 'loop' || blockGroup.blockType === 'parallel')
       ) {
-        if (!tag.includes('.') && ['index', 'currentItem', 'items'].includes(tag)) {
-          processedTag = `${blockGroup.blockType}.${tag}`
+        const tagParts = tag.split('.')
+        if (tagParts.length === 1) {
+          processedTag = blockGroup.blockType
         } else {
-          processedTag = tag
+          const lastPart = tagParts[tagParts.length - 1]
+          if (['index', 'currentItem', 'items'].includes(lastPart)) {
+            processedTag = `${blockGroup.blockType}.${lastPart}`
+          } else {
+            processedTag = tag
+          }
         }
       }
 
-      const nextCloseBracket = textAfterCursor.indexOf('>')
-      let remainingTextAfterCursor = textAfterCursor
+      let newValue: string
 
-      if (nextCloseBracket !== -1) {
-        const textBetween = textAfterCursor.slice(0, nextCloseBracket)
-        if (/^[a-zA-Z0-9._]*$/.test(textBetween)) {
-          remainingTextAfterCursor = textAfterCursor.slice(nextCloseBracket + 1)
+      if (lastOpenBracket === -1) {
+        // No '<' found - insert the full tag at cursor position
+        newValue = `${textBeforeCursor}<${processedTag}>${textAfterCursor}`
+      } else {
+        // '<' found - replace from '<' to cursor (and consume trailing '>' if present)
+        const nextCloseBracket = textAfterCursor.indexOf('>')
+        let remainingTextAfterCursor = textAfterCursor
+
+        if (nextCloseBracket !== -1) {
+          const textBetween = textAfterCursor.slice(0, nextCloseBracket)
+          if (/^[a-zA-Z0-9._]*$/.test(textBetween)) {
+            remainingTextAfterCursor = textAfterCursor.slice(nextCloseBracket + 1)
+          }
         }
-      }
 
-      const newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${remainingTextAfterCursor}`
+        newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${remainingTextAfterCursor}`
+      }
 
       onSelect(newValue)
       onClose?.()
     },
     [inputValue, cursorPosition, workflowVariables, onSelect, onClose, getMergedSubBlocks]
   )
+
+  handleTagSelectRef.current = handleTagSelect
+
+  const popoverContextRef = useRef<{
+    openFolder: (id: string, title: string, onLoad?: () => void, onSelect?: () => void) => void
+  } | null>(null)
+
+  const nestedNavigationValue = useMemo<NestedNavigationContextValue>(
+    () => ({
+      nestedPath,
+      navigateIn: (tag: NestedTag, group: NestedBlockTagGroup) => {
+        const baseFolder = baseFolderRef.current
+        if (!baseFolder || !popoverContextRef.current) return
+
+        setNestedPath((prev) => [...prev, tag])
+
+        if (scrollAreaRef.current) {
+          scrollAreaRef.current.scrollTop = 0
+        }
+
+        const selectionCallback = () => {
+          if (tag.parentTag && handleTagSelectRef.current) {
+            handleTagSelectRef.current(tag.parentTag, group)
+          }
+        }
+        popoverContextRef.current.openFolder(
+          baseFolder.id,
+          tag.display,
+          undefined,
+          selectionCallback
+        )
+      },
+      navigateBack: () => {
+        const baseFolder = baseFolderRef.current
+        if (!baseFolder || !popoverContextRef.current) return false
+        if (nestedPath.length === 0) return false
+
+        const newPath = nestedPath.slice(0, -1)
+        setNestedPath(newPath)
+
+        if (newPath.length === 0) {
+          const selectionCallback = () => {
+            if (baseFolder.baseTag.parentTag && handleTagSelectRef.current) {
+              handleTagSelectRef.current(baseFolder.baseTag.parentTag, baseFolder.group)
+            }
+          }
+          popoverContextRef.current.openFolder(
+            baseFolder.id,
+            baseFolder.title,
+            undefined,
+            selectionCallback
+          )
+        } else {
+          const parentTag = newPath[newPath.length - 1]
+          const selectionCallback = () => {
+            if (parentTag.parentTag && handleTagSelectRef.current) {
+              handleTagSelectRef.current(parentTag.parentTag, baseFolder.group)
+            }
+          }
+          popoverContextRef.current.openFolder(
+            baseFolder.id,
+            parentTag.display,
+            undefined,
+            selectionCallback
+          )
+        }
+        return true
+      },
+      registerFolder: (folderId, folderTitle, baseTag, group) => {
+        baseFolderRef.current = { id: folderId, title: folderTitle, baseTag, group }
+        if (scrollAreaRef.current) {
+          scrollAreaRef.current.scrollTop = 0
+        }
+      },
+    }),
+    [nestedPath]
+  )
+
+  useEffect(() => {
+    if (!visible) {
+      setNestedPath([])
+      baseFolderRef.current = null
+    }
+  }, [visible])
 
   useEffect(() => setSelectedIndex(0), [searchTerm])
 
@@ -1426,320 +1964,145 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   }
 
   return (
-    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()}>
-      <PopoverAnchor asChild>
-        <div
-          className={cn('pointer-events-none', className)}
-          style={{
-            ...style,
-            position: inputElement ? 'fixed' : 'absolute',
-            top: inputElement ? `${caretViewport.top}px` : style?.top,
-            left: inputElement ? `${caretViewport.left}px` : style?.left,
-            width: '1px',
-            height: '1px',
-          }}
-        />
-      </PopoverAnchor>
-      <KeyboardNavigationHandler
-        visible={visible}
-        selectedIndex={selectedIndex}
-        setSelectedIndex={setSelectedIndex}
-        flatTagList={flatTagList}
-        nestedBlockTagGroups={nestedBlockTagGroups}
-        handleTagSelect={handleTagSelect}
-      />
-      <PopoverContent
-        maxHeight={240}
-        className='min-w-[280px]'
-        side={side}
-        align='start'
-        collisionPadding={6}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        <TagDropdownBackButton
+    <NestedNavigationContext.Provider value={nestedNavigationValue}>
+      <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
+        <PopoverContextCapture contextRef={popoverContextRef} />
+        <PopoverAnchor asChild>
+          <div
+            className={cn('pointer-events-none', className)}
+            style={{
+              ...style,
+              position: inputElement ? 'fixed' : 'absolute',
+              top: inputElement ? `${caretViewport.top}px` : style?.top,
+              left: inputElement ? `${caretViewport.left}px` : style?.left,
+              width: '1px',
+              height: '1px',
+            }}
+          />
+        </PopoverAnchor>
+        <KeyboardNavigationHandler
+          visible={visible}
           selectedIndex={selectedIndex}
           setSelectedIndex={setSelectedIndex}
           flatTagList={flatTagList}
           nestedBlockTagGroups={nestedBlockTagGroups}
-          itemRefs={itemRefs}
+          handleTagSelect={handleTagSelect}
         />
-        <PopoverScrollArea>
-          {flatTagList.length === 0 ? (
-            <div className='px-[6px] py-[8px] text-[12px] text-[var(--white)]/60'>
-              No matching tags found
-            </div>
-          ) : (
-            <>
-              {variableTags.length > 0 && (
-                <>
-                  <PopoverSection rootOnly>
-                    <div className='flex items-center gap-[6px]'>
-                      <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
-                      Variables
-                    </div>
-                  </PopoverSection>
-                  {variableTags.map((tag: string) => {
-                    const variableInfo = variableInfoMap?.[tag] || null
-                    const globalIndex = flatTagList.findIndex((item) => item.tag === tag)
-
-                    return (
-                      <PopoverItem
-                        key={tag}
-                        rootOnly
-                        active={globalIndex === selectedIndex && globalIndex >= 0}
-                        onMouseEnter={() => {
-                          if (globalIndex >= 0) setSelectedIndex(globalIndex)
-                        }}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleTagSelect(tag)
-                        }}
-                        ref={(el) => {
-                          if (el && globalIndex >= 0) {
-                            itemRefs.current.set(globalIndex, el)
-                          }
-                        }}
-                      >
-                        <span className='flex-1 truncate text-[var(--text-primary)]'>
-                          {tag.startsWith(TAG_PREFIXES.VARIABLE)
-                            ? tag.substring(TAG_PREFIXES.VARIABLE.length)
-                            : tag}
-                        </span>
-                        {variableInfo && (
-                          <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
-                            {variableInfo.type}
-                          </span>
-                        )}
-                      </PopoverItem>
-                    )
-                  })}
-                </>
-              )}
-
-              {nestedBlockTagGroups.map((group: NestedBlockTagGroup) => {
-                const blockConfig = getBlock(group.blockType)
-                let blockColor = blockConfig?.bgColor || BLOCK_COLORS.DEFAULT
-
-                if (group.blockType === 'loop') {
-                  blockColor = BLOCK_COLORS.LOOP
-                } else if (group.blockType === 'parallel') {
-                  blockColor = BLOCK_COLORS.PARALLEL
-                }
-
-                let tagIcon: string | React.ComponentType<{ className?: string }> = group.blockName
-                  .charAt(0)
-                  .toUpperCase()
-                if (blockConfig?.icon) {
-                  tagIcon = blockConfig.icon
-                } else if (group.blockType === 'loop') {
-                  tagIcon = RepeatIcon
-                } else if (group.blockType === 'parallel') {
-                  tagIcon = SplitIcon
-                }
-
-                const normalizedBlockName = normalizeName(group.blockName)
-                const rootTagFromTags = group.tags.find((tag) => tag === normalizedBlockName)
-                const rootTag = rootTagFromTags || normalizedBlockName
-
-                const rootTagGlobalIndex = flatTagList.findIndex((item) => item.tag === rootTag)
-
-                return (
-                  <div key={group.blockId}>
-                    <PopoverItem
-                      rootOnly
-                      active={rootTagGlobalIndex === selectedIndex && rootTagGlobalIndex >= 0}
-                      onMouseEnter={() => {
-                        if (rootTagGlobalIndex >= 0) setSelectedIndex(rootTagGlobalIndex)
-                      }}
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleTagSelect(rootTag, group)
-                      }}
-                      ref={(el) => {
-                        if (el && rootTagGlobalIndex >= 0) {
-                          itemRefs.current.set(rootTagGlobalIndex, el)
-                        }
-                      }}
-                    >
-                      <TagIcon icon={tagIcon} color={blockColor} />
-                      <span className='flex-1 truncate font-medium text-[var(--text-primary)]'>
-                        {group.blockName}
-                      </span>
-                    </PopoverItem>
-                    {group.nestedTags.map((nestedTag) => {
-                      if (nestedTag.fullTag === rootTag) {
-                        return null
-                      }
-
-                      const hasChildren = nestedTag.children && nestedTag.children.length > 0
-
-                      if (hasChildren) {
-                        const folderId = `${group.blockId}-${nestedTag.key}`
-
-                        const parentGlobalIndex = nestedTag.parentTag
-                          ? flatTagList.findIndex((item) => item.tag === nestedTag.parentTag)
-                          : -1
-
-                        return (
-                          <PopoverFolder
-                            key={folderId}
-                            id={folderId}
-                            title={nestedTag.display}
-                            active={parentGlobalIndex === selectedIndex && parentGlobalIndex >= 0}
-                            onSelect={() => {
-                              if (nestedTag.parentTag) {
-                                handleTagSelect(nestedTag.parentTag, group)
-                              }
-                            }}
-                            onMouseEnter={() => {
-                              if (parentGlobalIndex >= 0) {
-                                setSelectedIndex(parentGlobalIndex)
-                              }
-                            }}
-                            ref={(el) => {
-                              if (el && parentGlobalIndex >= 0) {
-                                itemRefs.current.set(parentGlobalIndex, el)
-                              }
-                            }}
-                          >
-                            {nestedTag.children!.map((child) => {
-                              const childGlobalIndex = flatTagList.findIndex(
-                                (item) => item.tag === child.fullTag
-                              )
-
-                              const tagParts = child.fullTag.split('.')
-                              const outputPath = tagParts.slice(1).join('.')
-
-                              let childType = ''
-                              const block = Object.values(blocks).find(
-                                (b) => b.id === group.blockId
-                              )
-                              if (block) {
-                                const blockConfig = getBlock(block.type)
-                                const mergedSubBlocks = getMergedSubBlocks(group.blockId)
-
-                                childType = getOutputTypeForPath(
-                                  block,
-                                  blockConfig || null,
-                                  group.blockId,
-                                  outputPath,
-                                  mergedSubBlocks
-                                )
-                              }
-
-                              return (
-                                <PopoverItem
-                                  key={child.key}
-                                  active={
-                                    childGlobalIndex === selectedIndex && childGlobalIndex >= 0
-                                  }
-                                  onMouseEnter={() => {
-                                    if (childGlobalIndex >= 0) setSelectedIndex(childGlobalIndex)
-                                  }}
-                                  onMouseDown={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    handleTagSelect(child.fullTag, group)
-                                  }}
-                                  ref={(el) => {
-                                    if (el && childGlobalIndex >= 0) {
-                                      itemRefs.current.set(childGlobalIndex, el)
-                                    }
-                                  }}
-                                >
-                                  <span className='flex-1 truncate text-[var(--text-primary)]'>
-                                    {child.display}
-                                  </span>
-                                  {childType && childType !== 'any' && (
-                                    <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
-                                      {childType}
-                                    </span>
-                                  )}
-                                </PopoverItem>
-                              )
-                            })}
-                          </PopoverFolder>
-                        )
-                      }
-
-                      const globalIndex = nestedTag.fullTag
-                        ? flatTagList.findIndex((item) => item.tag === nestedTag.fullTag)
-                        : -1
-
-                      let tagDescription = ''
-
-                      if (
-                        (group.blockType === 'loop' || group.blockType === 'parallel') &&
-                        !nestedTag.key.includes('.')
-                      ) {
-                        if (nestedTag.key === 'index') {
-                          tagDescription = 'number'
-                        } else if (nestedTag.key === 'currentItem') {
-                          tagDescription = 'any'
-                        } else if (nestedTag.key === 'items') {
-                          tagDescription = 'array'
-                        }
-                      } else if (nestedTag.fullTag) {
-                        const tagParts = nestedTag.fullTag.split('.')
-                        const outputPath = tagParts.slice(1).join('.')
-
-                        const block = Object.values(blocks).find((b) => b.id === group.blockId)
-                        if (block) {
-                          const blockConfig = getBlock(block.type)
-                          const mergedSubBlocks = getMergedSubBlocks(group.blockId)
-
-                          tagDescription = getOutputTypeForPath(
-                            block,
-                            blockConfig || null,
-                            group.blockId,
-                            outputPath,
-                            mergedSubBlocks
-                          )
-                        }
-                      }
+        <PopoverContent
+          maxHeight={240}
+          className='min-w-[280px]'
+          side={side}
+          align='start'
+          collisionPadding={6}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
+          <TagDropdownBackButton />
+          <PopoverScrollArea ref={scrollAreaRef}>
+            {flatTagList.length === 0 ? (
+              <div className='px-[6px] py-[8px] text-[12px] text-[var(--white)]/60'>
+                No matching tags found
+              </div>
+            ) : (
+              <>
+                {variableTags.length > 0 && (
+                  <>
+                    <PopoverSection rootOnly>
+                      <div className='flex items-center gap-[6px]'>
+                        <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
+                        Variables
+                      </div>
+                    </PopoverSection>
+                    {variableTags.map((tag: string) => {
+                      const variableInfo = variableInfoMap?.[tag] || null
+                      const globalIndex = flatTagList.findIndex((item) => item.tag === tag)
 
                       return (
-                        <PopoverItem
-                          key={`${group.blockId}-${nestedTag.key}`}
-                          rootOnly
-                          active={globalIndex === selectedIndex && globalIndex >= 0}
-                          onMouseEnter={() => {
-                            if (globalIndex >= 0) setSelectedIndex(globalIndex)
-                          }}
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            if (nestedTag.fullTag) {
-                              handleTagSelect(nestedTag.fullTag, group)
-                            }
-                          }}
-                          ref={(el) => {
-                            if (el && globalIndex >= 0) {
-                              itemRefs.current.set(globalIndex, el)
-                            }
-                          }}
-                        >
-                          <span className='flex-1 truncate text-[var(--text-primary)]'>
-                            {nestedTag.display}
-                          </span>
-                          {tagDescription && tagDescription !== 'any' && (
-                            <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
-                              {tagDescription}
-                            </span>
-                          )}
-                        </PopoverItem>
+                        <VariableTagItem
+                          key={tag}
+                          tag={tag}
+                          globalIndex={globalIndex}
+                          selectedIndex={selectedIndex}
+                          setSelectedIndex={setSelectedIndex}
+                          handleTagSelect={handleTagSelect}
+                          itemRefs={itemRefs}
+                          variableInfo={variableInfo}
+                        />
                       )
                     })}
-                  </div>
-                )
-              })}
-            </>
-          )}
-        </PopoverScrollArea>
-      </PopoverContent>
-    </Popover>
+                    {nestedBlockTagGroups.length > 0 && <PopoverDivider rootOnly />}
+                  </>
+                )}
+
+                {nestedBlockTagGroups.map((group: NestedBlockTagGroup, groupIndex: number) => {
+                  const blockConfig = getBlock(group.blockType)
+                  let blockColor = blockConfig?.bgColor || BLOCK_COLORS.DEFAULT
+
+                  if (group.blockType === 'loop') {
+                    blockColor = BLOCK_COLORS.LOOP
+                  } else if (group.blockType === 'parallel') {
+                    blockColor = BLOCK_COLORS.PARALLEL
+                  }
+
+                  let tagIcon: string | React.ComponentType<{ className?: string }> =
+                    group.blockName.charAt(0).toUpperCase()
+                  if (blockConfig?.icon) {
+                    tagIcon = blockConfig.icon
+                  } else if (group.blockType === 'loop') {
+                    tagIcon = RepeatIcon
+                  } else if (group.blockType === 'parallel') {
+                    tagIcon = SplitIcon
+                  }
+
+                  const normalizedBlockName = normalizeName(group.blockName)
+                  const rootTagFromTags = group.tags.find((tag) => tag === normalizedBlockName)
+                  const rootTag = rootTagFromTags || normalizedBlockName
+
+                  const rootTagGlobalIndex = flatTagList.findIndex((item) => item.tag === rootTag)
+
+                  return (
+                    <div key={group.blockId}>
+                      <BlockRootTagItem
+                        rootTag={rootTag}
+                        rootTagGlobalIndex={rootTagGlobalIndex}
+                        selectedIndex={selectedIndex}
+                        setSelectedIndex={setSelectedIndex}
+                        handleTagSelect={handleTagSelect}
+                        itemRefs={itemRefs}
+                        group={group}
+                        tagIcon={tagIcon}
+                        blockColor={blockColor}
+                        blockName={group.blockName}
+                      />
+                      {group.nestedTags.map((nestedTag) => {
+                        if (nestedTag.fullTag === rootTag) {
+                          return null
+                        }
+
+                        return (
+                          <NestedTagRenderer
+                            key={`${group.blockId}-${nestedTag.key}`}
+                            nestedTag={nestedTag}
+                            group={group}
+                            flatTagList={flatTagList}
+                            selectedIndex={selectedIndex}
+                            setSelectedIndex={setSelectedIndex}
+                            handleTagSelect={handleTagSelect}
+                            itemRefs={itemRefs}
+                            blocks={blocks}
+                            getMergedSubBlocks={getMergedSubBlocks}
+                          />
+                        )
+                      })}
+                      {groupIndex < nestedBlockTagGroups.length - 1 && <PopoverDivider rootOnly />}
+                    </div>
+                  )
+                })}
+              </>
+            )}
+          </PopoverScrollArea>
+        </PopoverContent>
+      </Popover>
+    </NestedNavigationContext.Provider>
   )
 }

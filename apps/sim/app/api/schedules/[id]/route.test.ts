@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,14 +44,7 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: () => 'test-request-id',
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 import { PUT } from './route'
 

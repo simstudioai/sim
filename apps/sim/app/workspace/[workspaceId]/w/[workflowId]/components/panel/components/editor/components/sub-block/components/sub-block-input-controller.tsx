@@ -3,7 +3,7 @@ import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 
 /**
  * Props for the headless SubBlockInputController.
@@ -45,6 +45,16 @@ export interface SubBlockInputControllerProps {
     cursor: number
     event: 'change' | 'focus' | 'deleteAll'
   }) => { show: boolean; searchTerm?: string } | undefined
+  /**
+   * Optional callback to force/show the tag dropdown (e.g., empty inputs).
+   * Return { show: true } to override defaults.
+   * Called on 'focus' event.
+   */
+  shouldForceTagDropdown?: (args: {
+    value: string
+    cursor: number
+    event: 'focus'
+  }) => { show: boolean } | undefined
   /** Render prop for the actual input element. */
   children: (args: {
     ref: React.RefObject<HTMLTextAreaElement | HTMLInputElement>
@@ -54,7 +64,7 @@ export interface SubBlockInputControllerProps {
     onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => void
     onDrop: (e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void
     onDragOver: (e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void
-    onFocus: () => void
+    onFocus: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => void
     onScroll?: (e: React.UIEvent<HTMLTextAreaElement>) => void
   }) => React.ReactNode
 }
@@ -76,6 +86,7 @@ export function SubBlockInputController(props: SubBlockInputControllerProps): Re
     previewValue,
     workspaceId,
     shouldForceEnvDropdown,
+    shouldForceTagDropdown,
     children,
   } = props
 
@@ -92,6 +103,7 @@ export function SubBlockInputController(props: SubBlockInputControllerProps): Re
     previewValue,
     workspaceId,
     shouldForceEnvDropdown,
+    shouldForceTagDropdown,
   })
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)

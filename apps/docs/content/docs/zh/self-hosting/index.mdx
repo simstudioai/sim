@@ -1,21 +1,29 @@
 ---
 title: 自托管
-description: 在您自己的基础设施上部署 Sim Studio
+description: 在您自己的基础设施上部署 Sim
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 
-使用 Docker 或 Kubernetes 在您自己的基础设施上部署 Sim Studio。
+使用 Docker 或 Kubernetes 在您自己的基础设施上部署 Sim。
 
 ## 要求
 
-| 资源 | 最低要求 | 推荐配置 |
-|----------|---------|-------------|
-| CPU | 2 核 | 4 核及以上 |
-| 内存 | 12 GB | 16 GB 及以上 |
-| 存储 | 20 GB SSD | 50 GB 及以上 SSD |
-| Docker | 20.10+ | 最新版本 |
+| 资源 | 小型 | 标准 | 生产环境 |
+|----------|------|------|----------|
+| CPU | 2 核 | 4 核 | 8+ 核 |
+| 内存 | 12 GB | 16 GB | 32+ GB |
+| 存储 | 20 GB SSD | 50 GB SSD | 100+ GB SSD |
+| Docker | 20.10+ | 20.10+ | 最新版本 |
+
+**小型**: 开发、测试、单用户（1-5 用户）
+**标准**: 团队（5-50 用户）、中等工作负载
+**生产环境**: 大型团队（50+ 用户）、高可用性、密集工作流执行
+
+<Callout type="info">
+资源需求由工作流执行（isolated-vm 沙箱）、文件处理（内存中文档解析）和向量运算（pgvector）决定。内存通常是限制因素，而不是 CPU。生产遥测数据显示，主应用平均使用 4-8 GB，高负载时峰值可达 12 GB。
+</Callout>
 
 ## 快速开始
 

@@ -10,6 +10,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { CREDENTIAL } from '@/executor/constants'
 import { useOAuthCredentialDetail, useOAuthCredentials } from '@/hooks/queries/oauth-credentials'
 import { getMissingRequiredScopes } from '@/hooks/use-oauth-scope-status'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -95,7 +96,7 @@ export function ToolCredentialSelector({
 
   const resolvedLabel = useMemo(() => {
     if (selectedCredential) return selectedCredential.name
-    if (isForeign) return 'Saved by collaborator'
+    if (isForeign) return CREDENTIAL.FOREIGN_LABEL
     return ''
   }, [selectedCredential, isForeign])
 
@@ -210,7 +211,7 @@ export function ToolCredentialSelector({
         placeholder={label}
         disabled={disabled}
         editable={true}
-        filterOptions={true}
+        filterOptions={!isForeign}
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
         className={selectedId ? 'pl-[28px]' : ''}

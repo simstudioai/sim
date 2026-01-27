@@ -17,14 +17,15 @@ import {
 } from '@/components/emcn'
 import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { cn } from '@/lib/core/utils/cn'
+import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
+import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
+import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { AutocompleteSearch } from './components/search'
-
-const CORE_TRIGGER_TYPES = ['manual', 'api', 'schedule', 'chat', 'webhook', 'mcp'] as const
 
 const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'All time', label: 'All time' },
@@ -182,6 +183,7 @@ export function LogsToolbar({
     endDate,
     setDateRange,
     clearDateRange,
+    resetFilters,
   } = useFilterStore()
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
@@ -210,12 +212,12 @@ export function LogsToolbar({
   }, [level])
 
   const statusOptions: ComboboxOption[] = useMemo(
-    () => [
-      { value: 'error', label: 'Error', icon: getColorIcon('var(--text-error)') },
-      { value: 'info', label: 'Info', icon: getColorIcon('var(--terminal-status-info-color)') },
-      { value: 'running', label: 'Running', icon: getColorIcon('#22c55e') },
-      { value: 'pending', label: 'Pending', icon: getColorIcon('#f59e0b') },
-    ],
+    () =>
+      (Object.keys(STATUS_CONFIG) as LogStatus[]).map((status) => ({
+        value: status,
+        label: STATUS_CONFIG[status].label,
+        icon: getColorIcon(STATUS_CONFIG[status].color),
+      })),
     []
   )
 
@@ -241,12 +243,8 @@ export function LogsToolbar({
 
   const selectedStatusColor = useMemo(() => {
     if (selectedStatuses.length !== 1) return null
-    const status = selectedStatuses[0]
-    if (status === 'error') return 'var(--text-error)'
-    if (status === 'info') return 'var(--terminal-status-info-color)'
-    if (status === 'running') return '#22c55e'
-    if (status === 'pending') return '#f59e0b'
-    return null
+    const status = selectedStatuses[0] as LogStatus
+    return STATUS_CONFIG[status]?.color ?? null
   }, [selectedStatuses])
 
   const workflowOptions: ComboboxOption[] = useMemo(
@@ -346,23 +344,23 @@ export function LogsToolbar({
     setDatePickerOpen(false)
   }, [timeRange, startDate, previousTimeRange, setTimeRange])
 
-  const hasActiveFilters = useMemo(() => {
-    return (
-      level !== 'all' ||
-      workflowIds.length > 0 ||
-      folderIds.length > 0 ||
-      triggers.length > 0 ||
-      timeRange !== 'All time'
-    )
-  }, [level, workflowIds, folderIds, triggers, timeRange])
+  const filtersActive = useMemo(
+    () =>
+      hasActiveFilters({
+        timeRange,
+        level,
+        workflowIds,
+        folderIds,
+        triggers,
+        searchQuery,
+      }),
+    [timeRange, level, workflowIds, folderIds, triggers, searchQuery]
+  )
 
   const handleClearFilters = useCallback(() => {
-    setLevel('all')
-    setWorkflowIds([])
-    setFolderIds([])
-    setTriggers([])
-    clearDateRange()
-  }, [setLevel, setWorkflowIds, setFolderIds, setTriggers, clearDateRange])
+    resetFilters()
+    onSearchQueryChange('')
+  }, [resetFilters, onSearchQueryChange])
 
   return (
     <div className='flex flex-col gap-[19px]'>
@@ -462,7 +460,7 @@ export function LogsToolbar({
         </div>
         <div className='ml-auto flex items-center gap-[8px]'>
           {/* Clear Filters Button */}
-          {hasActiveFilters && (
+          {filtersActive && (
             <Button
               variant='active'
               onClick={handleClearFilters}

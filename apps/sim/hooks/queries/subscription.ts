@@ -28,6 +28,8 @@ async function fetchSubscriptionData(includeOrg = false) {
 interface UseSubscriptionDataOptions {
   /** Include organization membership and role data */
   includeOrg?: boolean
+  /** Whether to enable the query (defaults to true) */
+  enabled?: boolean
 }
 
 /**
@@ -35,13 +37,14 @@ interface UseSubscriptionDataOptions {
  * @param options - Optional configuration
  */
 export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
-  const { includeOrg = false } = options
+  const { includeOrg = false, enabled = true } = options
 
   return useQuery({
     queryKey: subscriptionKeys.user(includeOrg),
     queryFn: () => fetchSubscriptionData(includeOrg),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+    enabled,
   })
 }
 
@@ -58,17 +61,25 @@ async function fetchUsageLimitData() {
   return response.json()
 }
 
+interface UseUsageLimitDataOptions {
+  /** Whether to enable the query (defaults to true) */
+  enabled?: boolean
+}
+
 /**
  * Hook to fetch usage limit metadata
  * Returns: currentLimit, minimumLimit, canEdit, plan, updatedAt
  * Use this for editing usage limits, not for displaying current usage
  */
-export function useUsageLimitData() {
+export function useUsageLimitData(options: UseUsageLimitDataOptions = {}) {
+  const { enabled = true } = options
+
   return useQuery({
     queryKey: subscriptionKeys.usage(),
     queryFn: fetchUsageLimitData,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+    enabled,
   })
 }
 

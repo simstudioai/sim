@@ -6,19 +6,21 @@
  * This file contains unit tests for the HTTP Request tool, which is used
  * to make HTTP requests to external APIs and services.
  */
+
+import { ToolTester } from '@sim/testing/builders'
+import { mockHttpResponses } from '@sim/testing/factories'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mockHttpResponses } from '@/tools/__test-utils__/mock-data'
-import { ToolTester } from '@/tools/__test-utils__/test-tools'
 import { requestTool } from '@/tools/http/request'
 
 process.env.VITEST = 'true'
 
 describe('HTTP Request Tool', () => {
-  let tester: ToolTester
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let tester: ToolTester<any, any>
 
   beforeEach(() => {
-    tester = new ToolTester(requestTool)
-    process.env.NEXT_PUBLIC_APP_URL = 'https://app.simstudio.dev'
+    tester = new ToolTester(requestTool as any)
+    process.env.NEXT_PUBLIC_APP_URL = 'https://sim.ai'
   })
 
   afterEach(() => {
@@ -122,7 +124,7 @@ describe('HTTP Request Tool', () => {
       Object.defineProperty(global, 'window', {
         value: {
           location: {
-            origin: 'https://app.simstudio.dev',
+            origin: 'https://sim.ai',
           },
         },
         writable: true,
@@ -136,7 +138,7 @@ describe('HTTP Request Tool', () => {
       })
 
       const fetchCall = (global.fetch as any).mock.calls[0]
-      expect(fetchCall[1].headers.Referer).toBe('https://app.simstudio.dev')
+      expect(fetchCall[1].headers.Referer).toBe('https://sim.ai')
 
       global.window = originalWindow
     })
@@ -195,7 +197,7 @@ describe('HTTP Request Tool', () => {
       Object.defineProperty(global, 'window', {
         value: {
           location: {
-            origin: 'https://app.simstudio.dev',
+            origin: 'https://sim.ai',
           },
         },
         writable: true,
@@ -210,7 +212,7 @@ describe('HTTP Request Tool', () => {
       const headers = fetchCall[1].headers
 
       expect(headers.Host).toBe('api.example.com')
-      expect(headers.Referer).toBe('https://app.simstudio.dev')
+      expect(headers.Referer).toBe('https://sim.ai')
       expect(headers['User-Agent']).toContain('Mozilla')
       expect(headers.Accept).toBe('*/*')
       expect(headers['Accept-Encoding']).toContain('gzip')
@@ -398,7 +400,7 @@ describe('HTTP Request Tool', () => {
       Object.defineProperty(global, 'window', {
         value: {
           location: {
-            origin: 'https://app.simstudio.dev',
+            origin: 'https://sim.ai',
           },
         },
         writable: true,
@@ -420,7 +422,7 @@ describe('HTTP Request Tool', () => {
       expect(headers['Sec-Ch-Ua']).toMatch(/Chromium.*Not-A\.Brand/)
       expect(headers['Sec-Ch-Ua-Mobile']).toBe('?0')
       expect(headers['Sec-Ch-Ua-Platform']).toBe('"macOS"')
-      expect(headers.Referer).toBe('https://app.simstudio.dev')
+      expect(headers.Referer).toBe('https://sim.ai')
       expect(headers.Host).toBe('api.example.com')
 
       global.window = originalWindow
@@ -455,7 +457,7 @@ describe('HTTP Request Tool', () => {
       Object.defineProperty(global, 'window', {
         value: {
           location: {
-            origin: 'https://app.simstudio.dev',
+            origin: 'https://sim.ai',
           },
         },
         writable: true,

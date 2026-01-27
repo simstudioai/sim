@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowDown, Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
+import { Database, HelpCircle, Layout, Plus, Search, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { Button, FolderPlus, Library, Tooltip } from '@/components/emcn'
+import { Button, Download, FolderPlus, Library, Loader, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -13,6 +13,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   HelpModal,
+  NavItemContextMenu,
   SearchModal,
   SettingsModal,
   UsageIndicator,
@@ -20,6 +21,7 @@ import {
   WorkspaceHeader,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import {
+  useContextMenu,
   useFolderOperations,
   useSidebarResize,
   useWorkflowOperations,
@@ -28,12 +30,14 @@ import {
 import {
   useDuplicateWorkspace,
   useExportWorkspace,
+  useImportWorkflow,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
-import { useSearchModalStore } from '@/stores/search-modal/store'
-import { useSettingsModalStore } from '@/stores/settings-modal/store'
+import { useSearchModalStore } from '@/stores/modals/search/store'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -56,7 +60,7 @@ export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
  *
  * @returns Sidebar with workflows panel
  */
-export function Sidebar() {
+export const Sidebar = memo(function Sidebar() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -69,6 +73,7 @@ export function Sidebar() {
 
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { canEdit } = useUserPermissionsContext()
+  const { config: permissionConfig } = usePermissionConfig()
 
   /**
    * Sidebar state from store with hydration tracking to prevent SSR mismatch.
@@ -81,9 +86,11 @@ export function Sidebar() {
   const isCollapsed = hasHydrated ? isCollapsedStore : false
   const isOnWorkflowPage = !!workflowId
 
-  const [isImporting, setIsImporting] = useState(false)
   const workspaceFileInputRef = useRef<HTMLInputElement>(null)
 
+  const { isImporting, handleFileChange: handleImportFileChange } = useImportWorkflow({
+    workspaceId,
+  })
   const { isImporting: isImportingWorkspace, handleImportWorkspace: importWorkspace } =
     useImportWorkspace()
   const { handleExportWorkspace: exportWorkspace } = useExportWorkspace()
@@ -135,11 +142,9 @@ export function Sidebar() {
       window.removeEventListener(SIDEBAR_SCROLL_EVENT, handleScrollToItem as EventListener)
   }, [])
 
-  const {
-    isOpen: isSearchModalOpen,
-    setOpen: setIsSearchModalOpen,
-    open: openSearchModal,
-  } = useSearchModalStore()
+  const isSearchModalOpen = useSearchModalStore((state) => state.isOpen)
+  const setIsSearchModalOpen = useSearchModalStore((state) => state.setOpen)
+  const openSearchModal = useSearchModalStore((state) => state.open)
 
   const {
     workspaces,
@@ -150,6 +155,7 @@ export function Sidebar() {
     isCreatingWorkspace,
     updateWorkspaceName,
     confirmDeleteWorkspace,
+    handleLeaveWorkspace,
   } = useWorkspaceManagement({
     workspaceId,
     sessionUserId: sessionData?.user?.id,
@@ -168,8 +174,47 @@ export function Sidebar() {
     workspaceId,
   })
 
+  const [activeNavItemHref, setActiveNavItemHref] = useState<string | null>(null)
+  const {
+    isOpen: isNavContextMenuOpen,
+    position: navContextMenuPosition,
+    menuRef: navMenuRef,
+    handleContextMenu: handleNavContextMenuBase,
+    closeMenu: closeNavContextMenu,
+  } = useContextMenu()
+
+  const handleNavItemContextMenu = useCallback(
+    (e: React.MouseEvent, href: string) => {
+      setActiveNavItemHref(href)
+      handleNavContextMenuBase(e)
+    },
+    [handleNavContextMenuBase]
+  )
+
+  const handleNavContextMenuClose = useCallback(() => {
+    closeNavContextMenu()
+    setActiveNavItemHref(null)
+  }, [closeNavContextMenu])
+
+  const handleNavOpenInNewTab = useCallback(() => {
+    if (activeNavItemHref) {
+      window.open(activeNavItemHref, '_blank', 'noopener,noreferrer')
+    }
+  }, [activeNavItemHref])
+
+  const handleNavCopyLink = useCallback(async () => {
+    if (activeNavItemHref) {
+      const fullUrl = `${window.location.origin}${activeNavItemHref}`
+      try {
+        await navigator.clipboard.writeText(fullUrl)
+      } catch (error) {
+        logger.error('Failed to copy link to clipboard', { error })
+      }
+    }
+  }, [activeNavItemHref])
+
   const { handleDuplicateWorkspace: duplicateWorkspace } = useDuplicateWorkspace({
-    getWorkspaceId: () => workspaceId,
+    workspaceId,
   })
 
   const searchModalWorkflows = useMemo(
@@ -196,45 +241,47 @@ export function Sidebar() {
   )
 
   const footerNavigationItems = useMemo(
-    () => [
-      {
-        id: 'logs',
-        label: 'Logs',
-        icon: Library,
-        href: `/workspace/${workspaceId}/logs`,
-      },
-      {
-        id: 'templates',
-        label: 'Templates',
-        icon: Layout,
-        href: `/workspace/${workspaceId}/templates`,
-      },
-      {
-        id: 'knowledge-base',
-        label: 'Knowledge Base',
-        icon: Database,
-        href: `/workspace/${workspaceId}/knowledge`,
-      },
-      {
-        id: 'help',
-        label: 'Help',
-        icon: HelpCircle,
-        onClick: () => setIsHelpModalOpen(true),
-      },
-      {
-        id: 'settings',
-        label: 'Settings',
-        icon: Settings,
-        onClick: () => openSettingsModal(),
-      },
-    ],
-    [workspaceId]
+    () =>
+      [
+        {
+          id: 'logs',
+          label: 'Logs',
+          icon: Library,
+          href: `/workspace/${workspaceId}/logs`,
+        },
+        {
+          id: 'templates',
+          label: 'Templates',
+          icon: Layout,
+          href: `/workspace/${workspaceId}/templates`,
+          hidden: permissionConfig.hideTemplates,
+        },
+        {
+          id: 'knowledge-base',
+          label: 'Knowledge Base',
+          icon: Database,
+          href: `/workspace/${workspaceId}/knowledge`,
+          hidden: permissionConfig.hideKnowledgeBaseTab,
+        },
+        {
+          id: 'help',
+          label: 'Help',
+          icon: HelpCircle,
+          onClick: () => setIsHelpModalOpen(true),
+        },
+        {
+          id: 'settings',
+          label: 'Settings',
+          icon: Settings,
+          onClick: () => openSettingsModal(),
+        },
+      ].filter((item) => !item.hidden),
+    [workspaceId, permissionConfig.hideTemplates, permissionConfig.hideKnowledgeBaseTab]
   )
 
   const isLoading = workflowsLoading || sessionLoading
   const initialScrollDoneRef = useRef(false)
 
-  /** Scrolls to active workflow on initial page load only */
   useEffect(() => {
     if (!workflowId || workflowsLoading || initialScrollDoneRef.current) return
     initialScrollDoneRef.current = true
@@ -245,7 +292,6 @@ export function Sidebar() {
     })
   }, [workflowId, workflowsLoading])
 
-  /** Forces sidebar to minimum width and ensures it's expanded when not on a workflow page */
   useEffect(() => {
     if (!isOnWorkflowPage) {
       if (isCollapsed) {
@@ -255,7 +301,6 @@ export function Sidebar() {
     }
   }, [isOnWorkflowPage, isCollapsed, setIsCollapsed, setSidebarWidth])
 
-  /** Creates a workflow and scrolls to it */
   const handleCreateWorkflow = useCallback(async () => {
     const workflowId = await createWorkflow()
     if (workflowId) {
@@ -265,7 +310,6 @@ export function Sidebar() {
     }
   }, [createWorkflow])
 
-  /** Creates a folder and scrolls to it */
   const handleCreateFolder = useCallback(async () => {
     const folderId = await createFolder()
     if (folderId) {
@@ -273,12 +317,10 @@ export function Sidebar() {
     }
   }, [createFolder])
 
-  /** Triggers file input for workflow import */
   const handleImportWorkflow = useCallback(() => {
     fileInputRef.current?.click()
   }, [])
 
-  /** Handles workspace switch from popover menu */
   const handleWorkspaceSwitch = useCallback(
     async (workspace: { id: string; name: string; ownerId: string; role?: string }) => {
       if (workspace.id === workspaceId) {
@@ -291,12 +333,10 @@ export function Sidebar() {
     [workspaceId, switchWorkspace]
   )
 
-  /** Toggles sidebar collapse state */
   const handleToggleCollapse = useCallback(() => {
     setIsCollapsed(!isCollapsed)
   }, [isCollapsed, setIsCollapsed])
 
-  /** Reverts to active workflow selection when clicking sidebar background */
   const handleSidebarClick = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
       const target = e.target as HTMLElement
@@ -309,7 +349,6 @@ export function Sidebar() {
     [workflowId]
   )
 
-  /** Renames a workspace */
   const handleRenameWorkspace = useCallback(
     async (workspaceIdToRename: string, newName: string) => {
       await updateWorkspaceName(workspaceIdToRename, newName)
@@ -317,7 +356,6 @@ export function Sidebar() {
     [updateWorkspaceName]
   )
 
-  /** Deletes a workspace */
   const handleDeleteWorkspace = useCallback(
     async (workspaceIdToDelete: string) => {
       const workspaceToDelete = workspaces.find((w) => w.id === workspaceIdToDelete)
@@ -328,7 +366,16 @@ export function Sidebar() {
     [workspaces, confirmDeleteWorkspace]
   )
 
-  /** Duplicates a workspace */
+  const handleLeaveWorkspaceWrapper = useCallback(
+    async (workspaceIdToLeave: string) => {
+      const workspaceToLeave = workspaces.find((w) => w.id === workspaceIdToLeave)
+      if (workspaceToLeave) {
+        await handleLeaveWorkspace(workspaceToLeave)
+      }
+    },
+    [workspaces, handleLeaveWorkspace]
+  )
+
   const handleDuplicateWorkspace = useCallback(
     async (_workspaceIdToDuplicate: string, workspaceName: string) => {
       await duplicateWorkspace(workspaceName)
@@ -336,7 +383,6 @@ export function Sidebar() {
     [duplicateWorkspace]
   )
 
-  /** Exports a workspace */
   const handleExportWorkspace = useCallback(
     async (workspaceIdToExport: string, workspaceName: string) => {
       await exportWorkspace(workspaceIdToExport, workspaceName)
@@ -344,12 +390,10 @@ export function Sidebar() {
     [exportWorkspace]
   )
 
-  /** Triggers file input for workspace import */
   const handleImportWorkspace = useCallback(() => {
     workspaceFileInputRef.current?.click()
   }, [])
 
-  /** Handles workspace import file selection */
   const handleWorkspaceFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = event.target.files
@@ -365,7 +409,6 @@ export function Sidebar() {
     [importWorkspace]
   )
 
-  /** Resolves workspace ID from params or URL path */
   const resolveWorkspaceIdFromPath = useCallback((): string | undefined => {
     if (workspaceId) return workspaceId
     if (typeof window === 'undefined') return undefined
@@ -377,7 +420,6 @@ export function Sidebar() {
     return parts[idx + 1]
   }, [workspaceId])
 
-  /** Registers global sidebar commands with the central commands registry */
   useRegisterGlobalCommands(() =>
     createCommands([
       {
@@ -439,7 +481,7 @@ export function Sidebar() {
     <>
       {isCollapsed ? (
         /* Floating collapsed header - minimal pill showing workspace name and expand toggle */
-        <div className='fixed top-[14px] left-[10px] z-10 w-fit rounded-[10px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] py-[6px]'>
+        <div className='fixed top-[14px] left-[10px] z-10 w-fit rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] py-[4px] pr-[10px] pl-[6px]'>
           <WorkspaceHeader
             activeWorkspace={activeWorkspace}
             workspaceId={workspaceId}
@@ -459,6 +501,8 @@ export function Sidebar() {
             onImportWorkspace={handleImportWorkspace}
             isImportingWorkspace={isImportingWorkspace}
             showCollapseButton={isOnWorkflowPage}
+            onLeaveWorkspace={handleLeaveWorkspaceWrapper}
+            sessionUserId={sessionData?.user?.id}
           />
         </div>
       ) : (
@@ -492,6 +536,8 @@ export function Sidebar() {
                   onImportWorkspace={handleImportWorkspace}
                   isImportingWorkspace={isImportingWorkspace}
                   showCollapseButton={isOnWorkflowPage}
+                  onLeaveWorkspace={handleLeaveWorkspaceWrapper}
+                  sessionUserId={sessionData?.user?.id}
                 />
               </div>
 
@@ -518,21 +564,31 @@ export function Sidebar() {
                       Workflows
                     </div>
                     <div className='flex items-center justify-center gap-[10px]'>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            className='translate-y-[-0.25px] p-[1px]'
-                            onClick={handleImportWorkflow}
-                            disabled={isImporting || !canEdit}
-                          >
-                            <ArrowDown className='h-[14px] w-[14px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
-                          <p>{isImporting ? 'Importing workflow...' : 'Import workflow'}</p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                      {isImporting ? (
+                        <Button
+                          variant='ghost'
+                          className='translate-y-[-0.25px] p-[1px]'
+                          disabled={!canEdit || isImporting}
+                        >
+                          <Loader className='h-[14px] w-[14px]' animate />
+                        </Button>
+                      ) : (
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              variant='ghost'
+                              className='translate-y-[-0.25px] p-[1px]'
+                              onClick={handleImportWorkflow}
+                              disabled={!canEdit}
+                            >
+                              <Download className='h-[14px] w-[14px]' />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
+                            <p>Import workflows</p>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      )}
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
@@ -544,7 +600,7 @@ export function Sidebar() {
                             <FolderPlus className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>{isCreatingFolder ? 'Creating folder...' : 'Create folder'}</p>
                         </Tooltip.Content>
                       </Tooltip.Root>
@@ -559,7 +615,7 @@ export function Sidebar() {
                             <Plus className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>{isCreatingWorkflow ? 'Creating workflow...' : 'Create workflow'}</p>
                         </Tooltip.Content>
                       </Tooltip.Root>
@@ -575,10 +631,13 @@ export function Sidebar() {
                   <WorkflowList
                     regularWorkflows={regularWorkflows}
                     isLoading={isLoading}
-                    isImporting={isImporting}
-                    setIsImporting={setIsImporting}
+                    canReorder={canEdit}
+                    handleFileChange={handleImportFileChange}
                     fileInputRef={fileInputRef}
                     scrollContainerRef={scrollContainerRef}
+                    onCreateWorkflow={handleCreateWorkflow}
+                    onCreateFolder={handleCreateFolder}
+                    disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
                   />
                 </div>
               </div>
@@ -629,12 +688,23 @@ export function Sidebar() {
                       href={item.href!}
                       data-item-id={item.id}
                       className={`${baseClasses} ${activeClasses}`}
+                      onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
                     >
                       {content}
                     </Link>
                   )
                 })}
               </div>
+
+              {/* Nav Item Context Menu */}
+              <NavItemContextMenu
+                isOpen={isNavContextMenuOpen}
+                position={navContextMenuPosition}
+                menuRef={navMenuRef}
+                onClose={handleNavContextMenuClose}
+                onOpenInNewTab={handleNavOpenInNewTab}
+                onCopyLink={handleNavCopyLink}
+              />
             </div>
           </aside>
 
@@ -661,7 +731,12 @@ export function Sidebar() {
       />
 
       {/* Footer Navigation Modals */}
-      <HelpModal open={isHelpModalOpen} onOpenChange={setIsHelpModalOpen} />
+      <HelpModal
+        open={isHelpModalOpen}
+        onOpenChange={setIsHelpModalOpen}
+        workflowId={workflowId}
+        workspaceId={workspaceId}
+      />
       <SettingsModal
         open={isSettingsModalOpen}
         onOpenChange={(open) => (open ? openSettingsModal() : closeSettingsModal())}
@@ -677,4 +752,4 @@ export function Sidebar() {
       />
     </>
   )
-}
+})

@@ -1,20 +1,24 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
+import { USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
+import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import {
+  getBillingStatus,
   getFilledPillColor,
-  USAGE_PILL_COLORS,
-  USAGE_THRESHOLDS,
-} from '@/lib/billing/client/usage-visualization'
-import { getBillingStatus, getSubscriptionStatus, getUsage } from '@/lib/billing/client/utils'
+  getSubscriptionStatus,
+  getUsage,
+} from '@/lib/billing/client/utils'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useSidebarStore } from '@/stores/sidebar/store'
+import { UsageIndicatorContextMenu } from './usage-indicator-context-menu'
 
 const logger = createLogger('UsageIndicator')
 
@@ -188,6 +192,8 @@ interface UsageIndicatorProps {
   onClick?: () => void
 }
 
+const TYPEFORM_ENTERPRISE_URL = 'https://form.typeform.com/to/jqCO12pF'
+
 /**
  * Displays a visual usage indicator with animated pill bar.
  */
@@ -196,6 +202,15 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   const sidebarWidth = useSidebarStore((state) => state.sidebarWidth)
   const { onOperationConfirmed } = useSocket()
   const queryClient = useQueryClient()
+  const { handleUpgrade } = useSubscriptionUpgrade()
+
+  const {
+    isOpen: isContextMenuOpen,
+    position: contextMenuPosition,
+    menuRef: contextMenuRef,
+    handleContextMenu,
+    closeMenu: closeContextMenu,
+  } = useContextMenu()
 
   useEffect(() => {
     const handleOperationConfirmed = () => {
@@ -265,6 +280,96 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   const filledPillsCount = Math.ceil((progressPercentage / 100) * pillCount)
   const filledColor = getFilledPillColor(isCritical, isWarning)
+
+  const isFree = planType === 'free'
+  const isPro = planType === 'pro'
+  const isTeam = planType === 'team'
+  const isEnterprise = planType === 'enterprise'
+
+  const handleUpgradeToPro = useCallback(async () => {
+    try {
+      await handleUpgrade('pro')
+    } catch (error) {
+      logger.error('Failed to upgrade to Pro', { error })
+    }
+  }, [handleUpgrade])
+
+  const handleUpgradeToTeam = useCallback(async () => {
+    try {
+      await handleUpgrade('team')
+    } catch (error) {
+      logger.error('Failed to upgrade to Team', { error })
+    }
+  }, [handleUpgrade])
+
+  const handleSetLimit = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'subscription' } }))
+  }, [])
+
+  const handleManageSeats = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'team' } }))
+  }, [])
+
+  const handleUpgradeToEnterprise = useCallback(() => {
+    window.open(TYPEFORM_ENTERPRISE_URL, '_blank')
+  }, [])
+
+  const handleContactSupport = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-help-modal'))
+  }, [])
+
+  const contextMenuItems = useMemo(
+    () => ({
+      // Set limit: Only for Pro and Team admins (not free, not enterprise)
+      showSetLimit: (isPro || (isTeam && userCanManageBilling)) && !isEnterprise,
+      // Upgrade to Pro: Only for free users
+      showUpgradeToPro: isFree,
+      // Upgrade to Team: Free users and Pro users with billing permission
+      showUpgradeToTeam: isFree || (isPro && userCanManageBilling),
+      // Manage seats: Only for Team admins
+      showManageSeats: isTeam && userCanManageBilling,
+      // Upgrade to Enterprise: Only for Team admins (not free, not pro, not enterprise)
+      showUpgradeToEnterprise: isTeam && userCanManageBilling,
+      // Contact support: Only for Enterprise admins
+      showContactSupport: isEnterprise && userCanManageBilling,
+      onSetLimit: handleSetLimit,
+      onUpgradeToPro: handleUpgradeToPro,
+      onUpgradeToTeam: handleUpgradeToTeam,
+      onManageSeats: handleManageSeats,
+      onUpgradeToEnterprise: handleUpgradeToEnterprise,
+      onContactSupport: handleContactSupport,
+    }),
+    [
+      isFree,
+      isPro,
+      isTeam,
+      isEnterprise,
+      userCanManageBilling,
+      handleSetLimit,
+      handleUpgradeToPro,
+      handleUpgradeToTeam,
+      handleManageSeats,
+      handleUpgradeToEnterprise,
+      handleContactSupport,
+    ]
+  )
+
+  // Check if any context menu items will be visible
+  const hasContextMenuItems =
+    contextMenuItems.showSetLimit ||
+    contextMenuItems.showUpgradeToPro ||
+    contextMenuItems.showUpgradeToTeam ||
+    contextMenuItems.showManageSeats ||
+    contextMenuItems.showUpgradeToEnterprise ||
+    contextMenuItems.showContactSupport
+
+  const handleContextMenuWithCheck = useCallback(
+    (e: React.MouseEvent) => {
+      if (!hasContextMenuItems) return
+      handleContextMenu(e)
+    },
+    [hasContextMenuItems, handleContextMenu]
+  )
 
   const [isHovered, setIsHovered] = useState(false)
   const [wavePosition, setWavePosition] = useState<number | null>(null)
@@ -359,82 +464,93 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   }
 
   return (
-    <div
-      className='group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'
-      onClick={handleClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Top row */}
-      <div className='flex h-[18px] items-center justify-between'>
-        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
-          {showPlanText && (
-            <>
-              <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-primary)]'>
-                {PLAN_NAMES[planType]}
-              </span>
-              <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
-            </>
-          )}
-          <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
-            {statusText.isError ? (
-              <span className='font-medium text-[12px] text-[var(--text-error)]'>
-                {statusText.text}
-              </span>
-            ) : (
+    <>
+      <div
+        className='group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'
+        onClick={handleClick}
+        onContextMenu={handleContextMenuWithCheck}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Top row */}
+        <div className='flex h-[18px] items-center justify-between'>
+          <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
+            {showPlanText && (
               <>
-                <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
-                  ${usage.current.toFixed(2)}
+                <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-primary)]'>
+                  {PLAN_NAMES[planType]}
                 </span>
-                <span className='font-medium text-[12px] text-[var(--text-secondary)]'>/</span>
-                <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
-                  ${usage.limit.toFixed(2)}
-                </span>
+                <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
               </>
             )}
+            <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
+              {statusText.isError ? (
+                <span className='font-medium text-[12px] text-[var(--text-error)]'>
+                  {statusText.text}
+                </span>
+              ) : (
+                <>
+                  <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
+                    ${usage.current.toFixed(2)}
+                  </span>
+                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>/</span>
+                  <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
+                    ${usage.limit.toFixed(2)}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
+          {badgeConfig.show && (
+            <Badge variant={badgeConfig.variant} size='sm' className='-translate-y-[1px]'>
+              {badgeConfig.label}
+            </Badge>
+          )}
         </div>
-        {badgeConfig.show && (
-          <Badge variant={badgeConfig.variant} size='sm' className='-translate-y-[1px]'>
-            {badgeConfig.label}
-          </Badge>
-        )}
-      </div>
 
-      {/* Pills row */}
-      <div className='flex items-center gap-[4px]'>
-        {Array.from({ length: pillCount }).map((_, i) => {
-          const isFilled = i < filledPillsCount
-          const baseColor = isFilled ? filledColor : USAGE_PILL_COLORS.UNFILLED
+        {/* Pills row */}
+        <div className='flex items-center gap-[4px]'>
+          {Array.from({ length: pillCount }).map((_, i) => {
+            const isFilled = i < filledPillsCount
+            const baseColor = isFilled ? filledColor : USAGE_PILL_COLORS.UNFILLED
 
-          const backgroundColor = baseColor
-          let backgroundImage: string | undefined
+            const backgroundColor = baseColor
+            let backgroundImage: string | undefined
 
-          if (isHovered && wavePosition !== null) {
-            const headIndex = Math.floor(wavePosition)
-            const pillOffsetFromStart = i - startAnimationIndex
+            if (isHovered && wavePosition !== null) {
+              const headIndex = Math.floor(wavePosition)
+              const pillOffsetFromStart = i - startAnimationIndex
 
-            if (pillOffsetFromStart >= 0 && pillOffsetFromStart < headIndex) {
-              backgroundImage = `linear-gradient(to right, ${filledColor}, ${filledColor})`
-            } else if (pillOffsetFromStart === headIndex) {
-              const fillPercent = (wavePosition - headIndex) * 100
-              backgroundImage = `linear-gradient(to right, ${filledColor} ${fillPercent}%, ${baseColor} ${fillPercent}%)`
+              if (pillOffsetFromStart >= 0 && pillOffsetFromStart < headIndex) {
+                backgroundImage = `linear-gradient(to right, ${filledColor}, ${filledColor})`
+              } else if (pillOffsetFromStart === headIndex) {
+                const fillPercent = (wavePosition - headIndex) * 100
+                backgroundImage = `linear-gradient(to right, ${filledColor} ${fillPercent}%, ${baseColor} ${fillPercent}%)`
+              }
             }
-          }
 
-          return (
-            <div
-              key={i}
-              className='h-[6px] flex-1 rounded-[2px]'
-              style={{
-                backgroundColor,
-                backgroundImage,
-                transition: isHovered ? 'none' : 'background-color 200ms',
-              }}
-            />
-          )
-        })}
+            return (
+              <div
+                key={i}
+                className='h-[6px] flex-1 rounded-[2px]'
+                style={{
+                  backgroundColor,
+                  backgroundImage,
+                  transition: isHovered ? 'none' : 'background-color 200ms',
+                }}
+              />
+            )
+          })}
+        </div>
       </div>
-    </div>
+
+      <UsageIndicatorContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        menuRef={contextMenuRef}
+        onClose={closeContextMenu}
+        menuItems={contextMenuItems}
+      />
+    </>
   )
 }

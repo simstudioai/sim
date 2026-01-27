@@ -1,21 +1,33 @@
-import { db, webhook, workflow } from '@sim/db'
+import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
+import { credentialSet, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
+import { isProd, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
+  validateCirclebackSignature,
+  validateFirefliesSignature,
+  validateGitHubSignature,
+  validateJiraSignature,
+  validateLinearSignature,
   validateMicrosoftTeamsSignature,
+  validateTwilioSignature,
+  validateTypeformSignature,
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
 import { executeWebhookJob } from '@/background/webhook-execution'
-import { REFERENCE } from '@/executor/constants'
-import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import { isGitHubEventMatch } from '@/triggers/github/utils'
+import { isHubSpotContactEventMatch } from '@/triggers/hubspot/utils'
+import { isJiraEventMatch } from '@/triggers/jira/utils'
 
 const logger = createLogger('WebhookProcessor')
 
@@ -23,8 +35,6 @@ export interface WebhookProcessorOptions {
   requestId: string
   path?: string
   webhookId?: string
-  testMode?: boolean
-  executionTarget?: 'deployed' | 'live'
 }
 
 function getExternalUrl(request: NextRequest): string {
@@ -38,6 +48,48 @@ function getExternalUrl(request: NextRequest): string {
   }
 
   return request.url
+}
+
+async function verifyCredentialSetBilling(credentialSetId: string): Promise<{
+  valid: boolean
+  error?: string
+}> {
+  if (!isProd) {
+    return { valid: true }
+  }
+
+  const [set] = await db
+    .select({ organizationId: credentialSet.organizationId })
+    .from(credentialSet)
+    .where(eq(credentialSet.id, credentialSetId))
+    .limit(1)
+
+  if (!set) {
+    return { valid: false, error: 'Credential set not found' }
+  }
+
+  const [orgSub] = await db
+    .select()
+    .from(subscription)
+    .where(and(eq(subscription.referenceId, set.organizationId), eq(subscription.status, 'active')))
+    .limit(1)
+
+  if (!orgSub) {
+    return {
+      valid: false,
+      error: 'Credential sets require a Team or Enterprise plan. Please upgrade to continue.',
+    }
+  }
+
+  const hasTeamPlan = checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub)
+  if (!hasTeamPlan) {
+    return {
+      valid: false,
+      error: 'Credential sets require a Team or Enterprise plan. Please upgrade to continue.',
+    }
+  }
+
+  return { valid: true }
 }
 
 export async function parseWebhookBody(
@@ -109,6 +161,17 @@ export async function handleProviderChallenges(
   }
 
   const url = new URL(request.url)
+
+  // Microsoft Graph subscription validation (can come as GET or POST)
+  const validationToken = url.searchParams.get('validationToken')
+  if (validationToken) {
+    logger.info(`[${requestId}] Microsoft Graph subscription validation for path: ${path}`)
+    return new NextResponse(validationToken, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    })
+  }
+
   const mode = url.searchParams.get('hub.mode')
   const token = url.searchParams.get('hub.verify_token')
   const challenge = url.searchParams.get('hub.challenge')
@@ -118,6 +181,116 @@ export async function handleProviderChallenges(
     return whatsAppResponse
   }
 
+  return null
+}
+
+/**
+ * Handle provider-specific reachability tests that occur AFTER webhook lookup.
+ *
+ * @param webhook - The webhook record from the database
+ * @param body - The parsed request body
+ * @param requestId - Request ID for logging
+ * @returns NextResponse if this is a verification request, null to continue normal flow
+ */
+export function handleProviderReachabilityTest(
+  webhook: any,
+  body: any,
+  requestId: string
+): NextResponse | null {
+  const provider = webhook?.provider
+
+  if (provider === 'grain') {
+    const isVerificationRequest = !body || Object.keys(body).length === 0 || !body.type
+    if (isVerificationRequest) {
+      logger.info(
+        `[${requestId}] Grain reachability test detected - returning 200 for webhook verification`
+      )
+      return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
+    }
+  }
+
+  return null
+}
+
+/**
+ * Format error response based on provider requirements.
+ * Some providers (like Microsoft Teams) require specific response formats.
+ */
+export function formatProviderErrorResponse(
+  webhook: any,
+  error: string,
+  status: number
+): NextResponse {
+  if (webhook.provider === 'microsoft-teams') {
+    return NextResponse.json({ type: 'message', text: error }, { status })
+  }
+  return NextResponse.json({ error }, { status })
+}
+
+/**
+ * Check if a webhook event should be skipped based on provider-specific filtering.
+ * Returns true if the event should be skipped, false if it should be processed.
+ */
+export function shouldSkipWebhookEvent(webhook: any, body: any, requestId: string): boolean {
+  const providerConfig = (webhook.providerConfig as Record<string, any>) || {}
+
+  if (webhook.provider === 'stripe') {
+    const eventTypes = providerConfig.eventTypes
+    if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {
+      const eventType = body?.type
+      if (eventType && !eventTypes.includes(eventType)) {
+        logger.info(
+          `[${requestId}] Stripe event type '${eventType}' not in allowed list for webhook ${webhook.id}, skipping`
+        )
+        return true
+      }
+    }
+  }
+
+  if (webhook.provider === 'grain') {
+    const eventTypes = providerConfig.eventTypes
+    if (eventTypes && Array.isArray(eventTypes) && eventTypes.length > 0) {
+      const eventType = body?.type
+      if (eventType && !eventTypes.includes(eventType)) {
+        logger.info(
+          `[${requestId}] Grain event type '${eventType}' not in allowed list for webhook ${webhook.id}, skipping`
+        )
+        return true
+      }
+    }
+  }
+
+  // Webflow collection filtering - filter by collectionId if configured
+  if (webhook.provider === 'webflow') {
+    const configuredCollectionId = providerConfig.collectionId
+    if (configuredCollectionId) {
+      const payloadCollectionId = body?.payload?.collectionId || body?.collectionId
+      if (payloadCollectionId && payloadCollectionId !== configuredCollectionId) {
+        logger.info(
+          `[${requestId}] Webflow collection '${payloadCollectionId}' doesn't match configured collection '${configuredCollectionId}' for webhook ${webhook.id}, skipping`
+        )
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+/** Providers that validate webhook URLs during creation, before workflow deployment */
+const PROVIDERS_WITH_PRE_DEPLOYMENT_VERIFICATION = new Set(['grain'])
+
+/** Returns 200 OK for providers that validate URLs before the workflow is deployed */
+export function handlePreDeploymentVerification(
+  webhook: any,
+  requestId: string
+): NextResponse | null {
+  if (PROVIDERS_WITH_PRE_DEPLOYMENT_VERIFICATION.has(webhook.provider)) {
+    logger.info(
+      `[${requestId}] ${webhook.provider} webhook - block not in deployment, returning 200 OK for URL validation`
+    )
+    return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
+  }
   return null
 }
 
@@ -132,7 +305,23 @@ export async function findWebhookAndWorkflow(
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(and(eq(webhook.id, options.webhookId), eq(webhook.isActive, true)))
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .where(
+        and(
+          eq(webhook.id, options.webhookId),
+          eq(webhook.isActive, true),
+          or(
+            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+          )
+        )
+      )
       .limit(1)
 
     if (results.length === 0) {
@@ -151,7 +340,23 @@ export async function findWebhookAndWorkflow(
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(and(eq(webhook.path, options.path), eq(webhook.isActive, true)))
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .where(
+        and(
+          eq(webhook.path, options.path),
+          eq(webhook.isActive, true),
+          or(
+            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+          )
+        )
+      )
       .limit(1)
 
     if (results.length === 0) {
@@ -166,25 +371,60 @@ export async function findWebhookAndWorkflow(
 }
 
 /**
+ * Find ALL webhooks matching a path.
+ * Used for credential sets where multiple webhooks share the same path.
+ */
+export async function findAllWebhooksForPath(
+  options: WebhookProcessorOptions
+): Promise<Array<{ webhook: any; workflow: any }>> {
+  if (!options.path) {
+    return []
+  }
+
+  const results = await db
+    .select({
+      webhook: webhook,
+      workflow: workflow,
+    })
+    .from(webhook)
+    .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+    .leftJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflow.id),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .where(
+      and(
+        eq(webhook.path, options.path),
+        eq(webhook.isActive, true),
+        or(
+          eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+          and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+        )
+      )
+    )
+
+  if (results.length === 0) {
+    logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
+  } else if (results.length > 1) {
+    logger.info(
+      `[${options.requestId}] Found ${results.length} webhooks for path: ${options.path} (credential set fan-out)`
+    )
+  }
+
+  return results
+}
+
+/**
  * Resolve {{VARIABLE}} references in a string value
  * @param value - String that may contain {{VARIABLE}} references
  * @param envVars - Already decrypted environment variables
  * @returns String with all {{VARIABLE}} references replaced
  */
 function resolveEnvVars(value: string, envVars: Record<string, string>): string {
-  const envVarPattern = createEnvVarPattern()
-  const envMatches = value.match(envVarPattern)
-  if (!envMatches) return value
-
-  let resolvedValue = value
-  for (const match of envMatches) {
-    const envKey = match.slice(REFERENCE.ENV_VAR_START.length, -REFERENCE.ENV_VAR_END.length).trim()
-    const envValue = envVars[envKey]
-    if (envValue !== undefined) {
-      resolvedValue = resolvedValue.replaceAll(match, envValue)
-    }
-  }
-  return resolvedValue
+  return resolveEnvVarReferences(value, envVars) as string
 }
 
 /**
@@ -222,7 +462,6 @@ export async function verifyProviderAuth(
   // Step 1: Fetch and decrypt environment variables for signature verification
   let decryptedEnvVars: Record<string, string> = {}
   try {
-    const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
     decryptedEnvVars = await getEffectiveDecryptedEnv(
       foundWorkflow.userId,
       foundWorkflow.workspaceId
@@ -324,9 +563,6 @@ export async function verifyProviderAuth(
       }
 
       const fullUrl = getExternalUrl(request)
-
-      const { validateTwilioSignature } = await import('@/lib/webhooks/utils.server')
-
       const isValidSignature = await validateTwilioSignature(authToken, signature, fullUrl, params)
 
       if (!isValidSignature) {
@@ -354,8 +590,6 @@ export async function verifyProviderAuth(
         return new NextResponse('Unauthorized - Missing Typeform signature', { status: 401 })
       }
 
-      const { validateTypeformSignature } = await import('@/lib/webhooks/utils.server')
-
       const isValidSignature = validateTypeformSignature(secret, signature, rawBody)
 
       if (!isValidSignature) {
@@ -380,8 +614,6 @@ export async function verifyProviderAuth(
         logger.warn(`[${requestId}] Linear webhook missing signature header`)
         return new NextResponse('Unauthorized - Missing Linear signature', { status: 401 })
       }
-
-      const { validateLinearSignature } = await import('@/lib/webhooks/utils.server')
 
       const isValidSignature = validateLinearSignature(secret, signature, rawBody)
 
@@ -408,8 +640,6 @@ export async function verifyProviderAuth(
         return new NextResponse('Unauthorized - Missing Circleback signature', { status: 401 })
       }
 
-      const { validateCirclebackSignature } = await import('@/lib/webhooks/utils.server')
-
       const isValidSignature = validateCirclebackSignature(secret, signature, rawBody)
 
       if (!isValidSignature) {
@@ -434,8 +664,6 @@ export async function verifyProviderAuth(
         logger.warn(`[${requestId}] Jira webhook missing signature header`)
         return new NextResponse('Unauthorized - Missing Jira signature', { status: 401 })
       }
-
-      const { validateJiraSignature } = await import('@/lib/webhooks/utils.server')
 
       const isValidSignature = validateJiraSignature(secret, signature, rawBody)
 
@@ -465,8 +693,6 @@ export async function verifyProviderAuth(
         return new NextResponse('Unauthorized - Missing GitHub signature', { status: 401 })
       }
 
-      const { validateGitHubSignature } = await import('@/lib/webhooks/utils.server')
-
       const isValidSignature = validateGitHubSignature(secret, signature, rawBody)
 
       if (!isValidSignature) {
@@ -481,6 +707,31 @@ export async function verifyProviderAuth(
       logger.debug(`[${requestId}] GitHub signature verified successfully`, {
         usingSha256: !!signature256,
       })
+    }
+  }
+
+  if (foundWebhook.provider === 'fireflies') {
+    const secret = providerConfig.webhookSecret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('x-hub-signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Fireflies webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Fireflies signature', { status: 401 })
+      }
+
+      const isValidSignature = validateFirefliesSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Fireflies signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Fireflies signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Fireflies signature verified successfully`)
     }
   }
 
@@ -524,17 +775,12 @@ export async function verifyProviderAuth(
 /**
  * Run preprocessing checks for webhook execution
  * This replaces the old checkRateLimits and checkUsageLimits functions
- *
- * @param isTestMode - If true, skips deployment check (for test webhooks that run on live/draft state)
  */
 export async function checkWebhookPreprocessing(
   foundWorkflow: any,
   foundWebhook: any,
-  requestId: string,
-  options?: { isTestMode?: boolean }
+  requestId: string
 ): Promise<NextResponse | null> {
-  const { isTestMode = false } = options || {}
-
   try {
     const executionId = uuidv4()
 
@@ -544,8 +790,8 @@ export async function checkWebhookPreprocessing(
       triggerType: 'webhook',
       executionId,
       requestId,
-      checkRateLimit: true, // Webhooks need rate limiting
-      checkDeployment: !isTestMode, // Test webhooks skip deployment check (run on live state)
+      checkRateLimit: true,
+      checkDeployment: true,
       workspaceId: foundWorkflow.workspaceId,
     })
 
@@ -609,8 +855,6 @@ export async function queueWebhookExecution(
         const eventType = request.headers.get('x-github-event')
         const action = body.action
 
-        const { isGitHubEventMatch } = await import('@/triggers/github/utils')
-
         if (!isGitHubEventMatch(triggerId, eventType || '', action, body)) {
           logger.debug(
             `[${options.requestId}] GitHub event mismatch for trigger ${triggerId}. Event: ${eventType}, Action: ${action}. Skipping execution.`,
@@ -638,8 +882,6 @@ export async function queueWebhookExecution(
 
       if (triggerId && triggerId !== 'jira_webhook') {
         const webhookEvent = body.webhookEvent as string | undefined
-
-        const { isJiraEventMatch } = await import('@/triggers/jira/utils')
 
         if (!isJiraEventMatch(triggerId, webhookEvent || '', body)) {
           logger.debug(
@@ -669,8 +911,6 @@ export async function queueWebhookExecution(
         const firstEvent = events[0]
 
         const subscriptionType = firstEvent?.subscriptionType as string | undefined
-
-        const { isHubSpotContactEventMatch } = await import('@/triggers/hubspot/utils')
 
         if (!isHubSpotContactEventMatch(triggerId, subscriptionType || '')) {
           logger.debug(
@@ -719,9 +959,23 @@ export async function queueWebhookExecution(
       }
     }
 
-    // Extract credentialId from webhook config for credential-based webhooks
+    // Extract credentialId from webhook config
+    // Note: Each webhook now has its own credentialId (credential sets are fanned out at save time)
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
+    // credentialSetId is a direct field on webhook table, not in providerConfig
+    const credentialSetId = foundWebhook.credentialSetId as string | undefined
+
+    // Verify billing for credential sets
+    if (credentialSetId) {
+      const billingCheck = await verifyCredentialSetBilling(credentialSetId)
+      if (!billingCheck.valid) {
+        logger.warn(
+          `[${options.requestId}] Credential set billing check failed: ${billingCheck.error}`
+        )
+        return NextResponse.json({ error: billingCheck.error }, { status: 403 })
+      }
+    }
 
     const payload = {
       webhookId: foundWebhook.id,
@@ -732,26 +986,20 @@ export async function queueWebhookExecution(
       headers,
       path: options.path || foundWebhook.path,
       blockId: foundWebhook.blockId,
-      testMode: options.testMode,
-      executionTarget: options.executionTarget,
       ...(credentialId ? { credentialId } : {}),
     }
 
     if (isTriggerDevEnabled) {
       const handle = await tasks.trigger('webhook-execution', payload)
       logger.info(
-        `[${options.requestId}] Queued ${options.testMode ? 'TEST ' : ''}webhook execution task ${
-          handle.id
-        } for ${foundWebhook.provider} webhook`
+        `[${options.requestId}] Queued webhook execution task ${handle.id} for ${foundWebhook.provider} webhook`
       )
     } else {
       void executeWebhookJob(payload).catch((error) => {
         logger.error(`[${options.requestId}] Direct webhook execution failed`, error)
       })
       logger.info(
-        `[${options.requestId}] Queued direct ${
-          options.testMode ? 'TEST ' : ''
-        }webhook execution for ${foundWebhook.provider} webhook (Trigger.dev disabled)`
+        `[${options.requestId}] Queued direct webhook execution for ${foundWebhook.provider} webhook (Trigger.dev disabled)`
       )
     }
 

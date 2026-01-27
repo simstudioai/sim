@@ -33,7 +33,7 @@ export function useWorkspaceManagement({
 }: UseWorkspaceManagementProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { switchToWorkspace } = useWorkflowRegistry()
+  const switchToWorkspace = useWorkflowRegistry((state) => state.switchToWorkspace)
 
   // Workspace management state
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -95,10 +95,6 @@ export function useWorkspaceManagement({
     }
   }, [])
 
-  /**
-   * Fetch workspaces for the current user with full validation and URL handling
-   * Uses refs for workspaceId and router to avoid unnecessary recreations
-   */
   const fetchWorkspaces = useCallback(async () => {
     setIsWorkspacesLoading(true)
     try {
@@ -161,7 +157,10 @@ export function useWorkspaceManagement({
         }
 
         // Update local state immediately after successful API call
-        setActiveWorkspace((prev) => (prev ? { ...prev, name: newName.trim() } : null))
+        // Only update activeWorkspace if it's the one being renamed
+        setActiveWorkspace((prev) =>
+          prev && prev.id === workspaceId ? { ...prev, name: newName.trim() } : prev
+        )
         setWorkspaces((prev) =>
           prev.map((workspace) =>
             workspace.id === workspaceId ? { ...workspace, name: newName.trim() } : workspace
@@ -178,10 +177,6 @@ export function useWorkspaceManagement({
     []
   )
 
-  /**
-   * Switch to a different workspace
-   * Uses refs for activeWorkspace and router to avoid unnecessary recreations
-   */
   const switchWorkspace = useCallback(
     async (workspace: Workspace) => {
       // If already on this workspace, return

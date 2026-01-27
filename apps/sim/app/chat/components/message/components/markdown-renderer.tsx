@@ -1,4 +1,4 @@
-import React, { type HTMLAttributes, type ReactNode } from 'react'
+import React, { type HTMLAttributes, memo, type ReactNode, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Tooltip } from '@/components/emcn'
@@ -16,31 +16,23 @@ export function LinkWithPreview({ href, children }: { href: string; children: Re
           {children}
         </a>
       </Tooltip.Trigger>
-      <Tooltip.Content side='top' align='center' sideOffset={5} className='max-w-sm p-3'>
+      <Tooltip.Content side='top' align='center' sideOffset={5} className='max-w-sm'>
         <span className='truncate font-medium text-xs'>{href}</span>
       </Tooltip.Content>
     </Tooltip.Root>
   )
 }
 
-export default function MarkdownRenderer({
-  content,
-  customLinkComponent,
-}: {
-  content: string
-  customLinkComponent?: typeof LinkWithPreview
-}) {
-  const LinkComponent = customLinkComponent || LinkWithPreview
+const REMARK_PLUGINS = [remarkGfm]
 
-  const customComponents = {
-    // Paragraph
+function createCustomComponents(LinkComponent: typeof LinkWithPreview) {
+  return {
     p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
       <p className='mb-1 font-sans text-base text-gray-800 leading-relaxed last:mb-0 dark:text-gray-200'>
         {children}
       </p>
     ),
 
-    // Headings
     h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
       <h1 className='mt-10 mb-5 font-sans font-semibold text-2xl text-gray-900 dark:text-gray-100'>
         {children}
@@ -62,7 +54,6 @@ export default function MarkdownRenderer({
       </h4>
     ),
 
-    // Lists
     ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
       <ul
         className='mt-1 mb-1 space-y-1 pl-6 font-sans text-gray-800 dark:text-gray-200'
@@ -89,7 +80,6 @@ export default function MarkdownRenderer({
       </li>
     ),
 
-    // Code blocks
     pre: ({ children }: HTMLAttributes<HTMLPreElement>) => {
       let codeProps: HTMLAttributes<HTMLElement> = {}
       let codeContent: ReactNode = children
@@ -120,7 +110,6 @@ export default function MarkdownRenderer({
       )
     },
 
-    // Inline code
     code: ({
       inline,
       className,
@@ -144,24 +133,20 @@ export default function MarkdownRenderer({
       )
     },
 
-    // Blockquotes
     blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
       <blockquote className='my-4 border-gray-300 border-l-4 py-1 pl-4 font-sans text-gray-700 italic dark:border-gray-600 dark:text-gray-300'>
         {children}
       </blockquote>
     ),
 
-    // Horizontal rule
     hr: () => <hr className='my-8 border-gray-500/[.07] border-t dark:border-gray-400/[.07]' />,
 
-    // Links
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
       <LinkComponent href={href || '#'} {...props}>
         {children}
       </LinkComponent>
     ),
 
-    // Tables
     table: ({ children }: React.TableHTMLAttributes<HTMLTableElement>) => (
       <div className='my-4 w-full overflow-x-auto'>
         <table className='min-w-full table-auto border border-gray-300 font-sans text-sm dark:border-gray-700'>
@@ -193,7 +178,6 @@ export default function MarkdownRenderer({
       </td>
     ),
 
-    // Images
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
       <img
         src={src}
@@ -203,15 +187,33 @@ export default function MarkdownRenderer({
       />
     ),
   }
+}
 
-  // Pre-process content to fix common issues
+const DEFAULT_COMPONENTS = createCustomComponents(LinkWithPreview)
+
+const MarkdownRenderer = memo(function MarkdownRenderer({
+  content,
+  customLinkComponent,
+}: {
+  content: string
+  customLinkComponent?: typeof LinkWithPreview
+}) {
+  const components = useMemo(() => {
+    if (!customLinkComponent) {
+      return DEFAULT_COMPONENTS
+    }
+    return createCustomComponents(customLinkComponent)
+  }, [customLinkComponent])
+
   const processedContent = content.trim()
 
   return (
     <div className='space-y-4 break-words font-sans text-[#0D0D0D] text-base leading-relaxed dark:text-gray-100'>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={customComponents}>
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
         {processedContent}
       </ReactMarkdown>
     </div>
   )
-}
+})
+
+export default MarkdownRenderer

@@ -3,14 +3,14 @@
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createMockRequest,
   mockAuth,
   mockConsoleLogger,
   mockDrizzleOrm,
   mockKnowledgeSchemas,
-} from '@/app/api/__test-utils__/utils'
+} from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 mockKnowledgeSchemas()
 mockDrizzleOrm()

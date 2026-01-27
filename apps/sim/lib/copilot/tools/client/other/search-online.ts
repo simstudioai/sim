@@ -1,19 +1,9 @@
-import { createLogger } from '@sim/logger'
 import { Globe, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
-
-interface SearchOnlineArgs {
-  query: string
-  num?: number
-  type?: string
-  gl?: string
-  hl?: string
-}
 
 export class SearchOnlineClientTool extends BaseClientTool {
   static readonly id = 'search_online'
@@ -27,57 +17,36 @@ export class SearchOnlineClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Searching online', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Searching online', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Searching online', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Online search complete', icon: Globe },
+      [ClientToolCallState.success]: { text: 'Completed online search', icon: Globe },
       [ClientToolCallState.error]: { text: 'Failed to search online', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped online search', icon: MinusCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted online search', icon: XCircle },
     },
+    interrupt: undefined,
     getDynamicText: (params, state) => {
       if (params?.query && typeof params.query === 'string') {
         const query = params.query
-        const truncated = query.length > 50 ? `${query.slice(0, 50)}...` : query
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Searched online for ${truncated}`
+            return `Searched online for ${query}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Searching online for ${truncated}`
+            return `Searching online for ${query}`
           case ClientToolCallState.error:
-            return `Failed to search online for ${truncated}`
+            return `Failed to search online for ${query}`
           case ClientToolCallState.aborted:
-            return `Aborted searching online for ${truncated}`
+            return `Aborted searching online for ${query}`
           case ClientToolCallState.rejected:
-            return `Skipped searching online for ${truncated}`
+            return `Skipped searching online for ${query}`
         }
       }
       return undefined
     },
   }
 
-  async execute(args?: SearchOnlineArgs): Promise<void> {
-    const logger = createLogger('SearchOnlineClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'search_online', payload: args || {} }),
-      })
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(txt || `Server error (${res.status})`)
-      }
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-      this.setState(ClientToolCallState.success)
-      await this.markToolComplete(200, 'Online search complete', parsed.result)
-      this.setState(ClientToolCallState.success)
-    } catch (e: any) {
-      logger.error('execute failed', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Search failed')
-    }
+  async execute(): Promise<void> {
+    return
   }
 }

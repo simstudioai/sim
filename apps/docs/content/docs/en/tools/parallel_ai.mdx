@@ -55,6 +55,9 @@ Search the web using Parallel AI. Provides comprehensive search results with int
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Search results with excerpts from relevant pages |
+|   ↳ `url` | string | The URL of the search result |
+|   ↳ `title` | string | The title of the search result |
+|   ↳ `excerpts` | array | Text excerpts from the page |
 
 ### `parallel_extract`
 
@@ -75,6 +78,10 @@ Extract targeted information from specific URLs using Parallel AI. Processes pro
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Extracted information from the provided URLs |
+|   ↳ `url` | string | The source URL |
+|   ↳ `title` | string | The title of the page |
+|   ↳ `content` | string | Extracted content |
+|   ↳ `excerpts` | array | Relevant text excerpts |
 
 ### `parallel_deep_research`
 
@@ -99,10 +106,15 @@ Conduct comprehensive deep research across the web using Parallel AI. Synthesize
 | `message` | string | Status message |
 | `content` | object | Research results \(structured based on output_schema\) |
 | `basis` | array | Citations and sources with reasoning and confidence levels |
+|   ↳ `field` | string | Output field name |
+|   ↳ `reasoning` | string | Explanation for the result |
+|   ↳ `citations` | array | Array of sources |
+|   ↳ `url` | string | Source URL |
+|   ↳ `title` | string | Source title |
+|   ↳ `excerpts` | array | Relevant excerpts from the source |
+|   ↳ `url` | string | Source URL |
+|   ↳ `title` | string | Source title |
+|   ↳ `excerpts` | array | Relevant excerpts from the source |
+|   ↳ `confidence` | string | Confidence level indicator |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `parallel_ai`

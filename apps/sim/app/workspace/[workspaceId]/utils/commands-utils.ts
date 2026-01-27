@@ -7,6 +7,7 @@ import type { GlobalCommand } from '@/app/workspace/[workspaceId]/providers/glob
  * ad-hoc ids or shortcuts to ensure a single source of truth.
  */
 export type CommandId =
+  | 'accept-diff-changes'
   | 'add-agent'
   | 'goto-templates'
   | 'goto-logs'
@@ -18,6 +19,7 @@ export type CommandId =
   | 'clear-terminal-console'
   | 'focus-toolbar-search'
   | 'clear-notifications'
+  | 'fit-to-view'
 
 /**
  * Static metadata for a global command.
@@ -43,6 +45,11 @@ export interface CommandDefinition {
  * All global commands must be declared here to be usable.
  */
 export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
+  'accept-diff-changes': {
+    id: 'accept-diff-changes',
+    shortcut: 'Mod+Shift+Enter',
+    allowInEditable: true,
+  },
   'add-agent': {
     id: 'add-agent',
     shortcut: 'Mod+Shift+A',
@@ -96,6 +103,11 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   'clear-notifications': {
     id: 'clear-notifications',
     shortcut: 'Mod+E',
+    allowInEditable: false,
+  },
+  'fit-to-view': {
+    id: 'fit-to-view',
+    shortcut: 'Mod+Shift+F',
     allowInEditable: false,
   },
 }

@@ -15,9 +15,14 @@ export interface ZendeskPaginationParams {
 }
 
 export interface ZendeskPagingInfo {
-  nextPage?: string | null
-  previousPage?: string | null
+  next_page?: string | null
+  previous_page?: string | null
   count: number
+}
+
+export interface ZendeskListMetadata {
+  total_returned: number
+  has_more: boolean
 }
 
 export interface ZendeskResponse<T> {
@@ -25,10 +30,7 @@ export interface ZendeskResponse<T> {
   output: {
     data?: T
     paging?: ZendeskPagingInfo
-    metadata: {
-      operation: string
-      [key: string]: any
-    }
+    metadata?: ZendeskListMetadata
     success: boolean
   }
 }

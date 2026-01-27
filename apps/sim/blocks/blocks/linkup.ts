@@ -61,12 +61,38 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
       title: 'From Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "last week" -> Calculate 7 days ago
+- "beginning of this month" -> First day of current month
+- "last year" -> January 1 of last year
+- "3 months ago" -> Calculate 3 months ago
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the from date (e.g., "last week", "beginning of this month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'toDate',
       title: 'To Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Today's date
+- "yesterday" -> Yesterday's date
+- "end of last month" -> Last day of previous month
+- "now" -> Today's date
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the to date (e.g., "today", "end of last month")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'includeDomains',

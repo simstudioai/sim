@@ -18,7 +18,7 @@ export const DEFAULT_ENTERPRISE_TIER_COST_LIMIT = 200
  * Base charge applied to every workflow execution
  * This charge is applied regardless of whether the workflow uses AI models
  */
-export const BASE_EXECUTION_CHARGE = 0.001
+export const BASE_EXECUTION_CHARGE = 0.005
 
 /**
  * Fixed cost for search tool invocation (in dollars)

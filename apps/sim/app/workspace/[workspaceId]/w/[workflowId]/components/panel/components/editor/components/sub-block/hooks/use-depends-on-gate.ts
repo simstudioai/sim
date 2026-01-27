@@ -1,9 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
+import { isEqual } from 'lodash'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
+import {
+  buildCanonicalIndex,
+  isNonEmptyValue,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 type DependsOnConfig = string[] | { all?: string[]; any?: string[] }
 
@@ -50,6 +59,13 @@ export function useDependsOnGate(
   const previewContextValues = opts?.previewContextValues
 
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
 
   // Parse dependsOn config to get all/any field lists
   const { allFields, anyFields, allDependsOnFields } = useMemo(
@@ -83,57 +99,69 @@ export function useDependsOnGate(
     return rawValue
   }
 
+  const dependencySelector = useCallback(
+    (state: ReturnType<typeof useSubBlockStore.getState>) => {
+      if (allDependsOnFields.length === 0) return {} as Record<string, unknown>
+
+      // If previewContextValues are provided (e.g., tool parameters), use those first
+      if (previewContextValues) {
+        const map: Record<string, unknown> = {}
+        for (const key of allDependsOnFields) {
+          const resolvedValue = resolveDependencyValue(
+            key,
+            previewContextValues,
+            canonicalIndex,
+            canonicalModeOverrides
+          )
+          map[key] = normalizeDependencyValue(resolvedValue)
+        }
+        return map
+      }
+
+      if (!activeWorkflowId) {
+        const map: Record<string, unknown> = {}
+        for (const key of allDependsOnFields) {
+          map[key] = null
+        }
+        return map
+      }
+
+      const workflowValues = state.workflowValues[activeWorkflowId] || {}
+      const blockValues = (workflowValues as any)[blockId] || {}
+      const map: Record<string, unknown> = {}
+      for (const key of allDependsOnFields) {
+        const resolvedValue = resolveDependencyValue(
+          key,
+          blockValues,
+          canonicalIndex,
+          canonicalModeOverrides
+        )
+        map[key] = normalizeDependencyValue(resolvedValue)
+      }
+      return map
+    },
+    [
+      allDependsOnFields,
+      previewContextValues,
+      activeWorkflowId,
+      blockId,
+      canonicalIndex,
+      canonicalModeOverrides,
+    ]
+  )
+
   // Get values for all dependency fields (both all and any)
-  const dependencyValuesMap = useSubBlockStore((state) => {
-    if (allDependsOnFields.length === 0) return {} as Record<string, unknown>
-
-    // If previewContextValues are provided (e.g., tool parameters), use those first
-    if (previewContextValues) {
-      const map: Record<string, unknown> = {}
-      for (const key of allDependsOnFields) {
-        map[key] = normalizeDependencyValue(previewContextValues[key])
-      }
-      return map
-    }
-
-    if (!activeWorkflowId) {
-      const map: Record<string, unknown> = {}
-      for (const key of allDependsOnFields) {
-        map[key] = null
-      }
-      return map
-    }
-
-    const workflowValues = state.workflowValues[activeWorkflowId] || {}
-    const blockValues = (workflowValues as any)[blockId] || {}
-    const map: Record<string, unknown> = {}
-    for (const key of allDependsOnFields) {
-      map[key] = normalizeDependencyValue((blockValues as any)[key])
-    }
-    return map
-  })
-
-  // For backward compatibility, also provide array of values
-  const dependencyValues = useMemo(
-    () => allDependsOnFields.map((key) => dependencyValuesMap[key]),
-    [allDependsOnFields, dependencyValuesMap]
-  ) as any[]
-
-  const isValueSatisfied = (value: unknown): boolean => {
-    if (value === null || value === undefined) return false
-    if (typeof value === 'string') return value.trim().length > 0
-    if (Array.isArray(value)) return value.length > 0
-    return value !== ''
-  }
+  // Use isEqual to prevent re-renders when dependency values haven't actually changed
+  const dependencyValuesMap = useStoreWithEqualityFn(useSubBlockStore, dependencySelector, isEqual)
 
   const depsSatisfied = useMemo(() => {
     // Check all fields (AND logic) - all must be satisfied
     const allSatisfied =
-      allFields.length === 0 || allFields.every((key) => isValueSatisfied(dependencyValuesMap[key]))
+      allFields.length === 0 || allFields.every((key) => isNonEmptyValue(dependencyValuesMap[key]))
 
     // Check any fields (OR logic) - at least one must be satisfied
     const anySatisfied =
-      anyFields.length === 0 || anyFields.some((key) => isValueSatisfied(dependencyValuesMap[key]))
+      anyFields.length === 0 || anyFields.some((key) => isNonEmptyValue(dependencyValuesMap[key]))
 
     return allSatisfied && anySatisfied
   }, [allFields, anyFields, dependencyValuesMap])
@@ -146,7 +174,6 @@ export function useDependsOnGate(
 
   return {
     dependsOn,
-    dependencyValues,
     depsSatisfied,
     blocked,
     finalDisabled,

@@ -87,6 +87,10 @@ Read content from a Google Docs document
 | --------- | ---- | ----------- |
 | `content` | string | Extracted document text content |
 | `metadata` | json | Document metadata including ID, title, and URL |
+| ↳ `documentId` | string | Google Docs document ID |
+| ↳ `title` | string | Document title |
+| ↳ `mimeType` | string | Document MIME type |
+| ↳ `url` | string | Document URL |
 
 ### `google_docs_write`
 
@@ -105,6 +109,10 @@ Write or update content in a Google Docs document
 | --------- | ---- | ----------- |
 | `updatedContent` | boolean | Indicates if document content was updated successfully |
 | `metadata` | json | Updated document metadata including ID, title, and URL |
+| ↳ `documentId` | string | Google Docs document ID |
+| ↳ `title` | string | Document title |
+| ↳ `mimeType` | string | Document MIME type |
+| ↳ `url` | string | Document URL |
 
 ### `google_docs_create`
 
@@ -124,10 +132,9 @@ Create a new Google Docs document
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `metadata` | json | Created document metadata including ID, title, and URL |
+| ↳ `documentId` | string | Google Docs document ID |
+| ↳ `title` | string | Document title |
+| ↳ `mimeType` | string | Document MIME type |
+| ↳ `url` | string | Document URL |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `google_docs`

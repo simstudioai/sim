@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowRight, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -22,8 +21,10 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
+import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 const logger = createLogger('LoginForm')
 
@@ -105,8 +106,7 @@ export default function LoginPage({
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
-  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
-  const [isButtonHovered, setIsButtonHovered] = useState(false)
+  const buttonClass = useBrandedButtonClass()
 
   const [callbackUrl, setCallbackUrl] = useState('/workspace')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
@@ -114,7 +114,6 @@ export default function LoginPage({
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
   const [isSubmittingReset, setIsSubmittingReset] = useState(false)
-  const [isResetButtonHovered, setIsResetButtonHovered] = useState(false)
   const [resetStatus, setResetStatus] = useState<{
     type: 'success' | 'error' | null
     message: string
@@ -123,6 +122,7 @@ export default function LoginPage({
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -139,31 +139,11 @@ export default function LoginPage({
 
       const inviteFlow = searchParams.get('invite_flow') === 'true'
       setIsInviteFlow(inviteFlow)
-    }
 
-    const checkCustomBrand = () => {
-      const computedStyle = getComputedStyle(document.documentElement)
-      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
-
-      if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('auth-button-custom')
-      } else {
-        setButtonClass('auth-button-gradient')
+      const resetSuccess = searchParams.get('resetSuccess') === 'true'
+      if (resetSuccess) {
+        setResetSuccessMessage('Password reset successful. Please sign in with your new password.')
       }
-    }
-
-    checkCustomBrand()
-
-    window.addEventListener('resize', checkCustomBrand)
-    const observer = new MutationObserver(checkCustomBrand)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    })
-
-    return () => {
-      window.removeEventListener('resize', checkCustomBrand)
-      observer.disconnect()
     }
   }, [searchParams])
 
@@ -202,6 +182,13 @@ export default function LoginPage({
     e.preventDefault()
     setIsLoading(true)
 
+    const redirectToVerify = (emailToVerify: string) => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('verificationEmail', emailToVerify)
+      }
+      router.push('/verify')
+    }
+
     const formData = new FormData(e.currentTarget)
     const emailRaw = formData.get('email') as string
     const email = emailRaw.trim().toLowerCase()
@@ -221,6 +208,7 @@ export default function LoginPage({
 
     try {
       const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
+      let errorHandled = false
 
       const result = await client.signIn.email(
         {
@@ -231,11 +219,16 @@ export default function LoginPage({
         {
           onError: (ctx) => {
             logger.error('Login error:', ctx.error)
-            const errorMessage: string[] = ['Invalid email or password']
 
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
+              errorHandled = true
+              redirectToVerify(email)
               return
             }
+
+            errorHandled = true
+            const errorMessage: string[] = ['Invalid email or password']
+
             if (
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign in is not enabled')
@@ -271,6 +264,7 @@ export default function LoginPage({
               errorMessage.push('Too many requests. Please wait a moment before trying again.')
             }
 
+            setResetSuccessMessage(null)
             setPasswordErrors(errorMessage)
             setShowValidationError(true)
           },
@@ -278,15 +272,25 @@ export default function LoginPage({
       )
 
       if (!result || result.error) {
+        // Show error if not already handled by onError callback
+        if (!errorHandled) {
+          setResetSuccessMessage(null)
+          const errorMessage = result?.error?.message || 'Login failed. Please try again.'
+          setPasswordErrors([errorMessage])
+          setShowValidationError(true)
+        }
         setIsLoading(false)
         return
       }
+
+      // Clear reset success message on successful login
+      setResetSuccessMessage(null)
+
+      // Explicit redirect fallback if better-auth doesn't redirect
+      router.push(safeCallbackUrl)
     } catch (err: any) {
       if (err.message?.includes('not verified') || err.code?.includes('EMAIL_NOT_VERIFIED')) {
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('verificationEmail', email)
-        }
-        router.push('/verify')
+        redirectToVerify(email)
         return
       }
 
@@ -400,6 +404,13 @@ export default function LoginPage({
         </div>
       )}
 
+      {/* Password reset success message */}
+      {resetSuccessMessage && (
+        <div className={`${inter.className} mt-1 space-y-1 text-[#4CAF50] text-xs`}>
+          <p>{resetSuccessMessage}</p>
+        </div>
+      )}
+
       {/* Email/Password Form - show unless explicitly disabled */}
       {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
         <form onSubmit={onSubmit} className={`${inter.className} mt-8 space-y-8`}>
@@ -482,24 +493,14 @@ export default function LoginPage({
             </div>
           </div>
 
-          <Button
+          <BrandedButton
             type='submit'
-            onMouseEnter={() => setIsButtonHovered(true)}
-            onMouseLeave={() => setIsButtonHovered(false)}
-            className='group inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all'
             disabled={isLoading}
+            loading={isLoading}
+            loadingText='Signing in'
           >
-            <span className='flex items-center gap-1'>
-              {isLoading ? 'Signing in...' : 'Sign in'}
-              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-                {isButtonHovered ? (
-                  <ArrowRight className='h-4 w-4' aria-hidden='true' />
-                ) : (
-                  <ChevronRight className='h-4 w-4' aria-hidden='true' />
-                )}
-              </span>
-            </span>
-          </Button>
+            Sign in
+          </BrandedButton>
         </form>
       )}
 
@@ -610,25 +611,15 @@ export default function LoginPage({
                 <p>{resetStatus.message}</p>
               </div>
             )}
-            <Button
+            <BrandedButton
               type='button'
               onClick={handleForgotPassword}
-              onMouseEnter={() => setIsResetButtonHovered(true)}
-              onMouseLeave={() => setIsResetButtonHovered(false)}
-              className='group inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all'
               disabled={isSubmittingReset}
+              loading={isSubmittingReset}
+              loadingText='Sending'
             >
-              <span className='flex items-center gap-1'>
-                {isSubmittingReset ? 'Sending...' : 'Send Reset Link'}
-                <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-                  {isResetButtonHovered ? (
-                    <ArrowRight className='h-4 w-4' aria-hidden='true' />
-                  ) : (
-                    <ChevronRight className='h-4 w-4' aria-hidden='true' />
-                  )}
-                </span>
-              </span>
-            </Button>
+              Send Reset Link
+            </BrandedButton>
           </div>
         </DialogContent>
       </Dialog>

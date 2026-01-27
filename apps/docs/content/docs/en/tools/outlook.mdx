@@ -135,6 +135,12 @@ Forward an existing Outlook message to specified recipients
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `results` | object | Delivery result details |
+| ↳ `status` | string | Delivery status of the email |
+| ↳ `timestamp` | string | Timestamp when email was forwarded |
+| ↳ `httpStatus` | number | HTTP status code returned by the API |
+| ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
+| ↳ `messageId` | string | Forwarded message ID if provided by API |
+| ↳ `internetMessageId` | string | RFC 822 Message-ID if provided |
 
 ### `outlook_move`
 
@@ -235,8 +241,3 @@ Copy an Outlook message to another folder
 | `destinationFolderId` | string | ID of the destination folder |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `outlook`

@@ -34,6 +34,7 @@ export interface WorkflowMcpServer {
   createdBy: string
   name: string
   description: string | null
+  isPublic: boolean
   createdAt: string
   updatedAt: string
   toolCount?: number
@@ -166,17 +167,25 @@ interface CreateWorkflowMcpServerParams {
   workspaceId: string
   name: string
   description?: string
+  isPublic?: boolean
+  workflowIds?: string[]
 }
 
 export function useCreateWorkflowMcpServer() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, name, description }: CreateWorkflowMcpServerParams) => {
+    mutationFn: async ({
+      workspaceId,
+      name,
+      description,
+      isPublic,
+      workflowIds,
+    }: CreateWorkflowMcpServerParams) => {
       const response = await fetch('/api/mcp/workflow-servers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, name, description }),
+        body: JSON.stringify({ workspaceId, name, description, isPublic, workflowIds }),
       })
 
       const data = await response.json()
@@ -204,6 +213,7 @@ interface UpdateWorkflowMcpServerParams {
   serverId: string
   name?: string
   description?: string
+  isPublic?: boolean
 }
 
 export function useUpdateWorkflowMcpServer() {
@@ -215,13 +225,14 @@ export function useUpdateWorkflowMcpServer() {
       serverId,
       name,
       description,
+      isPublic,
     }: UpdateWorkflowMcpServerParams) => {
       const response = await fetch(
         `/api/mcp/workflow-servers/${serverId}?workspaceId=${workspaceId}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, description }),
+          body: JSON.stringify({ name, description, isPublic }),
         }
       )
 

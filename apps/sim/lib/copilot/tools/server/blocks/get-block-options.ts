@@ -5,7 +5,8 @@ import {
   GetBlockOptionsResult,
   type GetBlockOptionsResultType,
 } from '@/lib/copilot/tools/shared/schemas'
-import { registry as blockRegistry } from '@/blocks/registry'
+import { registry as blockRegistry, getLatestBlock } from '@/blocks/registry'
+import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { tools as toolsRegistry } from '@/tools/registry'
 
 export const getBlockOptionsServerTool: BaseServerTool<
@@ -13,9 +14,53 @@ export const getBlockOptionsServerTool: BaseServerTool<
   GetBlockOptionsResultType
 > = {
   name: 'get_block_options',
-  async execute({ blockId }: GetBlockOptionsInputType): Promise<GetBlockOptionsResultType> {
+  async execute(
+    { blockId }: GetBlockOptionsInputType,
+    context?: { userId: string }
+  ): Promise<GetBlockOptionsResultType> {
     const logger = createLogger('GetBlockOptionsServerTool')
     logger.debug('Executing get_block_options', { blockId })
+
+    if (blockId === 'loop') {
+      const result = {
+        blockId,
+        blockName: 'Loop',
+        operations: [
+          { id: 'for', name: 'For', description: 'Run a fixed number of iterations.' },
+          { id: 'forEach', name: 'For each', description: 'Iterate over a collection.' },
+          { id: 'while', name: 'While', description: 'Repeat while a condition is true.' },
+          {
+            id: 'doWhile',
+            name: 'Do while',
+            description: 'Run once, then repeat while a condition is true.',
+          },
+        ],
+      }
+      return GetBlockOptionsResult.parse(result)
+    }
+
+    if (blockId === 'parallel') {
+      const result = {
+        blockId,
+        blockName: 'Parallel',
+        operations: [
+          { id: 'count', name: 'Count', description: 'Run a fixed number of parallel branches.' },
+          {
+            id: 'collection',
+            name: 'Collection',
+            description: 'Run one branch per collection item.',
+          },
+        ],
+      }
+      return GetBlockOptionsResult.parse(result)
+    }
+
+    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const allowedIntegrations = permissionConfig?.allowedIntegrations
+
+    if (allowedIntegrations != null && !allowedIntegrations.includes(blockId)) {
+      throw new Error(`Block "${blockId}" is not available`)
+    }
 
     const blockConfig = blockRegistry[blockId]
     if (!blockConfig) {
@@ -68,9 +113,12 @@ export const getBlockOptionsServerTool: BaseServerTool<
       }
     }
 
+    const latestBlock = getLatestBlock(blockId)
+    const displayName = latestBlock?.name ?? blockConfig.name
+
     const result = {
       blockId,
-      blockName: blockConfig.name,
+      blockName: displayName,
       operations,
     }
 

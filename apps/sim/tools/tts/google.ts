@@ -77,7 +77,7 @@ export const googleTtsTool: ToolConfig<GoogleTtsParams, TtsBlockResponse> = {
   },
 
   request: {
-    url: '/api/proxy/tts/unified',
+    url: '/api/tools/tts/unified',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

@@ -7,7 +7,6 @@
 export function getTimezoneAbbreviation(timezone: string, date: Date = new Date()): string {
   if (timezone === 'UTC') return 'UTC'
 
-  // Common timezone mappings
   const timezoneMap: Record<string, { standard: string; daylight: string }> = {
     'America/Los_Angeles': { standard: 'PST', daylight: 'PDT' },
     'America/Denver': { standard: 'MST', daylight: 'MDT' },
@@ -20,30 +19,22 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
     'Asia/Singapore': { standard: 'SGT', daylight: 'SGT' }, // Singapore doesn't use DST
   }
 
-  // If we have a mapping for this timezone
   if (timezone in timezoneMap) {
-    // January 1 is guaranteed to be standard time in northern hemisphere
-    // July 1 is guaranteed to be daylight time in northern hemisphere (if observed)
     const januaryDate = new Date(date.getFullYear(), 0, 1)
     const julyDate = new Date(date.getFullYear(), 6, 1)
 
-    // Get offset in January (standard time)
     const januaryFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       timeZoneName: 'short',
     })
 
-    // Get offset in July (likely daylight time)
     const julyFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       timeZoneName: 'short',
     })
 
-    // If offsets are different, timezone observes DST
     const isDSTObserved = januaryFormatter.format(januaryDate) !== julyFormatter.format(julyDate)
 
-    // If DST is observed, check if current date is in DST by comparing its offset
-    // with January's offset (standard time)
     if (isDSTObserved) {
       const currentFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
@@ -54,11 +45,9 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
       return isDST ? timezoneMap[timezone].daylight : timezoneMap[timezone].standard
     }
 
-    // If DST is not observed, always use standard
     return timezoneMap[timezone].standard
   }
 
-  // For unknown timezones, use full IANA name
   return timezone
 }
 
@@ -79,7 +68,6 @@ export function formatDateTime(date: Date, timezone?: string): string {
     timeZone: timezone || undefined,
   })
 
-  // If timezone is provided, add a friendly timezone abbreviation
   if (timezone) {
     const tzAbbr = getTimezoneAbbreviation(timezone, date)
     return `${formattedDate} ${tzAbbr}`
@@ -94,10 +82,26 @@ export function formatDateTime(date: Date, timezone?: string): string {
  * @returns A formatted date string in the format "MMM D, YYYY"
  */
 export function formatDate(date: Date): string {
-  return date.toLocaleString('en-US', {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
     month: 'short',
     day: 'numeric',
+  })
+}
+
+/**
+ * Formats a date string to absolute format for tooltip display
+ * @param dateString - ISO date string to format
+ * @returns A formatted date string (e.g., "Jan 22, 2026, 01:30 PM")
+ */
+export function formatAbsoluteDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
     year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
@@ -115,22 +119,60 @@ export function formatTime(date: Date): string {
 }
 
 /**
+ * Format a time with seconds and timezone
+ * @param date - The date to format
+ * @param includeTimezone - Whether to include the timezone abbreviation
+ * @returns A formatted time string in the format "h:mm:ss AM/PM TZ"
+ */
+export function formatTimeWithSeconds(date: Date, includeTimezone = true): string {
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZoneName: includeTimezone ? 'short' : undefined,
+  })
+}
+
+/**
+ * Format an ISO timestamp into a compact format for UI display
+ * @param iso - ISO timestamp string
+ * @returns A formatted string in "MM-DD HH:mm" format
+ */
+export function formatCompactTimestamp(iso: string): string {
+  try {
+    const d = new Date(iso)
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    const hh = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return `${mm}-${dd} ${hh}:${min}`
+  } catch {
+    return iso
+  }
+}
+
+/**
  * Format a duration in milliseconds to a human-readable format
  * @param durationMs - The duration in milliseconds
+ * @param options - Optional formatting options
+ * @param options.precision - Number of decimal places for seconds (default: 0)
  * @returns A formatted duration string
  */
-export function formatDuration(durationMs: number): string {
+export function formatDuration(durationMs: number, options?: { precision?: number }): string {
+  const precision = options?.precision ?? 0
+
   if (durationMs < 1000) {
     return `${durationMs}ms`
   }
 
-  const seconds = Math.floor(durationMs / 1000)
+  const seconds = durationMs / 1000
   if (seconds < 60) {
-    return `${seconds}s`
+    return precision > 0 ? `${seconds.toFixed(precision)}s` : `${Math.floor(seconds)}s`
   }
 
   const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
+  const remainingSeconds = Math.floor(seconds % 60)
   if (minutes < 60) {
     return `${minutes}m ${remainingSeconds}s`
   }
@@ -138,4 +180,41 @@ export function formatDuration(durationMs: number): string {
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
   return `${hours}h ${remainingMinutes}m`
+}
+
+/**
+ * Formats a date string to relative time (e.g., "2h ago", "3d ago")
+ * @param dateString - ISO date string to format
+ * @returns A human-readable relative time string
+ */
+export function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) {
+    return 'just now'
+  }
+  if (diffInSeconds < 3600) {
+    const minutes = Math.floor(diffInSeconds / 60)
+    return `${minutes}m ago`
+  }
+  if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600)
+    return `${hours}h ago`
+  }
+  if (diffInSeconds < 604800) {
+    const days = Math.floor(diffInSeconds / 86400)
+    return `${days}d ago`
+  }
+  if (diffInSeconds < 2592000) {
+    const weeks = Math.floor(diffInSeconds / 604800)
+    return `${weeks}w ago`
+  }
+  if (diffInSeconds < 31536000) {
+    const months = Math.floor(diffInSeconds / 2592000)
+    return `${months}mo ago`
+  }
+  const years = Math.floor(diffInSeconds / 31536000)
+  return `${years}y ago`
 }

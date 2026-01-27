@@ -12,39 +12,13 @@ export const grainStoryCreatedTrigger: TriggerConfig = {
 
   subBlocks: [
     {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
+      id: 'apiKey',
+      title: 'API Key',
       type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_story_created',
-      },
-    },
-    {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter a strong secret',
-      description: 'Validates that webhook deliveries originate from Grain.',
+      placeholder: 'Enter your Grain API key (Personal Access Token)',
+      description: 'Required to create the webhook in Grain.',
       password: true,
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_story_created',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: grainSetupInstructions('Story (new)'),
+      required: true,
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
@@ -58,6 +32,18 @@ export const grainStoryCreatedTrigger: TriggerConfig = {
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'grain_story_created',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_story_created',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: grainSetupInstructions('Story (new)'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'grain_story_created',

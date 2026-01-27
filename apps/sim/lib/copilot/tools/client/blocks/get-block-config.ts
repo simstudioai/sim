@@ -10,10 +10,12 @@ import {
   GetBlockConfigInput,
   GetBlockConfigResult,
 } from '@/lib/copilot/tools/shared/schemas'
+import { getLatestBlock } from '@/blocks/registry'
 
 interface GetBlockConfigArgs {
   blockType: string
   operation?: string
+  trigger?: boolean
 }
 
 export class GetBlockConfigClientTool extends BaseClientTool {
@@ -28,7 +30,7 @@ export class GetBlockConfigClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Getting block config', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Getting block config', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Getting block config', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Got block config', icon: FileCode },
+      [ClientToolCallState.success]: { text: 'Retrieved block config', icon: FileCode },
       [ClientToolCallState.error]: { text: 'Failed to get block config', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted getting block config', icon: XCircle },
       [ClientToolCallState.rejected]: {
@@ -38,22 +40,23 @@ export class GetBlockConfigClientTool extends BaseClientTool {
     },
     getDynamicText: (params, state) => {
       if (params?.blockType && typeof params.blockType === 'string') {
-        const blockName = params.blockType.replace(/_/g, ' ')
+        const blockConfig = getLatestBlock(params.blockType)
+        const blockName = (blockConfig?.name ?? params.blockType.replace(/_/g, ' ')).toLowerCase()
         const opSuffix = params.operation ? ` (${params.operation})` : ''
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Got ${blockName}${opSuffix} config`
+            return `Retrieved ${blockName}${opSuffix} config`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Getting ${blockName}${opSuffix} config`
+            return `Retrieving ${blockName}${opSuffix} config`
           case ClientToolCallState.error:
-            return `Failed to get ${blockName}${opSuffix} config`
+            return `Failed to retrieve ${blockName}${opSuffix} config`
           case ClientToolCallState.aborted:
-            return `Aborted getting ${blockName}${opSuffix} config`
+            return `Aborted retrieving ${blockName}${opSuffix} config`
           case ClientToolCallState.rejected:
-            return `Skipped getting ${blockName}${opSuffix} config`
+            return `Skipped retrieving ${blockName}${opSuffix} config`
         }
       }
       return undefined
@@ -65,12 +68,15 @@ export class GetBlockConfigClientTool extends BaseClientTool {
     try {
       this.setState(ClientToolCallState.executing)
 
-      const { blockType, operation } = GetBlockConfigInput.parse(args || {})
+      const { blockType, operation, trigger } = GetBlockConfigInput.parse(args || {})
 
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'get_block_config', payload: { blockType, operation } }),
+        body: JSON.stringify({
+          toolName: 'get_block_config',
+          payload: { blockType, operation, trigger },
+        }),
       })
       if (!res.ok) {
         const errorText = await res.text().catch(() => '')

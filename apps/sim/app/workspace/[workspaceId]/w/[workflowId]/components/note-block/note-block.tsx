@@ -3,14 +3,12 @@ import ReactMarkdown from 'react-markdown'
 import type { NodeProps } from 'reactflow'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/core/utils/cn'
+import { BLOCK_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import {
-  BLOCK_DIMENSIONS,
-  useBlockDimensions,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { ActionBar } from '../workflow-block/components'
 import type { WorkflowBlockProps } from '../workflow-block/types'
 
 interface NoteBlockNodeData extends WorkflowBlockProps {}
@@ -27,18 +25,277 @@ function extractFieldValue(rawValue: unknown): string | undefined {
   return undefined
 }
 
+type EmbedInfo = {
+  url: string
+  type: 'iframe' | 'video' | 'audio'
+  aspectRatio?: string
+}
+
+const EMBED_SCALE = 0.78
+const EMBED_INVERSE_SCALE = `${(1 / EMBED_SCALE) * 100}%`
+
+function getTwitchParent(): string {
+  return typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+}
+
 /**
- * Extract YouTube video ID from various YouTube URL formats
+ * Get embed info for supported media platforms
  */
-function getYouTubeVideoId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
-  ]
-  for (const pattern of patterns) {
-    const match = url.match(pattern)
-    if (match) return match[1]
+function getEmbedInfo(url: string): EmbedInfo | null {
+  const youtubeMatch = url.match(
+    /(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/
+  )
+  if (youtubeMatch) {
+    return { url: `https://www.youtube.com/embed/${youtubeMatch[1]}`, type: 'iframe' }
   }
+
+  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/)
+  if (vimeoMatch) {
+    return { url: `https://player.vimeo.com/video/${vimeoMatch[1]}`, type: 'iframe' }
+  }
+
+  const dailymotionMatch = url.match(/dailymotion\.com\/video\/([a-zA-Z0-9]+)/)
+  if (dailymotionMatch) {
+    return { url: `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}`, type: 'iframe' }
+  }
+
+  const twitchVideoMatch = url.match(/twitch\.tv\/videos\/(\d+)/)
+  if (twitchVideoMatch) {
+    return {
+      url: `https://player.twitch.tv/?video=${twitchVideoMatch[1]}&parent=${getTwitchParent()}`,
+      type: 'iframe',
+    }
+  }
+
+  const twitchChannelMatch = url.match(/twitch\.tv\/([a-zA-Z0-9_]+)(?:\/|$)/)
+  if (twitchChannelMatch && !url.includes('/videos/') && !url.includes('/clip/')) {
+    return {
+      url: `https://player.twitch.tv/?channel=${twitchChannelMatch[1]}&parent=${getTwitchParent()}`,
+      type: 'iframe',
+    }
+  }
+
+  const streamableMatch = url.match(/streamable\.com\/([a-zA-Z0-9]+)/)
+  if (streamableMatch) {
+    return { url: `https://streamable.com/e/${streamableMatch[1]}`, type: 'iframe' }
+  }
+
+  const wistiaMatch = url.match(/(?:wistia\.com|wistia\.net)\/(?:medias|embed)\/([a-zA-Z0-9]+)/)
+  if (wistiaMatch) {
+    return { url: `https://fast.wistia.net/embed/iframe/${wistiaMatch[1]}`, type: 'iframe' }
+  }
+
+  const tiktokMatch = url.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/)
+  if (tiktokMatch) {
+    return {
+      url: `https://www.tiktok.com/embed/v2/${tiktokMatch[1]}`,
+      type: 'iframe',
+      aspectRatio: '9/16',
+    }
+  }
+
+  const soundcloudMatch = url.match(/soundcloud\.com\/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)/)
+  if (soundcloudMatch) {
+    return {
+      url: `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`,
+      type: 'iframe',
+      aspectRatio: '3/2',
+    }
+  }
+
+  const spotifyTrackMatch = url.match(/open\.spotify\.com\/track\/([a-zA-Z0-9]+)/)
+  if (spotifyTrackMatch) {
+    return {
+      url: `https://open.spotify.com/embed/track/${spotifyTrackMatch[1]}`,
+      type: 'iframe',
+      aspectRatio: '3.7/1',
+    }
+  }
+
+  const spotifyAlbumMatch = url.match(/open\.spotify\.com\/album\/([a-zA-Z0-9]+)/)
+  if (spotifyAlbumMatch) {
+    return {
+      url: `https://open.spotify.com/embed/album/${spotifyAlbumMatch[1]}`,
+      type: 'iframe',
+      aspectRatio: '2/3',
+    }
+  }
+
+  const spotifyPlaylistMatch = url.match(/open\.spotify\.com\/playlist\/([a-zA-Z0-9]+)/)
+  if (spotifyPlaylistMatch) {
+    return {
+      url: `https://open.spotify.com/embed/playlist/${spotifyPlaylistMatch[1]}`,
+      type: 'iframe',
+      aspectRatio: '2/3',
+    }
+  }
+
+  const spotifyEpisodeMatch = url.match(/open\.spotify\.com\/episode\/([a-zA-Z0-9]+)/)
+  if (spotifyEpisodeMatch) {
+    return {
+      url: `https://open.spotify.com/embed/episode/${spotifyEpisodeMatch[1]}`,
+      type: 'iframe',
+      aspectRatio: '2.5/1',
+    }
+  }
+
+  const spotifyShowMatch = url.match(/open\.spotify\.com\/show\/([a-zA-Z0-9]+)/)
+  if (spotifyShowMatch) {
+    return {
+      url: `https://open.spotify.com/embed/show/${spotifyShowMatch[1]}`,
+      type: 'iframe',
+      aspectRatio: '3.7/1',
+    }
+  }
+
+  const appleMusicSongMatch = url.match(/music\.apple\.com\/([a-z]{2})\/song\/[^/]+\/(\d+)/)
+  if (appleMusicSongMatch) {
+    const [, country, songId] = appleMusicSongMatch
+    return {
+      url: `https://embed.music.apple.com/${country}/song/${songId}`,
+      type: 'iframe',
+      aspectRatio: '3/2',
+    }
+  }
+
+  const appleMusicAlbumMatch = url.match(/music\.apple\.com\/([a-z]{2})\/album\/(?:[^/]+\/)?(\d+)/)
+  if (appleMusicAlbumMatch) {
+    const [, country, albumId] = appleMusicAlbumMatch
+    return {
+      url: `https://embed.music.apple.com/${country}/album/${albumId}`,
+      type: 'iframe',
+      aspectRatio: '2/3',
+    }
+  }
+
+  const appleMusicPlaylistMatch = url.match(
+    /music\.apple\.com\/([a-z]{2})\/playlist\/[^/]+\/(pl\.[a-zA-Z0-9]+)/
+  )
+  if (appleMusicPlaylistMatch) {
+    const [, country, playlistId] = appleMusicPlaylistMatch
+    return {
+      url: `https://embed.music.apple.com/${country}/playlist/${playlistId}`,
+      type: 'iframe',
+      aspectRatio: '2/3',
+    }
+  }
+
+  const loomMatch = url.match(/loom\.com\/share\/([a-zA-Z0-9]+)/)
+  if (loomMatch) {
+    return { url: `https://www.loom.com/embed/${loomMatch[1]}`, type: 'iframe' }
+  }
+
+  const facebookVideoMatch =
+    url.match(/facebook\.com\/.*\/videos\/(\d+)/) || url.match(/fb\.watch\/([a-zA-Z0-9_-]+)/)
+  if (facebookVideoMatch) {
+    return {
+      url: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`,
+      type: 'iframe',
+    }
+  }
+
+  const instagramReelMatch = url.match(/instagram\.com\/reel\/([a-zA-Z0-9_-]+)/)
+  if (instagramReelMatch) {
+    return {
+      url: `https://www.instagram.com/reel/${instagramReelMatch[1]}/embed`,
+      type: 'iframe',
+      aspectRatio: '9/16',
+    }
+  }
+
+  const instagramPostMatch = url.match(/instagram\.com\/p\/([a-zA-Z0-9_-]+)/)
+  if (instagramPostMatch) {
+    return {
+      url: `https://www.instagram.com/p/${instagramPostMatch[1]}/embed`,
+      type: 'iframe',
+      aspectRatio: '4/5',
+    }
+  }
+
+  const twitterMatch = url.match(/(?:twitter\.com|x\.com)\/[^/]+\/status\/(\d+)/)
+  if (twitterMatch) {
+    return {
+      url: `https://platform.twitter.com/embed/Tweet.html?id=${twitterMatch[1]}`,
+      type: 'iframe',
+      aspectRatio: '3/4',
+    }
+  }
+
+  const rumbleMatch =
+    url.match(/rumble\.com\/embed\/([a-zA-Z0-9]+)/) || url.match(/rumble\.com\/([a-zA-Z0-9]+)-/)
+  if (rumbleMatch) {
+    return { url: `https://rumble.com/embed/${rumbleMatch[1]}/`, type: 'iframe' }
+  }
+
+  const bilibiliMatch = url.match(/bilibili\.com\/video\/(BV[a-zA-Z0-9]+)/)
+  if (bilibiliMatch) {
+    return {
+      url: `https://player.bilibili.com/player.html?bvid=${bilibiliMatch[1]}&high_quality=1`,
+      type: 'iframe',
+    }
+  }
+
+  const vidyardMatch = url.match(/(?:vidyard\.com|share\.vidyard\.com)\/watch\/([a-zA-Z0-9]+)/)
+  if (vidyardMatch) {
+    return { url: `https://play.vidyard.com/${vidyardMatch[1]}`, type: 'iframe' }
+  }
+
+  const cfStreamMatch =
+    url.match(/cloudflarestream\.com\/([a-zA-Z0-9]+)/) ||
+    url.match(/videodelivery\.net\/([a-zA-Z0-9]+)/)
+  if (cfStreamMatch) {
+    return { url: `https://iframe.cloudflarestream.com/${cfStreamMatch[1]}`, type: 'iframe' }
+  }
+
+  const twitchClipMatch =
+    url.match(/clips\.twitch\.tv\/([a-zA-Z0-9_-]+)/) ||
+    url.match(/twitch\.tv\/[^/]+\/clip\/([a-zA-Z0-9_-]+)/)
+  if (twitchClipMatch) {
+    return {
+      url: `https://clips.twitch.tv/embed?clip=${twitchClipMatch[1]}&parent=${getTwitchParent()}`,
+      type: 'iframe',
+    }
+  }
+
+  const mixcloudMatch = url.match(/mixcloud\.com\/([^/]+\/[^/]+)/)
+  if (mixcloudMatch) {
+    return {
+      url: `https://www.mixcloud.com/widget/iframe/?feed=%2F${encodeURIComponent(mixcloudMatch[1])}%2F&hide_cover=1`,
+      type: 'iframe',
+      aspectRatio: '2/1',
+    }
+  }
+
+  const googleDriveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/)
+  if (googleDriveMatch) {
+    return { url: `https://drive.google.com/file/d/${googleDriveMatch[1]}/preview`, type: 'iframe' }
+  }
+
+  if (url.includes('dropbox.com') && /\.(mp4|mov|webm)/.test(url)) {
+    const directUrl = url
+      .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
+      .replace('?dl=0', '')
+    return { url: directUrl, type: 'video' }
+  }
+
+  const tenorMatch = url.match(/tenor\.com\/view\/[^/]+-(\d+)/)
+  if (tenorMatch) {
+    return { url: `https://tenor.com/embed/${tenorMatch[1]}`, type: 'iframe', aspectRatio: '1/1' }
+  }
+
+  const giphyMatch = url.match(/giphy\.com\/(?:gifs|embed)\/(?:.*-)?([a-zA-Z0-9]+)/)
+  if (giphyMatch) {
+    return { url: `https://giphy.com/embed/${giphyMatch[1]}`, type: 'iframe', aspectRatio: '1/1' }
+  }
+
+  if (/\.(mp4|webm|ogg|mov)(\?|$)/i.test(url)) {
+    return { url, type: 'video' }
+  }
+
+  if (/\.(mp3|wav|m4a|aac)(\?|$)/i.test(url)) {
+    return { url, type: 'audio' }
+  }
+
   return null
 }
 
@@ -110,29 +367,57 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
           )
         },
         a: ({ href, children }: any) => {
-          const videoId = href ? getYouTubeVideoId(href) : null
-          if (videoId) {
+          const embedInfo = href ? getEmbedInfo(href) : null
+          if (embedInfo) {
             return (
-              <span className='inline'>
+              <span className='my-2 block w-full'>
                 <a
                   href={href}
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='text-[var(--brand-secondary)] underline-offset-2 hover:underline'
+                  className='mb-1 block break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
                 >
                   {children}
                 </a>
-                <span className='mt-1.5 block overflow-hidden rounded-md'>
-                  <iframe
-                    src={`https://www.youtube.com/embed/${videoId}`}
-                    title='YouTube video'
-                    allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share'
-                    allowFullScreen
-                    loading='lazy'
-                    referrerPolicy='strict-origin-when-cross-origin'
-                    sandbox='allow-scripts allow-same-origin allow-presentation allow-popups'
-                    className='aspect-video w-full'
-                  />
+                <span className='block w-full overflow-hidden rounded-md'>
+                  {embedInfo.type === 'iframe' && (
+                    <span
+                      className='block overflow-hidden'
+                      style={{
+                        width: '100%',
+                        aspectRatio: embedInfo.aspectRatio || '16/9',
+                      }}
+                    >
+                      <iframe
+                        src={embedInfo.url}
+                        title='Media'
+                        allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+                        allowFullScreen
+                        loading='lazy'
+                        className='origin-top-left'
+                        style={{
+                          width: EMBED_INVERSE_SCALE,
+                          height: EMBED_INVERSE_SCALE,
+                          transform: `scale(${EMBED_SCALE})`,
+                        }}
+                      />
+                    </span>
+                  )}
+                  {embedInfo.type === 'video' && (
+                    <video
+                      src={embedInfo.url}
+                      controls
+                      preload='metadata'
+                      className='aspect-video w-full'
+                    >
+                      <track kind='captions' src='' default />
+                    </video>
+                  )}
+                  {embedInfo.type === 'audio' && (
+                    <audio src={embedInfo.url} controls preload='metadata' className='w-full'>
+                      <track kind='captions' src='' default />
+                    </audio>
+                  )}
                 </span>
               </span>
             )
@@ -142,7 +427,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
               href={href}
               target='_blank'
               rel='noopener noreferrer'
-              className='text-[var(--brand-secondary)] underline-offset-2 hover:underline'
+              className='break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
             >
               {children}
             </a>
@@ -161,6 +446,26 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
             {children}
           </blockquote>
         ),
+        table: ({ children }: any) => (
+          <div className='my-2 max-w-full overflow-x-auto'>
+            <table className='w-full border-collapse text-xs'>{children}</table>
+          </div>
+        ),
+        thead: ({ children }: any) => (
+          <thead className='border-[var(--border)] border-b'>{children}</thead>
+        ),
+        tbody: ({ children }: any) => <tbody>{children}</tbody>,
+        tr: ({ children }: any) => (
+          <tr className='border-[var(--border)] border-b last:border-b-0'>{children}</tr>
+        ),
+        th: ({ children }: any) => (
+          <th className='px-2 py-1 text-left font-semibold text-[var(--text-primary)]'>
+            {children}
+          </th>
+        ),
+        td: ({ children }: any) => (
+          <td className='px-2 py-1 text-[var(--text-secondary)]'>{children}</td>
+        ),
       }}
     >
       {content}
@@ -168,12 +473,17 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
   )
 })
 
-export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlockNodeData>) {
-  const { type, config, name } = data
+export const NoteBlock = memo(function NoteBlock({
+  id,
+  data,
+  selected,
+}: NodeProps<NoteBlockNodeData>) {
+  const { type, name } = data
 
   const { activeWorkflowId, isEnabled, handleClick, hasRing, ringStyles } = useBlockVisual({
     blockId: id,
     data,
+    isSelected: selected,
   })
   const storedValues = useSubBlockStore(
     useCallback(
@@ -245,8 +555,8 @@ export const NoteBlock = memo(function NoteBlock({ id, data }: NodeProps<NoteBlo
           </div>
         </div>
 
-        <div className='relative p-[8px]'>
-          <div className='relative break-words'>
+        <div className='relative overflow-hidden p-[8px]'>
+          <div className='relative max-w-full break-all'>
             {isEmpty ? (
               <p className='text-[#868686] text-sm'>Add note...</p>
             ) : (

@@ -1,8 +1,10 @@
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { mergeSubBlockValues, mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
-import { normalizeName } from '@/executor/constants'
+import { isAnnotationOnlyBlock, normalizeName } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type {
   BlockState,
@@ -16,7 +18,44 @@ import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const WEBHOOK_SUBBLOCK_FIELDS = ['webhookId', 'triggerPath']
 
-export { normalizeName }
+/**
+ * Checks if an edge is valid (source and target exist, not annotation-only, target is not a trigger)
+ */
+function isValidEdge(
+  edge: Edge,
+  blocks: Record<string, { type: string; triggerMode?: boolean }>
+): boolean {
+  const sourceBlock = blocks[edge.source]
+  const targetBlock = blocks[edge.target]
+  if (!sourceBlock || !targetBlock) return false
+  if (isAnnotationOnlyBlock(sourceBlock.type)) return false
+  if (isAnnotationOnlyBlock(targetBlock.type)) return false
+  if (TriggerUtils.isTriggerBlock(targetBlock)) return false
+  return true
+}
+
+/**
+ * Filters edges to only include valid ones (target exists and is not a trigger block)
+ */
+export function filterValidEdges(
+  edges: Edge[],
+  blocks: Record<string, { type: string; triggerMode?: boolean }>
+): Edge[] {
+  return edges.filter((edge) => isValidEdge(edge, blocks))
+}
+
+export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
+  return edgesToAdd.filter((edge) => {
+    if (edge.source === edge.target) return false
+    return !currentEdges.some(
+      (e) =>
+        e.source === edge.source &&
+        e.sourceHandle === edge.sourceHandle &&
+        e.target === edge.target &&
+        e.targetHandle === edge.targetHandle
+    )
+  })
+}
 
 export interface RegeneratedState {
   blocks: Record<string, BlockState>
@@ -39,6 +78,10 @@ export function getUniqueBlockName(baseName: string, existingBlocks: Record<stri
   const normalizedBaseName = normalizeName(baseName)
   if (normalizedBaseName === 'start' || normalizedBaseName === 'starter') {
     return 'Start'
+  }
+
+  if (normalizedBaseName === 'response') {
+    return 'Response'
   }
 
   const baseNameMatch = baseName.match(/^(.*?)(\s+\d+)?$/)
@@ -121,7 +164,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
         }
       } else if (subBlock.defaultValue !== undefined) {
         initialValue = subBlock.defaultValue
-      } else if (subBlock.type === 'input-format') {
+      } else if (subBlock.type === 'input-format' || subBlock.type === 'response-format') {
         initialValue = [
           {
             id: crypto.randomUUID(),
@@ -183,27 +226,20 @@ export function prepareDuplicateBlockState(options: PrepareDuplicateBlockStateOp
     Object.entries(subBlockValues).filter(([key]) => !WEBHOOK_SUBBLOCK_FIELDS.includes(key))
   )
 
-  const mergedSubBlocks: Record<string, SubBlockState> = sourceBlock.subBlocks
+  const baseSubBlocks: Record<string, SubBlockState> = sourceBlock.subBlocks
     ? JSON.parse(JSON.stringify(sourceBlock.subBlocks))
     : {}
 
   WEBHOOK_SUBBLOCK_FIELDS.forEach((field) => {
-    if (field in mergedSubBlocks) {
-      delete mergedSubBlocks[field]
+    if (field in baseSubBlocks) {
+      delete baseSubBlocks[field]
     }
   })
 
-  Object.entries(filteredSubBlockValues).forEach(([subblockId, value]) => {
-    if (mergedSubBlocks[subblockId]) {
-      mergedSubBlocks[subblockId].value = value as SubBlockState['value']
-    } else {
-      mergedSubBlocks[subblockId] = {
-        id: subblockId,
-        type: 'short-input',
-        value: value as SubBlockState['value'],
-      }
-    }
-  })
+  const mergedSubBlocks = mergeSubBlockValues(baseSubBlocks, filteredSubBlockValues) as Record<
+    string,
+    SubBlockState
+  >
 
   const block: BlockState = {
     id: newId,
@@ -238,10 +274,15 @@ export function mergeSubblockState(
   workflowId?: string,
   blockId?: string
 ): Record<string, BlockState> {
-  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
   const subBlockStore = useSubBlockStore.getState()
 
   const workflowSubblockValues = workflowId ? subBlockStore.workflowValues[workflowId] || {} : {}
+
+  if (workflowId) {
+    return mergeSubblockStateWithValues(blocks, workflowSubblockValues, blockId)
+  }
+
+  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
 
   return Object.entries(blocksToProcess).reduce(
     (acc, [id, block]) => {
@@ -271,7 +312,9 @@ export function mergeSubblockState(
 
           subAcc[subBlockId] = {
             ...subBlock,
-            value: storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
+            value: (storedValue !== undefined && storedValue !== null
+              ? storedValue
+              : subBlock.value) as SubBlockState['value'],
           }
 
           return subAcc
@@ -288,7 +331,7 @@ export function mergeSubblockState(
           mergedSubBlocks[subBlockId] = {
             id: subBlockId,
             type: 'short-input', // Default type that's safe to use
-            value: value,
+            value: value as SubBlockState['value'],
           }
         }
       })
@@ -319,8 +362,14 @@ export async function mergeSubblockStateAsync(
   workflowId?: string,
   blockId?: string
 ): Promise<Record<string, BlockState>> {
-  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
   const subBlockStore = useSubBlockStore.getState()
+
+  if (workflowId) {
+    const workflowValues = subBlockStore.workflowValues[workflowId] || {}
+    return mergeSubblockStateWithValues(blocks, workflowValues, blockId)
+  }
+
+  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
 
   // Process blocks in parallel for better performance
   const processedBlockEntries = await Promise.all(
@@ -338,23 +387,15 @@ export async function mergeSubblockStateAsync(
             return null
           }
 
-          let storedValue = null
-
-          if (workflowId) {
-            const workflowValues = subBlockStore.workflowValues[workflowId]
-            if (workflowValues?.[id]) {
-              storedValue = workflowValues[id][subBlockId]
-            }
-          } else {
-            storedValue = subBlockStore.getValue(id, subBlockId)
-          }
+          const storedValue = subBlockStore.getValue(id, subBlockId)
 
           return [
             subBlockId,
             {
               ...subBlock,
-              value:
-                storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
+              value: (storedValue !== undefined && storedValue !== null
+                ? storedValue
+                : subBlock.value) as SubBlockState['value'],
             },
           ] as const
         })
@@ -364,23 +405,6 @@ export async function mergeSubblockStateAsync(
       const mergedSubBlocks = Object.fromEntries(
         subBlockEntries.filter((entry): entry is readonly [string, SubBlockState] => entry !== null)
       ) as Record<string, SubBlockState>
-
-      // Add any values that exist in the store but aren't in the block structure
-      // This handles cases where block config has been updated but values still exist
-      // IMPORTANT: This includes runtime subblock IDs like webhookId, triggerPath, etc.
-      if (workflowId) {
-        const workflowValues = subBlockStore.workflowValues[workflowId]
-        const blockValues = workflowValues?.[id] || {}
-        Object.entries(blockValues).forEach(([subBlockId, value]) => {
-          if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
-            mergedSubBlocks[subBlockId] = {
-              id: subBlockId,
-              type: 'short-input',
-              value: value,
-            }
-          }
-        })
-      }
 
       // Return the full block state with updated subBlocks (including orphaned values)
       return [
@@ -425,14 +449,8 @@ function updateBlockReferences(
   clearTriggerRuntimeValues = false
 ): void {
   Object.entries(blocks).forEach(([_, block]) => {
-    if (block.data?.parentId) {
-      const newParentId = idMap.get(block.data.parentId)
-      if (newParentId) {
-        block.data = { ...block.data, parentId: newParentId }
-      } else {
-        block.data = { ...block.data, parentId: undefined, extent: undefined }
-      }
-    }
+    // NOTE: parentId remapping is handled in regenerateBlockIds' second pass.
+    // Do NOT remap parentId here as it would incorrectly clear already-mapped IDs.
 
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
@@ -462,12 +480,26 @@ export function regenerateWorkflowIds(
   const nameMap = new Map<string, string>()
   const newBlocks: Record<string, BlockState> = {}
 
+  // First pass: generate new IDs
   Object.entries(workflowState.blocks).forEach(([oldId, block]) => {
     const newId = uuidv4()
     blockIdMap.set(oldId, newId)
     const oldNormalizedName = normalizeName(block.name)
     nameMap.set(oldNormalizedName, oldNormalizedName)
     newBlocks[newId] = { ...block, id: newId }
+  })
+
+  // Second pass: update parentId references
+  Object.values(newBlocks).forEach((block) => {
+    if (block.data?.parentId) {
+      const newParentId = blockIdMap.get(block.data.parentId)
+      if (newParentId) {
+        block.data = { ...block.data, parentId: newParentId }
+      } else {
+        // Parent not in the workflow, clear the relationship
+        block.data = { ...block.data, parentId: undefined, extent: undefined }
+      }
+    }
   })
 
   const newEdges = workflowState.edges.map((edge) => ({
@@ -532,6 +564,7 @@ export function regenerateBlockIds(
   // Track all blocks for name uniqueness (existing + newly processed)
   const allBlocksForNaming = { ...existingBlockNames }
 
+  // First pass: generate new IDs and names for all blocks
   Object.entries(blocks).forEach(([oldId, block]) => {
     const newId = uuidv4()
     blockIdMap.set(oldId, newId)
@@ -541,17 +574,22 @@ export function regenerateBlockIds(
     const newNormalizedName = normalizeName(newName)
     nameMap.set(oldNormalizedName, newNormalizedName)
 
-    const isNested = !!block.data?.parentId
+    // Check if this block has a parent that's also being copied
+    // If so, it's a nested block and should keep its relative position (no offset)
+    // Only top-level blocks (no parent in the paste set) get the position offset
+    const hasParentInPasteSet = block.data?.parentId && blocks[block.data.parentId]
+    const newPosition = hasParentInPasteSet
+      ? { x: block.position.x, y: block.position.y } // Keep relative position
+      : { x: block.position.x + positionOffset.x, y: block.position.y + positionOffset.y }
+
+    // Placeholder block - we'll update parentId in second pass
     const newBlock: BlockState = {
       ...block,
       id: newId,
       name: newName,
-      position: isNested
-        ? block.position
-        : {
-            x: block.position.x + positionOffset.x,
-            y: block.position.y + positionOffset.y,
-          },
+      position: newPosition,
+      // Temporarily keep data as-is, we'll fix parentId in second pass
+      data: block.data ? { ...block.data } : block.data,
     }
 
     newBlocks[newId] = newBlock
@@ -560,6 +598,25 @@ export function regenerateBlockIds(
 
     if (subBlockValues[oldId]) {
       newSubBlockValues[newId] = JSON.parse(JSON.stringify(subBlockValues[oldId]))
+    }
+  })
+
+  // Second pass: update parentId references for nested blocks
+  // If a block's parent is also being pasted, map to new parentId; otherwise clear it
+  Object.entries(newBlocks).forEach(([, block]) => {
+    if (block.data?.parentId) {
+      const oldParentId = block.data.parentId
+      const newParentId = blockIdMap.get(oldParentId)
+
+      if (newParentId) {
+        block.data = {
+          ...block.data,
+          parentId: newParentId,
+          extent: 'parent',
+        }
+      } else {
+        block.data = { ...block.data, parentId: undefined, extent: undefined }
+      }
     }
   })
 

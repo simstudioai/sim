@@ -40,24 +40,24 @@ export const linearCycleCreatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: linearSetupInstructions('Cycle (create)'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_cycle_created',
-      },
-    },
-    {
       id: 'triggerSave',
       title: '',
       type: 'trigger-save',
       hideFromPreview: true,
       mode: 'trigger',
       triggerId: 'linear_cycle_created',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'linear_cycle_created',
+      },
+    },
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      hideFromPreview: true,
+      type: 'text',
+      defaultValue: linearSetupInstructions('Cycle (create)'),
+      mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'linear_cycle_created',

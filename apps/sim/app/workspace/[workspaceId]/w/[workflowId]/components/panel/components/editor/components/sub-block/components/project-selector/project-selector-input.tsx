@@ -4,14 +4,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -32,21 +35,36 @@ export function ProjectSelectorInput({
   previewValue,
   previewContextValues,
 }: ProjectSelectorInputProps) {
-  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const params = useParams()
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
-  // Use the proper hook to get the current value and setter
   const [storeValue] = useSubBlockValue(blockId, subBlock.id)
-  const [connectedCredentialFromStore] = useSubBlockValue(blockId, 'credential')
-  const [linearTeamIdFromStore] = useSubBlockValue(blockId, 'teamId')
   const [jiraDomainFromStore] = useSubBlockValue(blockId, 'domain')
 
-  // Use previewContextValues if provided (for tools inside agent blocks), otherwise use store values
-  const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
-  const linearTeamId = previewContextValues?.teamId ?? linearTeamIdFromStore
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
+
+  const blockValues = useSubBlockStore((state) => {
+    if (!activeWorkflowId) return {}
+    const workflowValues = state.workflowValues[activeWorkflowId] || {}
+    return (workflowValues as Record<string, Record<string, unknown>>)[blockId] || {}
+  })
+
+  const connectedCredential = previewContextValues?.credential ?? blockValues.credential
   const jiraDomain = previewContextValues?.domain ?? jiraDomainFromStore
 
-  // Derive provider from serviceId using OAuth config
+  const linearTeamId = useMemo(
+    () =>
+      previewContextValues?.teamId ??
+      resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
+    [previewContextValues?.teamId, blockValues, canonicalIndex, canonicalModeOverrides]
+  )
+
   const serviceId = subBlock.serviceId || ''
   const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
 
@@ -54,7 +72,6 @@ export function ProjectSelectorInput({
     effectiveProviderId,
     (connectedCredential as string) || ''
   )
-  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
   const workflowIdFromUrl = (params?.workflowId as string) || activeWorkflowId || ''
   const { finalDisabled } = useDependsOnGate(blockId, subBlock, {
     disabled,
@@ -62,12 +79,8 @@ export function ProjectSelectorInput({
     previewContextValues,
   })
 
-  // Jira/Discord upstream fields - use values from previewContextValues or store
   const domain = (jiraDomain as string) || ''
 
-  // Verify Jira credential belongs to current user; if not, treat as absent
-
-  // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
     if (isPreview && previewValue !== undefined) {
       setSelectedProjectId(previewValue)

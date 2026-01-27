@@ -126,14 +126,6 @@ export default {
             strokeDashoffset: '-24',
           },
         },
-        'code-shimmer': {
-          '0%': {
-            transform: 'translateX(-100%)',
-          },
-          '100%': {
-            transform: 'translateX(100%)',
-          },
-        },
         'placeholder-pulse': {
           '0%, 100%': {
             opacity: '0.5',
@@ -156,7 +148,6 @@ export default {
         'slide-left': 'slide-left 80s linear infinite',
         'slide-right': 'slide-right 80s linear infinite',
         'dash-animation': 'dash-animation 1.5s linear infinite',
-        'code-shimmer': 'code-shimmer 1.5s infinite',
         'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
         'ring-pulse': 'ring-pulse 1.5s ease-in-out infinite',
       },

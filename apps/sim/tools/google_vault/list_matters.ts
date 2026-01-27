@@ -1,14 +1,9 @@
+import type { GoogleVaultListMattersParams } from '@/tools/google_vault/types'
+import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export interface GoogleVaultListMattersParams {
-  accessToken: string
-  pageSize?: number
-  pageToken?: string
-  matterId?: string // Optional get for a specific matter
-}
-
 export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
-  id: 'list_matters',
+  id: 'google_vault_list_matters',
   name: 'Vault List Matters',
   description: 'List matters, or get a specific matter if matterId is provided',
   version: '1.0',
@@ -19,10 +14,30 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   },
 
   params: {
-    accessToken: { type: 'string', required: true, visibility: 'hidden' },
-    pageSize: { type: 'number', required: false, visibility: 'user-only' },
-    pageToken: { type: 'string', required: false, visibility: 'hidden' },
-    matterId: { type: 'string', required: false, visibility: 'user-only' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'OAuth access token',
+    },
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of matters to return per page',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Token for pagination',
+    },
+    matterId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Optional matter ID to fetch a specific matter',
+    },
   },
 
   request: {
@@ -47,7 +62,8 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   transformResponse: async (response: Response, params?: GoogleVaultListMattersParams) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to list matters')
+      const errorMessage = data.error?.message || 'Failed to list matters'
+      throw new Error(enhanceGoogleVaultError(errorMessage))
     }
     if (params?.matterId) {
       return { success: true, output: { matter: data } }

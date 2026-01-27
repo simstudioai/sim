@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { useQuery } from '@tanstack/react-query'
-import type { OpenRouterModelInfo, ProviderName } from '@/stores/providers/types'
+import type { OpenRouterModelInfo, ProviderName } from '@/stores/providers'
 
 const logger = createLogger('ProviderModelsQuery')
 

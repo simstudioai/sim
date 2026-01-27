@@ -26,6 +26,7 @@ export interface WorkflowMetadata {
   color: string
   workspaceId?: string
   folderId?: string | null
+  sortOrder: number
 }
 
 export type HydrationPhase =
@@ -51,6 +52,7 @@ export interface WorkflowRegistryState {
   deploymentStatuses: Record<string, DeploymentStatus>
   hydration: HydrationState
   clipboard: ClipboardData | null
+  pendingSelection: string[] | null
 }
 
 export interface WorkflowRegistryActions {
@@ -81,6 +83,8 @@ export interface WorkflowRegistryActions {
   } | null
   hasClipboard: () => boolean
   clearClipboard: () => void
+  setPendingSelection: (blockIds: string[]) => void
+  clearPendingSelection: () => void
   logout: () => void
 }
 

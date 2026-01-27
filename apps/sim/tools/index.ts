@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { parseMcpToolId } from '@/lib/mcp/utils'
@@ -192,11 +193,13 @@ async function processFileOutputs(
   }
 }
 
-// Execute a tool by calling either the proxy for external APIs or directly for internal routes
+/**
+ * Execute a tool by making the appropriate HTTP request
+ * All requests go directly - internal routes use regular fetch, external use SSRF-protected fetch
+ */
 export async function executeTool(
   toolId: string,
   params: Record<string, any>,
-  skipProxy = false,
   skipPostProcess = false,
   executionContext?: ExecutionContext
 ): Promise<ToolResponse> {
@@ -253,9 +256,8 @@ export async function executeTool(
       try {
         const baseUrl = getBaseUrl()
 
-        // Prepare the token payload
         const tokenPayload: OAuthTokenPayload = {
-          credentialId: contextParams.credential,
+          credentialId: contextParams.credential as string,
         }
 
         // Add workflowId if it exists in params, context, or executionContext
@@ -369,47 +371,8 @@ export async function executeTool(
       }
     }
 
-    // For internal routes or when skipProxy is true, call the API directly
-    // Internal routes are automatically detected by checking if URL starts with /api/
-    const endpointUrl =
-      typeof tool.request.url === 'function' ? tool.request.url(contextParams) : tool.request.url
-    const isInternalRoute = endpointUrl.startsWith('/api/')
-
-    if (isInternalRoute || skipProxy) {
-      const result = await handleInternalRequest(toolId, tool, contextParams)
-
-      // Apply post-processing if available and not skipped
-      let finalResult = result
-      if (tool.postProcess && result.success && !skipPostProcess) {
-        try {
-          finalResult = await tool.postProcess(result, contextParams, executeTool)
-        } catch (error) {
-          logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
-            error: error instanceof Error ? error.message : String(error),
-          })
-          finalResult = result
-        }
-      }
-
-      // Process file outputs if execution context is available
-      finalResult = await processFileOutputs(finalResult, tool, executionContext)
-
-      // Add timing data to the result
-      const endTime = new Date()
-      const endTimeISO = endTime.toISOString()
-      const duration = endTime.getTime() - startTime.getTime()
-      return {
-        ...finalResult,
-        timing: {
-          startTime: startTimeISO,
-          endTime: endTimeISO,
-          duration,
-        },
-      }
-    }
-
-    // For external APIs, use the proxy
-    const result = await handleProxyRequest(toolId, contextParams, executionContext)
+    // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
+    const result = await executeToolRequest(toolId, tool, contextParams)
 
     // Apply post-processing if available and not skipped
     let finalResult = result
@@ -590,9 +553,11 @@ async function addInternalAuthIfNeeded(
 }
 
 /**
- * Handle an internal/direct tool request
+ * Execute a tool request directly
+ * Internal routes (/api/...) use regular fetch
+ * External URLs use SSRF-protected fetch with DNS validation and IP pinning
  */
-async function handleInternalRequest(
+async function executeToolRequest(
   toolId: string,
   tool: ToolConfig,
   params: Record<string, any>
@@ -651,14 +616,50 @@ async function handleInternalRequest(
     // Check request body size before sending to detect potential size limit issues
     validateRequestBodySize(requestParams.body, requestId, toolId)
 
-    // Prepare request options
-    const requestOptions = {
-      method: requestParams.method,
-      headers: headers,
-      body: requestParams.body,
-    }
+    // Convert Headers to plain object for secureFetchWithPinnedIP
+    const headersRecord: Record<string, string> = {}
+    headers.forEach((value, key) => {
+      headersRecord[key] = value
+    })
 
-    const response = await fetch(fullUrl, requestOptions)
+    let response: Response
+
+    if (isInternalRoute) {
+      response = await fetch(fullUrl, {
+        method: requestParams.method,
+        headers: headers,
+        body: requestParams.body,
+      })
+    } else {
+      const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl')
+      if (!urlValidation.isValid) {
+        throw new Error(`Invalid tool URL: ${urlValidation.error}`)
+      }
+
+      const secureResponse = await secureFetchWithPinnedIP(fullUrl, urlValidation.resolvedIP!, {
+        method: requestParams.method,
+        headers: headersRecord,
+        body: requestParams.body ?? undefined,
+      })
+
+      const responseHeaders = new Headers(secureResponse.headers.toRecord())
+      const nullBodyStatuses = new Set([101, 204, 205, 304])
+
+      if (nullBodyStatuses.has(secureResponse.status)) {
+        response = new Response(null, {
+          status: secureResponse.status,
+          statusText: secureResponse.statusText,
+          headers: responseHeaders,
+        })
+      } else {
+        const bodyBuffer = await secureResponse.arrayBuffer()
+        response = new Response(bodyBuffer, {
+          status: secureResponse.status,
+          statusText: secureResponse.statusText,
+          headers: responseHeaders,
+        })
+      }
+    }
 
     // For non-OK responses, attempt JSON first; if parsing fails, fall back to text
     if (!response.ok) {
@@ -701,11 +702,9 @@ async function handleInternalRequest(
       throw errorToTransform
     }
 
-    // Parse response data once with guard for empty 202 bodies
     let responseData
     const status = response.status
-    if (status === 202) {
-      // Many APIs (e.g., Microsoft Graph) return 202 with empty body
+    if (status === 202 || status === 204 || status === 205) {
       responseData = { status }
     } else {
       if (tool.transformResponse) {
@@ -850,96 +849,7 @@ function validateClientSideParams(
 }
 
 /**
- * Handle a request via the proxy
- */
-async function handleProxyRequest(
-  toolId: string,
-  params: Record<string, any>,
-  executionContext?: ExecutionContext
-): Promise<ToolResponse> {
-  const requestId = generateRequestId()
-
-  const baseUrl = getBaseUrl()
-  const proxyUrl = new URL('/api/proxy', baseUrl).toString()
-
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    await addInternalAuthIfNeeded(headers, true, requestId, `proxy:${toolId}`)
-
-    const body = JSON.stringify({ toolId, params, executionContext })
-
-    // Check request body size before sending
-    validateRequestBodySize(body, requestId, `proxy:${toolId}`)
-
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
-      headers,
-      body,
-    })
-
-    if (!response.ok) {
-      // Check for 413 (Entity Too Large) - body size limit exceeded
-      if (response.status === 413) {
-        logger.error(`[${requestId}] Request body too large for proxy:${toolId} (HTTP 413)`)
-        throw new Error(BODY_SIZE_LIMIT_ERROR_MESSAGE)
-      }
-
-      const errorText = await response.text()
-      logger.error(`[${requestId}] Proxy request failed for ${toolId}:`, {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText.substring(0, 200), // Limit error text length
-      })
-
-      let errorMessage = `HTTP error ${response.status}: ${response.statusText}`
-
-      try {
-        const errorJson = JSON.parse(errorText)
-        errorMessage =
-          // Primary error patterns
-          errorJson.errors?.[0]?.message ||
-          errorJson.errors?.[0]?.detail ||
-          errorJson.error?.message ||
-          (typeof errorJson.error === 'string' ? errorJson.error : undefined) ||
-          errorJson.message ||
-          errorJson.error_description ||
-          errorJson.fault?.faultstring ||
-          errorJson.faultstring ||
-          // Fallback
-          (typeof errorJson.error === 'object'
-            ? `API Error: ${response.status} ${response.statusText}`
-            : `HTTP error ${response.status}: ${response.statusText}`)
-      } catch (parseError) {
-        // If not JSON, use the raw text
-        if (errorText) {
-          errorMessage = `${errorMessage}: ${errorText}`
-        }
-      }
-
-      throw new Error(errorMessage)
-    }
-
-    // Parse the successful response
-    const result = await response.json()
-    return result
-  } catch (error: any) {
-    // Check if this is a body size limit error and throw user-friendly message
-    handleBodySizeLimitError(error, requestId, `proxy:${toolId}`)
-
-    logger.error(`[${requestId}] Proxy request error for ${toolId}:`, {
-      error: error instanceof Error ? error.message : String(error),
-    })
-
-    return {
-      success: false,
-      output: {},
-      error: error.message || 'Proxy request failed',
-    }
-  }
-}
-
-/**
- * Execute an MCP tool via the server-side proxy
+ * Execute an MCP tool via the server-side MCP endpoint
  *
  * @param toolId - MCP tool ID in format "mcp-serverId-toolName"
  * @param params - Tool parameters

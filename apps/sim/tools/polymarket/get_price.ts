@@ -1,5 +1,5 @@
+import { buildClobUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildClobUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetPriceParams {
   tokenId: string // The token ID (CLOB token ID from market)
@@ -27,11 +27,13 @@ export const polymarketGetPriceTool: ToolConfig<
       type: 'string',
       required: true,
       description: 'The CLOB token ID (from market clobTokenIds)',
+      visibility: 'user-or-llm',
     },
     side: {
       type: 'string',
       required: true,
       description: 'Order side: buy or sell',
+      visibility: 'user-or-llm',
     },
   },
 

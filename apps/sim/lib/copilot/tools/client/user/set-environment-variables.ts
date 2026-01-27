@@ -5,8 +5,9 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useEnvironmentStore } from '@/stores/settings/environment'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface SetEnvArgs {
@@ -47,6 +48,33 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
     interrupt: {
       accept: { text: 'Apply', icon: Settings2 },
       reject: { text: 'Skip', icon: XCircle },
+    },
+    uiConfig: {
+      alwaysExpanded: true,
+      interrupt: {
+        accept: { text: 'Apply', icon: Settings2 },
+        reject: { text: 'Skip', icon: XCircle },
+        showAllowOnce: true,
+        showAllowAlways: true,
+      },
+      paramsTable: {
+        columns: [
+          { key: 'name', label: 'Variable', width: '36%', editable: true },
+          { key: 'value', label: 'Value', width: '64%', editable: true, mono: true },
+        ],
+        extractRows: (params) => {
+          const variables = params.variables || {}
+          const entries = Array.isArray(variables)
+            ? variables.map((v: any, i: number) => [String(i), v.name || `var_${i}`, v.value || ''])
+            : Object.entries(variables).map(([key, val]) => {
+                if (typeof val === 'object' && val !== null && 'value' in (val as any)) {
+                  return [key, key, (val as any).value]
+                }
+                return [key, key, val]
+              })
+          return entries as Array<[string, ...any[]]>
+        },
+      },
     },
     getDynamicText: (params, state) => {
       if (params?.variables && typeof params.variables === 'object') {
@@ -121,3 +149,9 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
     await this.handleAccept(args)
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(
+  SetEnvironmentVariablesClientTool.id,
+  SetEnvironmentVariablesClientTool.metadata.uiConfig!
+)

@@ -56,11 +56,9 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       output: {
         updated_accounts: data.accounts || data.updated_accounts || [],
         failed_accounts: data.failed_accounts || [],
-        metadata: {
-          total_submitted: data.accounts?.length || 0,
-          updated: data.updated_accounts?.length || data.accounts?.length || 0,
-          failed: data.failed_accounts?.length || 0,
-        },
+        total_submitted: data.accounts?.length || 0,
+        updated: data.updated_accounts?.length || data.accounts?.length || 0,
+        failed: data.failed_accounts?.length || 0,
       },
     }
   },
@@ -74,9 +72,17 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       type: 'json',
       description: 'Array of accounts that failed to update',
     },
-    metadata: {
-      type: 'json',
-      description: 'Bulk update metadata including counts of updated and failed accounts',
+    total_submitted: {
+      type: 'number',
+      description: 'Total number of accounts submitted',
+    },
+    updated: {
+      type: 'number',
+      description: 'Number of accounts successfully updated',
+    },
+    failed: {
+      type: 'number',
+      description: 'Number of accounts that failed to update',
     },
   },
 }

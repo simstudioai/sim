@@ -94,3 +94,43 @@ All labels on issue: ${labels.join(', ')}`
     },
   },
 }
+
+export const addLabelsV2Tool: ToolConfig<AddLabelsParams, any> = {
+  id: 'github_add_labels_v2',
+  name: addLabelsTool.name,
+  description: addLabelsTool.description,
+  version: '2.0.0',
+  params: addLabelsTool.params,
+  request: addLabelsTool.request,
+
+  transformResponse: async (response: Response) => {
+    const labels = await response.json()
+    return {
+      success: true,
+      output: {
+        items: labels.map((label: any) => ({
+          ...label,
+          description: label.description ?? null,
+        })),
+        count: labels.length,
+      },
+    }
+  },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of label objects on the issue',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Label ID' },
+          name: { type: 'string', description: 'Label name' },
+          color: { type: 'string', description: 'Label color' },
+          description: { type: 'string', description: 'Label description', optional: true },
+        },
+      },
+    },
+    count: { type: 'number', description: 'Number of labels' },
+  },
+}

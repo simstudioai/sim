@@ -1,15 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import { Star, User } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { cn } from '@/lib/core/utils/cn'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
+import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import { useStarTemplate } from '@/hooks/queries/templates'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-
-const logger = createLogger('TemplateCard')
 
 interface TemplateCardProps {
   id: string
@@ -112,8 +109,6 @@ function normalizeWorkflowState(input?: any): WorkflowState | null {
     lastUpdate: input.lastUpdate,
     metadata: input.metadata,
     variables: input.variables,
-    isDeployed: input.isDeployed,
-    deployedAt: input.deployedAt,
     deploymentStatuses: input.deploymentStatuses,
     needsRedeployment: input.needsRedeployment,
     dragStartPosition: input.dragStartPosition ?? null,
@@ -211,16 +206,15 @@ function TemplateCardInner({
         className='pointer-events-none h-[180px] w-full overflow-hidden rounded-[6px]'
       >
         {normalizedState && isInView ? (
-          <WorkflowPreview
+          <PreviewWorkflow
             workflowState={normalizedState}
-            showSubBlocks={false}
             height={180}
             width='100%'
             isPannable={false}
             defaultZoom={0.8}
             fitPadding={0.2}
-            lightweight
             cursorStyle='pointer'
+            lightweight
           />
         ) : (
           <div className='h-full w-full bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />

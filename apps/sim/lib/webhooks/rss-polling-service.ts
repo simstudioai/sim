@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
-import { webhook, workflow } from '@sim/db/schema'
+import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import Parser from 'rss-parser'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import { createPinnedUrl, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
@@ -48,6 +48,9 @@ interface RssFeed {
 }
 
 export interface RssWebhookPayload {
+  title?: string
+  link?: string
+  pubDate?: string
   item: RssItem
   feed: {
     title?: string
@@ -119,8 +122,23 @@ export async function pollRssWebhooks() {
       .select({ webhook })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
       .where(
-        and(eq(webhook.provider, 'rss'), eq(webhook.isActive, true), eq(workflow.isDeployed, true))
+        and(
+          eq(webhook.provider, 'rss'),
+          eq(webhook.isActive, true),
+          eq(workflow.isDeployed, true),
+          or(
+            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
+            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
+          )
+        )
       )
 
     const activeWebhooks = activeWebhooksResult.map((r) => r.webhook)
@@ -250,15 +268,12 @@ async function fetchNewRssItems(
       throw new Error(`Invalid RSS feed URL: ${urlValidation.error}`)
     }
 
-    const pinnedUrl = createPinnedUrl(config.feedUrl, urlValidation.resolvedIP!)
-
-    const response = await fetch(pinnedUrl, {
+    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP!, {
       headers: {
-        Host: urlValidation.originalHostname!,
         'User-Agent': 'Sim/1.0 RSS Poller',
         Accept: 'application/rss+xml, application/xml, text/xml, */*',
       },
-      signal: AbortSignal.timeout(30000),
+      timeout: 30000,
     })
 
     if (!response.ok) {
@@ -334,6 +349,9 @@ async function processRssItems(
         `${webhookData.id}:${itemGuid}`,
         async () => {
           const payload: RssWebhookPayload = {
+            title: item.title,
+            link: item.link,
+            pubDate: item.pubDate,
             item: {
               title: item.title,
               link: item.link,
@@ -361,7 +379,6 @@ async function processRssItems(
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-Webhook-Secret': webhookData.secret || '',
               'User-Agent': 'Sim/1.0',
             },
             body: JSON.stringify(payload),

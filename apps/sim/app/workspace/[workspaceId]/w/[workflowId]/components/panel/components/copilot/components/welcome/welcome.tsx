@@ -2,9 +2,7 @@
 
 import { Button } from '@/components/emcn'
 
-/**
- * Props for the CopilotWelcome component
- */
+/** Props for the Welcome component */
 interface WelcomeProps {
   /** Callback when a suggested question is clicked */
   onQuestionClick?: (question: string) => void
@@ -12,13 +10,7 @@ interface WelcomeProps {
   mode?: 'ask' | 'build' | 'plan'
 }
 
-/**
- * Welcome screen component for the copilot
- * Displays suggested questions and capabilities based on current mode
- *
- * @param props - Component props
- * @returns Welcome screen UI
- */
+/** Welcome screen displaying suggested questions based on current mode */
 export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
   const capabilities =
     mode === 'build'

@@ -1,6 +1,6 @@
+import type { PolymarketPaginationParams, PolymarketTag } from '@/tools/polymarket/types'
+import { buildGammaUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketPaginationParams, PolymarketTag } from './types'
-import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetTagsParams extends PolymarketPaginationParams {}
 
@@ -23,11 +23,13 @@ export const polymarketGetTagsTool: ToolConfig<PolymarketGetTagsParams, Polymark
         type: 'string',
         required: false,
         description: 'Number of results per page (max 50)',
+        visibility: 'user-or-llm',
       },
       offset: {
         type: 'string',
         required: false,
         description: 'Pagination offset (skip this many results)',
+        visibility: 'user-or-llm',
       },
     },
 
@@ -69,7 +71,17 @@ export const polymarketGetTagsTool: ToolConfig<PolymarketGetTagsParams, Polymark
     outputs: {
       tags: {
         type: 'array',
-        description: 'Array of tag objects with id, label, and slug',
+        description: 'Array of tag objects',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Tag ID' },
+            label: { type: 'string', description: 'Tag label' },
+            slug: { type: 'string', description: 'Tag slug' },
+            createdAt: { type: 'string', description: 'Creation timestamp' },
+            updatedAt: { type: 'string', description: 'Last update timestamp' },
+          },
+        },
       },
     },
   }

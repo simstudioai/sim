@@ -1,6 +1,6 @@
+import type { PolymarketMarket } from '@/tools/polymarket/types'
+import { buildGammaUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketMarket } from './types'
-import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetMarketParams {
   marketId?: string // Market ID
@@ -28,12 +28,14 @@ export const polymarketGetMarketTool: ToolConfig<
       type: 'string',
       required: false,
       description: 'The market ID. Required if slug is not provided.',
+      visibility: 'user-or-llm',
     },
     slug: {
       type: 'string',
       required: false,
       description:
         'The market slug (e.g., "will-trump-win"). Required if marketId is not provided.',
+      visibility: 'user-or-llm',
     },
   },
 
@@ -69,6 +71,30 @@ export const polymarketGetMarketTool: ToolConfig<
     market: {
       type: 'object',
       description: 'Market object with details',
+      properties: {
+        id: { type: 'string', description: 'Market ID' },
+        question: { type: 'string', description: 'Market question' },
+        conditionId: { type: 'string', description: 'Condition ID' },
+        slug: { type: 'string', description: 'Market slug' },
+        resolutionSource: { type: 'string', description: 'Resolution source' },
+        endDate: { type: 'string', description: 'End date' },
+        startDate: { type: 'string', description: 'Start date' },
+        image: { type: 'string', description: 'Market image URL' },
+        icon: { type: 'string', description: 'Market icon URL' },
+        description: { type: 'string', description: 'Market description' },
+        outcomes: { type: 'string', description: 'Outcomes JSON string' },
+        outcomePrices: { type: 'string', description: 'Outcome prices JSON string' },
+        volume: { type: 'string', description: 'Total volume' },
+        liquidity: { type: 'string', description: 'Total liquidity' },
+        active: { type: 'boolean', description: 'Whether market is active' },
+        closed: { type: 'boolean', description: 'Whether market is closed' },
+        archived: { type: 'boolean', description: 'Whether market is archived' },
+        volumeNum: { type: 'number', description: 'Volume as number' },
+        liquidityNum: { type: 'number', description: 'Liquidity as number' },
+        clobTokenIds: { type: 'array', description: 'CLOB token IDs' },
+        acceptingOrders: { type: 'boolean', description: 'Whether accepting orders' },
+        negRisk: { type: 'boolean', description: 'Whether negative risk' },
+      },
     },
   },
 }

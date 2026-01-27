@@ -18,7 +18,7 @@ import {
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useProvidersStore } from '@/stores/providers'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('VLLMProvider')
@@ -357,7 +357,7 @@ export const vllmProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, true)
+            const result = await executeTool(toolName, executionParams)
             const toolCallEndTime = Date.now()
 
             return {

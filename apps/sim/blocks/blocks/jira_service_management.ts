@@ -149,6 +149,18 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       required: true,
       placeholder: 'Enter request summary',
       condition: { field: 'operation', value: 'create_request' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a concise service request summary based on the user's description.
+The summary should:
+- Be clear and descriptive
+- Capture the essence of the request
+- Be suitable for service desk tracking
+
+Return ONLY the summary text - no explanations.`,
+        placeholder:
+          'Describe the service request (e.g., "need VPN access", "laptop keyboard not working")...',
+      },
     },
     {
       id: 'description',
@@ -156,6 +168,18 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       type: 'long-input',
       placeholder: 'Enter request description',
       condition: { field: 'operation', value: 'create_request' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a detailed service request description based on the user's description.
+The description should:
+- Provide context and details about the request
+- Include relevant information for the service desk agent
+- Be professional and clear
+
+Return ONLY the description text - no explanations.`,
+        placeholder:
+          'Describe the request details (e.g., "need access to shared drive for new project")...',
+      },
     },
     {
       id: 'raiseOnBehalfOf',
@@ -171,6 +195,18 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       required: true,
       placeholder: 'Enter comment text',
       condition: { field: 'operation', value: 'add_comment' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a service request comment based on the user's description.
+The comment should:
+- Be professional and helpful
+- Provide relevant information or updates
+- Be suitable for customer or internal communication
+
+Return ONLY the comment text - no explanations.`,
+        placeholder:
+          'Describe what you want to communicate (e.g., "update on ticket progress", "request more information")...',
+      },
     },
     {
       id: 'isPublic',
@@ -212,6 +248,18 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       type: 'long-input',
       placeholder: 'Add optional comment during transition',
       condition: { field: 'operation', value: 'transition_request' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a transition comment for a service request based on the user's description.
+The comment should:
+- Explain the reason for the status change
+- Provide any relevant context
+- Be professional and informative
+
+Return ONLY the comment text - no explanations.`,
+        placeholder:
+          'Describe the transition reason (e.g., "resolved issue", "waiting for customer input")...',
+      },
     },
     {
       id: 'requestOwnership',

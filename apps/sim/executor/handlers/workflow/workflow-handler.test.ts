@@ -204,26 +204,21 @@ describe('WorkflowBlockHandler', () => {
       })
     })
 
-    it('should map failed child output correctly', () => {
+    it('should throw error for failed child output so BlockExecutor can check error port', () => {
       const childResult = {
         success: false,
         error: 'Child workflow failed',
       }
 
-      const result = (handler as any).mapChildOutputToParent(
-        childResult,
-        'child-id',
-        'Child Workflow',
-        100
-      )
+      expect(() =>
+        (handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow', 100)
+      ).toThrow('Error in child workflow "Child Workflow": Child workflow failed')
 
-      expect(result).toEqual({
-        success: false,
-        childWorkflowName: 'Child Workflow',
-        result: {},
-        error: 'Child workflow failed',
-        childTraceSpans: [],
-      })
+      try {
+        ;(handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow', 100)
+      } catch (error: any) {
+        expect(error.childTraceSpans).toEqual([])
+      }
     })
 
     it('should handle nested response structures', () => {

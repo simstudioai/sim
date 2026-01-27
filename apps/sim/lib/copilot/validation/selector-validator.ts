@@ -39,6 +39,31 @@ export async function validateSelectorIds(
           .from(account)
           .where(and(inArray(account.id, idsArray), eq(account.userId, context.userId)))
         existingIds = results.map((r) => r.id)
+
+        // If any IDs are invalid, fetch user's available credentials to include in error message
+        const existingSet = new Set(existingIds)
+        const invalidIds = idsArray.filter((id) => !existingSet.has(id))
+        if (invalidIds.length > 0) {
+          // Fetch all of the user's credentials to provide helpful feedback
+          const allUserCredentials = await db
+            .select({ id: account.id, providerId: account.providerId })
+            .from(account)
+            .where(eq(account.userId, context.userId))
+
+          const availableCredentials = allUserCredentials
+            .map((c) => `${c.id} (${c.providerId})`)
+            .join(', ')
+          const noCredentialsMessage = 'User has no credentials configured.'
+
+          return {
+            valid: existingIds,
+            invalid: invalidIds,
+            warning:
+              allUserCredentials.length > 0
+                ? `Available credentials for this user: ${availableCredentials}`
+                : noCredentialsMessage,
+          }
+        }
         break
       }
 

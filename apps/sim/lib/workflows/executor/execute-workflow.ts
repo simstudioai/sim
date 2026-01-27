@@ -3,7 +3,9 @@ import { v4 as uuidv4 } from 'uuid'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
-import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionMetadata } from '@/executor/execution/types'
+import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('WorkflowExecution')
 
@@ -12,9 +14,11 @@ export interface ExecuteWorkflowOptions {
   selectedOutputs?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat'
-  onStream?: (streamingExec: any) => Promise<void>
-  onBlockComplete?: (blockId: string, output: any) => Promise<void>
+  onStream?: (streamingExec: StreamingExecution) => Promise<void>
+  onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
   skipLoggingComplete?: boolean
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
 }
 
 export interface WorkflowInfo {
@@ -28,11 +32,11 @@ export interface WorkflowInfo {
 export async function executeWorkflow(
   workflow: WorkflowInfo,
   requestId: string,
-  input: any | undefined,
+  input: unknown | undefined,
   actorUserId: string,
   streamConfig?: ExecuteWorkflowOptions,
   providedExecutionId?: string
-): Promise<any> {
+): Promise<ExecutionResult> {
   if (!workflow.workspaceId) {
     throw new Error(`Workflow ${workflow.id} has no workspaceId`)
   }
@@ -70,12 +74,14 @@ export async function executeWorkflow(
       callbacks: {
         onStream: streamConfig?.onStream,
         onBlockComplete: streamConfig?.onBlockComplete
-          ? async (blockId: string, _blockName: string, _blockType: string, output: any) => {
+          ? async (blockId: string, _blockName: string, _blockType: string, output: unknown) => {
               await streamConfig.onBlockComplete!(blockId, output)
             }
           : undefined,
       },
       loggingSession,
+      includeFileBase64: streamConfig?.includeFileBase64,
+      base64MaxBytes: streamConfig?.base64MaxBytes,
     })
 
     if (result.status === 'paused') {
@@ -83,14 +89,25 @@ export async function executeWorkflow(
         logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
           executionId,
         })
+        await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
       } else {
-        await PauseResumeManager.persistPauseResult({
-          workflowId,
-          executionId,
-          pausePoints: result.pausePoints || [],
-          snapshotSeed: result.snapshotSeed,
-          executorUserId: result.metadata?.userId,
-        })
+        try {
+          await PauseResumeManager.persistPauseResult({
+            workflowId,
+            executionId,
+            pausePoints: result.pausePoints || [],
+            snapshotSeed: result.snapshotSeed,
+            executorUserId: result.metadata?.userId,
+          })
+        } catch (pauseError) {
+          logger.error(`[${requestId}] Failed to persist pause result`, {
+            executionId,
+            error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+          })
+          await loggingSession.markAsFailed(
+            `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+          )
+        }
       }
     } else {
       await PauseResumeManager.processQueuedResumes(executionId)
@@ -107,7 +124,7 @@ export async function executeWorkflow(
     }
 
     return result
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Workflow execution failed:`, error)
     throw error
   }

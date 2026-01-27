@@ -1,3 +1,4 @@
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { BlockType } from '@/executor/constants'
@@ -6,14 +7,7 @@ import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/tools', () => ({
   executeTool: vi.fn(),
@@ -81,7 +75,12 @@ describe('FunctionBlockHandler', () => {
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
-      _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
+      blockOutputSchemas: {},
+      _context: {
+        workflowId: mockContext.workflowId,
+        workspaceId: mockContext.workspaceId,
+        isDeployedContext: mockContext.isDeployedContext,
+      },
     }
     const expectedOutput: any = { result: 'Success' }
 
@@ -90,9 +89,8 @@ describe('FunctionBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
       expectedToolParams,
-      false, // skipProxy
-      false, // skipPostProcess
-      mockContext // execution context
+      false,
+      mockContext
     )
     expect(result).toEqual(expectedOutput)
   })
@@ -114,7 +112,12 @@ describe('FunctionBlockHandler', () => {
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
-      _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
+      blockOutputSchemas: {},
+      _context: {
+        workflowId: mockContext.workflowId,
+        workspaceId: mockContext.workspaceId,
+        isDeployedContext: mockContext.isDeployedContext,
+      },
     }
     const expectedOutput: any = { result: 'Success' }
 
@@ -123,9 +126,8 @@ describe('FunctionBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
       expectedToolParams,
-      false, // skipProxy
-      false, // skipPostProcess
-      mockContext // execution context
+      false,
+      mockContext
     )
     expect(result).toEqual(expectedOutput)
   })
@@ -140,7 +142,12 @@ describe('FunctionBlockHandler', () => {
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
-      _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
+      blockOutputSchemas: {},
+      _context: {
+        workflowId: mockContext.workflowId,
+        workspaceId: mockContext.workspaceId,
+        isDeployedContext: mockContext.isDeployedContext,
+      },
     }
 
     await handler.execute(mockContext, mockBlock, inputs)
@@ -148,7 +155,6 @@ describe('FunctionBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
       expectedToolParams,
-      false, // skipProxy
       false, // skipPostProcess
       mockContext // execution context
     )

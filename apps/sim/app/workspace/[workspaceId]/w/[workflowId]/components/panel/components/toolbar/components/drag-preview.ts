@@ -32,7 +32,6 @@ export function createDragPreview(info: DragItemInfo): HTMLElement {
     z-index: 9999;
   `
 
-  // Create icon container
   const iconContainer = document.createElement('div')
   iconContainer.style.cssText = `
     width: 24px;
@@ -45,7 +44,6 @@ export function createDragPreview(info: DragItemInfo): HTMLElement {
     flex-shrink: 0;
   `
 
-  // Clone the actual icon if provided
   if (info.iconElement) {
     const clonedIcon = info.iconElement.cloneNode(true) as HTMLElement
     clonedIcon.style.width = '16px'
@@ -55,11 +53,10 @@ export function createDragPreview(info: DragItemInfo): HTMLElement {
     iconContainer.appendChild(clonedIcon)
   }
 
-  // Create text element
   const text = document.createElement('span')
   text.textContent = info.name
   text.style.cssText = `
-    color: #FFFFFF;
+    color: var(--text-primary);
     font-size: 16px;
     font-weight: 500;
     white-space: nowrap;

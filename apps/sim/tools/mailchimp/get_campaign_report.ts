@@ -13,11 +13,7 @@ export interface MailchimpGetCampaignReportResponse {
   success: boolean
   output: {
     report: MailchimpCampaignReport
-    metadata: {
-      operation: 'get_campaign_report'
-      campaignId: string
-    }
-    success: boolean
+    campaign_id: string
   }
 }
 
@@ -66,24 +62,22 @@ export const mailchimpGetCampaignReportTool: ToolConfig<
       success: true,
       output: {
         report: data,
-        metadata: {
-          operation: 'get_campaign_report' as const,
-          campaignId: data.campaign_id,
-        },
-        success: true,
+        campaign_id: data.campaign_id,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the campaign report was successfully retrieved',
+    },
     output: {
       type: 'object',
-      description: 'Campaign report data and metadata',
+      description: 'Campaign report data',
       properties: {
-        report: { type: 'object', description: 'Campaign report object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        report: { type: 'json', description: 'Campaign report object' },
+        campaign_id: { type: 'string', description: 'The unique ID of the campaign' },
       },
     },
   },

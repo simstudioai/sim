@@ -11,6 +11,7 @@ import type React from 'react'
 import {
   AnthropicIcon,
   AzureIcon,
+  BedrockIcon,
   CerebrasIcon,
   DeepseekIcon,
   GeminiIcon,
@@ -33,6 +34,12 @@ export interface ModelCapabilities {
   toolUsageControl?: boolean
   computerUse?: boolean
   nativeStructuredOutputs?: boolean
+  maxOutputTokens?: {
+    /** Maximum tokens for streaming requests */
+    max: number
+    /** Safe default for non-streaming requests (to avoid timeout issues) */
+    default: number
+  }
   reasoningEffort?: {
     values: string[]
   }
@@ -612,6 +619,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -626,6 +634,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -639,6 +648,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -653,6 +663,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -667,6 +678,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -680,6 +692,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -694,6 +707,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           computerUse: true,
+          maxOutputTokens: { max: 8192, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -708,6 +722,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           computerUse: true,
+          maxOutputTokens: { max: 8192, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -1632,6 +1647,412 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     contextInformationAvailable: false,
     models: [], // Populated dynamically
   },
+  bedrock: {
+    id: 'bedrock',
+    name: 'AWS Bedrock',
+    description: 'AWS Bedrock foundation models',
+    defaultModel: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0',
+    modelPatterns: [/^bedrock\//],
+    icon: BedrockIcon,
+    capabilities: {
+      temperature: { min: 0, max: 1 },
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'bedrock/anthropic.claude-opus-4-5-20251101-v1:0',
+        pricing: {
+          input: 5.0,
+          output: 25.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0',
+        pricing: {
+          input: 3.0,
+          output: 15.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'bedrock/anthropic.claude-haiku-4-5-20251001-v1:0',
+        pricing: {
+          input: 1.0,
+          output: 5.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'bedrock/anthropic.claude-opus-4-1-20250805-v1:0',
+        pricing: {
+          input: 15.0,
+          output: 75.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'bedrock/amazon.nova-2-pro-v1:0',
+        pricing: {
+          input: 1.0,
+          output: 4.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'bedrock/amazon.nova-2-lite-v1:0',
+        pricing: {
+          input: 0.08,
+          output: 0.32,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'bedrock/amazon.nova-premier-v1:0',
+        pricing: {
+          input: 2.5,
+          output: 10.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'bedrock/amazon.nova-pro-v1:0',
+        pricing: {
+          input: 0.8,
+          output: 3.2,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 300000,
+      },
+      {
+        id: 'bedrock/amazon.nova-lite-v1:0',
+        pricing: {
+          input: 0.06,
+          output: 0.24,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 300000,
+      },
+      {
+        id: 'bedrock/amazon.nova-micro-v1:0',
+        pricing: {
+          input: 0.035,
+          output: 0.14,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/meta.llama4-maverick-17b-instruct-v1:0',
+        pricing: {
+          input: 0.24,
+          output: 0.97,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 1000000,
+      },
+      {
+        id: 'bedrock/meta.llama4-scout-17b-instruct-v1:0',
+        pricing: {
+          input: 0.18,
+          output: 0.72,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 3500000,
+      },
+      {
+        id: 'bedrock/meta.llama3-3-70b-instruct-v1:0',
+        pricing: {
+          input: 0.72,
+          output: 0.72,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/meta.llama3-2-90b-instruct-v1:0',
+        pricing: {
+          input: 2.0,
+          output: 2.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/meta.llama3-2-11b-instruct-v1:0',
+        pricing: {
+          input: 0.16,
+          output: 0.16,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/meta.llama3-2-3b-instruct-v1:0',
+        pricing: {
+          input: 0.15,
+          output: 0.15,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/meta.llama3-2-1b-instruct-v1:0',
+        pricing: {
+          input: 0.1,
+          output: 0.1,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/meta.llama3-1-405b-instruct-v1:0',
+        pricing: {
+          input: 5.32,
+          output: 16.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/meta.llama3-1-70b-instruct-v1:0',
+        pricing: {
+          input: 2.65,
+          output: 3.5,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/meta.llama3-1-8b-instruct-v1:0',
+        pricing: {
+          input: 0.3,
+          output: 0.6,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/mistral.mistral-large-3-675b-instruct',
+        pricing: {
+          input: 2.0,
+          output: 6.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/mistral.mistral-large-2411-v1:0',
+        pricing: {
+          input: 2.0,
+          output: 6.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/mistral.mistral-large-2407-v1:0',
+        pricing: {
+          input: 4.0,
+          output: 12.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/mistral.pixtral-large-2502-v1:0',
+        pricing: {
+          input: 2.0,
+          output: 6.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/mistral.magistral-small-2509',
+        pricing: {
+          input: 0.5,
+          output: 1.5,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/mistral.ministral-3-14b-instruct',
+        pricing: {
+          input: 0.2,
+          output: 0.2,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/mistral.ministral-3-8b-instruct',
+        pricing: {
+          input: 0.1,
+          output: 0.1,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/mistral.ministral-3-3b-instruct',
+        pricing: {
+          input: 0.04,
+          output: 0.04,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/mistral.mixtral-8x7b-instruct-v0:1',
+        pricing: {
+          input: 0.45,
+          output: 0.7,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 32000,
+      },
+      {
+        id: 'bedrock/amazon.titan-text-premier-v1:0',
+        pricing: {
+          input: 0.5,
+          output: 1.5,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 32000,
+      },
+      {
+        id: 'bedrock/cohere.command-r-plus-v1:0',
+        pricing: {
+          input: 3.0,
+          output: 15.0,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'bedrock/cohere.command-r-v1:0',
+        pricing: {
+          input: 0.5,
+          output: 1.5,
+          updatedAt: '2026-01-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+    ],
+  },
 }
 
 export function getProviderModels(providerId: string): string[] {
@@ -1929,4 +2350,32 @@ export function getModelsWithThinking(): string[] {
 export function getThinkingLevelsForModel(modelId: string): string[] | null {
   const capability = getThinkingCapability(modelId)
   return capability?.levels ?? null
+}
+
+/**
+ * Get the max output tokens for a specific model
+ * Returns the model's max capacity for streaming requests,
+ * or the model's safe default for non-streaming requests to avoid timeout issues.
+ *
+ * @param modelId - The model ID
+ * @param streaming - Whether the request is streaming (default: false)
+ */
+export function getMaxOutputTokensForModel(modelId: string, streaming = false): number {
+  const normalizedModelId = modelId.toLowerCase()
+  const STANDARD_MAX_OUTPUT_TOKENS = 4096
+
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      const baseModelId = model.id.toLowerCase()
+      if (normalizedModelId === baseModelId || normalizedModelId.startsWith(`${baseModelId}-`)) {
+        const outputTokens = model.capabilities.maxOutputTokens
+        if (outputTokens) {
+          return streaming ? outputTokens.max : outputTokens.default
+        }
+        return STANDARD_MAX_OUTPUT_TOKENS
+      }
+    }
+  }
+
+  return STANDARD_MAX_OUTPUT_TOKENS
 }

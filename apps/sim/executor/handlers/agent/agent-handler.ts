@@ -6,14 +6,7 @@ import { createMcpToolId } from '@/lib/mcp/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
-import {
-  AGENT,
-  BlockType,
-  DEFAULTS,
-  HTTP,
-  REFERENCE,
-  stripCustomToolPrefix,
-} from '@/executor/constants'
+import { AGENT, BlockType, DEFAULTS, REFERENCE, stripCustomToolPrefix } from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import type {
   AgentInputs,
@@ -23,8 +16,14 @@ import type {
 } from '@/executor/handlers/agent/types'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
+import {
+  validateBlockType,
+  validateCustomToolsAllowed,
+  validateMcpToolsAllowed,
+  validateModelProvider,
+} from '@/executor/utils/permission-check'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -46,12 +45,16 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: AgentInputs
   ): Promise<BlockOutput | StreamingExecution> {
-    // Filter out unavailable MCP tools early so they don't appear in logs/inputs
     const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
     const filteredInputs = { ...inputs, tools: filteredTools }
 
+    await this.validateToolPermissions(ctx, filteredInputs.tools || [])
+
     const responseFormat = this.parseResponseFormat(filteredInputs.responseFormat)
     const model = filteredInputs.model || AGENT.DEFAULT_MODEL
+
+    await validateModelProvider(ctx.userId, model, ctx)
+
     const providerId = getProviderFromModel(model)
     const formattedTools = await this.formatTools(ctx, filteredInputs.tools || [])
     const streamingConfig = this.getStreamingConfig(ctx, block)
@@ -68,13 +71,7 @@ export class AgentBlockHandler implements BlockHandler {
       streaming: streamingConfig.shouldUseStreaming ?? false,
     })
 
-    const result = await this.executeProviderRequest(
-      ctx,
-      providerRequest,
-      block,
-      responseFormat,
-      filteredInputs
-    )
+    const result = await this.executeProviderRequest(ctx, providerRequest, block, responseFormat)
 
     if (this.isStreamingExecution(result)) {
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
@@ -141,6 +138,21 @@ export class AgentBlockHandler implements BlockHandler {
       value: responseFormat,
     })
     return undefined
+  }
+
+  private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {
+    if (!Array.isArray(tools) || tools.length === 0) return
+
+    const hasMcpTools = tools.some((t) => t.type === 'mcp')
+    const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
+
+    if (hasMcpTools) {
+      await validateMcpToolsAllowed(ctx.userId, ctx)
+    }
+
+    if (hasCustomTools) {
+      await validateCustomToolsAllowed(ctx.userId, ctx)
+    }
   }
 
   private async filterUnavailableMcpTools(
@@ -212,6 +224,9 @@ export class AgentBlockHandler implements BlockHandler {
     const otherResults = await Promise.all(
       otherTools.map(async (tool) => {
         try {
+          if (tool.type && tool.type !== 'custom-tool' && tool.type !== 'mcp') {
+            await validateBlockType(ctx.userId, tool.type, ctx)
+          }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
             return await this.createCustomTool(ctx, tool)
           }
@@ -275,7 +290,7 @@ export class AgentBlockHandler implements BlockHandler {
       base.executeFunction = async (callParams: Record<string, any>) => {
         const mergedParams = mergeToolParameters(userProvidedParams, callParams)
 
-        const { blockData, blockNameMapping } = collectBlockData(ctx)
+        const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
         const result = await executeTool(
           'function_execute',
@@ -287,13 +302,14 @@ export class AgentBlockHandler implements BlockHandler {
             workflowVariables: ctx.workflowVariables || {},
             blockData,
             blockNameMapping,
+            blockOutputSchemas,
             isCustomTool: true,
             _context: {
               workflowId: ctx.workflowId,
               workspaceId: ctx.workspaceId,
+              isDeployedContext: ctx.isDeployedContext,
             },
           },
-          false,
           false,
           ctx
         )
@@ -317,8 +333,8 @@ export class AgentBlockHandler implements BlockHandler {
   ): Promise<{ schema: any; code: string; title: string } | null> {
     if (typeof window !== 'undefined') {
       try {
-        const { useCustomToolsStore } = await import('@/stores/custom-tools/store')
-        const tool = useCustomToolsStore.getState().getTool(customToolId)
+        const { getCustomTool } = await import('@/hooks/queries/custom-tools')
+        const tool = getCustomTool(customToolId, ctx.workspaceId)
         if (tool) {
           return {
             schema: tool.schema,
@@ -326,9 +342,9 @@ export class AgentBlockHandler implements BlockHandler {
             title: tool.title,
           }
         }
-        logger.warn(`Custom tool not found in store: ${customToolId}`)
+        logger.warn(`Custom tool not found in cache: ${customToolId}`)
       } catch (error) {
-        logger.error('Error accessing custom tools store:', { error })
+        logger.error('Error accessing custom tools cache:', { error })
       }
     }
 
@@ -928,6 +944,9 @@ export class AgentBlockHandler implements BlockHandler {
       vertexProject: inputs.vertexProject,
       vertexLocation: inputs.vertexLocation,
       vertexCredential: inputs.vertexCredential,
+      bedrockAccessKeyId: inputs.bedrockAccessKeyId,
+      bedrockSecretKey: inputs.bedrockSecretKey,
+      bedrockRegion: inputs.bedrockRegion,
       responseFormat,
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
@@ -962,151 +981,58 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     providerRequest: any,
     block: SerializedBlock,
-    responseFormat: any,
-    inputs: AgentInputs
+    responseFormat: any
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
     const providerStartTime = Date.now()
 
     try {
-      const isBrowser = typeof window !== 'undefined'
+      let finalApiKey: string | undefined = providerRequest.apiKey
 
-      if (!isBrowser) {
-        return this.executeServerSide(
-          ctx,
-          providerRequest,
-          providerId,
-          model,
-          block,
-          responseFormat,
-          providerStartTime
+      if (providerId === 'vertex' && providerRequest.vertexCredential) {
+        finalApiKey = await this.resolveVertexCredential(
+          providerRequest.vertexCredential,
+          ctx.workflowId
         )
       }
-      return this.executeBrowserSide(
-        ctx,
-        providerRequest,
-        block,
-        responseFormat,
-        providerStartTime,
-        inputs
-      )
+
+      const { blockData, blockNameMapping } = collectBlockData(ctx)
+
+      const response = await executeProviderRequest(providerId, {
+        model,
+        systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
+        context: 'context' in providerRequest ? providerRequest.context : undefined,
+        tools: providerRequest.tools,
+        temperature: providerRequest.temperature,
+        maxTokens: providerRequest.maxTokens,
+        apiKey: finalApiKey,
+        azureEndpoint: providerRequest.azureEndpoint,
+        azureApiVersion: providerRequest.azureApiVersion,
+        vertexProject: providerRequest.vertexProject,
+        vertexLocation: providerRequest.vertexLocation,
+        bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
+        bedrockSecretKey: providerRequest.bedrockSecretKey,
+        bedrockRegion: providerRequest.bedrockRegion,
+        responseFormat: providerRequest.responseFormat,
+        workflowId: providerRequest.workflowId,
+        workspaceId: ctx.workspaceId,
+        stream: providerRequest.stream,
+        messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
+        environmentVariables: ctx.environmentVariables || {},
+        workflowVariables: ctx.workflowVariables || {},
+        blockData,
+        blockNameMapping,
+        isDeployedContext: ctx.isDeployedContext,
+        reasoningEffort: providerRequest.reasoningEffort,
+        verbosity: providerRequest.verbosity,
+      })
+
+      return this.processProviderResponse(response, block, responseFormat)
     } catch (error) {
       this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
       throw error
     }
-  }
-
-  private async executeServerSide(
-    ctx: ExecutionContext,
-    providerRequest: any,
-    providerId: string,
-    model: string,
-    block: SerializedBlock,
-    responseFormat: any,
-    providerStartTime: number
-  ) {
-    let finalApiKey: string | undefined = providerRequest.apiKey
-
-    if (providerId === 'vertex' && providerRequest.vertexCredential) {
-      finalApiKey = await this.resolveVertexCredential(
-        providerRequest.vertexCredential,
-        ctx.workflowId
-      )
-    }
-
-    const { blockData, blockNameMapping } = collectBlockData(ctx)
-
-    const response = await executeProviderRequest(providerId, {
-      model,
-      systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
-      context: 'context' in providerRequest ? providerRequest.context : undefined,
-      tools: providerRequest.tools,
-      temperature: providerRequest.temperature,
-      maxTokens: providerRequest.maxTokens,
-      apiKey: finalApiKey,
-      azureEndpoint: providerRequest.azureEndpoint,
-      azureApiVersion: providerRequest.azureApiVersion,
-      vertexProject: providerRequest.vertexProject,
-      vertexLocation: providerRequest.vertexLocation,
-      responseFormat: providerRequest.responseFormat,
-      workflowId: providerRequest.workflowId,
-      workspaceId: ctx.workspaceId,
-      stream: providerRequest.stream,
-      messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
-      environmentVariables: ctx.environmentVariables || {},
-      workflowVariables: ctx.workflowVariables || {},
-      blockData,
-      blockNameMapping,
-    })
-
-    return this.processProviderResponse(response, block, responseFormat)
-  }
-
-  private async executeBrowserSide(
-    ctx: ExecutionContext,
-    providerRequest: any,
-    block: SerializedBlock,
-    responseFormat: any,
-    providerStartTime: number,
-    inputs: AgentInputs
-  ) {
-    const url = buildAPIUrl('/api/providers')
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': HTTP.CONTENT_TYPE.JSON },
-      body: stringifyJSON(providerRequest),
-      signal: AbortSignal.timeout(AGENT.REQUEST_TIMEOUT),
-    })
-
-    if (!response.ok) {
-      const errorMessage = await extractAPIErrorMessage(response)
-      throw new Error(errorMessage)
-    }
-
-    const contentType = response.headers.get('Content-Type')
-    if (contentType?.includes(HTTP.CONTENT_TYPE.EVENT_STREAM)) {
-      return this.handleStreamingResponse(response, block, ctx, inputs)
-    }
-
-    const result = await response.json()
-    return this.processProviderResponse(result, block, responseFormat)
-  }
-
-  private async handleStreamingResponse(
-    response: Response,
-    block: SerializedBlock,
-    _ctx?: ExecutionContext,
-    _inputs?: AgentInputs
-  ): Promise<StreamingExecution> {
-    const executionDataHeader = response.headers.get('X-Execution-Data')
-
-    if (executionDataHeader) {
-      try {
-        const executionData = JSON.parse(executionDataHeader)
-        return {
-          stream: response.body!,
-          execution: {
-            success: executionData.success,
-            output: executionData.output || {},
-            error: executionData.error,
-            logs: [],
-            metadata: executionData.metadata || {
-              duration: DEFAULTS.EXECUTION_TIME,
-              startTime: new Date().toISOString(),
-            },
-            isStreaming: true,
-            blockId: block.id,
-            blockName: block.metadata?.name,
-            blockType: block.metadata?.id,
-          } as any,
-        }
-      } catch (error) {
-        logger.error('Failed to parse execution data from header:', error)
-      }
-    }
-
-    return this.createMinimalStreamingExecution(response.body!)
   }
 
   /**

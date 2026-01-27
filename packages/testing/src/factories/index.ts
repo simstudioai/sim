@@ -118,26 +118,40 @@ export {
   type SerializedConnection,
   type SerializedWorkflow,
 } from './serialized-block.factory'
+// Tool mock responses
+export {
+  mockDriveResponses,
+  mockGitHubResponses,
+  mockGmailResponses,
+  mockHttpResponses,
+  mockPineconeResponses,
+  mockSerperResponses,
+  mockSheetsResponses,
+  mockSlackResponses,
+  mockSupabaseResponses,
+  mockTavilyResponses,
+} from './tool-responses.factory'
 // Undo/redo operation factories
 export {
-  type AddEdgeOperation,
   type BaseOperation,
   type BatchAddBlocksOperation,
+  type BatchAddEdgesOperation,
+  type BatchMoveBlocksOperation,
   type BatchRemoveBlocksOperation,
+  type BatchRemoveEdgesOperation,
+  type BatchUpdateParentOperation,
   createAddBlockEntry,
   createAddEdgeEntry,
+  createBatchRemoveEdgesEntry,
+  createBatchUpdateParentEntry,
   createMoveBlockEntry,
   createRemoveBlockEntry,
-  createRemoveEdgeEntry,
   createUpdateParentEntry,
-  type MoveBlockOperation,
   type Operation,
   type OperationEntry,
   type OperationType,
-  type RemoveEdgeOperation,
   type UpdateParentOperation,
 } from './undo-redo.factory'
-// User/workspace factories
 export {
   createUser,
   createUserWithWorkspace,
@@ -147,12 +161,20 @@ export {
   type WorkflowObjectFactoryOptions,
   type WorkspaceFactoryOptions,
 } from './user.factory'
-// Workflow factories
 export {
+  createAgentWithToolsWorkflowState,
   createBranchingWorkflow,
+  createComplexWorkflowState,
+  createConditionalWorkflowState,
+  createInvalidSerializedWorkflow,
+  createInvalidWorkflowState,
   createLinearWorkflow,
   createLoopWorkflow,
+  createLoopWorkflowState,
+  createMinimalWorkflowState,
+  createMissingMetadataWorkflow,
   createParallelWorkflow,
   createWorkflowState,
   type WorkflowFactoryOptions,
+  type WorkflowStateFixture,
 } from './workflow.factory'

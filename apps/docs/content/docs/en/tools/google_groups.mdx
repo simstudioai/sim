@@ -215,9 +215,191 @@ Check if a user is a member of a Google Group
 | --------- | ---- | ----------- |
 | `isMember` | boolean | Whether the user is a member of the group |
 
+### `google_groups_list_aliases`
+
+List all email aliases for a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group email address or unique group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `aliases` | array | List of email aliases for the group |
+|   ↳ `id` | string | Unique group identifier |
+|   ↳ `primaryEmail` | string | Group |
+|   ↳ `alias` | string | Alias email address |
+|   ↳ `kind` | string | API resource type |
+|   ↳ `etag` | string | Resource version identifier |
+
+### `google_groups_add_alias`
+
+Add an email alias to a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group email address or unique group ID |
+| `alias` | string | Yes | The email alias to add to the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique group identifier |
+| `primaryEmail` | string | Group |
+| `alias` | string | The alias that was added |
+| `kind` | string | API resource type |
+| `etag` | string | Resource version identifier |
+
+### `google_groups_remove_alias`
+
+Remove an email alias from a Google Group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupKey` | string | Yes | Group email address or unique group ID |
+| `alias` | string | Yes | The email alias to remove from the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the alias was successfully deleted |
+
+### `google_groups_get_settings`
+
+Get the settings for a Google Group including access permissions, moderation, and posting options
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupEmail` | string | Yes | The email address of the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | The group |
+| `name` | string | The group name \(max 75 characters\) |
+| `description` | string | The group description \(max 4096 characters\) |
+| `whoCanJoin` | string | Who can join the group \(ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN\) |
+| `whoCanViewMembership` | string | Who can view group membership |
+| `whoCanViewGroup` | string | Who can view group messages |
+| `whoCanPostMessage` | string | Who can post messages to the group |
+| `allowExternalMembers` | string | Whether external users can be members |
+| `allowWebPosting` | string | Whether web posting is allowed |
+| `primaryLanguage` | string | The group |
+| `isArchived` | string | Whether messages are archived |
+| `archiveOnly` | string | Whether the group is archive-only \(inactive\) |
+| `messageModerationLevel` | string | Message moderation level |
+| `spamModerationLevel` | string | Spam handling level \(ALLOW, MODERATE, SILENTLY_MODERATE, REJECT\) |
+| `replyTo` | string | Default reply destination |
+| `customReplyTo` | string | Custom email for replies |
+| `includeCustomFooter` | string | Whether to include custom footer |
+| `customFooterText` | string | Custom footer text \(max 1000 characters\) |
+| `sendMessageDenyNotification` | string | Whether to send rejection notifications |
+| `defaultMessageDenyNotificationText` | string | Default rejection message text |
+| `membersCanPostAsTheGroup` | string | Whether members can post as the group |
+| `includeInGlobalAddressList` | string | Whether included in Global Address List |
+| `whoCanLeaveGroup` | string | Who can leave the group |
+| `whoCanContactOwner` | string | Who can contact the group owner |
+| `favoriteRepliesOnTop` | string | Whether favorite replies appear at top |
+| `whoCanApproveMembers` | string | Who can approve new members |
+| `whoCanBanUsers` | string | Who can ban users |
+| `whoCanModerateMembers` | string | Who can manage members |
+| `whoCanModerateContent` | string | Who can moderate content |
+| `whoCanAssistContent` | string | Who can assist with content metadata |
+| `enableCollaborativeInbox` | string | Whether collaborative inbox is enabled |
+| `whoCanDiscoverGroup` | string | Who can discover the group |
+| `defaultSender` | string | Default sender identity \(DEFAULT_SELF or GROUP\) |
+
+### `google_groups_update_settings`
+
+Update the settings for a Google Group including access permissions, moderation, and posting options
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupEmail` | string | Yes | The email address of the group |
+| `name` | string | No | The group name \(max 75 characters\) |
+| `description` | string | No | The group description \(max 4096 characters\) |
+| `whoCanJoin` | string | No | Who can join: ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN |
+| `whoCanViewMembership` | string | No | Who can view membership: ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
+| `whoCanViewGroup` | string | No | Who can view group messages: ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
+| `whoCanPostMessage` | string | No | Who can post: NONE_CAN_POST, ALL_MANAGERS_CAN_POST, ALL_MEMBERS_CAN_POST, ALL_OWNERS_CAN_POST, ALL_IN_DOMAIN_CAN_POST, ANYONE_CAN_POST |
+| `allowExternalMembers` | string | No | Whether external users can be members: true or false |
+| `allowWebPosting` | string | No | Whether web posting is allowed: true or false |
+| `primaryLanguage` | string | No | The group's primary language \(e.g., en\) |
+| `isArchived` | string | No | Whether messages are archived: true or false |
+| `archiveOnly` | string | No | Whether the group is archive-only \(inactive\): true or false |
+| `messageModerationLevel` | string | No | Message moderation: MODERATE_ALL_MESSAGES, MODERATE_NON_MEMBERS, MODERATE_NEW_MEMBERS, MODERATE_NONE |
+| `spamModerationLevel` | string | No | Spam handling: ALLOW, MODERATE, SILENTLY_MODERATE, REJECT |
+| `replyTo` | string | No | Default reply: REPLY_TO_CUSTOM, REPLY_TO_SENDER, REPLY_TO_LIST, REPLY_TO_OWNER, REPLY_TO_IGNORE, REPLY_TO_MANAGERS |
+| `customReplyTo` | string | No | Custom email for replies \(when replyTo is REPLY_TO_CUSTOM\) |
+| `includeCustomFooter` | string | No | Whether to include custom footer: true or false |
+| `customFooterText` | string | No | Custom footer text \(max 1000 characters\) |
+| `sendMessageDenyNotification` | string | No | Whether to send rejection notifications: true or false |
+| `defaultMessageDenyNotificationText` | string | No | Default rejection message text |
+| `membersCanPostAsTheGroup` | string | No | Whether members can post as the group: true or false |
+| `includeInGlobalAddressList` | string | No | Whether included in Global Address List: true or false |
+| `whoCanLeaveGroup` | string | No | Who can leave: ALL_MANAGERS_CAN_LEAVE, ALL_MEMBERS_CAN_LEAVE, NONE_CAN_LEAVE |
+| `whoCanContactOwner` | string | No | Who can contact owner: ALL_IN_DOMAIN_CAN_CONTACT, ALL_MANAGERS_CAN_CONTACT, ALL_MEMBERS_CAN_CONTACT, ANYONE_CAN_CONTACT |
+| `favoriteRepliesOnTop` | string | No | Whether favorite replies appear at top: true or false |
+| `whoCanApproveMembers` | string | No | Who can approve members: ALL_OWNERS_CAN_APPROVE, ALL_MANAGERS_CAN_APPROVE, ALL_MEMBERS_CAN_APPROVE, NONE_CAN_APPROVE |
+| `whoCanBanUsers` | string | No | Who can ban users: OWNERS_ONLY, OWNERS_AND_MANAGERS, NONE |
+| `whoCanModerateMembers` | string | No | Who can manage members: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+| `whoCanModerateContent` | string | No | Who can moderate content: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+| `whoCanAssistContent` | string | No | Who can assist with content metadata: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
+| `enableCollaborativeInbox` | string | No | Whether collaborative inbox is enabled: true or false |
+| `whoCanDiscoverGroup` | string | No | Who can discover: ANYONE_CAN_DISCOVER, ALL_IN_DOMAIN_CAN_DISCOVER, ALL_MEMBERS_CAN_DISCOVER |
+| `defaultSender` | string | No | Default sender: DEFAULT_SELF or GROUP |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | The group |
+| `name` | string | The group name |
+| `description` | string | The group description |
+| `whoCanJoin` | string | Who can join the group |
+| `whoCanViewMembership` | string | Who can view group membership |
+| `whoCanViewGroup` | string | Who can view group messages |
+| `whoCanPostMessage` | string | Who can post messages to the group |
+| `allowExternalMembers` | string | Whether external users can be members |
+| `allowWebPosting` | string | Whether web posting is allowed |
+| `primaryLanguage` | string | The group |
+| `isArchived` | string | Whether messages are archived |
+| `archiveOnly` | string | Whether the group is archive-only |
+| `messageModerationLevel` | string | Message moderation level |
+| `spamModerationLevel` | string | Spam handling level |
+| `replyTo` | string | Default reply destination |
+| `customReplyTo` | string | Custom email for replies |
+| `includeCustomFooter` | string | Whether to include custom footer |
+| `customFooterText` | string | Custom footer text |
+| `sendMessageDenyNotification` | string | Whether to send rejection notifications |
+| `defaultMessageDenyNotificationText` | string | Default rejection message text |
+| `membersCanPostAsTheGroup` | string | Whether members can post as the group |
+| `includeInGlobalAddressList` | string | Whether included in Global Address List |
+| `whoCanLeaveGroup` | string | Who can leave the group |
+| `whoCanContactOwner` | string | Who can contact the group owner |
+| `favoriteRepliesOnTop` | string | Whether favorite replies appear at top |
+| `whoCanApproveMembers` | string | Who can approve new members |
+| `whoCanBanUsers` | string | Who can ban users |
+| `whoCanModerateMembers` | string | Who can manage members |
+| `whoCanModerateContent` | string | Who can moderate content |
+| `whoCanAssistContent` | string | Who can assist with content metadata |
+| `enableCollaborativeInbox` | string | Whether collaborative inbox is enabled |
+| `whoCanDiscoverGroup` | string | Who can discover the group |
+| `defaultSender` | string | Default sender identity |
 
 
-## Notes
-
-- Category: `tools`
-- Type: `google_groups`

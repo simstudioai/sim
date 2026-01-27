@@ -51,12 +51,22 @@ Search for similar content in a knowledge base using vector similarity
 | `properties` | string | No | No description |
 | `tagName` | string | No | No description |
 | `tagValue` | string | No | No description |
+| `tagFilters` | string | No | No description |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Array of search results from the knowledge base |
+|   ↳ `documentId` | string | Document ID |
+|   ↳ `documentName` | string | Document name |
+|   ↳ `content` | string | Content of the result |
+|   ↳ `chunkIndex` | number | Index of the chunk within the document |
+|   ↳ `similarity` | number | Similarity score of the result |
+|   ↳ `metadata` | object | Metadata of the result, including tags |
+| `query` | string | The search query that was executed |
+| `totalResults` | number | Total number of results found |
+| `cost` | object | Cost information for the search operation |
 
 ### `knowledge_upload_chunk`
 
@@ -75,6 +85,18 @@ Upload a new chunk to a document in a knowledge base
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `data` | object | Information about the uploaded chunk |
+| ↳ `chunkId` | string | Chunk ID |
+| ↳ `chunkIndex` | number | Index of the chunk within the document |
+| ↳ `content` | string | Content of the chunk |
+| ↳ `contentLength` | number | Length of the content in characters |
+| ↳ `tokenCount` | number | Number of tokens in the chunk |
+| ↳ `enabled` | boolean | Whether the chunk is enabled |
+| ↳ `createdAt` | string | Creation timestamp |
+| ↳ `updatedAt` | string | Last update timestamp |
+| `message` | string | Success or error message describing the operation result |
+| `documentId` | string | ID of the document the chunk was added to |
+| `documentName` | string | Name of the document the chunk was added to |
+| `cost` | object | Cost information for the upload operation |
 
 ### `knowledge_create_document`
 
@@ -87,29 +109,21 @@ Create a new document in a knowledge base
 | `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
 | `name` | string | Yes | Name of the document |
 | `content` | string | Yes | Content of the document |
-| `tag1` | string | No | Tag 1 value for the document |
-| `tag2` | string | No | Tag 2 value for the document |
-| `tag3` | string | No | Tag 3 value for the document |
-| `tag4` | string | No | Tag 4 value for the document |
-| `tag5` | string | No | Tag 5 value for the document |
-| `tag6` | string | No | Tag 6 value for the document |
-| `tag7` | string | No | Tag 7 value for the document |
-| `documentTagsData` | array | No | Structured tag data with names, types, and values |
-| `items` | object | No | No description |
-| `properties` | string | No | No description |
-| `tagName` | string | No | No description |
-| `tagValue` | string | No | No description |
-| `tagType` | string | No | No description |
+| `documentTags` | object | No | Document tags |
+| `documentTags` | string | No | No description |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `data` | object | Information about the created document |
+| ↳ `documentId` | string | Document ID |
+| ↳ `documentName` | string | Document name |
+| ↳ `type` | string | Document type |
+| ↳ `enabled` | boolean | Whether the document is enabled |
+| ↳ `createdAt` | string | Creation timestamp |
+| ↳ `updatedAt` | string | Last update timestamp |
+| `message` | string | Success or error message describing the operation result |
+| `documentId` | string | ID of the created document |
 
 
-
-## Notes
-
-- Category: `blocks`
-- Type: `knowledge`

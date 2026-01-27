@@ -13,7 +13,7 @@ import type {
   PausePoint,
   ResumeStatus,
 } from '@/executor/types'
-import { normalizeError } from '@/executor/utils/errors'
+import { attachExecutionResult, normalizeError } from '@/executor/utils/errors'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -25,9 +25,13 @@ export class ExecutionEngine {
   private pausedBlocks: Map<string, PauseMetadata> = new Map()
   private allowResumeTriggers: boolean
   private cancelledFlag = false
+  private errorFlag = false
+  private executionError: Error | null = null
   private lastCancellationCheck = 0
   private readonly useRedisCancellation: boolean
   private readonly CANCELLATION_CHECK_INTERVAL_MS = 500
+  private abortPromise: Promise<void> | null = null
+  private abortResolve: (() => void) | null = null
 
   constructor(
     private context: ExecutionContext,
@@ -37,6 +41,34 @@ export class ExecutionEngine {
   ) {
     this.allowResumeTriggers = this.context.metadata.resumeFromSnapshot === true
     this.useRedisCancellation = isRedisCancellationEnabled() && !!this.context.executionId
+    this.initializeAbortHandler()
+  }
+
+  /**
+   * Sets up a single abort promise that can be reused throughout execution.
+   * This avoids creating multiple event listeners and potential memory leaks.
+   */
+  private initializeAbortHandler(): void {
+    if (!this.context.abortSignal) return
+
+    if (this.context.abortSignal.aborted) {
+      this.cancelledFlag = true
+      this.abortPromise = Promise.resolve()
+      return
+    }
+
+    this.abortPromise = new Promise<void>((resolve) => {
+      this.abortResolve = resolve
+    })
+
+    this.context.abortSignal.addEventListener(
+      'abort',
+      () => {
+        this.cancelledFlag = true
+        this.abortResolve?.()
+      },
+      { once: true }
+    )
   }
 
   private async checkCancellation(): Promise<boolean> {
@@ -73,12 +105,20 @@ export class ExecutionEngine {
       this.initializeQueue(triggerBlockId)
 
       while (this.hasWork()) {
-        if ((await this.checkCancellation()) && this.executing.size === 0) {
+        if ((await this.checkCancellation()) || this.errorFlag) {
           break
         }
         await this.processQueue()
       }
-      await this.waitForAllExecutions()
+
+      if (!this.cancelledFlag) {
+        await this.waitForAllExecutions()
+      }
+
+      // Rethrow the captured error so it's handled by the catch block
+      if (this.errorFlag && this.executionError) {
+        throw this.executionError
+      }
 
       if (this.pausedBlocks.size > 0) {
         return this.buildPausedResult(startTime)
@@ -130,8 +170,8 @@ export class ExecutionEngine {
         metadata: this.context.metadata,
       }
 
-      if (error && typeof error === 'object') {
-        ;(error as any).executionResult = executionResult
+      if (error instanceof Error) {
+        attachExecutionResult(error, executionResult)
       }
       throw error
     }
@@ -163,25 +203,45 @@ export class ExecutionEngine {
   }
 
   private trackExecution(promise: Promise<void>): void {
-    this.executing.add(promise)
-    // Attach error handler to prevent unhandled rejection warnings
-    // The actual error handling happens in waitForAllExecutions/waitForAnyExecution
-    promise.catch(() => {
-      // Error will be properly handled by Promise.all/Promise.race in wait methods
-    })
-    promise.finally(() => {
-      this.executing.delete(promise)
-    })
+    const trackedPromise = promise
+      .catch((error) => {
+        if (!this.errorFlag) {
+          this.errorFlag = true
+          this.executionError = error instanceof Error ? error : new Error(String(error))
+        }
+      })
+      .finally(() => {
+        this.executing.delete(trackedPromise)
+      })
+    this.executing.add(trackedPromise)
   }
 
   private async waitForAnyExecution(): Promise<void> {
     if (this.executing.size > 0) {
-      await Promise.race(this.executing)
+      const abortPromise = this.getAbortPromise()
+      if (abortPromise) {
+        await Promise.race([...this.executing, abortPromise])
+      } else {
+        await Promise.race(this.executing)
+      }
     }
   }
 
   private async waitForAllExecutions(): Promise<void> {
-    await Promise.all(Array.from(this.executing))
+    const abortPromise = this.getAbortPromise()
+    if (abortPromise) {
+      await Promise.race([Promise.all(this.executing), abortPromise])
+    } else {
+      await Promise.all(this.executing)
+    }
+  }
+
+  /**
+   * Returns the cached abort promise. This is safe to call multiple times
+   * as it reuses the same promise instance created during initialization.
+   */
+  private getAbortPromise(): Promise<void> | null {
+    return this.abortPromise
   }
 
   private async withQueueLock<T>(fn: () => Promise<T> | T): Promise<T> {
@@ -268,7 +328,7 @@ export class ExecutionEngine {
 
   private async processQueue(): Promise<void> {
     while (this.readyQueue.length > 0) {
-      if (await this.checkCancellation()) {
+      if ((await this.checkCancellation()) || this.errorFlag) {
         break
       }
       const nodeId = this.dequeue()
@@ -277,7 +337,7 @@ export class ExecutionEngine {
       this.trackExecution(promise)
     }
 
-    if (this.executing.size > 0) {
+    if (this.executing.size > 0 && !this.cancelledFlag && !this.errorFlag) {
       await this.waitForAnyExecution()
     }
   }
@@ -336,7 +396,6 @@ export class ExecutionEngine {
 
     this.addMultipleToQueue(readyNodes)
 
-    // Check for dynamically added nodes (e.g., from parallel expansion)
     if (this.context.pendingDynamicNodes && this.context.pendingDynamicNodes.length > 0) {
       const dynamicNodes = this.context.pendingDynamicNodes
       this.context.pendingDynamicNodes = []

@@ -214,6 +214,7 @@ export function EvalInput({
                         onKeyDown={handlers.onKeyDown}
                         onDrop={handlers.onDrop}
                         onDragOver={handlers.onDragOver}
+                        onFocus={handlers.onFocus}
                         placeholder='How accurate is the response?'
                         disabled={isPreview || disabled}
                         className={cn(

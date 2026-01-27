@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,25 +29,30 @@ vi.mock('@sim/db', () => ({
 
 vi.mock('@sim/db/schema', () => ({
   workflow: { id: 'id', userId: 'userId', workspaceId: 'workspaceId' },
-  workflowSchedule: { workflowId: 'workflowId', blockId: 'blockId' },
+  workflowSchedule: {
+    workflowId: 'workflowId',
+    blockId: 'blockId',
+    deploymentVersionId: 'deploymentVersionId',
+  },
+  workflowDeploymentVersion: {
+    id: 'id',
+    workflowId: 'workflowId',
+    isActive: 'isActive',
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn(),
   and: vi.fn(),
+  or: vi.fn(),
+  isNull: vi.fn(),
 }))
 
 vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: () => 'test-request-id',
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 import { GET } from '@/app/api/schedules/route'
 
@@ -60,6 +66,11 @@ function mockDbChain(results: any[]) {
     from: () => ({
       where: () => ({
         limit: () => results[callIndex++] || [],
+      }),
+      leftJoin: () => ({
+        where: () => ({
+          limit: () => results[callIndex++] || [],
+        }),
       }),
     }),
   }))
@@ -79,7 +90,16 @@ describe('Schedule GET API', () => {
   it('returns schedule data for authorized user', async () => {
     mockDbChain([
       [{ userId: 'user-1', workspaceId: null }],
-      [{ id: 'sched-1', cronExpression: '0 9 * * *', status: 'active', failedCount: 0 }],
+      [
+        {
+          schedule: {
+            id: 'sched-1',
+            cronExpression: '0 9 * * *',
+            status: 'active',
+            failedCount: 0,
+          },
+        },
+      ],
     ])
 
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
@@ -133,7 +153,7 @@ describe('Schedule GET API', () => {
   it('allows workspace members to view', async () => {
     mockDbChain([
       [{ userId: 'other-user', workspaceId: 'ws-1' }],
-      [{ id: 'sched-1', status: 'active', failedCount: 0 }],
+      [{ schedule: { id: 'sched-1', status: 'active', failedCount: 0 } }],
     ])
 
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))
@@ -144,7 +164,7 @@ describe('Schedule GET API', () => {
   it('indicates disabled schedule with failures', async () => {
     mockDbChain([
       [{ userId: 'user-1', workspaceId: null }],
-      [{ id: 'sched-1', status: 'disabled', failedCount: 100 }],
+      [{ schedule: { id: 'sched-1', status: 'disabled', failedCount: 100 } }],
     ])
 
     const res = await GET(createRequest('http://test/api/schedules?workflowId=wf-1'))

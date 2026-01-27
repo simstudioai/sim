@@ -96,13 +96,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
       'google-forms': {
         name: 'Google Forms',
-        description: 'Retrieve Google Form responses.',
+        description: 'Create, modify, and read Google Forms.',
         providerId: 'google-forms',
         icon: GoogleFormsIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/userinfo.email',
           'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/drive',
+          'https://www.googleapis.com/auth/forms.body',
           'https://www.googleapis.com/auth/forms.responses.readonly',
         ],
       },
@@ -495,7 +497,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       slack: {
         name: 'Slack',
-        description: 'Send messages using a Slack bot.',
+        description: 'Send messages using a bot for Slack.',
         providerId: 'slack',
         icon: SlackIcon,
         baseProviderIcon: SlackIcon,
@@ -833,6 +835,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'confluence': {
@@ -881,6 +884,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'microsoft':
@@ -908,6 +912,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'dropbox': {

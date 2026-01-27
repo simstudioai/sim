@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -23,7 +22,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
+import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('CreateBaseModal')
 
@@ -82,10 +81,11 @@ interface SubmitStatus {
 export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const queryClient = useQueryClient()
+
+  const createKnowledgeBaseMutation = useCreateKnowledgeBase(workspaceId)
+  const deleteKnowledgeBaseMutation = useDeleteKnowledgeBase(workspaceId)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus | null>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
@@ -245,12 +245,14 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
     })
   }
 
+  const isSubmitting =
+    createKnowledgeBaseMutation.isPending || deleteKnowledgeBaseMutation.isPending || isUploading
+
   const onSubmit = async (data: FormValues) => {
-    setIsSubmitting(true)
     setSubmitStatus(null)
 
     try {
-      const knowledgeBasePayload = {
+      const newKnowledgeBase = await createKnowledgeBaseMutation.mutateAsync({
         name: data.name,
         description: data.description || undefined,
         workspaceId: workspaceId,
@@ -259,28 +261,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
           minSize: data.minChunkSize,
           overlap: data.overlapSize,
         },
-      }
-
-      const response = await fetch('/api/knowledge', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(knowledgeBasePayload),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create knowledge base')
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create knowledge base')
-      }
-
-      const newKnowledgeBase = result.data
 
       if (files.length > 0) {
         try {
@@ -293,15 +274,11 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
 
           logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
           logger.info(`Started processing ${uploadedFiles.length} documents in the background`)
-
-          await queryClient.invalidateQueries({
-            queryKey: knowledgeKeys.list(workspaceId),
-          })
         } catch (uploadError) {
           logger.error('File upload failed, deleting knowledge base:', uploadError)
           try {
-            await fetch(`/api/knowledge/${newKnowledgeBase.id}`, {
-              method: 'DELETE',
+            await deleteKnowledgeBaseMutation.mutateAsync({
+              knowledgeBaseId: newKnowledgeBase.id,
             })
             logger.info(`Deleted orphaned knowledge base: ${newKnowledgeBase.id}`)
           } catch (deleteError) {
@@ -309,10 +286,6 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
           }
           throw uploadError
         }
-      } else {
-        await queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.list(workspaceId),
-        })
       }
 
       files.forEach((file) => URL.revokeObjectURL(file.preview))
@@ -325,18 +298,16 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
         type: 'error',
         message: error instanceof Error ? error.message : 'An unknown error occurred',
       })
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
   return (
     <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent>
+      <ModalContent size='lg'>
         <ModalHeader>Create Knowledge Base</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody className='!pb-[16px]'>
+          <ModalBody>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-[12px]'>
                 <div className='flex flex-col gap-[8px]'>
@@ -373,53 +344,51 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   <Textarea
                     id='description'
                     placeholder='Describe this knowledge base (optional)'
-                    rows={3}
+                    rows={4}
                     {...register('description')}
                     className={cn(errors.description && 'border-[var(--text-error)]')}
                   />
                 </div>
 
-                <div className='space-y-[12px] rounded-[6px] bg-[var(--surface-5)] px-[12px] py-[14px]'>
-                  <div className='grid grid-cols-2 gap-[12px]'>
-                    <div className='flex flex-col gap-[8px]'>
-                      <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
-                      <Input
-                        id='minChunkSize'
-                        placeholder='100'
-                        {...register('minChunkSize', { valueAsNumber: true })}
-                        className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
-                        autoComplete='off'
-                        data-form-type='other'
-                        name='min-chunk-size'
-                      />
-                    </div>
-
-                    <div className='flex flex-col gap-[8px]'>
-                      <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
-                      <Input
-                        id='maxChunkSize'
-                        placeholder='1024'
-                        {...register('maxChunkSize', { valueAsNumber: true })}
-                        className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
-                        autoComplete='off'
-                        data-form-type='other'
-                        name='max-chunk-size'
-                      />
-                    </div>
+                <div className='grid grid-cols-2 gap-[12px]'>
+                  <div className='flex flex-col gap-[8px]'>
+                    <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
+                    <Input
+                      id='minChunkSize'
+                      placeholder='100'
+                      {...register('minChunkSize', { valueAsNumber: true })}
+                      className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
+                      autoComplete='off'
+                      data-form-type='other'
+                      name='min-chunk-size'
+                    />
                   </div>
 
                   <div className='flex flex-col gap-[8px]'>
-                    <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
+                    <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
                     <Input
-                      id='overlapSize'
-                      placeholder='200'
-                      {...register('overlapSize', { valueAsNumber: true })}
-                      className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
+                      id='maxChunkSize'
+                      placeholder='1024'
+                      {...register('maxChunkSize', { valueAsNumber: true })}
+                      className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
                       autoComplete='off'
                       data-form-type='other'
-                      name='overlap-size'
+                      name='max-chunk-size'
                     />
                   </div>
+                </div>
+
+                <div className='flex flex-col gap-[8px]'>
+                  <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
+                  <Input
+                    id='overlapSize'
+                    placeholder='200'
+                    {...register('overlapSize', { valueAsNumber: true })}
+                    className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='overlap-size'
+                  />
                   <p className='text-[11px] text-[var(--text-muted)]'>
                     1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
                   </p>
@@ -436,8 +405,8 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     className={cn(
-                      '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--c-575757)] border-dashed py-[10px]',
-                      isDragging && 'border-[var(--brand-primary-hex)]'
+                      '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-[10px]',
+                      isDragging && 'border-[var(--surface-7)]'
                     )}
                   >
                     <input
@@ -528,7 +497,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                 )}
 
                 {fileError && (
-                  <p className='text-[11px] text-[var(--text-error)] leading-tight'>{fileError}</p>
+                  <p className='text-[12px] text-[var(--text-error)] leading-tight'>{fileError}</p>
                 )}
               </div>
             </div>
@@ -537,7 +506,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
           <ModalFooter>
             <div className='flex w-full items-center justify-between gap-[12px]'>
               {submitStatus?.type === 'error' || uploadError ? (
-                <p className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
                   {uploadError?.message || submitStatus?.message}
                 </p>
               ) : (

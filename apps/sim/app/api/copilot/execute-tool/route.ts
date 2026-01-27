@@ -14,10 +14,9 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { REFERENCE } from '@/executor/constants'
-import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { executeTool } from '@/tools'
-import { getTool } from '@/tools/utils'
+import { getTool, resolveToolId } from '@/tools/utils'
 
 const logger = createLogger('CopilotExecuteToolAPI')
 
@@ -27,45 +26,6 @@ const ExecuteToolSchema = z.object({
   arguments: z.record(z.any()).optional().default({}),
   workflowId: z.string().optional(),
 })
-
-/**
- * Resolves all {{ENV_VAR}} references in a value recursively
- * Works with strings, arrays, and objects
- */
-function resolveEnvVarReferences(value: any, envVars: Record<string, string>): any {
-  if (typeof value === 'string') {
-    // Check for exact match: entire string is "{{VAR_NAME}}"
-    const exactMatchPattern = new RegExp(
-      `^\\${REFERENCE.ENV_VAR_START}([^}]+)\\${REFERENCE.ENV_VAR_END}$`
-    )
-    const exactMatch = exactMatchPattern.exec(value)
-    if (exactMatch) {
-      const envVarName = exactMatch[1].trim()
-      return envVars[envVarName] ?? value
-    }
-
-    // Check for embedded references: "prefix {{VAR}} suffix"
-    const envVarPattern = createEnvVarPattern()
-    return value.replace(envVarPattern, (match, varName) => {
-      const trimmedName = varName.trim()
-      return envVars[trimmedName] ?? match
-    })
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => resolveEnvVarReferences(item, envVars))
-  }
-
-  if (value !== null && typeof value === 'object') {
-    const resolved: Record<string, any> = {}
-    for (const [key, val] of Object.entries(value)) {
-      resolved[key] = resolveEnvVarReferences(val, envVars)
-    }
-    return resolved
-  }
-
-  return value
-}
 
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
@@ -86,15 +46,17 @@ export async function POST(req: NextRequest) {
 
     const { toolCallId, toolName, arguments: toolArgs, workflowId } = ExecuteToolSchema.parse(body)
 
+    const resolvedToolName = resolveToolId(toolName)
+
     logger.info(`[${tracker.requestId}] Executing tool`, {
       toolCallId,
       toolName,
+      resolvedToolName,
       workflowId,
       hasArgs: Object.keys(toolArgs).length > 0,
     })
 
-    // Get tool config from registry
-    const toolConfig = getTool(toolName)
+    const toolConfig = getTool(resolvedToolName)
     if (!toolConfig) {
       // Find similar tool names to help debug
       const { tools: allTools } = await import('@/tools/registry')
@@ -142,8 +104,12 @@ export async function POST(req: NextRequest) {
     })
 
     // Build execution params starting with LLM-provided arguments
-    // Resolve all {{ENV_VAR}} references in the arguments
-    const executionParams: Record<string, any> = resolveEnvVarReferences(toolArgs, decryptedEnvVars)
+    // Resolve all {{ENV_VAR}} references in the arguments (deep for nested objects)
+    const executionParams: Record<string, any> = resolveEnvVarReferences(
+      toolArgs,
+      decryptedEnvVars,
+      { deep: true }
+    ) as Record<string, any>
 
     logger.info(`[${tracker.requestId}] Resolved env var references in arguments`, {
       toolName,
@@ -252,7 +218,7 @@ export async function POST(req: NextRequest) {
       hasApiKey: !!executionParams.apiKey,
     })
 
-    const result = await executeTool(toolName, executionParams, true)
+    const result = await executeTool(resolvedToolName, executionParams)
 
     logger.info(`[${tracker.requestId}] Tool execution complete`, {
       toolName,

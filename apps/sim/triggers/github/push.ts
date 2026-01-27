@@ -76,6 +76,18 @@ export const githubPushTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'github_push',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_push',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -101,21 +113,17 @@ export const githubPushTrigger: TriggerConfig = {
         value: 'github_push',
       },
     },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'github_push',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'github_push',
-      },
-    },
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description: 'GitHub event type from X-GitHub-Event header (e.g., push)',
+    },
+    branch: {
+      type: 'string',
+      description: 'Branch name derived from ref (e.g., main from refs/heads/main)',
+    },
     ref: {
       type: 'string',
       description: 'Git reference that was pushed (e.g., refs/heads/main)',

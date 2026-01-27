@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
+  Badge,
   Breadcrumb,
   Button,
   Checkbox,
@@ -35,6 +36,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
 import type { ChunkData } from '@/lib/knowledge/types'
 import {
   ChunkContextMenu,
@@ -46,59 +48,16 @@ import {
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
-import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/use-knowledge'
+import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
+import {
+  knowledgeKeys,
+  useBulkChunkOperation,
+  useDeleteDocument,
+  useDocumentChunkSearchQuery,
+  useUpdateChunk,
+} from '@/hooks/queries/knowledge'
 
 const logger = createLogger('Document')
-
-/**
- * Formats a date string to relative time (e.g., "2h ago", "3d ago")
- */
-function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (diffInSeconds < 60) {
-    return 'just now'
-  }
-  if (diffInSeconds < 3600) {
-    const minutes = Math.floor(diffInSeconds / 60)
-    return `${minutes}m ago`
-  }
-  if (diffInSeconds < 86400) {
-    const hours = Math.floor(diffInSeconds / 3600)
-    return `${hours}h ago`
-  }
-  if (diffInSeconds < 604800) {
-    const days = Math.floor(diffInSeconds / 86400)
-    return `${days}d ago`
-  }
-  if (diffInSeconds < 2592000) {
-    const weeks = Math.floor(diffInSeconds / 604800)
-    return `${weeks}w ago`
-  }
-  if (diffInSeconds < 31536000) {
-    const months = Math.floor(diffInSeconds / 2592000)
-    return `${months}mo ago`
-  }
-  const years = Math.floor(diffInSeconds / 31536000)
-  return `${years}y ago`
-}
-
-/**
- * Formats a date string to absolute format for tooltip display
- */
-function formatAbsoluteDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 interface DocumentProps {
   knowledgeBaseId: string
@@ -107,14 +66,31 @@ interface DocumentProps {
   documentName?: string
 }
 
-function getStatusBadgeStyles(enabled: boolean) {
-  return enabled
-    ? 'inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400'
-    : 'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-}
-
-function truncateContent(content: string, maxLength = 150): string {
+function truncateContent(content: string, maxLength = 150, searchQuery = ''): string {
   if (content.length <= maxLength) return content
+
+  if (searchQuery.trim()) {
+    const searchTerms = searchQuery
+      .trim()
+      .split(/\s+/)
+      .filter((term) => term.length > 0)
+      .map((term) => term.toLowerCase())
+
+    for (const term of searchTerms) {
+      const matchIndex = content.toLowerCase().indexOf(term)
+      if (matchIndex !== -1) {
+        const contextBefore = 30
+        const start = Math.max(0, matchIndex - contextBefore)
+        const end = Math.min(content.length, start + maxLength)
+
+        let result = content.substring(start, end)
+        if (start > 0) result = `...${result}`
+        if (end < content.length) result = `${result}...`
+        return result
+      }
+    }
+  }
+
   return `${content.substring(0, maxLength)}...`
 }
 
@@ -280,7 +256,6 @@ export function Document({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
 
   const {
     chunks: initialChunks,
@@ -295,69 +270,22 @@ export function Document({
     isFetching: isFetchingChunks,
   } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL)
 
-  const [searchResults, setSearchResults] = useState<ChunkData[]>([])
-  const [isLoadingSearch, setIsLoadingSearch] = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!debouncedSearchQuery.trim()) {
-      setSearchResults([])
-      setSearchError(null)
-      return
+  const {
+    data: searchResults = [],
+    isLoading: isLoadingSearch,
+    error: searchQueryError,
+  } = useDocumentChunkSearchQuery(
+    {
+      knowledgeBaseId,
+      documentId,
+      search: debouncedSearchQuery,
+    },
+    {
+      enabled: Boolean(debouncedSearchQuery.trim()),
     }
+  )
 
-    let isMounted = true
-
-    const searchAllChunks = async () => {
-      try {
-        setIsLoadingSearch(true)
-        setSearchError(null)
-
-        const allResults: ChunkData[] = []
-        let hasMore = true
-        let offset = 0
-        const limit = 100
-
-        while (hasMore && isMounted) {
-          const response = await fetch(
-            `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks?search=${encodeURIComponent(debouncedSearchQuery)}&limit=${limit}&offset=${offset}`
-          )
-
-          if (!response.ok) {
-            throw new Error('Search failed')
-          }
-
-          const result = await response.json()
-
-          if (result.success && result.data) {
-            allResults.push(...result.data)
-            hasMore = result.pagination?.hasMore || false
-            offset += limit
-          } else {
-            hasMore = false
-          }
-        }
-
-        if (isMounted) {
-          setSearchResults(allResults)
-        }
-      } catch (err) {
-        if (isMounted) {
-          setSearchError(err instanceof Error ? err.message : 'Search failed')
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSearch(false)
-        }
-      }
-    }
-
-    searchAllChunks()
-
-    return () => {
-      isMounted = false
-    }
-  }, [debouncedSearchQuery, knowledgeBaseId, documentId])
+  const searchError = searchQueryError instanceof Error ? searchQueryError.message : null
 
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
@@ -367,7 +295,6 @@ export function Document({
     const handler = setTimeout(() => {
       startTransition(() => {
         setDebouncedSearchQuery(searchQuery)
-        setIsSearching(searchQuery.trim().length > 0)
       })
     }, 200)
 
@@ -376,6 +303,7 @@ export function Document({
     }
   }, [searchQuery])
 
+  const isSearching = debouncedSearchQuery.trim().length > 0
   const showingSearch = isSearching && searchQuery.trim().length > 0 && searchResults.length > 0
   const SEARCH_PAGE_SIZE = 50
   const maxSearchPages = Math.ceil(searchResults.length / SEARCH_PAGE_SIZE)
@@ -432,10 +360,12 @@ export function Document({
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [showDeleteDocumentDialog, setShowDeleteDocumentDialog] = useState(false)
-  const [isDeletingDocument, setIsDeletingDocument] = useState(false)
   const [contextMenuChunk, setContextMenuChunk] = useState<ChunkData | null>(null)
+
+  const { mutate: updateChunkMutation } = useUpdateChunk()
+  const { mutate: deleteDocumentMutation, isPending: isDeletingDocument } = useDeleteDocument()
+  const { mutate: bulkChunkMutation, isPending: isBulkOperating } = useBulkChunkOperation()
 
   const {
     isOpen: isContextMenuOpen,
@@ -469,36 +399,23 @@ export function Document({
     setSelectedChunk(null)
   }
 
-  const handleToggleEnabled = async (chunkId: string) => {
+  const handleToggleEnabled = (chunkId: string) => {
     const chunk = displayChunks.find((c) => c.id === chunkId)
     if (!chunk) return
 
-    try {
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunkId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            enabled: !chunk.enabled,
-          }),
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to update chunk')
+    updateChunkMutation(
+      {
+        knowledgeBaseId,
+        documentId,
+        chunkId,
+        enabled: !chunk.enabled,
+      },
+      {
+        onSuccess: () => {
+          updateChunk(chunkId, { enabled: !chunk.enabled })
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        updateChunk(chunkId, { enabled: !chunk.enabled })
-      }
-    } catch (err) {
-      logger.error('Error updating chunk:', err)
-    }
+    )
   }
 
   const handleDeleteChunk = (chunkId: string) => {
@@ -544,107 +461,65 @@ export function Document({
   /**
    * Handles deleting the document
    */
-  const handleDeleteDocument = async () => {
+  const handleDeleteDocument = () => {
     if (!documentData) return
 
-    try {
-      setIsDeletingDocument(true)
-
-      const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete document')
+    deleteDocumentMutation(
+      { knowledgeBaseId, documentId },
+      {
+        onSuccess: () => {
+          router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        await queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.detail(knowledgeBaseId),
-        })
-
-        router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
-      } else {
-        throw new Error(result.error || 'Failed to delete document')
-      }
-    } catch (err) {
-      logger.error('Error deleting document:', err)
-      setIsDeletingDocument(false)
-    }
+    )
   }
 
-  const performBulkChunkOperation = async (
+  const performBulkChunkOperation = (
     operation: 'enable' | 'disable' | 'delete',
     chunks: ChunkData[]
   ) => {
     if (chunks.length === 0) return
 
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            operation,
-            chunkIds: chunks.map((chunk) => chunk.id),
-          }),
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error(`Failed to ${operation} chunks`)
+    bulkChunkMutation(
+      {
+        knowledgeBaseId,
+        documentId,
+        operation,
+        chunkIds: chunks.map((chunk) => chunk.id),
+      },
+      {
+        onSuccess: (result) => {
+          if (operation === 'delete' || result.errorCount > 0) {
+            refreshChunks()
+          } else {
+            chunks.forEach((chunk) => {
+              updateChunk(chunk.id, { enabled: operation === 'enable' })
+            })
+          }
+          logger.info(`Successfully ${operation}d ${result.successCount} chunks`)
+          setSelectedChunks(new Set())
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        if (operation === 'delete') {
-          await refreshChunks()
-        } else {
-          result.data.results.forEach((opResult: any) => {
-            if (opResult.operation === operation) {
-              opResult.chunkIds.forEach((chunkId: string) => {
-                updateChunk(chunkId, { enabled: operation === 'enable' })
-              })
-            }
-          })
-        }
-
-        logger.info(`Successfully ${operation}d ${result.data.successCount} chunks`)
-      }
-
-      setSelectedChunks(new Set())
-    } catch (err) {
-      logger.error(`Error ${operation}ing chunks:`, err)
-    } finally {
-      setIsBulkOperating(false)
-    }
+    )
   }
 
-  const handleBulkEnable = async () => {
+  const handleBulkEnable = () => {
     const chunksToEnable = displayChunks.filter(
       (chunk) => selectedChunks.has(chunk.id) && !chunk.enabled
     )
-    await performBulkChunkOperation('enable', chunksToEnable)
+    performBulkChunkOperation('enable', chunksToEnable)
   }
 
-  const handleBulkDisable = async () => {
+  const handleBulkDisable = () => {
     const chunksToDisable = displayChunks.filter(
       (chunk) => selectedChunks.has(chunk.id) && chunk.enabled
     )
-    await performBulkChunkOperation('disable', chunksToDisable)
+    performBulkChunkOperation('disable', chunksToDisable)
   }
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     const chunksToDelete = displayChunks.filter((chunk) => selectedChunks.has(chunk.id))
-    await performBulkChunkOperation('delete', chunksToDelete)
+    performBulkChunkOperation('delete', chunksToDelete)
   }
 
   const selectedChunksList = displayChunks.filter((chunk) => selectedChunks.has(chunk.id))
@@ -655,13 +530,21 @@ export function Document({
 
   /**
    * Handle right-click on a chunk row
+   * If right-clicking on an unselected chunk, select only that chunk
+   * If right-clicking on a selected chunk with multiple selections, keep all selections
    */
   const handleChunkContextMenu = useCallback(
     (e: React.MouseEvent, chunk: ChunkData) => {
+      const isCurrentlySelected = selectedChunks.has(chunk.id)
+
+      if (!isCurrentlySelected) {
+        setSelectedChunks(new Set([chunk.id]))
+      }
+
       setContextMenuChunk(chunk)
       baseHandleContextMenu(e)
     },
-    [baseHandleContextMenu]
+    [selectedChunks, baseHandleContextMenu]
   )
 
   /**
@@ -946,106 +829,114 @@ export function Document({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    displayChunks.map((chunk: ChunkData) => (
-                      <TableRow
-                        key={chunk.id}
-                        className='cursor-pointer hover:bg-[var(--surface-2)]'
-                        onClick={() => handleChunkClick(chunk)}
-                        onContextMenu={(e) => handleChunkContextMenu(e, chunk)}
-                      >
-                        <TableCell
-                          className='w-[52px] py-[8px]'
-                          style={{ paddingLeft: '20.5px', paddingRight: 0 }}
+                    displayChunks.map((chunk: ChunkData) => {
+                      const isSelected = selectedChunks.has(chunk.id)
+
+                      return (
+                        <TableRow
+                          key={chunk.id}
+                          className={`${
+                            isSelected
+                              ? 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
+                              : 'hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]'
+                          } cursor-pointer`}
+                          onClick={() => handleChunkClick(chunk)}
+                          onContextMenu={(e) => handleChunkContextMenu(e, chunk)}
                         >
-                          <div className='flex items-center'>
-                            <Checkbox
-                              size='sm'
-                              checked={selectedChunks.has(chunk.id)}
-                              onCheckedChange={(checked) =>
-                                handleSelectChunk(chunk.id, checked as boolean)
-                              }
-                              disabled={!userPermissions.canEdit}
-                              aria-label={`Select chunk ${chunk.chunkIndex}`}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell className='w-[60px] py-[8px] pr-[12px] pl-[15px] font-mono text-[14px] text-[var(--text-primary)]'>
-                          {chunk.chunkIndex}
-                        </TableCell>
-                        <TableCell className='px-[12px] py-[8px]'>
-                          <span
-                            className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
-                            title={chunk.content}
+                          <TableCell
+                            className='w-[52px] py-[8px]'
+                            style={{ paddingLeft: '20.5px', paddingRight: 0 }}
                           >
-                            <SearchHighlight
-                              text={truncateContent(chunk.content)}
-                              searchQuery={searchQuery}
-                            />
-                          </span>
-                        </TableCell>
-                        <TableCell className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                          {chunk.tokenCount > 1000
-                            ? `${(chunk.tokenCount / 1000).toFixed(1)}k`
-                            : chunk.tokenCount}
-                        </TableCell>
-                        <TableCell className='w-[12%] px-[12px] py-[8px]'>
-                          <div className={getStatusBadgeStyles(chunk.enabled)}>
-                            {chunk.enabled ? 'Enabled' : 'Disabled'}
-                          </div>
-                        </TableCell>
-                        <TableCell className='w-[14%] py-[8px] pr-[4px] pl-[12px]'>
-                          <div className='flex items-center gap-[4px]'>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleToggleEnabled(chunk.id)
-                                  }}
-                                  disabled={!userPermissions.canEdit}
-                                  className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50'
-                                >
-                                  {chunk.enabled ? (
-                                    <Circle className='h-[14px] w-[14px]' />
-                                  ) : (
-                                    <CircleOff className='h-[14px] w-[14px]' />
-                                  )}
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>
-                                {!userPermissions.canEdit
-                                  ? 'Write permission required to modify chunks'
-                                  : chunk.enabled
-                                    ? 'Disable Chunk'
-                                    : 'Enable Chunk'}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDeleteChunk(chunk.id)
-                                  }}
-                                  disabled={!userPermissions.canEdit}
-                                  className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)] disabled:opacity-50'
-                                >
-                                  <Trash className='h-[14px] w-[14px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>
-                                {!userPermissions.canEdit
-                                  ? 'Write permission required to delete chunks'
-                                  : 'Delete Chunk'}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                            <div className='flex items-center'>
+                              <Checkbox
+                                size='sm'
+                                checked={selectedChunks.has(chunk.id)}
+                                onCheckedChange={(checked) =>
+                                  handleSelectChunk(chunk.id, checked as boolean)
+                                }
+                                disabled={!userPermissions.canEdit}
+                                aria-label={`Select chunk ${chunk.chunkIndex}`}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className='w-[60px] py-[8px] pr-[12px] pl-[15px] font-mono text-[14px] text-[var(--text-primary)]'>
+                            {chunk.chunkIndex}
+                          </TableCell>
+                          <TableCell className='px-[12px] py-[8px]'>
+                            <span
+                              className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
+                              title={chunk.content}
+                            >
+                              <SearchHighlight
+                                text={truncateContent(chunk.content, 150, searchQuery)}
+                                searchQuery={searchQuery}
+                              />
+                            </span>
+                          </TableCell>
+                          <TableCell className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
+                            {chunk.tokenCount > 1000
+                              ? `${(chunk.tokenCount / 1000).toFixed(1)}k`
+                              : chunk.tokenCount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className='w-[12%] px-[12px] py-[8px]'>
+                            <Badge variant={chunk.enabled ? 'green' : 'gray'} size='sm'>
+                              {chunk.enabled ? 'Enabled' : 'Disabled'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className='w-[14%] py-[8px] pr-[4px] pl-[12px]'>
+                            <div className='flex items-center gap-[4px]'>
+                              <Tooltip.Root>
+                                <Tooltip.Trigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleToggleEnabled(chunk.id)
+                                    }}
+                                    disabled={!userPermissions.canEdit}
+                                    className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50'
+                                  >
+                                    {chunk.enabled ? (
+                                      <Circle className='h-[14px] w-[14px]' />
+                                    ) : (
+                                      <CircleOff className='h-[14px] w-[14px]' />
+                                    )}
+                                  </Button>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content side='top'>
+                                  {!userPermissions.canEdit
+                                    ? 'Write permission required to modify chunks'
+                                    : chunk.enabled
+                                      ? 'Disable Chunk'
+                                      : 'Enable Chunk'}
+                                </Tooltip.Content>
+                              </Tooltip.Root>
+                              <Tooltip.Root>
+                                <Tooltip.Trigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteChunk(chunk.id)
+                                    }}
+                                    disabled={!userPermissions.canEdit}
+                                    className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)] disabled:opacity-50'
+                                  >
+                                    <Trash className='h-[14px] w-[14px]' />
+                                  </Button>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content side='top'>
+                                  {!userPermissions.canEdit
+                                    ? 'Write permission required to delete chunks'
+                                    : 'Delete Chunk'}
+                                </Tooltip.Content>
+                              </Tooltip.Root>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -1174,15 +1065,19 @@ export function Document({
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete "{effectiveDocumentName}"? This will permanently
-              delete the document and all {documentData?.chunkCount ?? 0} chunk
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>
+                {effectiveDocumentName}
+              </span>
+              ? This will permanently delete the document and all {documentData?.chunkCount ?? 0}{' '}
+              chunk
               {documentData?.chunkCount === 1 ? '' : 's'} within it.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
             <Button
-              variant='active'
+              variant='default'
               onClick={() => setShowDeleteDocumentDialog(false)}
               disabled={isDeletingDocument}
             >
@@ -1206,8 +1101,11 @@ export function Document({
         onClose={handleContextMenuClose}
         hasChunk={contextMenuChunk !== null}
         isChunkEnabled={contextMenuChunk?.enabled ?? true}
+        selectedCount={selectedChunks.size}
+        enabledCount={enabledCount}
+        disabledCount={disabledCount}
         onOpenInNewTab={
-          contextMenuChunk
+          contextMenuChunk && selectedChunks.size === 1
             ? () => {
                 const url = `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}/${documentId}?chunk=${contextMenuChunk.id}`
                 window.open(url, '_blank')
@@ -1215,7 +1113,7 @@ export function Document({
             : undefined
         }
         onEdit={
-          contextMenuChunk
+          contextMenuChunk && selectedChunks.size === 1
             ? () => {
                 setSelectedChunk(contextMenuChunk)
                 setIsModalOpen(true)
@@ -1223,7 +1121,7 @@ export function Document({
             : undefined
         }
         onCopyContent={
-          contextMenuChunk
+          contextMenuChunk && selectedChunks.size === 1
             ? () => {
                 navigator.clipboard.writeText(contextMenuChunk.content)
               }
@@ -1231,12 +1129,22 @@ export function Document({
         }
         onToggleEnabled={
           contextMenuChunk && userPermissions.canEdit
-            ? () => handleToggleEnabled(contextMenuChunk.id)
+            ? selectedChunks.size > 1
+              ? () => {
+                  if (disabledCount > 0) {
+                    handleBulkEnable()
+                  } else {
+                    handleBulkDisable()
+                  }
+                }
+              : () => handleToggleEnabled(contextMenuChunk.id)
             : undefined
         }
         onDelete={
           contextMenuChunk && userPermissions.canEdit
-            ? () => handleDeleteChunk(contextMenuChunk.id)
+            ? selectedChunks.size > 1
+              ? handleBulkDelete
+              : () => handleDeleteChunk(contextMenuChunk.id)
             : undefined
         }
         onAddChunk={

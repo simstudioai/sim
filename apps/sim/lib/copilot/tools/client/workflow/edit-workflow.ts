@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 import { stripWorkflowDiffMarkers } from '@/lib/workflows/diff'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
@@ -35,6 +36,18 @@ export class EditWorkflowClientTool extends BaseClientTool {
 
   constructor(toolCallId: string) {
     super(toolCallId, EditWorkflowClientTool.id, EditWorkflowClientTool.metadata)
+  }
+
+  async markToolComplete(status: number, message?: any, data?: any): Promise<boolean> {
+    const logger = createLogger('EditWorkflowClientTool')
+    logger.info('markToolComplete payload', {
+      toolCallId: this.toolCallId,
+      toolName: this.name,
+      status,
+      message,
+      data,
+    })
+    return super.markToolComplete(status, message, data)
   }
 
   /**
@@ -124,6 +137,10 @@ export class EditWorkflowClientTool extends BaseClientTool {
       [ClientToolCallState.aborted]: { text: 'Aborted editing your workflow', icon: MinusCircle },
       [ClientToolCallState.pending]: { text: 'Editing your workflow', icon: Loader2 },
     },
+    uiConfig: {
+      isSpecial: true,
+      customRenderer: 'edit_summary',
+    },
     getDynamicText: (params, state) => {
       const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
       if (workflowId) {
@@ -168,21 +185,13 @@ export class EditWorkflowClientTool extends BaseClientTool {
   async execute(args?: EditWorkflowArgs): Promise<void> {
     const logger = createLogger('EditWorkflowClientTool')
 
+    if (this.hasExecuted) {
+      logger.info('execute skipped (already executed)', { toolCallId: this.toolCallId })
+      return
+    }
+
     // Use timeout protection to ensure tool always completes
     await this.executeWithTimeout(async () => {
-      if (this.hasExecuted) {
-        logger.info('execute skipped (already executed)', { toolCallId: this.toolCallId })
-        // Even if skipped, ensure we mark complete with current workflow state
-        if (!this.hasBeenMarkedComplete()) {
-          const currentWorkflowJson = this.getCurrentWorkflowJsonSafe(logger)
-          await this.markToolComplete(
-            200,
-            'Tool already executed',
-            currentWorkflowJson ? { userWorkflow: currentWorkflowJson } : undefined
-          )
-        }
-        return
-      }
       this.hasExecuted = true
       logger.info('execute called', { toolCallId: this.toolCallId, argsProvided: !!args })
       this.setState(ClientToolCallState.executing)
@@ -412,3 +421,6 @@ export class EditWorkflowClientTool extends BaseClientTool {
     })
   }
 }
+
+// Register UI config at module load
+registerToolUIConfig(EditWorkflowClientTool.id, EditWorkflowClientTool.metadata.uiConfig!)

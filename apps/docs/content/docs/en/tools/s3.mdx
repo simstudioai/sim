@@ -58,6 +58,7 @@ Upload a file to an AWS S3 bucket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `url` | string | URL of the uploaded S3 object |
+| `uri` | string | S3 URI of the uploaded object \(s3://bucket/key\) |
 | `metadata` | object | Upload metadata including ETag and location |
 
 ### `s3_get_object`
@@ -100,6 +101,11 @@ List objects in an AWS S3 bucket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `objects` | array | List of S3 objects |
+|   ↳ `key` | string | Object key |
+|   ↳ `size` | number | Object size in bytes |
+|   ↳ `lastModified` | string | Last modified timestamp |
+|   ↳ `etag` | string | Entity tag |
+| `metadata` | object | Listing metadata including pagination info |
 
 ### `s3_delete_object`
 
@@ -144,11 +150,7 @@ Copy an object within or between AWS S3 buckets
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `url` | string | URL of the copied S3 object |
+| `uri` | string | S3 URI of the copied object \(s3://bucket/key\) |
 | `metadata` | object | Copy operation metadata |
 
 
-
-## Notes
-
-- Category: `tools`
-- Type: `s3`

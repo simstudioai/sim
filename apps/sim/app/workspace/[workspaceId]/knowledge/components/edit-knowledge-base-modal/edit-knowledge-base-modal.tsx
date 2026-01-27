@@ -59,7 +59,7 @@ export function EditKnowledgeBaseModal({
     handleSubmit,
     reset,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -98,11 +98,11 @@ export function EditKnowledgeBaseModal({
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent>
+      <ModalContent size='sm'>
         <ModalHeader>Edit Knowledge Base</ModalHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody className='!pb-[16px]'>
+          <ModalBody>
             <div className='space-y-[12px]'>
               <div className='flex flex-col gap-[8px]'>
                 <Label htmlFor='kb-name'>Name</Label>
@@ -118,7 +118,7 @@ export function EditKnowledgeBaseModal({
                   data-form-type='other'
                 />
                 {errors.name && (
-                  <p className='text-[11px] text-[var(--text-error)]'>{errors.name.message}</p>
+                  <p className='text-[12px] text-[var(--text-error)]'>{errors.name.message}</p>
                 )}
               </div>
 
@@ -127,12 +127,12 @@ export function EditKnowledgeBaseModal({
                 <Textarea
                   id='description'
                   placeholder='Describe this knowledge base (optional)'
-                  rows={3}
+                  rows={4}
                   {...register('description')}
                   className={cn(errors.description && 'border-[var(--text-error)]')}
                 />
                 {errors.description && (
-                  <p className='text-[11px] text-[var(--text-error)]'>
+                  <p className='text-[12px] text-[var(--text-error)]'>
                     {errors.description.message}
                   </p>
                 )}
@@ -143,7 +143,7 @@ export function EditKnowledgeBaseModal({
           <ModalFooter>
             <div className='flex w-full items-center justify-between gap-[12px]'>
               {error ? (
-                <p className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
                   {error}
                 </p>
               ) : (
@@ -161,7 +161,7 @@ export function EditKnowledgeBaseModal({
                 <Button
                   variant='tertiary'
                   type='submit'
-                  disabled={isSubmitting || !nameValue?.trim()}
+                  disabled={isSubmitting || !nameValue?.trim() || !isDirty}
                 >
                   {isSubmitting ? 'Saving...' : 'Save'}
                 </Button>

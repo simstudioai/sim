@@ -62,15 +62,18 @@ spec:
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- if .Values.postgresql.enabled }}
           envFrom:
+            # App secrets (authentication keys shared with main app)
             - secretRef:
-                name: {{ include "sim.fullname" . }}-postgresql-secret
-          {{- else if .Values.externalDatabase.enabled }}
-          envFrom:
+                name: {{ include "sim.appSecretName" . }}
+            # Database secrets
+            {{- if .Values.postgresql.enabled }}
             - secretRef:
-                name: {{ include "sim.fullname" . }}-external-db-secret
-          {{- end }}
+                name: {{ include "sim.postgresqlSecretName" . }}
+            {{- else if .Values.externalDatabase.enabled }}
+            - secretRef:
+                name: {{ include "sim.externalDbSecretName" . }}
+            {{- end }}
           {{- if .Values.realtime.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.realtime.livenessProbe | nindent 12 }}
@@ -81,12 +84,22 @@ spec:
           {{- end }}
           {{- include "sim.resources" .Values.realtime | nindent 10 }}
           {{- include "sim.securityContext" .Values.realtime | nindent 10 }}
-          {{- with .Values.extraVolumeMounts }}
+          {{- if or .Values.extraVolumeMounts .Values.realtime.extraVolumeMounts }}
           volumeMounts:
+            {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.realtime.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- with .Values.extraVolumes }}
+      {{- if or .Values.extraVolumes .Values.realtime.extraVolumes }}
       volumes:
+        {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.realtime.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
 {{- end }}

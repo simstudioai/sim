@@ -46,6 +46,19 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_domain_rating' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Current date in YYYY-MM-DD format
+- "yesterday" -> Yesterday's date in YYYY-MM-DD format
+- "last week" -> Date 7 days ago in YYYY-MM-DD format
+- "beginning of this month" -> First day of current month in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
+        generationType: 'timestamp',
+      },
     },
     // Backlinks operation inputs
     {
@@ -89,6 +102,19 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_backlinks' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Current date in YYYY-MM-DD format
+- "yesterday" -> Yesterday's date in YYYY-MM-DD format
+- "last week" -> Date 7 days ago in YYYY-MM-DD format
+- "beginning of this month" -> First day of current month in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
+        generationType: 'timestamp',
+      },
     },
     // Backlinks Stats operation inputs
     {
@@ -118,6 +144,19 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_backlinks_stats' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Current date in YYYY-MM-DD format
+- "yesterday" -> Yesterday's date in YYYY-MM-DD format
+- "last week" -> Date 7 days ago in YYYY-MM-DD format
+- "beginning of this month" -> First day of current month in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
+        generationType: 'timestamp',
+      },
     },
     // Referring Domains operation inputs
     {
@@ -161,6 +200,19 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_referring_domains' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Current date in YYYY-MM-DD format
+- "yesterday" -> Yesterday's date in YYYY-MM-DD format
+- "last week" -> Date 7 days ago in YYYY-MM-DD format
+- "beginning of this month" -> First day of current month in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
+        generationType: 'timestamp',
+      },
     },
     // Organic Keywords operation inputs
     {
@@ -228,6 +280,19 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_organic_keywords' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Current date in YYYY-MM-DD format
+- "yesterday" -> Yesterday's date in YYYY-MM-DD format
+- "last week" -> Date 7 days ago in YYYY-MM-DD format
+- "beginning of this month" -> First day of current month in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
+        generationType: 'timestamp',
+      },
     },
     // Top Pages operation inputs
     {
@@ -294,6 +359,19 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_top_pages' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Current date in YYYY-MM-DD format
+- "yesterday" -> Yesterday's date in YYYY-MM-DD format
+- "last week" -> Date 7 days ago in YYYY-MM-DD format
+- "beginning of this month" -> First day of current month in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
+        generationType: 'timestamp',
+      },
     },
     // Keyword Overview operation inputs
     {
@@ -370,6 +448,19 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (defaults to today)',
       condition: { field: 'operation', value: 'ahrefs_broken_backlinks' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
+Examples:
+- "today" -> Current date in YYYY-MM-DD format
+- "yesterday" -> Yesterday's date in YYYY-MM-DD format
+- "last week" -> Date 7 days ago in YYYY-MM-DD format
+- "beginning of this month" -> First day of current month in YYYY-MM-DD format
+
+Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the date (e.g., "yesterday", "last week", "start of month")...',
+        generationType: 'timestamp',
+      },
     },
     // API Key (common to all operations)
     {

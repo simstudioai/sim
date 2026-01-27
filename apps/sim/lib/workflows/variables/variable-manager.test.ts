@@ -26,7 +26,7 @@ describe('VariableManager', () => {
     it.concurrent('should handle boolean type variables', () => {
       expect(VariableManager.parseInputForStorage('true', 'boolean')).toBe(true)
       expect(VariableManager.parseInputForStorage('false', 'boolean')).toBe(false)
-      expect(VariableManager.parseInputForStorage('1', 'boolean')).toBe(true)
+      expect(VariableManager.parseInputForStorage('1', 'boolean')).toBe(false)
       expect(VariableManager.parseInputForStorage('0', 'boolean')).toBe(false)
       expect(VariableManager.parseInputForStorage('"true"', 'boolean')).toBe(true)
       expect(VariableManager.parseInputForStorage("'false'", 'boolean')).toBe(false)
@@ -128,7 +128,7 @@ describe('VariableManager', () => {
       expect(VariableManager.resolveForExecution(false, 'boolean')).toBe(false)
       expect(VariableManager.resolveForExecution('true', 'boolean')).toBe(true)
       expect(VariableManager.resolveForExecution('false', 'boolean')).toBe(false)
-      expect(VariableManager.resolveForExecution('1', 'boolean')).toBe(true)
+      expect(VariableManager.resolveForExecution('1', 'boolean')).toBe(false)
       expect(VariableManager.resolveForExecution('0', 'boolean')).toBe(false)
     })
 

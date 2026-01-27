@@ -1,4 +1,4 @@
-import type { BlockOutput, ParamType } from '@/blocks/types'
+import type { OutputFieldDefinition, ParamType } from '@/blocks/types'
 import type { Position } from '@/stores/workflows/workflow/types'
 
 export interface SerializedWorkflow {
@@ -25,10 +25,10 @@ export interface SerializedBlock {
   position: Position
   config: {
     tool: string
-    params: Record<string, any>
+    params: Record<string, unknown>
   }
   inputs: Record<string, ParamType>
-  outputs: Record<string, BlockOutput>
+  outputs: Record<string, OutputFieldDefinition>
   metadata?: {
     id: string
     name?: string

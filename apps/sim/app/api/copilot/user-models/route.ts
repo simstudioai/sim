@@ -2,12 +2,13 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import type { CopilotModelId } from '@/lib/copilot/models'
 import { db } from '@/../../packages/db'
 import { settings } from '@/../../packages/db/schema'
 
 const logger = createLogger('CopilotUserModelsAPI')
 
-const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
+const DEFAULT_ENABLED_MODELS: Record<CopilotModelId, boolean> = {
   'gpt-4o': false,
   'gpt-4.1': false,
   'gpt-5-fast': false,
@@ -15,17 +16,20 @@ const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
   'gpt-5-medium': false,
   'gpt-5-high': false,
   'gpt-5.1-fast': false,
-  'gpt-5.1': true,
-  'gpt-5.1-medium': true,
+  'gpt-5.1': false,
+  'gpt-5.1-medium': false,
   'gpt-5.1-high': false,
   'gpt-5-codex': false,
-  'gpt-5.1-codex': true,
+  'gpt-5.1-codex': false,
+  'gpt-5.2': false,
+  'gpt-5.2-codex': true,
+  'gpt-5.2-pro': true,
   o3: true,
   'claude-4-sonnet': false,
   'claude-4.5-haiku': true,
   'claude-4.5-sonnet': true,
   'claude-4.5-opus': true,
-  // 'claude-4.1-opus': true,
+  'claude-4.1-opus': false,
   'gemini-3-pro': true,
 }
 
@@ -51,7 +55,9 @@ export async function GET(request: NextRequest) {
 
       const mergedModels = { ...DEFAULT_ENABLED_MODELS }
       for (const [modelId, enabled] of Object.entries(userModelsMap)) {
-        mergedModels[modelId] = enabled
+        if (modelId in mergedModels) {
+          mergedModels[modelId as CopilotModelId] = enabled
+        }
       }
 
       const hasNewModels = Object.keys(DEFAULT_ENABLED_MODELS).some(

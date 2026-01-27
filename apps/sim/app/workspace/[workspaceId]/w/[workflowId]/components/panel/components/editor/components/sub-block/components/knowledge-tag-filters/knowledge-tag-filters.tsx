@@ -19,8 +19,8 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
-import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface TagFilter {
@@ -40,6 +40,7 @@ interface KnowledgeTagFiltersProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: string | null
+  previewContextValues?: Record<string, unknown>
 }
 
 /**
@@ -60,14 +61,19 @@ export function KnowledgeTagFilters({
   disabled = false,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: KnowledgeTagFiltersProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
   const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
 
-  const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
-  const knowledgeBaseId = knowledgeBaseIdValue || null
+  const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
+  const knowledgeBaseIdValue = previewContextValues?.knowledgeBaseId ?? knowledgeBaseIdFromStore
+  const knowledgeBaseId =
+    typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
+      ? knowledgeBaseIdValue
+      : null
 
   const { tagDefinitions, isLoading } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
@@ -123,11 +129,16 @@ export function KnowledgeTagFilters({
   }
 
   /**
-   * Removes a filter by ID (prevents removing the last filter)
+   * Removes a filter by ID, or resets it if it's the last one
    */
   const removeFilter = (id: string) => {
-    if (isReadOnly || filters.length === 1) return
-    updateFilters(filters.filter((f) => f.id !== id))
+    if (isReadOnly) return
+    if (filters.length === 1) {
+      // Reset the last filter instead of removing it
+      updateFilters([createDefaultFilter()])
+    } else {
+      updateFilters(filters.filter((f) => f.id !== id))
+    }
   }
 
   /**
@@ -215,17 +226,20 @@ export function KnowledgeTagFilters({
 
   /**
    * Renders the filter header with name, badge, and action buttons
+   * Shows tag name only when collapsed (as summary), generic label when expanded
    */
   const renderFilterHeader = (filter: TagFilter, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
       onClick={() => toggleCollapse(filter.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
-          {filter.tagName || `Filter ${index + 1}`}
+          {filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
         </span>
-        {filter.tagName && <Badge size='sm'>{FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}</Badge>}
+        {filter.collapsed && filter.tagName && (
+          <Badge size='sm'>{FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}</Badge>
+        )}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
         <Button variant='ghost' onClick={addFilter} disabled={isReadOnly} className='h-auto p-0'>
@@ -235,7 +249,7 @@ export function KnowledgeTagFilters({
         <Button
           variant='ghost'
           onClick={() => removeFilter(filter.id)}
-          disabled={isReadOnly || filters.length === 1}
+          disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
@@ -276,6 +290,7 @@ export function KnowledgeTagFilters({
           onKeyDown={handlers.onKeyDown}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
           onScroll={(e) => syncOverlayScroll(cellKey, e.currentTarget.scrollLeft)}
           onPaste={() =>
             setTimeout(() => {
@@ -323,7 +338,7 @@ export function KnowledgeTagFilters({
   const renderFilterContent = (filter: TagFilter) => {
     const tagOptions: ComboboxOption[] = tagDefinitions.map((tag) => ({
       value: tag.displayName,
-      label: `${tag.displayName} (${FIELD_TYPE_LABELS[tag.fieldType] || 'Text'})`,
+      label: tag.displayName,
     }))
 
     const operators = getOperatorsForFieldType(filter.fieldType)

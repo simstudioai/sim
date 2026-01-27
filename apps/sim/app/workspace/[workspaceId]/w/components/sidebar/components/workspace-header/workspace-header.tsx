@@ -7,6 +7,11 @@ import {
   Badge,
   Button,
   ChevronDown,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   PanelLeft,
   Popover,
   PopoverContent,
@@ -17,7 +22,8 @@ import {
 } from '@/components/emcn'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
-import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/invite-modal'
+import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('WorkspaceHeader')
 
@@ -102,6 +108,14 @@ interface WorkspaceHeaderProps {
    * Whether to show the collapse button
    */
   showCollapseButton?: boolean
+  /**
+   * Callback to leave the workspace
+   */
+  onLeaveWorkspace?: (workspaceId: string) => Promise<void>
+  /**
+   * Current user's session ID for owner check
+   */
+  sessionUserId?: string
 }
 
 /**
@@ -127,15 +141,19 @@ export function WorkspaceHeader({
   onImportWorkspace,
   isImportingWorkspace,
   showCollapseButton = true,
+  onLeaveWorkspace,
+  sessionUserId,
 }: WorkspaceHeaderProps) {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [leaveTarget, setLeaveTarget] = useState<Workspace | null>(null)
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [isListRenaming, setIsListRenaming] = useState(false)
-  const listRenameInputRef = useRef<HTMLInputElement | null>(null)
 
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
@@ -145,32 +163,28 @@ export function WorkspaceHeader({
     name: string
     permissions?: 'admin' | 'write' | 'read' | null
   } | null>(null)
+  const isRenamingRef = useRef(false)
+  const isContextMenuOpeningRef = useRef(false)
+  const contextMenuClosedRef = useRef(true)
+  const hasInputFocusedRef = useRef(false)
 
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
     setIsMounted(true)
   }, [])
 
+  const { isInvitationsDisabled } = usePermissionConfig()
+
   // Listen for open-invite-modal event from context menu
   useEffect(() => {
-    const handleOpenInvite = () => setIsInviteModalOpen(true)
-    window.addEventListener('open-invite-modal', handleOpenInvite)
-    return () => window.removeEventListener('open-invite-modal', handleOpenInvite)
-  }, [])
-
-  /**
-   * Focus the inline list rename input when it becomes active
-   */
-  useEffect(() => {
-    if (editingWorkspaceId && listRenameInputRef.current) {
-      try {
-        listRenameInputRef.current.focus()
-        listRenameInputRef.current.select()
-      } catch {
-        // no-op
+    const handleOpenInvite = () => {
+      if (!isInvitationsDisabled) {
+        setIsInviteModalOpen(true)
       }
     }
-  }, [editingWorkspaceId])
+    window.addEventListener('open-invite-modal', handleOpenInvite)
+    return () => window.removeEventListener('open-invite-modal', handleOpenInvite)
+  }, [isInvitationsDisabled])
 
   /**
    * Save and exit edit mode when popover closes
@@ -194,6 +208,9 @@ export function WorkspaceHeader({
     e.preventDefault()
     e.stopPropagation()
 
+    isContextMenuOpeningRef.current = true
+    contextMenuClosedRef.current = false
+
     capturedWorkspaceRef.current = {
       id: workspace.id,
       name: workspace.name,
@@ -204,10 +221,22 @@ export function WorkspaceHeader({
   }
 
   /**
-   * Close context menu
+   * Close context menu and optionally the workspace dropdown
+   * When renaming, we keep the workspace menu open so the input is visible
+   * This function is idempotent - duplicate calls are ignored
    */
   const closeContextMenu = () => {
+    if (contextMenuClosedRef.current) {
+      return
+    }
+    contextMenuClosedRef.current = true
+
     setIsContextMenuOpen(false)
+    isContextMenuOpeningRef.current = false
+    if (!isRenamingRef.current) {
+      setIsWorkspaceMenuOpen(false)
+    }
+    isRenamingRef.current = false
   }
 
   /**
@@ -216,8 +245,11 @@ export function WorkspaceHeader({
   const handleRenameAction = () => {
     if (!capturedWorkspaceRef.current) return
 
+    isRenamingRef.current = true
+    hasInputFocusedRef.current = false
     setEditingWorkspaceId(capturedWorkspaceRef.current.id)
     setEditingName(capturedWorkspaceRef.current.name)
+    setIsWorkspaceMenuOpen(true)
   }
 
   /**
@@ -254,6 +286,38 @@ export function WorkspaceHeader({
   }
 
   /**
+   * Handles leave action from context menu - shows confirmation modal
+   */
+  const handleLeaveAction = () => {
+    if (!capturedWorkspaceRef.current) return
+
+    const workspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
+    if (workspace) {
+      setLeaveTarget(workspace)
+      setIsLeaveModalOpen(true)
+      setIsWorkspaceMenuOpen(false)
+    }
+  }
+
+  /**
+   * Handle leave workspace after confirmation
+   */
+  const handleLeaveWorkspace = async () => {
+    if (!leaveTarget || !onLeaveWorkspace) return
+
+    setIsLeaving(true)
+    try {
+      await onLeaveWorkspace(leaveTarget.id)
+      setIsLeaveModalOpen(false)
+      setLeaveTarget(null)
+    } catch (error) {
+      logger.error('Error leaving workspace:', error)
+    } finally {
+      setIsLeaving(false)
+    }
+  }
+
+  /**
    * Handle delete workspace
    */
   const handleDeleteWorkspace = async () => {
@@ -279,8 +343,10 @@ export function WorkspaceHeader({
           <Popover
             open={isWorkspaceMenuOpen}
             onOpenChange={(open) => {
-              // Don't close if context menu is opening
-              if (!open && isContextMenuOpen) {
+              if (
+                !open &&
+                (isContextMenuOpen || isContextMenuOpeningRef.current || editingWorkspaceId)
+              ) {
                 return
               }
               setIsWorkspaceMenuOpen(open)
@@ -290,10 +356,15 @@ export function WorkspaceHeader({
               <button
                 type='button'
                 aria-label='Switch workspace'
-                className={`flex cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)] ${
+                className={`group flex cursor-pointer items-center gap-[8px] rounded-[6px] bg-transparent px-[6px] py-[4px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)] ${
                   isCollapsed ? '' : '-mx-[6px] min-w-0 max-w-full'
                 }`}
                 title={activeWorkspace?.name || 'Loading...'}
+                onContextMenu={(e) => {
+                  if (activeWorkspaceFull) {
+                    handleContextMenu(e, activeWorkspaceFull)
+                  }
+                }}
               >
                 <span
                   className={`font-base text-[14px] text-[var(--text-primary)] ${
@@ -303,7 +374,7 @@ export function WorkspaceHeader({
                   {activeWorkspace?.name || 'Loading...'}
                 </span>
                 <ChevronDown
-                  className={`h-[8px] w-[12px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100 ${
+                  className={`h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${
                     isWorkspaceMenuOpen ? 'rotate-180' : ''
                   }`}
                 />
@@ -341,7 +412,7 @@ export function WorkspaceHeader({
                             <ArrowDown className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>
                             {isImportingWorkspace ? 'Importing workspace...' : 'Import workspace'}
                           </p>
@@ -364,7 +435,7 @@ export function WorkspaceHeader({
                             <Plus className='h-[14px] w-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
-                        <Tooltip.Content className='py-[2.5px]'>
+                        <Tooltip.Content>
                           <p>
                             {isCreatingWorkspace ? 'Creating workspace...' : 'Create workspace'}
                           </p>
@@ -378,10 +449,17 @@ export function WorkspaceHeader({
                         {editingWorkspaceId === workspace.id ? (
                           <div className='flex h-[26px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-5)] px-[6px]'>
                             <input
-                              ref={listRenameInputRef}
+                              ref={(el) => {
+                                if (el && !hasInputFocusedRef.current) {
+                                  hasInputFocusedRef.current = true
+                                  el.focus()
+                                  el.select()
+                                }
+                              }}
                               value={editingName}
                               onChange={(e) => setEditingName(e.target.value)}
                               onKeyDown={async (e) => {
+                                e.stopPropagation()
                                 if (e.key === 'Enter') {
                                   e.preventDefault()
                                   setIsListRenaming(true)
@@ -398,15 +476,18 @@ export function WorkspaceHeader({
                               }}
                               onBlur={async () => {
                                 if (!editingWorkspaceId) return
-                                setIsListRenaming(true)
-                                try {
-                                  await onRenameWorkspace(workspace.id, editingName.trim())
-                                  setEditingWorkspaceId(null)
-                                } finally {
-                                  setIsListRenaming(false)
+                                const trimmedName = editingName.trim()
+                                if (trimmedName && trimmedName !== workspace.name) {
+                                  setIsListRenaming(true)
+                                  try {
+                                    await onRenameWorkspace(workspace.id, trimmedName)
+                                  } finally {
+                                    setIsListRenaming(false)
+                                  }
                                 }
+                                setEditingWorkspaceId(null)
                               }}
-                              className='w-full border-0 bg-transparent p-0 font-base text-[13px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                              className='w-full border-0 bg-transparent p-0 font-base text-[13px] text-[var(--text-primary)] outline-none selection:bg-[#add6ff] selection:text-[#1b1b1b] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[#264f78] dark:selection:text-white'
                               maxLength={100}
                               autoComplete='off'
                               autoCorrect='off'
@@ -414,7 +495,6 @@ export function WorkspaceHeader({
                               spellCheck='false'
                               disabled={isListRenaming}
                               onClick={(e) => {
-                                e.preventDefault()
                                 e.stopPropagation()
                               }}
                             />
@@ -452,14 +532,14 @@ export function WorkspaceHeader({
             >
               {activeWorkspace?.name || 'Loading...'}
             </span>
-            <ChevronDown className='h-[8px] w-[12px] flex-shrink-0 text-[var(--text-muted)]' />
+            <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />
           </button>
         )}
       </div>
       {/* Workspace Actions */}
       <div className='flex flex-shrink-0 items-center gap-[10px]'>
-        {/* Invite - hidden in collapsed mode */}
-        {!isCollapsed && (
+        {/* Invite - hidden in collapsed mode or when invitations are disabled */}
+        {!isCollapsed && !isInvitationsDisabled && (
           <Badge className='cursor-pointer' onClick={() => setIsInviteModalOpen(true)}>
             Invite
           </Badge>
@@ -483,6 +563,8 @@ export function WorkspaceHeader({
         const capturedPermissions = capturedWorkspaceRef.current?.permissions
         const contextCanEdit = capturedPermissions === 'admin' || capturedPermissions === 'write'
         const contextCanAdmin = capturedPermissions === 'admin'
+        const capturedWorkspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
+        const isOwner = capturedWorkspace && sessionUserId === capturedWorkspace.ownerId
 
         return (
           <ContextMenu
@@ -494,10 +576,12 @@ export function WorkspaceHeader({
             onDuplicate={handleDuplicateAction}
             onExport={handleExportAction}
             onDelete={handleDeleteAction}
+            onLeave={handleLeaveAction}
             showRename={true}
             showDuplicate={true}
             showExport={true}
-            disableRename={!contextCanEdit}
+            showLeave={!isOwner && !!onLeaveWorkspace}
+            disableRename={!contextCanAdmin}
             disableDuplicate={!contextCanEdit}
             disableExport={!contextCanAdmin}
             disableDelete={!contextCanAdmin}
@@ -520,6 +604,32 @@ export function WorkspaceHeader({
         itemType='workspace'
         itemName={deleteTarget?.name || activeWorkspaceFull?.name || activeWorkspace?.name}
       />
+      {/* Leave Confirmation Modal */}
+      <Modal open={isLeaveModalOpen} onOpenChange={() => setIsLeaveModalOpen(false)}>
+        <ModalContent size='sm'>
+          <ModalHeader>Leave Workspace</ModalHeader>
+          <ModalBody>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
+              Are you sure you want to leave{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{leaveTarget?.name}</span>?
+              You will lose access to all workflows and data in this workspace.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant='default'
+              onClick={() => setIsLeaveModalOpen(false)}
+              disabled={isLeaving}
+            >
+              Cancel
+            </Button>
+            <Button variant='destructive' onClick={handleLeaveWorkspace} disabled={isLeaving}>
+              {isLeaving ? 'Leaving...' : 'Leave Workspace'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }

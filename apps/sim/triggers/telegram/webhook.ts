@@ -31,6 +31,14 @@ export const telegramWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'telegram_webhook',
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -38,7 +46,7 @@ export const telegramWebhookTrigger: TriggerConfig = {
       defaultValue: [
         'Message "/newbot" to <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">@BotFather</a> in Telegram to create a bot and copy its token.',
         'Enter your Bot Token above.',
-        'Save settings and any message sent to your bot will trigger the workflow.',
+        'Any message sent to your bot will trigger the workflow once deployed.',
       ]
         .map(
           (instruction, index) =>
@@ -46,14 +54,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
         )
         .join(''),
       mode: 'trigger',
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'telegram_webhook',
     },
   ],
 
@@ -110,6 +110,7 @@ export const telegramWebhookTrigger: TriggerConfig = {
     },
     sender: {
       id: { type: 'number', description: 'Sender user ID' },
+      username: { type: 'string', description: 'Sender username (if available)' },
       firstName: { type: 'string', description: 'Sender first name' },
       lastName: { type: 'string', description: 'Sender last name' },
       languageCode: { type: 'string', description: 'Sender language code (if available)' },

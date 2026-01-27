@@ -1,19 +1,8 @@
 import type { Edge } from 'reactflow'
+import type { UNDO_REDO_OPERATIONS, UndoRedoOperation } from '@/socket/constants'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-export type OperationType =
-  | 'batch-add-blocks'
-  | 'batch-remove-blocks'
-  | 'add-edge'
-  | 'remove-edge'
-  | 'add-subflow'
-  | 'remove-subflow'
-  | 'move-block'
-  | 'move-subflow'
-  | 'update-parent'
-  | 'apply-diff'
-  | 'accept-diff'
-  | 'reject-diff'
+export type OperationType = UndoRedoOperation
 
 export interface BaseOperation {
   id: string
@@ -24,7 +13,7 @@ export interface BaseOperation {
 }
 
 export interface BatchAddBlocksOperation extends BaseOperation {
-  type: 'batch-add-blocks'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_ADD_BLOCKS
   data: {
     blockSnapshots: BlockState[]
     edgeSnapshots: Edge[]
@@ -33,7 +22,7 @@ export interface BatchAddBlocksOperation extends BaseOperation {
 }
 
 export interface BatchRemoveBlocksOperation extends BaseOperation {
-  type: 'batch-remove-blocks'
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_REMOVE_BLOCKS
   data: {
     blockSnapshots: BlockState[]
     edgeSnapshots: Edge[]
@@ -41,70 +30,33 @@ export interface BatchRemoveBlocksOperation extends BaseOperation {
   }
 }
 
-export interface AddEdgeOperation extends BaseOperation {
-  type: 'add-edge'
+export interface BatchAddEdgesOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_ADD_EDGES
   data: {
-    edgeId: string
+    edgeSnapshots: Edge[]
   }
 }
 
-export interface RemoveEdgeOperation extends BaseOperation {
-  type: 'remove-edge'
+export interface BatchRemoveEdgesOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_REMOVE_EDGES
   data: {
-    edgeId: string
-    edgeSnapshot: Edge | null
+    edgeSnapshots: Edge[]
   }
 }
 
-export interface AddSubflowOperation extends BaseOperation {
-  type: 'add-subflow'
+export interface BatchMoveBlocksOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_MOVE_BLOCKS
   data: {
-    subflowId: string
-  }
-}
-
-export interface RemoveSubflowOperation extends BaseOperation {
-  type: 'remove-subflow'
-  data: {
-    subflowId: string
-    subflowSnapshot: BlockState | null
-  }
-}
-
-export interface MoveBlockOperation extends BaseOperation {
-  type: 'move-block'
-  data: {
-    blockId: string
-    before: {
-      x: number
-      y: number
-      parentId?: string
-    }
-    after: {
-      x: number
-      y: number
-      parentId?: string
-    }
-  }
-}
-
-export interface MoveSubflowOperation extends BaseOperation {
-  type: 'move-subflow'
-  data: {
-    subflowId: string
-    before: {
-      x: number
-      y: number
-    }
-    after: {
-      x: number
-      y: number
-    }
+    moves: Array<{
+      blockId: string
+      before: { x: number; y: number; parentId?: string }
+      after: { x: number; y: number; parentId?: string }
+    }>
   }
 }
 
 export interface UpdateParentOperation extends BaseOperation {
-  type: 'update-parent'
+  type: typeof UNDO_REDO_OPERATIONS.UPDATE_PARENT
   data: {
     blockId: string
     oldParentId?: string
@@ -115,8 +67,38 @@ export interface UpdateParentOperation extends BaseOperation {
   }
 }
 
+export interface BatchUpdateParentOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_UPDATE_PARENT
+  data: {
+    updates: Array<{
+      blockId: string
+      oldParentId?: string
+      newParentId?: string
+      oldPosition: { x: number; y: number }
+      newPosition: { x: number; y: number }
+      affectedEdges?: Edge[]
+    }>
+  }
+}
+
+export interface BatchToggleEnabledOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_TOGGLE_ENABLED
+  data: {
+    blockIds: string[]
+    previousStates: Record<string, boolean>
+  }
+}
+
+export interface BatchToggleHandlesOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_TOGGLE_HANDLES
+  data: {
+    blockIds: string[]
+    previousStates: Record<string, boolean>
+  }
+}
+
 export interface ApplyDiffOperation extends BaseOperation {
-  type: 'apply-diff'
+  type: typeof UNDO_REDO_OPERATIONS.APPLY_DIFF
   data: {
     baselineSnapshot: any // WorkflowState snapshot before diff
     proposedState: any // WorkflowState with diff applied
@@ -125,7 +107,7 @@ export interface ApplyDiffOperation extends BaseOperation {
 }
 
 export interface AcceptDiffOperation extends BaseOperation {
-  type: 'accept-diff'
+  type: typeof UNDO_REDO_OPERATIONS.ACCEPT_DIFF
   data: {
     beforeAccept: any // WorkflowState with diff markers
     afterAccept: any // WorkflowState without diff markers
@@ -135,7 +117,7 @@ export interface AcceptDiffOperation extends BaseOperation {
 }
 
 export interface RejectDiffOperation extends BaseOperation {
-  type: 'reject-diff'
+  type: typeof UNDO_REDO_OPERATIONS.REJECT_DIFF
   data: {
     beforeReject: any // WorkflowState with diff markers
     afterReject: any // WorkflowState baseline (after reject)
@@ -147,13 +129,13 @@ export interface RejectDiffOperation extends BaseOperation {
 export type Operation =
   | BatchAddBlocksOperation
   | BatchRemoveBlocksOperation
-  | AddEdgeOperation
-  | RemoveEdgeOperation
-  | AddSubflowOperation
-  | RemoveSubflowOperation
-  | MoveBlockOperation
-  | MoveSubflowOperation
+  | BatchAddEdgesOperation
+  | BatchRemoveEdgesOperation
+  | BatchMoveBlocksOperation
   | UpdateParentOperation
+  | BatchUpdateParentOperation
+  | BatchToggleEnabledOperation
+  | BatchToggleHandlesOperation
   | ApplyDiffOperation
   | AcceptDiffOperation
   | RejectDiffOperation

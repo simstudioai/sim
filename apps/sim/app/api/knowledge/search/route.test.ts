@@ -5,12 +5,13 @@
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  createEnvMock,
   createMockRequest,
   mockConsoleLogger,
   mockKnowledgeSchemas,
-} from '@/app/api/__test-utils__/utils'
+} from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn().mockImplementation((...args) => ({ and: args })),
@@ -26,13 +27,7 @@ vi.mock('drizzle-orm', () => ({
 
 mockKnowledgeSchemas()
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    OPENAI_API_KEY: 'test-api-key',
-  },
-  isTruthy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
-}))
+vi.mock('@/lib/core/config/env', () => createEnvMock({ OPENAI_API_KEY: 'test-api-key' }))
 
 vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn(() => 'test-request-id'),

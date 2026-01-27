@@ -25,7 +25,7 @@ export class SearchDocumentationClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Searching documentation', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Searching documentation', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Searching documentation', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Documentation search complete', icon: BookOpen },
+      [ClientToolCallState.success]: { text: 'Completed documentation search', icon: BookOpen },
       [ClientToolCallState.error]: { text: 'Failed to search docs', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted documentation search', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped documentation search', icon: MinusCircle },
@@ -33,21 +33,20 @@ export class SearchDocumentationClientTool extends BaseClientTool {
     getDynamicText: (params, state) => {
       if (params?.query && typeof params.query === 'string') {
         const query = params.query
-        const truncated = query.length > 50 ? `${query.slice(0, 50)}...` : query
 
         switch (state) {
           case ClientToolCallState.success:
-            return `Searched docs for ${truncated}`
+            return `Searched docs for ${query}`
           case ClientToolCallState.executing:
           case ClientToolCallState.generating:
           case ClientToolCallState.pending:
-            return `Searching docs for ${truncated}`
+            return `Searching docs for ${query}`
           case ClientToolCallState.error:
-            return `Failed to search docs for ${truncated}`
+            return `Failed to search docs for ${query}`
           case ClientToolCallState.aborted:
-            return `Aborted searching docs for ${truncated}`
+            return `Aborted searching docs for ${query}`
           case ClientToolCallState.rejected:
-            return `Skipped searching docs for ${truncated}`
+            return `Skipped searching docs for ${query}`
         }
       }
       return undefined

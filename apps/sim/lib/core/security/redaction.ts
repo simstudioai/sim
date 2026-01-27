@@ -2,13 +2,16 @@
  * Centralized redaction utilities for sensitive data
  */
 
-/** Standard marker used for all redacted values */
-export const REDACTED_MARKER = '[REDACTED]'
+import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file'
 
-/**
- * Patterns for sensitive key names (case-insensitive matching)
- * These patterns match common naming conventions for sensitive data
- */
+export const REDACTED_MARKER = '[REDACTED]'
+export const TRUNCATED_MARKER = '[TRUNCATED]'
+
+const BYPASS_REDACTION_KEYS = new Set(['nextPageToken'])
+
+/** Keys that contain large binary/encoded data that should be truncated in logs */
+const LARGE_DATA_KEYS = new Set(['base64'])
+
 const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^api[_-]?key$/i,
   /^access[_-]?token$/i,
@@ -66,12 +69,10 @@ const SENSITIVE_VALUE_PATTERNS: Array<{
   },
 ]
 
-/**
- * Checks if a key name matches any sensitive pattern
- * @param key - The key name to check
- * @returns True if the key is considered sensitive
- */
 export function isSensitiveKey(key: string): boolean {
+  if (BYPASS_REDACTION_KEYS.has(key)) {
+    return false
+  }
   const lowerKey = key.toLowerCase()
   return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(lowerKey))
 }
@@ -93,12 +94,10 @@ export function redactSensitiveValues(value: string): string {
   return result
 }
 
-/**
- * Recursively redacts sensitive data (API keys, passwords, tokens, etc.) from an object
- *
- * @param obj - The object to redact sensitive data from
- * @returns A new object with sensitive data redacted
- */
+export function isLargeDataKey(key: string): boolean {
+  return LARGE_DATA_KEYS.has(key)
+}
+
 export function redactApiKeys(obj: any): any {
   if (obj === null || obj === undefined) {
     return obj
@@ -112,11 +111,26 @@ export function redactApiKeys(obj: any): any {
     return obj.map((item) => redactApiKeys(item))
   }
 
+  if (isUserFile(obj)) {
+    const filtered = filterUserFileForDisplay(obj)
+    const result: Record<string, any> = {}
+    for (const [key, value] of Object.entries(filtered)) {
+      if (isLargeDataKey(key) && typeof value === 'string') {
+        result[key] = TRUNCATED_MARKER
+      } else {
+        result[key] = value
+      }
+    }
+    return result
+  }
+
   const result: Record<string, any> = {}
 
   for (const [key, value] of Object.entries(obj)) {
     if (isSensitiveKey(key)) {
       result[key] = REDACTED_MARKER
+    } else if (isLargeDataKey(key) && typeof value === 'string') {
+      result[key] = TRUNCATED_MARKER
     } else if (typeof value === 'object' && value !== null) {
       result[key] = redactApiKeys(value)
     } else {

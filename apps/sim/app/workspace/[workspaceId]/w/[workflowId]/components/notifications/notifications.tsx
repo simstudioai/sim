@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { X } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
@@ -11,6 +11,7 @@ import {
   openCopilotWithMessage,
   useNotificationStore,
 } from '@/stores/notifications'
+import { usePanelStore } from '@/stores/panel'
 import { useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -18,9 +19,9 @@ const logger = createLogger('Notifications')
 const MAX_VISIBLE_NOTIFICATIONS = 4
 
 /**
- * Notifications display component
- * Positioned in the bottom-right workspace area, aligned with terminal and panel spacing
- * Shows both global notifications and workflow-specific notifications
+ * Notifications display component.
+ * Positioned in the bottom-right workspace area, reactive to panel width and terminal height.
+ * Shows both global notifications and workflow-specific notifications.
  */
 export const Notifications = memo(function Notifications() {
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -36,6 +37,7 @@ export const Notifications = memo(function Notifications() {
       .slice(0, MAX_VISIBLE_NOTIFICATIONS)
   }, [allNotifications, activeWorkflowId])
   const isTerminalResizing = useTerminalStore((state) => state.isResizing)
+  const isPanelResizing = usePanelStore((state) => state.isResizing)
 
   /**
    * Executes a notification action and handles side effects.
@@ -103,13 +105,19 @@ export const Notifications = memo(function Notifications() {
     return null
   }
 
+  const isResizing = isTerminalResizing || isPanelResizing
+
   return (
     <div
       ref={preventZoomRef}
       className={clsx(
-        'fixed right-[calc(var(--panel-width)+16px)] bottom-[calc(var(--terminal-height)+16px)] z-30 flex flex-col items-end',
-        !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
+        'fixed z-30 flex flex-col items-start',
+        !isResizing && 'transition-[bottom,right] duration-100 ease-out'
       )}
+      style={{
+        bottom: 'calc(var(--terminal-height) + 16px)',
+        right: 'calc(var(--panel-width) + 16px)',
+      }}
     >
       {[...visibleNotifications].reverse().map((notification, index, stacked) => {
         const depth = stacked.length - index - 1
@@ -119,29 +127,43 @@ export const Notifications = memo(function Notifications() {
         return (
           <div
             key={notification.id}
-            style={{ transform: `translateX(${xOffset}px)` }}
-            className={`relative h-[80px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] transition-transform duration-200 ${
+            style={
+              {
+                '--stack-offset': `${xOffset}px`,
+                animation: 'notification-enter 200ms ease-out forwards',
+              } as React.CSSProperties
+            }
+            className={`relative h-[80px] w-[240px] overflow-hidden rounded-[4px] border bg-[var(--surface-2)] ${
               index > 0 ? '-mt-[80px]' : ''
             }`}
           >
             <div className='flex h-full flex-col justify-between px-[8px] pt-[6px] pb-[8px]'>
-              <div
-                className={`font-medium text-[12px] leading-[16px] ${
-                  hasAction ? 'line-clamp-2' : 'line-clamp-4'
-                }`}
-              >
-                <Button
-                  variant='ghost'
-                  onClick={() => removeNotification(notification.id)}
-                  aria-label='Dismiss notification'
-                  className='!p-1.5 -m-1.5 float-right ml-[16px]'
+              <div className='flex items-start gap-[8px]'>
+                <div
+                  className={`min-w-0 flex-1 font-medium text-[12px] leading-[16px] ${
+                    hasAction ? 'line-clamp-2' : 'line-clamp-4'
+                  }`}
                 >
-                  <X className='h-3 w-3' />
-                </Button>
-                {notification.level === 'error' && (
-                  <span className='mr-[6px] mb-[2.75px] inline-block h-[6px] w-[6px] rounded-[2px] bg-[var(--text-error)] align-middle' />
-                )}
-                {notification.message}
+                  {notification.level === 'error' && (
+                    <span className='mr-[6px] mb-[2.75px] inline-block h-[6px] w-[6px] rounded-[2px] bg-[var(--text-error)] align-middle' />
+                  )}
+                  {notification.message}
+                </div>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={() => removeNotification(notification.id)}
+                      aria-label='Dismiss notification'
+                      className='!p-1.5 -m-1.5 shrink-0'
+                    >
+                      <X className='h-3 w-3' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
+                    <Tooltip.Shortcut keys='⌘E'>Clear all</Tooltip.Shortcut>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               </div>
               {hasAction && (
                 <Button

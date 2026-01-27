@@ -13,7 +13,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**
- * Template data structure with support for both new and legacy fields
+ * Template data structure
  */
 export interface Template {
   /** Unique identifier for the template */
@@ -59,16 +59,6 @@ export interface Template {
   isStarred: boolean
   /** Whether the current user is a super user */
   isSuperUser?: boolean
-  /** @deprecated Legacy field - use creator.referenceId instead */
-  userId?: string
-  /** @deprecated Legacy field - use details.tagline instead */
-  description?: string | null
-  /** @deprecated Legacy field - use creator.name instead */
-  author?: string
-  /** @deprecated Legacy field - use creator.referenceType instead */
-  authorType?: 'user' | 'organization'
-  /** @deprecated Legacy field - use creator.referenceId when referenceType is 'organization' */
-  organizationId?: string | null
   /** Display color for the template card */
   color?: string
   /** Display icon for the template card */
@@ -107,7 +97,6 @@ export default function Templates({
 
   /**
    * Filter templates based on active tab and search query
-   * Memoized to prevent unnecessary recalculations on render
    */
   const filteredTemplates = useMemo(() => {
     const query = debouncedSearchQuery.toLowerCase()
@@ -115,7 +104,7 @@ export default function Templates({
     return templates.filter((template) => {
       const tabMatch =
         activeTab === 'your'
-          ? template.userId === currentUserId || template.isStarred
+          ? template.creator?.referenceId === currentUserId || template.isStarred
           : activeTab === 'gallery'
             ? template.status === 'approved'
             : template.status === 'pending'
@@ -124,13 +113,7 @@ export default function Templates({
 
       if (!query) return true
 
-      const searchableText = [
-        template.name,
-        template.description,
-        template.details?.tagline,
-        template.author,
-        template.creator?.name,
-      ]
+      const searchableText = [template.name, template.details?.tagline, template.creator?.name]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -141,7 +124,6 @@ export default function Templates({
 
   /**
    * Get empty state message based on current filters
-   * Memoized to prevent unnecessary recalculations on render
    */
   const emptyState = useMemo(() => {
     if (debouncedSearchQuery) {
@@ -235,25 +217,20 @@ export default function Templates({
                 </div>
               </div>
             ) : (
-              filteredTemplates.map((template) => {
-                const author = template.author || template.creator?.name || 'Unknown'
-                const authorImageUrl = template.creator?.profileImageUrl || null
-
-                return (
-                  <TemplateCard
-                    key={template.id}
-                    id={template.id}
-                    title={template.name}
-                    author={author}
-                    authorImageUrl={authorImageUrl}
-                    usageCount={template.views.toString()}
-                    stars={template.stars}
-                    state={template.state}
-                    isStarred={template.isStarred}
-                    isVerified={template.creator?.verified || false}
-                  />
-                )
-              })
+              filteredTemplates.map((template) => (
+                <TemplateCard
+                  key={template.id}
+                  id={template.id}
+                  title={template.name}
+                  author={template.creator?.name || 'Unknown'}
+                  authorImageUrl={template.creator?.profileImageUrl || null}
+                  usageCount={template.views.toString()}
+                  stars={template.stars}
+                  state={template.state}
+                  isStarred={template.isStarred}
+                  isVerified={template.creator?.verified || false}
+                />
+              ))
             )}
           </div>
         </div>

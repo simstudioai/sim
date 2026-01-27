@@ -26,7 +26,7 @@ export async function evaluateConditionExpression(
     const contextSetup = `const context = ${JSON.stringify(evalContext)};`
     const code = `${contextSetup}\nreturn Boolean(${conditionExpression})`
 
-    const { blockData, blockNameMapping } = collectBlockData(ctx)
+    const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
     const result = await executeTool(
       'function_execute',
@@ -37,12 +37,13 @@ export async function evaluateConditionExpression(
         workflowVariables: ctx.workflowVariables || {},
         blockData,
         blockNameMapping,
+        blockOutputSchemas,
         _context: {
           workflowId: ctx.workflowId,
           workspaceId: ctx.workspaceId,
+          isDeployedContext: ctx.isDeployedContext,
         },
       },
-      false,
       false,
       ctx
     )
@@ -84,7 +85,11 @@ export class ConditionBlockHandler implements BlockHandler {
 
     const sourceBlockId = ctx.workflow?.connections.find((conn) => conn.target === block.id)?.source
     const evalContext = this.buildEvaluationContext(ctx, sourceBlockId)
-    const sourceOutput = sourceBlockId ? ctx.blockStates.get(sourceBlockId)?.output : null
+    const rawSourceOutput = sourceBlockId ? ctx.blockStates.get(sourceBlockId)?.output : null
+
+    // Filter out _pauseMetadata from source output to prevent the engine from
+    // thinking this block is pausing (it was already resumed by the HITL block)
+    const sourceOutput = this.filterPauseMetadata(rawSourceOutput)
 
     const outgoingConnections = ctx.workflow?.connections.filter((conn) => conn.source === block.id)
 
@@ -122,6 +127,14 @@ export class ConditionBlockHandler implements BlockHandler {
       },
       selectedOption: selectedCondition.id,
     }
+  }
+
+  private filterPauseMetadata(output: any): any {
+    if (!output || typeof output !== 'object') {
+      return output
+    }
+    const { _pauseMetadata, ...rest } = output
+    return rest
   }
 
   private parseConditions(input: any): Array<{ id: string; title: string; value: string }> {

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   ArrowDown,
@@ -36,17 +36,25 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { formatTimeWithSeconds } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import {
+  LogRowContextMenu,
+  OutputContextMenu,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components'
 import {
   useOutputPanelResize,
   useTerminalFilters,
   useTerminalResize,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
+import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
+import { useShowTrainingControls } from '@/hooks/queries/general-settings'
+import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
+import { openCopilotWithMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -75,18 +83,6 @@ const COLUMN_WIDTHS = {
   TIMESTAMP: 'w-[120px]',
   OUTPUT_PANEL: 'w-[400px]',
 } as const
-
-/**
- * Color palette for run IDs - matching code syntax highlighting colors
- */
-const RUN_ID_COLORS = [
-  { text: '#4ADE80' }, // Green
-  { text: '#F472B6' }, // Pink
-  { text: '#60C5FF' }, // Blue
-  { text: '#FF8533' }, // Orange
-  { text: '#C084FC' }, // Purple
-  { text: '#FCD34D' }, // Yellow
-] as const
 
 /**
  * Shared styling constants
@@ -178,22 +174,6 @@ const ToggleButton = ({
 )
 
 /**
- * Formats timestamp to H:MM:SS AM/PM TZ format
- */
-const formatTimestamp = (timestamp: string): string => {
-  const date = new Date(timestamp)
-  const fullString = date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-    timeZoneName: 'short',
-  })
-  // Format: "5:54:55 PM PST" - return as is
-  return fullString
-}
-
-/**
  * Truncates execution ID for display as run ID
  */
 const formatRunId = (executionId?: string): string => {
@@ -202,16 +182,25 @@ const formatRunId = (executionId?: string): string => {
 }
 
 /**
- * Gets color for a run ID based on its index in the execution ID order map
+ * Run ID colors
  */
-const getRunIdColor = (
-  executionId: string | undefined,
-  executionIdOrderMap: Map<string, number>
-) => {
+const RUN_ID_COLORS = [
+  '#4ADE80', // Green
+  '#F472B6', // Pink
+  '#60C5FF', // Blue
+  '#FF8533', // Orange
+  '#C084FC', // Purple
+  '#EAB308', // Yellow
+  '#2DD4BF', // Teal
+  '#FB7185', // Rose
+] as const
+
+/**
+ * Gets color for a run ID from the precomputed color map.
+ */
+const getRunIdColor = (executionId: string | undefined, colorMap: Map<string, string>) => {
   if (!executionId) return null
-  const colorIndex = executionIdOrderMap.get(executionId)
-  if (colorIndex === undefined) return null
-  return RUN_ID_COLORS[colorIndex % RUN_ID_COLORS.length]
+  return colorMap.get(executionId) ?? null
 }
 
 /**
@@ -238,7 +227,6 @@ const isEventFromEditableElement = (e: KeyboardEvent): boolean => {
     return false
   }
 
-  // Check target and walk up ancestors in case editors render nested elements
   let el: HTMLElement | null = target
   while (el) {
     if (isEditable(el)) return true
@@ -271,7 +259,7 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
       code={code}
       showGutter
       language={language}
-      className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)]'
+      className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)] dark:bg-[var(--surface-1)]'
       paddingLeft={8}
       gutterStyle={{ backgroundColor: 'transparent' }}
       wrapText={wrapText}
@@ -281,6 +269,514 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
       contentRef={contentRef}
       virtualized
     />
+  )
+})
+
+/**
+ * Props for the OutputPanel component
+ */
+interface OutputPanelProps {
+  selectedEntry: ConsoleEntry
+  outputPanelWidth: number
+  handleOutputPanelResizeMouseDown: (e: React.MouseEvent) => void
+  handleHeaderClick: () => void
+  isExpanded: boolean
+  expandToLastHeight: () => void
+  showInput: boolean
+  setShowInput: (show: boolean) => void
+  hasInputData: boolean
+  isPlaygroundEnabled: boolean
+  shouldShowTrainingButton: boolean
+  isTraining: boolean
+  handleTrainingClick: (e: React.MouseEvent) => void
+  showCopySuccess: boolean
+  handleCopy: () => void
+  filteredEntries: ConsoleEntry[]
+  handleExportConsole: (e: React.MouseEvent) => void
+  hasActiveFilters: boolean
+  clearFilters: () => void
+  handleClearConsole: (e: React.MouseEvent) => void
+  wrapText: boolean
+  setWrapText: (wrap: boolean) => void
+  openOnRun: boolean
+  setOpenOnRun: (open: boolean) => void
+  outputOptionsOpen: boolean
+  setOutputOptionsOpen: (open: boolean) => void
+  shouldShowCodeDisplay: boolean
+  outputDataStringified: string
+  handleClearConsoleFromMenu: () => void
+}
+
+/**
+ * Output panel component that manages its own search state.
+ */
+const OutputPanel = React.memo(function OutputPanel({
+  selectedEntry,
+  outputPanelWidth,
+  handleOutputPanelResizeMouseDown,
+  handleHeaderClick,
+  isExpanded,
+  expandToLastHeight,
+  showInput,
+  setShowInput,
+  hasInputData,
+  isPlaygroundEnabled,
+  shouldShowTrainingButton,
+  isTraining,
+  handleTrainingClick,
+  showCopySuccess,
+  handleCopy,
+  filteredEntries,
+  handleExportConsole,
+  hasActiveFilters,
+  clearFilters,
+  handleClearConsole,
+  wrapText,
+  setWrapText,
+  openOnRun,
+  setOpenOnRun,
+  outputOptionsOpen,
+  setOutputOptionsOpen,
+  shouldShowCodeDisplay,
+  outputDataStringified,
+  handleClearConsoleFromMenu,
+}: OutputPanelProps) {
+  const outputContentRef = useRef<HTMLDivElement>(null)
+  const {
+    isSearchActive: isOutputSearchActive,
+    searchQuery: outputSearchQuery,
+    setSearchQuery: setOutputSearchQuery,
+    matchCount,
+    currentMatchIndex,
+    activateSearch: activateOutputSearch,
+    closeSearch: closeOutputSearch,
+    goToNextMatch,
+    goToPreviousMatch,
+    handleMatchCountChange,
+    searchInputRef: outputSearchInputRef,
+  } = useCodeViewerFeatures({
+    contentRef: outputContentRef,
+    externalWrapText: wrapText,
+    onWrapTextChange: setWrapText,
+  })
+
+  // Context menu state for output panel
+  const [hasSelection, setHasSelection] = useState(false)
+  const [storedSelectionText, setStoredSelectionText] = useState('')
+  const {
+    isOpen: isOutputMenuOpen,
+    position: outputMenuPosition,
+    menuRef: outputMenuRef,
+    handleContextMenu: handleOutputContextMenu,
+    closeMenu: closeOutputMenu,
+  } = useContextMenu()
+
+  const handleOutputPanelContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      const selection = window.getSelection()
+      const selectionText = selection?.toString() || ''
+      setStoredSelectionText(selectionText)
+      setHasSelection(selectionText.length > 0)
+      handleOutputContextMenu(e)
+    },
+    [handleOutputContextMenu]
+  )
+
+  const handleCopySelection = useCallback(() => {
+    if (storedSelectionText) {
+      navigator.clipboard.writeText(storedSelectionText)
+    }
+  }, [storedSelectionText])
+
+  /**
+   * Track text selection state for context menu.
+   * Skip updates when the context menu is open to prevent the selection
+   * state from changing mid-click (which would disable the copy button).
+   */
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      if (isOutputMenuOpen) return
+
+      const selection = window.getSelection()
+      setHasSelection(Boolean(selection && selection.toString().length > 0))
+    }
+
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => document.removeEventListener('selectionchange', handleSelectionChange)
+  }, [isOutputMenuOpen])
+
+  return (
+    <>
+      <div
+        className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--surface-1)]'
+        style={{ width: `${outputPanelWidth}px` }}
+      >
+        {/* Horizontal Resize Handle */}
+        <div
+          className='-ml-[4px] absolute top-0 bottom-0 left-0 z-20 w-[8px] cursor-ew-resize'
+          onMouseDown={handleOutputPanelResizeMouseDown}
+          role='separator'
+          aria-label='Resize output panel'
+          aria-orientation='vertical'
+        />
+
+        {/* Header */}
+        <div
+          className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] pr-[16px] pl-[10px]'
+          onClick={handleHeaderClick}
+        >
+          <div className='flex items-center'>
+            <Button
+              variant='ghost'
+              className={clsx(
+                'px-[8px] py-[6px] text-[12px]',
+                !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
+              )}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!isExpanded) {
+                  expandToLastHeight()
+                }
+                if (showInput) setShowInput(false)
+              }}
+              aria-label='Show output'
+            >
+              Output
+            </Button>
+            {hasInputData && (
+              <Button
+                variant='ghost'
+                className={clsx(
+                  'px-[8px] py-[6px] text-[12px]',
+                  showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
+                )}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (!isExpanded) {
+                    expandToLastHeight()
+                  }
+                  setShowInput(true)
+                }}
+                aria-label='Show input'
+              >
+                Input
+              </Button>
+            )}
+          </div>
+          <div className='flex flex-shrink-0 items-center gap-[8px]'>
+            {isOutputSearchActive ? (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      closeOutputSearch()
+                    }}
+                    aria-label='Search in output'
+                    className='!p-1.5 -m-1.5'
+                  >
+                    <X className='h-[12px] w-[12px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>Close search</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            ) : (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      activateOutputSearch()
+                    }}
+                    aria-label='Search in output'
+                    className='!p-1.5 -m-1.5'
+                  >
+                    <Search className='h-[12px] w-[12px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>Search</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+
+            {isPlaygroundEnabled && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Link href='/playground'>
+                    <Button
+                      variant='ghost'
+                      aria-label='Component Playground'
+                      className='!p-1.5 -m-1.5'
+                    >
+                      <Palette className='h-[12px] w-[12px]' />
+                    </Button>
+                  </Link>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>Component Playground</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+
+            {shouldShowTrainingButton && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={handleTrainingClick}
+                    aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
+                    className={clsx(
+                      '!p-1.5 -m-1.5',
+                      isTraining && 'text-orange-600 dark:text-orange-400'
+                    )}
+                  >
+                    {isTraining ? (
+                      <Pause className='h-[12px] w-[12px]' />
+                    ) : (
+                      <Database className='h-[12px] w-[12px]' />
+                    )}
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleCopy()
+                  }}
+                  aria-label='Copy output'
+                  className='!p-1.5 -m-1.5'
+                >
+                  {showCopySuccess ? (
+                    <Check className='h-[12px] w-[12px]' />
+                  ) : (
+                    <Clipboard className='h-[12px] w-[12px]' />
+                  )}
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content>
+                <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
+              </Tooltip.Content>
+            </Tooltip.Root>
+            {filteredEntries.length > 0 && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={handleExportConsole}
+                    aria-label='Download console CSV'
+                    className='!p-1.5 -m-1.5'
+                  >
+                    <ArrowDownToLine className='h-3 w-3' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>Download CSV</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+            {hasActiveFilters && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      clearFilters()
+                    }}
+                    aria-label='Clear filters'
+                    className='!p-1.5 -m-1.5'
+                  >
+                    <FilterX className='h-3 w-3' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>Clear filters</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+            {filteredEntries.length > 0 && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={handleClearConsole}
+                    aria-label='Clear console'
+                    className='!p-1.5 -m-1.5'
+                  >
+                    <Trash2 className='h-3 w-3' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+            <Popover open={outputOptionsOpen} onOpenChange={setOutputOptionsOpen} size='sm'>
+              <PopoverTrigger asChild>
+                <Button
+                  variant='ghost'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                  }}
+                  aria-label='Terminal options'
+                  className='!p-1.5 -m-1.5'
+                >
+                  <MoreHorizontal className='h-3.5 w-3.5' />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                side='bottom'
+                align='end'
+                sideOffset={4}
+                collisionPadding={0}
+                onClick={(e) => e.stopPropagation()}
+                style={{ minWidth: '140px', maxWidth: '160px' }}
+                className='gap-[2px]'
+              >
+                <PopoverItem
+                  active={wrapText}
+                  showCheck={wrapText}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setWrapText(!wrapText)
+                  }}
+                >
+                  <span>Wrap text</span>
+                </PopoverItem>
+                <PopoverItem
+                  active={openOnRun}
+                  showCheck={openOnRun}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setOpenOnRun(!openOnRun)
+                  }}
+                >
+                  <span>Open on run</span>
+                </PopoverItem>
+              </PopoverContent>
+            </Popover>
+            <ToggleButton
+              isExpanded={isExpanded}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleHeaderClick()
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Search Overlay */}
+        {isOutputSearchActive && (
+          <div
+            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-[6px] rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--surface-1)] px-[6px] shadow-sm'
+            onClick={(e) => e.stopPropagation()}
+            data-toolbar-root
+            data-search-active='true'
+          >
+            <Input
+              ref={outputSearchInputRef}
+              type='text'
+              value={outputSearchQuery}
+              onChange={(e) => setOutputSearchQuery(e.target.value)}
+              placeholder='Search...'
+              className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+            />
+            <span
+              className={clsx(
+                'w-[58px] font-medium text-[11px]',
+                matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
+              )}
+            >
+              {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : 'No results'}
+            </span>
+            <Button
+              variant='ghost'
+              onClick={goToPreviousMatch}
+              aria-label='Previous match'
+              className='!p-1.5 -m-1.5'
+              disabled={matchCount === 0}
+            >
+              <ArrowUp className='h-[12px] w-[12px]' />
+            </Button>
+            <Button
+              variant='ghost'
+              onClick={goToNextMatch}
+              aria-label='Next match'
+              className='!p-1.5 -m-1.5'
+              disabled={matchCount === 0}
+            >
+              <ArrowDown className='h-[12px] w-[12px]' />
+            </Button>
+            <Button
+              variant='ghost'
+              onClick={closeOutputSearch}
+              aria-label='Close search'
+              className='!p-1.5 -m-1.5'
+            >
+              <X className='h-[12px] w-[12px]' />
+            </Button>
+          </div>
+        )}
+
+        {/* Content */}
+        <div
+          className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}
+          onContextMenu={handleOutputPanelContextMenu}
+        >
+          {shouldShowCodeDisplay ? (
+            <OutputCodeContent
+              code={selectedEntry.input.code}
+              language={(selectedEntry.input.language as 'javascript' | 'json') || 'javascript'}
+              wrapText={wrapText}
+              searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+              currentMatchIndex={currentMatchIndex}
+              onMatchCountChange={handleMatchCountChange}
+              contentRef={outputContentRef}
+            />
+          ) : (
+            <OutputCodeContent
+              code={outputDataStringified}
+              language='json'
+              wrapText={wrapText}
+              searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+              currentMatchIndex={currentMatchIndex}
+              onMatchCountChange={handleMatchCountChange}
+              contentRef={outputContentRef}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Output Panel Context Menu */}
+      <OutputContextMenu
+        isOpen={isOutputMenuOpen}
+        position={outputMenuPosition}
+        menuRef={outputMenuRef}
+        onClose={closeOutputMenu}
+        onCopySelection={handleCopySelection}
+        onCopyAll={handleCopy}
+        onSearch={activateOutputSearch}
+        wrapText={wrapText}
+        onToggleWrap={() => setWrapText(!wrapText)}
+        openOnRun={openOnRun}
+        onToggleOpenOnRun={() => setOpenOnRun(!openOnRun)}
+        onClearConsole={handleClearConsoleFromMenu}
+        hasSelection={hasSelection}
+      />
+    </>
   )
 })
 
@@ -296,29 +792,30 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
  *
  * @returns Terminal at the bottom of the workflow
  */
-export function Terminal() {
+export const Terminal = memo(function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
   const prevEntriesLengthRef = useRef(0)
   const prevWorkflowEntriesLengthRef = useRef(0)
-  const {
-    setTerminalHeight,
-    lastExpandedHeight,
-    outputPanelWidth,
-    setOutputPanelWidth,
-    openOnRun,
-    setOpenOnRun,
-    wrapText,
-    setWrapText,
-    setHasHydrated,
-  } = useTerminalStore()
+  const isTerminalFocusedRef = useRef(false)
+  const lastExpandedHeightRef = useRef<number>(DEFAULT_EXPANDED_HEIGHT)
+  const setTerminalHeight = useTerminalStore((state) => state.setTerminalHeight)
+  const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
+  const setOutputPanelWidth = useTerminalStore((state) => state.setOutputPanelWidth)
+  const openOnRun = useTerminalStore((state) => state.openOnRun)
+  const setOpenOnRun = useTerminalStore((state) => state.setOpenOnRun)
+  const wrapText = useTerminalStore((state) => state.wrapText)
+  const setWrapText = useTerminalStore((state) => state.setWrapText)
+  const setHasHydrated = useTerminalStore((state) => state.setHasHydrated)
   const isExpanded = useTerminalStore((state) => state.terminalHeight > NEAR_MIN_THRESHOLD)
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
   const workflowEntriesSelector = useCallback(
     (state: { entries: ConsoleEntry[] }) =>
       state.entries.filter((entry) => entry.workflowId === activeWorkflowId),
     [activeWorkflowId]
   )
-  const entries = useTerminalConsoleStore(useShallow(workflowEntriesSelector))
+  const entriesFromStore = useTerminalConsoleStore(useShallow(workflowEntriesSelector))
+  const entries = hasConsoleHydrated ? entriesFromStore : []
   const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
@@ -332,27 +829,15 @@ export function Terminal() {
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
   const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
 
-  // Output panel search state
-  const [isOutputSearchActive, setIsOutputSearchActive] = useState(false)
-  const [outputSearchQuery, setOutputSearchQuery] = useState('')
-  const [matchCount, setMatchCount] = useState(0)
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
-  const outputSearchInputRef = useRef<HTMLInputElement>(null)
-  const outputContentRef = useRef<HTMLDivElement>(null)
-
-  // Training controls state
   const [isTrainingEnvEnabled, setIsTrainingEnvEnabled] = useState(false)
-  const showTrainingControls = useGeneralStore((state) => state.showTrainingControls)
+  const showTrainingControls = useShowTrainingControls()
   const { isTraining, toggleModal: toggleTrainingModal, stopTraining } = useCopilotTrainingStore()
 
-  // Playground state
   const [isPlaygroundEnabled, setIsPlaygroundEnabled] = useState(false)
 
-  // Terminal resize hooks
   const { handleMouseDown } = useTerminalResize()
   const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
 
-  // Terminal filters hook
   const {
     filters,
     sortConfig,
@@ -365,21 +850,33 @@ export function Terminal() {
     hasActiveFilters,
   } = useTerminalFilters()
 
+  const [contextMenuEntry, setContextMenuEntry] = useState<ConsoleEntry | null>(null)
+
+  const {
+    isOpen: isLogRowMenuOpen,
+    position: logRowMenuPosition,
+    menuRef: logRowMenuRef,
+    handleContextMenu: handleLogRowContextMenu,
+    closeMenu: closeLogRowMenu,
+  } = useContextMenu()
+
   /**
    * Expands the terminal to its last meaningful height, with safeguards:
    * - Never expands below {@link DEFAULT_EXPANDED_HEIGHT}.
    * - Never exceeds 70% of the viewport height.
+   *
+   * Uses ref for lastExpandedHeight to avoid re-renders during resize.
    */
   const expandToLastHeight = useCallback(() => {
     setIsToggling(true)
     const maxHeight = window.innerHeight * 0.7
     const desiredHeight = Math.max(
-      lastExpandedHeight || DEFAULT_EXPANDED_HEIGHT,
+      lastExpandedHeightRef.current || DEFAULT_EXPANDED_HEIGHT,
       DEFAULT_EXPANDED_HEIGHT
     )
     const targetHeight = Math.min(desiredHeight, maxHeight)
     setTerminalHeight(targetHeight)
-  }, [lastExpandedHeight, setTerminalHeight])
+  }, [setTerminalHeight])
 
   const allWorkflowEntries = entries
 
@@ -428,25 +925,52 @@ export function Terminal() {
   }, [allWorkflowEntries])
 
   /**
-   * Create stable execution ID to color index mapping based on order of first appearance.
-   * Once an execution ID is assigned a color index, it keeps that index.
-   * Uses all workflow entries to maintain consistent colors regardless of active filters.
+   * Track color offset - increments when old executions are trimmed
+   * so remaining executions keep their colors.
    */
-  const executionIdOrderMap = useMemo(() => {
-    const orderMap = new Map<string, number>()
-    let colorIndex = 0
+  const colorStateRef = useRef<{ executionIds: string[]; offset: number }>({
+    executionIds: [],
+    offset: 0,
+  })
 
-    // Process entries in reverse order (oldest first) since entries array is newest-first
-    // Use allWorkflowEntries to ensure colors remain consistent when filters change
+  /**
+   * Compute colors for each execution ID using sequential assignment.
+   * Colors cycle through RUN_ID_COLORS based on position + offset.
+   * When old executions are trimmed, offset increments to preserve colors.
+   */
+  const executionColorMap = useMemo(() => {
+    const currentIds: string[] = []
+    const seen = new Set<string>()
     for (let i = allWorkflowEntries.length - 1; i >= 0; i--) {
-      const entry = allWorkflowEntries[i]
-      if (entry.executionId && !orderMap.has(entry.executionId)) {
-        orderMap.set(entry.executionId, colorIndex)
-        colorIndex++
+      const execId = allWorkflowEntries[i].executionId
+      if (execId && !seen.has(execId)) {
+        currentIds.push(execId)
+        seen.add(execId)
       }
     }
 
-    return orderMap
+    const { executionIds: prevIds, offset: prevOffset } = colorStateRef.current
+    let newOffset = prevOffset
+
+    if (prevIds.length > 0 && currentIds.length > 0) {
+      const currentOldest = currentIds[0]
+      if (prevIds[0] !== currentOldest) {
+        const trimmedCount = prevIds.indexOf(currentOldest)
+        if (trimmedCount > 0) {
+          newOffset = (prevOffset + trimmedCount) % RUN_ID_COLORS.length
+        }
+      }
+    }
+
+    const colorMap = new Map<string, string>()
+    for (let i = 0; i < currentIds.length; i++) {
+      const colorIndex = (newOffset + i) % RUN_ID_COLORS.length
+      colorMap.set(currentIds[i], RUN_ID_COLORS[colorIndex])
+    }
+
+    colorStateRef.current = { executionIds: currentIds, offset: newOffset }
+
+    return colorMap
   }, [allWorkflowEntries])
 
   /**
@@ -507,19 +1031,18 @@ export function Terminal() {
   /**
    * Handle row click - toggle if clicking same entry
    * Disables auto-selection when user manually selects, re-enables when deselecting
+   * Also focuses the terminal to enable keyboard navigation
    */
   const handleRowClick = useCallback((entry: ConsoleEntry) => {
+    // Focus the terminal to enable keyboard navigation
+    terminalRef.current?.focus()
     setSelectedEntry((prev) => {
       const isDeselecting = prev?.id === entry.id
-      // Re-enable auto-select when deselecting, disable when selecting
       setAutoSelectEnabled(isDeselecting)
       return isDeselecting ? null : entry
     })
   }, [])
 
-  /**
-   * Handle header click - toggle between expanded and collapsed
-   */
   const handleHeaderClick = useCallback(() => {
     if (isExpanded) {
       setIsToggling(true)
@@ -529,11 +1052,25 @@ export function Terminal() {
     }
   }, [expandToLastHeight, isExpanded, setTerminalHeight])
 
-  /**
-   * Handle transition end - reset toggling state
-   */
   const handleTransitionEnd = useCallback(() => {
     setIsToggling(false)
+  }, [])
+
+  /**
+   * Handle terminal focus - enables keyboard navigation
+   */
+  const handleTerminalFocus = useCallback(() => {
+    isTerminalFocusedRef.current = true
+  }, [])
+
+  /**
+   * Handle terminal blur - disables keyboard navigation
+   */
+  const handleTerminalBlur = useCallback((e: React.FocusEvent) => {
+    // Only blur if focus is moving outside the terminal
+    if (!terminalRef.current?.contains(e.relatedTarget as Node)) {
+      isTerminalFocusedRef.current = false
+    }
   }, [])
 
   /**
@@ -560,53 +1097,6 @@ export function Terminal() {
     }
   }, [activeWorkflowId, clearWorkflowConsole])
 
-  /**
-   * Activates output search and focuses the search input.
-   */
-  const activateOutputSearch = useCallback(() => {
-    setIsOutputSearchActive(true)
-    setTimeout(() => {
-      outputSearchInputRef.current?.focus()
-    }, 0)
-  }, [])
-
-  /**
-   * Closes output search and clears the query.
-   */
-  const closeOutputSearch = useCallback(() => {
-    setIsOutputSearchActive(false)
-    setOutputSearchQuery('')
-    setMatchCount(0)
-    setCurrentMatchIndex(0)
-  }, [])
-
-  /**
-   * Navigates to the next match in the search results.
-   */
-  const goToNextMatch = useCallback(() => {
-    if (matchCount === 0) return
-    setCurrentMatchIndex((prev) => (prev + 1) % matchCount)
-  }, [matchCount])
-
-  /**
-   * Navigates to the previous match in the search results.
-   */
-  const goToPreviousMatch = useCallback(() => {
-    if (matchCount === 0) return
-    setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount)
-  }, [matchCount])
-
-  /**
-   * Handles match count change from Code.Viewer.
-   */
-  const handleMatchCountChange = useCallback((count: number) => {
-    setMatchCount(count)
-    setCurrentMatchIndex(0)
-  }, [])
-
-  /**
-   * Handle clear console for current workflow via mouse interaction.
-   */
   const handleClearConsole = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -615,10 +1105,6 @@ export function Terminal() {
     [clearCurrentWorkflowConsole]
   )
 
-  /**
-   * Handle export of console entries for the current workflow via mouse interaction.
-   * Mirrors the visibility and interaction behavior of the clear console action.
-   */
   const handleExportConsole = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -629,9 +1115,61 @@ export function Terminal() {
     [activeWorkflowId, exportConsoleCSV]
   )
 
-  /**
-   * Handle training button click - toggle training state or open modal
-   */
+  const handleRowContextMenu = useCallback(
+    (e: React.MouseEvent, entry: ConsoleEntry) => {
+      setContextMenuEntry(entry)
+      handleLogRowContextMenu(e)
+    },
+    [handleLogRowContextMenu]
+  )
+
+  const handleFilterByBlock = useCallback(
+    (blockId: string) => {
+      toggleBlock(blockId)
+      closeLogRowMenu()
+    },
+    [toggleBlock, closeLogRowMenu]
+  )
+
+  const handleFilterByStatus = useCallback(
+    (status: 'error' | 'info') => {
+      toggleStatus(status)
+      closeLogRowMenu()
+    },
+    [toggleStatus, closeLogRowMenu]
+  )
+
+  const handleFilterByRunId = useCallback(
+    (runId: string) => {
+      toggleRunId(runId)
+      closeLogRowMenu()
+    },
+    [toggleRunId, closeLogRowMenu]
+  )
+
+  const handleCopyRunId = useCallback(
+    (runId: string) => {
+      navigator.clipboard.writeText(runId)
+      closeLogRowMenu()
+    },
+    [closeLogRowMenu]
+  )
+
+  const handleClearConsoleFromMenu = useCallback(() => {
+    clearCurrentWorkflowConsole()
+  }, [clearCurrentWorkflowConsole])
+
+  const handleFixInCopilot = useCallback(
+    (entry: ConsoleEntry) => {
+      const errorMessage = entry.error ? String(entry.error) : 'Unknown error'
+      const blockName = entry.blockName || 'Unknown Block'
+      const message = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
+      openCopilotWithMessage(message)
+      closeLogRowMenu()
+    },
+    [closeLogRowMenu]
+  )
+
   const handleTrainingClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -644,9 +1182,6 @@ export function Terminal() {
     [isTraining, stopTraining, toggleTrainingModal]
   )
 
-  /**
-   * Whether training controls should be visible
-   */
   const shouldShowTrainingButton = isTrainingEnvEnabled && showTrainingControls
 
   /**
@@ -676,6 +1211,20 @@ export function Terminal() {
   useEffect(() => {
     setHasHydrated(true)
   }, [setHasHydrated])
+
+  /**
+   * Sync lastExpandedHeightRef with store value on mount.
+   * Uses subscription to keep ref updated without causing re-renders.
+   */
+  useEffect(() => {
+    // Initialize with current value
+    lastExpandedHeightRef.current = useTerminalStore.getState().lastExpandedHeight
+
+    const unsub = useTerminalStore.subscribe((state) => {
+      lastExpandedHeightRef.current = state.lastExpandedHeight
+    })
+    return unsub
+  }, [])
 
   /**
    * Check environment variables on mount
@@ -747,9 +1296,12 @@ export function Terminal() {
   /**
    * Handle keyboard navigation through logs
    * Disables auto-selection when user manually navigates
+   * Only active when the terminal is focused
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle navigation when terminal is focused
+      if (!isTerminalFocusedRef.current) return
       if (isEventFromEditableElement(e)) return
       const activeElement = document.activeElement as HTMLElement | null
       const toolbarRoot = document.querySelector(
@@ -784,9 +1336,12 @@ export function Terminal() {
   /**
    * Handle keyboard navigation for input/output toggle
    * Left arrow shows output, right arrow shows input
+   * Only active when the terminal is focused
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle navigation when terminal is focused
+      if (!isTerminalFocusedRef.current) return
       // Ignore when typing/navigating inside editable inputs/editors
       if (isEventFromEditableElement(e)) return
 
@@ -816,66 +1371,28 @@ export function Terminal() {
   }, [expandToLastHeight, selectedEntry, showInput, hasInputData, isExpanded])
 
   /**
-   * Handle Escape to close search or unselect entry
+   * Handle Escape to unselect entry (search close is handled by useCodeViewerFeatures)
+   * Check if the focused element is in the search overlay to avoid conflicting with search close.
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        // First close search if active
-        if (isOutputSearchActive) {
-          closeOutputSearch()
-          return
-        }
-        // Then unselect entry
-        if (selectedEntry) {
-          setSelectedEntry(null)
-          setAutoSelectEnabled(true)
-        }
+      if (e.key !== 'Escape' || !selectedEntry) return
+
+      // Don't unselect if focus is in the search overlay (search close takes priority)
+      const activeElement = document.activeElement as HTMLElement | null
+      const searchOverlay = document.querySelector('[data-toolbar-root][data-search-active="true"]')
+      if (searchOverlay && activeElement && searchOverlay.contains(activeElement)) {
+        return
       }
+
+      e.preventDefault()
+      setSelectedEntry(null)
+      setAutoSelectEnabled(true)
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntry, isOutputSearchActive, closeOutputSearch])
-
-  /**
-   * Handle Enter/Shift+Enter for search navigation when search input is focused
-   */
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOutputSearchActive) return
-
-      const isSearchInputFocused = document.activeElement === outputSearchInputRef.current
-
-      if (e.key === 'Enter' && isSearchInputFocused && matchCount > 0) {
-        e.preventDefault()
-        if (e.shiftKey) {
-          goToPreviousMatch()
-        } else {
-          goToNextMatch()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOutputSearchActive, matchCount, goToNextMatch, goToPreviousMatch])
-
-  /**
-   * Scroll to current match when it changes
-   */
-  useEffect(() => {
-    if (!isOutputSearchActive || matchCount === 0 || !outputContentRef.current) return
-
-    // Find all match elements and scroll to the current one
-    const matchElements = outputContentRef.current.querySelectorAll('[data-search-match]')
-    const currentElement = matchElements[currentMatchIndex]
-
-    if (currentElement) {
-      currentElement.scrollIntoView({ block: 'center' })
-    }
-  }, [currentMatchIndex, isOutputSearchActive, matchCount])
+  }, [selectedEntry])
 
   /**
    * Adjust output panel width when sidebar or panel width changes.
@@ -937,6 +1454,9 @@ export function Terminal() {
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
+        onFocus={handleTerminalFocus}
+        onBlur={handleTerminalBlur}
+        tabIndex={-1}
         aria-label='Terminal'
       >
         <div className='relative flex h-full border-[var(--border)] border-t'>
@@ -952,7 +1472,7 @@ export function Terminal() {
             >
               {uniqueBlocks.length > 0 ? (
                 <div className={clsx(COLUMN_WIDTHS.BLOCK, COLUMN_BASE_CLASS, 'flex items-center')}>
-                  <Popover open={blockFilterOpen} onOpenChange={setBlockFilterOpen}>
+                  <Popover open={blockFilterOpen} onOpenChange={setBlockFilterOpen} size='sm'>
                     <PopoverTrigger asChild>
                       <Button
                         variant='ghost'
@@ -988,12 +1508,12 @@ export function Terminal() {
                             <PopoverItem
                               key={block.blockId}
                               active={isSelected}
+                              showCheck={isSelected}
                               onClick={() => toggleBlock(block.blockId)}
                               className={index > 0 ? 'mt-[2px]' : ''}
                             >
                               {BlockIcon && <BlockIcon className='h-3 w-3' />}
                               <span className='flex-1'>{block.blockName}</span>
-                              {isSelected && <Check className='h-3 w-3' />}
                             </PopoverItem>
                           )
                         })}
@@ -1006,7 +1526,7 @@ export function Terminal() {
               )}
               {hasStatusEntries ? (
                 <div className={clsx(COLUMN_WIDTHS.STATUS, COLUMN_BASE_CLASS, 'flex items-center')}>
-                  <Popover open={statusFilterOpen} onOpenChange={setStatusFilterOpen}>
+                  <Popover open={statusFilterOpen} onOpenChange={setStatusFilterOpen} size='sm'>
                     <PopoverTrigger asChild>
                       <Button
                         variant='ghost'
@@ -1035,6 +1555,7 @@ export function Terminal() {
                       <PopoverScrollArea style={{ maxHeight: '140px' }}>
                         <PopoverItem
                           active={filters.statuses.has('error')}
+                          showCheck={filters.statuses.has('error')}
                           onClick={() => toggleStatus('error')}
                         >
                           <div
@@ -1042,10 +1563,10 @@ export function Terminal() {
                             style={{ backgroundColor: 'var(--text-error)' }}
                           />
                           <span className='flex-1'>Error</span>
-                          {filters.statuses.has('error') && <Check className='h-3 w-3' />}
                         </PopoverItem>
                         <PopoverItem
                           active={filters.statuses.has('info')}
+                          showCheck={filters.statuses.has('info')}
                           onClick={() => toggleStatus('info')}
                           className='mt-[2px]'
                         >
@@ -1054,7 +1575,6 @@ export function Terminal() {
                             style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
                           />
                           <span className='flex-1'>Info</span>
-                          {filters.statuses.has('info') && <Check className='h-3 w-3' />}
                         </PopoverItem>
                       </PopoverScrollArea>
                     </PopoverContent>
@@ -1065,7 +1585,7 @@ export function Terminal() {
               )}
               {uniqueRunIds.length > 0 ? (
                 <div className={clsx(COLUMN_WIDTHS.RUN_ID, COLUMN_BASE_CLASS, 'flex items-center')}>
-                  <Popover open={runIdFilterOpen} onOpenChange={setRunIdFilterOpen}>
+                  <Popover open={runIdFilterOpen} onOpenChange={setRunIdFilterOpen} size='sm'>
                     <PopoverTrigger asChild>
                       <Button
                         variant='ghost'
@@ -1094,22 +1614,22 @@ export function Terminal() {
                       <PopoverScrollArea style={{ maxHeight: '140px' }}>
                         {uniqueRunIds.map((runId, index) => {
                           const isSelected = filters.runIds.has(runId)
-                          const runIdColor = getRunIdColor(runId, executionIdOrderMap)
+                          const runIdColor = getRunIdColor(runId, executionColorMap)
 
                           return (
                             <PopoverItem
                               key={runId}
                               active={isSelected}
+                              showCheck={isSelected}
                               onClick={() => toggleRunId(runId)}
                               className={index > 0 ? 'mt-[2px]' : ''}
                             >
                               <span
-                                className='flex-1 font-mono text-[12px]'
-                                style={{ color: runIdColor?.text || '#D2D2D2' }}
+                                className='flex-1 font-mono text-[11px]'
+                                style={{ color: runIdColor || '#D2D2D2' }}
                               >
                                 {formatRunId(runId)}
                               </span>
-                              {isSelected && <Check className='h-3 w-3' />}
                             </PopoverItem>
                           )
                         })}
@@ -1240,12 +1760,12 @@ export function Terminal() {
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <span>Clear console</span>
+                          <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
                         </Tooltip.Content>
                       </Tooltip.Root>
                     </>
                   )}
-                  <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen}>
+                  <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen} size='sm'>
                     <PopoverTrigger asChild>
                       <Button
                         variant='ghost'
@@ -1269,7 +1789,7 @@ export function Terminal() {
                     >
                       <PopoverItem
                         active={openOnRun}
-                        showCheck
+                        showCheck={openOnRun}
                         onClick={(e) => {
                           e.stopPropagation()
                           setOpenOnRun(!openOnRun)
@@ -1301,7 +1821,7 @@ export function Terminal() {
                   const statusInfo = getStatusInfo(entry.success, entry.error)
                   const isSelected = selectedEntry?.id === entry.id
                   const BlockIcon = getBlockIcon(entry.blockType)
-                  const runIdColor = getRunIdColor(entry.executionId, executionIdOrderMap)
+                  const runIdColor = getRunIdColor(entry.executionId, executionColorMap)
 
                   return (
                     <div
@@ -1311,6 +1831,7 @@ export function Terminal() {
                         isSelected && 'bg-[var(--surface-6)] dark:bg-[var(--surface-4)]'
                       )}
                       onClick={() => handleRowClick(entry)}
+                      onContextMenu={(e) => handleRowContextMenu(e, entry)}
                     >
                       {/* Block */}
                       <div
@@ -1327,7 +1848,13 @@ export function Terminal() {
                       </div>
 
                       {/* Status */}
-                      <div className={clsx(COLUMN_WIDTHS.STATUS, COLUMN_BASE_CLASS)}>
+                      <div
+                        className={clsx(
+                          COLUMN_WIDTHS.STATUS,
+                          COLUMN_BASE_CLASS,
+                          'flex items-center'
+                        )}
+                      >
                         {statusInfo ? (
                           <Badge variant={statusInfo.isError ? 'red' : 'gray'} dot>
                             {statusInfo.label}
@@ -1338,25 +1865,16 @@ export function Terminal() {
                       </div>
 
                       {/* Run ID */}
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <span
-                            className={clsx(
-                              COLUMN_WIDTHS.RUN_ID,
-                              COLUMN_BASE_CLASS,
-                              'truncate font-medium font-mono text-[12px]'
-                            )}
-                            style={{ color: runIdColor?.text || '#D2D2D2' }}
-                          >
-                            {formatRunId(entry.executionId)}
-                          </span>
-                        </Tooltip.Trigger>
-                        {entry.executionId && (
-                          <Tooltip.Content>
-                            <span className='font-mono text-[11px]'>{entry.executionId}</span>
-                          </Tooltip.Content>
+                      <span
+                        className={clsx(
+                          COLUMN_WIDTHS.RUN_ID,
+                          COLUMN_BASE_CLASS,
+                          'truncate font-medium font-mono text-[12px]'
                         )}
-                      </Tooltip.Root>
+                        style={{ color: runIdColor || '#D2D2D2' }}
+                      >
+                        {formatRunId(entry.executionId)}
+                      </span>
 
                       {/* Duration */}
                       <span
@@ -1379,7 +1897,7 @@ export function Terminal() {
                           ROW_TEXT_CLASS
                         )}
                       >
-                        {formatTimestamp(entry.timestamp)}
+                        {formatTimeWithSeconds(new Date(entry.timestamp))}
                       </span>
                     </div>
                   )
@@ -1390,364 +1908,61 @@ export function Terminal() {
 
           {/* Right Section - Block Output (Overlay) */}
           {selectedEntry && (
-            <div
-              className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--surface-1)]'
-              style={{ width: `${outputPanelWidth}px` }}
-            >
-              {/* Horizontal Resize Handle */}
-              <div
-                className='-ml-[4px] absolute top-0 bottom-0 left-0 z-20 w-[8px] cursor-ew-resize'
-                onMouseDown={handleOutputPanelResizeMouseDown}
-                role='separator'
-                aria-label='Resize output panel'
-                aria-orientation='vertical'
-              />
-
-              {/* Header */}
-              <div
-                className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] pr-[16px] pl-[10px]'
-                onClick={handleHeaderClick}
-              >
-                <div className='flex items-center'>
-                  <Button
-                    variant='ghost'
-                    className={clsx(
-                      'px-[8px] py-[6px] text-[12px]',
-                      !showInput &&
-                        hasInputData &&
-                        '!text-[var(--text-primary)] dark:!text-[var(--text-primary)]'
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!isExpanded) {
-                        expandToLastHeight()
-                      }
-                      if (showInput) setShowInput(false)
-                    }}
-                    aria-label='Show output'
-                  >
-                    Output
-                  </Button>
-                  {hasInputData && (
-                    <Button
-                      variant='ghost'
-                      className={clsx(
-                        'px-[8px] py-[6px] text-[12px]',
-                        showInput && '!text-[var(--text-primary)]'
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (!isExpanded) {
-                          expandToLastHeight()
-                        }
-                        setShowInput(true)
-                      }}
-                      aria-label='Show input'
-                    >
-                      Input
-                    </Button>
-                  )}
-                </div>
-                <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                  {isOutputSearchActive ? (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            closeOutputSearch()
-                          }}
-                          aria-label='Search in output'
-                          className='!p-1.5 -m-1.5'
-                        >
-                          <X className='h-[12px] w-[12px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Close search</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  ) : (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            activateOutputSearch()
-                          }}
-                          aria-label='Search in output'
-                          className='!p-1.5 -m-1.5'
-                        >
-                          <Search className='h-[12px] w-[12px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Search</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  {isPlaygroundEnabled && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Link href='/playground'>
-                          <Button
-                            variant='ghost'
-                            aria-label='Component Playground'
-                            className='!p-1.5 -m-1.5'
-                          >
-                            <Palette className='h-[12px] w-[12px]' />
-                          </Button>
-                        </Link>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Component Playground</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  {shouldShowTrainingButton && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
-                          className={clsx(
-                            '!p-1.5 -m-1.5',
-                            isTraining && 'text-orange-600 dark:text-orange-400'
-                          )}
-                        >
-                          {isTraining ? (
-                            <Pause className='h-[12px] w-[12px]' />
-                          ) : (
-                            <Database className='h-[12px] w-[12px]' />
-                          )}
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleCopy()
-                        }}
-                        aria-label='Copy output'
-                        className='!p-1.5 -m-1.5'
-                      >
-                        {showCopySuccess ? (
-                          <Check className='h-[12px] w-[12px]' />
-                        ) : (
-                          <Clipboard className='h-[12px] w-[12px]' />
-                        )}
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content>
-                      <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                  {filteredEntries.length > 0 && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={handleExportConsole}
-                          aria-label='Download console CSV'
-                          className='!p-1.5 -m-1.5'
-                        >
-                          <ArrowDownToLine className='h-3 w-3' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Download CSV</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-                  {hasActiveFilters && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            clearFilters()
-                          }}
-                          aria-label='Clear filters'
-                          className='!p-1.5 -m-1.5'
-                        >
-                          <FilterX className='h-3 w-3' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Clear filters</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-                  {filteredEntries.length > 0 && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={handleClearConsole}
-                          aria-label='Clear console'
-                          className='!p-1.5 -m-1.5'
-                        >
-                          <Trash2 className='h-3 w-3' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Clear console</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-                  <Popover open={outputOptionsOpen} onOpenChange={setOutputOptionsOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                        }}
-                        aria-label='Terminal options'
-                        className='!p-1.5 -m-1.5'
-                      >
-                        <MoreHorizontal className='h-3.5 w-3.5' />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side='bottom'
-                      align='end'
-                      sideOffset={4}
-                      collisionPadding={0}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ minWidth: '140px', maxWidth: '160px' }}
-                      className='gap-[2px]'
-                    >
-                      <PopoverItem
-                        active={wrapText}
-                        showCheck
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setWrapText(!wrapText)
-                        }}
-                      >
-                        <span>Wrap text</span>
-                      </PopoverItem>
-                      <PopoverItem
-                        active={openOnRun}
-                        showCheck
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setOpenOnRun(!openOnRun)
-                        }}
-                      >
-                        <span>Open on run</span>
-                      </PopoverItem>
-                    </PopoverContent>
-                  </Popover>
-                  <ToggleButton
-                    isExpanded={isExpanded}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleHeaderClick()
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Search Overlay */}
-              {isOutputSearchActive && (
-                <div
-                  className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-[6px] rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--surface-1)] px-[6px] shadow-sm'
-                  onClick={(e) => e.stopPropagation()}
-                  data-toolbar-root
-                  data-search-active='true'
-                >
-                  <Input
-                    ref={outputSearchInputRef}
-                    type='text'
-                    value={outputSearchQuery}
-                    onChange={(e) => setOutputSearchQuery(e.target.value)}
-                    placeholder='Search...'
-                    className='mr-[2px] h-[23px] w-[94px] text-[12px]'
-                  />
-                  <span
-                    className={clsx(
-                      'w-[58px] font-medium text-[11px]',
-                      matchCount > 0
-                        ? 'text-[var(--text-secondary)]'
-                        : 'text-[var(--text-tertiary)]'
-                    )}
-                  >
-                    {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : 'No results'}
-                  </span>
-                  <Button
-                    variant='ghost'
-                    onClick={goToPreviousMatch}
-                    aria-label='Previous match'
-                    className='!p-1.5 -m-1.5'
-                    disabled={matchCount === 0}
-                  >
-                    <ArrowUp className='h-[12px] w-[12px]' />
-                  </Button>
-                  <Button
-                    variant='ghost'
-                    onClick={goToNextMatch}
-                    aria-label='Next match'
-                    className='!p-1.5 -m-1.5'
-                    disabled={matchCount === 0}
-                  >
-                    <ArrowDown className='h-[12px] w-[12px]' />
-                  </Button>
-                  <Button
-                    variant='ghost'
-                    onClick={closeOutputSearch}
-                    aria-label='Close search'
-                    className='!p-1.5 -m-1.5'
-                  >
-                    <X className='h-[12px] w-[12px]' />
-                  </Button>
-                </div>
-              )}
-
-              {/* Content */}
-              <div className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}>
-                {shouldShowCodeDisplay ? (
-                  <OutputCodeContent
-                    code={selectedEntry.input.code}
-                    language={
-                      (selectedEntry.input.language as 'javascript' | 'json') || 'javascript'
-                    }
-                    wrapText={wrapText}
-                    searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
-                    currentMatchIndex={currentMatchIndex}
-                    onMatchCountChange={handleMatchCountChange}
-                    contentRef={outputContentRef}
-                  />
-                ) : (
-                  <OutputCodeContent
-                    code={outputDataStringified}
-                    language='json'
-                    wrapText={wrapText}
-                    searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
-                    currentMatchIndex={currentMatchIndex}
-                    onMatchCountChange={handleMatchCountChange}
-                    contentRef={outputContentRef}
-                  />
-                )}
-              </div>
-            </div>
+            <OutputPanel
+              selectedEntry={selectedEntry}
+              outputPanelWidth={outputPanelWidth}
+              handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
+              handleHeaderClick={handleHeaderClick}
+              isExpanded={isExpanded}
+              expandToLastHeight={expandToLastHeight}
+              showInput={showInput}
+              setShowInput={setShowInput}
+              hasInputData={hasInputData}
+              isPlaygroundEnabled={isPlaygroundEnabled}
+              shouldShowTrainingButton={shouldShowTrainingButton}
+              isTraining={isTraining}
+              handleTrainingClick={handleTrainingClick}
+              showCopySuccess={showCopySuccess}
+              handleCopy={handleCopy}
+              filteredEntries={filteredEntries}
+              handleExportConsole={handleExportConsole}
+              hasActiveFilters={hasActiveFilters}
+              clearFilters={clearFilters}
+              handleClearConsole={handleClearConsole}
+              wrapText={wrapText}
+              setWrapText={setWrapText}
+              openOnRun={openOnRun}
+              setOpenOnRun={setOpenOnRun}
+              outputOptionsOpen={outputOptionsOpen}
+              setOutputOptionsOpen={setOutputOptionsOpen}
+              shouldShowCodeDisplay={shouldShowCodeDisplay}
+              outputDataStringified={outputDataStringified}
+              handleClearConsoleFromMenu={handleClearConsoleFromMenu}
+            />
           )}
         </div>
       </aside>
+
+      {/* Log Row Context Menu */}
+      <LogRowContextMenu
+        isOpen={isLogRowMenuOpen}
+        position={logRowMenuPosition}
+        menuRef={logRowMenuRef}
+        onClose={closeLogRowMenu}
+        entry={contextMenuEntry}
+        filters={filters}
+        onFilterByBlock={handleFilterByBlock}
+        onFilterByStatus={handleFilterByStatus}
+        onFilterByRunId={handleFilterByRunId}
+        onCopyRunId={handleCopyRunId}
+        onClearFilters={() => {
+          clearFilters()
+          closeLogRowMenu()
+        }}
+        onClearConsole={handleClearConsoleFromMenu}
+        onFixInCopilot={handleFixInCopilot}
+        hasActiveFilters={hasActiveFilters}
+      />
     </>
   )
-}
+})

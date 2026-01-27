@@ -6,6 +6,7 @@ import type {
   SelectorOption,
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const SELECTOR_STALE = 60 * 1000
 
@@ -602,6 +603,68 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       return { id: file.id, label: file.name }
     },
   },
+  'google.sheets': {
+    key: 'google.sheets',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'google.sheets',
+      context.credentialId ?? 'none',
+      context.spreadsheetId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId && context.spreadsheetId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'google.sheets')
+      if (!context.spreadsheetId) {
+        throw new Error('Missing spreadsheet ID for google.sheets selector')
+      }
+      const data = await fetchJson<{ sheets: { id: string; name: string }[] }>(
+        '/api/tools/google_sheets/sheets',
+        {
+          searchParams: {
+            credentialId,
+            spreadsheetId: context.spreadsheetId,
+            workflowId: context.workflowId,
+          },
+        }
+      )
+      return (data.sheets || []).map((sheet) => ({
+        id: sheet.id,
+        label: sheet.name,
+      }))
+    },
+  },
+  'microsoft.excel.sheets': {
+    key: 'microsoft.excel.sheets',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'microsoft.excel.sheets',
+      context.credentialId ?? 'none',
+      context.spreadsheetId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.credentialId && context.spreadsheetId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'microsoft.excel.sheets')
+      if (!context.spreadsheetId) {
+        throw new Error('Missing spreadsheet ID for microsoft.excel.sheets selector')
+      }
+      const data = await fetchJson<{ sheets: { id: string; name: string }[] }>(
+        '/api/tools/microsoft_excel/sheets',
+        {
+          searchParams: {
+            credentialId,
+            spreadsheetId: context.spreadsheetId,
+            workflowId: context.workflowId,
+          },
+        }
+      )
+      return (data.sheets || []).map((sheet) => ({
+        id: sheet.id,
+        label: sheet.name,
+      }))
+    },
+  },
   'microsoft.excel': {
     key: 'microsoft.excel',
     staleTime: SELECTOR_STALE,
@@ -789,6 +852,36 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         id: item.id,
         label: item.name,
       }))
+    },
+  },
+  'sim.workflows': {
+    key: 'sim.workflows',
+    staleTime: 0, // Always fetch fresh from store
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'sim.workflows',
+      context.excludeWorkflowId ?? 'none',
+    ],
+    enabled: () => true,
+    fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
+      const { workflows } = useWorkflowRegistry.getState()
+      return Object.entries(workflows)
+        .filter(([id]) => id !== context.excludeWorkflowId)
+        .map(([id, workflow]) => ({
+          id,
+          label: workflow.name || `Workflow ${id.slice(0, 8)}`,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    },
+    fetchById: async ({ detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
+      if (!detailId) return null
+      const { workflows } = useWorkflowRegistry.getState()
+      const workflow = workflows[detailId]
+      if (!workflow) return null
+      return {
+        id: detailId,
+        label: workflow.name || `Workflow ${detailId.slice(0, 8)}`,
+      }
     },
   },
 }

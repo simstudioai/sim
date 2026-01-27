@@ -1,9 +1,11 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
-import { CheckCircle, ChevronDown } from 'lucide-react'
+import React, { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import {
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Checkbox,
   Input,
   Popover,
@@ -26,35 +28,35 @@ interface PermissionSelectorProps {
 
 const PermissionSelector = React.memo<PermissionSelectorProps>(
   ({ value, onChange, disabled = false, className = '' }) => {
-    const permissionOptions = useMemo(
-      () => [
-        { value: 'read' as PermissionType, label: 'Read', description: 'View only' },
-        { value: 'write' as PermissionType, label: 'Write', description: 'Edit content' },
-        { value: 'admin' as PermissionType, label: 'Admin', description: 'Full access' },
-      ],
-      []
-    )
-
     return (
-      <div className={cn('inline-flex gap-[2px]', className)}>
-        {permissionOptions.map((option) => (
-          <Button
-            key={option.value}
-            type='button'
-            variant={value === option.value ? 'active' : 'ghost'}
-            onClick={() => !disabled && onChange(option.value)}
-            disabled={disabled}
-            title={option.description}
-            className={cn(
-              'h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]',
-              value === option.value &&
-                'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
-            )}
-          >
-            {option.label}
-          </Button>
-        ))}
-      </div>
+      <ButtonGroup
+        value={value}
+        onValueChange={(val) => onChange(val as PermissionType)}
+        disabled={disabled}
+        className={className}
+      >
+        <ButtonGroupItem
+          value='read'
+          className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
+          title='View only'
+        >
+          Read
+        </ButtonGroupItem>
+        <ButtonGroupItem
+          value='write'
+          className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
+          title='Edit content'
+        >
+          Write
+        </ButtonGroupItem>
+        <ButtonGroupItem
+          value='admin'
+          className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
+          title='Full access'
+        >
+          Admin
+        </ButtonGroupItem>
+      </ButtonGroup>
     )
   }
 )
@@ -181,7 +183,7 @@ export function MemberInvitationCard({
               aria-autocomplete='none'
             />
             {emailError && (
-              <p className='mt-1 text-[11px] text-[var(--text-error)] leading-tight'>
+              <p className='mt-1 text-[12px] text-[var(--text-error)] leading-tight'>
                 {emailError}
               </p>
             )}
@@ -293,7 +295,7 @@ export function MemberInvitationCard({
 
         {/* Invitation error - inline */}
         {invitationError && (
-          <p className='text-[11px] text-[var(--text-error)] leading-tight'>
+          <p className='text-[12px] text-[var(--text-error)] leading-tight'>
             {invitationError instanceof Error && invitationError.message
               ? invitationError.message
               : String(invitationError)}
@@ -302,14 +304,11 @@ export function MemberInvitationCard({
 
         {/* Success message */}
         {inviteSuccess && (
-          <div className='flex items-start gap-[8px] rounded-[6px] bg-green-500/10 px-[10px] py-[8px] text-green-600 dark:text-green-400'>
-            <CheckCircle className='h-4 w-4 flex-shrink-0' />
-            <p className='text-[12px]'>
-              Invitation sent successfully
-              {selectedCount > 0 &&
-                ` with access to ${selectedCount} workspace${selectedCount !== 1 ? 's' : ''}`}
-            </p>
-          </div>
+          <p className='text-[11px] text-[var(--text-success)] leading-tight'>
+            Invitation sent successfully
+            {selectedCount > 0 &&
+              ` with access to ${selectedCount} workspace${selectedCount !== 1 ? 's' : ''}`}
+          </p>
         )}
       </div>
     </div>

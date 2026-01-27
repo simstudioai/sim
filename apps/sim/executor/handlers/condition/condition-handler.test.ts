@@ -1,17 +1,11 @@
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
 import type { BlockState, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn(() => 'test-request-id'),
@@ -206,7 +200,6 @@ describe('ConditionBlockHandler', () => {
           workspaceId: 'test-workspace-id',
         },
       }),
-      false,
       false,
       mockContext
     )

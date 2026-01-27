@@ -1,11 +1,28 @@
 'use client'
 
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronUp, X } from 'lucide-react'
-import { Button, Eye } from '@/components/emcn'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import {
+  Button,
+  Code,
+  Eye,
+  Input,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDivider,
+  PopoverItem,
+  Tooltip,
+} from '@/components/emcn'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import { FileCards, FrozenCanvas, TraceSpans } from '@/app/workspace/[workspaceId]/logs/components'
+import { cn } from '@/lib/core/utils/cn'
+import {
+  ExecutionSnapshot,
+  FileCards,
+  TraceSpans,
+} from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import {
   formatDate,
@@ -13,9 +30,193 @@ import {
   StatusBadge,
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
+import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
+
+/**
+ * Workflow Output section with code viewer, copy, search, and context menu functionality
+ */
+function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [copied, setCopied] = useState(false)
+
+  // Context menu state
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+
+  const {
+    isSearchActive,
+    searchQuery,
+    setSearchQuery,
+    matchCount,
+    currentMatchIndex,
+    activateSearch,
+    closeSearch,
+    goToNextMatch,
+    goToPreviousMatch,
+    handleMatchCountChange,
+    searchInputRef,
+  } = useCodeViewerFeatures({ contentRef })
+
+  const jsonString = useMemo(() => JSON.stringify(output, null, 2), [output])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenuPosition({ x: e.clientX, y: e.clientY })
+    setIsContextMenuOpen(true)
+  }, [])
+
+  const closeContextMenu = useCallback(() => {
+    setIsContextMenuOpen(false)
+  }, [])
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(jsonString)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+    closeContextMenu()
+  }, [jsonString, closeContextMenu])
+
+  const handleSearch = useCallback(() => {
+    activateSearch()
+    closeContextMenu()
+  }, [activateSearch, closeContextMenu])
+
+  return (
+    <div className='relative flex min-w-0 flex-col overflow-hidden'>
+      <div ref={contentRef} onContextMenu={handleContextMenu} className='relative'>
+        <Code.Viewer
+          code={jsonString}
+          language='json'
+          className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
+          wrapText
+          searchQuery={isSearchActive ? searchQuery : undefined}
+          currentMatchIndex={currentMatchIndex}
+          onMatchCountChange={handleMatchCountChange}
+        />
+        {/* Glass action buttons overlay */}
+        {!isSearchActive && (
+          <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  type='button'
+                  variant='default'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleCopy()
+                  }}
+                  className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                >
+                  {copied ? (
+                    <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                  ) : (
+                    <Clipboard className='h-[10px] w-[10px]' />
+                  )}
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  type='button'
+                  variant='default'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    activateSearch()
+                  }}
+                  className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                >
+                  <Search className='h-[10px] w-[10px]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Search</Tooltip.Content>
+            </Tooltip.Root>
+          </div>
+        )}
+      </div>
+
+      {/* Search Overlay */}
+      {isSearchActive && (
+        <div
+          className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-[6px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-1)] px-[6px] shadow-sm'
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Input
+            ref={searchInputRef}
+            type='text'
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder='Search...'
+            className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+          />
+          <span
+            className={cn(
+              'min-w-[45px] text-center text-[11px]',
+              matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
+            )}
+          >
+            {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
+          </span>
+          <Button
+            variant='ghost'
+            className='!p-1'
+            onClick={goToPreviousMatch}
+            disabled={matchCount === 0}
+            aria-label='Previous match'
+          >
+            <ArrowUp className='h-[12px] w-[12px]' />
+          </Button>
+          <Button
+            variant='ghost'
+            className='!p-1'
+            onClick={goToNextMatch}
+            disabled={matchCount === 0}
+            aria-label='Next match'
+          >
+            <ArrowDown className='h-[12px] w-[12px]' />
+          </Button>
+          <Button variant='ghost' className='!p-1' onClick={closeSearch} aria-label='Close search'>
+            <X className='h-[12px] w-[12px]' />
+          </Button>
+        </div>
+      )}
+
+      {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <Popover
+            open={isContextMenuOpen}
+            onOpenChange={closeContextMenu}
+            variant='secondary'
+            size='sm'
+            colorScheme='inverted'
+          >
+            <PopoverAnchor
+              style={{
+                position: 'fixed',
+                left: `${contextMenuPosition.x}px`,
+                top: `${contextMenuPosition.y}px`,
+                width: '1px',
+                height: '1px',
+              }}
+            />
+            <PopoverContent align='start' side='bottom' sideOffset={4}>
+              <PopoverItem onClick={handleCopy}>Copy</PopoverItem>
+              <PopoverDivider />
+              <PopoverItem onClick={handleSearch}>Search</PopoverItem>
+            </PopoverContent>
+          </Popover>,
+          document.body
+        )}
+    </div>
+  )
+}
 
 interface LogDetailsProps {
   /** The log to display details for */
@@ -49,10 +250,11 @@ export const LogDetails = memo(function LogDetails({
   hasNext = false,
   hasPrev = false,
 }: LogDetailsProps) {
-  const [isFrozenCanvasOpen, setIsFrozenCanvasOpen] = useState(false)
+  const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const { handleMouseDown } = useLogDetailsResize()
+  const { config: permissionConfig } = usePermissionConfig()
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -72,6 +274,18 @@ export const LogDetails = memo(function LogDetails({
     return isWorkflowExecutionLog && log?.cost
   }, [log, isWorkflowExecutionLog])
 
+  // Extract and clean the workflow final output (remove childTraceSpans for cleaner display)
+  const workflowOutput = useMemo(() => {
+    const executionData = log?.executionData as
+      | { finalOutput?: Record<string, unknown> }
+      | undefined
+    if (!executionData?.finalOutput) return null
+    const { childTraceSpans, ...cleanOutput } = executionData.finalOutput as {
+      childTraceSpans?: unknown
+    } & Record<string, unknown>
+    return cleanOutput
+  }, [log?.executionData])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -81,12 +295,12 @@ export const LogDetails = memo(function LogDetails({
       if (isOpen) {
         if (e.key === 'ArrowUp' && hasPrev && onNavigatePrev) {
           e.preventDefault()
-          handleNavigate(onNavigatePrev)
+          onNavigatePrev()
         }
 
         if (e.key === 'ArrowDown' && hasNext && onNavigateNext) {
           e.preventDefault()
-          handleNavigate(onNavigateNext)
+          onNavigateNext()
         }
       }
     }
@@ -94,10 +308,6 @@ export const LogDetails = memo(function LogDetails({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose, hasPrev, hasNext, onNavigatePrev, onNavigateNext])
-
-  const handleNavigate = (navigateFunction: () => void) => {
-    navigateFunction()
-  }
 
   const formattedTimestamp = useMemo(
     () => (log ? formatDate(log.createdAt) : null),
@@ -136,7 +346,7 @@ export const LogDetails = memo(function LogDetails({
                 <Button
                   variant='ghost'
                   className='!p-[4px]'
-                  onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
+                  onClick={() => hasPrev && onNavigatePrev?.()}
                   disabled={!hasPrev}
                   aria-label='Previous log'
                 >
@@ -145,7 +355,7 @@ export const LogDetails = memo(function LogDetails({
                 <Button
                   variant='ghost'
                   className='!p-[4px]'
-                  onClick={() => hasNext && handleNavigate(onNavigateNext!)}
+                  onClick={() => hasNext && onNavigateNext?.()}
                   disabled={!hasNext}
                   aria-label='Next log'
                 >
@@ -198,7 +408,7 @@ export const LogDetails = memo(function LogDetails({
 
                 {/* Execution ID */}
                 {log.executionId && (
-                  <div className='flex flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+                  <div className='flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px]'>
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
                       Execution ID
                     </span>
@@ -209,7 +419,7 @@ export const LogDetails = memo(function LogDetails({
                 )}
 
                 {/* Details Section */}
-                <div className='flex min-w-0 flex-col overflow-hidden'>
+                <div className='-my-[4px] flex min-w-0 flex-col overflow-hidden'>
                   {/* Level */}
                   <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-[8px]'>
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
@@ -251,7 +461,7 @@ export const LogDetails = memo(function LogDetails({
                         Version
                       </span>
                       <div className='flex w-0 flex-1 justify-end'>
-                        <span className='max-w-full truncate rounded-[6px] bg-[#14291B] px-[9px] py-[2px] font-medium text-[#86EFAC] text-[12px]'>
+                        <span className='max-w-full truncate rounded-[6px] bg-[#bbf7d0] px-[9px] py-[2px] font-medium text-[#15803d] text-[12px] dark:bg-[#14291B] dark:text-[#86EFAC]'>
                           {log.deploymentVersionName || `v${log.deploymentVersion}`}
                         </span>
                       </div>
@@ -260,30 +470,50 @@ export const LogDetails = memo(function LogDetails({
                 </div>
 
                 {/* Workflow State */}
-                {isWorkflowExecutionLog && log.executionId && (
-                  <div className='flex flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+                {isWorkflowExecutionLog && log.executionId && !permissionConfig.hideTraceSpans && (
+                  <div className='-mt-[8px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px]'>
                     <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
                       Workflow State
                     </span>
-                    <button
-                      onClick={() => setIsFrozenCanvasOpen(true)}
-                      className='flex items-center justify-between rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px] transition-colors hover:bg-[var(--surface-4)]'
+                    <Button
+                      variant='active'
+                      onClick={() => setIsExecutionSnapshotOpen(true)}
+                      className='flex w-full items-center justify-between px-[10px] py-[6px]'
                     >
-                      <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
-                        View Snapshot
-                      </span>
-                      <Eye className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-                    </button>
+                      <span className='font-medium text-[12px]'>View Snapshot</span>
+                      <Eye className='h-[14px] w-[14px]' />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Workflow Output */}
+                {isWorkflowExecutionLog && workflowOutput && !permissionConfig.hideTraceSpans && (
+                  <div className='mt-[4px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px] dark:bg-transparent'>
+                    <span
+                      className={cn(
+                        'font-medium text-[12px]',
+                        workflowOutput.error
+                          ? 'text-[var(--text-error)]'
+                          : 'text-[var(--text-tertiary)]'
+                      )}
+                    >
+                      Workflow Output
+                    </span>
+                    <WorkflowOutputSection output={workflowOutput} />
                   </div>
                 )}
 
                 {/* Workflow Execution - Trace Spans */}
-                {isWorkflowExecutionLog && log.executionData?.traceSpans && (
-                  <TraceSpans
-                    traceSpans={log.executionData.traceSpans}
-                    totalDuration={log.executionData.totalDuration}
-                  />
-                )}
+                {isWorkflowExecutionLog &&
+                  log.executionData?.traceSpans &&
+                  !permissionConfig.hideTraceSpans && (
+                    <div className='mt-[4px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px] dark:bg-transparent'>
+                      <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                        Trace Span
+                      </span>
+                      <TraceSpans traceSpans={log.executionData.traceSpans} />
+                    </div>
+                  )}
 
                 {/* Files */}
                 {log.files && log.files.length > 0 && (
@@ -363,12 +593,12 @@ export const LogDetails = memo(function LogDetails({
 
         {/* Frozen Canvas Modal */}
         {log?.executionId && (
-          <FrozenCanvas
+          <ExecutionSnapshot
             executionId={log.executionId}
             traceSpans={log.executionData?.traceSpans}
             isModal
-            isOpen={isFrozenCanvasOpen}
-            onClose={() => setIsFrozenCanvasOpen(false)}
+            isOpen={isExecutionSnapshotOpen}
+            onClose={() => setIsExecutionSnapshotOpen(false)}
           />
         )}
       </div>

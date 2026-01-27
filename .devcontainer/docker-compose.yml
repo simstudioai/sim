@@ -44,7 +44,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 1G
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio

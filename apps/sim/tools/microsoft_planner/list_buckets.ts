@@ -66,7 +66,7 @@ export const listBucketsTool: ToolConfig<
       output: {
         buckets,
         metadata: {
-          planId: buckets.length > 0 ? buckets[0].planId : undefined,
+          planId: buckets.length > 0 ? buckets[0].planId : null,
           count: buckets.length,
         },
       },
@@ -78,6 +78,13 @@ export const listBucketsTool: ToolConfig<
   outputs: {
     success: { type: 'boolean', description: 'Whether buckets were retrieved successfully' },
     buckets: { type: 'array', description: 'Array of bucket objects' },
-    metadata: { type: 'object', description: 'Metadata including planId and count' },
+    metadata: {
+      type: 'object',
+      description: 'Metadata including planId and count',
+      properties: {
+        planId: { type: 'string', description: 'Plan ID', optional: true },
+        count: { type: 'number', description: 'Number of buckets returned' },
+      },
+    },
   },
 }

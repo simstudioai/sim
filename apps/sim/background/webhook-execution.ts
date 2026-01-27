@@ -12,15 +12,12 @@ import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
-import {
-  loadDeployedWorkflowState,
-  loadWorkflowFromNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { type ExecutionMetadata, ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionResult } from '@/executor/types'
-import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionMetadata } from '@/executor/execution/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
+import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
@@ -91,9 +88,8 @@ export type WebhookExecutionPayload = {
   headers: Record<string, string>
   path: string
   blockId?: string
-  testMode?: boolean
-  executionTarget?: 'deployed' | 'live'
   credentialId?: string
+  credentialAccountUserId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
@@ -142,20 +138,16 @@ async function executeWebhookJobInternal(
   let deploymentVersionId: string | undefined
 
   try {
-    const useDraftState = payload.executionTarget === 'live'
-    const workflowData = useDraftState
-      ? await loadWorkflowFromNormalizedTables(payload.workflowId)
-      : await loadDeployedWorkflowState(payload.workflowId)
+    const workflowData = await loadDeployedWorkflowState(payload.workflowId)
     if (!workflowData) {
       throw new Error(
-        `Workflow state not found. The workflow may not be ${useDraftState ? 'saved' : 'deployed'} or the deployment data may be corrupted.`
+        'Workflow state not found. The workflow may not be deployed or the deployment data may be corrupted.'
       )
     }
 
     const { blocks, edges, loops, parallels } = workflowData
-    // Only deployed executions have a deployment version ID
     deploymentVersionId =
-      !useDraftState && 'deploymentVersionId' in workflowData
+      'deploymentVersionId' in workflowData
         ? (workflowData.deploymentVersionId as string)
         : undefined
 
@@ -169,19 +161,6 @@ async function executeWebhookJobInternal(
       throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
     }
     const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
-
-    // Merge subblock states (matching workflow-execution pattern)
-    const mergedStates = mergeSubblockState(blocks, {})
-
-    // Create serialized workflow
-    const serializer = new Serializer()
-    const serializedWorkflow = serializer.serializeWorkflow(
-      mergedStates,
-      edges,
-      loops || {},
-      parallels || {},
-      true // Enable validation during execution
-    )
 
     // Handle special Airtable case
     if (payload.provider === 'airtable') {
@@ -240,6 +219,7 @@ async function executeWebhookJobInternal(
           useDraftState: false,
           startTime: new Date().toISOString(),
           isClientSession: false,
+          credentialAccountUserId: payload.credentialAccountUserId,
           workflowStateOverride: {
             blocks,
             edges,
@@ -261,6 +241,8 @@ async function executeWebhookJobInternal(
           snapshot,
           callbacks: {},
           loggingSession,
+          includeFileBase64: true, // Enable base64 hydration
+          base64MaxBytes: undefined, // Use default limit
         })
 
         if (executionResult.status === 'paused') {
@@ -268,14 +250,25 @@ async function executeWebhookJobInternal(
             logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
               executionId,
             })
+            await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
           } else {
-            await PauseResumeManager.persistPauseResult({
-              workflowId: payload.workflowId,
-              executionId,
-              pausePoints: executionResult.pausePoints || [],
-              snapshotSeed: executionResult.snapshotSeed,
-              executorUserId: executionResult.metadata?.userId,
-            })
+            try {
+              await PauseResumeManager.persistPauseResult({
+                workflowId: payload.workflowId,
+                executionId,
+                pausePoints: executionResult.pausePoints || [],
+                snapshotSeed: executionResult.snapshotSeed,
+                executorUserId: executionResult.metadata?.userId,
+              })
+            } catch (pauseError) {
+              logger.error(`[${requestId}] Failed to persist pause result`, {
+                executionId,
+                error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+              })
+              await loggingSession.markAsFailed(
+                `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+              )
+            }
           }
         } else {
           await PauseResumeManager.processQueuedResumes(executionId)
@@ -304,8 +297,7 @@ async function executeWebhookJobInternal(
         workspaceId,
         variables: {},
         triggerData: {
-          isTest: payload.testMode === true,
-          executionTarget: payload.executionTarget || 'deployed',
+          isTest: false,
         },
         deploymentVersionId,
       })
@@ -362,8 +354,7 @@ async function executeWebhookJobInternal(
         workspaceId,
         variables: {},
         triggerData: {
-          isTest: payload.testMode === true,
-          executionTarget: payload.executionTarget || 'deployed',
+          isTest: false,
         },
         deploymentVersionId,
       })
@@ -407,7 +398,7 @@ async function executeWebhookJobInternal(
               requestId,
               userId: payload.userId,
             })
-            Object.assign(input, processedInput)
+            safeAssign(input, processedInput as Record<string, unknown>)
           }
         } else {
           logger.debug(`[${requestId}] No valid triggerId found for block ${payload.blockId}`)
@@ -487,6 +478,7 @@ async function executeWebhookJobInternal(
       useDraftState: false,
       startTime: new Date().toISOString(),
       isClientSession: false,
+      credentialAccountUserId: payload.credentialAccountUserId,
       workflowStateOverride: {
         blocks,
         edges,
@@ -496,12 +488,15 @@ async function executeWebhookJobInternal(
       },
     }
 
-    const snapshot = new ExecutionSnapshot(metadata, workflow, input || {}, workflowVariables, [])
+    const triggerInput = input || {}
+
+    const snapshot = new ExecutionSnapshot(metadata, workflow, triggerInput, workflowVariables, [])
 
     const executionResult = await executeWorkflowCore({
       snapshot,
       callbacks: {},
       loggingSession,
+      includeFileBase64: true,
     })
 
     if (executionResult.status === 'paused') {
@@ -509,14 +504,25 @@ async function executeWebhookJobInternal(
         logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
           executionId,
         })
+        await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
       } else {
-        await PauseResumeManager.persistPauseResult({
-          workflowId: payload.workflowId,
-          executionId,
-          pausePoints: executionResult.pausePoints || [],
-          snapshotSeed: executionResult.snapshotSeed,
-          executorUserId: executionResult.metadata?.userId,
-        })
+        try {
+          await PauseResumeManager.persistPauseResult({
+            workflowId: payload.workflowId,
+            executionId,
+            pausePoints: executionResult.pausePoints || [],
+            snapshotSeed: executionResult.snapshotSeed,
+            executorUserId: executionResult.metadata?.userId,
+          })
+        } catch (pauseError) {
+          logger.error(`[${requestId}] Failed to persist pause result`, {
+            executionId,
+            error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+          })
+          await loggingSession.markAsFailed(
+            `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+          )
+        }
       }
     } else {
       await PauseResumeManager.processQueuedResumes(executionId)
@@ -567,18 +573,18 @@ async function executeWebhookJobInternal(
         workspaceId: errorWorkspaceId,
         variables: {},
         triggerData: {
-          isTest: payload.testMode === true,
-          executionTarget: payload.executionTarget || 'deployed',
+          isTest: false,
         },
         deploymentVersionId,
       })
 
-      const errorWithResult = error as { executionResult?: ExecutionResult }
-      const executionResult = errorWithResult?.executionResult || {
-        success: false,
-        output: {},
-        logs: [],
-      }
+      const executionResult = hasExecutionResult(error)
+        ? error.executionResult
+        : {
+            success: false,
+            output: {},
+            logs: [],
+          }
       const { traceSpans } = buildTraceSpans(executionResult)
 
       await loggingSession.safeCompleteWithError({

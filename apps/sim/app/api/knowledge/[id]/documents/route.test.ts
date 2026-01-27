@@ -3,14 +3,14 @@
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createMockRequest,
   mockAuth,
   mockConsoleLogger,
   mockDrizzleOrm,
   mockKnowledgeSchemas,
-} from '@/app/api/__test-utils__/utils'
+} from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 mockKnowledgeSchemas()
 
@@ -157,7 +157,7 @@ describe('Knowledge Base Documents API Route', () => {
       expect(vi.mocked(getDocuments)).toHaveBeenCalledWith(
         'kb-123',
         {
-          includeDisabled: false,
+          enabledFilter: undefined,
           search: undefined,
           limit: 50,
           offset: 0,
@@ -166,7 +166,7 @@ describe('Knowledge Base Documents API Route', () => {
       )
     })
 
-    it('should filter disabled documents by default', async () => {
+    it('should return documents with default filter', async () => {
       const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
       const { getDocuments } = await import('@/lib/knowledge/documents/service')
 
@@ -194,7 +194,7 @@ describe('Knowledge Base Documents API Route', () => {
       expect(vi.mocked(getDocuments)).toHaveBeenCalledWith(
         'kb-123',
         {
-          includeDisabled: false,
+          enabledFilter: undefined,
           search: undefined,
           limit: 50,
           offset: 0,
@@ -203,7 +203,7 @@ describe('Knowledge Base Documents API Route', () => {
       )
     })
 
-    it('should include disabled documents when requested', async () => {
+    it('should filter documents by enabled status when requested', async () => {
       const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
       const { getDocuments } = await import('@/lib/knowledge/documents/service')
 
@@ -223,7 +223,7 @@ describe('Knowledge Base Documents API Route', () => {
         },
       })
 
-      const url = 'http://localhost:3000/api/knowledge/kb-123/documents?includeDisabled=true'
+      const url = 'http://localhost:3000/api/knowledge/kb-123/documents?enabledFilter=disabled'
       const req = new Request(url, { method: 'GET' }) as any
 
       const { GET } = await import('@/app/api/knowledge/[id]/documents/route')
@@ -233,7 +233,7 @@ describe('Knowledge Base Documents API Route', () => {
       expect(vi.mocked(getDocuments)).toHaveBeenCalledWith(
         'kb-123',
         {
-          includeDisabled: true,
+          enabledFilter: 'disabled',
           search: undefined,
           limit: 50,
           offset: 0,
@@ -361,8 +361,7 @@ describe('Knowledge Base Documents API Route', () => {
       expect(vi.mocked(createSingleDocument)).toHaveBeenCalledWith(
         validDocumentData,
         'kb-123',
-        expect.any(String),
-        'user-123'
+        expect.any(String)
       )
     })
 
@@ -470,8 +469,7 @@ describe('Knowledge Base Documents API Route', () => {
       expect(vi.mocked(createDocumentRecords)).toHaveBeenCalledWith(
         validBulkData.documents,
         'kb-123',
-        expect.any(String),
-        'user-123'
+        expect.any(String)
       )
       expect(vi.mocked(processDocumentsWithQueue)).toHaveBeenCalled()
     })

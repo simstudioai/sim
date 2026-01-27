@@ -13,7 +13,7 @@ import type {
   TimeSegment,
 } from '@/providers/types'
 import { calculateCost, prepareToolExecution } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useProvidersStore } from '@/stores/providers'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OllamaProvider')
@@ -307,7 +307,7 @@ export const ollamaProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, true)
+            const result = await executeTool(toolName, executionParams)
             const toolCallEndTime = Date.now()
 
             return {

@@ -81,7 +81,8 @@ export function BYOK() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const { data: keys = [], isLoading } = useBYOKKeys(workspaceId)
+  const { data, isLoading } = useBYOKKeys(workspaceId)
+  const keys = data?.keys ?? []
   const upsertKey = useUpsertBYOKKey()
   const deleteKey = useDeleteBYOKKey()
 
@@ -166,14 +167,14 @@ export function BYOK() {
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                         <span className='font-medium text-[14px]'>{provider.name}</span>
                         <p className='truncate text-[13px] text-[var(--text-muted)]'>
-                          {existingKey ? existingKey.maskedKey : provider.description}
+                          {provider.description}
                         </p>
                       </div>
                     </div>
 
                     {existingKey ? (
                       <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                        <Button variant='ghost' onClick={() => openEditModal(provider.id)}>
+                        <Button variant='default' onClick={() => openEditModal(provider.id)}>
                           Update
                         </Button>
                         <Button
@@ -221,7 +222,7 @@ export function BYOK() {
             )}
           </ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               This key will be used for all {PROVIDERS.find((p) => p.id === editingProvider)?.name}{' '}
               requests in this workspace. Your key is encrypted and stored securely.
             </p>
@@ -275,7 +276,7 @@ export function BYOK() {
                 </Button>
               </div>
               {error && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{error}</p>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>
               )}
             </div>
           </ModalBody>
@@ -293,10 +294,9 @@ export function BYOK() {
               Cancel
             </Button>
             <Button
-              variant='primary'
+              variant='tertiary'
               onClick={handleSave}
               disabled={!apiKeyInput.trim() || upsertKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
             >
               {upsertKey.isPending ? 'Saving...' : 'Save'}
             </Button>
@@ -305,27 +305,22 @@ export function BYOK() {
       </Modal>
 
       <Modal open={!!deleteConfirmProvider} onOpenChange={() => setDeleteConfirmProvider(null)}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete API Key</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to delete the{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
               </span>{' '}
-              API key? This workspace will revert to using platform keys with the 2x multiplier.
+              API key? This workspace will revert to using platform hosted keys.
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setDeleteConfirmProvider(null)}>
               Cancel
             </Button>
-            <Button
-              variant='primary'
-              onClick={handleDelete}
-              disabled={deleteKey.isPending}
-              className='!bg-[var(--brand-tertiary-2)] !text-[var(--text-inverse)] hover:!bg-[var(--brand-tertiary-2)]/90'
-            >
+            <Button variant='destructive' onClick={handleDelete} disabled={deleteKey.isPending}>
               {deleteKey.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           </ModalFooter>

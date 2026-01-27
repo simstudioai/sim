@@ -6,8 +6,8 @@ import {
   getEmailSubject,
   renderFreeTierUpgradeEmail,
   renderUsageThresholdEmail,
-} from '@/components/emails/render-email'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+} from '@/components/emails'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   canEditUsageLimit,
   getFreeTierLimit,
@@ -97,10 +97,31 @@ export async function handleNewUser(userId: string): Promise<void> {
 }
 
 /**
+ * Ensures a userStats record exists for a user.
+ * Creates one with default values if missing.
+ * This is a fallback for cases where the user.create.after hook didn't fire
+ * (e.g., OAuth account linking to existing users).
+ *
+ */
+export async function ensureUserStatsExists(userId: string): Promise<void> {
+  await db
+    .insert(userStats)
+    .values({
+      id: crypto.randomUUID(),
+      userId: userId,
+      currentUsageLimit: getFreeTierLimit().toString(),
+      usageLimitUpdatedAt: new Date(),
+    })
+    .onConflictDoNothing({ target: userStats.userId })
+}
+
+/**
  * Get comprehensive usage data for a user
  */
 export async function getUserUsageData(userId: string): Promise<UsageData> {
   try {
+    await ensureUserStatsExists(userId)
+
     const [userStatsData, subscription] = await Promise.all([
       db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
       getHighestPrioritySubscription(userId),

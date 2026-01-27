@@ -1,6 +1,6 @@
+import type { PolymarketSeries } from '@/tools/polymarket/types'
+import { buildGammaUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketSeries } from './types'
-import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetSeriesByIdParams {
   seriesId: string // Series ID (required)
@@ -27,6 +27,7 @@ export const polymarketGetSeriesByIdTool: ToolConfig<
       type: 'string',
       required: true,
       description: 'The series ID',
+      visibility: 'user-or-llm',
     },
   },
 
@@ -57,6 +58,25 @@ export const polymarketGetSeriesByIdTool: ToolConfig<
     series: {
       type: 'object',
       description: 'Series object with details',
+      properties: {
+        id: { type: 'string', description: 'Series ID' },
+        ticker: { type: 'string', description: 'Series ticker' },
+        slug: { type: 'string', description: 'Series slug' },
+        title: { type: 'string', description: 'Series title' },
+        seriesType: { type: 'string', description: 'Series type' },
+        recurrence: { type: 'string', description: 'Recurrence pattern' },
+        image: { type: 'string', description: 'Series image URL' },
+        icon: { type: 'string', description: 'Series icon URL' },
+        active: { type: 'boolean', description: 'Whether series is active' },
+        closed: { type: 'boolean', description: 'Whether series is closed' },
+        archived: { type: 'boolean', description: 'Whether series is archived' },
+        featured: { type: 'boolean', description: 'Whether series is featured' },
+        volume: { type: 'number', description: 'Total volume' },
+        liquidity: { type: 'number', description: 'Total liquidity' },
+        commentCount: { type: 'number', description: 'Comment count' },
+        eventCount: { type: 'number', description: 'Number of events in series' },
+        events: { type: 'array', description: 'Array of events in this series' },
+      },
     },
   },
 }

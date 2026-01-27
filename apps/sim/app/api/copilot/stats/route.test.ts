@@ -3,13 +3,9 @@
  *
  * @vitest-environment node
  */
+import { createMockRequest, mockCryptoUuid, setupCommonApiMocks } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createMockRequest,
-  mockCryptoUuid,
-  setupCommonApiMocks,
-} from '@/app/api/__test-utils__/utils'
 
 describe('Copilot Stats API Route', () => {
   const mockFetch = vi.fn()
@@ -46,12 +42,13 @@ describe('Copilot Stats API Route', () => {
       SIM_AGENT_API_URL_DEFAULT: 'https://agent.sim.example.com',
     }))
 
-    vi.doMock('@/lib/core/config/env', () => ({
-      env: {
-        SIM_AGENT_API_URL: null,
+    vi.doMock('@/lib/core/config/env', async () => {
+      const { createEnvMock } = await import('@sim/testing')
+      return createEnvMock({
+        SIM_AGENT_API_URL: undefined,
         COPILOT_API_KEY: 'test-api-key',
-      },
-    }))
+      })
+    })
   })
 
   afterEach(() => {

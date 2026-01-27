@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { MistralParserInput, MistralParserOutput } from '@/tools/mistral/types'
+import type {
+  MistralParserInput,
+  MistralParserOutput,
+  MistralParserV2Output,
+} from '@/tools/mistral/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MistralParserTool')
@@ -343,9 +347,11 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
                   ? mistralData.usage_info.pages_processed
                   : Number(mistralData.usage_info.pages_processed),
               docSizeBytes:
-                typeof mistralData.usage_info.doc_size_bytes === 'number'
-                  ? mistralData.usage_info.doc_size_bytes
-                  : Number(mistralData.usage_info.doc_size_bytes),
+                mistralData.usage_info.doc_size_bytes == null
+                  ? null
+                  : typeof mistralData.usage_info.doc_size_bytes === 'number'
+                    ? mistralData.usage_info.doc_size_bytes
+                    : Number(mistralData.usage_info.doc_size_bytes),
             }
           : undefined
 
@@ -394,6 +400,157 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     metadata: {
       type: 'object',
       description: 'Processing metadata including jobId, fileType, pageCount, and usage info',
+      properties: {
+        jobId: { type: 'string', description: 'Unique job identifier' },
+        fileType: { type: 'string', description: 'File type (e.g., pdf)' },
+        fileName: { type: 'string', description: 'Original file name' },
+        source: { type: 'string', description: 'Source type (url)' },
+        pageCount: { type: 'number', description: 'Number of pages processed' },
+        model: { type: 'string', description: 'Mistral model used' },
+        resultType: { type: 'string', description: 'Output format (markdown, text, json)' },
+        processedAt: { type: 'string', description: 'Processing timestamp' },
+        sourceUrl: { type: 'string', description: 'Source URL if applicable', optional: true },
+        usageInfo: {
+          type: 'object',
+          description: 'Usage statistics from OCR processing',
+          optional: true,
+        },
+      },
+    },
+  },
+}
+
+export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2Output> = {
+  id: 'mistral_parser_v2',
+  name: 'Mistral PDF Parser',
+  description: 'Parse PDF documents using Mistral OCR API',
+  version: '2.0.0',
+
+  params: mistralParserTool.params,
+  request: mistralParserTool.request,
+
+  transformResponse: async (response: Response) => {
+    let ocrResult
+    try {
+      ocrResult = await response.json()
+    } catch (jsonError) {
+      throw new Error(
+        `Failed to parse Mistral OCR response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`
+      )
+    }
+
+    if (!ocrResult || typeof ocrResult !== 'object') {
+      throw new Error('Invalid response format from Mistral OCR API')
+    }
+
+    // Extract the actual Mistral data (may be nested in output from our API route)
+    const mistralData =
+      ocrResult.output && typeof ocrResult.output === 'object' && !ocrResult.pages
+        ? ocrResult.output
+        : ocrResult
+
+    // Return raw Mistral API structure - no transformation
+    return {
+      success: true,
+      output: {
+        pages: mistralData.pages ?? [],
+        model: mistralData.model ?? 'mistral-ocr-latest',
+        usage_info: mistralData.usage_info ?? { pages_processed: 0, doc_size_bytes: null },
+        document_annotation: mistralData.document_annotation ?? null,
+      },
+    }
+  },
+
+  outputs: {
+    pages: {
+      type: 'array',
+      description: 'Array of page objects from Mistral OCR',
+      items: {
+        type: 'object',
+        properties: {
+          index: { type: 'number', description: 'Page index (zero-based)' },
+          markdown: { type: 'string', description: 'Extracted markdown content' },
+          images: {
+            type: 'array',
+            description: 'Images extracted from this page with bounding boxes',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Image identifier (e.g., img-0.jpeg)' },
+                top_left_x: { type: 'number', description: 'Top-left X coordinate in pixels' },
+                top_left_y: { type: 'number', description: 'Top-left Y coordinate in pixels' },
+                bottom_right_x: {
+                  type: 'number',
+                  description: 'Bottom-right X coordinate in pixels',
+                },
+                bottom_right_y: {
+                  type: 'number',
+                  description: 'Bottom-right Y coordinate in pixels',
+                },
+                image_base64: {
+                  type: 'string',
+                  description: 'Base64-encoded image data (when include_image_base64=true)',
+                  optional: true,
+                },
+              },
+            },
+          },
+          dimensions: {
+            type: 'object',
+            description: 'Page dimensions',
+            properties: {
+              dpi: { type: 'number', description: 'Dots per inch' },
+              height: { type: 'number', description: 'Page height in pixels' },
+              width: { type: 'number', description: 'Page width in pixels' },
+            },
+          },
+          tables: {
+            type: 'array',
+            description:
+              'Extracted tables as HTML/markdown (when table_format is set). Referenced via placeholders like [tbl-0.html]',
+          },
+          hyperlinks: {
+            type: 'array',
+            description:
+              'Array of URL strings detected in the page (e.g., ["https://...", "mailto:..."])',
+            items: {
+              type: 'string',
+              description: 'URL or mailto link',
+            },
+          },
+          header: {
+            type: 'string',
+            description: 'Page header content (when extract_header=true)',
+            optional: true,
+          },
+          footer: {
+            type: 'string',
+            description: 'Page footer content (when extract_footer=true)',
+            optional: true,
+          },
+        },
+      },
+    },
+    model: {
+      type: 'string',
+      description: 'Mistral OCR model identifier (e.g., mistral-ocr-latest)',
+    },
+    usage_info: {
+      type: 'object',
+      description: 'Usage and processing statistics',
+      properties: {
+        pages_processed: { type: 'number', description: 'Total number of pages processed' },
+        doc_size_bytes: {
+          type: 'number',
+          description: 'Document file size in bytes',
+          optional: true,
+        },
+      },
+    },
+    document_annotation: {
+      type: 'string',
+      description: 'Structured annotation data as JSON string (when applicable)',
+      optional: true,
     },
   },
 }

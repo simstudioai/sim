@@ -59,6 +59,7 @@ interface RequestBody {
   stream?: boolean
   history?: ChatMessage[]
   workflowId?: string
+  generationType?: string
 }
 
 function safeStringify(value: unknown): string {
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RequestBody
 
-    const { prompt, systemPrompt, stream = false, history = [], workflowId } = body
+    const { prompt, systemPrompt, stream = false, history = [], workflowId, generationType } = body
 
     if (!prompt) {
       logger.warn(`[${requestId}] Invalid request: Missing prompt.`)
@@ -222,9 +223,30 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const finalSystemPrompt =
+    let finalSystemPrompt =
       systemPrompt ||
       'You are a helpful AI assistant. Generate content exactly as requested by the user.'
+
+    if (generationType === 'timestamp') {
+      const now = new Date()
+      const currentTimeContext = `\n\nCurrent date and time context for reference:
+- Current UTC timestamp: ${now.toISOString()}
+- Current Unix timestamp (seconds): ${Math.floor(now.getTime() / 1000)}
+- Current Unix timestamp (milliseconds): ${now.getTime()}
+- Current date (UTC): ${now.toISOString().split('T')[0]}
+- Current year: ${now.getUTCFullYear()}
+- Current month: ${now.getUTCMonth() + 1}
+- Current day of month: ${now.getUTCDate()}
+- Current day of week: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getUTCDay()]}
+
+Use this context to calculate relative dates like "yesterday", "last week", "beginning of this month", etc.`
+      finalSystemPrompt += currentTimeContext
+    }
+
+    if (generationType === 'json-object') {
+      finalSystemPrompt +=
+        '\n\nIMPORTANT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with { and end with }.'
+    }
 
     const messages: ChatMessage[] = [{ role: 'system', content: finalSystemPrompt }]
 

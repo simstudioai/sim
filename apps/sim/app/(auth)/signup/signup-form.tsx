@@ -2,10 +2,9 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowRight, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client, useSession } from '@/lib/auth/auth-client'
@@ -14,8 +13,10 @@ import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
+import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 const logger = createLogger('SignupForm')
 
@@ -95,8 +96,7 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
-  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
-  const [isButtonHovered, setIsButtonHovered] = useState(false)
+  const buttonClass = useBrandedButtonClass()
 
   const [name, setName] = useState('')
   const [nameErrors, setNameErrors] = useState<string[]>([])
@@ -109,11 +109,15 @@ function SignupFormContent({
       setEmail(emailParam)
     }
 
-    const redirectParam = searchParams.get('redirect')
+    // Check both 'redirect' and 'callbackUrl' params (login page uses callbackUrl)
+    const redirectParam = searchParams.get('redirect') || searchParams.get('callbackUrl')
     if (redirectParam) {
       setRedirectUrl(redirectParam)
 
-      if (redirectParam.startsWith('/invite/')) {
+      if (
+        redirectParam.startsWith('/invite/') ||
+        redirectParam.startsWith('/credential-account/')
+      ) {
         setIsInviteFlow(true)
       }
     }
@@ -121,31 +125,6 @@ function SignupFormContent({
     const inviteFlowParam = searchParams.get('invite_flow')
     if (inviteFlowParam === 'true') {
       setIsInviteFlow(true)
-    }
-
-    const checkCustomBrand = () => {
-      const computedStyle = getComputedStyle(document.documentElement)
-      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
-
-      if (brandAccent && brandAccent !== '#6f3dfa') {
-        setButtonClass('auth-button-custom')
-      } else {
-        setButtonClass('auth-button-gradient')
-      }
-    }
-
-    checkCustomBrand()
-
-    window.addEventListener('resize', checkCustomBrand)
-    const observer = new MutationObserver(checkCustomBrand)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    })
-
-    return () => {
-      window.removeEventListener('resize', checkCustomBrand)
-      observer.disconnect()
     }
   }, [searchParams])
 
@@ -355,15 +334,6 @@ function SignupFormContent({
         }
       }
 
-      try {
-        await client.emailOtp.sendVerificationOtp({
-          email: emailValue,
-          type: 'sign-in',
-        })
-      } catch (otpErr) {
-        logger.warn('Failed to send sign-in OTP after signup; user can press Resend', otpErr)
-      }
-
       router.push('/verify?fromSignup=true')
     } catch (error) {
       logger.error('Signup error:', error)
@@ -505,24 +475,14 @@ function SignupFormContent({
             </div>
           </div>
 
-          <Button
+          <BrandedButton
             type='submit'
-            onMouseEnter={() => setIsButtonHovered(true)}
-            onMouseLeave={() => setIsButtonHovered(false)}
-            className='group inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all'
             disabled={isLoading}
+            loading={isLoading}
+            loadingText='Creating account'
           >
-            <span className='flex items-center gap-1'>
-              {isLoading ? 'Creating account' : 'Create account'}
-              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-                {isButtonHovered ? (
-                  <ArrowRight className='h-4 w-4' aria-hidden='true' />
-                ) : (
-                  <ChevronRight className='h-4 w-4' aria-hidden='true' />
-                )}
-              </span>
-            </span>
-          </Button>
+            Create account
+          </BrandedButton>
         </form>
       )}
 

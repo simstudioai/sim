@@ -16,8 +16,6 @@ export interface CurrentWorkflow {
   loops: Record<string, Loop>
   parallels: Record<string, Parallel>
   lastSaved?: number
-  isDeployed?: boolean
-  deployedAt?: Date
   deploymentStatuses?: Record<string, DeploymentStatus>
   needsRedeployment?: boolean
 
@@ -50,8 +48,6 @@ export function useCurrentWorkflow(): CurrentWorkflow {
       loops: state.loops,
       parallels: state.parallels,
       lastSaved: state.lastSaved,
-      isDeployed: state.isDeployed,
-      deployedAt: state.deployedAt,
       deploymentStatuses: state.deploymentStatuses,
       needsRedeployment: state.needsRedeployment,
     }))
@@ -82,8 +78,6 @@ export function useCurrentWorkflow(): CurrentWorkflow {
       loops: activeWorkflow.loops || {},
       parallels: activeWorkflow.parallels || {},
       lastSaved: activeWorkflow.lastSaved,
-      isDeployed: activeWorkflow.isDeployed,
-      deployedAt: activeWorkflow.deployedAt,
       deploymentStatuses: activeWorkflow.deploymentStatuses,
       needsRedeployment: activeWorkflow.needsRedeployment,
 

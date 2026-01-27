@@ -1,4 +1,4 @@
-import '@/executor/__test-utils__/mock-dependencies'
+import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
@@ -95,7 +95,6 @@ describe('GenericBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'some_custom_tool',
       expectedToolParams,
-      false, // skipProxy
       false, // skipPostProcess
       mockContext // execution context
     )

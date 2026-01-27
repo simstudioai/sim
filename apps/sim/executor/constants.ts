@@ -1,7 +1,10 @@
+import type { LoopType, ParallelType } from '@/lib/workflows/types'
+
 export enum BlockType {
   PARALLEL = 'parallel',
   LOOP = 'loop',
   ROUTER = 'router',
+  ROUTER_V2 = 'router_v2',
   CONDITION = 'condition',
 
   START_TRIGGER = 'start_trigger',
@@ -39,11 +42,7 @@ export const METADATA_ONLY_BLOCK_TYPES = [
   BlockType.NOTE,
 ] as const
 
-export type LoopType = 'for' | 'forEach' | 'while' | 'doWhile'
-
 export type SentinelType = 'start' | 'end'
-
-export type ParallelType = 'collection' | 'count'
 
 export const EDGE = {
   CONDITION_PREFIX: 'condition-',
@@ -121,6 +120,12 @@ export const SPECIAL_REFERENCE_PREFIXES = [
   REFERENCE.PREFIX.VARIABLE,
 ] as const
 
+export const RESERVED_BLOCK_NAMES = [
+  REFERENCE.PREFIX.LOOP,
+  REFERENCE.PREFIX.PARALLEL,
+  REFERENCE.PREFIX.VARIABLE,
+] as const
+
 export const LOOP_REFERENCE = {
   ITERATION: 'iteration',
   INDEX: 'index',
@@ -179,6 +184,22 @@ export const AGENT = {
 export const MCP = {
   TOOL_PREFIX: 'mcp-',
 } as const
+
+export const CREDENTIAL_SET = {
+  PREFIX: 'credentialSet:',
+} as const
+
+export const CREDENTIAL = {
+  FOREIGN_LABEL: 'Saved by collaborator',
+} as const
+
+export function isCredentialSetValue(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith(CREDENTIAL_SET.PREFIX)
+}
+
+export function extractCredentialSetId(value: string): string {
+  return value.slice(CREDENTIAL_SET.PREFIX.length)
+}
 
 export const MEMORY = {
   DEFAULT_SLIDING_WINDOW_SIZE: 10,
@@ -251,11 +272,33 @@ export interface ConditionConfig {
 }
 
 export function isTriggerBlockType(blockType: string | undefined): boolean {
-  return TRIGGER_BLOCK_TYPES.includes(blockType as any)
+  return blockType !== undefined && (TRIGGER_BLOCK_TYPES as readonly string[]).includes(blockType)
+}
+
+/**
+ * Determines if a block behaves as a trigger based on its metadata and config.
+ * This is used for execution flow decisions where trigger-like behavior matters.
+ *
+ * A block is considered trigger-like if:
+ * - Its category is 'triggers'
+ * - It has triggerMode enabled
+ * - It's a starter block (legacy entry point)
+ */
+export function isTriggerBehavior(block: {
+  metadata?: { category?: string; id?: string }
+  config?: { params?: { triggerMode?: boolean } }
+}): boolean {
+  return (
+    block.metadata?.category === 'triggers' ||
+    block.config?.params?.triggerMode === true ||
+    block.metadata?.id === BlockType.STARTER
+  )
 }
 
 export function isMetadataOnlyBlockType(blockType: string | undefined): boolean {
-  return METADATA_ONLY_BLOCK_TYPES.includes(blockType as any)
+  return (
+    blockType !== undefined && (METADATA_ONLY_BLOCK_TYPES as readonly string[]).includes(blockType)
+  )
 }
 
 export function isWorkflowBlockType(blockType: string | undefined): boolean {
@@ -271,7 +314,11 @@ export function isConditionBlockType(blockType: string | undefined): boolean {
 }
 
 export function isRouterBlockType(blockType: string | undefined): boolean {
-  return blockType === BlockType.ROUTER
+  return blockType === BlockType.ROUTER || blockType === BlockType.ROUTER_V2
+}
+
+export function isRouterV2BlockType(blockType: string | undefined): boolean {
+  return blockType === BlockType.ROUTER_V2
 }
 
 export function isAgentBlockType(blockType: string | undefined): boolean {

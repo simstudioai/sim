@@ -1,9 +1,16 @@
 import { createLogger } from '@sim/logger'
 import type {
+  GoogleDriveFile,
   GoogleDriveGetContentResponse,
+  GoogleDriveRevision,
   GoogleDriveToolParams,
 } from '@/tools/google_drive/types'
-import { DEFAULT_EXPORT_FORMATS, GOOGLE_WORKSPACE_MIME_TYPES } from '@/tools/google_drive/utils'
+import {
+  ALL_FILE_FIELDS,
+  ALL_REVISION_FIELDS,
+  DEFAULT_EXPORT_FORMATS,
+  GOOGLE_WORKSPACE_MIME_TYPES,
+} from '@/tools/google_drive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleDriveGetContentTool')
@@ -12,7 +19,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
   id: 'google_drive_get_content',
   name: 'Get Content from Google Drive',
   description:
-    'Get content from a file in Google Drive (exports Google Workspace files automatically)',
+    'Get content from a file in Google Drive with complete metadata (exports Google Workspace files automatically)',
   version: '1.0',
 
   oauth: {
@@ -39,11 +46,18 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       visibility: 'hidden',
       description: 'The MIME type to export Google Workspace files to (optional)',
     },
+    includeRevisions: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether to include revision history in the metadata (default: true, returns first 100 revisions)',
+    },
   },
 
   request: {
     url: (params) =>
-      `https://www.googleapis.com/drive/v3/files/${params.fileId}?fields=id,name,mimeType&supportsAllDrives=true`,
+      `https://www.googleapis.com/drive/v3/files/${params.fileId}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -61,7 +75,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         throw new Error(errorDetails.error?.message || 'Failed to get file metadata')
       }
 
-      const metadata = await response.json()
+      const metadata: GoogleDriveFile = await response.json()
       const fileId = metadata.id
       const mimeType = metadata.mimeType
       const authHeader = `Bearer ${params?.accessToken || ''}`
@@ -124,40 +138,58 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         content = await downloadResponse.text()
       }
 
-      const metadataResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents&supportsAllDrives=true`,
-        {
-          headers: {
-            Authorization: authHeader,
-          },
-        }
-      )
+      const includeRevisions = params?.includeRevisions !== false
+      const canReadRevisions = metadata.capabilities?.canReadRevisions === true
+      if (includeRevisions && canReadRevisions) {
+        try {
+          const revisionsResponse = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${fileId}/revisions?fields=revisions(${ALL_REVISION_FIELDS})&pageSize=100`,
+            {
+              headers: {
+                Authorization: authHeader,
+              },
+            }
+          )
 
-      if (!metadataResponse.ok) {
-        logger.warn('Failed to get full metadata, using partial metadata', {
-          status: metadataResponse.status,
-          statusText: metadataResponse.statusText,
+          if (revisionsResponse.ok) {
+            const revisionsData = await revisionsResponse.json()
+            metadata.revisions = revisionsData.revisions as GoogleDriveRevision[]
+            logger.info('Fetched file revisions', {
+              fileId,
+              revisionCount: metadata.revisions?.length || 0,
+            })
+          } else {
+            logger.warn('Failed to fetch revisions, continuing without them', {
+              status: revisionsResponse.status,
+              statusText: revisionsResponse.statusText,
+            })
+          }
+        } catch (revisionError: any) {
+          logger.warn('Error fetching revisions, continuing without them', {
+            error: revisionError.message,
+          })
+        }
+      } else if (includeRevisions && !canReadRevisions) {
+        logger.info('Skipping revision fetch - user does not have canReadRevisions permission', {
+          fileId,
         })
-      } else {
-        const fullMetadata = await metadataResponse.json()
-        Object.assign(metadata, fullMetadata)
       }
+
+      logger.info('File content retrieved successfully', {
+        fileId,
+        name: metadata.name,
+        mimeType: metadata.mimeType,
+        contentLength: content.length,
+        hasOwners: !!metadata.owners?.length,
+        hasPermissions: !!metadata.permissions?.length,
+        hasRevisions: !!metadata.revisions?.length,
+      })
 
       return {
         success: true,
         output: {
           content,
-          metadata: {
-            id: metadata.id,
-            name: metadata.name,
-            mimeType: metadata.mimeType,
-            webViewLink: metadata.webViewLink,
-            webContentLink: metadata.webContentLink,
-            size: metadata.size,
-            createdTime: metadata.createdTime,
-            modifiedTime: metadata.modifiedTime,
-            parents: metadata.parents,
-          },
+          metadata,
         },
       }
     } catch (error: any) {
@@ -175,8 +207,84 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       description: 'File content as text (Google Workspace files are exported)',
     },
     metadata: {
-      type: 'json',
-      description: 'File metadata including ID, name, MIME type, and links',
+      type: 'object',
+      description: 'Complete file metadata from Google Drive',
+      properties: {
+        // Basic Info
+        id: { type: 'string', description: 'Google Drive file ID' },
+        kind: { type: 'string', description: 'Resource type identifier' },
+        name: { type: 'string', description: 'File name' },
+        mimeType: { type: 'string', description: 'MIME type' },
+        description: { type: 'string', description: 'File description' },
+        originalFilename: { type: 'string', description: 'Original uploaded filename' },
+        fullFileExtension: { type: 'string', description: 'Full file extension' },
+        fileExtension: { type: 'string', description: 'File extension' },
+        // Ownership & Sharing
+        owners: { type: 'json', description: 'List of file owners' },
+        permissions: { type: 'json', description: 'File permissions' },
+        permissionIds: { type: 'json', description: 'Permission IDs' },
+        shared: { type: 'boolean', description: 'Whether file is shared' },
+        ownedByMe: { type: 'boolean', description: 'Whether owned by current user' },
+        writersCanShare: { type: 'boolean', description: 'Whether writers can share' },
+        viewersCanCopyContent: { type: 'boolean', description: 'Whether viewers can copy' },
+        copyRequiresWriterPermission: {
+          type: 'boolean',
+          description: 'Whether copy requires writer permission',
+        },
+        sharingUser: { type: 'json', description: 'User who shared the file' },
+        // Labels/Tags
+        starred: { type: 'boolean', description: 'Whether file is starred' },
+        trashed: { type: 'boolean', description: 'Whether file is in trash' },
+        explicitlyTrashed: { type: 'boolean', description: 'Whether explicitly trashed' },
+        properties: { type: 'json', description: 'Custom properties' },
+        appProperties: { type: 'json', description: 'App-specific properties' },
+        // Timestamps
+        createdTime: { type: 'string', description: 'File creation time' },
+        modifiedTime: { type: 'string', description: 'Last modification time' },
+        modifiedByMeTime: { type: 'string', description: 'When modified by current user' },
+        viewedByMeTime: { type: 'string', description: 'When last viewed by current user' },
+        sharedWithMeTime: { type: 'string', description: 'When shared with current user' },
+        // User Info
+        lastModifyingUser: { type: 'json', description: 'User who last modified the file' },
+        viewedByMe: { type: 'boolean', description: 'Whether viewed by current user' },
+        modifiedByMe: { type: 'boolean', description: 'Whether modified by current user' },
+        // Links
+        webViewLink: { type: 'string', description: 'URL to view in browser' },
+        webContentLink: { type: 'string', description: 'Direct download URL' },
+        iconLink: { type: 'string', description: 'URL to file icon' },
+        thumbnailLink: { type: 'string', description: 'URL to thumbnail' },
+        exportLinks: { type: 'json', description: 'Export format links' },
+        // Size & Storage
+        size: { type: 'string', description: 'File size in bytes' },
+        quotaBytesUsed: { type: 'string', description: 'Storage quota used' },
+        // Checksums
+        md5Checksum: { type: 'string', description: 'MD5 hash' },
+        sha1Checksum: { type: 'string', description: 'SHA-1 hash' },
+        sha256Checksum: { type: 'string', description: 'SHA-256 hash' },
+        // Hierarchy & Location
+        parents: { type: 'json', description: 'Parent folder IDs' },
+        spaces: { type: 'json', description: 'Spaces containing file' },
+        driveId: { type: 'string', description: 'Shared drive ID' },
+        // Capabilities
+        capabilities: { type: 'json', description: 'User capabilities on file' },
+        // Versions
+        version: { type: 'string', description: 'Version number' },
+        headRevisionId: { type: 'string', description: 'Head revision ID' },
+        // Media Metadata
+        hasThumbnail: { type: 'boolean', description: 'Whether has thumbnail' },
+        thumbnailVersion: { type: 'string', description: 'Thumbnail version' },
+        imageMediaMetadata: { type: 'json', description: 'Image-specific metadata' },
+        videoMediaMetadata: { type: 'json', description: 'Video-specific metadata' },
+        // Other
+        isAppAuthorized: { type: 'boolean', description: 'Whether created by requesting app' },
+        contentRestrictions: { type: 'json', description: 'Content restrictions' },
+        linkShareMetadata: { type: 'json', description: 'Link share metadata' },
+        // Revisions
+        revisions: {
+          type: 'json',
+          description: 'File revision history (first 100 revisions only)',
+        },
+      },
     },
   },
 }

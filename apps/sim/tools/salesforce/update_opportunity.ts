@@ -99,13 +99,19 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
       output: {
         id: params?.opportunityId || '',
         updated: true,
-        metadata: { operation: 'update_opportunity' },
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success' },
-    output: { type: 'object', description: 'Updated opportunity' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Updated opportunity data',
+      properties: {
+        id: { type: 'string', description: 'Updated opportunity ID' },
+        updated: { type: 'boolean', description: 'Whether opportunity was updated' },
+      },
+    },
   },
 }

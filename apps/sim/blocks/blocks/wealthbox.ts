@@ -87,6 +87,19 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       placeholder: 'Enter due date (e.g., 2015-05-24 11:00 AM -0400)',
       condition: { field: 'operation', value: ['write_task'] },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date/time string based on the user's description.
+The format should be: YYYY-MM-DD HH:MM AM/PM ZZZZ (e.g., 2015-05-24 11:00 AM -0400).
+Examples:
+- "tomorrow at 2pm" -> Calculate tomorrow's date at 02:00 PM with local timezone offset
+- "next Monday at 9am" -> Calculate next Monday at 09:00 AM with local timezone offset
+- "in 3 days at noon" -> Calculate 3 days from now at 12:00 PM with local timezone offset
+
+Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "tomorrow at 2pm", "next Friday morning")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'firstName',
@@ -237,7 +250,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
     tasks: { type: 'json', description: 'Array of task objects from bulk read operations' },
     metadata: {
       type: 'json',
-      description: 'Operation metadata including item IDs, types, and operation details',
+      description: 'Operation metadata with itemId, noteId, contactId, taskId, itemType',
     },
     success: {
       type: 'boolean',

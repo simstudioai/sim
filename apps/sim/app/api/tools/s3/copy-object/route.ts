@@ -2,7 +2,7 @@ import { CopyObjectCommand, type ObjectCannedACL, S3Client } from '@aws-sdk/clie
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 export const dynamic = 'force-dynamic'
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
       logger.warn(`[${requestId}] Unauthorized S3 copy object attempt: ${authResult.error}`)
@@ -79,11 +79,13 @@ export async function POST(request: NextRequest) {
     // Generate public URL for destination (properly encode the destination key)
     const encodedDestKey = validatedData.destinationKey.split('/').map(encodeURIComponent).join('/')
     const url = `https://${validatedData.destinationBucket}.s3.${validatedData.region}.amazonaws.com/${encodedDestKey}`
+    const uri = `s3://${validatedData.destinationBucket}/${validatedData.destinationKey}`
 
     return NextResponse.json({
       success: true,
       output: {
         url,
+        uri,
         copySourceVersionId: result.CopySourceVersionId,
         versionId: result.VersionId,
         etag: result.CopyObjectResult?.ETag,

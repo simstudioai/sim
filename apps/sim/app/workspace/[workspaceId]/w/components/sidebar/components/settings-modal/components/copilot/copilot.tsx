@@ -13,6 +13,7 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { Input, Skeleton } from '@/components/ui'
+import { formatDate } from '@/lib/core/utils/formatting'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -115,13 +116,9 @@ export function Copilot() {
     }
   }
 
-  const formatDate = (dateString?: string | null) => {
+  const formatLastUsed = (dateString?: string | null) => {
     if (!dateString) return 'Never'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
+    return formatDate(new Date(dateString))
   }
 
   const hasKeys = keys.length > 0
@@ -180,7 +177,7 @@ export function Copilot() {
                         {key.name || 'Unnamed Key'}
                       </span>
                       <span className='text-[13px] text-[var(--text-secondary)]'>
-                        (last used: {formatDate(key.lastUsed).toLowerCase()})
+                        (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                       </span>
                     </div>
                     <p className='truncate text-[13px] text-[var(--text-muted)]'>
@@ -211,10 +208,10 @@ export function Copilot() {
 
       {/* Create API Key Dialog */}
       <Modal open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Create new API key</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               This key will allow access to Copilot features. Make sure to copy it after creation as
               you won't be able to see it again.
             </p>
@@ -234,7 +231,7 @@ export function Copilot() {
                 autoFocus
               />
               {createError && (
-                <p className='text-[11px] text-[var(--text-error)] leading-tight'>{createError}</p>
+                <p className='text-[12px] text-[var(--text-error)] leading-tight'>{createError}</p>
               )}
             </div>
           </ModalBody>
@@ -273,10 +270,10 @@ export function Copilot() {
           }
         }}
       >
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Your API key has been created</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               This is the only time you will see your API key.{' '}
               <span className='font-semibold text-[var(--text-primary)]'>
                 Copy it now and store it securely.
@@ -310,7 +307,7 @@ export function Copilot() {
 
       {/* Delete Confirmation Dialog */}
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete API key</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

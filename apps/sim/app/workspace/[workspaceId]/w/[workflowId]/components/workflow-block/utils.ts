@@ -14,8 +14,12 @@ export function getProviderName(providerId: string): string {
 }
 
 /**
- * Compares two WorkflowBlock props to determine if a re-render should be skipped
- * Used as the comparison function for React.memo
+ * Compares two WorkflowBlock props to determine if a re-render should be skipped.
+ * Used as the comparison function for React.memo.
+ *
+ * Note: xPos and yPos are intentionally excluded since WorkflowBlock doesn't use
+ * position props - ReactFlow handles positioning via CSS transforms. Including them
+ * would cause unnecessary re-renders during drag (100+ times per drag operation).
  *
  * @param prevProps - Previous node props
  * @param nextProps - Next node props
@@ -32,13 +36,12 @@ export function shouldSkipBlockRender(
     prevProps.data.isActive === nextProps.data.isActive &&
     prevProps.data.isPending === nextProps.data.isPending &&
     prevProps.data.isPreview === nextProps.data.isPreview &&
+    prevProps.data.isPreviewSelected === nextProps.data.isPreviewSelected &&
     prevProps.data.config === nextProps.data.config &&
     prevProps.data.subBlockValues === nextProps.data.subBlockValues &&
     prevProps.data.blockState === nextProps.data.blockState &&
     prevProps.selected === nextProps.selected &&
-    prevProps.dragging === nextProps.dragging &&
-    prevProps.xPos === nextProps.xPos &&
-    prevProps.yPos === nextProps.yPos
+    prevProps.dragging === nextProps.dragging
   )
 }
 

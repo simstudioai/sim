@@ -3,21 +3,94 @@
  *
  * @vitest-environment node
  */
-
-import { loggerMock } from '@sim/testing'
+import { createMockRequest, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createMockRequest,
-  globalMockData,
-  mockExecutionDependencies,
-  mockTriggerDevSdk,
-} from '@/app/api/__test-utils__/utils'
+
+/** Mock execution dependencies for webhook tests */
+function mockExecutionDependencies() {
+  vi.mock('@/lib/core/security/encryption', () => ({
+    decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'decrypted-value' }),
+  }))
+
+  vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
+    buildTraceSpans: vi.fn().mockReturnValue({ traceSpans: [], totalDuration: 100 }),
+  }))
+
+  vi.mock('@/lib/workflows/utils', () => ({
+    updateWorkflowRunCounts: vi.fn().mockResolvedValue(undefined),
+  }))
+
+  vi.mock('@/serializer', () => ({
+    Serializer: vi.fn().mockImplementation(() => ({
+      serializeWorkflow: vi.fn().mockReturnValue({
+        version: '1.0',
+        blocks: [
+          {
+            id: 'starter-id',
+            metadata: { id: 'starter', name: 'Start' },
+            config: {},
+            inputs: {},
+            outputs: {},
+            position: { x: 100, y: 100 },
+            enabled: true,
+          },
+          {
+            id: 'agent-id',
+            metadata: { id: 'agent', name: 'Agent 1' },
+            config: {},
+            inputs: {},
+            outputs: {},
+            position: { x: 634, y: -167 },
+            enabled: true,
+          },
+        ],
+        edges: [
+          {
+            id: 'edge-1',
+            source: 'starter-id',
+            target: 'agent-id',
+            sourceHandle: 'source',
+            targetHandle: 'target',
+          },
+        ],
+        loops: {},
+        parallels: {},
+      }),
+    })),
+  }))
+}
+
+/** Mock Trigger.dev SDK */
+function mockTriggerDevSdk() {
+  vi.mock('@trigger.dev/sdk', () => ({
+    tasks: { trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }) },
+    task: vi.fn().mockReturnValue({}),
+  }))
+}
+
+/**
+ * Test data store - isolated per test via beforeEach reset
+ * This replaces the global mutable state pattern with local test data
+ */
+const testData = {
+  webhooks: [] as Array<{
+    id: string
+    provider: string
+    path: string
+    isActive: boolean
+    providerConfig?: Record<string, unknown>
+    workflowId: string
+    rateLimitCount?: number
+    rateLimitPeriod?: number
+  }>,
+  workflows: [] as Array<{
+    id: string
+    userId: string
+    workspaceId?: string
+  }>,
+}
 
 const {
-  hasProcessedMessageMock,
-  markMessageAsProcessedMock,
-  closeRedisConnectionMock,
-  acquireLockMock,
   generateRequestHashMock,
   validateSlackSignatureMock,
   handleWhatsAppVerificationMock,
@@ -28,10 +101,6 @@ const {
   processWebhookMock,
   executeMock,
 } = vi.hoisted(() => ({
-  hasProcessedMessageMock: vi.fn().mockResolvedValue(false),
-  markMessageAsProcessedMock: vi.fn().mockResolvedValue(true),
-  closeRedisConnectionMock: vi.fn().mockResolvedValue(undefined),
-  acquireLockMock: vi.fn().mockResolvedValue(true),
   generateRequestHashMock: vi.fn().mockResolvedValue('test-hash-123'),
   validateSlackSignatureMock: vi.fn().mockResolvedValue(true),
   handleWhatsAppVerificationMock: vi.fn().mockResolvedValue(null),
@@ -71,13 +140,6 @@ vi.mock('@/background/webhook-execution', () => ({
 
 vi.mock('@/background/logs-webhook-delivery', () => ({
   logsWebhookDelivery: {},
-}))
-
-vi.mock('@/lib/redis', () => ({
-  hasProcessedMessage: hasProcessedMessageMock,
-  markMessageAsProcessed: markMessageAsProcessedMock,
-  closeRedisConnection: closeRedisConnectionMock,
-  acquireLock: acquireLockMock,
 }))
 
 vi.mock('@/lib/webhooks/utils', () => ({
@@ -172,6 +234,112 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
   blockExistsInDeployment: vi.fn().mockResolvedValue(true),
 }))
 
+vi.mock('@/lib/webhooks/processor', () => ({
+  findAllWebhooksForPath: vi.fn().mockImplementation(async (options: { path: string }) => {
+    // Filter webhooks by path from testData
+    const matchingWebhooks = testData.webhooks.filter(
+      (wh) => wh.path === options.path && wh.isActive
+    )
+
+    if (matchingWebhooks.length === 0) {
+      return []
+    }
+
+    // Return array of {webhook, workflow} objects
+    return matchingWebhooks.map((wh) => {
+      const matchingWorkflow = testData.workflows.find((w) => w.id === wh.workflowId) || {
+        id: wh.workflowId || 'test-workflow-id',
+        userId: 'test-user-id',
+        workspaceId: 'test-workspace-id',
+      }
+      return {
+        webhook: wh,
+        workflow: matchingWorkflow,
+      }
+    })
+  }),
+  parseWebhookBody: vi.fn().mockImplementation(async (request: any) => {
+    try {
+      const cloned = request.clone()
+      const rawBody = await cloned.text()
+      const body = rawBody ? JSON.parse(rawBody) : {}
+      return { body, rawBody }
+    } catch {
+      return { body: {}, rawBody: '' }
+    }
+  }),
+  handleProviderChallenges: vi.fn().mockResolvedValue(null),
+  handleProviderReachabilityTest: vi.fn().mockReturnValue(null),
+  verifyProviderAuth: vi
+    .fn()
+    .mockImplementation(
+      async (
+        foundWebhook: any,
+        _foundWorkflow: any,
+        request: any,
+        _rawBody: string,
+        _requestId: string
+      ) => {
+        // Implement generic webhook auth verification for tests
+        if (foundWebhook.provider === 'generic') {
+          const providerConfig = foundWebhook.providerConfig || {}
+          if (providerConfig.requireAuth) {
+            const configToken = providerConfig.token
+            const secretHeaderName = providerConfig.secretHeaderName
+
+            if (configToken) {
+              let isTokenValid = false
+
+              if (secretHeaderName) {
+                // Custom header auth
+                const headerValue = request.headers.get(secretHeaderName.toLowerCase())
+                if (headerValue === configToken) {
+                  isTokenValid = true
+                }
+              } else {
+                // Bearer token auth
+                const authHeader = request.headers.get('authorization')
+                if (authHeader?.toLowerCase().startsWith('bearer ')) {
+                  const token = authHeader.substring(7)
+                  if (token === configToken) {
+                    isTokenValid = true
+                  }
+                }
+              }
+
+              if (!isTokenValid) {
+                const { NextResponse } = await import('next/server')
+                return new NextResponse('Unauthorized - Invalid authentication token', {
+                  status: 401,
+                })
+              }
+            } else {
+              // Auth required but no token configured
+              const { NextResponse } = await import('next/server')
+              return new NextResponse('Unauthorized - Authentication required but not configured', {
+                status: 401,
+              })
+            }
+          }
+        }
+        return null
+      }
+    ),
+  checkWebhookPreprocessing: vi.fn().mockResolvedValue(null),
+  formatProviderErrorResponse: vi.fn().mockImplementation((_webhook, error, status) => {
+    const { NextResponse } = require('next/server')
+    return NextResponse.json({ error }, { status })
+  }),
+  shouldSkipWebhookEvent: vi.fn().mockReturnValue(false),
+  handlePreDeploymentVerification: vi.fn().mockReturnValue(null),
+  queueWebhookExecution: vi.fn().mockImplementation(async () => {
+    // Call processWebhookMock so tests can verify it was called
+    processWebhookMock()
+    const { NextResponse } = await import('next/server')
+    return NextResponse.json({ message: 'Webhook processed' })
+  }),
+}))
+
 vi.mock('drizzle-orm/postgres-js', () => ({
   drizzle: vi.fn().mockReturnValue({}),
 }))
@@ -179,6 +347,10 @@ vi.mock('drizzle-orm/postgres-js', () => ({
 vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
 vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('test-request-id'),
+}))
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
@@ -188,22 +360,20 @@ describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    globalMockData.webhooks.length = 0
-    globalMockData.workflows.length = 0
-    globalMockData.schedules.length = 0
+    // Reset test data arrays
+    testData.webhooks.length = 0
+    testData.workflows.length = 0
 
     mockExecutionDependencies()
     mockTriggerDevSdk()
 
-    globalMockData.workflows.push({
+    // Set up default workflow for tests
+    testData.workflows.push({
       id: 'test-workflow-id',
       userId: 'test-user-id',
       workspaceId: 'test-workspace-id',
     })
 
-    hasProcessedMessageMock.mockResolvedValue(false)
-    markMessageAsProcessedMock.mockResolvedValue(true)
-    acquireLockMock.mockResolvedValue(true)
     handleWhatsAppVerificationMock.mockResolvedValue(null)
     processGenericDeduplicationMock.mockResolvedValue(null)
     processWebhookMock.mockResolvedValue(new Response('Webhook processed', { status: 200 }))
@@ -234,7 +404,7 @@ describe('Webhook Trigger API Route', () => {
 
   describe('Generic Webhook Authentication', () => {
     it('should process generic webhook without authentication', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -244,7 +414,7 @@ describe('Webhook Trigger API Route', () => {
         rateLimitCount: 100,
         rateLimitPeriod: 60,
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -262,7 +432,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should authenticate with Bearer token when no custom header is configured', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -270,7 +440,7 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true, token: 'test-token-123' },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -289,7 +459,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should authenticate with custom header when configured', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -301,7 +471,7 @@ describe('Webhook Trigger API Route', () => {
         },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -320,7 +490,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should handle case insensitive Bearer token authentication', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -328,7 +498,7 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true, token: 'case-test-token' },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -362,7 +532,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should handle case insensitive custom header authentication', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -374,7 +544,7 @@ describe('Webhook Trigger API Route', () => {
         },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({
+      testData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
         workspaceId: 'test-workspace-id',
@@ -403,7 +573,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject wrong Bearer token', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -427,7 +597,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject wrong custom header token', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -455,7 +625,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject missing authentication when required', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -475,7 +645,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject Bearer token when custom header is configured', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -503,7 +673,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject wrong custom header name', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -531,7 +701,7 @@ describe('Webhook Trigger API Route', () => {
     })
 
     it('should reject when auth is required but no token is configured', async () => {
-      globalMockData.webhooks.push({
+      testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
         path: 'test-path',
@@ -539,7 +709,7 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      testData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
 
       const headers = {
         'Content-Type': 'application/json',

@@ -1,5 +1,5 @@
+import { buildClobUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildClobUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetTickSizeParams {
   tokenId: string // The token ID (CLOB token ID from market)
@@ -26,6 +26,7 @@ export const polymarketGetTickSizeTool: ToolConfig<
       type: 'string',
       required: true,
       description: 'The CLOB token ID (from market clobTokenIds)',
+      visibility: 'user-or-llm',
     },
   },
 

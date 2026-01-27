@@ -21,6 +21,7 @@ import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/hooks/use-profile-picture-upload'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
@@ -80,6 +81,18 @@ function GeneralSkeleton() {
         <Skeleton className='h-[17px] w-[30px] rounded-full' />
       </div>
 
+      {/* Snap to grid row */}
+      <div className='flex items-center justify-between'>
+        <Skeleton className='h-4 w-20' />
+        <Skeleton className='h-8 w-[100px] rounded-[4px]' />
+      </div>
+
+      {/* Show canvas controls row */}
+      <div className='flex items-center justify-between'>
+        <Skeleton className='h-4 w-32' />
+        <Skeleton className='h-[17px] w-[30px] rounded-full' />
+      </div>
+
       {/* Telemetry row */}
       <div className='flex items-center justify-between border-t pt-[16px]'>
         <Skeleton className='h-4 w-44' />
@@ -87,13 +100,16 @@ function GeneralSkeleton() {
       </div>
 
       {/* Telemetry description */}
-      <Skeleton className='h-[12px] w-full' />
-      <Skeleton className='-mt-2 h-[12px] w-4/5' />
+      <div className='-mt-[8px] flex flex-col gap-1'>
+        <Skeleton className='h-[12px] w-full' />
+        <Skeleton className='h-[12px] w-4/5' />
+      </div>
 
       {/* Action buttons */}
       <div className='mt-auto flex items-center gap-[8px]'>
         <Skeleton className='h-8 w-20 rounded-[4px]' />
         <Skeleton className='h-8 w-28 rounded-[4px]' />
+        <Skeleton className='ml-auto h-8 w-24 rounded-[4px]' />
       </div>
     </div>
   )
@@ -297,6 +313,12 @@ export function General({ onOpenChange }: GeneralProps) {
     const newValue = Number.parseInt(value, 10)
     if (newValue !== settings?.snapToGridSize && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'snapToGridSize', value: newValue })
+    }
+  }
+
+  const handleShowActionBarChange = async (checked: boolean) => {
+    if (checked !== settings?.showActionBar && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'showActionBar', value: checked })
     }
   }
 
@@ -509,6 +531,15 @@ export function General({ onOpenChange }: GeneralProps) {
         </div>
       </div>
 
+      <div className='flex items-center justify-between'>
+        <Label htmlFor='show-action-bar'>Show canvas controls</Label>
+        <Switch
+          id='show-action-bar'
+          checked={settings?.showActionBar ?? true}
+          onCheckedChange={handleShowActionBarChange}
+        />
+      </div>
+
       <div className='flex items-center justify-between border-t pt-[16px]'>
         <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
         <Switch
@@ -556,13 +587,15 @@ export function General({ onOpenChange }: GeneralProps) {
             </Button>
           </>
         )}
-        <Button
-          onClick={() => window.open('/?from=settings', '_blank', 'noopener,noreferrer')}
-          variant='active'
-          className='ml-auto'
-        >
-          Home Page
-        </Button>
+        {isHosted && (
+          <Button
+            onClick={() => window.open('/?from=settings', '_blank', 'noopener,noreferrer')}
+            variant='active'
+            className='ml-auto'
+          >
+            Home Page
+          </Button>
+        )}
       </div>
 
       {/* Password Reset Confirmation Modal */}
@@ -570,7 +603,7 @@ export function General({ onOpenChange }: GeneralProps) {
         <ModalContent size='sm'>
           <ModalHeader>Reset Password</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               A password reset link will be sent to{' '}
               <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>.
               Click the link in the email to create a new password.

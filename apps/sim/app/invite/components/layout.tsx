@@ -1,5 +1,6 @@
 'use client'
 
+import AuthBackground from '@/app/(auth)/components/auth-background'
 import Nav from '@/app/(landing)/components/nav/nav'
 
 interface InviteLayoutProps {
@@ -8,12 +9,15 @@ interface InviteLayoutProps {
 
 export default function InviteLayout({ children }: InviteLayoutProps) {
   return (
-    <div className='relative min-h-screen'>
-      <div className='-z-50 pointer-events-none fixed inset-0 bg-white' />
-      <Nav variant='auth' />
-      <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
-        <div className='w-full max-w-[410px]'>{children}</div>
-      </div>
-    </div>
+    <AuthBackground>
+      <main className='relative flex min-h-screen flex-col text-foreground'>
+        <Nav hideAuthButtons={true} variant='auth' />
+        <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
+          <div className='w-full max-w-lg px-4'>
+            <div className='flex flex-col items-center justify-center'>{children}</div>
+          </div>
+        </div>
+      </main>
+    </AuthBackground>
   )
 }

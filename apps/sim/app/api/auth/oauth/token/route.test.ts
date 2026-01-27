@@ -3,8 +3,8 @@
  *
  * @vitest-environment node
  */
+import { createMockLogger, createMockRequest } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockLogger, createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('OAuth Token API Routes', () => {
   const mockGetUserId = vi.fn()
@@ -138,7 +138,10 @@ describe('OAuth Token API Routes', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error', 'Credential ID is required')
+      expect(data).toHaveProperty(
+        'error',
+        'Either credentialId or (credentialAccountUserId + providerId) is required'
+      )
       expect(mockLogger.warn).toHaveBeenCalled()
     })
 

@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { auth } from '@/lib/auth'
+import { auth, getSession } from '@/lib/auth'
+import { hasSSOAccess } from '@/lib/billing'
 import { env } from '@/lib/core/config/env'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 
-const logger = createLogger('SSO-Register')
+const logger = createLogger('SSORegisterRoute')
 
 const mappingSchema = z
   .object({
@@ -42,6 +43,10 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
       ])
       .default(['openid', 'profile', 'email']),
     pkce: z.boolean().default(true),
+    authorizationEndpoint: z.string().url().optional(),
+    tokenEndpoint: z.string().url().optional(),
+    userInfoEndpoint: z.string().url().optional(),
+    jwksEndpoint: z.string().url().optional(),
   }),
   z.object({
     providerType: z.literal('saml'),
@@ -65,6 +70,16 @@ export async function POST(request: NextRequest) {
   try {
     if (!env.SSO_ENABLED) {
       return NextResponse.json({ error: 'SSO is not enabled' }, { status: 400 })
+    }
+
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const hasAccess = await hasSSOAccess(session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'SSO requires an Enterprise plan' }, { status: 403 })
     }
 
     const rawBody = await request.json()
@@ -103,7 +118,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (providerType === 'oidc') {
-      const { clientId, clientSecret, scopes, pkce } = body
+      const {
+        clientId,
+        clientSecret,
+        scopes,
+        pkce,
+        authorizationEndpoint,
+        tokenEndpoint,
+        userInfoEndpoint,
+        jwksEndpoint,
+      } = body
 
       const oidcConfig: any = {
         clientId,
@@ -114,48 +138,102 @@ export async function POST(request: NextRequest) {
         pkce: pkce ?? true,
       }
 
-      // Add manual endpoints for providers that might need them
-      // Common patterns for OIDC providers that don't support discovery properly
-      if (
-        issuer.includes('okta.com') ||
-        issuer.includes('auth0.com') ||
-        issuer.includes('identityserver')
-      ) {
-        const baseUrl = issuer.includes('/oauth2/default')
-          ? issuer.replace('/oauth2/default', '')
-          : issuer.replace('/oauth', '').replace('/v2.0', '').replace('/oauth2', '')
+      oidcConfig.authorizationEndpoint = authorizationEndpoint
+      oidcConfig.tokenEndpoint = tokenEndpoint
+      oidcConfig.userInfoEndpoint = userInfoEndpoint
+      oidcConfig.jwksEndpoint = jwksEndpoint
 
-        // Okta-style endpoints
-        if (issuer.includes('okta.com')) {
-          oidcConfig.authorizationEndpoint = `${baseUrl}/oauth2/default/v1/authorize`
-          oidcConfig.tokenEndpoint = `${baseUrl}/oauth2/default/v1/token`
-          oidcConfig.userInfoEndpoint = `${baseUrl}/oauth2/default/v1/userinfo`
-          oidcConfig.jwksEndpoint = `${baseUrl}/oauth2/default/v1/keys`
-        }
-        // Auth0-style endpoints
-        else if (issuer.includes('auth0.com')) {
-          oidcConfig.authorizationEndpoint = `${baseUrl}/authorize`
-          oidcConfig.tokenEndpoint = `${baseUrl}/oauth/token`
-          oidcConfig.userInfoEndpoint = `${baseUrl}/userinfo`
-          oidcConfig.jwksEndpoint = `${baseUrl}/.well-known/jwks.json`
-        }
-        // Generic OIDC endpoints (IdentityServer, etc.)
-        else {
-          oidcConfig.authorizationEndpoint = `${baseUrl}/connect/authorize`
-          oidcConfig.tokenEndpoint = `${baseUrl}/connect/token`
-          oidcConfig.userInfoEndpoint = `${baseUrl}/connect/userinfo`
-          oidcConfig.jwksEndpoint = `${baseUrl}/.well-known/jwks`
-        }
+      const needsDiscovery =
+        !oidcConfig.authorizationEndpoint || !oidcConfig.tokenEndpoint || !oidcConfig.jwksEndpoint
 
-        logger.info('Using manual OIDC endpoints for provider', {
+      if (needsDiscovery) {
+        const discoveryUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
+        try {
+          logger.info('Fetching OIDC discovery document for missing endpoints', {
+            discoveryUrl,
+            hasAuthEndpoint: !!oidcConfig.authorizationEndpoint,
+            hasTokenEndpoint: !!oidcConfig.tokenEndpoint,
+            hasJwksEndpoint: !!oidcConfig.jwksEndpoint,
+          })
+
+          const discoveryResponse = await fetch(discoveryUrl, {
+            headers: { Accept: 'application/json' },
+          })
+
+          if (!discoveryResponse.ok) {
+            logger.error('Failed to fetch OIDC discovery document', {
+              status: discoveryResponse.status,
+              statusText: discoveryResponse.statusText,
+            })
+            return NextResponse.json(
+              {
+                error: `Failed to fetch OIDC discovery document from ${discoveryUrl}. Status: ${discoveryResponse.status}. Provide all endpoints explicitly or verify the issuer URL.`,
+              },
+              { status: 400 }
+            )
+          }
+
+          const discovery = await discoveryResponse.json()
+
+          oidcConfig.authorizationEndpoint =
+            oidcConfig.authorizationEndpoint || discovery.authorization_endpoint
+          oidcConfig.tokenEndpoint = oidcConfig.tokenEndpoint || discovery.token_endpoint
+          oidcConfig.userInfoEndpoint = oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
+          oidcConfig.jwksEndpoint = oidcConfig.jwksEndpoint || discovery.jwks_uri
+
+          logger.info('Merged OIDC endpoints (user-provided + discovery)', {
+            providerId,
+            issuer,
+            authorizationEndpoint: oidcConfig.authorizationEndpoint,
+            tokenEndpoint: oidcConfig.tokenEndpoint,
+            userInfoEndpoint: oidcConfig.userInfoEndpoint,
+            jwksEndpoint: oidcConfig.jwksEndpoint,
+          })
+        } catch (error) {
+          logger.error('Error fetching OIDC discovery document', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            discoveryUrl,
+          })
+          return NextResponse.json(
+            {
+              error: `Failed to fetch OIDC discovery document from ${discoveryUrl}. Please verify the issuer URL is correct or provide all endpoints explicitly.`,
+            },
+            { status: 400 }
+          )
+        }
+      } else {
+        logger.info('Using explicitly provided OIDC endpoints (all present)', {
           providerId,
-          provider: issuer.includes('okta.com')
-            ? 'Okta'
-            : issuer.includes('auth0.com')
-              ? 'Auth0'
-              : 'Generic',
-          authEndpoint: oidcConfig.authorizationEndpoint,
+          issuer,
+          authorizationEndpoint: oidcConfig.authorizationEndpoint,
+          tokenEndpoint: oidcConfig.tokenEndpoint,
+          userInfoEndpoint: oidcConfig.userInfoEndpoint,
+          jwksEndpoint: oidcConfig.jwksEndpoint,
         })
+      }
+
+      if (
+        !oidcConfig.authorizationEndpoint ||
+        !oidcConfig.tokenEndpoint ||
+        !oidcConfig.jwksEndpoint
+      ) {
+        const missing: string[] = []
+        if (!oidcConfig.authorizationEndpoint) missing.push('authorizationEndpoint')
+        if (!oidcConfig.tokenEndpoint) missing.push('tokenEndpoint')
+        if (!oidcConfig.jwksEndpoint) missing.push('jwksEndpoint')
+
+        logger.error('Missing required OIDC endpoints after discovery merge', {
+          missing,
+          authorizationEndpoint: oidcConfig.authorizationEndpoint,
+          tokenEndpoint: oidcConfig.tokenEndpoint,
+          jwksEndpoint: oidcConfig.jwksEndpoint,
+        })
+        return NextResponse.json(
+          {
+            error: `Missing required OIDC endpoints: ${missing.join(', ')}. Please provide these explicitly or verify the issuer supports OIDC discovery.`,
+          },
+          { status: 400 }
+        )
       }
 
       providerConfig.oidcConfig = oidcConfig

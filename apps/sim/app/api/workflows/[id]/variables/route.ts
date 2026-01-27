@@ -11,16 +11,22 @@ import type { Variable } from '@/stores/panel/variables/types'
 
 const logger = createLogger('WorkflowVariablesAPI')
 
+const VariableSchema = z.object({
+  id: z.string(),
+  workflowId: z.string(),
+  name: z.string(),
+  type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
+  value: z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.record(z.unknown()),
+    z.array(z.unknown()),
+  ]),
+})
+
 const VariablesSchema = z.object({
-  variables: z.array(
-    z.object({
-      id: z.string(),
-      workflowId: z.string(),
-      name: z.string(),
-      type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-      value: z.union([z.string(), z.number(), z.boolean(), z.record(z.any()), z.array(z.any())]),
-    })
-  ),
+  variables: z.record(z.string(), VariableSchema),
 })
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -60,21 +66,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     try {
       const { variables } = VariablesSchema.parse(body)
 
-      // Format variables for storage
-      const variablesRecord: Record<string, Variable> = {}
-      variables.forEach((variable) => {
-        variablesRecord[variable.id] = variable
-      })
-
-      // Replace variables completely with the incoming ones
+      // Variables are already in Record format - use directly
       // The frontend is the source of truth for what variables should exist
-      const updatedVariables = variablesRecord
-
-      // Update workflow with variables
       await db
         .update(workflow)
         .set({
-          variables: updatedVariables,
+          variables,
           updatedAt: new Date(),
         })
         .where(eq(workflow.id, workflowId))
@@ -148,8 +145,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         headers,
       }
     )
-  } catch (error: any) {
+  } catch (error) {
     logger.error(`[${requestId}] Workflow variables fetch error`, error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
-import { useGeneralStore } from '@/stores/settings/general/store'
 
 const logger = createLogger('GeneralSettingsQuery')
 
@@ -25,6 +24,7 @@ export interface GeneralSettings {
   billingUsageNotificationsEnabled: boolean
   errorNotificationsEnabled: boolean
   snapToGridSize: number
+  showActionBar: boolean
 }
 
 /**
@@ -43,60 +43,65 @@ async function fetchGeneralSettings(): Promise<GeneralSettings> {
     autoConnect: data.autoConnect ?? true,
     showTrainingControls: data.showTrainingControls ?? false,
     superUserModeEnabled: data.superUserModeEnabled ?? true,
-    theme: data.theme || 'system',
+    theme: data.theme || 'dark',
     telemetryEnabled: data.telemetryEnabled ?? true,
     billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
     errorNotificationsEnabled: data.errorNotificationsEnabled ?? true,
     snapToGridSize: data.snapToGridSize ?? 0,
+    showActionBar: data.showActionBar ?? true,
   }
-}
-
-/**
- * Sync React Query cache to Zustand store and next-themes.
- * This ensures the rest of the app (which uses Zustand) stays in sync.
- * Uses shallow comparison to prevent unnecessary updates and flickering.
- * @param settings - The general settings to sync
- */
-function syncSettingsToZustand(settings: GeneralSettings) {
-  const store = useGeneralStore.getState()
-
-  const newSettings = {
-    isAutoConnectEnabled: settings.autoConnect,
-    showTrainingControls: settings.showTrainingControls,
-    superUserModeEnabled: settings.superUserModeEnabled,
-    theme: settings.theme,
-    telemetryEnabled: settings.telemetryEnabled,
-    isBillingUsageNotificationsEnabled: settings.billingUsageNotificationsEnabled,
-    isErrorNotificationsEnabled: settings.errorNotificationsEnabled,
-    snapToGridSize: settings.snapToGridSize,
-  }
-
-  const hasChanges = Object.entries(newSettings).some(
-    ([key, value]) => store[key as keyof typeof newSettings] !== value
-  )
-
-  if (hasChanges) {
-    store.setSettings(newSettings)
-  }
-
-  syncThemeToNextThemes(settings.theme)
 }
 
 /**
  * Hook to fetch general settings.
- * Syncs to Zustand store only on successful fetch (not on cache updates from mutations).
+ * TanStack Query is now the single source of truth for general settings.
  */
 export function useGeneralSettings() {
   return useQuery({
     queryKey: generalSettingsKeys.settings(),
     queryFn: async () => {
       const settings = await fetchGeneralSettings()
-      syncSettingsToZustand(settings)
+      syncThemeToNextThemes(settings.theme)
       return settings
     },
     staleTime: 60 * 60 * 1000,
     placeholderData: keepPreviousData,
   })
+}
+
+/**
+ * Convenience selector hooks for individual settings.
+ * These provide a simple API for components that only need a single setting value.
+ */
+
+export function useAutoConnect(): boolean {
+  const { data } = useGeneralSettings()
+  return data?.autoConnect ?? true
+}
+
+export function useShowTrainingControls(): boolean {
+  const { data } = useGeneralSettings()
+  return data?.showTrainingControls ?? false
+}
+
+export function useSnapToGridSize(): number {
+  const { data } = useGeneralSettings()
+  return data?.snapToGridSize ?? 0
+}
+
+export function useShowActionBar(): boolean {
+  const { data } = useGeneralSettings()
+  return data?.showActionBar ?? true
+}
+
+export function useBillingUsageNotifications(): boolean {
+  const { data } = useGeneralSettings()
+  return data?.billingUsageNotificationsEnabled ?? true
+}
+
+export function useErrorNotificationsEnabled(): boolean {
+  const { data } = useGeneralSettings()
+  return data?.errorNotificationsEnabled ?? true
 }
 
 /**
@@ -138,7 +143,10 @@ export function useUpdateGeneralSetting() {
         }
 
         queryClient.setQueryData<GeneralSettings>(generalSettingsKeys.settings(), newSettings)
-        syncSettingsToZustand(newSettings)
+
+        if (key === 'theme') {
+          syncThemeToNextThemes(value as GeneralSettings['theme'])
+        }
       }
 
       return { previousSettings }
@@ -146,7 +154,7 @@ export function useUpdateGeneralSetting() {
     onError: (err, _variables, context) => {
       if (context?.previousSettings) {
         queryClient.setQueryData(generalSettingsKeys.settings(), context.previousSettings)
-        syncSettingsToZustand(context.previousSettings)
+        syncThemeToNextThemes(context.previousSettings.theme)
       }
       logger.error('Failed to update setting:', err)
     },

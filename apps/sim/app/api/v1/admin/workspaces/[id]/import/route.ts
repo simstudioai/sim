@@ -31,6 +31,7 @@ import { NextResponse } from 'next/server'
 import {
   extractWorkflowName,
   extractWorkflowsFromZip,
+  parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -46,7 +47,6 @@ import {
   type WorkspaceImportRequest,
   type WorkspaceImportResponse,
 } from '@/app/api/v1/admin/types'
-import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 
 const logger = createLogger('AdminWorkspaceImportAPI')
 

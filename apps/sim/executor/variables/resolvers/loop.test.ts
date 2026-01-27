@@ -1,6 +1,7 @@
 import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import type { LoopScope } from '@/executor/execution/state'
+import { InvalidFieldError } from '@/executor/utils/block-reference'
 import { LoopResolver } from './loop'
 import type { ResolutionContext } from './reference'
 
@@ -62,7 +63,12 @@ function createTestContext(
 
 describe('LoopResolver', () => {
   describe('canResolve', () => {
-    it.concurrent('should return true for loop references', () => {
+    it.concurrent('should return true for bare loop reference', () => {
+      const resolver = new LoopResolver(createTestWorkflow())
+      expect(resolver.canResolve('<loop>')).toBe(true)
+    })
+
+    it.concurrent('should return true for known loop properties', () => {
       const resolver = new LoopResolver(createTestWorkflow())
       expect(resolver.canResolve('<loop.index>')).toBe(true)
       expect(resolver.canResolve('<loop.iteration>')).toBe(true)
@@ -76,6 +82,13 @@ describe('LoopResolver', () => {
       expect(resolver.canResolve('<loop.item.name>')).toBe(true)
       expect(resolver.canResolve('<loop.currentItem.data.value>')).toBe(true)
       expect(resolver.canResolve('<loop.items.0>')).toBe(true)
+    })
+
+    it.concurrent('should return true for unknown loop properties (validates in resolve)', () => {
+      const resolver = new LoopResolver(createTestWorkflow())
+      expect(resolver.canResolve('<loop.results>')).toBe(true)
+      expect(resolver.canResolve('<loop.output>')).toBe(true)
+      expect(resolver.canResolve('<loop.unknownProperty>')).toBe(true)
     })
 
     it.concurrent('should return false for non-loop references', () => {
@@ -181,20 +194,34 @@ describe('LoopResolver', () => {
   })
 
   describe('edge cases', () => {
-    it.concurrent('should return undefined for invalid loop reference (missing property)', () => {
+    it.concurrent('should return context object for bare loop reference', () => {
       const resolver = new LoopResolver(createTestWorkflow())
-      const loopScope = createLoopScope({ iteration: 0 })
+      const loopScope = createLoopScope({ iteration: 2, item: 'test', items: ['a', 'b', 'c'] })
       const ctx = createTestContext('block-1', loopScope)
 
-      expect(resolver.resolve('<loop>', ctx)).toBeUndefined()
+      expect(resolver.resolve('<loop>', ctx)).toEqual({
+        index: 2,
+        currentItem: 'test',
+        items: ['a', 'b', 'c'],
+      })
     })
 
-    it.concurrent('should return undefined for unknown loop property', () => {
+    it.concurrent('should return minimal context object for for-loop (no items)', () => {
+      const resolver = new LoopResolver(createTestWorkflow())
+      const loopScope = createLoopScope({ iteration: 5 })
+      const ctx = createTestContext('block-1', loopScope)
+
+      expect(resolver.resolve('<loop>', ctx)).toEqual({
+        index: 5,
+      })
+    })
+
+    it.concurrent('should throw InvalidFieldError for unknown loop property', () => {
       const resolver = new LoopResolver(createTestWorkflow())
       const loopScope = createLoopScope({ iteration: 0 })
       const ctx = createTestContext('block-1', loopScope)
 
-      expect(resolver.resolve('<loop.unknownProperty>', ctx)).toBeUndefined()
+      expect(() => resolver.resolve('<loop.unknownProperty>', ctx)).toThrow(InvalidFieldError)
     })
 
     it.concurrent('should handle iteration index 0 correctly', () => {

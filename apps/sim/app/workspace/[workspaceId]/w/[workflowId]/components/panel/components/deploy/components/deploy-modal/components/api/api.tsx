@@ -3,14 +3,12 @@
 import { useState } from 'react'
 import { Check, Clipboard } from 'lucide-react'
 import {
-  Badge,
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Code,
+  Combobox,
   Label,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
@@ -123,12 +121,13 @@ export function ApiDeploy({
   ${endpoint}`
 
       case 'python':
-        return `import requests
+        return `import os
+import requests
 
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": SIM_API_KEY,
+        "X-API-Key": os.environ.get("SIM_API_KEY"),
         "Content-Type": "application/json"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
@@ -140,7 +139,7 @@ print(response.json())`
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -153,7 +152,7 @@ console.log(data);`
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -181,12 +180,13 @@ console.log(data);`
   ${endpoint}`
 
       case 'python':
-        return `import requests
+        return `import os
+import requests
 
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": SIM_API_KEY,
+        "X-API-Key": os.environ.get("SIM_API_KEY"),
         "Content-Type": "application/json"
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')},
@@ -201,7 +201,7 @@ for line in response.iter_lines():
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -220,7 +220,7 @@ while (true) {
         return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json"
   },
   body: JSON.stringify(${JSON.stringify(payload)})
@@ -258,12 +258,13 @@ while (true) {
   ${endpoint}`
 
           case 'python':
-            return `import requests
+            return `import os
+import requests
 
 response = requests.post(
     "${endpoint}",
     headers={
-        "X-API-Key": SIM_API_KEY,
+        "X-API-Key": os.environ.get("SIM_API_KEY"),
         "Content-Type": "application/json",
         "X-Execution-Mode": "async"
     },
@@ -277,7 +278,7 @@ print(job)  # Contains job_id for status checking`
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json",
     "X-Execution-Mode": "async"
   },
@@ -291,7 +292,7 @@ console.log(job); // Contains job_id for status checking`
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-    "X-API-Key": SIM_API_KEY,
+    "X-API-Key": process.env.SIM_API_KEY,
     "Content-Type": "application/json",
     "X-Execution-Mode": "async"
   },
@@ -312,11 +313,12 @@ console.log(job); // Contains job_id for status checking`
   ${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION`
 
           case 'python':
-            return `import requests
+            return `import os
+import requests
 
 response = requests.get(
     "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
-    headers={"X-API-Key": SIM_API_KEY}
+    headers={"X-API-Key": os.environ.get("SIM_API_KEY")}
 )
 
 status = response.json()
@@ -326,7 +328,7 @@ print(status)`
             return `const response = await fetch(
   "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
   {
-    headers: { "X-API-Key": SIM_API_KEY }
+    headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
@@ -337,7 +339,7 @@ console.log(status);`
             return `const response = await fetch(
   "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
   {
-    headers: { "X-API-Key": SIM_API_KEY }
+    headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
@@ -355,11 +357,12 @@ console.log(status);`
   ${baseUrl}/api/users/me/usage-limits`
 
           case 'python':
-            return `import requests
+            return `import os
+import requests
 
 response = requests.get(
     "${baseUrl}/api/users/me/usage-limits",
-    headers={"X-API-Key": SIM_API_KEY}
+    headers={"X-API-Key": os.environ.get("SIM_API_KEY")}
 )
 
 limits = response.json()
@@ -369,7 +372,7 @@ print(limits)`
             return `const response = await fetch(
   "${baseUrl}/api/users/me/usage-limits",
   {
-    headers: { "X-API-Key": SIM_API_KEY }
+    headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
@@ -380,7 +383,7 @@ console.log(limits);`
             return `const response = await fetch(
   "${baseUrl}/api/users/me/usage-limits",
   {
-    headers: { "X-API-Key": SIM_API_KEY }
+    headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
@@ -449,64 +452,19 @@ console.log(limits);`
         </div>
       )}
 
-      {/* <div>
-        <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-            URL
-          </Label>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={() => handleCopy('endpoint', info.endpoint)}
-                aria-label='Copy endpoint'
-                className='!p-1.5 -my-1.5'
-              >
-                {copied.endpoint ? (
-                  <Check className='h-3 w-3' />
-                ) : (
-                  <Clipboard className='h-3 w-3' />
-                )}
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content>
-              <span>{copied.endpoint ? 'Copied' : 'Copy'}</span>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        </div>
-        <Code.Viewer
-          code={info.endpoint}
-          language='javascript'
-          wrapText
-          className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
-        />
-      </div> */}
-
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
           <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             Language
           </Label>
         </div>
-        <div className='inline-flex gap-[2px]'>
-          {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang, index, arr) => (
-            <Button
-              key={lang}
-              type='button'
-              variant={language === lang ? 'active' : 'default'}
-              onClick={() => setLanguage(lang)}
-              className={`px-[8px] py-[4px] text-[12px] ${
-                index === 0
-                  ? 'rounded-r-none'
-                  : index === arr.length - 1
-                    ? 'rounded-l-none'
-                    : 'rounded-none'
-              }`}
-            >
+        <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
+          {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
+            <ButtonGroupItem key={lang} value={lang}>
               {LANGUAGE_LABELS[lang]}
-            </Button>
+            </ButtonGroupItem>
           ))}
-        </div>
+        </ButtonGroup>
       </div>
 
       <div>
@@ -543,7 +501,7 @@ console.log(limits);`
           <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
             Run workflow (stream response)
           </Label>
-          <div className='flex items-center gap-[8px]'>
+          <div className='flex items-center gap-[6px]'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -587,7 +545,7 @@ console.log(limits);`
             <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
               Run workflow (async)
             </Label>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-[6px]'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
@@ -607,48 +565,19 @@ console.log(limits);`
                   <span>{copied.async ? 'Copied' : 'Copy'}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <div className='min-w-0 max-w-full'>
-                    <Badge
-                      variant='outline'
-                      className='flex-none cursor-pointer whitespace-nowrap rounded-[6px]'
-                    >
-                      <span className='whitespace-nowrap text-[12px]'>
-                        {getAsyncExampleTitle()}
-                      </span>
-                    </Badge>
-                  </div>
-                </PopoverTrigger>
-                <PopoverContent
-                  side='bottom'
-                  align='end'
-                  sideOffset={4}
-                  maxHeight={300}
-                  maxWidth={300}
-                  minWidth={160}
-                  border
-                >
-                  <PopoverItem
-                    active={asyncExampleType === 'execute'}
-                    onClick={() => setAsyncExampleType('execute')}
-                  >
-                    Execute Job
-                  </PopoverItem>
-                  <PopoverItem
-                    active={asyncExampleType === 'status'}
-                    onClick={() => setAsyncExampleType('status')}
-                  >
-                    Check Status
-                  </PopoverItem>
-                  <PopoverItem
-                    active={asyncExampleType === 'rate-limits'}
-                    onClick={() => setAsyncExampleType('rate-limits')}
-                  >
-                    Rate Limits
-                  </PopoverItem>
-                </PopoverContent>
-              </Popover>
+              <Combobox
+                size='sm'
+                className='!w-fit !py-[2px] min-w-[100px] rounded-[6px] px-[9px]'
+                options={[
+                  { label: 'Execute Job', value: 'execute' },
+                  { label: 'Check Status', value: 'status' },
+                  { label: 'Rate Limits', value: 'rate-limits' },
+                ]}
+                value={asyncExampleType}
+                onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}
+                align='end'
+                dropdownWidth={160}
+              />
             </div>
           </div>
           <Code.Viewer

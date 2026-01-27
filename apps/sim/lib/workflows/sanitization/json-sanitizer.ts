@@ -53,15 +53,24 @@ export interface ExportWorkflowState {
     metadata?: {
       name?: string
       description?: string
+      color?: string
+      sortOrder?: number
       exportedAt?: string
     }
     variables?: Array<{
       id: string
       name: string
       type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
-      value: any
+      value: unknown
     }>
   }
+}
+
+/** Condition structure for sanitization */
+interface SanitizedCondition {
+  id: string
+  title: string
+  value: string
 }
 
 /**
@@ -70,15 +79,18 @@ export interface ExportWorkflowState {
  */
 function sanitizeConditions(conditionsJson: string): string {
   try {
-    const conditions = JSON.parse(conditionsJson)
+    const conditions: unknown = JSON.parse(conditionsJson)
     if (!Array.isArray(conditions)) return conditionsJson
 
     // Keep only id, title, and value - remove UI state
-    const cleaned = conditions.map((cond: any) => ({
-      id: cond.id,
-      title: cond.title,
-      value: cond.value || '',
-    }))
+    const cleaned: SanitizedCondition[] = conditions.map((cond: unknown) => {
+      const condition = cond as Record<string, unknown>
+      return {
+        id: String(condition.id ?? ''),
+        title: String(condition.title ?? ''),
+        value: String(condition.value ?? ''),
+      }
+    })
 
     return JSON.stringify(cleaned)
   } catch {
@@ -86,11 +98,50 @@ function sanitizeConditions(conditionsJson: string): string {
   }
 }
 
+/** Tool input structure for sanitization */
+interface ToolInput {
+  type: string
+  customToolId?: string
+  schema?: {
+    type?: string
+    function?: {
+      name: string
+      description?: string
+      parameters?: unknown
+    }
+  }
+  code?: string
+  title?: string
+  toolId?: string
+  usageControl?: string
+  isExpanded?: boolean
+  [key: string]: unknown
+}
+
+/** Sanitized tool output structure */
+interface SanitizedTool {
+  type: string
+  customToolId?: string
+  usageControl?: string
+  title?: string
+  toolId?: string
+  schema?: {
+    type: string
+    function: {
+      name: string
+      description?: string
+      parameters?: unknown
+    }
+  }
+  code?: string
+  [key: string]: unknown
+}
+
 /**
  * Sanitize tools array by removing UI state and redundant fields
  */
-function sanitizeTools(tools: any[]): any[] {
-  return tools.map((tool) => {
+function sanitizeTools(tools: ToolInput[]): SanitizedTool[] {
+  return tools.map((tool): SanitizedTool => {
     if (tool.type === 'custom-tool') {
       // New reference format: minimal fields only
       if (tool.customToolId && !tool.schema && !tool.code) {
@@ -102,7 +153,7 @@ function sanitizeTools(tools: any[]): any[] {
       }
 
       // Legacy inline format: include all fields
-      const sanitized: any = {
+      const sanitized: SanitizedTool = {
         type: tool.type,
         title: tool.title,
         toolId: tool.toolId,
@@ -129,23 +180,24 @@ function sanitizeTools(tools: any[]): any[] {
       return sanitized
     }
 
-    const { isExpanded, ...cleanTool } = tool
-    return cleanTool
+    const { isExpanded: _isExpanded, ...cleanTool } = tool
+    return cleanTool as SanitizedTool
   })
 }
 
 /**
  * Sort object keys recursively for consistent comparison
  */
-function sortKeysRecursively(item: any): any {
+function sortKeysRecursively(item: unknown): unknown {
   if (Array.isArray(item)) {
     return item.map(sortKeysRecursively)
   }
   if (item !== null && typeof item === 'object') {
-    return Object.keys(item)
+    const obj = item as Record<string, unknown>
+    return Object.keys(obj)
       .sort()
-      .reduce((result: any, key: string) => {
-        result[key] = sortKeysRecursively(item[key])
+      .reduce((result: Record<string, unknown>, key: string) => {
+        result[key] = sortKeysRecursively(obj[key])
         return result
       }, {})
   }
@@ -183,7 +235,7 @@ function sanitizeSubBlocks(
 
         // Sort keys for consistent comparison
         if (obj && typeof obj === 'object') {
-          sanitized[key] = sortKeysRecursively(obj)
+          sanitized[key] = sortKeysRecursively(obj) as Record<string, unknown>
           return
         }
       } catch {
@@ -201,7 +253,7 @@ function sanitizeSubBlocks(
     }
 
     if (key === 'tools' && Array.isArray(subBlock.value)) {
-      sanitized[key] = sanitizeTools(subBlock.value)
+      sanitized[key] = sanitizeTools(subBlock.value as unknown as ToolInput[])
       return
     }
 
@@ -217,11 +269,127 @@ function sanitizeSubBlocks(
 }
 
 /**
+ * Convert internal condition handle (condition-{uuid}) to simple format (if, else-if-0, else)
+ * Uses 0-indexed numbering for else-if conditions
+ */
+function convertConditionHandleToSimple(
+  handle: string,
+  _blockId: string,
+  block: BlockState
+): string {
+  if (!handle.startsWith('condition-')) {
+    return handle
+  }
+
+  // Extract the condition UUID from the handle
+  const conditionId = handle.substring('condition-'.length)
+
+  // Get conditions from block subBlocks
+  const conditionsValue = block.subBlocks?.conditions?.value
+  if (!conditionsValue || typeof conditionsValue !== 'string') {
+    return handle
+  }
+
+  let conditions: Array<{ id: string; title: string }>
+  try {
+    conditions = JSON.parse(conditionsValue)
+  } catch {
+    return handle
+  }
+
+  if (!Array.isArray(conditions)) {
+    return handle
+  }
+
+  // Find the condition by ID and generate simple handle
+  let elseIfIndex = 0
+  for (const condition of conditions) {
+    const title = condition.title?.toLowerCase()
+    if (condition.id === conditionId) {
+      if (title === 'if') {
+        return 'if'
+      }
+      if (title === 'else if') {
+        return `else-if-${elseIfIndex}`
+      }
+      if (title === 'else') {
+        return 'else'
+      }
+    }
+    // Count else-ifs as we iterate (for index tracking)
+    if (title === 'else if') {
+      elseIfIndex++
+    }
+  }
+
+  // Fallback: return original handle if condition not found
+  return handle
+}
+
+/**
+ * Convert internal router handle (router-{uuid}) to simple format (route-0, route-1)
+ * Uses 0-indexed numbering for routes
+ */
+function convertRouterHandleToSimple(handle: string, _blockId: string, block: BlockState): string {
+  if (!handle.startsWith('router-')) {
+    return handle
+  }
+
+  // Extract the route UUID from the handle
+  const routeId = handle.substring('router-'.length)
+
+  // Get routes from block subBlocks
+  const routesValue = block.subBlocks?.routes?.value
+  if (!routesValue || typeof routesValue !== 'string') {
+    return handle
+  }
+
+  let routes: Array<{ id: string; title?: string }>
+  try {
+    routes = JSON.parse(routesValue)
+  } catch {
+    return handle
+  }
+
+  if (!Array.isArray(routes)) {
+    return handle
+  }
+
+  // Find the route by ID and generate simple handle (0-indexed)
+  for (let i = 0; i < routes.length; i++) {
+    if (routes[i].id === routeId) {
+      return `route-${i}`
+    }
+  }
+
+  // Fallback: return original handle if route not found
+  return handle
+}
+
+/**
+ * Convert source handle to simple format for condition and router blocks
+ * Outputs: if, else-if-0, else (for conditions) and route-0, route-1 (for routers)
+ */
+function convertToSimpleHandle(handle: string, blockId: string, block: BlockState): string {
+  if (handle.startsWith('condition-') && block.type === 'condition') {
+    return convertConditionHandleToSimple(handle, blockId, block)
+  }
+
+  if (handle.startsWith('router-') && block.type === 'router_v2') {
+    return convertRouterHandleToSimple(handle, blockId, block)
+  }
+
+  return handle
+}
+
+/**
  * Extract connections for a block from edges and format as operations-style connections
+ * Converts internal UUID handles to semantic format for training data
  */
 function extractConnectionsForBlock(
   blockId: string,
-  edges: WorkflowState['edges']
+  edges: WorkflowState['edges'],
+  block: BlockState
 ): Record<string, string | string[]> | undefined {
   const connections: Record<string, string[]> = {}
 
@@ -232,9 +400,12 @@ function extractConnectionsForBlock(
     return undefined
   }
 
-  // Group by source handle
+  // Group by source handle (converting to simple format)
   for (const edge of outgoingEdges) {
-    const handle = edge.sourceHandle || 'source'
+    let handle = edge.sourceHandle || 'source'
+
+    // Convert internal UUID handles to simple format (if, else-if-0, route-0, etc.)
+    handle = convertToSimpleHandle(handle, blockId, block)
 
     if (!connections[handle]) {
       connections[handle] = []
@@ -269,7 +440,7 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
 
   // Helper to recursively sanitize a block and its children
   const sanitizeBlock = (blockId: string, block: BlockState): CopilotBlockState => {
-    const connections = extractConnectionsForBlock(blockId, state.edges)
+    const connections = extractConnectionsForBlock(blockId, state.edges, block)
 
     // For loop/parallel blocks, extract config from block.data instead of subBlocks
     let inputs: Record<string, string | number | string[][] | object>
@@ -383,7 +554,7 @@ export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
   // Use unified sanitization with env var preservation for export
   const sanitizedState = sanitizeWorkflowForSharing(fullState, {
     preserveEnvVars: true, // Keep {{ENV_VAR}} references in exported workflows
-  })
+  }) as ExportWorkflowState['state']
 
   return {
     version: '1.0',

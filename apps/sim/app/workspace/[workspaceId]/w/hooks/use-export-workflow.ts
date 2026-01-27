@@ -1,7 +1,12 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import JSZip from 'jszip'
-import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
+import {
+  downloadFile,
+  exportWorkflowsToZip,
+  exportWorkflowToJson,
+  fetchWorkflowForExport,
+  sanitizePathSegment,
+} from '@/lib/workflows/operations/import-export'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -9,200 +14,101 @@ const logger = createLogger('useExportWorkflow')
 
 interface UseExportWorkflowProps {
   /**
-   * Current workspace ID
-   */
-  workspaceId: string
-  /**
-   * Function that returns the workflow ID(s) to export
-   * This function is called when export occurs to get fresh selection state
-   */
-  getWorkflowIds: () => string | string[]
-  /**
    * Optional callback after successful export
    */
   onSuccess?: () => void
 }
 
 /**
- * Hook for managing workflow export to JSON.
- *
- * Handles:
- * - Single or bulk workflow export
- * - Fetching workflow data and variables from API
- * - Sanitizing workflow state for export
- * - Downloading as JSON file(s)
- * - Loading state management
- * - Error handling and logging
- * - Clearing selection after export
- *
- * @param props - Hook configuration
- * @returns Export workflow handlers and state
+ * Hook for managing workflow export to JSON or ZIP.
  */
-export function useExportWorkflow({
-  workspaceId,
-  getWorkflowIds,
-  onSuccess,
-}: UseExportWorkflowProps) {
-  const { workflows } = useWorkflowRegistry()
+export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
   const [isExporting, setIsExporting] = useState(false)
 
-  /**
-   * Download file helper
-   */
-  const downloadFile = (
-    content: Blob | string,
-    filename: string,
-    mimeType = 'application/json'
-  ) => {
-    try {
-      const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      logger.error('Failed to download file:', error)
-    }
-  }
+  const onSuccessRef = useRef(onSuccess)
+  onSuccessRef.current = onSuccess
 
   /**
    * Export the workflow(s) to JSON or ZIP
    * - Single workflow: exports as JSON file
    * - Multiple workflows: exports as ZIP file containing all JSON files
-   * Fetches workflow data from API to support bulk export of non-active workflows
    */
-  const handleExportWorkflow = useCallback(async () => {
-    if (isExporting) {
-      return
-    }
-
-    setIsExporting(true)
-    try {
-      // Get fresh workflow IDs at export time
-      const workflowIdsOrId = getWorkflowIds()
-      if (!workflowIdsOrId) {
+  const handleExportWorkflow = useCallback(
+    async (workflowIds: string | string[]) => {
+      if (isExporting) {
         return
       }
 
-      // Normalize to array for consistent handling
-      const workflowIdsToExport = Array.isArray(workflowIdsOrId)
-        ? workflowIdsOrId
-        : [workflowIdsOrId]
+      if (!workflowIds || (Array.isArray(workflowIds) && workflowIds.length === 0)) {
+        return
+      }
 
-      logger.info('Starting workflow export', {
-        workflowIdsToExport,
-        count: workflowIdsToExport.length,
-      })
+      setIsExporting(true)
+      try {
+        const workflowIdsToExport = Array.isArray(workflowIds) ? workflowIds : [workflowIds]
 
-      const exportedWorkflows: Array<{ name: string; content: string }> = []
+        logger.info('Starting workflow export', {
+          workflowIdsToExport,
+          count: workflowIdsToExport.length,
+        })
 
-      // Export each workflow
-      for (const workflowId of workflowIdsToExport) {
-        try {
-          const workflow = workflows[workflowId]
-          if (!workflow) {
+        const { workflows } = useWorkflowRegistry.getState()
+        const exportedWorkflows = []
+
+        for (const workflowId of workflowIdsToExport) {
+          const workflowMeta = workflows[workflowId]
+          if (!workflowMeta) {
             logger.warn(`Workflow ${workflowId} not found in registry`)
             continue
           }
 
-          // Fetch workflow state from API
-          const workflowResponse = await fetch(`/api/workflows/${workflowId}`)
-          if (!workflowResponse.ok) {
-            logger.error(`Failed to fetch workflow ${workflowId}`)
-            continue
-          }
-
-          const { data: workflowData } = await workflowResponse.json()
-          if (!workflowData?.state) {
-            logger.warn(`Workflow ${workflowId} has no state`)
-            continue
-          }
-
-          // Fetch workflow variables
-          const variablesResponse = await fetch(`/api/workflows/${workflowId}/variables`)
-          let workflowVariables: any[] = []
-          if (variablesResponse.ok) {
-            const variablesData = await variablesResponse.json()
-            workflowVariables = Object.values(variablesData?.data || {}).map((v: any) => ({
-              id: v.id,
-              name: v.name,
-              type: v.type,
-              value: v.value,
-            }))
-          }
-
-          // Prepare export state
-          const workflowState = {
-            ...workflowData.state,
-            metadata: {
-              name: workflow.name,
-              description: workflow.description,
-              color: workflow.color,
-              exportedAt: new Date().toISOString(),
-            },
-            variables: workflowVariables,
-          }
-
-          const exportState = sanitizeForExport(workflowState)
-          const jsonString = JSON.stringify(exportState, null, 2)
-
-          exportedWorkflows.push({
-            name: workflow.name,
-            content: jsonString,
+          const exportData = await fetchWorkflowForExport(workflowId, {
+            name: workflowMeta.name,
+            description: workflowMeta.description,
+            color: workflowMeta.color,
+            folderId: workflowMeta.folderId,
           })
 
-          logger.info(`Workflow ${workflowId} exported successfully`)
-        } catch (error) {
-          logger.error(`Failed to export workflow ${workflowId}:`, error)
-        }
-      }
-
-      if (exportedWorkflows.length === 0) {
-        logger.warn('No workflows were successfully exported')
-        return
-      }
-
-      // Download as single JSON or ZIP depending on count
-      if (exportedWorkflows.length === 1) {
-        // Single workflow - download as JSON
-        const filename = `${exportedWorkflows[0].name.replace(/[^a-z0-9]/gi, '-')}.json`
-        downloadFile(exportedWorkflows[0].content, filename, 'application/json')
-      } else {
-        // Multiple workflows - download as ZIP
-        const zip = new JSZip()
-
-        for (const exportedWorkflow of exportedWorkflows) {
-          const filename = `${exportedWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.json`
-          zip.file(filename, exportedWorkflow.content)
+          if (exportData) {
+            exportedWorkflows.push(exportData)
+            logger.info(`Workflow ${workflowId} prepared for export`)
+          }
         }
 
-        const zipBlob = await zip.generateAsync({ type: 'blob' })
-        const zipFilename = `workflows-export-${Date.now()}.zip`
-        downloadFile(zipBlob, zipFilename, 'application/zip')
+        if (exportedWorkflows.length === 0) {
+          logger.warn('No workflows were successfully prepared for export')
+          return
+        }
+
+        if (exportedWorkflows.length === 1) {
+          const jsonContent = exportWorkflowToJson(exportedWorkflows[0])
+          const filename = `${sanitizePathSegment(exportedWorkflows[0].workflow.name)}.json`
+          downloadFile(jsonContent, filename, 'application/json')
+        } else {
+          const zipBlob = await exportWorkflowsToZip(exportedWorkflows)
+          const zipFilename = `workflows-export-${Date.now()}.zip`
+          downloadFile(zipBlob, zipFilename, 'application/zip')
+        }
+
+        const { clearSelection } = useFolderStore.getState()
+        clearSelection()
+
+        logger.info('Workflow(s) exported successfully', {
+          workflowIds: workflowIdsToExport,
+          count: exportedWorkflows.length,
+          format: exportedWorkflows.length === 1 ? 'JSON' : 'ZIP',
+        })
+
+        onSuccessRef.current?.()
+      } catch (error) {
+        logger.error('Error exporting workflow(s):', { error })
+        throw error
+      } finally {
+        setIsExporting(false)
       }
-
-      // Clear selection after successful export
-      const { clearSelection } = useFolderStore.getState()
-      clearSelection()
-
-      logger.info('Workflow(s) exported successfully', {
-        workflowIds: workflowIdsToExport,
-        count: exportedWorkflows.length,
-        format: exportedWorkflows.length === 1 ? 'JSON' : 'ZIP',
-      })
-
-      onSuccess?.()
-    } catch (error) {
-      logger.error('Error exporting workflow(s):', { error })
-      throw error
-    } finally {
-      setIsExporting(false)
-    }
-  }, [getWorkflowIds, isExporting, workflows, onSuccess])
+    },
+    [isExporting]
+  )
 
   return {
     isExporting,

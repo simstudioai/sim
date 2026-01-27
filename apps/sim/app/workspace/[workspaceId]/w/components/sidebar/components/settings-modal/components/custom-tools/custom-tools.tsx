@@ -159,11 +159,11 @@ export function CustomTools() {
                     )}
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-[8px]'>
-                    <Button variant='ghost' onClick={() => setEditingTool(tool.id)}>
+                    <Button variant='default' onClick={() => setEditingTool(tool.id)}>
                       Edit
                     </Button>
                     <Button
-                      variant='destructive'
+                      variant='ghost'
                       onClick={() => handleDeleteClick(tool.id)}
                       disabled={deletingTools.has(tool.id)}
                     >
@@ -206,7 +206,7 @@ export function CustomTools() {
       />
 
       <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent className='w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>

@@ -14,11 +14,7 @@ export interface MailchimpGetTemplateResponse {
   success: boolean
   output: {
     template: MailchimpTemplate
-    metadata: {
-      operation: 'get_template'
-      templateId: string
-    }
-    success: boolean
+    template_id: string
   }
 }
 
@@ -67,24 +63,19 @@ export const mailchimpGetTemplateTool: ToolConfig<
       success: true,
       output: {
         template: data,
-        metadata: {
-          operation: 'get_template' as const,
-          templateId: data.id,
-        },
-        success: true,
+        template_id: data.id,
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
+    success: { type: 'boolean', description: 'Whether the template was successfully retrieved' },
     output: {
       type: 'object',
-      description: 'Template data and metadata',
+      description: 'Template data',
       properties: {
-        template: { type: 'object', description: 'Template object' },
-        metadata: { type: 'object', description: 'Operation metadata' },
-        success: { type: 'boolean', description: 'Operation success' },
+        template: { type: 'json', description: 'Template object' },
+        template_id: { type: 'string', description: 'The unique ID of the template' },
       },
     },
   },

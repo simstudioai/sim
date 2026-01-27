@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
 import type { McpServerStatusConfig, McpTool, StoredMcpTool } from '@/lib/mcp/types'
-import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpQueries')
 

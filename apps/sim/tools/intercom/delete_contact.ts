@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
+import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildIntercomUrl, handleIntercomError } from './types'
-
-const logger = createLogger('IntercomDeleteContact')
 
 export interface IntercomDeleteContactParams {
   accessToken: string
@@ -21,20 +18,12 @@ export interface IntercomDeleteContactResponse {
   }
 }
 
-export const intercomDeleteContactTool: ToolConfig<
-  IntercomDeleteContactParams,
-  IntercomDeleteContactResponse
-> = {
-  id: 'intercom_delete_contact',
-  name: 'Delete Contact from Intercom',
-  description: 'Delete a contact from Intercom by ID',
-  version: '1.0.0',
-
+const intercomDeleteContactBase = {
   params: {
     accessToken: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Intercom API access token',
     },
     contactId: {
@@ -46,14 +35,26 @@ export const intercomDeleteContactTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildIntercomUrl(`/contacts/${params.contactId}`),
+    url: (params: IntercomDeleteContactParams) => buildIntercomUrl(`/contacts/${params.contactId}`),
     method: 'DELETE',
-    headers: (params) => ({
+    headers: (params: IntercomDeleteContactParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
       'Intercom-Version': '2.14',
     }),
   },
+} satisfies Pick<ToolConfig<IntercomDeleteContactParams, any>, 'params' | 'request'>
+
+export const intercomDeleteContactTool: ToolConfig<
+  IntercomDeleteContactParams,
+  IntercomDeleteContactResponse
+> = {
+  id: 'intercom_delete_contact',
+  name: 'Delete Contact from Intercom',
+  description: 'Delete a contact from Intercom by ID',
+  version: '1.0.0',
+
+  ...intercomDeleteContactBase,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
@@ -87,5 +88,46 @@ export const intercomDeleteContactTool: ToolConfig<
       },
     },
     success: { type: 'boolean', description: 'Operation success status' },
+  },
+}
+
+interface IntercomDeleteContactV2Response {
+  success: boolean
+  output: {
+    id: string
+    deleted: boolean
+  }
+}
+
+export const intercomDeleteContactV2Tool: ToolConfig<
+  IntercomDeleteContactParams,
+  IntercomDeleteContactV2Response
+> = {
+  ...intercomDeleteContactBase,
+  id: 'intercom_delete_contact_v2',
+  name: 'Delete Contact from Intercom',
+  description: 'Delete a contact from Intercom by ID. Returns API-aligned fields only.',
+  version: '2.0.0',
+
+  transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const data = await response.json()
+      handleIntercomError(data, response.status, 'delete_contact')
+    }
+
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        id: data.id,
+        deleted: true,
+      },
+    }
+  },
+
+  outputs: {
+    id: { type: 'string', description: 'ID of deleted contact' },
+    deleted: { type: 'boolean', description: 'Whether the contact was deleted' },
   },
 }

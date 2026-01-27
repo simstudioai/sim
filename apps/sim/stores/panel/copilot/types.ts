@@ -1,6 +1,21 @@
+import type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
+
+export type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
+
 import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export type ToolState = ClientToolCallState
+
+/**
+ * Subagent content block for nested thinking/reasoning inside a tool call
+ */
+export interface SubAgentContentBlock {
+  type: 'subagent_text' | 'subagent_tool_call'
+  content?: string
+  toolCall?: CopilotToolCall
+  timestamp: number
+}
 
 export interface CopilotToolCall {
   id: string
@@ -8,6 +23,14 @@ export interface CopilotToolCall {
   state: ClientToolCallState
   params?: Record<string, any>
   display?: ClientToolDisplay
+  /** Content streamed from a subagent (e.g., debug agent) */
+  subAgentContent?: string
+  /** Tool calls made by the subagent */
+  subAgentToolCalls?: CopilotToolCall[]
+  /** Structured content blocks for subagent (thinking + tool calls in order) */
+  subAgentBlocks?: SubAgentContentBlock[]
+  /** Whether subagent is currently streaming */
+  subAgentStreaming?: boolean
 }
 
 export interface MessageFileAttachment {
@@ -42,6 +65,20 @@ export interface CopilotMessage {
   errorType?: 'usage_limit' | 'unauthorized' | 'forbidden' | 'rate_limit' | 'upgrade_required'
 }
 
+/**
+ * A message queued for sending while another message is in progress.
+ * Like Cursor's queued message feature.
+ */
+export interface QueuedMessage {
+  id: string
+  content: string
+  fileAttachments?: MessageFileAttachment[]
+  contexts?: ChatContext[]
+  queuedAt: number
+  /** Original messageId to use when processing (for edit/resend flows) */
+  originalMessageId?: string
+}
+
 // Contexts attached to a user message
 export type ChatContext =
   | { kind: 'past_chat'; chatId: string; label: string }
@@ -53,35 +90,15 @@ export type ChatContext =
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
   | { kind: 'templates'; templateId?: string; label: string }
   | { kind: 'docs'; label: string }
+  | { kind: 'slash_command'; command: string; label: string }
 
 import type { CopilotChat as ApiCopilotChat } from '@/lib/copilot/api'
 
 export type CopilotChat = ApiCopilotChat
 
-export type CopilotMode = 'ask' | 'build' | 'plan'
-
 export interface CopilotState {
   mode: CopilotMode
-  selectedModel:
-    | 'gpt-5-fast'
-    | 'gpt-5'
-    | 'gpt-5-medium'
-    | 'gpt-5-high'
-    | 'gpt-5.1-fast'
-    | 'gpt-5.1'
-    | 'gpt-5.1-medium'
-    | 'gpt-5.1-high'
-    | 'gpt-5-codex'
-    | 'gpt-5.1-codex'
-    | 'gpt-4o'
-    | 'gpt-4.1'
-    | 'o3'
-    | 'claude-4-sonnet'
-    | 'claude-4.5-haiku'
-    | 'claude-4.5-sonnet'
-    | 'claude-4.5-opus'
-    | 'claude-4.1-opus'
-    | 'gemini-3-pro'
+  selectedModel: CopilotModelId
   agentPrefetch: boolean
   enabledModels: string[] | null // Null means not loaded yet, array of model IDs when loaded
   isCollapsed: boolean
@@ -93,6 +110,7 @@ export interface CopilotState {
 
   checkpoints: any[]
   messageCheckpoints: Record<string, any[]>
+  messageSnapshots: Record<string, WorkflowState>
 
   isLoading: boolean
   isLoadingChats: boolean
@@ -101,6 +119,8 @@ export interface CopilotState {
   isSaving: boolean
   isRevertingCheckpoint: boolean
   isAborting: boolean
+  /** Skip adding Continue option on abort for queued send-now */
+  suppressAbortContinueOption?: boolean
 
   error: string | null
   saveError: string | null
@@ -131,18 +151,14 @@ export interface CopilotState {
 
   // Per-message metadata captured at send-time for reliable stats
 
-  // Context usage tracking for percentage pill
-  contextUsage: {
-    usage: number
-    percentage: number
-    model: string
-    contextWindow: number
-    when: 'start' | 'end'
-    estimatedTokens?: number
-  } | null
-
   // Auto-allowed integration tools (tools that can run without confirmation)
   autoAllowedTools: string[]
+
+  // Message queue for messages sent while another is in progress
+  messageQueue: QueuedMessage[]
+
+  // Credential IDs to mask in UI (for sensitive data protection)
+  sensitiveCredentialIds: Set<string>
 }
 
 export interface CopilotActions {
@@ -150,7 +166,6 @@ export interface CopilotActions {
   setSelectedModel: (model: CopilotStore['selectedModel']) => Promise<void>
   setAgentPrefetch: (prefetch: boolean) => void
   setEnabledModels: (models: string[] | null) => void
-  fetchContextUsage: () => Promise<void>
 
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean
@@ -167,9 +182,10 @@ export interface CopilotActions {
       fileAttachments?: MessageFileAttachment[]
       contexts?: ChatContext[]
       messageId?: string
+      queueIfBusy?: boolean
     }
   ) => Promise<void>
-  abortMessage: () => void
+  abortMessage: (options?: { suppressContinueOption?: boolean }) => void
   sendImplicitFeedback: (
     implicitFeedback: string,
     toolCallState?: 'accepted' | 'rejected' | 'error'
@@ -187,6 +203,7 @@ export interface CopilotActions {
   loadMessageCheckpoints: (chatId: string) => Promise<void>
   revertToCheckpoint: (checkpointId: string) => Promise<void>
   getCheckpointsForMessage: (messageId: string) => any[]
+  saveMessageCheckpoint: (messageId: string) => Promise<boolean>
 
   clearMessages: () => void
   clearError: () => void
@@ -220,6 +237,25 @@ export interface CopilotActions {
   addAutoAllowedTool: (toolId: string) => Promise<void>
   removeAutoAllowedTool: (toolId: string) => Promise<void>
   isToolAutoAllowed: (toolId: string) => boolean
+
+  // Credential masking
+  loadSensitiveCredentialIds: () => Promise<void>
+  maskCredentialValue: (value: string) => string
+
+  // Message queue actions
+  addToQueue: (
+    message: string,
+    options?: {
+      fileAttachments?: MessageFileAttachment[]
+      contexts?: ChatContext[]
+      /** Original messageId to preserve (for edit/resend flows) */
+      messageId?: string
+    }
+  ) => void
+  removeFromQueue: (id: string) => void
+  moveUpInQueue: (id: string) => void
+  sendNow: (id: string) => Promise<void>
+  clearQueue: () => void
 }
 
 export type CopilotStore = CopilotState & CopilotActions

@@ -4,15 +4,19 @@ import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isDependency } from '@/blocks/utils'
 import { resolveSelectorForSubBlock, type SelectorResolution } from '@/hooks/selectors/resolution'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -42,21 +46,59 @@ export function FileSelectorInput({
     previewContextValues,
   })
 
-  const [connectedCredentialFromStore] = useSubBlockValue(blockId, 'credential')
-  const [domainValueFromStore] = useSubBlockValue(blockId, 'domain')
-  const [projectIdValueFromStore] = useSubBlockValue(blockId, 'projectId')
-  const [planIdValueFromStore] = useSubBlockValue(blockId, 'planId')
-  const [teamIdValueFromStore] = useSubBlockValue(blockId, 'teamId')
-  const [siteIdValueFromStore] = useSubBlockValue(blockId, 'siteId')
-  const [collectionIdValueFromStore] = useSubBlockValue(blockId, 'collectionId')
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
 
-  const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
+  const blockValues = useSubBlockStore((state) => {
+    if (!activeWorkflowId) return {}
+    const workflowValues = state.workflowValues[activeWorkflowId] || {}
+    return (workflowValues as Record<string, Record<string, unknown>>)[blockId] || {}
+  })
+
+  const [domainValueFromStore] = useSubBlockValue(blockId, 'domain')
+
+  const connectedCredential = previewContextValues?.credential ?? blockValues.credential
   const domainValue = previewContextValues?.domain ?? domainValueFromStore
-  const projectIdValue = previewContextValues?.projectId ?? projectIdValueFromStore
-  const planIdValue = previewContextValues?.planId ?? planIdValueFromStore
-  const teamIdValue = previewContextValues?.teamId ?? teamIdValueFromStore
-  const siteIdValue = previewContextValues?.siteId ?? siteIdValueFromStore
-  const collectionIdValue = previewContextValues?.collectionId ?? collectionIdValueFromStore
+
+  const teamIdValue = useMemo(
+    () =>
+      previewContextValues?.teamId ??
+      resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
+    [previewContextValues?.teamId, blockValues, canonicalIndex, canonicalModeOverrides]
+  )
+
+  const siteIdValue = useMemo(
+    () =>
+      previewContextValues?.siteId ??
+      resolveDependencyValue('siteId', blockValues, canonicalIndex, canonicalModeOverrides),
+    [previewContextValues?.siteId, blockValues, canonicalIndex, canonicalModeOverrides]
+  )
+
+  const collectionIdValue = useMemo(
+    () =>
+      previewContextValues?.collectionId ??
+      resolveDependencyValue('collectionId', blockValues, canonicalIndex, canonicalModeOverrides),
+    [previewContextValues?.collectionId, blockValues, canonicalIndex, canonicalModeOverrides]
+  )
+
+  const projectIdValue = useMemo(
+    () =>
+      previewContextValues?.projectId ??
+      resolveDependencyValue('projectId', blockValues, canonicalIndex, canonicalModeOverrides),
+    [previewContextValues?.projectId, blockValues, canonicalIndex, canonicalModeOverrides]
+  )
+
+  const planIdValue = useMemo(
+    () =>
+      previewContextValues?.planId ??
+      resolveDependencyValue('planId', blockValues, canonicalIndex, canonicalModeOverrides),
+    [previewContextValues?.planId, blockValues, canonicalIndex, canonicalModeOverrides]
+  )
 
   const normalizedCredentialId =
     typeof connectedCredential === 'string'
@@ -65,7 +107,6 @@ export function FileSelectorInput({
         ? ((connectedCredential as Record<string, any>).id ?? '')
         : ''
 
-  // Derive provider from serviceId using OAuth config (same pattern as credential-selector)
   const serviceId = subBlock.serviceId || ''
   const effectiveProviderId = useMemo(() => getProviderIdFromServiceId(serviceId), [serviceId])
 

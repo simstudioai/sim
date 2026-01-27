@@ -11,49 +11,29 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
     conversationId: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'Conversation identifier (e.g., user-123, session-abc). Deletes all memories for this conversation.',
     },
     id: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'Legacy parameter for conversation identifier. Use conversationId instead. Provided for backwards compatibility.',
     },
   },
 
   request: {
-    url: (params): any => {
+    url: (params) => {
       const workspaceId = params._context?.workspaceId
-
       if (!workspaceId) {
-        return {
-          _errorResponse: {
-            status: 400,
-            data: {
-              success: false,
-              error: {
-                message: 'workspaceId is required and must be provided in execution context',
-              },
-            },
-          },
-        }
+        throw new Error('workspaceId is required in execution context')
       }
 
       const conversationId = params.conversationId || params.id
-
       if (!conversationId) {
-        return {
-          _errorResponse: {
-            status: 400,
-            data: {
-              success: false,
-              error: {
-                message: 'conversationId or id must be provided',
-              },
-            },
-          },
-        }
+        throw new Error('conversationId or id is required')
       }
 
       const url = new URL('/api/memory', 'http://dummy')

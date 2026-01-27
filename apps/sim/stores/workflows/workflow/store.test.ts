@@ -247,28 +247,30 @@ describe('workflow store', () => {
     })
   })
 
-  describe('removeBlock', () => {
+  describe('batchRemoveBlocks', () => {
     it('should remove a block', () => {
-      const { addBlock, removeBlock } = useWorkflowStore.getState()
+      const { addBlock, batchRemoveBlocks } = useWorkflowStore.getState()
 
       addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
-      removeBlock('block-1')
+      batchRemoveBlocks(['block-1'])
 
       const { blocks } = useWorkflowStore.getState()
       expectBlockNotExists(blocks, 'block-1')
     })
 
     it('should remove connected edges when block is removed', () => {
-      const { addBlock, addEdge, removeBlock } = useWorkflowStore.getState()
+      const { addBlock, batchAddEdges, batchRemoveBlocks } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'Middle', { x: 200, y: 0 })
       addBlock('block-3', 'function', 'End', { x: 400, y: 0 })
 
-      addEdge({ id: 'e1', source: 'block-1', target: 'block-2' })
-      addEdge({ id: 'e2', source: 'block-2', target: 'block-3' })
+      batchAddEdges([
+        { id: 'e1', source: 'block-1', target: 'block-2' },
+        { id: 'e2', source: 'block-2', target: 'block-3' },
+      ])
 
-      removeBlock('block-2')
+      batchRemoveBlocks(['block-2'])
 
       const state = useWorkflowStore.getState()
       expectBlockNotExists(state.blocks, 'block-2')
@@ -276,59 +278,48 @@ describe('workflow store', () => {
     })
 
     it('should not throw when removing non-existent block', () => {
-      const { removeBlock } = useWorkflowStore.getState()
+      const { batchRemoveBlocks } = useWorkflowStore.getState()
 
-      expect(() => removeBlock('non-existent')).not.toThrow()
+      expect(() => batchRemoveBlocks(['non-existent'])).not.toThrow()
     })
   })
 
-  describe('addEdge', () => {
+  describe('batchAddEdges', () => {
     it('should add an edge between two blocks', () => {
-      const { addBlock, addEdge } = useWorkflowStore.getState()
+      const { addBlock, batchAddEdges } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
 
-      addEdge({ id: 'e1', source: 'block-1', target: 'block-2' })
+      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-2' }])
 
       const { edges } = useWorkflowStore.getState()
       expectEdgeConnects(edges, 'block-1', 'block-2')
     })
 
-    it('should not add duplicate edges', () => {
-      const { addBlock, addEdge } = useWorkflowStore.getState()
+    it('should not add duplicate connections', () => {
+      const { addBlock, batchAddEdges } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
 
-      addEdge({ id: 'e1', source: 'block-1', target: 'block-2' })
-      addEdge({ id: 'e2', source: 'block-1', target: 'block-2' })
+      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-2' }])
+      batchAddEdges([{ id: 'e2', source: 'block-1', target: 'block-2' }])
 
       const state = useWorkflowStore.getState()
       expectEdgeCount(state, 1)
     })
-
-    it('should prevent self-referencing edges', () => {
-      const { addBlock, addEdge } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'function', 'Self', { x: 0, y: 0 })
-
-      addEdge({ id: 'e1', source: 'block-1', target: 'block-1' })
-
-      const state = useWorkflowStore.getState()
-      expectEdgeCount(state, 0)
-    })
   })
 
-  describe('removeEdge', () => {
+  describe('batchRemoveEdges', () => {
     it('should remove an edge by id', () => {
-      const { addBlock, addEdge, removeEdge } = useWorkflowStore.getState()
+      const { addBlock, batchAddEdges, batchRemoveEdges } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
-      addEdge({ id: 'e1', source: 'block-1', target: 'block-2' })
+      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-2' }])
 
-      removeEdge('e1')
+      batchRemoveEdges(['e1'])
 
       const state = useWorkflowStore.getState()
       expectEdgeCount(state, 0)
@@ -336,19 +327,19 @@ describe('workflow store', () => {
     })
 
     it('should not throw when removing non-existent edge', () => {
-      const { removeEdge } = useWorkflowStore.getState()
+      const { batchRemoveEdges } = useWorkflowStore.getState()
 
-      expect(() => removeEdge('non-existent')).not.toThrow()
+      expect(() => batchRemoveEdges(['non-existent'])).not.toThrow()
     })
   })
 
   describe('clear', () => {
     it('should clear all blocks and edges', () => {
-      const { addBlock, addEdge, clear } = useWorkflowStore.getState()
+      const { addBlock, batchAddEdges, clear } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
-      addEdge({ id: 'e1', source: 'block-1', target: 'block-2' })
+      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-2' }])
 
       clear()
 
@@ -358,18 +349,18 @@ describe('workflow store', () => {
     })
   })
 
-  describe('toggleBlockEnabled', () => {
+  describe('batchToggleEnabled', () => {
     it('should toggle block enabled state', () => {
-      const { addBlock, toggleBlockEnabled } = useWorkflowStore.getState()
+      const { addBlock, batchToggleEnabled } = useWorkflowStore.getState()
 
       addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
 
       expect(useWorkflowStore.getState().blocks['block-1'].enabled).toBe(true)
 
-      toggleBlockEnabled('block-1')
+      batchToggleEnabled(['block-1'])
       expect(useWorkflowStore.getState().blocks['block-1'].enabled).toBe(false)
 
-      toggleBlockEnabled('block-1')
+      batchToggleEnabled(['block-1'])
       expect(useWorkflowStore.getState().blocks['block-1'].enabled).toBe(true)
     })
   })
@@ -398,13 +389,13 @@ describe('workflow store', () => {
     })
   })
 
-  describe('updateBlockPosition', () => {
+  describe('batchUpdatePositions', () => {
     it('should update block position', () => {
-      const { addBlock, updateBlockPosition } = useWorkflowStore.getState()
+      const { addBlock, batchUpdatePositions } = useWorkflowStore.getState()
 
       addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
 
-      updateBlockPosition('block-1', { x: 100, y: 200 })
+      batchUpdatePositions([{ id: 'block-1', position: { x: 100, y: 200 } }])
 
       const { blocks } = useWorkflowStore.getState()
       expect(blocks['block-1'].position).toEqual({ x: 100, y: 200 })

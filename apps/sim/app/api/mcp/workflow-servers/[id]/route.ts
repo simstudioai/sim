@@ -31,6 +31,7 @@ export const GET = withMcpAuth<RouteParams>('read')(
           createdBy: workflowMcpServer.createdBy,
           name: workflowMcpServer.name,
           description: workflowMcpServer.description,
+          isPublic: workflowMcpServer.isPublic,
           createdAt: workflowMcpServer.createdAt,
           updatedAt: workflowMcpServer.updatedAt,
         })
@@ -97,6 +98,9 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
       }
       if (body.description !== undefined) {
         updateData.description = body.description?.trim() || null
+      }
+      if (body.isPublic !== undefined) {
+        updateData.isPublic = body.isPublic
       }
 
       const [updatedServer] = await db

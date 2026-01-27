@@ -76,6 +76,18 @@ export const githubIssueCommentTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      hideFromPreview: true,
+      mode: 'trigger',
+      triggerId: 'github_issue_comment',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'github_issue_comment',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
@@ -102,21 +114,13 @@ export const githubIssueCommentTrigger: TriggerConfig = {
         value: 'github_issue_comment',
       },
     },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'github_issue_comment',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'github_issue_comment',
-      },
-    },
   ],
 
   outputs: {
+    event_type: {
+      type: 'string',
+      description: 'GitHub event type from X-GitHub-Event header (e.g., issue_comment)',
+    },
     action: {
       type: 'string',
       description: 'Action performed (created, edited, deleted)',

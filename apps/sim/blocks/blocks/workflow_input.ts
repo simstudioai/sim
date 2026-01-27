@@ -1,21 +1,6 @@
 import { WorkflowIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-// Helper: list workflows excluding self
-const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
-  try {
-    const { workflows, activeWorkflowId } = useWorkflowRegistry.getState()
-    return Object.entries(workflows)
-      .filter(([id]) => id !== activeWorkflowId)
-      .map(([id, w]) => ({ label: w.name || `Workflow ${id.slice(0, 8)}`, id }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-  } catch {
-    return []
-  }
-}
-
-// New workflow block variant that visualizes child Input Trigger schema for mapping
 export const WorkflowInputBlock: BlockConfig = {
   type: 'workflow_input',
   name: 'Workflow',
@@ -26,21 +11,20 @@ export const WorkflowInputBlock: BlockConfig = {
   - Remember, that the start point of the child workflow is the Start block.
   `,
   category: 'blocks',
-  bgColor: '#6366F1', // Indigo - modern and professional
+  docsLink: 'https://docs.sim.ai/blocks/workflow',
+  bgColor: '#6366F1',
   icon: WorkflowIcon,
   subBlocks: [
     {
       id: 'workflowId',
       title: 'Select Workflow',
-      type: 'combobox',
-      options: getAvailableWorkflows,
+      type: 'workflow-selector',
       placeholder: 'Search workflows...',
       required: true,
     },
-    // Renders dynamic mapping UI based on selected child workflow's Start trigger inputFormat
     {
       id: 'inputMapping',
-      title: 'Input Mapping',
+      title: 'Inputs',
       type: 'input-mapping',
       description:
         "Map fields defined in the child workflow's Start block to variables/values in this workflow.",

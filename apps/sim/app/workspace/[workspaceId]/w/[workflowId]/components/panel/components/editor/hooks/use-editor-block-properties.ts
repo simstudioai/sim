@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -11,27 +11,27 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
  * @returns Block display properties (advanced mode, trigger mode)
  */
 export function useEditorBlockProperties(blockId: string | null, isSnapshotView: boolean) {
-  const normalBlocks = useWorkflowStore(useCallback((state) => state.blocks, []))
-  const baselineBlocks = useWorkflowDiffStore(
-    useCallback((state) => state.baselineWorkflow?.blocks || {}, [])
+  const normalBlockProps = useWorkflowStore(
+    useShallow((state) => {
+      if (!blockId) return { advancedMode: false, triggerMode: false }
+      const block = state.blocks?.[blockId]
+      return {
+        advancedMode: block?.advancedMode ?? false,
+        triggerMode: block?.triggerMode ?? false,
+      }
+    })
   )
 
-  const blockProperties = useMemo(() => {
-    if (!blockId) {
+  const baselineBlockProps = useWorkflowDiffStore(
+    useShallow((state) => {
+      if (!blockId) return { advancedMode: false, triggerMode: false }
+      const block = state.baselineWorkflow?.blocks?.[blockId]
       return {
-        advancedMode: false,
-        triggerMode: false,
+        advancedMode: block?.advancedMode ?? false,
+        triggerMode: block?.triggerMode ?? false,
       }
-    }
+    })
+  )
 
-    const blocks = isSnapshotView ? baselineBlocks : normalBlocks
-    const block = blocks?.[blockId]
-
-    return {
-      advancedMode: block?.advancedMode ?? false,
-      triggerMode: block?.triggerMode ?? false,
-    }
-  }, [blockId, isSnapshotView, normalBlocks, baselineBlocks])
-
-  return blockProperties
+  return isSnapshotView ? baselineBlockProps : normalBlockProps
 }

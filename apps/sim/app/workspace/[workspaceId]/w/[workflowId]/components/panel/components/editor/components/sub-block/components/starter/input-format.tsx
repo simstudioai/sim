@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
 import 'prismjs/components/prism-json'
@@ -28,6 +28,7 @@ interface Field {
   name: string
   type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
   value?: string
+  description?: string
   collapsed?: boolean
 }
 
@@ -41,7 +42,9 @@ interface FieldFormatProps {
   placeholder?: string
   showType?: boolean
   showValue?: boolean
+  showDescription?: boolean
   valuePlaceholder?: string
+  descriptionPlaceholder?: string
   config?: any
 }
 
@@ -73,6 +76,7 @@ const createDefaultField = (): Field => ({
   name: '',
   type: 'string',
   value: '',
+  description: '',
   collapsed: false,
 })
 
@@ -80,6 +84,8 @@ const createDefaultField = (): Field => ({
  * Validates and sanitizes field names by removing control characters and quotes
  */
 const validateFieldName = (name: string): string => name.replace(/[\x00-\x1F"\\]/g, '').trim()
+
+const jsonHighlight = (code: string): string => highlight(code, languages.json, 'json')
 
 export function FieldFormat({
   blockId,
@@ -91,11 +97,15 @@ export function FieldFormat({
   placeholder = 'fieldName',
   showType = true,
   showValue = false,
+  showDescription = false,
   valuePlaceholder = 'Enter default value',
+  descriptionPlaceholder = 'Describe this field',
 }: FieldFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
+  const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
+  const nameOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const inputController = useSubBlockInput({
@@ -123,24 +133,63 @@ export function FieldFormat({
   }
 
   /**
-   * Removes a field by ID, preventing removal of the last field
+   * Removes a field by ID, or clears it if it's the last field
    */
   const removeField = (id: string) => {
-    if (isReadOnly || fields.length === 1) return
+    if (isReadOnly) return
+
+    if (fields.length === 1) {
+      setStoreValue([createDefaultField()])
+      return
+    }
+
     setStoreValue(fields.filter((field) => field.id !== id))
   }
 
-  /**
-   * Updates a specific field property
-   */
-  const updateField = (id: string, field: keyof Field, value: any) => {
-    if (isReadOnly) return
+  const storeValueRef = useRef(storeValue)
+  storeValueRef.current = storeValue
 
-    const updatedValue =
-      field === 'name' && typeof value === 'string' ? validateFieldName(value) : value
+  const isReadOnlyRef = useRef(isReadOnly)
+  isReadOnlyRef.current = isReadOnly
 
-    setStoreValue(fields.map((f) => (f.id === id ? { ...f, [field]: updatedValue } : f)))
-  }
+  const setStoreValueRef = useRef(setStoreValue)
+  setStoreValueRef.current = setStoreValue
+
+  const updateField = useCallback(
+    (id: string, fieldKey: keyof Field, fieldValue: Field[keyof Field]) => {
+      if (isReadOnlyRef.current) return
+
+      const updatedValue =
+        fieldKey === 'name' && typeof fieldValue === 'string'
+          ? validateFieldName(fieldValue)
+          : fieldValue
+
+      const currentStoreValue = storeValueRef.current
+      const currentFields: Field[] =
+        Array.isArray(currentStoreValue) && currentStoreValue.length > 0
+          ? currentStoreValue
+          : [createDefaultField()]
+
+      setStoreValueRef.current(
+        currentFields.map((f) => (f.id === id ? { ...f, [fieldKey]: updatedValue } : f))
+      )
+    },
+    []
+  )
+
+  const editorValueChangeHandlersRef = useRef<Record<string, (newValue: string) => void>>({})
+
+  const getEditorValueChangeHandler = useCallback(
+    (fieldId: string): ((newValue: string) => void) => {
+      if (!editorValueChangeHandlersRef.current[fieldId]) {
+        editorValueChangeHandlersRef.current[fieldId] = (newValue: string) => {
+          updateField(fieldId, 'value', newValue)
+        }
+      }
+      return editorValueChangeHandlersRef.current[fieldId]
+    },
+    [updateField]
+  )
 
   /**
    * Toggles the collapsed state of a field
@@ -159,11 +208,102 @@ export function FieldFormat({
   }
 
   /**
+   * Syncs scroll position between name input and overlay for text highlighting
+   */
+  const syncNameOverlayScroll = (fieldId: string, scrollLeft: number) => {
+    const overlay = nameOverlayRefs.current[fieldId]
+    if (overlay) overlay.scrollLeft = scrollLeft
+  }
+
+  /**
+   * Generates a unique field key for name inputs to avoid collision with value inputs
+   */
+  const getNameFieldKey = (fieldId: string) => `name-${fieldId}`
+
+  /**
+   * Renders the name input field with tag dropdown support
+   */
+  const renderNameInput = (field: Field) => {
+    const nameFieldKey = getNameFieldKey(field.id)
+    const fieldValue = field.name ?? ''
+    const fieldState = inputController.fieldHelpers.getFieldState(nameFieldKey)
+    const handlers = inputController.fieldHelpers.createFieldHandlers(
+      nameFieldKey,
+      fieldValue,
+      (newValue) => updateField(field.id, 'name', newValue)
+    )
+    const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
+      nameFieldKey,
+      fieldValue,
+      (newValue) => updateField(field.id, 'name', newValue)
+    )
+
+    const inputClassName = cn('text-transparent caret-foreground')
+
+    return (
+      <>
+        <Input
+          ref={(el) => {
+            if (el) nameInputRefs.current[field.id] = el
+          }}
+          name='name'
+          value={fieldValue}
+          onChange={handlers.onChange}
+          onKeyDown={handlers.onKeyDown}
+          onDrop={handlers.onDrop}
+          onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
+          onScroll={(e) => syncNameOverlayScroll(field.id, e.currentTarget.scrollLeft)}
+          onPaste={() =>
+            setTimeout(() => {
+              const input = nameInputRefs.current[field.id]
+              input && syncNameOverlayScroll(field.id, input.scrollLeft)
+            }, 0)
+          }
+          placeholder={placeholder}
+          disabled={isReadOnly}
+          autoComplete='off'
+          className={cn('allow-scroll w-full overflow-x-auto overflow-y-hidden', inputClassName)}
+        />
+        <div
+          ref={(el) => {
+            if (el) nameOverlayRefs.current[field.id] = el
+          }}
+          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <div
+            className='w-full whitespace-pre'
+            style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+          >
+            {formatDisplayText(
+              fieldValue,
+              accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+            )}
+          </div>
+        </div>
+        {fieldState.showTags && (
+          <TagDropdown
+            visible={fieldState.showTags}
+            onSelect={tagSelectHandler}
+            blockId={blockId}
+            activeSourceBlockId={fieldState.activeSourceBlockId}
+            inputValue={fieldValue}
+            cursorPosition={fieldState.cursorPosition}
+            onClose={() => inputController.fieldHelpers.hideFieldDropdowns(nameFieldKey)}
+            inputRef={{ current: nameInputRefs.current[field.id] || null }}
+          />
+        )}
+      </>
+    )
+  }
+
+  /**
    * Renders the field header with name, type badge, and action buttons
    */
   const renderFieldHeader = (field: Field, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
       onClick={() => toggleCollapse(field.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
@@ -180,7 +320,7 @@ export function FieldFormat({
         <Button
           variant='ghost'
           onClick={() => removeField(field.id)}
-          disabled={isReadOnly || fields.length === 1}
+          disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
@@ -259,12 +399,8 @@ export function FieldFormat({
             </Code.Placeholder>
             <Editor
               value={fieldValue}
-              onValueChange={(newValue) => {
-                if (!isReadOnly) {
-                  updateField(field.id, 'value', newValue)
-                }
-              }}
-              highlight={(code) => highlight(code, languages.json, 'json')}
+              onValueChange={getEditorValueChangeHandler(field.id)}
+              highlight={jsonHighlight}
               disabled={isReadOnly}
               {...getCodeEditorProps({ disabled: isReadOnly })}
             />
@@ -298,12 +434,8 @@ export function FieldFormat({
             </Code.Placeholder>
             <Editor
               value={fieldValue}
-              onValueChange={(newValue) => {
-                if (!isReadOnly) {
-                  updateField(field.id, 'value', newValue)
-                }
-              }}
-              highlight={(code) => highlight(code, languages.json, 'json')}
+              onValueChange={getEditorValueChangeHandler(field.id)}
+              highlight={jsonHighlight}
               disabled={isReadOnly}
               {...getCodeEditorProps({ disabled: isReadOnly })}
             />
@@ -339,12 +471,8 @@ export function FieldFormat({
             </Code.Placeholder>
             <Editor
               value={fieldValue}
-              onValueChange={(newValue) => {
-                if (!isReadOnly) {
-                  updateField(field.id, 'value', newValue)
-                }
-              }}
-              highlight={(code) => highlight(code, languages.json, 'json')}
+              onValueChange={getEditorValueChangeHandler(field.id)}
+              highlight={jsonHighlight}
               disabled={isReadOnly}
               {...getCodeEditorProps({ disabled: isReadOnly })}
             />
@@ -365,6 +493,7 @@ export function FieldFormat({
           onKeyDown={handlers.onKeyDown}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
           onScroll={(e) => syncOverlayScroll(field.id, e.currentTarget.scrollLeft)}
           onPaste={() =>
             setTimeout(() => {
@@ -375,15 +504,14 @@ export function FieldFormat({
           placeholder={valuePlaceholder}
           disabled={isReadOnly}
           autoComplete='off'
-          className={cn('allow-scroll w-full overflow-auto', inputClassName)}
-          style={{ overflowX: 'auto' }}
+          className={cn('allow-scroll w-full overflow-x-auto overflow-y-hidden', inputClassName)}
         />
         <div
           ref={(el) => {
             if (el) overlayRefs.current[field.id] = el
           }}
           className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
-          style={{ overflowX: 'auto' }}
+          style={{ scrollbarWidth: 'none' }}
         >
           <div
             className='w-full whitespace-pre'
@@ -417,14 +545,7 @@ export function FieldFormat({
             <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
               <div className='flex flex-col gap-[6px]'>
                 <Label className='text-[13px]'>Name</Label>
-                <Input
-                  name='name'
-                  value={field.name}
-                  onChange={(e) => updateField(field.id, 'name', e.target.value)}
-                  placeholder={placeholder}
-                  disabled={isReadOnly}
-                  autoComplete='off'
-                />
+                <div className='relative'>{renderNameInput(field)}</div>
               </div>
 
               {showType && (
@@ -434,6 +555,18 @@ export function FieldFormat({
                     options={TYPE_OPTIONS}
                     value={field.type}
                     onChange={(value) => updateField(field.id, 'type', value)}
+                    disabled={isReadOnly}
+                  />
+                </div>
+              )}
+
+              {showDescription && (
+                <div className='flex flex-col gap-[6px]'>
+                  <Label className='text-[13px]'>Description</Label>
+                  <Input
+                    value={field.description ?? ''}
+                    onChange={(e) => updateField(field.id, 'description', e.target.value)}
+                    placeholder={descriptionPlaceholder}
                     disabled={isReadOnly}
                   />
                 </div>
@@ -453,8 +586,10 @@ export function FieldFormat({
   )
 }
 
-export function InputFormat(props: Omit<FieldFormatProps, 'title' | 'placeholder'>) {
-  return <FieldFormat {...props} title='Input' placeholder='firstName' />
+export function InputFormat(
+  props: Omit<FieldFormatProps, 'title' | 'placeholder' | 'showDescription'>
+) {
+  return <FieldFormat {...props} title='Input' placeholder='firstName' showDescription={true} />
 }
 
 export function ResponseFormat(

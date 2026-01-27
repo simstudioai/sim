@@ -94,6 +94,17 @@ export const hubspotTicketCreatedTrigger: TriggerConfig = {
       },
     },
     {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'hubspot_ticket_created',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'hubspot_ticket_created',
+      },
+    },
+    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
@@ -151,17 +162,6 @@ export const hubspotTicketCreatedTrigger: TriggerConfig = {
       showCopyButton: true,
       description: 'Run this command to subscribe to ticket creation events',
       mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_ticket_created',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_ticket_created',
       condition: {
         field: 'selectedTriggerId',
         value: 'hubspot_ticket_created',

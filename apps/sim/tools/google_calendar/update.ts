@@ -1,11 +1,12 @@
 import {
   CALENDAR_API_BASE,
-  type GoogleCalendarToolResponse,
+  type GoogleCalendarApiEventResponse,
   type GoogleCalendarUpdateParams,
+  type GoogleCalendarUpdateResponse,
 } from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarToolResponse> = {
+export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUpdateResponse> = {
   id: 'google_calendar_update',
   name: 'Google Calendar Update Event',
   description: 'Update an existing event in Google Calendar',
@@ -39,43 +40,46 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Event title/summary',
+      description: 'New event title/summary',
     },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Event description',
+      description: 'New event description',
     },
     location: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Event location',
+      description: 'New event location',
     },
     startDateTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Start date and time (RFC3339 format, e.g., 2025-06-03T10:00:00-08:00)',
+      description:
+        'New start date and time. MUST include timezone offset (e.g., 2025-06-03T10:00:00-08:00) OR provide timeZone parameter',
     },
     endDateTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'End date and time (RFC3339 format, e.g., 2025-06-03T11:00:00-08:00)',
+      description:
+        'New end date and time. MUST include timezone offset (e.g., 2025-06-03T11:00:00-08:00) OR provide timeZone parameter',
     },
     timeZone: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Time zone (e.g., America/Los_Angeles)',
+      description:
+        'Time zone (e.g., America/Los_Angeles). Required if datetime does not include offset.',
     },
     attendees: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Array of attendee email addresses (replaces all existing attendees)',
+      description: 'Array of attendee email addresses (replaces existing attendees)',
     },
     sendUpdates: {
       type: 'string',
@@ -88,140 +92,76 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
   request: {
     url: (params: GoogleCalendarUpdateParams) => {
       const calendarId = params.calendarId || 'primary'
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}`
+      const queryParams = new URLSearchParams()
+
+      if (params.sendUpdates !== undefined) {
+        queryParams.append('sendUpdates', params.sendUpdates)
+      }
+
+      const queryString = queryParams.toString()
+      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}${queryString ? `?${queryString}` : ''}`
     },
-    method: 'GET',
+    method: 'PATCH',
     headers: (params: GoogleCalendarUpdateParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-  },
+    body: (params: GoogleCalendarUpdateParams) => {
+      const updateData: Record<string, unknown> = {}
 
-  transformResponse: async (response: Response, params) => {
-    const existingEvent = await response.json()
-
-    // Start with the complete existing event to preserve all fields
-    const updatedEvent = { ...existingEvent }
-
-    // Apply updates only for fields that are provided and not empty
-    if (
-      params?.summary !== undefined &&
-      params?.summary !== null &&
-      params?.summary.trim() !== ''
-    ) {
-      updatedEvent.summary = params.summary
-    }
-
-    if (
-      params?.description !== undefined &&
-      params?.description !== null &&
-      params?.description.trim() !== ''
-    ) {
-      updatedEvent.description = params.description
-    }
-
-    if (
-      params?.location !== undefined &&
-      params?.location !== null &&
-      params?.location.trim() !== ''
-    ) {
-      updatedEvent.location = params.location
-    }
-
-    // Only update times if both start and end are provided (Google Calendar requires both)
-    const hasStartTime =
-      params?.startDateTime !== undefined &&
-      params?.startDateTime !== null &&
-      params?.startDateTime.trim() !== ''
-    const hasEndTime =
-      params?.endDateTime !== undefined &&
-      params?.endDateTime !== null &&
-      params?.endDateTime.trim() !== ''
-
-    if (hasStartTime && hasEndTime) {
-      updatedEvent.start = {
-        dateTime: params.startDateTime,
+      if (params.summary !== undefined) {
+        updateData.summary = params.summary
       }
-      updatedEvent.end = {
-        dateTime: params.endDateTime,
-      }
-      if (params?.timeZone) {
-        updatedEvent.start.timeZone = params.timeZone
-        updatedEvent.end.timeZone = params.timeZone
-      }
-    }
 
-    // Handle attendees update - this replaces all existing attendees
-    if (params?.attendees !== undefined && params?.attendees !== null) {
-      let attendeeList: string[] = []
-      if (params.attendees) {
+      if (params.description !== undefined) {
+        updateData.description = params.description
+      }
+
+      if (params.location !== undefined) {
+        updateData.location = params.location
+      }
+
+      if (params.startDateTime !== undefined) {
+        const needsTimezone =
+          !params.startDateTime.includes('+') && !params.startDateTime.includes('-', 10)
+        updateData.start = {
+          dateTime: params.startDateTime,
+          ...(needsTimezone && params.timeZone ? { timeZone: params.timeZone } : {}),
+        }
+      }
+
+      if (params.endDateTime !== undefined) {
+        const needsTimezone =
+          !params.endDateTime.includes('+') && !params.endDateTime.includes('-', 10)
+        updateData.end = {
+          dateTime: params.endDateTime,
+          ...(needsTimezone && params.timeZone ? { timeZone: params.timeZone } : {}),
+        }
+      }
+
+      // Handle attendees - convert to array format
+      if (params.attendees !== undefined) {
+        let attendeeList: string[] = []
         const attendees = params.attendees as string | string[]
+
         if (Array.isArray(attendees)) {
           attendeeList = attendees.filter((email: string) => email && email.trim().length > 0)
         } else if (typeof attendees === 'string' && attendees.trim().length > 0) {
-          // Convert comma-separated string to array
           attendeeList = attendees
             .split(',')
             .map((email: string) => email.trim())
             .filter((email: string) => email.length > 0)
         }
+
+        updateData.attendees = attendeeList.map((email: string) => ({ email }))
       }
 
-      // Replace all attendees with the new list
-      if (attendeeList.length > 0) {
-        updatedEvent.attendees = attendeeList.map((email: string) => ({
-          email,
-          responseStatus: 'needsAction',
-        }))
-      } else {
-        // If empty attendee list is provided, remove all attendees
-        updatedEvent.attendees = []
-      }
-    }
+      return updateData
+    },
+  },
 
-    // Remove read-only fields that shouldn't be included in updates
-    const readOnlyFields = [
-      'id',
-      'etag',
-      'kind',
-      'created',
-      'updated',
-      'htmlLink',
-      'iCalUID',
-      'sequence',
-      'creator',
-      'organizer',
-    ]
-    readOnlyFields.forEach((field) => {
-      delete updatedEvent[field]
-    })
-
-    // Construct PUT URL with query parameters
-    const calendarId = params?.calendarId || 'primary'
-    const queryParams = new URLSearchParams()
-    if (params?.sendUpdates !== undefined) {
-      queryParams.append('sendUpdates', params.sendUpdates)
-    }
-
-    const queryString = queryParams.toString()
-    const putUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId || '')}${queryString ? `?${queryString}` : ''}`
-
-    // Send PUT request to update the event
-    const putResponse = await fetch(putUrl, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${params?.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updatedEvent),
-    })
-
-    if (!putResponse.ok) {
-      const errorData = await putResponse.json()
-      throw new Error(errorData.error?.message || 'Failed to update calendar event')
-    }
-
-    const data = await putResponse.json()
+  transformResponse: async (response: Response) => {
+    const data: GoogleCalendarApiEventResponse = await response.json()
 
     return {
       success: true,
@@ -252,3 +192,64 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
     },
   },
 }
+
+interface GoogleCalendarUpdateV2Response {
+  success: boolean
+  output: {
+    id: string
+    htmlLink: string
+    status: string
+    summary: string | null
+    description: string | null
+    location: string | null
+    start: any
+    end: any
+    attendees: any | null
+    creator: any
+    organizer: any
+  }
+}
+
+export const updateV2Tool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUpdateV2Response> =
+  {
+    id: 'google_calendar_update_v2',
+    name: 'Google Calendar Update Event',
+    description: 'Update an existing event in Google Calendar. Returns API-aligned fields only.',
+    version: '2.0.0',
+    oauth: updateTool.oauth,
+    params: updateTool.params,
+    request: updateTool.request,
+    transformResponse: async (response: Response) => {
+      const data: GoogleCalendarApiEventResponse = await response.json()
+
+      return {
+        success: true,
+        output: {
+          id: data.id,
+          htmlLink: data.htmlLink,
+          status: data.status,
+          summary: data.summary ?? null,
+          description: data.description ?? null,
+          location: data.location ?? null,
+          start: data.start,
+          end: data.end,
+          attendees: data.attendees ?? null,
+          creator: data.creator,
+          organizer: data.organizer,
+        },
+      }
+    },
+    outputs: {
+      id: { type: 'string', description: 'Event ID' },
+      htmlLink: { type: 'string', description: 'Event link' },
+      status: { type: 'string', description: 'Event status' },
+      summary: { type: 'string', description: 'Event title', optional: true },
+      description: { type: 'string', description: 'Event description', optional: true },
+      location: { type: 'string', description: 'Event location', optional: true },
+      start: { type: 'json', description: 'Event start' },
+      end: { type: 'json', description: 'Event end' },
+      attendees: { type: 'json', description: 'Event attendees', optional: true },
+      creator: { type: 'json', description: 'Event creator' },
+      organizer: { type: 'json', description: 'Event organizer' },
+    },
+  }

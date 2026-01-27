@@ -1,11 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
+import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
+import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   createEnvVarPattern,
   createWorkflowVariablePattern,
@@ -17,8 +20,8 @@ export const MAX_DURATION = 210
 
 const logger = createLogger('FunctionExecuteAPI')
 
-const E2B_JS_WRAPPER_LINES = 3 // Lines before user code: ';(async () => {', '  try {', '    const __sim_result = await (async () => {'
-const E2B_PYTHON_WRAPPER_LINES = 1 // Lines before user code: 'def __sim_main__():'
+const E2B_JS_WRAPPER_LINES = 3
+const E2B_PYTHON_WRAPPER_LINES = 1
 
 type TypeScriptModule = typeof import('typescript')
 
@@ -133,33 +136,21 @@ function extractEnhancedError(
   if (error.stack) {
     enhanced.stack = error.stack
 
-    // Parse stack trace to extract line and column information
-    // Handle both compilation errors and runtime errors
     const stackLines: string[] = error.stack.split('\n')
 
     for (const line of stackLines) {
-      // Pattern 1: Compilation errors - "user-function.js:6"
       let match = line.match(/user-function\.js:(\d+)(?::(\d+))?/)
 
-      // Pattern 2: Runtime errors - "at user-function.js:5:12"
       if (!match) {
         match = line.match(/at\s+user-function\.js:(\d+):(\d+)/)
-      }
-
-      // Pattern 3: Generic patterns for any line containing our filename
-      if (!match) {
-        match = line.match(/user-function\.js:(\d+)(?::(\d+))?/)
       }
 
       if (match) {
         const stackLine = Number.parseInt(match[1], 10)
         const stackColumn = match[2] ? Number.parseInt(match[2], 10) : undefined
 
-        // Adjust line number to account for wrapper code
-        // The user code starts at a specific line in our wrapper
         const adjustedLine = stackLine - userCodeStartLine + 1
 
-        // Check if this is a syntax error in wrapper code caused by incomplete user code
         const isWrapperSyntaxError =
           stackLine > userCodeStartLine &&
           error.name === 'SyntaxError' &&
@@ -167,7 +158,6 @@ function extractEnhancedError(
             error.message.includes('Unexpected end of input'))
 
         if (isWrapperSyntaxError && userCode) {
-          // Map wrapper syntax errors to the last line of user code
           const codeLines = userCode.split('\n')
           const lastUserLine = codeLines.length
           enhanced.line = lastUserLine
@@ -180,7 +170,6 @@ function extractEnhancedError(
           enhanced.line = adjustedLine
           enhanced.column = stackColumn
 
-          // Extract the actual line content from user code
           if (userCode) {
             const codeLines = userCode.split('\n')
             if (adjustedLine <= codeLines.length) {
@@ -191,7 +180,6 @@ function extractEnhancedError(
         }
 
         if (stackLine <= userCodeStartLine) {
-          // Error is in wrapper code itself
           enhanced.line = stackLine
           enhanced.column = stackColumn
           break
@@ -199,7 +187,6 @@ function extractEnhancedError(
       }
     }
 
-    // Clean up stack trace to show user-relevant information
     const cleanedStackLines: string[] = stackLines
       .filter(
         (line: string) =>
@@ -212,9 +199,6 @@ function extractEnhancedError(
       enhanced.stack = cleanedStackLines.join('\n')
     }
   }
-
-  // Keep original message without adding error type prefix
-  // The error type will be added later in createUserFriendlyErrorMessage
 
   return enhanced
 }
@@ -230,7 +214,6 @@ function formatE2BError(
   userCode: string,
   prologueLineCount: number
 ): { formattedError: string; cleanedOutput: string } {
-  // Calculate line offset based on language and prologue
   const wrapperLines =
     language === CodeLanguage.Python ? E2B_PYTHON_WRAPPER_LINES : E2B_JS_WRAPPER_LINES
   const totalOffset = prologueLineCount + wrapperLines
@@ -240,27 +223,20 @@ function formatE2BError(
   let cleanErrorMsg = ''
 
   if (language === CodeLanguage.Python) {
-    // Python error format: "Cell In[X], line Y" followed by error details
-    // Extract line number from the Cell reference
     const cellMatch = errorOutput.match(/Cell In\[\d+\], line (\d+)/)
     if (cellMatch) {
       const originalLine = Number.parseInt(cellMatch[1], 10)
       userLine = originalLine - totalOffset
     }
 
-    // Extract clean error message from the error string
-    // Remove file references like "(detected at line X) (file.py, line Y)"
     cleanErrorMsg = errorMessage
       .replace(/\s*\(detected at line \d+\)/g, '')
       .replace(/\s*\([^)]+\.py, line \d+\)/g, '')
       .trim()
   } else if (language === CodeLanguage.JavaScript) {
-    // JavaScript error format from E2B: "SyntaxError: /path/file.ts: Message. (line:col)\n\n   9 | ..."
-    // First, extract the error type and message from the first line
     const firstLineEnd = errorMessage.indexOf('\n')
     const firstLine = firstLineEnd > 0 ? errorMessage.substring(0, firstLineEnd) : errorMessage
 
-    // Parse: "SyntaxError: /home/user/index.ts: Missing semicolon. (11:9)"
     const jsErrorMatch = firstLine.match(/^(\w+Error):\s*[^:]+:\s*([^(]+)\.\s*\((\d+):(\d+)\)/)
     if (jsErrorMatch) {
       cleanErrorType = jsErrorMatch[1]
@@ -268,13 +244,11 @@ function formatE2BError(
       const originalLine = Number.parseInt(jsErrorMatch[3], 10)
       userLine = originalLine - totalOffset
     } else {
-      // Fallback: look for line number in the arrow pointer line (> 11 |)
       const arrowMatch = errorMessage.match(/^>\s*(\d+)\s*\|/m)
       if (arrowMatch) {
         const originalLine = Number.parseInt(arrowMatch[1], 10)
         userLine = originalLine - totalOffset
       }
-      // Try to extract error type and message
       const errorMatch = firstLine.match(/^(\w+Error):\s*(.+)/)
       if (errorMatch) {
         cleanErrorType = errorMatch[1]
@@ -288,13 +262,11 @@ function formatE2BError(
     }
   }
 
-  // Build the final clean error message
   const finalErrorMsg =
     cleanErrorType && cleanErrorMsg
       ? `${cleanErrorType}: ${cleanErrorMsg}`
       : cleanErrorMsg || errorMessage
 
-  // Format with line number if available
   let formattedError = finalErrorMsg
   if (userLine && userLine > 0) {
     const codeLines = userCode.split('\n')
@@ -310,7 +282,6 @@ function formatE2BError(
     }
   }
 
-  // For stdout, just return the clean error message without the full traceback
   const cleanedOutput = finalErrorMsg
 
   return { formattedError, cleanedOutput }
@@ -326,7 +297,6 @@ function createUserFriendlyErrorMessage(
 ): string {
   let errorMessage = enhanced.message
 
-  // Add line information if available
   if (enhanced.line !== undefined) {
     let lineInfo = `Line ${enhanced.line}`
 
@@ -337,18 +307,14 @@ function createUserFriendlyErrorMessage(
 
     errorMessage = `${lineInfo} - ${errorMessage}`
   } else {
-    // If no line number, try to extract it from stack trace for display
     if (enhanced.stack) {
       const stackMatch = enhanced.stack.match(/user-function\.js:(\d+)(?::(\d+))?/)
       if (stackMatch) {
         const line = Number.parseInt(stackMatch[1], 10)
         let lineInfo = `Line ${line}`
 
-        // Try to get line content if we have userCode
         if (userCode) {
           const codeLines = userCode.split('\n')
-          // Note: stackMatch gives us VM line number, need to adjust
-          // This is a fallback case, so we might not have perfect line mapping
           if (line <= codeLines.length) {
             const lineContent = codeLines[line - 1]?.trim()
             if (lineContent) {
@@ -362,7 +328,6 @@ function createUserFriendlyErrorMessage(
     }
   }
 
-  // Add error type prefix with consistent naming
   if (enhanced.name !== 'Error') {
     const errorTypePrefix =
       enhanced.name === 'SyntaxError'
@@ -373,7 +338,6 @@ function createUserFriendlyErrorMessage(
             ? 'Reference Error'
             : enhanced.name
 
-    // Only add prefix if not already present
     if (!errorMessage.toLowerCase().includes(errorTypePrefix.toLowerCase())) {
       errorMessage = `${errorTypePrefix}: ${errorMessage}`
     }
@@ -382,9 +346,6 @@ function createUserFriendlyErrorMessage(
   return errorMessage
 }
 
-/**
- * Resolves workflow variables with <variable.name> syntax
- */
 function resolveWorkflowVariables(
   code: string,
   workflowVariables: Record<string, any>,
@@ -404,39 +365,40 @@ function resolveWorkflowVariables(
   while ((match = regex.exec(code)) !== null) {
     const variableName = match[1].trim()
 
-    // Find the variable by name (workflowVariables is indexed by ID, values are variable objects)
     const foundVariable = Object.entries(workflowVariables).find(
       ([_, variable]) => normalizeName(variable.name || '') === variableName
     )
 
-    let variableValue: unknown = ''
-    if (foundVariable) {
-      const variable = foundVariable[1]
-      variableValue = variable.value
+    if (!foundVariable) {
+      const availableVars = Object.values(workflowVariables)
+        .map((v) => v.name)
+        .filter(Boolean)
+      throw new Error(
+        `Variable "${variableName}" doesn't exist.` +
+          (availableVars.length > 0 ? ` Available: ${availableVars.join(', ')}` : '')
+      )
+    }
 
-      if (variable.value !== undefined && variable.value !== null) {
+    const variable = foundVariable[1]
+    let variableValue: unknown = variable.value
+
+    if (variable.value !== undefined && variable.value !== null) {
+      const type = variable.type === 'string' ? 'plain' : variable.type
+
+      if (type === 'number') {
+        variableValue = Number(variableValue)
+      } else if (type === 'boolean') {
+        if (typeof variableValue === 'boolean') {
+          // Already a boolean, keep as-is
+        } else {
+          const normalized = String(variableValue).toLowerCase().trim()
+          variableValue = normalized === 'true'
+        }
+      } else if (type === 'json' && typeof variableValue === 'string') {
         try {
-          // Handle 'string' type the same as 'plain' for backward compatibility
-          const type = variable.type === 'string' ? 'plain' : variable.type
-
-          // For plain text, use exactly what's entered without modifications
-          if (type === 'plain' && typeof variableValue === 'string') {
-            // Use as-is for plain text
-          } else if (type === 'number') {
-            variableValue = Number(variableValue)
-          } else if (type === 'boolean') {
-            variableValue = variableValue === 'true' || variableValue === true
-          } else if (type === 'json') {
-            try {
-              variableValue =
-                typeof variableValue === 'string' ? JSON.parse(variableValue) : variableValue
-            } catch {
-              // Keep original value if JSON parsing fails
-            }
-          }
+          variableValue = JSON.parse(variableValue)
         } catch {
-          // Fallback to original value on error
-          variableValue = variable.value
+          // Keep as-is
         }
       }
     }
@@ -449,11 +411,9 @@ function resolveWorkflowVariables(
     })
   }
 
-  // Process replacements in reverse order to maintain correct indices
   for (let i = replacements.length - 1; i >= 0; i--) {
     const { match: matchStr, index, variableName, variableValue } = replacements[i]
 
-    // Use variable reference approach
     const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
     contextVariables[safeVarName] = variableValue
     resolvedCode =
@@ -463,9 +423,6 @@ function resolveWorkflowVariables(
   return resolvedCode
 }
 
-/**
- * Resolves environment variables with {{var_name}} syntax
- */
 function resolveEnvironmentVariables(
   code: string,
   params: Record<string, any>,
@@ -479,14 +436,30 @@ function resolveEnvironmentVariables(
   const replacements: Array<{ match: string; index: number; varName: string; varValue: string }> =
     []
 
+  const resolverVars: Record<string, string> = {}
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      resolverVars[key] = String(value)
+    }
+  })
+  Object.entries(envVars).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      resolverVars[key] = value
+    }
+  })
+
   while ((match = regex.exec(code)) !== null) {
     const varName = match[1].trim()
-    const varValue = envVars[varName] || params[varName] || ''
+
+    if (!(varName in resolverVars)) {
+      continue
+    }
+
     replacements.push({
       match: match[0],
       index: match.index,
       varName,
-      varValue: String(varValue),
+      varValue: resolverVars[varName],
     })
   }
 
@@ -502,64 +475,59 @@ function resolveEnvironmentVariables(
   return resolvedCode
 }
 
-/**
- * Resolves tags with <tag_name> syntax (including nested paths like <block.response.data>)
- */
 function resolveTagVariables(
   code: string,
-  params: Record<string, any>,
-  blockData: Record<string, any>,
+  blockData: Record<string, unknown>,
   blockNameMapping: Record<string, string>,
-  contextVariables: Record<string, any>
+  blockOutputSchemas: Record<string, OutputSchema>,
+  contextVariables: Record<string, unknown>,
+  language = 'javascript'
 ): string {
   let resolvedCode = code
+  const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
 
   const tagPattern = new RegExp(
-    `${REFERENCE.START}([a-zA-Z_][a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])${REFERENCE.END}`,
+    `${REFERENCE.START}([a-zA-Z_](?:[a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])?)${REFERENCE.END}`,
     'g'
   )
   const tagMatches = resolvedCode.match(tagPattern) || []
 
   for (const match of tagMatches) {
     const tagName = match.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
+    const pathParts = tagName.split(REFERENCE.PATH_DELIMITER)
+    const blockName = pathParts[0]
+    const fieldPath = pathParts.slice(1)
 
-    // Handle nested paths like "getrecord.response.data" or "function1.response.result"
-    // First try params, then blockData directly, then try with block name mapping
-    let tagValue = getNestedValue(params, tagName) || getNestedValue(blockData, tagName) || ''
+    const result = resolveBlockReference(blockName, fieldPath, {
+      blockNameMapping,
+      blockData,
+      blockOutputSchemas,
+    })
 
-    // If not found and the path starts with a block name, try mapping the block name to ID
-    if (!tagValue && tagName.includes(REFERENCE.PATH_DELIMITER)) {
-      const pathParts = tagName.split(REFERENCE.PATH_DELIMITER)
-      const normalizedBlockName = pathParts[0] // This should already be normalized like "function1"
+    if (!result) {
+      continue
+    }
 
-      // Direct lookup using normalized block name
-      const blockId = blockNameMapping[normalizedBlockName] ?? null
+    let tagValue = result.value
 
-      if (blockId) {
-        const remainingPath = pathParts.slice(1).join('.')
-        const fullPath = `${blockId}.${remainingPath}`
-        tagValue = getNestedValue(blockData, fullPath) || ''
+    if (tagValue === undefined) {
+      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), undefinedLiteral)
+      continue
+    }
+
+    if (typeof tagValue === 'string') {
+      const trimmed = tagValue.trimStart()
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          tagValue = JSON.parse(tagValue)
+        } catch {
+          // Keep as string if not valid JSON
+        }
       }
     }
 
-    // If the value is a stringified JSON, parse it back to object
-    if (
-      typeof tagValue === 'string' &&
-      tagValue.length > 100 &&
-      (tagValue.startsWith('{') || tagValue.startsWith('['))
-    ) {
-      try {
-        tagValue = JSON.parse(tagValue)
-      } catch (e) {
-        // Keep as string if parsing fails
-      }
-    }
-
-    // Instead of injecting large JSON directly, create a variable reference
-    const safeVarName = `__tag_${tagName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+    const safeVarName = `__tag_${tagName.replace(/_/g, '_1').replace(/\./g, '_0')}`
     contextVariables[safeVarName] = tagValue
-
-    // Replace the template with a variable reference
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
@@ -575,42 +543,29 @@ function resolveTagVariables(
  */
 function resolveCodeVariables(
   code: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
   envVars: Record<string, string> = {},
-  blockData: Record<string, any> = {},
+  blockData: Record<string, unknown> = {},
   blockNameMapping: Record<string, string> = {},
-  workflowVariables: Record<string, any> = {}
-): { resolvedCode: string; contextVariables: Record<string, any> } {
+  blockOutputSchemas: Record<string, OutputSchema> = {},
+  workflowVariables: Record<string, unknown> = {},
+  language = 'javascript'
+): { resolvedCode: string; contextVariables: Record<string, unknown> } {
   let resolvedCode = code
-  const contextVariables: Record<string, any> = {}
+  const contextVariables: Record<string, unknown> = {}
 
-  // Resolve workflow variables with <variable.name> syntax first
   resolvedCode = resolveWorkflowVariables(resolvedCode, workflowVariables, contextVariables)
-
-  // Resolve environment variables with {{var_name}} syntax
   resolvedCode = resolveEnvironmentVariables(resolvedCode, params, envVars, contextVariables)
-
-  // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
   resolvedCode = resolveTagVariables(
     resolvedCode,
-    params,
     blockData,
     blockNameMapping,
-    contextVariables
+    blockOutputSchemas,
+    contextVariables,
+    language
   )
 
   return { resolvedCode, contextVariables }
-}
-
-/**
- * Get nested value from object using dot notation path
- */
-function getNestedValue(obj: any, path: string): any {
-  if (!obj || !path) return undefined
-
-  return path.split('.').reduce((current, key) => {
-    return current && typeof current === 'object' ? current[key] : undefined
-  }, obj)
 }
 
 /**
@@ -633,6 +588,12 @@ export async function POST(req: NextRequest) {
   let resolvedCode = '' // Store resolved code for error reporting
 
   try {
+    const auth = await checkInternalAuth(req)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized function execution attempt`)
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await req.json()
 
     const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
@@ -645,12 +606,12 @@ export async function POST(req: NextRequest) {
       envVars = {},
       blockData = {},
       blockNameMapping = {},
+      blockOutputSchemas = {},
       workflowVariables = {},
       workflowId,
       isCustomTool = false,
     } = body
 
-    // Extract internal parameters that shouldn't be passed to the execution context
     const executionParams = { ...params }
     executionParams._context = undefined
 
@@ -662,21 +623,21 @@ export async function POST(req: NextRequest) {
       isCustomTool,
     })
 
-    // Resolve variables in the code with workflow environment variables
+    const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
+
     const codeResolution = resolveCodeVariables(
       code,
       executionParams,
       envVars,
       blockData,
       blockNameMapping,
-      workflowVariables
+      blockOutputSchemas,
+      workflowVariables,
+      lang
     )
     resolvedCode = codeResolution.resolvedCode
     const contextVariables = codeResolution.contextVariables
 
-    const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
-
-    // Extract imports once for JavaScript code (reuse later to avoid double extraction)
     let jsImports = ''
     let jsRemainingCode = resolvedCode
     let hasImports = false
@@ -686,31 +647,22 @@ export async function POST(req: NextRequest) {
       jsImports = extractionResult.imports
       jsRemainingCode = extractionResult.remainingCode
 
-      // Check for ES6 imports or CommonJS require statements
-      // ES6 imports are extracted by the TypeScript parser
-      // Also check for require() calls which indicate external dependencies
       const hasRequireStatements = /require\s*\(\s*['"`]/.test(resolvedCode)
       hasImports = jsImports.trim().length > 0 || hasRequireStatements
     }
 
-    // Python always requires E2B
     if (lang === CodeLanguage.Python && !isE2bEnabled) {
       throw new Error(
         'Python execution requires E2B to be enabled. Please contact your administrator to enable E2B, or use JavaScript instead.'
       )
     }
 
-    // JavaScript with imports requires E2B
     if (lang === CodeLanguage.JavaScript && hasImports && !isE2bEnabled) {
       throw new Error(
         'JavaScript code with import statements requires E2B to be enabled. Please remove the import statements, or contact your administrator to enable E2B.'
       )
     }
 
-    // Use E2B if:
-    // - E2B is enabled AND
-    // - Not a custom tool AND
-    // - (Python OR JavaScript with imports)
     const useE2B =
       isE2bEnabled &&
       !isCustomTool &&
@@ -723,13 +675,10 @@ export async function POST(req: NextRequest) {
         language: lang,
       })
       let prologue = ''
-      const epilogue = ''
 
       if (lang === CodeLanguage.JavaScript) {
-        // Track prologue lines for error adjustment
         let prologueLineCount = 0
 
-        // Reuse the imports we already extracted earlier
         const imports = jsImports
         const remainingCode = jsRemainingCode
 
@@ -744,7 +693,7 @@ export async function POST(req: NextRequest) {
         prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
         prologueLineCount++
         for (const [k, v] of Object.entries(contextVariables)) {
-          prologue += `const ${k} = JSON.parse(${JSON.stringify(JSON.stringify(v))});\n`
+          prologue += `const ${k} = ${formatLiteralForCode(v, 'javascript')};\n`
           prologueLineCount++
         }
 
@@ -761,7 +710,7 @@ export async function POST(req: NextRequest) {
           '  }',
           '})();',
         ].join('\n')
-        const codeForE2B = importSection + prologue + wrapped + epilogue
+        const codeForE2B = importSection + prologue + wrapped
 
         const execStart = Date.now()
         const {
@@ -783,7 +732,6 @@ export async function POST(req: NextRequest) {
           error: e2bError,
         })
 
-        // If there was an execution error, format it properly
         if (e2bError) {
           const { formattedError, cleanedOutput } = formatE2BError(
             e2bError,
@@ -807,7 +755,7 @@ export async function POST(req: NextRequest) {
           output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
         })
       }
-      // Track prologue lines for error adjustment
+
       let prologueLineCount = 0
       prologue += 'import json\n'
       prologueLineCount++
@@ -816,7 +764,7 @@ export async function POST(req: NextRequest) {
       prologue += `environmentVariables = json.loads(${JSON.stringify(JSON.stringify(envVars))})\n`
       prologueLineCount++
       for (const [k, v] of Object.entries(contextVariables)) {
-        prologue += `${k} = json.loads(${JSON.stringify(JSON.stringify(v))})\n`
+        prologue += `${k} = ${formatLiteralForCode(v, 'python')}\n`
         prologueLineCount++
       }
       const wrapped = [
@@ -825,7 +773,7 @@ export async function POST(req: NextRequest) {
         '__sim_result__ = __sim_main__()',
         "print('__SIM_RESULT__=' + json.dumps(__sim_result__))",
       ].join('\n')
-      const codeForE2B = prologue + wrapped + epilogue
+      const codeForE2B = prologue + wrapped
 
       const execStart = Date.now()
       const {
@@ -847,7 +795,6 @@ export async function POST(req: NextRequest) {
         error: e2bError,
       })
 
-      // If there was an execution error, format it properly
       if (e2bError) {
         const { formattedError, cleanedOutput } = formatE2BError(
           e2bError,
@@ -876,7 +823,6 @@ export async function POST(req: NextRequest) {
 
     const wrapperLines = ['(async () => {', '  try {']
     if (isCustomTool) {
-      wrapperLines.push('    // For custom tools, make parameters directly accessible')
       Object.keys(executionParams).forEach((key) => {
         wrapperLines.push(`    const ${key} = params.${key};`)
       })
@@ -910,12 +856,10 @@ export async function POST(req: NextRequest) {
       })
 
       const ivmError = isolatedResult.error
-      // Adjust line number for prepended param destructuring in custom tools
       let adjustedLine = ivmError.line
       let adjustedLineContent = ivmError.lineContent
       if (prependedLineCount > 0 && ivmError.line !== undefined) {
         adjustedLine = Math.max(1, ivmError.line - prependedLineCount)
-        // Get line content from original user code, not the prepended code
         const codeLines = resolvedCode.split('\n')
         if (adjustedLine <= codeLines.length) {
           adjustedLineContent = codeLines[adjustedLine - 1]?.trim()

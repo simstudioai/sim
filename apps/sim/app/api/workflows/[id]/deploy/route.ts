@@ -4,10 +4,19 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { deployWorkflow, loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
+  cleanupWebhooksForWorkflow,
+  restorePreviousVersionWebhooks,
+  saveTriggerWebhooksForDeploy,
+} from '@/lib/webhooks/deploy'
+import {
+  deployWorkflow,
+  loadWorkflowFromNormalizedTables,
+  undeployWorkflow,
+} from '@/lib/workflows/persistence/utils'
+import {
+  cleanupDeploymentVersion,
   createSchedulesForDeploy,
-  deleteSchedulesForWorkflow,
   validateWorkflowSchedules,
 } from '@/lib/workflows/schedules'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
@@ -130,6 +139,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(`Invalid schedule configuration: ${scheduleValidation.error}`, 400)
     }
 
+    const [currentActiveVersion] = await db
+      .select({ id: workflowDeploymentVersion.id })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .limit(1)
+    const previousVersionId = currentActiveVersion?.id
+
     const deployResult = await deployWorkflow({
       workflowId: id,
       deployedBy: actorUserId,
@@ -141,14 +162,68 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const deployedAt = deployResult.deployedAt!
+    const deploymentVersionId = deployResult.deploymentVersionId
+
+    if (!deploymentVersionId) {
+      await undeployWorkflow({ workflowId: id })
+      return createErrorResponse('Failed to resolve deployment version', 500)
+    }
+
+    const triggerSaveResult = await saveTriggerWebhooksForDeploy({
+      request,
+      workflowId: id,
+      workflow: workflowData,
+      userId: actorUserId,
+      blocks: normalizedData.blocks,
+      requestId,
+      deploymentVersionId,
+      previousVersionId,
+    })
+
+    if (!triggerSaveResult.success) {
+      await cleanupDeploymentVersion({
+        workflowId: id,
+        workflow: workflowData as Record<string, unknown>,
+        requestId,
+        deploymentVersionId,
+      })
+      await undeployWorkflow({ workflowId: id })
+      return createErrorResponse(
+        triggerSaveResult.error?.message || 'Failed to save trigger configuration',
+        triggerSaveResult.error?.status || 500
+      )
+    }
 
     let scheduleInfo: { scheduleId?: string; cronExpression?: string; nextRunAt?: Date } = {}
-    const scheduleResult = await createSchedulesForDeploy(id, normalizedData.blocks, db)
+    const scheduleResult = await createSchedulesForDeploy(
+      id,
+      normalizedData.blocks,
+      db,
+      deploymentVersionId
+    )
     if (!scheduleResult.success) {
       logger.error(
         `[${requestId}] Failed to create schedule for workflow ${id}: ${scheduleResult.error}`
       )
-    } else if (scheduleResult.scheduleId) {
+      await cleanupDeploymentVersion({
+        workflowId: id,
+        workflow: workflowData as Record<string, unknown>,
+        requestId,
+        deploymentVersionId,
+      })
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData as Record<string, unknown>,
+          userId: actorUserId,
+          previousVersionId,
+          requestId,
+        })
+      }
+      await undeployWorkflow({ workflowId: id })
+      return createErrorResponse(scheduleResult.error || 'Failed to create schedule', 500)
+    }
+    if (scheduleResult.scheduleId) {
       scheduleInfo = {
         scheduleId: scheduleResult.scheduleId,
         cronExpression: scheduleResult.cronExpression,
@@ -157,6 +232,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       logger.info(
         `[${requestId}] Schedule created for workflow ${id}: ${scheduleResult.scheduleId}`
       )
+    }
+
+    if (previousVersionId && previousVersionId !== deploymentVersionId) {
+      try {
+        logger.info(`[${requestId}] Cleaning up previous version ${previousVersionId} DB records`)
+        await cleanupDeploymentVersion({
+          workflowId: id,
+          workflow: workflowData as Record<string, unknown>,
+          requestId,
+          deploymentVersionId: previousVersionId,
+          skipExternalCleanup: true,
+        })
+      } catch (cleanupError) {
+        logger.error(
+          `[${requestId}] Failed to clean up previous version ${previousVersionId}`,
+          cleanupError
+        )
+        // Non-fatal - continue with success response
+      }
     }
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
@@ -179,6 +273,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             nextRunAt: scheduleInfo.nextRunAt,
           }
         : undefined,
+      warnings: triggerSaveResult.warnings,
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deploying workflow: ${id}`, {
@@ -202,35 +297,30 @@ export async function DELETE(
   try {
     logger.debug(`[${requestId}] Undeploying workflow: ${id}`)
 
-    const { error } = await validateWorkflowPermissions(id, requestId, 'admin')
+    const { error, workflow: workflowData } = await validateWorkflowPermissions(
+      id,
+      requestId,
+      'admin'
+    )
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
 
-    await db.transaction(async (tx) => {
-      await deleteSchedulesForWorkflow(id, tx)
+    // Clean up external webhook subscriptions before undeploying
+    await cleanupWebhooksForWorkflow(id, workflowData as Record<string, unknown>, requestId)
 
-      await tx
-        .update(workflowDeploymentVersion)
-        .set({ isActive: false })
-        .where(eq(workflowDeploymentVersion.workflowId, id))
+    const result = await undeployWorkflow({ workflowId: id })
+    if (!result.success) {
+      return createErrorResponse(result.error || 'Failed to undeploy workflow', 500)
+    }
 
-      await tx
-        .update(workflow)
-        .set({ isDeployed: false, deployedAt: null })
-        .where(eq(workflow.id, id))
-    })
-
-    // Remove all MCP tools that reference this workflow
     await removeMcpToolsForWorkflow(id, requestId)
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
 
     try {
-      const { trackPlatformEvent } = await import('@/lib/core/telemetry')
-      trackPlatformEvent('platform.workflow.undeployed', {
-        'workflow.id': id,
-      })
+      const { PlatformEvents } = await import('@/lib/core/telemetry')
+      PlatformEvents.workflowUndeployed({ workflowId: id })
     } catch (_e) {
       // Silently fail
     }

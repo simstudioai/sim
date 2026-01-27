@@ -23,7 +23,7 @@ export function TOCFooter() {
           rel='noopener noreferrer'
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          className='group mt-2 inline-flex h-8 w-fit items-center justify-center gap-1 whitespace-nowrap rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 pr-[10px] pl-[12px] font-medium text-sm text-white shadow-[inset_0_2px_4px_0_#9B77FF] outline-none transition-all hover:shadow-lg focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+          className='group mt-2 inline-flex h-8 w-fit items-center justify-center gap-1 whitespace-nowrap rounded-[10px] border border-[#2AAD6C] bg-gradient-to-b from-[#3ED990] to-[#2AAD6C] px-3 pr-[10px] pl-[12px] font-medium text-sm text-white shadow-[inset_0_2px_4px_0_#5EE8A8] outline-none transition-all hover:shadow-lg focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
           aria-label='Get started with Sim - Sign up for free'
         >
           <span>Get started</span>

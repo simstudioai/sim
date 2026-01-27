@@ -148,6 +148,21 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
         field: 'operation',
         value: 'trello_create_card',
       },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date or timestamp based on the user's description.
+The timestamp should be in ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "tomorrow" -> Calculate tomorrow's date in YYYY-MM-DD format
+- "next Friday" -> Calculate the next Friday in YYYY-MM-DD format
+- "in 3 days" -> Calculate 3 days from now in YYYY-MM-DD format
+- "end of month" -> Calculate the last day of the current month
+- "next week at 3pm" -> Calculate next week's date at 15:00:00Z
+
+Return ONLY the date/timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "next Friday", "in 2 weeks")...',
+        generationType: 'timestamp',
+      },
     },
 
     {
@@ -234,6 +249,21 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
       condition: {
         field: 'operation',
         value: 'trello_update_card',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date or timestamp based on the user's description.
+The timestamp should be in ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "tomorrow" -> Calculate tomorrow's date in YYYY-MM-DD format
+- "next Friday" -> Calculate the next Friday in YYYY-MM-DD format
+- "in 3 days" -> Calculate 3 days from now in YYYY-MM-DD format
+- "end of month" -> Calculate the last day of the current month
+- "next week at 3pm" -> Calculate next week's date at 15:00:00Z
+
+Return ONLY the date/timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the due date (e.g., "next Friday", "in 2 weeks")...',
+        generationType: 'timestamp',
       },
     },
 

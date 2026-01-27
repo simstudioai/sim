@@ -1,11 +1,12 @@
 import { CursorIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type { CursorResponse } from '@/tools/cursor/types'
 
 export const CursorBlock: BlockConfig<CursorResponse> = {
   type: 'cursor',
-  name: 'Cursor',
+  name: 'Cursor (Legacy)',
   description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',
   longDescription:
     'Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.',
@@ -14,6 +15,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
   bgColor: '#1E1E1E',
   icon: CursorIcon,
   authMode: AuthMode.ApiKey,
+  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'operation',
@@ -167,5 +169,47 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
   outputs: {
     content: { type: 'string', description: 'Human-readable response content' },
     metadata: { type: 'json', description: 'Response metadata' },
+  },
+}
+
+export const CursorV2Block: BlockConfig<CursorResponse> = {
+  ...CursorBlock,
+  type: 'cursor_v2',
+  name: 'Cursor',
+  description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',
+  longDescription:
+    'Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.',
+  hideFromToolbar: false,
+  tools: {
+    ...CursorBlock.tools,
+    access: [
+      'cursor_list_agents_v2',
+      'cursor_get_agent_v2',
+      'cursor_get_conversation_v2',
+      'cursor_launch_agent_v2',
+      'cursor_add_followup_v2',
+      'cursor_stop_agent_v2',
+      'cursor_delete_agent_v2',
+    ],
+    config: {
+      tool: createVersionedToolSelector({
+        baseToolSelector: (params) => params.operation || 'cursor_launch_agent',
+        suffix: '_v2',
+        fallbackToolId: 'cursor_launch_agent_v2',
+      }),
+    },
+  },
+  outputs: {
+    id: { type: 'string', description: 'Agent identifier' },
+    url: { type: 'string', description: 'Agent URL (launch operation)' },
+    name: { type: 'string', description: 'Agent name' },
+    status: { type: 'string', description: 'Agent status' },
+    source: { type: 'json', description: 'Agent source repository info' },
+    target: { type: 'json', description: 'Agent target branch/PR info' },
+    summary: { type: 'string', description: 'Agent summary' },
+    createdAt: { type: 'string', description: 'Agent creation timestamp' },
+    agents: { type: 'json', description: 'Array of agent objects (list operation)' },
+    nextCursor: { type: 'string', description: 'Pagination cursor (list operation)' },
+    messages: { type: 'json', description: 'Conversation messages (get conversation operation)' },
   },
 }

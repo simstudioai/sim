@@ -6,8 +6,9 @@ import { useParams } from 'next/navigation'
 import { Combobox, Label, Switch, Tooltip } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
+import { USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
-import { USAGE_THRESHOLDS } from '@/lib/billing/client/usage-visualization'
+import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
@@ -31,11 +32,13 @@ import {
   UsageLimit,
   type UsageLimitRef,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/usage-limit'
-import { useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
+import {
+  useBillingUsageNotifications,
+  useUpdateGeneralSetting,
+} from '@/hooks/queries/general-settings'
 import { useOrganizationBilling, useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData, useUsageLimitData } from '@/hooks/queries/subscription'
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from '@/hooks/queries/workspace'
-import { useGeneralStore } from '@/stores/settings/general/store'
 
 const CONSTANTS = {
   UPGRADE_ERROR_TIMEOUT: 3000, // 3 seconds
@@ -191,7 +194,13 @@ export function Subscription() {
   const [upgradeError, setUpgradeError] = useState<'pro' | 'team' | null>(null)
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
 
-  const isLoading = isSubscriptionLoading || isUsageLimitLoading || isWorkspaceLoading
+  const isOrgPlan =
+    subscriptionData?.data?.plan === 'team' || subscriptionData?.data?.plan === 'enterprise'
+  const isLoading =
+    isSubscriptionLoading ||
+    isUsageLimitLoading ||
+    isWorkspaceLoading ||
+    (isOrgPlan && isOrgBillingLoading)
 
   const subscription = {
     isFree: subscriptionData?.data?.plan === 'free' || !subscriptionData?.data?.plan,
@@ -204,7 +213,7 @@ export function Subscription() {
       subscriptionData?.data?.status === 'active',
     plan: subscriptionData?.data?.plan || 'free',
     status: subscriptionData?.data?.status || 'inactive',
-    seats: organizationBillingData?.totalSeats ?? 0,
+    seats: getEffectiveSeats(subscriptionData?.data),
   }
 
   const usage = {
@@ -445,16 +454,10 @@ export function Subscription() {
             ? `${subscription.seats} seats`
             : undefined
         }
-        current={
-          subscription.isEnterprise || subscription.isTeam
-            ? (organizationBillingData?.totalCurrentUsage ?? usage.current)
-            : usage.current
-        }
+        current={usage.current}
         limit={
           subscription.isEnterprise || subscription.isTeam
-            ? organizationBillingData?.totalUsageLimit ||
-              organizationBillingData?.minimumBillingAmount ||
-              usage.limit
+            ? organizationBillingData?.data?.totalUsageLimit
             : !subscription.isFree &&
                 (permissions.canEditUsageLimit || permissions.showTeamMemberView)
               ? usage.current // placeholder; rightContent will render UsageLimit
@@ -468,19 +471,31 @@ export function Subscription() {
             <UsageLimit
               ref={usageLimitRef}
               currentLimit={
-                subscription.isTeam && isTeamAdmin
-                  ? organizationBillingData?.totalUsageLimit || usage.limit
+                (subscription.isTeam || subscription.isEnterprise) &&
+                isTeamAdmin &&
+                organizationBillingData?.data
+                  ? organizationBillingData.data.totalUsageLimit
                   : usageLimitData.currentLimit || usage.limit
               }
               currentUsage={usage.current}
               canEdit={permissions.canEditUsageLimit}
               minimumLimit={
-                subscription.isTeam && isTeamAdmin
-                  ? organizationBillingData?.minimumBillingAmount || (subscription.isPro ? 20 : 40)
+                (subscription.isTeam || subscription.isEnterprise) &&
+                isTeamAdmin &&
+                organizationBillingData?.data
+                  ? organizationBillingData.data.minimumBillingAmount
                   : usageLimitData.minimumLimit || (subscription.isPro ? 20 : 40)
               }
-              context={subscription.isTeam && isTeamAdmin ? 'organization' : 'user'}
-              organizationId={subscription.isTeam && isTeamAdmin ? activeOrgId : undefined}
+              context={
+                (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
+                  ? 'organization'
+                  : 'user'
+              }
+              organizationId={
+                (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
+                  ? activeOrgId
+                  : undefined
+              }
               onLimitUpdated={() => {
                 logger.info('Usage limit updated')
               }}
@@ -614,7 +629,7 @@ export function Subscription() {
 }
 
 function BillingUsageNotificationsToggle() {
-  const enabled = useGeneralStore((s) => s.isBillingUsageNotificationsEnabled)
+  const enabled = useBillingUsageNotifications()
   const updateSetting = useUpdateGeneralSetting()
   const isLoading = updateSetting.isPending
 

@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
-import type { BlockOutput } from '@/blocks/types'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { EdgeManager } from '@/executor/execution/edge-manager'
@@ -24,7 +23,6 @@ const logger = createLogger('DAGExecutor')
 
 export interface DAGExecutorOptions {
   workflow: SerializedWorkflow
-  currentBlockStates?: Record<string, BlockOutput>
   envVarValues?: Record<string, string>
   workflowInput?: WorkflowInput
   workflowVariables?: Record<string, unknown>
@@ -169,6 +167,8 @@ export class DAGExecutor {
       onBlockStart: this.contextExtensions.onBlockStart,
       onBlockComplete: this.contextExtensions.onBlockComplete,
       abortSignal: this.contextExtensions.abortSignal,
+      includeFileBase64: this.contextExtensions.includeFileBase64,
+      base64MaxBytes: this.contextExtensions.base64MaxBytes,
     }
 
     if (this.contextExtensions.resumeFromSnapshot) {

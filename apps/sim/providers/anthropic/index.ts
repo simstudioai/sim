@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
 import { createLogger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -8,6 +9,7 @@ import {
   generateToolUseId,
 } from '@/providers/anthropic/utils'
 import {
+  getMaxOutputTokensForModel,
   getProviderDefaultModel,
   getProviderModels,
   supportsNativeStructuredOutputs,
@@ -177,7 +179,9 @@ export const anthropicProvider: ProviderConfig = {
       model: request.model,
       messages,
       system: systemPrompt,
-      max_tokens: Number.parseInt(String(request.maxTokens)) || 1024,
+      max_tokens:
+        Number.parseInt(String(request.maxTokens)) ||
+        getMaxOutputTokensForModel(request.model, request.stream ?? false),
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
     }
 
@@ -185,13 +189,10 @@ export const anthropicProvider: ProviderConfig = {
       const schema = request.responseFormat.schema || request.responseFormat
 
       if (useNativeStructuredOutputs) {
-        const schemaWithConstraints = {
-          ...schema,
-          additionalProperties: false,
-        }
+        const transformedSchema = transformJSONSchema(schema)
         payload.output_format = {
           type: 'json_schema',
-          schema: schemaWithConstraints,
+          schema: transformedSchema,
         }
         logger.info(`Using native structured outputs for model: ${modelId}`)
       } else {
@@ -388,7 +389,7 @@ export const anthropicProvider: ProviderConfig = {
                   toolArgs,
                   request
                 )
-                const result = await executeTool(toolName, executionParams, true)
+                const result = await executeTool(toolName, executionParams)
                 const toolCallEndTime = Date.now()
 
                 return {

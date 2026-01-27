@@ -1,0 +1,36 @@
+---
+title: Email IMAP
+description: Déclenchez des workflows lorsque de nouveaux emails arrivent via
+  IMAP (fonctionne avec n'importe quel fournisseur d'email)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="imap"
+  color="#6366F1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Le déclencheur Email IMAP permet à vos workflows Sim de démarrer automatiquement dès qu'un nouvel email est reçu dans n'importe quelle boîte mail prenant en charge le protocole IMAP. Cela fonctionne avec Gmail, Outlook, Yahoo et la plupart des autres fournisseurs d'email.
+
+Avec le déclencheur IMAP, vous pouvez :
+
+- **Automatiser le traitement des emails** : démarrez des workflows en temps réel lorsque de nouveaux messages arrivent dans votre boîte de réception.
+- **Filtrer par expéditeur, objet ou dossier** : configurez votre déclencheur pour réagir uniquement aux emails correspondant à certaines conditions.
+- **Extraire et traiter les pièces jointes** : téléchargez et utilisez automatiquement les fichiers joints dans vos flux automatisés.
+- **Analyser et utiliser le contenu des emails** : accédez à l'objet, l'expéditeur, les destinataires, le corps complet et d'autres métadonnées dans les étapes suivantes du workflow.
+- **Intégrer avec n'importe quel fournisseur d'email** : fonctionne avec tout service offrant un accès IMAP standard, sans dépendance à un fournisseur.
+- **Déclencher sur non lu, marqué ou critères personnalisés** : configurez des filtres avancés pour les types d'emails qui démarrent vos workflows.
+
+Avec Sim, l'intégration IMAP vous donne le pouvoir de transformer l'email en une source d'automatisation exploitable. Répondez aux demandes clients, traitez les notifications, lancez des pipelines de données et plus encore, directement depuis votre boîte de réception email, sans intervention manuelle.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Connectez-vous à n'importe quel serveur email via le protocole IMAP pour déclencher des workflows lorsque de nouveaux emails sont reçus. Prend en charge Gmail, Outlook, Yahoo et tout autre fournisseur d'email compatible IMAP.
+
+## Remarques
+
+- Catégorie : `triggers`
+- Type : `imap`

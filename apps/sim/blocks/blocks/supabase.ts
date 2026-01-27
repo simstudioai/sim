@@ -34,6 +34,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Full-Text Search', id: 'text_search' },
         { label: 'Vector Search', id: 'vector_search' },
         { label: 'Call RPC Function', id: 'rpc' },
+        { label: 'Introspect Schema', id: 'introspect' },
         // Storage - File Operations
         { label: 'Storage: Upload File', id: 'storage_upload' },
         { label: 'Storage: Download File', id: 'storage_download' },
@@ -77,6 +78,16 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       condition: {
         field: 'operation',
         value: ['query', 'get_row', 'insert', 'update', 'delete', 'upsert', 'count', 'text_search'],
+      },
+    },
+    {
+      id: 'select',
+      title: 'Select Columns',
+      type: 'short-input',
+      placeholder: '* (all columns) or id,name,email',
+      condition: {
+        field: 'operation',
+        value: ['query', 'get_row'],
       },
     },
     {
@@ -392,6 +403,38 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       type: 'short-input',
       placeholder: 'column_name (add DESC for descending)',
       condition: { field: 'operation', value: 'query' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Supabase order by clause based on the user's description.
+
+### FORMAT
+column_name [ASC|DESC]
+
+### RULES
+- Column name only: sorts ascending by default
+- Add DESC after column name for descending order
+- Add ASC after column name for ascending order (explicit)
+- Column names are case-sensitive and should match your database schema
+
+### COMMON PATTERNS
+- Newest first: created_at DESC
+- Oldest first: created_at ASC
+- Alphabetical: name
+- Reverse alphabetical: name DESC
+- Highest value first: price DESC
+- Lowest value first: price ASC
+
+### EXAMPLES
+- "sort by start time newest first" -> start_time DESC
+- "order by name alphabetically" -> name
+- "sort by created date oldest first" -> created_at ASC
+- "highest scores first" -> score DESC
+- "sort by updated timestamp descending" -> updated_at DESC
+- "order by email" -> email
+
+Return ONLY the order by expression - no explanations, no extra text.`,
+        placeholder: 'Describe how to sort (e.g., "newest first by created_at")...',
+      },
     },
     // Optional limit for query operation
     {
@@ -447,6 +490,14 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       type: 'code',
       placeholder: '{\n  "param1": "value1",\n  "param2": "value2"\n}',
       condition: { field: 'operation', value: 'rpc' },
+    },
+    // Introspect operation fields
+    {
+      id: 'schema',
+      title: 'Schema',
+      type: 'short-input',
+      placeholder: 'public (leave empty for all user schemas)',
+      condition: { field: 'operation', value: 'introspect' },
     },
     // Text Search operation fields
     {
@@ -611,11 +662,24 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       condition: { field: 'operation', value: 'storage_upload' },
     },
     {
+      id: 'file',
+      title: 'File',
+      type: 'file-upload',
+      canonicalParamId: 'fileData',
+      placeholder: 'Upload file to storage',
+      condition: { field: 'operation', value: 'storage_upload' },
+      mode: 'basic',
+      multiple: false,
+      required: true,
+    },
+    {
       id: 'fileContent',
       title: 'File Content',
       type: 'code',
+      canonicalParamId: 'fileData',
       placeholder: 'Base64 encoded for binary files, or plain text',
       condition: { field: 'operation', value: 'storage_upload' },
+      mode: 'advanced',
       required: true,
     },
     {
@@ -834,6 +898,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       'supabase_text_search',
       'supabase_vector_search',
       'supabase_rpc',
+      'supabase_introspect',
       'supabase_storage_upload',
       'supabase_storage_download',
       'supabase_storage_list',
@@ -869,6 +934,8 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
             return 'supabase_vector_search'
           case 'rpc':
             return 'supabase_rpc'
+          case 'introspect':
+            return 'supabase_introspect'
           case 'storage_upload':
             return 'supabase_storage_upload'
           case 'storage_download':
@@ -1043,7 +1110,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     operation: { type: 'string', description: 'Operation to perform' },
     projectId: { type: 'string', description: 'Supabase project identifier' },
     table: { type: 'string', description: 'Database table name' },
-    schema: { type: 'string', description: 'Database schema (default: public)' },
+    select: { type: 'string', description: 'Columns to return (comma-separated, defaults to *)' },
     apiKey: { type: 'string', description: 'Service role secret key' },
     // Data for insert/update operations
     data: { type: 'json', description: 'Row data' },
@@ -1070,6 +1137,8 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     language: { type: 'string', description: 'Language for text search' },
     // Count operation inputs
     countType: { type: 'string', description: 'Count type: exact, planned, or estimated' },
+    // Introspect operation inputs
+    schema: { type: 'string', description: 'Database schema to introspect (e.g., public)' },
     // Storage operation inputs
     bucket: { type: 'string', description: 'Storage bucket name' },
     path: { type: 'string', description: 'File or folder path in storage' },
@@ -1114,6 +1183,14 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     signedUrl: {
       type: 'string',
       description: 'Temporary signed URL for storage file',
+    },
+    tables: {
+      type: 'json',
+      description: 'Array of table schemas for introspect operation',
+    },
+    schemas: {
+      type: 'json',
+      description: 'Array of schema names found in the database',
     },
   },
 }

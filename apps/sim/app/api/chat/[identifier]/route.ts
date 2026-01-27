@@ -5,16 +5,12 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
-import {
-  addCorsHeaders,
-  setChatAuthCookie,
-  validateAuthToken,
-  validateChatAuth,
-} from '@/app/api/chat/utils'
+import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatIdentifierAPI')
@@ -253,7 +249,7 @@ export async function POST(
         userId: deployment.userId,
         workspaceId,
         isDeployed: workflowRecord?.isDeployed ?? false,
-        variables: workflowRecord?.variables || {},
+        variables: (workflowRecord?.variables as Record<string, unknown>) ?? undefined,
       }
 
       const stream = await createStreamingResponse({

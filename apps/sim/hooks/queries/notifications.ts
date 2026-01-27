@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('NotificationQueries')
 
@@ -18,7 +19,7 @@ export const notificationKeys = {
 
 type NotificationType = 'webhook' | 'email' | 'slack'
 type LogLevel = 'info' | 'error'
-type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'mcp'
+type TriggerType = CoreTriggerType
 
 type AlertRuleType =
   | 'consecutive_failures'

@@ -8,6 +8,7 @@ import { getSession } from '@/lib/auth'
 import { generateChatTitle } from '@/lib/copilot/chat-title'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { SIM_AGENT_API_URL_DEFAULT, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { COPILOT_MODEL_IDS, COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -21,6 +22,7 @@ import { env } from '@/lib/core/config/env'
 import { CopilotFiles } from '@/lib/uploads'
 import { createFileContent } from '@/lib/uploads/utils/file-utils'
 import { tools } from '@/tools/registry'
+import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -39,31 +41,8 @@ const ChatMessageSchema = z.object({
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
-  model: z
-    .enum([
-      'gpt-5-fast',
-      'gpt-5',
-      'gpt-5-medium',
-      'gpt-5-high',
-      'gpt-5.1-fast',
-      'gpt-5.1',
-      'gpt-5.1-medium',
-      'gpt-5.1-high',
-      'gpt-5-codex',
-      'gpt-5.1-codex',
-      'gpt-4o',
-      'gpt-4.1',
-      'o3',
-      'claude-4-sonnet',
-      'claude-4.5-haiku',
-      'claude-4.5-sonnet',
-      'claude-4.5-opus',
-      'claude-4.1-opus',
-      'gemini-3-pro',
-    ])
-    .optional()
-    .default('claude-4.5-opus'),
-  mode: z.enum(['ask', 'agent', 'plan']).optional().default('agent'),
+  model: z.enum(COPILOT_MODEL_IDS).optional().default('claude-4.5-opus'),
+  mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
@@ -96,6 +75,7 @@ const ChatMessageSchema = z.object({
       })
     )
     .optional(),
+  commands: z.array(z.string()).optional(),
 })
 
 /**
@@ -131,6 +111,7 @@ export async function POST(req: NextRequest) {
       provider,
       conversationId,
       contexts,
+      commands,
     } = ChatMessageSchema.parse(body)
     // Ensure we have a consistent user message ID for this request
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
@@ -289,7 +270,8 @@ export async function POST(req: NextRequest) {
     }
 
     const defaults = getCopilotModel('chat')
-    const modelToUse = env.COPILOT_MODEL || defaults.model
+    const selectedModel = model || defaults.model
+    const envModel = env.COPILOT_MODEL || defaults.model
 
     let providerConfig: CopilotProviderConfig | undefined
     const providerEnv = env.COPILOT_PROVIDER as any
@@ -298,7 +280,7 @@ export async function POST(req: NextRequest) {
       if (providerEnv === 'azure-openai') {
         providerConfig = {
           provider: 'azure-openai',
-          model: modelToUse,
+          model: envModel,
           apiKey: env.AZURE_OPENAI_API_KEY,
           apiVersion: 'preview',
           endpoint: env.AZURE_OPENAI_ENDPOINT,
@@ -306,7 +288,7 @@ export async function POST(req: NextRequest) {
       } else if (providerEnv === 'vertex') {
         providerConfig = {
           provider: 'vertex',
-          model: modelToUse,
+          model: envModel,
           apiKey: env.COPILOT_API_KEY,
           vertexProject: env.VERTEX_PROJECT,
           vertexLocation: env.VERTEX_LOCATION,
@@ -314,11 +296,14 @@ export async function POST(req: NextRequest) {
       } else {
         providerConfig = {
           provider: providerEnv,
-          model: modelToUse,
+          model: selectedModel,
           apiKey: env.COPILOT_API_KEY,
         }
       }
     }
+
+    const effectiveMode = mode === 'agent' ? 'build' : mode
+    const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
     // Determine conversationId to use for this request
     const effectiveConversationId =
@@ -339,7 +324,7 @@ export async function POST(req: NextRequest) {
       }
     } | null = null
 
-    if (mode === 'agent') {
+    if (effectiveMode === 'build') {
       // Build base tools (executed locally, not deferred)
       // Include function_execute for code execution capability
       baseTools = [
@@ -411,11 +396,14 @@ export async function POST(req: NextRequest) {
       try {
         const { createUserToolSchema } = await import('@/tools/params')
 
-        integrationTools = Object.entries(tools).map(([toolId, toolConfig]) => {
+        const latestTools = getLatestVersionTools(tools)
+
+        integrationTools = Object.entries(latestTools).map(([toolId, toolConfig]) => {
           const userSchema = createUserToolSchema(toolConfig)
+          const strippedName = stripVersionSuffix(toolId)
           return {
-            name: toolId,
-            description: toolConfig.description || toolConfig.name || toolId,
+            name: strippedName,
+            description: toolConfig.description || toolConfig.name || strippedName,
             input_schema: userSchema,
             defer_loading: true, // Anthropic Advanced Tool Use
             ...(toolConfig.oauth?.required && {
@@ -443,8 +431,8 @@ export async function POST(req: NextRequest) {
       userId: authenticatedUserId,
       stream: stream,
       streamToolCalls: true,
-      model: model,
-      mode: mode,
+      model: selectedModel,
+      mode: transportMode,
       messageId: userMessageIdToUse,
       version: SIM_AGENT_VERSION,
       ...(providerConfig ? { provider: providerConfig } : {}),
@@ -458,6 +446,7 @@ export async function POST(req: NextRequest) {
       ...(integrationTools.length > 0 && { tools: integrationTools }),
       ...(baseTools.length > 0 && { baseTools }),
       ...(credentials && { credentials }),
+      ...(commands && commands.length > 0 && { commands }),
     }
 
     try {
@@ -467,7 +456,7 @@ export async function POST(req: NextRequest) {
         hasConversationId: !!effectiveConversationId,
         hasFileAttachments: processedFileContents.length > 0,
         messageLength: message.length,
-        mode,
+        mode: effectiveMode,
         hasTools: integrationTools.length > 0,
         toolCount: integrationTools.length,
         hasBaseTools: baseTools.length > 0,
@@ -802,49 +791,29 @@ export async function POST(req: NextRequest) {
               toolNames: toolCalls.map((tc) => tc?.name).filter(Boolean),
             })
 
-            // Save messages to database after streaming completes (including aborted messages)
+            // NOTE: Messages are saved by the client via update-messages endpoint with full contentBlocks.
+            // Server only updates conversationId here to avoid overwriting client's richer save.
             if (currentChat) {
-              const updatedMessages = [...conversationHistory, userMessage]
-
-              // Save assistant message if there's any content or tool calls (even partial from abort)
-              if (assistantContent.trim() || toolCalls.length > 0) {
-                const assistantMessage = {
-                  id: crypto.randomUUID(),
-                  role: 'assistant',
-                  content: assistantContent,
-                  timestamp: new Date().toISOString(),
-                  ...(toolCalls.length > 0 && { toolCalls }),
-                }
-                updatedMessages.push(assistantMessage)
-                logger.info(
-                  `[${tracker.requestId}] Saving assistant message with content (${assistantContent.length} chars) and ${toolCalls.length} tool calls`
-                )
-              } else {
-                logger.info(
-                  `[${tracker.requestId}] No assistant content or tool calls to save (aborted before response)`
-                )
-              }
-
               // Persist only a safe conversationId to avoid continuing from a state that expects tool outputs
               const previousConversationId = currentChat?.conversationId as string | undefined
               const responseId = lastSafeDoneResponseId || previousConversationId || undefined
 
-              // Update chat in database immediately (without title)
-              await db
-                .update(copilotChats)
-                .set({
-                  messages: updatedMessages,
-                  updatedAt: new Date(),
-                  ...(responseId ? { conversationId: responseId } : {}),
-                })
-                .where(eq(copilotChats.id, actualChatId!))
+              if (responseId) {
+                await db
+                  .update(copilotChats)
+                  .set({
+                    updatedAt: new Date(),
+                    conversationId: responseId,
+                  })
+                  .where(eq(copilotChats.id, actualChatId!))
 
-              logger.info(`[${tracker.requestId}] Updated chat ${actualChatId} with new messages`, {
-                messageCount: updatedMessages.length,
-                savedUserMessage: true,
-                savedAssistantMessage: assistantContent.trim().length > 0,
-                updatedConversationId: responseId || null,
-              })
+                logger.info(
+                  `[${tracker.requestId}] Updated conversationId for chat ${actualChatId}`,
+                  {
+                    updatedConversationId: responseId,
+                  }
+                )
+              }
             }
           } catch (error) {
             logger.error(`[${tracker.requestId}] Error processing stream:`, error)

@@ -1,13 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import type { ChunkData } from '@/lib/knowledge/types'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
-
-const logger = createLogger('DeleteChunkModal')
+import { useDeleteChunk } from '@/hooks/queries/knowledge'
 
 interface DeleteChunkModalProps {
   chunk: ChunkData | null
@@ -24,44 +19,12 @@ export function DeleteChunkModal({
   isOpen,
   onClose,
 }: DeleteChunkModalProps) {
-  const queryClient = useQueryClient()
-  const [isDeleting, setIsDeleting] = useState(false)
+  const { mutate: deleteChunk, isPending: isDeleting } = useDeleteChunk()
 
-  const handleDeleteChunk = async () => {
+  const handleDeleteChunk = () => {
     if (!chunk || isDeleting) return
 
-    try {
-      setIsDeleting(true)
-
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunk.id}`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to delete chunk')
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        logger.info('Chunk deleted successfully:', chunk.id)
-
-        await queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.detail(knowledgeBaseId),
-        })
-
-        onClose()
-      } else {
-        throw new Error(result.error || 'Failed to delete chunk')
-      }
-    } catch (err) {
-      logger.error('Error deleting chunk:', err)
-    } finally {
-      setIsDeleting(false)
-    }
+    deleteChunk({ knowledgeBaseId, documentId, chunkId: chunk.id }, { onSuccess: onClose })
   }
 
   if (!chunk) return null
@@ -77,7 +40,7 @@ export function DeleteChunkModal({
           </p>
         </ModalBody>
         <ModalFooter>
-          <Button variant='active' disabled={isDeleting} onClick={onClose}>
+          <Button variant='default' disabled={isDeleting} onClick={onClose}>
             Cancel
           </Button>
           <Button variant='destructive' onClick={handleDeleteChunk} disabled={isDeleting}>

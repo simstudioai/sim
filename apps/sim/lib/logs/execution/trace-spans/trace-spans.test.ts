@@ -769,6 +769,80 @@ describe('buildTraceSpans', () => {
     expect(functionSpan?.status).toBe('error')
     expect((functionSpan?.output as { error?: string })?.error).toContain('Syntax Error')
   })
+
+  test('should remove childTraceSpans from output after integrating them as children', () => {
+    const mockExecutionResult: ExecutionResult = {
+      success: true,
+      output: { result: 'parent output' },
+      logs: [
+        {
+          blockId: 'workflow-1',
+          blockName: 'Parent Workflow',
+          blockType: 'workflow',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:05.000Z',
+          durationMs: 5000,
+          success: true,
+          output: {
+            success: true,
+            childWorkflowName: 'Child Workflow',
+            result: { data: 'some result' },
+            childTraceSpans: [
+              {
+                id: 'child-block-1',
+                name: 'Supabase Query',
+                type: 'supabase',
+                blockId: 'supabase-1',
+                duration: 2000,
+                startTime: '2024-01-01T10:00:01.000Z',
+                endTime: '2024-01-01T10:00:03.000Z',
+                status: 'success' as const,
+                output: {
+                  records: [
+                    { id: 1, logo: 'data:image/png;base64,VeryLargeBase64StringHere...' },
+                    { id: 2, logo: 'data:image/png;base64,AnotherLargeBase64StringHere...' },
+                  ],
+                },
+              },
+              {
+                id: 'child-block-2',
+                name: 'Transform Data',
+                type: 'function',
+                blockId: 'function-1',
+                duration: 500,
+                startTime: '2024-01-01T10:00:03.000Z',
+                endTime: '2024-01-01T10:00:03.500Z',
+                status: 'success' as const,
+                output: { transformed: true },
+              },
+            ],
+          },
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(mockExecutionResult)
+
+    expect(traceSpans).toHaveLength(1)
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.type).toBe('workflow')
+
+    expect(workflowSpan.children).toBeDefined()
+    expect(workflowSpan.children).toHaveLength(2)
+    expect(workflowSpan.children?.[0].name).toBe('Supabase Query')
+    expect(workflowSpan.children?.[1].name).toBe('Transform Data')
+
+    expect(workflowSpan.output).toBeDefined()
+    expect((workflowSpan.output as { childTraceSpans?: unknown }).childTraceSpans).toBeUndefined()
+
+    expect((workflowSpan.output as { success?: boolean }).success).toBe(true)
+    expect((workflowSpan.output as { childWorkflowName?: string }).childWorkflowName).toBe(
+      'Child Workflow'
+    )
+    expect((workflowSpan.output as { result?: { data: string } }).result).toEqual({
+      data: 'some result',
+    })
+  })
 })
 
 describe('stripCustomToolPrefix', () => {

@@ -1,16 +1,10 @@
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { RateLimiter } from './rate-limiter'
 import type { ConsumeResult, RateLimitStorageAdapter, TokenStatus } from './storage'
 import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS, RateLimitError } from './types'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 interface MockAdapter {
   consumeTokens: Mock

@@ -5,14 +5,18 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
-import type { SubBlockConfig } from '@/blocks/types'
-import { EDGE, normalizeName } from '@/executor/constants'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { EDGE, normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
+import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -49,6 +53,8 @@ interface ValidationError {
 type SkippedItemType =
   | 'block_not_found'
   | 'invalid_block_type'
+  | 'block_not_allowed'
+  | 'tool_not_allowed'
   | 'invalid_edge_target'
   | 'invalid_edge_source'
   | 'invalid_source_handle'
@@ -58,6 +64,9 @@ type SkippedItemType =
   | 'invalid_subflow_parent'
   | 'nested_subflow_not_allowed'
   | 'duplicate_block_name'
+  | 'reserved_block_name'
+  | 'duplicate_trigger'
+  | 'duplicate_single_instance_block'
 
 /**
  * Represents an item that was skipped during operation application
@@ -558,7 +567,9 @@ function createBlockFromParams(
   blockId: string,
   params: any,
   parentId?: string,
-  errorsCollector?: ValidationError[]
+  errorsCollector?: ValidationError[],
+  permissionConfig?: PermissionGroupConfig | null,
+  skippedItems?: SkippedItem[]
 ): any {
   const blockConfig = getAllBlocks().find((b) => b.type === params.type)
 
@@ -618,17 +629,19 @@ function createBlockFromParams(
 
       let sanitizedValue = value
 
-      // Special handling for inputFormat - ensure it's an array
-      if (key === 'inputFormat' && value !== null && value !== undefined) {
-        if (!Array.isArray(value)) {
-          // Invalid format, default to empty array
-          sanitizedValue = []
-        }
+      // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+      if (shouldNormalizeArrayIds(key)) {
+        sanitizedValue = normalizeArrayWithIds(value)
       }
 
-      // Special handling for tools - normalize to restore sanitized fields
+      // Special handling for tools - normalize and filter disallowed
       if (key === 'tools' && Array.isArray(value)) {
-        sanitizedValue = normalizeTools(value)
+        sanitizedValue = filterDisallowedTools(
+          normalizeTools(value),
+          permissionConfig ?? null,
+          blockId,
+          skippedItems ?? []
+        )
       }
 
       // Special handling for responseFormat - normalize to ensure consistent format
@@ -655,9 +668,45 @@ function createBlockFromParams(
         }
       }
     })
+
+    if (validatedInputs) {
+      updateCanonicalModesForInputs(blockState, Object.keys(validatedInputs), blockConfig)
+    }
   }
 
   return blockState
+}
+
+function updateCanonicalModesForInputs(
+  block: { data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> } },
+  inputKeys: string[],
+  blockConfig: BlockConfig
+): void {
+  if (!blockConfig.subBlocks?.length) return
+
+  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+  const canonicalModeUpdates: Record<string, 'basic' | 'advanced'> = {}
+
+  for (const inputKey of inputKeys) {
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[inputKey]
+    if (!canonicalId) continue
+
+    const group = canonicalIndex.groupsById[canonicalId]
+    if (!group || !isCanonicalPair(group)) continue
+
+    const isAdvanced = group.advancedIds.includes(inputKey)
+    const existingMode = canonicalModeUpdates[canonicalId]
+
+    if (!existingMode || isAdvanced) {
+      canonicalModeUpdates[canonicalId] = isAdvanced ? 'advanced' : 'basic'
+    }
+  }
+
+  if (Object.keys(canonicalModeUpdates).length > 0) {
+    if (!block.data) block.data = {}
+    if (!block.data.canonicalModes) block.data.canonicalModes = {}
+    Object.assign(block.data.canonicalModes, canonicalModeUpdates)
+  }
 }
 
 /**
@@ -704,6 +753,55 @@ function normalizeTools(tools: any[]): any[] {
       isExpanded: tool.isExpanded ?? true,
     }
   })
+}
+
+/** UUID v4 regex pattern for validation */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Subblock types that store arrays of objects with `id` fields.
+ * The LLM may generate arbitrary IDs which need to be converted to proper UUIDs.
+ */
+const ARRAY_WITH_ID_SUBBLOCK_TYPES = new Set([
+  'inputFormat', // input-format: Fields with id, name, type, value, collapsed
+  'headers', // table: Rows with id, cells (used for HTTP headers)
+  'params', // table: Rows with id, cells (used for query params)
+  'variables', // table or variables-input: Rows/assignments with id
+  'tagFilters', // knowledge-tag-filters: Filters with id, tagName, etc.
+  'documentTags', // document-tag-entry: Tags with id, tagName, etc.
+  'metrics', // eval-input: Metrics with id, name, description, range
+])
+
+/**
+ * Normalizes array subblock values by ensuring each item has a valid UUID.
+ * The LLM may generate arbitrary IDs like "input-desc-001" or "row-1" which need
+ * to be converted to proper UUIDs for consistency with UI-created items.
+ */
+function normalizeArrayWithIds(value: unknown): any[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.map((item: any) => {
+    if (!item || typeof item !== 'object') {
+      return item
+    }
+
+    // Check if id is missing or not a valid UUID
+    const hasValidUUID = typeof item.id === 'string' && UUID_REGEX.test(item.id)
+    if (!hasValidUUID) {
+      return { ...item, id: crypto.randomUUID() }
+    }
+
+    return item
+  })
+}
+
+/**
+ * Checks if a subblock key should have its array items normalized with UUIDs.
+ */
+function shouldNormalizeArrayIds(key: string): boolean {
+  return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
 }
 
 /**
@@ -757,6 +855,8 @@ function normalizeResponseFormat(value: any): string {
 interface EdgeHandleValidationResult {
   valid: boolean
   error?: string
+  /** The normalized handle to use (e.g., simple 'if' normalized to 'condition-{uuid}') */
+  normalizedHandle?: string
 }
 
 /**
@@ -791,13 +891,6 @@ function validateSourceHandleForBlock(
       }
 
     case 'condition': {
-      if (!sourceHandle.startsWith(EDGE.CONDITION_PREFIX)) {
-        return {
-          valid: false,
-          error: `Invalid source handle "${sourceHandle}" for condition block. Must start with "${EDGE.CONDITION_PREFIX}"`,
-        }
-      }
-
       const conditionsValue = sourceBlock?.subBlocks?.conditions?.value
       if (!conditionsValue) {
         return {
@@ -806,6 +899,8 @@ function validateSourceHandleForBlock(
         }
       }
 
+      // validateConditionHandle accepts simple format (if, else-if-0, else),
+      // legacy format (condition-{blockId}-if), and internal ID format (condition-{uuid})
       return validateConditionHandle(sourceHandle, sourceBlock.id, conditionsValue)
     }
 
@@ -817,6 +912,20 @@ function validateSourceHandleForBlock(
         valid: false,
         error: `Invalid source handle "${sourceHandle}" for router block. Valid handles: source, ${EDGE.ROUTER_PREFIX}{targetId}, error`,
       }
+
+    case 'router_v2': {
+      const routesValue = sourceBlock?.subBlocks?.routes?.value
+      if (!routesValue) {
+        return {
+          valid: false,
+          error: `Invalid router handle "${sourceHandle}" - no routes defined`,
+        }
+      }
+
+      // validateRouterHandle accepts simple format (route-0, route-1),
+      // legacy format (router-{blockId}-route-1), and internal ID format (router-{uuid})
+      return validateRouterHandle(sourceHandle, sourceBlock.id, routesValue)
+    }
 
     default:
       if (sourceHandle === 'source') {
@@ -831,7 +940,12 @@ function validateSourceHandleForBlock(
 
 /**
  * Validates condition handle references a valid condition in the block.
- * Accepts both internal IDs (condition-blockId-if) and semantic keys (condition-blockId-else-if)
+ * Accepts multiple formats:
+ * - Simple format: "if", "else-if-0", "else-if-1", "else"
+ * - Legacy semantic format: "condition-{blockId}-if", "condition-{blockId}-else-if"
+ * - Internal ID format: "condition-{conditionId}"
+ *
+ * Returns the normalized handle (condition-{conditionId}) for storage.
  */
 function validateConditionHandle(
   sourceHandle: string,
@@ -864,42 +978,154 @@ function validateConditionHandle(
     }
   }
 
-  const validHandles = new Set<string>()
-  const semanticPrefix = `condition-${blockId}-`
-  let elseIfCount = 0
+  // Build a map of all valid handle formats -> normalized handle (condition-{conditionId})
+  const handleToNormalized = new Map<string, string>()
+  const legacySemanticPrefix = `condition-${blockId}-`
+  let elseIfIndex = 0
 
   for (const condition of conditions) {
-    if (condition.id) {
-      validHandles.add(`condition-${condition.id}`)
-    }
+    if (!condition.id) continue
 
+    const normalizedHandle = `condition-${condition.id}`
+    const title = condition.title?.toLowerCase()
+
+    // Always accept internal ID format
+    handleToNormalized.set(normalizedHandle, normalizedHandle)
+
+    if (title === 'if') {
+      // Simple format: "if"
+      handleToNormalized.set('if', normalizedHandle)
+      // Legacy format: "condition-{blockId}-if"
+      handleToNormalized.set(`${legacySemanticPrefix}if`, normalizedHandle)
+    } else if (title === 'else if') {
+      // Simple format: "else-if-0", "else-if-1", etc. (0-indexed)
+      handleToNormalized.set(`else-if-${elseIfIndex}`, normalizedHandle)
+      // Legacy format: "condition-{blockId}-else-if" for first, "condition-{blockId}-else-if-2" for second
+      if (elseIfIndex === 0) {
+        handleToNormalized.set(`${legacySemanticPrefix}else-if`, normalizedHandle)
+      } else {
+        handleToNormalized.set(
+          `${legacySemanticPrefix}else-if-${elseIfIndex + 1}`,
+          normalizedHandle
+        )
+      }
+      elseIfIndex++
+    } else if (title === 'else') {
+      // Simple format: "else"
+      handleToNormalized.set('else', normalizedHandle)
+      // Legacy format: "condition-{blockId}-else"
+      handleToNormalized.set(`${legacySemanticPrefix}else`, normalizedHandle)
+    }
+  }
+
+  const normalizedHandle = handleToNormalized.get(sourceHandle)
+  if (normalizedHandle) {
+    return { valid: true, normalizedHandle }
+  }
+
+  // Build list of valid simple format options for error message
+  const simpleOptions: string[] = []
+  elseIfIndex = 0
+  for (const condition of conditions) {
     const title = condition.title?.toLowerCase()
     if (title === 'if') {
-      validHandles.add(`${semanticPrefix}if`)
+      simpleOptions.push('if')
     } else if (title === 'else if') {
-      elseIfCount++
-      validHandles.add(
-        elseIfCount === 1 ? `${semanticPrefix}else-if` : `${semanticPrefix}else-if-${elseIfCount}`
-      )
+      simpleOptions.push(`else-if-${elseIfIndex}`)
+      elseIfIndex++
     } else if (title === 'else') {
-      validHandles.add(`${semanticPrefix}else`)
+      simpleOptions.push('else')
     }
-  }
-
-  if (validHandles.has(sourceHandle)) {
-    return { valid: true }
-  }
-
-  const validOptions = Array.from(validHandles).slice(0, 5)
-  const moreCount = validHandles.size - validOptions.length
-  let validOptionsStr = validOptions.join(', ')
-  if (moreCount > 0) {
-    validOptionsStr += `, ... and ${moreCount} more`
   }
 
   return {
     valid: false,
-    error: `Invalid condition handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
+    error: `Invalid condition handle "${sourceHandle}". Valid handles: ${simpleOptions.join(', ')}`,
+  }
+}
+
+/**
+ * Validates router handle references a valid route in the block.
+ * Accepts multiple formats:
+ * - Simple format: "route-0", "route-1", "route-2" (0-indexed)
+ * - Legacy semantic format: "router-{blockId}-route-1" (1-indexed)
+ * - Internal ID format: "router-{routeId}"
+ *
+ * Returns the normalized handle (router-{routeId}) for storage.
+ */
+function validateRouterHandle(
+  sourceHandle: string,
+  blockId: string,
+  routesValue: string | any[]
+): EdgeHandleValidationResult {
+  let routes: any[]
+  if (typeof routesValue === 'string') {
+    try {
+      routes = JSON.parse(routesValue)
+    } catch {
+      return {
+        valid: false,
+        error: `Cannot validate router handle "${sourceHandle}" - routes is not valid JSON`,
+      }
+    }
+  } else if (Array.isArray(routesValue)) {
+    routes = routesValue
+  } else {
+    return {
+      valid: false,
+      error: `Cannot validate router handle "${sourceHandle}" - routes is not an array`,
+    }
+  }
+
+  if (!Array.isArray(routes) || routes.length === 0) {
+    return {
+      valid: false,
+      error: `Invalid router handle "${sourceHandle}" - no routes defined`,
+    }
+  }
+
+  // Build a map of all valid handle formats -> normalized handle (router-{routeId})
+  const handleToNormalized = new Map<string, string>()
+  const legacySemanticPrefix = `router-${blockId}-`
+
+  for (let i = 0; i < routes.length; i++) {
+    const route = routes[i]
+    if (!route.id) continue
+
+    const normalizedHandle = `router-${route.id}`
+
+    // Always accept internal ID format: router-{uuid}
+    handleToNormalized.set(normalizedHandle, normalizedHandle)
+
+    // Simple format: route-0, route-1, etc. (0-indexed)
+    handleToNormalized.set(`route-${i}`, normalizedHandle)
+
+    // Legacy 1-indexed route number format: router-{blockId}-route-1
+    handleToNormalized.set(`${legacySemanticPrefix}route-${i + 1}`, normalizedHandle)
+
+    // Accept normalized title format: router-{blockId}-{normalized-title}
+    if (route.title && typeof route.title === 'string') {
+      const normalizedTitle = route.title
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+      if (normalizedTitle) {
+        handleToNormalized.set(`${legacySemanticPrefix}${normalizedTitle}`, normalizedHandle)
+      }
+    }
+  }
+
+  const normalizedHandle = handleToNormalized.get(sourceHandle)
+  if (normalizedHandle) {
+    return { valid: true, normalizedHandle }
+  }
+
+  // Build list of valid simple format options for error message
+  const simpleOptions = routes.map((_, i) => `route-${i}`)
+
+  return {
+    valid: false,
+    error: `Invalid router handle "${sourceHandle}". Valid handles: ${simpleOptions.join(', ')}`,
   }
 }
 
@@ -1014,10 +1240,13 @@ function createValidatedEdge(
     return false
   }
 
+  // Use normalized handle if available (e.g., 'if' -> 'condition-{uuid}')
+  const finalSourceHandle = sourceValidation.normalizedHandle || sourceHandle
+
   modifiedState.edges.push({
     id: crypto.randomUUID(),
     source: sourceBlockId,
-    sourceHandle,
+    sourceHandle: finalSourceHandle,
     target: targetBlockId,
     targetHandle,
     type: 'default',
@@ -1026,7 +1255,11 @@ function createValidatedEdge(
 }
 
 /**
- * Adds connections as edges for a block
+ * Adds connections as edges for a block.
+ * Supports multiple target formats:
+ * - String: "target-block-id"
+ * - Object: { block: "target-block-id", handle?: "custom-target-handle" }
+ * - Array of strings or objects
  */
 function addConnectionsAsEdges(
   modifiedState: any,
@@ -1036,19 +1269,34 @@ function addConnectionsAsEdges(
   skippedItems?: SkippedItem[]
 ): void {
   Object.entries(connections).forEach(([sourceHandle, targets]) => {
-    const targetArray = Array.isArray(targets) ? targets : [targets]
-    targetArray.forEach((targetId: string) => {
+    if (targets === null) return
+
+    const addEdgeForTarget = (targetBlock: string, targetHandle?: string) => {
       createValidatedEdge(
         modifiedState,
         blockId,
-        targetId,
+        targetBlock,
         sourceHandle,
-        'target',
+        targetHandle || 'target',
         'add_edge',
         logger,
         skippedItems
       )
-    })
+    }
+
+    if (typeof targets === 'string') {
+      addEdgeForTarget(targets)
+    } else if (Array.isArray(targets)) {
+      targets.forEach((target: any) => {
+        if (typeof target === 'string') {
+          addEdgeForTarget(target)
+        } else if (target?.block) {
+          addEdgeForTarget(target.block, target.handle)
+        }
+      })
+    } else if (typeof targets === 'object' && targets?.block) {
+      addEdgeForTarget(targets.block, targets.handle)
+    }
   })
 }
 
@@ -1094,11 +1342,68 @@ interface ApplyOperationsResult {
 }
 
 /**
+ * Checks if a block type is allowed by the permission group config
+ */
+function isBlockTypeAllowed(
+  blockType: string,
+  permissionConfig: PermissionGroupConfig | null
+): boolean {
+  if (!permissionConfig || permissionConfig.allowedIntegrations === null) {
+    return true
+  }
+  return permissionConfig.allowedIntegrations.includes(blockType)
+}
+
+/**
+ * Filters out tools that are not allowed by the permission group config
+ * Returns both the allowed tools and any skipped tool items for logging
+ */
+function filterDisallowedTools(
+  tools: any[],
+  permissionConfig: PermissionGroupConfig | null,
+  blockId: string,
+  skippedItems: SkippedItem[]
+): any[] {
+  if (!permissionConfig) {
+    return tools
+  }
+
+  const allowedTools: any[] = []
+
+  for (const tool of tools) {
+    if (tool.type === 'custom-tool' && permissionConfig.disableCustomTools) {
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        blockId,
+        reason: `Custom tool "${tool.title || tool.customToolId || 'unknown'}" is not allowed by permission group - tool not added`,
+        details: { toolType: 'custom-tool', toolId: tool.customToolId },
+      })
+      continue
+    }
+    if (tool.type === 'mcp' && permissionConfig.disableMcpTools) {
+      logSkippedItem(skippedItems, {
+        type: 'tool_not_allowed',
+        operationType: 'add',
+        blockId,
+        reason: `MCP tool "${tool.title || 'unknown'}" is not allowed by permission group - tool not added`,
+        details: { toolType: 'mcp', serverId: tool.params?.serverId },
+      })
+      continue
+    }
+    allowedTools.push(tool)
+  }
+
+  return allowedTools
+}
+
+/**
  * Apply operations directly to the workflow JSON state
  */
 function applyOperationsToWorkflowState(
   workflowState: any,
-  operations: EditWorkflowOperation[]
+  operations: EditWorkflowOperation[],
+  permissionConfig: PermissionGroupConfig | null = null
 ): ApplyOperationsResult {
   // Deep clone the workflow state to avoid mutations
   const modifiedState = JSON.parse(JSON.stringify(workflowState))
@@ -1289,17 +1594,19 @@ function applyOperationsToWorkflowState(
             }
             let sanitizedValue = value
 
-            // Special handling for inputFormat - ensure it's an array
-            if (key === 'inputFormat' && value !== null && value !== undefined) {
-              if (!Array.isArray(value)) {
-                // Invalid format, default to empty array
-                sanitizedValue = []
-              }
+            // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+            if (shouldNormalizeArrayIds(key)) {
+              sanitizedValue = normalizeArrayWithIds(value)
             }
 
-            // Special handling for tools - normalize to restore sanitized fields
+            // Special handling for tools - normalize and filter disallowed
             if (key === 'tools' && Array.isArray(value)) {
-              sanitizedValue = normalizeTools(value)
+              sanitizedValue = filterDisallowedTools(
+                normalizeTools(value),
+                permissionConfig,
+                block_id,
+                skippedItems
+              )
             }
 
             // Special handling for responseFormat - normalize to ensure consistent format
@@ -1384,6 +1691,15 @@ function applyOperationsToWorkflowState(
               block.data.collection = params.inputs.collection
             }
           }
+
+          const editBlockConfig = getBlock(block.type)
+          if (editBlockConfig) {
+            updateCanonicalModesForInputs(
+              block,
+              Object.keys(validationResult.validInputs),
+              editBlockConfig
+            )
+          }
         }
 
         // Update basic properties
@@ -1401,17 +1717,34 @@ function applyOperationsToWorkflowState(
               reason: `Invalid block type "${params.type}" - type change skipped`,
               details: { requestedType: params.type },
             })
+          } else if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
+            logSkippedItem(skippedItems, {
+              type: 'block_not_allowed',
+              operationType: 'edit',
+              blockId: block_id,
+              reason: `Block type "${params.type}" is not allowed by permission group - type change skipped`,
+              details: { requestedType: params.type },
+            })
           } else {
             block.type = params.type
           }
         }
         if (params?.name !== undefined) {
-          if (!normalizeName(params.name)) {
+          const normalizedName = normalizeName(params.name)
+          if (!normalizedName) {
             logSkippedItem(skippedItems, {
               type: 'missing_required_params',
               operationType: 'edit',
               blockId: block_id,
               reason: `Cannot rename to empty name`,
+              details: { requestedName: params.name },
+            })
+          } else if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedName)) {
+            logSkippedItem(skippedItems, {
+              type: 'reserved_block_name',
+              operationType: 'edit',
+              blockId: block_id,
+              reason: `Cannot rename to "${params.name}" - this is a reserved name`,
               details: { requestedName: params.name },
             })
           } else {
@@ -1503,7 +1836,9 @@ function applyOperationsToWorkflowState(
               childId,
               childBlock,
               block_id,
-              validationErrors
+              validationErrors,
+              permissionConfig,
+              skippedItems
             )
             modifiedState.blocks[childId] = childBlockState
 
@@ -1632,13 +1967,25 @@ function applyOperationsToWorkflowState(
       }
 
       case 'add': {
-        if (!params?.type || !params?.name || !normalizeName(params.name)) {
+        const addNormalizedName = params?.name ? normalizeName(params.name) : ''
+        if (!params?.type || !params?.name || !addNormalizedName) {
           logSkippedItem(skippedItems, {
             type: 'missing_required_params',
             operationType: 'add',
             blockId: block_id,
             reason: `Missing required params (type or name) for adding block "${block_id}"`,
             details: { hasType: !!params?.type, hasName: !!params?.name },
+          })
+          break
+        }
+
+        if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(addNormalizedName)) {
+          logSkippedItem(skippedItems, {
+            type: 'reserved_block_name',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Block name "${params.name}" is a reserved name and cannot be used`,
+            details: { requestedName: params.name },
           })
           break
         }
@@ -1680,8 +2027,55 @@ function applyOperationsToWorkflowState(
           break
         }
 
+        // Check if block type is allowed by permission group
+        if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
+          logSkippedItem(skippedItems, {
+            type: 'block_not_allowed',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Block type "${params.type}" is not allowed by permission group - block not added`,
+            details: { requestedType: params.type },
+          })
+          break
+        }
+
+        const triggerIssue = TriggerUtils.getTriggerAdditionIssue(modifiedState.blocks, params.type)
+        if (triggerIssue) {
+          logSkippedItem(skippedItems, {
+            type: 'duplicate_trigger',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Cannot add ${triggerIssue.triggerName} - a workflow can only have one`,
+            details: { requestedType: params.type, issue: triggerIssue.issue },
+          })
+          break
+        }
+
+        // Check single-instance block constraints (e.g., Response block)
+        const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(
+          modifiedState.blocks,
+          params.type
+        )
+        if (singleInstanceIssue) {
+          logSkippedItem(skippedItems, {
+            type: 'duplicate_single_instance_block',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Cannot add ${singleInstanceIssue.blockName} - a workflow can only have one`,
+            details: { requestedType: params.type },
+          })
+          break
+        }
+
         // Create new block with proper structure
-        const newBlock = createBlockFromParams(block_id, params, undefined, validationErrors)
+        const newBlock = createBlockFromParams(
+          block_id,
+          params,
+          undefined,
+          validationErrors,
+          permissionConfig,
+          skippedItems
+        )
 
         // Set loop/parallel data on parent block BEFORE adding to blocks (strict validation)
         if (params.nestedNodes) {
@@ -1760,7 +2154,9 @@ function applyOperationsToWorkflowState(
               childId,
               childBlock,
               block_id,
-              validationErrors
+              validationErrors,
+              permissionConfig,
+              skippedItems
             )
             modifiedState.blocks[childId] = childBlockState
 
@@ -1869,22 +2265,26 @@ function applyOperationsToWorkflowState(
             validationErrors.push(...validationResult.errors)
 
             Object.entries(validationResult.validInputs).forEach(([key, value]) => {
-              // Skip runtime subblock IDs (webhookId, triggerPath, testUrl, testUrlExpiresAt)
+              // Skip runtime subblock IDs (webhookId, triggerPath)
               if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
                 return
               }
 
               let sanitizedValue = value
 
-              if (key === 'inputFormat' && value !== null && value !== undefined) {
-                if (!Array.isArray(value)) {
-                  sanitizedValue = []
-                }
+              // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+              if (shouldNormalizeArrayIds(key)) {
+                sanitizedValue = normalizeArrayWithIds(value)
               }
 
-              // Special handling for tools - normalize to restore sanitized fields
+              // Special handling for tools - normalize and filter disallowed
               if (key === 'tools' && Array.isArray(value)) {
-                sanitizedValue = normalizeTools(value)
+                sanitizedValue = filterDisallowedTools(
+                  normalizeTools(value),
+                  permissionConfig,
+                  block_id,
+                  skippedItems
+                )
               }
 
               // Special handling for responseFormat - normalize to ensure consistent format
@@ -1902,6 +2302,15 @@ function applyOperationsToWorkflowState(
                 existingBlock.subBlocks[key].value = sanitizedValue
               }
             })
+
+            const existingBlockConfig = getBlock(existingBlock.type)
+            if (existingBlockConfig) {
+              updateCanonicalModesForInputs(
+                existingBlock,
+                Object.keys(validationResult.validInputs),
+                existingBlockConfig
+              )
+            }
           }
         } else {
           // Special container types (loop, parallel) are not in the block registry but are valid
@@ -1920,8 +2329,27 @@ function applyOperationsToWorkflowState(
             break
           }
 
+          // Check if block type is allowed by permission group
+          if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
+            logSkippedItem(skippedItems, {
+              type: 'block_not_allowed',
+              operationType: 'insert_into_subflow',
+              blockId: block_id,
+              reason: `Block type "${params.type}" is not allowed by permission group - block not inserted`,
+              details: { requestedType: params.type, subflowId },
+            })
+            break
+          }
+
           // Create new block as child of subflow
-          const newBlock = createBlockFromParams(block_id, params, subflowId, validationErrors)
+          const newBlock = createBlockFromParams(
+            block_id,
+            params,
+            subflowId,
+            validationErrors,
+            permissionConfig,
+            skippedItems
+          )
           modifiedState.blocks[block_id] = newBlock
         }
 
@@ -2117,16 +2545,17 @@ async function validateWorkflowSelectorIds(
     const result = await validateSelectorIds(selector.selectorType, selector.value, context)
 
     if (result.invalid.length > 0) {
+      // Include warning info (like available credentials) in the error message for better LLM feedback
+      const warningInfo = result.warning ? `. ${result.warning}` : ''
       errors.push({
         blockId: selector.blockId,
         blockType: selector.blockType,
         field: selector.fieldName,
         value: selector.value,
-        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} - ID(s) do not exist`,
+        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} - ID(s) do not exist or user doesn't have access${warningInfo}`,
       })
-    }
-
-    if (result.warning) {
+    } else if (result.warning) {
+      // Log warnings that don't have errors (shouldn't happen for credentials but may for other selectors)
       logger.warn(result.warning, {
         blockId: selector.blockId,
         fieldName: selector.fieldName,
@@ -2200,7 +2629,9 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
   async execute(params: EditWorkflowParams, context?: { userId: string }): Promise<any> {
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params
-    if (!operations || operations.length === 0) throw new Error('operations are required')
+    if (!Array.isArray(operations) || operations.length === 0) {
+      throw new Error('operations are required and must be an array')
+    }
     if (!workflowId) throw new Error('workflowId is required')
 
     logger.info('Executing edit_workflow', {
@@ -2223,12 +2654,15 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
       workflowState = fromDb.workflowState
     }
 
+    // Get permission config for the user
+    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+
     // Apply operations directly to the workflow state
     const {
       state: modifiedWorkflowState,
       validationErrors,
       skippedItems,
-    } = applyOperationsToWorkflowState(workflowState, operations)
+    } = applyOperationsToWorkflowState(workflowState, operations, permissionConfig)
 
     // Get workspaceId for selector validation
     let workspaceId: string | undefined

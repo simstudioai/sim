@@ -71,7 +71,7 @@ export const azureTtsTool: ToolConfig<AzureTtsParams, TtsBlockResponse> = {
   },
 
   request: {
-    url: '/api/proxy/tts/unified',
+    url: '/api/tools/tts/unified',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

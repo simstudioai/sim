@@ -1,11 +1,49 @@
-import { NextRequest } from 'next/server'
 /**
  * Tests for file serve API route
  *
  * @vitest-environment node
  */
+import {
+  defaultMockUser,
+  mockAuth,
+  mockCryptoUuid,
+  mockUuid,
+  setupCommonApiMocks,
+} from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setupApiTestMocks } from '@/app/api/__test-utils__/utils'
+
+function setupApiTestMocks(
+  options: {
+    authenticated?: boolean
+    user?: { id: string; email: string }
+    withFileSystem?: boolean
+    withUploadUtils?: boolean
+  } = {}
+) {
+  const { authenticated = true, user = defaultMockUser, withFileSystem = false } = options
+
+  setupCommonApiMocks()
+  mockUuid()
+  mockCryptoUuid()
+
+  const authMocks = mockAuth(user)
+  if (authenticated) {
+    authMocks.setAuthenticated(user)
+  } else {
+    authMocks.setUnauthenticated()
+  }
+
+  if (withFileSystem) {
+    vi.doMock('fs/promises', () => ({
+      readFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
+      access: vi.fn().mockResolvedValue(undefined),
+      stat: vi.fn().mockResolvedValue({ isFile: () => true, size: 100 }),
+    }))
+  }
+
+  return { auth: authMocks }
+}
 
 describe('File Serve API Route', () => {
   beforeEach(() => {
@@ -29,6 +67,17 @@ describe('File Serve API Route', () => {
 
     vi.doMock('fs', () => ({
       existsSync: vi.fn().mockReturnValue(true),
+    }))
+
+    vi.doMock('@/lib/uploads', () => ({
+      CopilotFiles: {
+        downloadCopilotFile: vi.fn(),
+      },
+      isUsingCloudStorage: vi.fn().mockReturnValue(false),
+    }))
+
+    vi.doMock('@/lib/uploads/utils/file-utils', () => ({
+      inferContextFromKey: vi.fn().mockReturnValue('workspace'),
     }))
 
     vi.doMock('@/app/api/files/utils', () => ({
@@ -124,6 +173,17 @@ describe('File Serve API Route', () => {
 
     vi.doMock('@/app/api/files/authorization', () => ({
       verifyFileAccess: vi.fn().mockResolvedValue(true),
+    }))
+
+    vi.doMock('@/lib/uploads', () => ({
+      CopilotFiles: {
+        downloadCopilotFile: vi.fn(),
+      },
+      isUsingCloudStorage: vi.fn().mockReturnValue(false),
+    }))
+
+    vi.doMock('@/lib/uploads/utils/file-utils', () => ({
+      inferContextFromKey: vi.fn().mockReturnValue('workspace'),
     }))
 
     const req = new NextRequest(

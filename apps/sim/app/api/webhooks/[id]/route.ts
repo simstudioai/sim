@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
 import { webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateInteger } from '@/lib/core/security/input-validation'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WebhookAPI')
@@ -81,7 +83,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// Update a webhook
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
 
@@ -96,7 +97,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const body = await request.json()
-    const { path, provider, providerConfig, isActive, failedCount } = body
+    const { isActive, failedCount } = body
 
     if (failedCount !== undefined) {
       const validation = validateInteger(failedCount, 'failedCount', { min: 0 })
@@ -106,28 +107,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
-    let resolvedProviderConfig = providerConfig
-    if (providerConfig) {
-      const { resolveEnvVarsInObject } = await import('@/lib/webhooks/env-resolver')
-      const webhookDataForResolve = await db
-        .select({
-          workspaceId: workflow.workspaceId,
-        })
-        .from(webhook)
-        .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-        .where(eq(webhook.id, id))
-        .limit(1)
-
-      if (webhookDataForResolve.length > 0) {
-        resolvedProviderConfig = await resolveEnvVarsInObject(
-          providerConfig,
-          session.user.id,
-          webhookDataForResolve[0].workspaceId || undefined
-        )
-      }
-    }
-
-    // Find the webhook and check permissions
     const webhooks = await db
       .select({
         webhook: webhook,
@@ -148,16 +127,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const webhookData = webhooks[0]
-
-    // Check if user has permission to modify this webhook
     let canModify = false
 
-    // Case 1: User owns the workflow
     if (webhookData.workflow.userId === session.user.id) {
       canModify = true
     }
 
-    // Case 2: Workflow belongs to a workspace and user has write or admin permission
     if (!canModify && webhookData.workflow.workspaceId) {
       const userPermission = await getUserEntityPermissions(
         session.user.id,
@@ -177,23 +152,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     logger.debug(`[${requestId}] Updating webhook properties`, {
-      hasPathUpdate: path !== undefined,
-      hasProviderUpdate: provider !== undefined,
-      hasConfigUpdate: providerConfig !== undefined,
       hasActiveUpdate: isActive !== undefined,
       hasFailedCountUpdate: failedCount !== undefined,
     })
 
-    // Update the webhook
     const updatedWebhook = await db
       .update(webhook)
       .set({
-        path: path !== undefined ? path : webhooks[0].webhook.path,
-        provider: provider !== undefined ? provider : webhooks[0].webhook.provider,
-        providerConfig:
-          providerConfig !== undefined
-            ? resolvedProviderConfig
-            : webhooks[0].webhook.providerConfig,
         isActive: isActive !== undefined ? isActive : webhooks[0].webhook.isActive,
         failedCount: failedCount !== undefined ? failedCount : webhooks[0].webhook.failedCount,
         updatedAt: new Date(),
@@ -276,13 +241,63 @@ export async function DELETE(
     }
 
     const foundWebhook = webhookData.webhook
+    const credentialSetId = foundWebhook.credentialSetId as string | undefined
+    const blockId = foundWebhook.blockId as string | undefined
 
-    const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
-    await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
+    if (credentialSetId && blockId) {
+      const allCredentialSetWebhooks = await db
+        .select()
+        .from(webhook)
+        .where(and(eq(webhook.workflowId, webhookData.workflow.id), eq(webhook.blockId, blockId)))
 
-    await db.delete(webhook).where(eq(webhook.id, id))
+      const webhooksToDelete = allCredentialSetWebhooks.filter(
+        (w) => w.credentialSetId === credentialSetId
+      )
 
-    logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)
+      for (const w of webhooksToDelete) {
+        await cleanupExternalWebhook(w, webhookData.workflow, requestId)
+      }
+
+      const idsToDelete = webhooksToDelete.map((w) => w.id)
+      for (const wId of idsToDelete) {
+        await db.delete(webhook).where(eq(webhook.id, wId))
+      }
+
+      try {
+        for (const wId of idsToDelete) {
+          PlatformEvents.webhookDeleted({
+            webhookId: wId,
+            workflowId: webhookData.workflow.id,
+          })
+        }
+      } catch {
+        // Telemetry should not fail the operation
+      }
+
+      logger.info(
+        `[${requestId}] Successfully deleted ${idsToDelete.length} webhooks for credential set`,
+        {
+          credentialSetId,
+          blockId,
+          deletedIds: idsToDelete,
+        }
+      )
+    } else {
+      await cleanupExternalWebhook(foundWebhook, webhookData.workflow, requestId)
+      await db.delete(webhook).where(eq(webhook.id, id))
+
+      try {
+        PlatformEvents.webhookDeleted({
+          webhookId: id,
+          workflowId: webhookData.workflow.id,
+        })
+      } catch {
+        // Telemetry should not fail the operation
+      }
+
+      logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)
+    }
+
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deleting webhook`, {

@@ -4,10 +4,11 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType, DEFAULTS, EVALUATOR, HTTP } from '@/executor/constants'
+import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { buildAPIUrl, extractAPIErrorMessage } from '@/executor/utils/http'
+import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
+import { validateModelProvider } from '@/executor/utils/permission-check'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -32,7 +33,13 @@ export class EvaluatorBlockHandler implements BlockHandler {
       vertexProject: inputs.vertexProject,
       vertexLocation: inputs.vertexLocation,
       vertexCredential: inputs.vertexCredential,
+      bedrockAccessKeyId: inputs.bedrockAccessKeyId,
+      bedrockSecretKey: inputs.bedrockSecretKey,
+      bedrockRegion: inputs.bedrockRegion,
     }
+
+    await validateModelProvider(ctx.userId, evaluatorConfig.model, ctx)
+
     const providerId = getProviderFromModel(evaluatorConfig.model)
 
     let finalApiKey: string | undefined = evaluatorConfig.apiKey
@@ -128,11 +135,15 @@ export class EvaluatorBlockHandler implements BlockHandler {
         providerRequest.azureApiVersion = inputs.azureApiVersion
       }
 
+      if (providerId === 'bedrock') {
+        providerRequest.bedrockAccessKeyId = evaluatorConfig.bedrockAccessKeyId
+        providerRequest.bedrockSecretKey = evaluatorConfig.bedrockSecretKey
+        providerRequest.bedrockRegion = evaluatorConfig.bedrockRegion
+      }
+
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': HTTP.CONTENT_TYPE.JSON,
-        },
+        headers: await buildAuthHeaders(),
         body: stringifyJSON(providerRequest),
       })
 

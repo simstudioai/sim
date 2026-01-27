@@ -13,6 +13,11 @@ interface ActionBarProps {
   disabledCount?: number
   isLoading?: boolean
   className?: string
+  totalCount?: number
+  isAllPageSelected?: boolean
+  isAllSelected?: boolean
+  onSelectAll?: () => void
+  onClearSelectAll?: () => void
 }
 
 export function ActionBar({
@@ -24,14 +29,21 @@ export function ActionBar({
   disabledCount = 0,
   isLoading = false,
   className,
+  totalCount = 0,
+  isAllPageSelected = false,
+  isAllSelected = false,
+  onSelectAll,
+  onClearSelectAll,
 }: ActionBarProps) {
   const userPermissions = useUserPermissionsContext()
 
-  if (selectedCount === 0) return null
+  if (selectedCount === 0 && !isAllSelected) return null
 
   const canEdit = userPermissions.canEdit
   const showEnableButton = disabledCount > 0 && onEnable && canEdit
   const showDisableButton = enabledCount > 0 && onDisable && canEdit
+  const showSelectAllOption =
+    isAllPageSelected && !isAllSelected && totalCount > selectedCount && onSelectAll
 
   return (
     <motion.div
@@ -43,7 +55,31 @@ export function ActionBar({
     >
       <div className='flex items-center gap-[8px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-[8px] py-[6px]'>
         <span className='px-[4px] text-[13px] text-[var(--text-secondary)]'>
-          {selectedCount} selected
+          {isAllSelected ? totalCount : selectedCount} selected
+          {showSelectAllOption && (
+            <>
+              {' · '}
+              <button
+                type='button'
+                onClick={onSelectAll}
+                className='text-[var(--brand-primary)] hover:underline'
+              >
+                Select all
+              </button>
+            </>
+          )}
+          {isAllSelected && onClearSelectAll && (
+            <>
+              {' · '}
+              <button
+                type='button'
+                onClick={onClearSelectAll}
+                className='text-[var(--brand-primary)] hover:underline'
+              >
+                Clear
+              </button>
+            </>
+          )}
         </span>
 
         <div className='flex items-center gap-[5px]'>

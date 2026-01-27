@@ -1,40 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
+import type { OperationQueueState, QueuedOperation } from './types'
 
 const logger = createLogger('OperationQueue')
-
-export interface QueuedOperation {
-  id: string
-  operation: {
-    operation: string
-    target: string
-    payload: any
-  }
-  workflowId: string
-  timestamp: number
-  retryCount: number
-  status: 'pending' | 'processing' | 'confirmed' | 'failed'
-  userId: string
-}
-
-interface OperationQueueState {
-  operations: QueuedOperation[]
-  isProcessing: boolean
-  hasOperationError: boolean
-
-  addToQueue: (operation: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>) => void
-  confirmOperation: (operationId: string) => void
-  failOperation: (operationId: string, retryable?: boolean) => void
-  handleOperationTimeout: (operationId: string) => void
-  processNextOperation: () => void
-  cancelOperationsForBlock: (blockId: string) => void
-  cancelOperationsForVariable: (variableId: string) => void
-
-  cancelOperationsForWorkflow: (workflowId: string) => void
-
-  triggerOfflineMode: () => void
-  clearError: () => void
-}
 
 const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()
@@ -59,6 +27,9 @@ export function registerEmitFunctions(
   emitSubblockUpdate = subblockEmit
   emitVariableUpdate = variableEmit
   currentRegisteredWorkflowId = workflowId
+  if (workflowId) {
+    useOperationQueueStore.getState().processNextOperation()
+  }
 }
 
 let currentRegisteredWorkflowId: string | null = null
@@ -69,8 +40,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   hasOperationError: false,
 
   addToQueue: (operation) => {
-    // Immediate coalescing without client-side debouncing:
-    // For subblock updates, keep only latest pending op for the same blockId+subblockId
     if (
       operation.operation.operation === 'subblock-update' &&
       operation.operation.target === 'subblock'
@@ -92,7 +61,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }))
     }
 
-    // For variable updates, keep only latest pending op for same variableId+field
     if (
       operation.operation.operation === 'variable-update' &&
       operation.operation.target === 'variable'
@@ -114,10 +82,8 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }))
     }
 
-    // Handle remaining logic
     const state = get()
 
-    // Check for duplicate operation ID
     const existingOp = state.operations.find((op) => op.id === operation.id)
     if (existingOp) {
       logger.debug('Skipping duplicate operation ID', {
@@ -127,16 +93,13 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       return
     }
 
-    // Enhanced duplicate content check - especially important for block operations
     const duplicateContent = state.operations.find(
       (op) =>
         op.operation.operation === operation.operation.operation &&
         op.operation.target === operation.operation.target &&
         op.workflowId === operation.workflowId &&
-        // For block operations, check the block ID specifically
         ((operation.operation.target === 'block' &&
           op.operation.payload?.id === operation.operation.payload?.id) ||
-          // For other operations, fall back to full payload comparison
           (operation.operation.target !== 'block' &&
             JSON.stringify(op.operation.payload) === JSON.stringify(operation.operation.payload)))
     )
@@ -175,7 +138,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       operations: [...state.operations, queuedOp],
     }))
 
-    // Start processing if not already processing
     get().processNextOperation()
   },
 
@@ -203,7 +165,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     set({ operations: newOperations, isProcessing: false })
 
-    // Process next operation in queue
     get().processNextOperation()
   },
 
@@ -233,7 +194,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       return
     }
 
-    // More aggressive retry for subblock/variable updates, less aggressive for structural ops
     const isSubblockOrVariable =
       (operation.operation.operation === 'subblock-update' &&
         operation.operation.target === 'subblock') ||
@@ -258,17 +218,15 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         }
       )
 
-      // Update retry count and mark as pending for retry
       set((state) => ({
         operations: state.operations.map((op) =>
           op.id === operationId
             ? { ...op, retryCount: newRetryCount, status: 'pending' as const }
             : op
         ),
-        isProcessing: false, // Allow processing to continue
+        isProcessing: false,
       }))
 
-      // Schedule retry
       const timeout = setTimeout(() => {
         retryTimeouts.delete(operationId)
         get().processNextOperation()
@@ -276,7 +234,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
       retryTimeouts.set(operationId, timeout)
     } else {
-      // Always trigger offline mode when we can't persist - never silently drop data
       logger.error('Operation failed after max retries, triggering offline mode', {
         operationId,
         operation: operation.operation.operation,
@@ -304,25 +261,21 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   processNextOperation: () => {
     const state = get()
 
-    // Don't process if already processing
     if (state.isProcessing) {
       return
     }
 
-    const nextOperation = currentRegisteredWorkflowId
-      ? state.operations.find(
-          (op) => op.status === 'pending' && op.workflowId === currentRegisteredWorkflowId
-        )
-      : state.operations.find((op) => op.status === 'pending')
+    if (!currentRegisteredWorkflowId) {
+      return
+    }
+
+    const nextOperation = state.operations.find(
+      (op) => op.status === 'pending' && op.workflowId === currentRegisteredWorkflowId
+    )
     if (!nextOperation) {
       return
     }
 
-    if (currentRegisteredWorkflowId && nextOperation.workflowId !== currentRegisteredWorkflowId) {
-      return
-    }
-
-    // Mark as processing
     set((state) => ({
       operations: state.operations.map((op) =>
         op.id === nextOperation.id ? { ...op, status: 'processing' as const } : op
@@ -336,7 +289,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       retryCount: nextOperation.retryCount,
     })
 
-    // Emit the operation
     const { operation: op, target, payload } = nextOperation.operation
     if (op === 'subblock-update' && target === 'subblock') {
       if (emitSubblockUpdate) {
@@ -352,7 +304,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }
     }
 
-    // Create operation timeout - longer for subblock/variable updates to handle reconnects
     const isSubblockOrVariable =
       (nextOperation.operation.operation === 'subblock-update' &&
         nextOperation.operation.target === 'subblock') ||
@@ -379,13 +330,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     const operationsToCancel = state.operations.filter((op) => {
       const { target, payload, operation } = op.operation
 
-      // Single block property updates (update-position, toggle-enabled, update-name, etc.)
       if (target === 'block' && payload?.id === blockId) return true
 
-      // Subblock updates for this block
       if (target === 'subblock' && payload?.blockId === blockId) return true
 
-      // Batch block operations
       if (target === 'blocks') {
         if (operation === 'batch-add-blocks' && Array.isArray(payload?.blocks)) {
           return payload.blocks.some((b: { id: string }) => b.id === blockId)
@@ -401,7 +349,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       return false
     })
 
-    // Cancel timeouts for these operations
     operationsToCancel.forEach((op) => {
       const operationTimeout = operationTimeouts.get(op.id)
       if (operationTimeout) {
@@ -416,17 +363,13 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }
     })
 
-    // Remove all operations for this block (both pending and processing)
     const newOperations = state.operations.filter((op) => {
       const { target, payload, operation } = op.operation
 
-      // Single block property updates (update-position, toggle-enabled, update-name, etc.)
       if (target === 'block' && payload?.id === blockId) return false
 
-      // Subblock updates for this block
       if (target === 'subblock' && payload?.blockId === blockId) return false
 
-      // Batch block operations
       if (target === 'blocks') {
         if (operation === 'batch-add-blocks' && Array.isArray(payload?.blocks)) {
           if (payload.blocks.some((b: { id: string }) => b.id === blockId)) return false
@@ -444,7 +387,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     set({
       operations: newOperations,
-      isProcessing: false, // Reset processing state in case we removed the current operation
+      isProcessing: false,
     })
 
     logger.debug('Cancelled operations for block', {
@@ -452,16 +395,12 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       cancelledOperations: operationsToCancel.length,
     })
 
-    // Process next operation if there are any remaining
     get().processNextOperation()
   },
 
   cancelOperationsForVariable: (variableId: string) => {
     logger.debug('Canceling all operations for variable', { variableId })
 
-    // No debounced timeouts to cancel (moved to server-side)
-
-    // Find and cancel operation timeouts for operations related to this variable
     const state = get()
     const operationsToCancel = state.operations.filter(
       (op) =>
@@ -470,7 +409,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
           op.operation.payload?.sourceVariableId === variableId)
     )
 
-    // Cancel timeouts for these operations
     operationsToCancel.forEach((op) => {
       const operationTimeout = operationTimeouts.get(op.id)
       if (operationTimeout) {
@@ -485,7 +423,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }
     })
 
-    // Remove all operations for this variable (both pending and processing)
     const newOperations = state.operations.filter(
       (op) =>
         !(
@@ -497,7 +434,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     set({
       operations: newOperations,
-      isProcessing: false, // Reset processing state in case we removed the current operation
+      isProcessing: false,
     })
 
     logger.debug('Cancelled operations for variable', {
@@ -505,7 +442,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       cancelledOperations: operationsToCancel.length,
     })
 
-    // Process next operation if there are any remaining
     get().processNextOperation()
   },
 
@@ -551,20 +487,31 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   },
 }))
 
+/**
+ * Hook to access operation queue state and actions.
+ * Uses getState() for actions to avoid unnecessary re-renders.
+ * Only subscribes to the specific state values needed.
+ */
 export function useOperationQueue() {
-  const store = useOperationQueueStore()
+  const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)
+
+  const actions = useOperationQueueStore.getState()
 
   return {
-    queue: store.operations,
-    isProcessing: store.isProcessing,
-    hasOperationError: store.hasOperationError,
-    addToQueue: store.addToQueue,
-    confirmOperation: store.confirmOperation,
-    failOperation: store.failOperation,
-    processNextOperation: store.processNextOperation,
-    cancelOperationsForBlock: store.cancelOperationsForBlock,
-    cancelOperationsForVariable: store.cancelOperationsForVariable,
-    triggerOfflineMode: store.triggerOfflineMode,
-    clearError: store.clearError,
+    get queue() {
+      return useOperationQueueStore.getState().operations
+    },
+    get isProcessing() {
+      return useOperationQueueStore.getState().isProcessing
+    },
+    hasOperationError,
+    addToQueue: actions.addToQueue,
+    confirmOperation: actions.confirmOperation,
+    failOperation: actions.failOperation,
+    processNextOperation: actions.processNextOperation,
+    cancelOperationsForBlock: actions.cancelOperationsForBlock,
+    cancelOperationsForVariable: actions.cancelOperationsForVariable,
+    triggerOfflineMode: actions.triggerOfflineMode,
+    clearError: actions.clearError,
   }
 }

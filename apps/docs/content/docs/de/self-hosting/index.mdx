@@ -1,21 +1,29 @@
 ---
 title: Self-Hosting
-description: Stellen Sie Sim Studio auf Ihrer eigenen Infrastruktur bereit
+description: Stellen Sie Sim auf Ihrer eigenen Infrastruktur bereit
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Stellen Sie Sim Studio auf Ihrer eigenen Infrastruktur mit Docker oder Kubernetes bereit.
+Stellen Sie Sim auf Ihrer eigenen Infrastruktur mit Docker oder Kubernetes bereit.
 
 ## Anforderungen
 
-| Ressource | Minimum | Empfohlen |
-|----------|---------|-------------|
-| CPU | 2 Kerne | 4+ Kerne |
-| RAM | 12 GB | 16+ GB |
-| Speicher | 20 GB SSD | 50+ GB SSD |
-| Docker | 20.10+ | Neueste Version |
+| Ressource | Klein | Standard | Produktion |
+|----------|-------|----------|------------|
+| CPU | 2 Kerne | 4 Kerne | 8+ Kerne |
+| RAM | 12 GB | 16 GB | 32+ GB |
+| Speicher | 20 GB SSD | 50 GB SSD | 100+ GB SSD |
+| Docker | 20.10+ | 20.10+ | Neueste Version |
+
+**Klein**: Entwicklung, Tests, Einzelnutzer (1-5 Nutzer)
+**Standard**: Teams (5-50 Nutzer), moderate Arbeitslasten
+**Produktion**: Große Teams (50+ Nutzer), Hochverfügbarkeit, intensive Workflow-Ausführung
+
+<Callout type="info">
+Die Ressourcenanforderungen werden durch Workflow-Ausführung (isolated-vm Sandboxing), Dateiverarbeitung (In-Memory-Dokumentenparsing) und Vektoroperationen (pgvector) bestimmt. Arbeitsspeicher ist typischerweise der limitierende Faktor, nicht CPU. Produktionsdaten zeigen, dass die Hauptanwendung durchschnittlich 4-8 GB und bei hoher Last bis zu 12 GB benötigt.
+</Callout>
 
 ## Schnellstart
 

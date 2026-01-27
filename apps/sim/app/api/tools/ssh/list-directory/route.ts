@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { Client, FileEntry, SFTPWrapper } from 'ssh2'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   createSSHConnection,
   getFileType,
@@ -60,10 +61,15 @@ export async function POST(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
 
   try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized SSH list directory attempt`)
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const params = ListDirectorySchema.parse(body)
 
-    // Validate authentication
     if (!params.password && !params.privateKey) {
       return NextResponse.json(
         { error: 'Either password or privateKey must be provided' },

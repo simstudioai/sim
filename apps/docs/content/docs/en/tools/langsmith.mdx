@@ -1,0 +1,94 @@
+---
+title: LangSmith
+description: Forward workflow runs to LangSmith for observability
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="langsmith"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Unlock deep visibility and understanding of your AI workflows with [LangSmith](https://www.langchain.com/langsmith) – a powerful platform for tracing, debugging, and monitoring LLM-powered applications and automations. Integrate LangSmith into your processes to capture detailed execution traces, log input/output data, attach metadata, and optimize your workflows through data-driven observability.
+
+With the LangSmith integration, you can:
+
+- **Trace and debug runs**: Forward workflow, tool, or model runs to LangSmith, record hierarchical execution details, and pinpoint bottlenecks or failures quickly.
+- **Attach rich metadata**: Enrich your traces by logging inputs, outputs, tags, custom metadata, reasons for failure, and more for in-depth insight and analytics.
+- **Monitor workflow performance**: Visualize executions, monitor error rates, durations, and success metrics over time to improve reliability and efficiency.
+- **Collaborate and audit**: Enable team-based debugging and track changes, enabling transparent auditing and rapid iteration on chained LLM workflows.
+- **Automate observability**: Seamlessly connect LangSmith traces to your workflow automations for always-on, effortless monitoring without manual instrumentation.
+
+LangSmith empowers engineers, data scientists, and product teams to iterate faster, catch issues earlier, and build more robust LLM-based applications—whether you’re orchestrating agents, chains, or end-to-end workflows.
+
+Drive better observability, actionable insights, and higher product quality by integrating LangSmith into your automated processes today.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.
+
+
+
+## Tools
+
+### `langsmith_create_run`
+
+Forward a single run to LangSmith for ingestion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LangSmith API key |
+| `id` | string | No | Unique run identifier |
+| `name` | string | Yes | Run name |
+| `run_type` | string | Yes | Run type \(tool, chain, llm, retriever, embedding, prompt, parser\) |
+| `start_time` | string | No | Run start time in ISO-8601 format |
+| `end_time` | string | No | Run end time in ISO-8601 format |
+| `inputs` | json | No | Inputs payload |
+| `run_outputs` | json | No | Outputs payload |
+| `extra` | json | No | Additional metadata \(extra\) |
+| `tags` | json | No | Array of tag strings |
+| `parent_run_id` | string | No | Parent run ID |
+| `trace_id` | string | No | Trace ID |
+| `session_id` | string | No | Session ID |
+| `session_name` | string | No | Session name |
+| `status` | string | No | Run status |
+| `error` | string | No | Error details |
+| `dotted_order` | string | No | Dotted order string |
+| `events` | json | No | Structured events array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether the run was accepted for ingestion |
+| `runId` | string | Run identifier provided in the request |
+| `message` | string | Response message from LangSmith |
+
+### `langsmith_create_runs_batch`
+
+Forward multiple runs to LangSmith in a single batch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LangSmith API key |
+| `post` | json | No | Array of new runs to ingest |
+| `patch` | json | No | Array of runs to update/patch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether the batch was accepted for ingestion |
+| `runIds` | array | Run identifiers provided in the request |
+| `message` | string | Response message from LangSmith |
+| `messages` | array | Per-run response messages, when provided |
+
+

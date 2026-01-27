@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'lodash'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
  * Dropdown option type - can be a simple string or an object with label, id, and optional icon
@@ -44,8 +49,16 @@ interface DropdownProps {
     blockId: string,
     subBlockId: string
   ) => Promise<Array<{ label: string; id: string }>>
+  /** Async function to fetch a single option's label by ID (for hydration) */
+  fetchOptionById?: (
+    blockId: string,
+    subBlockId: string,
+    optionId: string
+  ) => Promise<{ label: string; id: string } | null>
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
+  /** Enable search input in dropdown */
+  searchable?: boolean
 }
 
 /**
@@ -57,7 +70,7 @@ interface DropdownProps {
  * - Special handling for dataMode subblock to convert between JSON and structured formats
  * - Integrates with the workflow state management system
  */
-export function Dropdown({
+export const Dropdown = memo(function Dropdown({
   options,
   defaultValue,
   blockId,
@@ -69,7 +82,9 @@ export function Dropdown({
   placeholder = 'Select an option...',
   multiSelect = false,
   fetchOptions,
+  fetchOptionById,
   dependsOn,
+  searchable = false,
 }: DropdownProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
@@ -79,22 +94,34 @@ export function Dropdown({
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
 
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
-  const dependencyValues = useSubBlockStore(
+  const blockState = useWorkflowStore((state) => state.blocks[blockId])
+  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
+  )
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
+  const dependencyValues = useStoreWithEqualityFn(
+    useSubBlockStore,
     useCallback(
       (state) => {
         if (dependsOnFields.length === 0 || !activeWorkflowId) return []
         const workflowValues = state.workflowValues[activeWorkflowId] || {}
         const blockValues = workflowValues[blockId] || {}
-        return dependsOnFields.map((depKey) => blockValues[depKey] ?? null)
+        return dependsOnFields.map((depKey) =>
+          resolveDependencyValue(depKey, blockValues, canonicalIndex, canonicalModeOverrides)
+        )
       },
-      [dependsOnFields, activeWorkflowId, blockId]
-    )
+      [dependsOnFields, activeWorkflowId, blockId, canonicalIndex, canonicalModeOverrides]
+    ),
+    isEqual
   )
 
   const [storeInitialized, setStoreInitialized] = useState(false)
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [hydratedOption, setHydratedOption] = useState<{ label: string; id: string } | null>(null)
 
   const previousModeRef = useRef<string | null>(null)
   const previousDependencyValuesRef = useRef<string>('')
@@ -113,7 +140,13 @@ export function Dropdown({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   const singleValue = multiSelect ? null : (value as string | null | undefined)
-  const multiValues = multiSelect ? (value as string[] | null | undefined) || [] : null
+  const multiValues = multiSelect
+    ? Array.isArray(value)
+      ? value
+      : value
+        ? [value as string]
+        : []
+    : null
 
   const fetchOptionsIfNeeded = useCallback(async () => {
     if (!fetchOptions || isPreview || disabled) return
@@ -132,6 +165,18 @@ export function Dropdown({
     }
   }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
 
+  /**
+   * Handles combobox open state changes to trigger option fetching
+   */
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        void fetchOptionsIfNeeded()
+      }
+    },
+    [fetchOptionsIfNeeded]
+  )
+
   const evaluatedOptions = useMemo(() => {
     return typeof options === 'function' ? options() : options
   }, [options])
@@ -141,11 +186,23 @@ export function Dropdown({
   }, [fetchedOptions])
 
   const availableOptions = useMemo(() => {
-    if (fetchOptions && normalizedFetchedOptions.length > 0) {
-      return normalizedFetchedOptions
+    let opts: DropdownOption[] =
+      fetchOptions && normalizedFetchedOptions.length > 0
+        ? normalizedFetchedOptions
+        : evaluatedOptions
+
+    // Merge hydrated option if not already present
+    if (hydratedOption) {
+      const alreadyPresent = opts.some((o) =>
+        typeof o === 'string' ? o === hydratedOption.id : o.id === hydratedOption.id
+      )
+      if (!alreadyPresent) {
+        opts = [hydratedOption, ...opts]
+      }
     }
-    return evaluatedOptions
-  }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions])
+
+    return opts
+  }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
 
   /**
    * Convert dropdown options to Combobox format
@@ -301,7 +358,7 @@ export function Dropdown({
   )
 
   /**
-   * Effect to clear fetched options when dependencies actually change
+   * Effect to clear fetched options and hydrated option when dependencies actually change
    * This ensures options are refetched with new dependency values (e.g., new credentials)
    */
   useEffect(() => {
@@ -314,6 +371,7 @@ export function Dropdown({
         currentDependencyValuesStr !== previousDependencyValuesStr
       ) {
         setFetchedOptions([])
+        setHydratedOption(null)
       }
 
       previousDependencyValuesRef.current = currentDependencyValuesStr
@@ -329,18 +387,72 @@ export function Dropdown({
       !isPreview &&
       !disabled &&
       fetchedOptions.length === 0 &&
-      !isLoadingOptions
+      !isLoadingOptions &&
+      !fetchError
     ) {
       fetchOptionsIfNeeded()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchOptionsIfNeeded deps already covered above
   }, [
     fetchOptions,
     isPreview,
     disabled,
     fetchedOptions.length,
     isLoadingOptions,
-    fetchOptionsIfNeeded,
-    dependencyValues, // Refetch when dependencies change
+    fetchError,
+    dependencyValues,
+  ])
+
+  /**
+   * Effect to hydrate the stored value's label by fetching it individually
+   * This ensures the correct label is shown before the full options list loads
+   */
+  useEffect(() => {
+    if (!fetchOptionById || isPreview || disabled) return
+
+    // Get the value to hydrate (single value only, not multi-select)
+    const valueToHydrate = multiSelect ? null : (singleValue as string | null | undefined)
+    if (!valueToHydrate) return
+
+    // Skip if value is an expression (not a real ID)
+    if (valueToHydrate.startsWith('<') || valueToHydrate.includes('{{')) return
+
+    // Skip if already hydrated with the same value
+    if (hydratedOption?.id === valueToHydrate) return
+
+    // Skip if value is already in fetched options or static options
+    const alreadyInFetchedOptions = fetchedOptions.some((opt) => opt.id === valueToHydrate)
+    const alreadyInStaticOptions = evaluatedOptions.some((opt) =>
+      typeof opt === 'string' ? opt === valueToHydrate : opt.id === valueToHydrate
+    )
+    if (alreadyInFetchedOptions || alreadyInStaticOptions) return
+
+    // Track if effect is still active (cleanup on unmount or value change)
+    let isActive = true
+
+    // Fetch the hydrated option
+    fetchOptionById(blockId, subBlockId, valueToHydrate)
+      .then((option) => {
+        if (isActive) setHydratedOption(option)
+      })
+      .catch(() => {
+        if (isActive) setHydratedOption(null)
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [
+    fetchOptionById,
+    singleValue,
+    multiSelect,
+    blockId,
+    subBlockId,
+    isPreview,
+    disabled,
+    fetchedOptions,
+    evaluatedOptions,
+    hydratedOption?.id,
   ])
 
   /**
@@ -363,7 +475,7 @@ export function Dropdown({
     )
   }, [multiSelect, multiValues, optionMap])
 
-  const isSearchable = subBlockId === 'operation'
+  const isSearchable = searchable || (subBlockId === 'operation' && comboboxOptions.length > 5)
 
   return (
     <Combobox
@@ -375,17 +487,13 @@ export function Dropdown({
       placeholder={placeholder}
       disabled={disabled}
       editable={false}
-      onOpenChange={(open) => {
-        if (open) {
-          void fetchOptionsIfNeeded()
-        }
-      }}
+      onOpenChange={handleOpenChange}
       overlayContent={multiSelectOverlay}
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
       error={fetchError}
       searchable={isSearchable}
-      searchPlaceholder='Search operations...'
+      searchPlaceholder='Search...'
     />
   )
-}
+})

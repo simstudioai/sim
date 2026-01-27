@@ -95,13 +95,19 @@ export const salesforceUpdateCaseTool: ToolConfig<
       output: {
         id: params?.caseId || '',
         updated: true,
-        metadata: { operation: 'update_case' },
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Success' },
-    output: { type: 'object', description: 'Updated case' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Updated case data',
+      properties: {
+        id: { type: 'string', description: 'Updated case ID' },
+        updated: { type: 'boolean', description: 'Whether case was updated' },
+      },
+    },
   },
 }

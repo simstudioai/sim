@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Badge, Button, Combobox, Input, Label, Textarea } from '@/components/emcn'
+import {
+  Badge,
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Input,
+  Label,
+  Textarea,
+} from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -11,8 +19,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import type { Variable } from '@/stores/panel/variables/types'
+import type { Variable } from '@/stores/panel'
+import { useVariablesStore } from '@/stores/panel'
 
 interface VariableAssignment {
   id: string
@@ -36,6 +44,35 @@ const DEFAULT_ASSIGNMENT: Omit<VariableAssignment, 'id'> = {
   type: 'string',
   value: '',
   isExisting: false,
+}
+
+/**
+ * Boolean value options for Combobox
+ */
+const BOOLEAN_OPTIONS: ComboboxOption[] = [
+  { label: 'true', value: 'true' },
+  { label: 'false', value: 'false' },
+]
+
+/**
+ * Parses a value that might be a JSON string or already an array of VariableAssignment.
+ * This handles the case where workflows are imported with stringified values.
+ */
+function parseVariableAssignments(value: unknown): VariableAssignment[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value as VariableAssignment[]
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) return parsed as VariableAssignment[]
+      } catch {
+        // Not valid JSON, return empty array
+      }
+    }
+  }
+  return []
 }
 
 export function VariablesInput({
@@ -64,8 +101,8 @@ export function VariablesInput({
     (v: Variable) => v.workflowId === workflowId
   )
 
-  const value = isPreview ? previewValue : storeValue
-  const assignments: VariableAssignment[] = value || []
+  const rawValue = isPreview ? previewValue : storeValue
+  const assignments: VariableAssignment[] = parseVariableAssignments(rawValue)
   const isReadOnly = isPreview || disabled
 
   const getAvailableVariablesFor = (currentAssignmentId: string) => {
@@ -83,8 +120,6 @@ export function VariablesInput({
   const allVariablesAssigned =
     !hasNoWorkflowVariables && getAvailableVariablesFor('new').length === 0
 
-  // Initialize with one empty assignment if none exist and not in preview/disabled mode
-  // Also add assignment when first variable is created
   useEffect(() => {
     if (!isReadOnly && assignments.length === 0 && currentWorkflowVariables.length > 0) {
       const initialAssignment: VariableAssignment = {
@@ -95,45 +130,46 @@ export function VariablesInput({
     }
   }, [currentWorkflowVariables.length, isReadOnly, assignments.length, setStoreValue])
 
-  // Clean up assignments when their associated variables are deleted
   useEffect(() => {
     if (isReadOnly || assignments.length === 0) return
 
     const currentVariableIds = new Set(currentWorkflowVariables.map((v) => v.id))
     const validAssignments = assignments.filter((assignment) => {
-      // Keep assignments that haven't selected a variable yet
       if (!assignment.variableId) return true
-      // Keep assignments whose variable still exists
       return currentVariableIds.has(assignment.variableId)
     })
 
-    // If all variables were deleted, clear all assignments
     if (currentWorkflowVariables.length === 0) {
       setStoreValue([])
     } else if (validAssignments.length !== assignments.length) {
-      // Some assignments reference deleted variables, remove them
       setStoreValue(validAssignments.length > 0 ? validAssignments : [])
     }
   }, [currentWorkflowVariables, assignments, isReadOnly, setStoreValue])
 
   const addAssignment = () => {
-    if (isPreview || disabled || allVariablesAssigned) return
+    if (isReadOnly || allVariablesAssigned) return
 
     const newAssignment: VariableAssignment = {
       ...DEFAULT_ASSIGNMENT,
       id: crypto.randomUUID(),
     }
-    setStoreValue([...(assignments || []), newAssignment])
+    setStoreValue([...assignments, newAssignment])
   }
 
   const removeAssignment = (id: string) => {
-    if (isPreview || disabled) return
-    setStoreValue((assignments || []).filter((a) => a.id !== id))
+    if (isReadOnly) return
+
+    if (assignments.length === 1) {
+      setStoreValue([{ ...DEFAULT_ASSIGNMENT, id: crypto.randomUUID() }])
+      return
+    }
+
+    setStoreValue(assignments.filter((a) => a.id !== id))
   }
 
   const updateAssignment = (id: string, updates: Partial<VariableAssignment>) => {
-    if (isPreview || disabled) return
-    setStoreValue((assignments || []).map((a) => (a.id === id ? { ...a, ...updates } : a)))
+    if (isReadOnly) return
+    setStoreValue(assignments.map((a) => (a.id === id ? { ...a, ...updates } : a)))
   }
 
   const handleVariableSelect = (assignmentId: string, variableId: string) => {
@@ -148,19 +184,12 @@ export function VariablesInput({
     }
   }
 
-  const handleTagSelect = (tag: string) => {
+  const handleTagSelect = (newValue: string) => {
     if (!activeFieldId) return
 
     const assignment = assignments.find((a) => a.id === activeFieldId)
-    if (!assignment) return
-
-    const currentValue = assignment.value || ''
-
-    const textBeforeCursor = currentValue.slice(0, cursorPosition)
-    const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
-
-    const newValue =
-      currentValue.slice(0, lastOpenBracket) + tag + currentValue.slice(cursorPosition)
+    const originalValue = assignment?.value || ''
+    const textAfterCursor = originalValue.slice(cursorPosition)
 
     updateAssignment(activeFieldId, { value: newValue })
     setShowTags(false)
@@ -169,7 +198,7 @@ export function VariablesInput({
       const inputEl = valueInputRefs.current[activeFieldId]
       if (inputEl) {
         inputEl.focus()
-        const newCursorPos = lastOpenBracket + tag.length
+        const newCursorPos = newValue.length - textAfterCursor.length
         inputEl.setSelectionRange(newCursorPos, newCursorPos)
       }
     }, 10)
@@ -251,6 +280,18 @@ export function VariablesInput({
     }))
   }
 
+  const syncOverlayScroll = (assignmentId: string, scrollLeft: number) => {
+    const overlay = overlayRefs.current[assignmentId]
+    if (overlay) overlay.scrollLeft = scrollLeft
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (e.key === 'Escape') {
+      setShowTags(false)
+      setActiveSourceBlockId(null)
+    }
+  }
+
   if (isPreview && (!assignments || assignments.length === 0)) {
     return (
       <div className='flex flex-col items-center justify-center rounded-md border border-border/40 bg-muted/20 py-8 text-center'>
@@ -281,7 +322,7 @@ export function VariablesInput({
 
   return (
     <div className='space-y-[8px]'>
-      {assignments && assignments.length > 0 && (
+      {assignments.length > 0 && (
         <div className='space-y-[8px]'>
           {assignments.map((assignment, index) => {
             const collapsed = collapsedAssignments[assignment.id] || false
@@ -297,7 +338,7 @@ export function VariablesInput({
                 )}
               >
                 <div
-                  className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'
+                  className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
                   onClick={() => toggleCollapse(assignment.id)}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
@@ -313,7 +354,7 @@ export function VariablesInput({
                     <Button
                       variant='ghost'
                       onClick={addAssignment}
-                      disabled={isPreview || disabled || allVariablesAssigned}
+                      disabled={isReadOnly || allVariablesAssigned}
                       className='h-auto p-0'
                     >
                       <Plus className='h-[14px] w-[14px]' />
@@ -322,7 +363,7 @@ export function VariablesInput({
                     <Button
                       variant='ghost'
                       onClick={() => removeAssignment(assignment.id)}
-                      disabled={isPreview || disabled || assignments.length === 1}
+                      disabled={isReadOnly}
                       className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
                     >
                       <Trash className='h-[14px] w-[14px]' />
@@ -337,16 +378,26 @@ export function VariablesInput({
                       <Label className='text-[13px]'>Variable</Label>
                       <Combobox
                         options={availableVars.map((v) => ({ label: v.name, value: v.id }))}
-                        value={assignment.variableId || assignment.variableName || ''}
+                        value={assignment.variableId || ''}
                         onChange={(value) => handleVariableSelect(assignment.id, value)}
                         placeholder='Select a variable...'
-                        disabled={isPreview || disabled}
+                        disabled={isReadOnly}
                       />
                     </div>
 
                     <div className='flex flex-col gap-[6px]'>
                       <Label className='text-[13px]'>Value</Label>
-                      {assignment.type === 'object' || assignment.type === 'array' ? (
+                      {assignment.type === 'boolean' ? (
+                        <Combobox
+                          options={BOOLEAN_OPTIONS}
+                          value={assignment.value ?? ''}
+                          onChange={(v) =>
+                            !isReadOnly && updateAssignment(assignment.id, { value: v })
+                          }
+                          placeholder='Select value'
+                          disabled={isReadOnly}
+                        />
+                      ) : assignment.type === 'object' || assignment.type === 'array' ? (
                         <div className='relative'>
                           <Textarea
                             ref={(el) => {
@@ -360,19 +411,32 @@ export function VariablesInput({
                                 e.target.selectionStart ?? undefined
                               )
                             }
+                            onKeyDown={handleKeyDown}
+                            onFocus={() => {
+                              if (!isReadOnly && !assignment.value?.trim()) {
+                                setActiveFieldId(assignment.id)
+                                setCursorPosition(0)
+                                setShowTags(true)
+                              }
+                            }}
+                            onScroll={(e) => {
+                              const overlay = overlayRefs.current[assignment.id]
+                              if (overlay) {
+                                overlay.scrollTop = e.currentTarget.scrollTop
+                                overlay.scrollLeft = e.currentTarget.scrollLeft
+                              }
+                            }}
                             placeholder={
                               assignment.type === 'object'
                                 ? '{\n  "key": "value"\n}'
                                 : '[\n  1, 2, 3\n]'
                             }
-                            disabled={isPreview || disabled}
+                            disabled={isReadOnly}
                             className={cn(
                               'min-h-[120px] font-mono text-sm text-transparent caret-foreground placeholder:text-muted-foreground/50',
                               dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
                             )}
                             style={{
-                              fontFamily: 'inherit',
-                              lineHeight: 'inherit',
                               wordBreak: 'break-word',
                               whiteSpace: 'pre-wrap',
                             }}
@@ -385,10 +449,7 @@ export function VariablesInput({
                               if (el) overlayRefs.current[assignment.id] = el
                             }}
                             className='pointer-events-none absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm'
-                            style={{
-                              fontFamily: 'inherit',
-                              lineHeight: 'inherit',
-                            }}
+                            style={{ scrollbarWidth: 'none' }}
                           >
                             <div className='w-full whitespace-pre-wrap break-words'>
                               {formatDisplayText(assignment.value || '', {
@@ -413,14 +474,34 @@ export function VariablesInput({
                                 e.target.selectionStart ?? undefined
                               )
                             }
+                            onKeyDown={handleKeyDown}
+                            onFocus={() => {
+                              if (!isReadOnly && !assignment.value?.trim()) {
+                                setActiveFieldId(assignment.id)
+                                setCursorPosition(0)
+                                setShowTags(true)
+                              }
+                            }}
+                            onScroll={(e) =>
+                              syncOverlayScroll(assignment.id, e.currentTarget.scrollLeft)
+                            }
+                            onPaste={() =>
+                              setTimeout(() => {
+                                const input = valueInputRefs.current[assignment.id]
+                                if (input)
+                                  syncOverlayScroll(
+                                    assignment.id,
+                                    (input as HTMLInputElement).scrollLeft
+                                  )
+                              }, 0)
+                            }
                             placeholder={`${assignment.type} value`}
-                            disabled={isPreview || disabled}
+                            disabled={isReadOnly}
                             autoComplete='off'
                             className={cn(
-                              'allow-scroll w-full overflow-auto text-transparent caret-foreground',
+                              'allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground',
                               dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
                             )}
-                            style={{ overflowX: 'auto' }}
                             onDrop={(e) => handleDrop(e, assignment.id)}
                             onDragOver={(e) => handleDragOver(e, assignment.id)}
                             onDragLeave={(e) => handleDragLeave(e, assignment.id)}
@@ -430,7 +511,7 @@ export function VariablesInput({
                               if (el) overlayRefs.current[assignment.id] = el
                             }}
                             className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
-                            style={{ overflowX: 'auto' }}
+                            style={{ scrollbarWidth: 'none' }}
                           >
                             <div
                               className='w-full whitespace-pre'
@@ -454,6 +535,11 @@ export function VariablesInput({
                           inputValue={assignment.value || ''}
                           cursorPosition={cursorPosition}
                           onClose={() => setShowTags(false)}
+                          inputRef={
+                            {
+                              current: valueInputRefs.current[assignment.id] || null,
+                            } as React.RefObject<HTMLTextAreaElement | HTMLInputElement>
+                          }
                         />
                       )}
                     </div>
