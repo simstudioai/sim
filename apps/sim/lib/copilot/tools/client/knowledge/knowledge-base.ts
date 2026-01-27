@@ -113,7 +113,7 @@ export class KnowledgeBaseClientTool extends BaseClientTool {
         ...(args || { operation: 'list' }),
         args: {
           ...(args?.args || {}),
-          workspaceId: args?.args?.workspaceId || workspaceId || undefined,
+          workspaceId: workspaceId || undefined,
         },
       }
 
