@@ -938,6 +938,11 @@ export function useWorkflowExecution() {
                 executionTime: data.durationMs,
               })
 
+              // Skip adding loop/parallel containers to console and logs
+              // They're tracked for run-from-block but shouldn't appear in terminal
+              const isContainerBlock = data.blockType === 'loop' || data.blockType === 'parallel'
+              if (isContainerBlock) return
+
               // Edges already tracked in onBlockStarted, no need to track again
 
               const startedAt = new Date(Date.now() - data.durationMs).toISOString()
@@ -1484,6 +1489,10 @@ export function useWorkflowExecution() {
                 executed: true,
                 executionTime: data.durationMs,
               })
+
+              // Skip adding loop/parallel containers to console and logs
+              const isContainerBlock = data.blockType === 'loop' || data.blockType === 'parallel'
+              if (isContainerBlock) return
 
               const startedAt = new Date(Date.now() - data.durationMs).toISOString()
               const endedAt = new Date().toISOString()
