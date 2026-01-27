@@ -1012,18 +1012,17 @@ const WorkflowContent = React.memo(() => {
     }
     const block = contextMenuBlocks[0]
     const snapshot = getLastExecutionSnapshot(workflowIdParam)
-    if (!snapshot) return { canRun: false, reason: 'Run workflow first' }
-
     const incomingEdges = edges.filter((edge) => edge.target === block.id)
+    const isTriggerBlock = incomingEdges.length === 0
     const dependenciesSatisfied =
-      incomingEdges.length === 0 ||
-      incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
+      isTriggerBlock ||
+      (snapshot && incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source)))
     const isNoteBlock = block.type === 'note'
     const isInsideSubflow =
       block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
 
-    if (!dependenciesSatisfied) return { canRun: false, reason: 'Run upstream blocks first' }
     if (isInsideSubflow) return { canRun: false, reason: 'Cannot run from inside subflow' }
+    if (!dependenciesSatisfied) return { canRun: false, reason: 'Run upstream blocks first' }
     if (isNoteBlock) return { canRun: false, reason: undefined }
     if (isExecuting) return { canRun: false, reason: undefined }
 

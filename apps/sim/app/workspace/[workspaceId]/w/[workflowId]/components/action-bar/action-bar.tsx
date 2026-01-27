@@ -112,19 +112,13 @@ export const ActionBar = memo(
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
 
     const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
-    const hasExecutionSnapshot = !!snapshot
-    const dependenciesSatisfied = (() => {
-      if (!snapshot) return false
-      const incomingEdges = edges.filter((edge) => edge.target === blockId)
-      if (incomingEdges.length === 0) return true
-      return incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
-    })()
+    const incomingEdges = edges.filter((edge) => edge.target === blockId)
+    const isTriggerBlock = incomingEdges.length === 0
+    const dependenciesSatisfied =
+      isTriggerBlock ||
+      (snapshot && incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source)))
     const canRunFromBlock =
-      hasExecutionSnapshot &&
-      dependenciesSatisfied &&
-      !isNoteBlock &&
-      !isInsideSubflow &&
-      !isExecuting
+      dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
 
     const handleRunFromBlockClick = useCallback(() => {
       if (!activeWorkflowId || !canRunFromBlock) return
@@ -176,9 +170,8 @@ export const ActionBar = memo(
               {(() => {
                 if (disabled) return getTooltipMessage('Run from this block')
                 if (isExecuting) return 'Execution in progress'
-                if (!hasExecutionSnapshot) return 'Run workflow first'
-                if (!dependenciesSatisfied) return 'Run upstream blocks first'
                 if (isInsideSubflow) return 'Cannot run from inside subflow'
+                if (!dependenciesSatisfied) return 'Run upstream blocks first'
                 return 'Run from this block'
               })()}
             </Tooltip.Content>

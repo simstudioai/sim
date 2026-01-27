@@ -1435,16 +1435,18 @@ export function useWorkflowExecution() {
   const handleRunFromBlock = useCallback(
     async (blockId: string, workflowId: string) => {
       const snapshot = getLastExecutionSnapshot(workflowId)
-      if (!snapshot) {
+      const workflowEdges = useWorkflowStore.getState().edges
+      const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
+      const isTriggerBlock = incomingEdges.length === 0
+
+      if (!snapshot && !isTriggerBlock) {
         logger.error('No execution snapshot available for run-from-block', { workflowId, blockId })
         return
       }
 
-      const workflowEdges = useWorkflowStore.getState().edges
-      const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
       const dependenciesSatisfied =
-        incomingEdges.length === 0 ||
-        incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
+        isTriggerBlock ||
+        (snapshot && incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source)))
 
       if (!dependenciesSatisfied) {
         logger.error('Upstream dependencies not satisfied for run-from-block', {
@@ -1454,10 +1456,20 @@ export function useWorkflowExecution() {
         return
       }
 
+      // For trigger blocks with no snapshot, create an empty one
+      const effectiveSnapshot: SerializableExecutionState = snapshot || {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: { router: {}, condition: {} },
+        completedLoops: [],
+        activeExecutionPath: [],
+      }
+
       logger.info('Starting run-from-block execution', {
         workflowId,
         startBlockId: blockId,
-        snapshotExecutedBlocks: snapshot.executedBlocks.length,
+        isTriggerBlock,
       })
 
       setIsExecuting(true)
@@ -1471,7 +1483,7 @@ export function useWorkflowExecution() {
         await executionStream.executeFromBlock({
           workflowId,
           startBlockId: blockId,
-          sourceSnapshot: snapshot,
+          sourceSnapshot: effectiveSnapshot,
           callbacks: {
             onExecutionStarted: (data) => {
               logger.info('Run-from-block execution started:', data)
@@ -1579,21 +1591,23 @@ export function useWorkflowExecution() {
 
             onExecutionCompleted: (data) => {
               if (data.success) {
-                const mergedBlockStates: Record<string, BlockState> = { ...snapshot.blockStates }
+                const mergedBlockStates: Record<string, BlockState> = {
+                  ...effectiveSnapshot.blockStates,
+                }
                 for (const [bId, state] of accumulatedBlockStates) {
                   mergedBlockStates[bId] = state
                 }
 
                 const mergedExecutedBlocks = new Set([
-                  ...snapshot.executedBlocks,
+                  ...effectiveSnapshot.executedBlocks,
                   ...executedBlockIds,
                 ])
 
                 const updatedSnapshot: SerializableExecutionState = {
-                  ...snapshot,
+                  ...effectiveSnapshot,
                   blockStates: mergedBlockStates,
                   executedBlocks: Array.from(mergedExecutedBlocks),
-                  blockLogs: [...snapshot.blockLogs, ...accumulatedBlockLogs],
+                  blockLogs: [...effectiveSnapshot.blockLogs, ...accumulatedBlockLogs],
                   activeExecutionPath: Array.from(mergedExecutedBlocks),
                 }
                 setLastExecutionSnapshot(workflowId, updatedSnapshot)
