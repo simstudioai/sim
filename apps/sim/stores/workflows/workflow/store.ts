@@ -466,10 +466,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
               currentParentId = parent.data?.parentId
             }
 
+            const { parentId: _removed, extent: _removedExtent, ...restData } = block.data || {}
             newBlocks[blockId] = {
               ...block,
               position: { x: absoluteX, y: absoluteY },
-              data: { ...block.data, parentId: undefined },
+              data: Object.keys(restData).length > 0 ? restData : undefined,
             }
           }
         })
