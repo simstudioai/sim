@@ -246,6 +246,7 @@ export function getCommandDisplayLabel(commandId: string): string {
  * Model configuration options
  */
 export const MODEL_OPTIONS = [
+  { value: 'auto', label: 'Auto' },
   { value: 'claude-4.5-opus', label: 'Claude 4.5 Opus' },
   { value: 'claude-4.5-sonnet', label: 'Claude 4.5 Sonnet' },
   { value: 'claude-4.5-haiku', label: 'Claude 4.5 Haiku' },

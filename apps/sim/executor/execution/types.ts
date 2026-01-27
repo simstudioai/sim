@@ -105,6 +105,15 @@ export interface ContextExtensions {
     output: { input?: any; output: NormalizedBlockOutput; executionTime: number },
     iterationContext?: IterationContext
   ) => Promise<void>
+
+  /**
+   * Run-from-block configuration. When provided, executor runs in partial
+   * execution mode starting from the specified block.
+   */
+  runFromBlockContext?: {
+    startBlockId: string
+    dirtySet: Set<string>
+  }
 }
 
 export interface WorkflowInput {

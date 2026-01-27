@@ -35,4 +35,23 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
   },
   clearRunPath: () => set({ lastRunPath: new Map(), lastRunEdges: new Map() }),
   reset: () => set(initialState),
+
+  setLastExecutionSnapshot: (workflowId, snapshot) => {
+    const { lastExecutionSnapshots } = get()
+    const newSnapshots = new Map(lastExecutionSnapshots)
+    newSnapshots.set(workflowId, snapshot)
+    set({ lastExecutionSnapshots: newSnapshots })
+  },
+
+  getLastExecutionSnapshot: (workflowId) => {
+    const { lastExecutionSnapshots } = get()
+    return lastExecutionSnapshots.get(workflowId)
+  },
+
+  clearLastExecutionSnapshot: (workflowId) => {
+    const { lastExecutionSnapshots } = get()
+    const newSnapshots = new Map(lastExecutionSnapshots)
+    newSnapshots.delete(workflowId)
+    set({ lastExecutionSnapshots: newSnapshots })
+  },
 }))

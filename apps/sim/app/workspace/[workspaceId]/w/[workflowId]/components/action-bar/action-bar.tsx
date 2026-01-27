@@ -1,11 +1,12 @@
 import { memo, useCallback } from 'react'
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-react'
+import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut, Play } from 'lucide-react'
 import { Button, Copy, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { validateTriggerPaste } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -97,12 +98,42 @@ export const ActionBar = memo(
       )
     )
 
+    const { activeWorkflowId } = useWorkflowRegistry()
+    const { isExecuting, getLastExecutionSnapshot } = useExecutionStore()
     const userPermissions = useUserPermissionsContext()
 
     const isStartBlock = isInputDefinitionTrigger(blockType)
     const isResponseBlock = blockType === 'response'
     const isNoteBlock = blockType === 'note'
     const isSubflowBlock = blockType === 'loop' || blockType === 'parallel'
+    const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
+
+    // Check if run-from-block is available
+    const hasExecutionSnapshot = activeWorkflowId
+      ? !!getLastExecutionSnapshot(activeWorkflowId)
+      : false
+    const wasExecuted = activeWorkflowId
+      ? getLastExecutionSnapshot(activeWorkflowId)?.executedBlocks.includes(blockId) ?? false
+      : false
+    const canRunFromBlock =
+      hasExecutionSnapshot &&
+      wasExecuted &&
+      !isStartBlock &&
+      !isNoteBlock &&
+      !isSubflowBlock &&
+      !isInsideSubflow &&
+      !isExecuting
+
+    const handleRunFromBlock = useCallback(() => {
+      if (!activeWorkflowId || !canRunFromBlock) return
+
+      // Dispatch a custom event to trigger run-from-block execution
+      window.dispatchEvent(
+        new CustomEvent('run-from-block', {
+          detail: { blockId, workflowId: activeWorkflowId },
+        })
+      )
+    }, [blockId, activeWorkflowId, canRunFromBlock])
 
     /**
      * Get appropriate tooltip message based on disabled state
@@ -170,6 +201,29 @@ export const ActionBar = memo(
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+
+        {canRunFromBlock && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (!disabled) {
+                    handleRunFromBlock()
+                  }
+                }}
+                className={ACTION_BUTTON_STYLES}
+                disabled={disabled || isExecuting}
+              >
+                <Play className={ICON_SIZE} />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {isExecuting ? 'Execution in progress' : getTooltipMessage('Run from this block')}
             </Tooltip.Content>
           </Tooltip.Root>
         )}

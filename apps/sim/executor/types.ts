@@ -250,6 +250,15 @@ export interface ExecutionContext {
    * will not have their base64 content fetched.
    */
   base64MaxBytes?: number
+
+  /**
+   * Context for "run from block" mode. When present, only blocks in dirtySet
+   * will be executed; others return cached outputs from the source snapshot.
+   */
+  runFromBlockContext?: {
+    startBlockId: string
+    dirtySet: Set<string>
+  }
 }
 
 export interface ExecutionResult {

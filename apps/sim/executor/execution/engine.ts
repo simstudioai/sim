@@ -259,6 +259,17 @@ export class ExecutionEngine {
   }
 
   private initializeQueue(triggerBlockId?: string): void {
+    // Run-from-block mode: start directly from specified block
+    if (this.context.runFromBlockContext) {
+      const { startBlockId } = this.context.runFromBlockContext
+      logger.info('Initializing queue for run-from-block mode', {
+        startBlockId,
+        dirtySetSize: this.context.runFromBlockContext.dirtySet.size,
+      })
+      this.addToQueue(startBlockId)
+      return
+    }
+
     const pendingBlocks = this.context.metadata.pendingBlocks
     const remainingEdges = (this.context.metadata as any).remainingEdges
 

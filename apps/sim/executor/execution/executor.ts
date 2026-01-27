@@ -5,12 +5,17 @@ import { BlockExecutor } from '@/executor/execution/block-executor'
 import { EdgeManager } from '@/executor/execution/edge-manager'
 import { ExecutionEngine } from '@/executor/execution/engine'
 import { ExecutionState } from '@/executor/execution/state'
-import type { ContextExtensions, WorkflowInput } from '@/executor/execution/types'
+import type {
+  ContextExtensions,
+  SerializableExecutionState,
+  WorkflowInput,
+} from '@/executor/execution/types'
 import { createBlockHandlers } from '@/executor/handlers/registry'
 import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
+import { computeDirtySet, validateRunFromBlock } from '@/executor/utils/run-from-block'
 import {
   buildResolutionFromBlock,
   buildStartBlockOutput,
@@ -89,17 +94,103 @@ export class DAGExecutor {
     }
   }
 
+  /**
+   * Execute workflow starting from a specific block, using cached outputs
+   * for all upstream/unaffected blocks from the source snapshot.
+   *
+   * This implements Jupyter notebook-style execution where:
+   * - The start block and all downstream blocks are re-executed
+   * - Upstream blocks retain their cached outputs from the source snapshot
+   * - The result is a merged execution state
+   *
+   * @param workflowId - The workflow ID
+   * @param startBlockId - The block to start execution from
+   * @param sourceSnapshot - The execution state from a previous run
+   * @returns Merged execution result with cached + fresh outputs
+   */
+  async executeFromBlock(
+    workflowId: string,
+    startBlockId: string,
+    sourceSnapshot: SerializableExecutionState
+  ): Promise<ExecutionResult> {
+    // Build full DAG (no trigger constraint - we need all blocks for validation)
+    const dag = this.dagBuilder.build(this.workflow)
+
+    // Validate the start block
+    const executedBlocks = new Set(sourceSnapshot.executedBlocks)
+    const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)
+    if (!validation.valid) {
+      throw new Error(validation.error)
+    }
+
+    // Compute dirty set (blocks that will be re-executed)
+    const dirtySet = computeDirtySet(dag, startBlockId)
+
+    logger.info('Executing from block', {
+      workflowId,
+      startBlockId,
+      dirtySetSize: dirtySet.size,
+      totalBlocks: dag.nodes.size,
+      dirtyBlocks: Array.from(dirtySet),
+    })
+
+    // Create context with snapshot state + runFromBlockContext
+    const runFromBlockContext = { startBlockId, dirtySet }
+    const { context, state } = this.createExecutionContext(workflowId, undefined, {
+      snapshotState: sourceSnapshot,
+      runFromBlockContext,
+    })
+
+    // Setup orchestrators and engine (same as execute())
+    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
+    const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
+    loopOrchestrator.setContextExtensions(this.contextExtensions)
+    const parallelOrchestrator = new ParallelOrchestrator(dag, state)
+    parallelOrchestrator.setResolver(resolver)
+    parallelOrchestrator.setContextExtensions(this.contextExtensions)
+    const allHandlers = createBlockHandlers()
+    const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
+    const edgeManager = new EdgeManager(dag)
+    loopOrchestrator.setEdgeManager(edgeManager)
+    const nodeOrchestrator = new NodeExecutionOrchestrator(
+      dag,
+      state,
+      blockExecutor,
+      loopOrchestrator,
+      parallelOrchestrator
+    )
+    const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+
+    // Run and return result
+    return await engine.run()
+  }
+
   private createExecutionContext(
     workflowId: string,
-    triggerBlockId?: string
+    triggerBlockId?: string,
+    overrides?: {
+      snapshotState?: SerializableExecutionState
+      runFromBlockContext?: { startBlockId: string; dirtySet: Set<string> }
+    }
   ): { context: ExecutionContext; state: ExecutionState } {
-    const snapshotState = this.contextExtensions.snapshotState
+    const snapshotState = overrides?.snapshotState ?? this.contextExtensions.snapshotState
     const blockStates = snapshotState?.blockStates
       ? new Map(Object.entries(snapshotState.blockStates))
       : new Map<string, BlockState>()
-    const executedBlocks = snapshotState?.executedBlocks
+    let executedBlocks = snapshotState?.executedBlocks
       ? new Set(snapshotState.executedBlocks)
       : new Set<string>()
+
+    // In run-from-block mode, clear the executed status for dirty blocks so they can be re-executed
+    if (overrides?.runFromBlockContext) {
+      const { dirtySet } = overrides.runFromBlockContext
+      executedBlocks = new Set([...executedBlocks].filter((id) => !dirtySet.has(id)))
+      logger.info('Cleared executed status for dirty blocks', {
+        dirtySetSize: dirtySet.size,
+        remainingExecutedBlocks: executedBlocks.size,
+      })
+    }
+
     const state = new ExecutionState(blockStates, executedBlocks)
 
     const context: ExecutionContext = {
@@ -169,6 +260,7 @@ export class DAGExecutor {
       abortSignal: this.contextExtensions.abortSignal,
       includeFileBase64: this.contextExtensions.includeFileBase64,
       base64MaxBytes: this.contextExtensions.base64MaxBytes,
+      runFromBlockContext: overrides?.runFromBlockContext,
     }
 
     if (this.contextExtensions.resumeFromSnapshot) {
@@ -192,6 +284,12 @@ export class DAGExecutor {
       logger.info('Set pending blocks from resume queue', {
         pendingBlocks: context.metadata.pendingBlocks,
         skipStarterBlockInit: true,
+      })
+    } else if (overrides?.runFromBlockContext) {
+      // In run-from-block mode, skip starter block initialization
+      // All block states come from the snapshot
+      logger.info('Run-from-block mode: skipping starter block initialization', {
+        startBlockId: overrides.runFromBlockContext.startBlockId,
       })
     } else {
       this.initializeStarterBlock(context, state, triggerBlockId)

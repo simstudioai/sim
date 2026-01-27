@@ -31,6 +31,7 @@ const DEFAULT_ENABLED_MODELS: Record<CopilotModelId, boolean> = {
   'claude-4.5-opus': true,
   'claude-4.1-opus': false,
   'gemini-3-pro': true,
+  'auto': true,
 }
 
 // GET - Fetch user's enabled models
