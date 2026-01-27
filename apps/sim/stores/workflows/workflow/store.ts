@@ -448,6 +448,34 @@ export const useWorkflowStore = create<WorkflowStore>()(
           delete newBlocks[blockId]
         })
 
+        // Clean up orphaned nodes - blocks whose parent was removed but weren't descendants
+        // This can happen in edge cases (e.g., data inconsistency, external modifications)
+        const remainingBlockIds = new Set(Object.keys(newBlocks))
+        Object.entries(newBlocks).forEach(([blockId, block]) => {
+          const parentId = block.data?.parentId
+          if (parentId && !remainingBlockIds.has(parentId)) {
+            // Parent was removed - convert to absolute position and clear parentId
+            // Calculate absolute position by traversing up the (now-deleted) parent chain
+            let absoluteX = block.position.x
+            let absoluteY = block.position.y
+
+            // Try to get parent's position from original blocks before deletion
+            let currentParentId: string | undefined = parentId
+            while (currentParentId && currentBlocks[currentParentId]) {
+              const parent = currentBlocks[currentParentId]
+              absoluteX += parent.position.x
+              absoluteY += parent.position.y
+              currentParentId = parent.data?.parentId
+            }
+
+            newBlocks[blockId] = {
+              ...block,
+              position: { x: absoluteX, y: absoluteY },
+              data: { ...block.data, parentId: undefined },
+            }
+          }
+        })
+
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (activeWorkflowId) {
           const subBlockStore = useSubBlockStore.getState()

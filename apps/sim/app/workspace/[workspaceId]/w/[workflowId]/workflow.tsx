@@ -307,9 +307,8 @@ const WorkflowContent = React.memo(() => {
 
   const isAutoConnectEnabled = useAutoConnect()
   const autoConnectRef = useRef(isAutoConnectEnabled)
-  useEffect(() => {
-    autoConnectRef.current = isAutoConnectEnabled
-  }, [isAutoConnectEnabled])
+  // Keep ref in sync with latest value for use in callbacks (no effect needed)
+  autoConnectRef.current = isAutoConnectEnabled
 
   // Panel open states for context menu
   const isVariablesOpen = useVariablesStore((state) => state.isOpen)
@@ -448,11 +447,14 @@ const WorkflowContent = React.memo(() => {
   )
 
   /** Re-applies diff markers when blocks change after socket rehydration. */
-  const blocksRef = useRef(blocks)
+  const diffBlocksRef = useRef(blocks)
   useEffect(() => {
-    if (!isWorkflowReady) return
-    if (hasActiveDiff && isDiffReady && blocks !== blocksRef.current) {
-      blocksRef.current = blocks
+    // Track if blocks actually changed (vs other deps triggering this effect)
+    const blocksChanged = blocks !== diffBlocksRef.current
+    diffBlocksRef.current = blocks
+
+    if (!isWorkflowReady || !blocksChanged) return
+    if (hasActiveDiff && isDiffReady) {
       setTimeout(() => reapplyDiffMarkers(), 0)
     }
   }, [blocks, hasActiveDiff, isDiffReady, reapplyDiffMarkers, isWorkflowReady])
@@ -2160,6 +2162,8 @@ const WorkflowContent = React.memo(() => {
   // Local state for nodes - allows smooth drag without store updates on every frame
   const [displayNodes, setDisplayNodes] = useState<Node[]>([])
 
+  // Sync derivedNodes to displayNodes while preserving selection state
+  // This effect handles both normal sync and pending selection from paste/duplicate
   useEffect(() => {
     // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
     if (pendingSelection && pendingSelection.length > 0) {
@@ -2186,7 +2190,7 @@ const WorkflowContent = React.memo(() => {
         selected: selectedIds.has(node.id),
       }))
     })
-  }, [derivedNodes, blocks, pendingSelection, clearPendingSelection])
+  }, [derivedNodes, blocks, pendingSelection, clearPendingSelection, syncPanelWithSelection])
 
   // Phase 2: When displayNodes updates, check if pending zoom blocks are ready
   // (Phase 1 is located earlier in the file where pendingZoomBlockIdsRef is defined)
@@ -2379,40 +2383,6 @@ const WorkflowContent = React.memo(() => {
     // Resize all loops to fit their children
     resizeLoopNodesWrapper()
   }, [derivedNodes, resizeLoopNodesWrapper, isWorkflowReady])
-
-  /** Cleans up orphaned nodes with invalid parent references after deletion. */
-  useEffect(() => {
-    if (!isWorkflowReady) return
-
-    // Create a mapping of node IDs to check for missing parent references
-    const nodeIds = new Set(Object.keys(blocks))
-
-    // Check for nodes with invalid parent references and collect updates
-    const orphanedUpdates: Array<{
-      id: string
-      position: { x: number; y: number }
-      parentId: string
-    }> = []
-    Object.entries(blocks).forEach(([id, block]) => {
-      const parentId = block.data?.parentId
-
-      // If block has a parent reference but parent no longer exists
-      if (parentId && !nodeIds.has(parentId)) {
-        logger.warn('Found orphaned node with invalid parent reference', {
-          nodeId: id,
-          missingParentId: parentId,
-        })
-
-        const absolutePosition = getNodeAbsolutePosition(id)
-        orphanedUpdates.push({ id, position: absolutePosition, parentId: '' })
-      }
-    })
-
-    // Batch update all orphaned nodes at once
-    if (orphanedUpdates.length > 0) {
-      batchUpdateBlocksWithParent(orphanedUpdates)
-    }
-  }, [blocks, batchUpdateBlocksWithParent, getNodeAbsolutePosition, isWorkflowReady])
 
   /** Handles edge removal changes. */
   const onEdgesChange = useCallback(
