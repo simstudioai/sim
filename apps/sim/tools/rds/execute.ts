@@ -1,4 +1,4 @@
- import type { RdsExecuteParams, RdsExecuteResponse } from '@/tools/rds/types'
+import type { RdsExecuteParams, RdsExecuteResponse } from '@/tools/rds/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const executeTool: ToolConfig<RdsExecuteParams, RdsExecuteResponse> = {

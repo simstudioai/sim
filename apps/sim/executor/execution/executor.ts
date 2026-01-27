@@ -233,7 +233,9 @@ export class DAGExecutor {
       userId: this.contextExtensions.userId,
       isDeployedContext: this.contextExtensions.isDeployedContext,
       blockStates: state.getBlockStates(),
-      blockLogs: snapshotState?.blockLogs ?? [],
+      // For run-from-block, start with empty logs - we only want fresh execution logs for trace spans
+      // The snapshot's blockLogs are preserved separately for history
+      blockLogs: overrides?.runFromBlockContext ? [] : (snapshotState?.blockLogs ?? []),
       metadata: {
         ...this.contextExtensions.metadata,
         startTime: new Date().toISOString(),
