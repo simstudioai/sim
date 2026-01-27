@@ -164,6 +164,12 @@ export type OutputFieldDefinition =
       hiddenFromDisplay?: boolean
     }
 
+export function isHiddenFromDisplay(def: unknown): boolean {
+  return Boolean(
+    def && typeof def === 'object' && 'hiddenFromDisplay' in def && def.hiddenFromDisplay
+  )
+}
+
 export interface ParamConfig {
   type: ParamType
   description?: string

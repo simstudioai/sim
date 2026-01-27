@@ -6,7 +6,7 @@ import {
   type GetBlockConfigResultType,
 } from '@/lib/copilot/tools/shared/schemas'
 import { registry as blockRegistry, getLatestBlock } from '@/blocks/registry'
-import type { SubBlockConfig } from '@/blocks/types'
+import { isHiddenFromDisplay, type SubBlockConfig } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
@@ -310,6 +310,7 @@ function extractTriggerOutputs(blockConfig: any): Record<string, OutputFieldSche
     const trigger = getTrigger(triggerId)
     if (trigger.outputs) {
       for (const [key, def] of Object.entries(trigger.outputs)) {
+        if (isHiddenFromDisplay(def)) continue
         outputs[key] = extractOutputField(def)
       }
     }
@@ -342,6 +343,7 @@ function extractOutputs(
         const tool = toolsRegistry[toolId]
         if (tool?.outputs) {
           for (const [key, def] of Object.entries(tool.outputs)) {
+            if (isHiddenFromDisplay(def)) continue
             outputs[key] = extractOutputField(def)
           }
           return outputs
@@ -355,6 +357,7 @@ function extractOutputs(
   // Use block-level outputs
   if (blockConfig.outputs) {
     for (const [key, def] of Object.entries(blockConfig.outputs)) {
+      if (def && typeof def === 'object' && (def as any).hiddenFromDisplay) continue
       outputs[key] = extractOutputField(def)
     }
   }
