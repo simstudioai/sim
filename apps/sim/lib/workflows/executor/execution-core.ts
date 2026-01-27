@@ -40,6 +40,7 @@ export interface ExecuteWorkflowCoreOptions {
   abortSignal?: AbortSignal
   includeFileBase64?: boolean
   base64MaxBytes?: number
+  stopAfterBlockId?: string
 }
 
 function parseVariableValueByType(value: unknown, type: string): unknown {
@@ -114,6 +115,7 @@ export async function executeWorkflowCore(
     abortSignal,
     includeFileBase64,
     base64MaxBytes,
+    stopAfterBlockId,
   } = options
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
@@ -297,6 +299,7 @@ export async function executeWorkflowCore(
       abortSignal,
       includeFileBase64,
       base64MaxBytes,
+      stopAfterBlockId,
     }
 
     const executorInstance = new Executor({

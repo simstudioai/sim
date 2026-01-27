@@ -33,8 +33,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('useWorkflowExecution')
 
-// Module-level guard to prevent duplicate run-from-block executions across hook instances
-let runFromBlockGlobalLock = false
 
 // Debug state validation result
 interface DebugValidationResult {
@@ -674,7 +672,8 @@ export function useWorkflowExecution() {
     onStream?: (se: StreamingExecution) => Promise<void>,
     executionId?: string,
     onBlockComplete?: (blockId: string, output: any) => Promise<void>,
-    overrideTriggerType?: 'chat' | 'manual' | 'api'
+    overrideTriggerType?: 'chat' | 'manual' | 'api',
+    stopAfterBlockId?: string
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use diff workflow for execution when available, regardless of canvas view state
     const executionWorkflowState = null as {
@@ -895,6 +894,7 @@ export function useWorkflowExecution() {
           triggerType: overrideTriggerType || 'manual',
           useDraftState: true,
           isClientSession: true,
+          stopAfterBlockId,
           workflowStateOverride: executionWorkflowState
             ? {
                 blocks: executionWorkflowState.blocks,
@@ -1080,19 +1080,47 @@ export function useWorkflowExecution() {
 
               // Store execution snapshot for run-from-block
               if (data.success && activeWorkflowId) {
-                const snapshot: SerializableExecutionState = {
-                  blockStates: Object.fromEntries(accumulatedBlockStates),
-                  executedBlocks: Array.from(executedBlockIds),
-                  blockLogs: accumulatedBlockLogs,
-                  decisions: { router: {}, condition: {} },
-                  completedLoops: [],
-                  activeExecutionPath: Array.from(executedBlockIds),
+                if (stopAfterBlockId) {
+                  // Partial run (run-until-block): merge with existing snapshot
+                  const existingSnapshot = getLastExecutionSnapshot(activeWorkflowId)
+                  const mergedBlockStates = {
+                    ...(existingSnapshot?.blockStates || {}),
+                    ...Object.fromEntries(accumulatedBlockStates),
+                  }
+                  const mergedExecutedBlocks = new Set([
+                    ...(existingSnapshot?.executedBlocks || []),
+                    ...executedBlockIds,
+                  ])
+                  const snapshot: SerializableExecutionState = {
+                    blockStates: mergedBlockStates,
+                    executedBlocks: Array.from(mergedExecutedBlocks),
+                    blockLogs: [...(existingSnapshot?.blockLogs || []), ...accumulatedBlockLogs],
+                    decisions: existingSnapshot?.decisions || { router: {}, condition: {} },
+                    completedLoops: existingSnapshot?.completedLoops || [],
+                    activeExecutionPath: Array.from(mergedExecutedBlocks),
+                  }
+                  setLastExecutionSnapshot(activeWorkflowId, snapshot)
+                  logger.info('Merged execution snapshot after run-until-block', {
+                    workflowId: activeWorkflowId,
+                    newBlocksExecuted: executedBlockIds.size,
+                    totalExecutedBlocks: mergedExecutedBlocks.size,
+                  })
+                } else {
+                  // Full run: replace snapshot entirely
+                  const snapshot: SerializableExecutionState = {
+                    blockStates: Object.fromEntries(accumulatedBlockStates),
+                    executedBlocks: Array.from(executedBlockIds),
+                    blockLogs: accumulatedBlockLogs,
+                    decisions: { router: {}, condition: {} },
+                    completedLoops: [],
+                    activeExecutionPath: Array.from(executedBlockIds),
+                  }
+                  setLastExecutionSnapshot(activeWorkflowId, snapshot)
+                  logger.info('Stored execution snapshot for run-from-block', {
+                    workflowId: activeWorkflowId,
+                    executedBlocksCount: executedBlockIds.size,
+                  })
                 }
-                setLastExecutionSnapshot(activeWorkflowId, snapshot)
-                logger.info('Stored execution snapshot for run-from-block', {
-                  workflowId: activeWorkflowId,
-                  executedBlocksCount: executedBlockIds.size,
-                })
               }
             },
 
@@ -1419,26 +1447,21 @@ export function useWorkflowExecution() {
    */
   const handleRunFromBlock = useCallback(
     async (blockId: string, workflowId: string) => {
-      // Prevent duplicate executions across multiple hook instances (panel.tsx and chat.tsx)
-      if (runFromBlockGlobalLock) {
-        logger.debug('Run-from-block already in progress (global lock), ignoring duplicate request', {
-          workflowId,
-          blockId,
-        })
-        return
-      }
-      runFromBlockGlobalLock = true
-
       const snapshot = getLastExecutionSnapshot(workflowId)
       if (!snapshot) {
         logger.error('No execution snapshot available for run-from-block', { workflowId, blockId })
-        runFromBlockGlobalLock = false
         return
       }
 
-      if (!snapshot.executedBlocks.includes(blockId)) {
-        logger.error('Block was not executed in the source run', { workflowId, blockId })
-        runFromBlockGlobalLock = false
+      // Check if all upstream dependencies have cached outputs
+      const workflowEdges = useWorkflowStore.getState().edges
+      const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
+      const dependenciesSatisfied =
+        incomingEdges.length === 0 ||
+        incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
+
+      if (!dependenciesSatisfied) {
+        logger.error('Upstream dependencies not satisfied for run-from-block', { workflowId, blockId })
         return
       }
 
@@ -1449,8 +1472,6 @@ export function useWorkflowExecution() {
       })
 
       setIsExecuting(true)
-
-      const workflowEdges = useWorkflowStore.getState().edges
       const executionId = uuidv4()
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
@@ -1612,7 +1633,6 @@ export function useWorkflowExecution() {
       } finally {
         setIsExecuting(false)
         setActiveBlocks(new Set())
-        runFromBlockGlobalLock = false
       }
     },
     [
@@ -1627,18 +1647,45 @@ export function useWorkflowExecution() {
     ]
   )
 
-  // Listen for run-from-block events from the action bar
-  useEffect(() => {
-    const handleRunFromBlockEvent = (event: CustomEvent<{ blockId: string; workflowId: string }>) => {
-      const { blockId, workflowId } = event.detail
-      handleRunFromBlock(blockId, workflowId)
-    }
+  /**
+   * Handles running workflow until a specific block (stops after that block completes)
+   */
+  const handleRunUntilBlock = useCallback(
+    async (blockId: string, workflowId: string) => {
+      if (!workflowId || workflowId !== activeWorkflowId) {
+        logger.error('Invalid workflow ID for run-until-block', { workflowId, activeWorkflowId })
+        return
+      }
 
-    window.addEventListener('run-from-block', handleRunFromBlockEvent as EventListener)
-    return () => {
-      window.removeEventListener('run-from-block', handleRunFromBlockEvent as EventListener)
-    }
-  }, [handleRunFromBlock])
+      logger.info('Starting run-until-block execution', { workflowId, stopAfterBlockId: blockId })
+
+      setExecutionResult(null)
+      setIsExecuting(true)
+
+      const executionId = uuidv4()
+      try {
+        const result = await executeWorkflow(
+          undefined,
+          undefined,
+          executionId,
+          undefined,
+          'manual',
+          blockId
+        )
+        if (result && 'success' in result) {
+          setExecutionResult(result)
+        }
+      } catch (error) {
+        const errorResult = handleExecutionError(error, { executionId })
+        return errorResult
+      } finally {
+        setIsExecuting(false)
+        setIsDebugging(false)
+        setActiveBlocks(new Set())
+      }
+    },
+    [activeWorkflowId, setExecutionResult, setIsExecuting, setIsDebugging, setActiveBlocks]
+  )
 
   return {
     isExecuting,
@@ -1651,5 +1698,6 @@ export function useWorkflowExecution() {
     handleCancelDebug,
     handleCancelExecution,
     handleRunFromBlock,
+    handleRunUntilBlock,
   }
 }

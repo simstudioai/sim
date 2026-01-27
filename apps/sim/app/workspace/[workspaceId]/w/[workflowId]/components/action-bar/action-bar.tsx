@@ -4,6 +4,7 @@ import { Button, Copy, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { validateTriggerPaste } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution'
@@ -50,6 +51,7 @@ export const ActionBar = memo(
       collaborativeBatchToggleBlockHandles,
     } = useCollaborativeWorkflow()
     const { setPendingSelection } = useWorkflowRegistry()
+    const { handleRunFromBlock } = useWorkflowExecution()
 
     const addNotification = useNotificationStore((s) => s.addNotification)
 
@@ -101,6 +103,7 @@ export const ActionBar = memo(
     const { activeWorkflowId } = useWorkflowRegistry()
     const { isExecuting, getLastExecutionSnapshot } = useExecutionStore()
     const userPermissions = useUserPermissionsContext()
+    const edges = useWorkflowStore((state) => state.edges)
 
     const isStartBlock = isInputDefinitionTrigger(blockType)
     const isResponseBlock = blockType === 'response'
@@ -109,29 +112,29 @@ export const ActionBar = memo(
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
 
     // Check if run-from-block is available
-    const hasExecutionSnapshot = activeWorkflowId
-      ? !!getLastExecutionSnapshot(activeWorkflowId)
-      : false
-    const wasExecuted = activeWorkflowId
-      ? getLastExecutionSnapshot(activeWorkflowId)?.executedBlocks.includes(blockId) ?? false
-      : false
+    // Block can run if all its upstream dependencies have cached outputs
+    const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
+    const hasExecutionSnapshot = !!snapshot
+    const dependenciesSatisfied = (() => {
+      if (!snapshot) return false
+      // Find all blocks that feed into this block
+      const incomingEdges = edges.filter((edge) => edge.target === blockId)
+      // If no incoming edges (trigger/start block), dependencies are satisfied
+      if (incomingEdges.length === 0) return true
+      // All source blocks must have been executed (have cached outputs)
+      return incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
+    })()
     const canRunFromBlock =
       hasExecutionSnapshot &&
-      wasExecuted &&
+      dependenciesSatisfied &&
       !isNoteBlock &&
       !isInsideSubflow &&
       !isExecuting
 
-    const handleRunFromBlock = useCallback(() => {
+    const handleRunFromBlockClick = useCallback(() => {
       if (!activeWorkflowId || !canRunFromBlock) return
-
-      // Dispatch a custom event to trigger run-from-block execution
-      window.dispatchEvent(
-        new CustomEvent('run-from-block', {
-          detail: { blockId, workflowId: activeWorkflowId },
-        })
-      )
-    }, [blockId, activeWorkflowId, canRunFromBlock])
+      handleRunFromBlock(blockId, activeWorkflowId)
+    }, [blockId, activeWorkflowId, canRunFromBlock, handleRunFromBlock])
 
     /**
      * Get appropriate tooltip message based on disabled state
@@ -165,7 +168,7 @@ export const ActionBar = memo(
                 onClick={(e) => {
                   e.stopPropagation()
                   if (canRunFromBlock && !disabled) {
-                    handleRunFromBlock()
+                    handleRunFromBlockClick()
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
@@ -179,7 +182,7 @@ export const ActionBar = memo(
                 if (disabled) return getTooltipMessage('Run from this block')
                 if (isExecuting) return 'Execution in progress'
                 if (!hasExecutionSnapshot) return 'Run workflow first'
-                if (!wasExecuted) return 'Block not executed in last run'
+                if (!dependenciesSatisfied) return 'Run upstream blocks first'
                 if (isInsideSubflow) return 'Cannot run from inside subflow'
                 return 'Run from this block'
               })()}

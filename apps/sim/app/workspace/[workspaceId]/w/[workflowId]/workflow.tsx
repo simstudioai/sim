@@ -47,6 +47,7 @@ import {
   useCurrentWorkflow,
   useNodeUtilities,
   useShiftSelectionLock,
+  useWorkflowExecution,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   calculateContainerDimensions,
@@ -324,6 +325,8 @@ const WorkflowContent = React.memo(() => {
   const copilotCleanup = useCopilotStore((state) => state.cleanup)
 
   const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
+
+  const { handleRunFromBlock, handleRunUntilBlock } = useWorkflowExecution()
 
   const snapToGridSize = useSnapToGridSize()
   const snapToGrid = snapToGridSize > 0
@@ -994,12 +997,14 @@ const WorkflowContent = React.memo(() => {
   const handleContextRunFromBlock = useCallback(() => {
     if (contextMenuBlocks.length !== 1) return
     const blockId = contextMenuBlocks[0].id
-    window.dispatchEvent(
-      new CustomEvent('run-from-block', {
-        detail: { blockId, workflowId: workflowIdParam },
-      })
-    )
-  }, [contextMenuBlocks, workflowIdParam])
+    handleRunFromBlock(blockId, workflowIdParam)
+  }, [contextMenuBlocks, workflowIdParam, handleRunFromBlock])
+
+  const handleContextRunUntilBlock = useCallback(() => {
+    if (contextMenuBlocks.length !== 1) return
+    const blockId = contextMenuBlocks[0].id
+    handleRunUntilBlock(blockId, workflowIdParam)
+  }, [contextMenuBlocks, workflowIdParam, handleRunUntilBlock])
 
   const handleContextAddBlock = useCallback(() => {
     useSearchModalStore.getState().open()
@@ -3322,6 +3327,7 @@ const WorkflowContent = React.memo(() => {
               onOpenEditor={handleContextOpenEditor}
               onRename={handleContextRename}
               onRunFromBlock={handleContextRunFromBlock}
+              onRunUntilBlock={handleContextRunUntilBlock}
               hasClipboard={hasClipboard()}
               showRemoveFromSubflow={contextMenuBlocks.some(
                 (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
@@ -3331,11 +3337,16 @@ const WorkflowContent = React.memo(() => {
                 (() => {
                   const block = contextMenuBlocks[0]
                   const snapshot = getLastExecutionSnapshot(workflowIdParam)
-                  const wasExecuted = snapshot?.executedBlocks.includes(block.id) ?? false
+                  if (!snapshot) return false
+                  // Check if all upstream dependencies have cached outputs
+                  const incomingEdges = edges.filter((edge) => edge.target === block.id)
+                  const dependenciesSatisfied =
+                    incomingEdges.length === 0 ||
+                    incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
                   const isNoteBlock = block.type === 'note'
                   const isInsideSubflow =
                     block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
-                  return !!snapshot && wasExecuted && !isNoteBlock && !isInsideSubflow && !isExecuting
+                  return dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
                 })()
               }
               runFromBlockDisabledReason={
@@ -3343,11 +3354,15 @@ const WorkflowContent = React.memo(() => {
                   ? (() => {
                       const block = contextMenuBlocks[0]
                       const snapshot = getLastExecutionSnapshot(workflowIdParam)
-                      const wasExecuted = snapshot?.executedBlocks.includes(block.id) ?? false
+                      if (!snapshot) return 'Run workflow first'
+                      // Check if all upstream dependencies have cached outputs
+                      const incomingEdges = edges.filter((edge) => edge.target === block.id)
+                      const dependenciesSatisfied =
+                        incomingEdges.length === 0 ||
+                        incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
                       const isInsideSubflow =
                         block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
-                      if (!snapshot) return 'Run workflow first'
-                      if (!wasExecuted) return 'Block not executed in last run'
+                      if (!dependenciesSatisfied) return 'Run upstream blocks first'
                       if (isInsideSubflow) return 'Cannot run from inside subflow'
                       return undefined
                     })()

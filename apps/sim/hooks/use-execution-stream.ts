@@ -143,6 +143,7 @@ export interface ExecuteStreamOptions {
     loops?: Record<string, any>
     parallels?: Record<string, any>
   }
+  stopAfterBlockId?: string
   callbacks?: ExecutionStreamCallbacks
 }
 

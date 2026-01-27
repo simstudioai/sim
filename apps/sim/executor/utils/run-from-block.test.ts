@@ -311,14 +311,25 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toContain('sentinel')
   })
 
-  it('rejects unexecuted blocks', () => {
-    const dag = createDAG([createNode('A'), createNode('B')])
-    const executedBlocks = new Set(['A']) // B was not executed
+  it('rejects blocks with unexecuted upstream dependencies', () => {
+    // A → B, only A executed but B depends on A
+    const dag = createDAG([createNode('A', [{ target: 'B' }]), createNode('B')])
+    const executedBlocks = new Set<string>() // A was not executed
 
     const result = validateRunFromBlock('B', dag, executedBlocks)
 
     expect(result.valid).toBe(false)
-    expect(result.error).toContain('was not executed')
+    expect(result.error).toContain('Upstream dependency not executed')
+  })
+
+  it('allows blocks with no dependencies even if not previously executed', () => {
+    // A and B are independent (no edges)
+    const dag = createDAG([createNode('A'), createNode('B')])
+    const executedBlocks = new Set(['A']) // B was not executed but has no deps
+
+    const result = validateRunFromBlock('B', dag, executedBlocks)
+
+    expect(result.valid).toBe(true) // B has no incoming edges, so it's valid
   })
 
   it('accepts regular executed block', () => {
@@ -374,19 +385,22 @@ describe('validateRunFromBlock', () => {
     expect(result.valid).toBe(true)
   })
 
-  it('rejects loop container that was not executed', () => {
+  it('allows loop container with no upstream dependencies', () => {
+    // Loop containers are validated via their sentinel nodes, not incoming edges on the container itself
+    // If the loop has no upstream dependencies, it should be valid
     const loopId = 'loop-container-1'
     const sentinelStartId = `loop-${loopId}-sentinel-start`
     const dag = createDAG([
       createNode(sentinelStartId, [], { isSentinel: true, sentinelType: 'start', loopId }),
     ])
     dag.loopConfigs.set(loopId, { id: loopId, nodes: [], iterations: 3, loopType: 'for' } as any)
-    const executedBlocks = new Set<string>() // Loop was not executed
+    const executedBlocks = new Set<string>() // Nothing executed but loop has no deps
 
     const result = validateRunFromBlock(loopId, dag, executedBlocks)
 
-    expect(result.valid).toBe(false)
-    expect(result.error).toContain('was not executed')
+    // Loop container validation doesn't check incoming edges (containers don't have nodes in dag.nodes)
+    // So this is valid - the loop can start fresh
+    expect(result.valid).toBe(true)
   })
 })
 

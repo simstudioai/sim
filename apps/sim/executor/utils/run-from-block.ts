@@ -105,7 +105,7 @@ export function computeDirtySet(dag: DAG, startBlockId: string): Set<string> {
  * - Block cannot be inside a loop (but loop containers are allowed)
  * - Block cannot be inside a parallel (but parallel containers are allowed)
  * - Block cannot be a sentinel node
- * - Block must have been executed in the source run
+ * - All upstream dependencies must have been executed (have cached outputs)
  *
  * @param blockId - The block ID to validate
  * @param dag - The workflow DAG
@@ -158,12 +158,18 @@ export function validateRunFromBlock(
     if (node.metadata.isSentinel) {
       return { valid: false, error: 'Cannot run from sentinel node' }
     }
-  }
 
-  if (!executedBlocks.has(blockId)) {
-    return {
-      valid: false,
-      error: `Block was not executed in source run: ${blockId}`,
+    // Check if all upstream dependencies have been executed (have cached outputs)
+    // If no incoming edges (trigger/start block), dependencies are satisfied
+    if (node.incomingEdges.size > 0) {
+      for (const sourceId of node.incomingEdges.keys()) {
+        if (!executedBlocks.has(sourceId)) {
+          return {
+            valid: false,
+            error: `Upstream dependency not executed: ${sourceId}`,
+          }
+        }
+      }
     }
   }
 

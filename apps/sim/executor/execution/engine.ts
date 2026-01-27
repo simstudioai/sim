@@ -26,6 +26,7 @@ export class ExecutionEngine {
   private allowResumeTriggers: boolean
   private cancelledFlag = false
   private errorFlag = false
+  private stoppedEarlyFlag = false
   private executionError: Error | null = null
   private lastCancellationCheck = 0
   private readonly useRedisCancellation: boolean
@@ -105,7 +106,7 @@ export class ExecutionEngine {
       this.initializeQueue(triggerBlockId)
 
       while (this.hasWork()) {
-        if ((await this.checkCancellation()) || this.errorFlag) {
+        if ((await this.checkCancellation()) || this.errorFlag || this.stoppedEarlyFlag) {
           break
         }
         await this.processQueue()
@@ -394,6 +395,13 @@ export class ExecutionEngine {
 
     if (isFinalOutput) {
       this.finalOutput = output
+    }
+
+    // Check if we should stop after this block (run-until-block feature)
+    if (this.context.stopAfterBlockId === nodeId) {
+      logger.info('Stopping execution after target block', { nodeId })
+      this.stoppedEarlyFlag = true
+      return
     }
 
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)

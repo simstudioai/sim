@@ -112,6 +112,11 @@ export interface ContextExtensions {
    * execution mode starting from the specified block.
    */
   runFromBlockContext?: RunFromBlockContext
+
+  /**
+   * Stop execution after this block completes. Used for "run until block" feature.
+   */
+  stopAfterBlockId?: string
 }
 
 export interface WorkflowInput {

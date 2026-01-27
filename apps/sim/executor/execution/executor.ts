@@ -296,6 +296,7 @@ export class DAGExecutor {
       includeFileBase64: this.contextExtensions.includeFileBase64,
       base64MaxBytes: this.contextExtensions.base64MaxBytes,
       runFromBlockContext: overrides?.runFromBlockContext,
+      stopAfterBlockId: this.contextExtensions.stopAfterBlockId,
     }
 
     if (this.contextExtensions.resumeFromSnapshot) {

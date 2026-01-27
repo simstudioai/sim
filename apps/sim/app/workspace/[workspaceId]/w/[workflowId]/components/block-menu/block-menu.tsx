@@ -41,6 +41,7 @@ export interface BlockMenuProps {
   onOpenEditor: () => void
   onRename: () => void
   onRunFromBlock?: () => void
+  onRunUntilBlock?: () => void
   hasClipboard?: boolean
   showRemoveFromSubflow?: boolean
   /** Whether run from block is available (has snapshot, was executed, not inside subflow) */
@@ -72,6 +73,7 @@ export function BlockMenu({
   onOpenEditor,
   onRename,
   onRunFromBlock,
+  onRunUntilBlock,
   hasClipboard = false,
   showRemoveFromSubflow = false,
   canRunFromBlock = false,
@@ -213,7 +215,7 @@ export function BlockMenu({
           </PopoverItem>
         )}
 
-        {/* Run from block - only for single non-note block selection */}
+        {/* Run from/until block - only for single non-note block selection */}
         {isSingleBlock && !allNoteBlocks && (
           <>
             <PopoverDivider />
@@ -231,6 +233,17 @@ export function BlockMenu({
                 : !canRunFromBlock && runFromBlockDisabledReason
                   ? runFromBlockDisabledReason
                   : 'Run from this block'}
+            </PopoverItem>
+            <PopoverItem
+              disabled={isExecuting}
+              onClick={() => {
+                if (!isExecuting) {
+                  onRunUntilBlock?.()
+                  onClose()
+                }
+              }}
+            >
+              {isExecuting ? 'Execution in progress...' : 'Run until this block'}
             </PopoverItem>
           </>
         )}

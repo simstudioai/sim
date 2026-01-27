@@ -257,6 +257,11 @@ export interface ExecutionContext {
    * will be executed; others return cached outputs from the source snapshot.
    */
   runFromBlockContext?: RunFromBlockContext
+
+  /**
+   * Stop execution after this block completes. Used for "run until block" feature.
+   */
+  stopAfterBlockId?: string
 }
 
 export interface ExecutionResult {
