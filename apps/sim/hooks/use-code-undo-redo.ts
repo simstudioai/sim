@@ -206,6 +206,12 @@ export function useCodeUndoRedo({
     }
   }, [value])
 
+  useEffect(() => {
+    return () => {
+      clearTimer()
+    }
+  }, [clearTimer])
+
   return {
     recordChange,
     clearHistory,
