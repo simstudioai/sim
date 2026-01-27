@@ -1048,7 +1048,14 @@ export const Terminal = memo(function Terminal() {
     }
 
     prevWorkflowEntriesLengthRef.current = currentLength
-  }, [allWorkflowEntries.length, expandToLastHeight, openOnRun, isExpanded, hasConsoleHydrated])
+  }, [
+    allWorkflowEntries.length,
+    expandToLastHeight,
+    openOnRun,
+    isExpanded,
+    hasConsoleHydrated,
+    activeWorkflowId,
+  ])
 
   /**
    * Handle row click - toggle if clicking same entry
