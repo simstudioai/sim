@@ -433,12 +433,12 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
                       preload='metadata'
                       className='aspect-video w-full'
                     >
-                      <track kind='captions' default />
+                      <track kind='captions' src='' default />
                     </video>
                   )}
                   {embedInfo.type === 'audio' && (
                     <audio src={embedInfo.url} controls preload='metadata' className='w-full'>
-                      <track kind='captions' default />
+                      <track kind='captions' src='' default />
                     </audio>
                   )}
                 </span>
