@@ -20,7 +20,7 @@ import {
 import { useNotificationStore } from '@/stores/notifications'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { usePanelEditorStore, useVariablesStore } from '@/stores/panel'
-import { useUndoRedoStore } from '@/stores/undo-redo'
+import { useCodeUndoRedoStore, useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -449,6 +449,10 @@ export function useCollaborativeWorkflow() {
       try {
         // The setValue function automatically uses the active workflow ID
         useSubBlockStore.getState().setValue(blockId, subblockId, value)
+        const blockType = useWorkflowStore.getState().blocks?.[blockId]?.type
+        if (activeWorkflowId && blockType === 'function' && subblockId === 'code') {
+          useCodeUndoRedoStore.getState().clear(activeWorkflowId, blockId, subblockId)
+        }
       } catch (error) {
         logger.error('Error applying remote subblock update:', error)
       } finally {
