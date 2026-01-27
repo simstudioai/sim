@@ -71,7 +71,17 @@ export const polymarketGetTagsTool: ToolConfig<PolymarketGetTagsParams, Polymark
     outputs: {
       tags: {
         type: 'array',
-        description: 'Array of tag objects with id, label, and slug',
+        description: 'Array of tag objects',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Tag ID' },
+            label: { type: 'string', description: 'Tag label' },
+            slug: { type: 'string', description: 'Tag slug' },
+            createdAt: { type: 'string', description: 'Creation timestamp' },
+            updatedAt: { type: 'string', description: 'Last update timestamp' },
+          },
+        },
       },
     },
   }

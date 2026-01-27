@@ -53,7 +53,9 @@ export const polymarketGetSpreadTool: ToolConfig<
     return {
       success: true,
       output: {
-        spread: data,
+        spread: {
+          spread: data.spread ?? '',
+        },
       },
     }
   },
@@ -61,7 +63,10 @@ export const polymarketGetSpreadTool: ToolConfig<
   outputs: {
     spread: {
       type: 'object',
-      description: 'Bid-ask spread with bid and ask prices',
+      description: 'Spread value between bid and ask',
+      properties: {
+        spread: { type: 'string', description: 'The spread value' },
+      },
     },
   },
 }

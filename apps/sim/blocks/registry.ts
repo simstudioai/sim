@@ -58,7 +58,7 @@ import { IntercomBlock, IntercomV2Block } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
 import { JiraServiceManagementBlock } from '@/blocks/blocks/jira_service_management'
-import { KalshiBlock } from '@/blocks/blocks/kalshi'
+import { KalshiBlock, KalshiV2Block } from '@/blocks/blocks/kalshi'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LangsmithBlock } from '@/blocks/blocks/langsmith'
 import { LemlistBlock } from '@/blocks/blocks/lemlist'
@@ -222,6 +222,7 @@ export const registry: Record<string, BlockConfig> = {
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,
   kalshi: KalshiBlock,
+  kalshi_v2: KalshiV2Block,
   knowledge: KnowledgeBlock,
   langsmith: LangsmithBlock,
   lemlist: LemlistBlock,

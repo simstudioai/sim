@@ -3,10 +3,10 @@ import type { PolymarketMarket, PolymarketPaginationParams } from './types'
 import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetMarketsParams extends PolymarketPaginationParams {
-  closed?: string // 'true' or 'false' - filter for closed/active markets
-  order?: string // sort field - use camelCase (e.g., 'volumeNum', 'liquidityNum', 'startDate', 'endDate')
-  ascending?: string // 'true' or 'false' - sort direction
-  tagId?: string // filter by tag ID
+  closed?: string
+  order?: string
+  ascending?: string
+  tagId?: string
 }
 
 export interface PolymarketGetMarketsResponse {
@@ -29,7 +29,7 @@ export const polymarketGetMarketsTool: ToolConfig<
     closed: {
       type: 'string',
       required: false,
-      description: 'Filter by closed status (true/false). Use false for active markets only.',
+      description: 'Filter by closed status (true/false). Use false for open markets only.',
       visibility: 'user-or-llm',
     },
     order: {
@@ -71,13 +71,11 @@ export const polymarketGetMarketsTool: ToolConfig<
       if (params.order) queryParams.append('order', params.order)
       if (params.ascending) queryParams.append('ascending', params.ascending)
       if (params.tagId) queryParams.append('tag_id', params.tagId)
-      // Default limit to 50 to prevent browser crashes from large data sets
       queryParams.append('limit', params.limit || '50')
       if (params.offset) queryParams.append('offset', params.offset)
 
-      const query = queryParams.toString()
       const url = buildGammaUrl('/markets')
-      return `${url}?${query}`
+      return `${url}?${queryParams.toString()}`
     },
     method: 'GET',
     headers: () => ({
@@ -107,6 +105,26 @@ export const polymarketGetMarketsTool: ToolConfig<
     markets: {
       type: 'array',
       description: 'Array of market objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Market ID' },
+          question: { type: 'string', description: 'Market question' },
+          conditionId: { type: 'string', description: 'Condition ID' },
+          slug: { type: 'string', description: 'Market slug' },
+          endDate: { type: 'string', description: 'End date' },
+          image: { type: 'string', description: 'Market image URL' },
+          outcomes: { type: 'string', description: 'Outcomes JSON string' },
+          outcomePrices: { type: 'string', description: 'Outcome prices JSON string' },
+          volume: { type: 'string', description: 'Total volume' },
+          liquidity: { type: 'string', description: 'Total liquidity' },
+          active: { type: 'boolean', description: 'Whether market is active' },
+          closed: { type: 'boolean', description: 'Whether market is closed' },
+          volumeNum: { type: 'number', description: 'Volume as number' },
+          liquidityNum: { type: 'number', description: 'Liquidity as number' },
+          clobTokenIds: { type: 'array', description: 'CLOB token IDs' },
+        },
+      },
     },
   },
 }

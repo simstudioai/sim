@@ -99,7 +99,14 @@ export const polymarketGetPriceHistoryTool: ToolConfig<
   outputs: {
     history: {
       type: 'array',
-      description: 'Array of price history entries with timestamp (t) and price (p)',
+      description: 'Array of price history entries',
+      items: {
+        type: 'object',
+        properties: {
+          t: { type: 'number', description: 'Unix timestamp' },
+          p: { type: 'number', description: 'Price at timestamp' },
+        },
+      },
     },
   },
 }
