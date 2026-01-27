@@ -17,6 +17,8 @@ interface WorkflowPreviewSubflowData {
   isPreviewSelected?: boolean
   /** Execution status for highlighting the subflow container */
   executionStatus?: ExecutionStatus
+  /** Skips expensive computations for thumbnails/template previews (unused in subflow, for consistency) */
+  lightweight?: boolean
 }
 
 /**

@@ -56,6 +56,8 @@ interface WorkflowPreviewBlockData {
   executionStatus?: ExecutionStatus
   /** Subblock values from the workflow state */
   subBlockValues?: Record<string, SubBlockValueEntry | unknown>
+  /** Skips expensive subblock computations for thumbnails/template previews */
+  lightweight?: boolean
 }
 
 /**
@@ -270,25 +272,29 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     isPreviewSelected = false,
     executionStatus,
     subBlockValues,
+    lightweight = false,
   } = data
 
   const blockConfig = getBlock(type)
 
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () =>
+      lightweight
+        ? { groupsById: {}, canonicalIdBySubBlockId: {} }
+        : buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks, lightweight]
   )
 
   const rawValues = useMemo(() => {
-    if (!subBlockValues) return {}
+    if (lightweight || !subBlockValues) return {}
     return Object.entries(subBlockValues).reduce<Record<string, unknown>>((acc, [key, entry]) => {
       acc[key] = extractValue(entry)
       return acc
     }, {})
-  }, [subBlockValues])
+  }, [subBlockValues, lightweight])
 
   const visibleSubBlocks = useMemo(() => {
-    if (!blockConfig?.subBlocks) return []
+    if (lightweight || !blockConfig?.subBlocks) return []
 
     const isStarterOrTrigger =
       blockConfig.category === 'triggers' || type === 'starter' || isTrigger
@@ -304,13 +310,21 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       if (!subBlock.condition) return true
       return evaluateSubBlockCondition(subBlock.condition, rawValues)
     })
-  }, [blockConfig?.subBlocks, blockConfig?.category, type, isTrigger, canonicalIndex, rawValues])
+  }, [
+    blockConfig?.subBlocks,
+    blockConfig?.category,
+    type,
+    isTrigger,
+    canonicalIndex,
+    rawValues,
+    lightweight,
+  ])
 
   /**
    * Compute condition rows for condition blocks
    */
   const conditionRows = useMemo(() => {
-    if (type !== 'condition') return []
+    if (lightweight || type !== 'condition') return []
 
     const conditionsValue = rawValues.conditions
     const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
@@ -338,13 +352,13 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       { id: 'if', title: 'if', value: '' },
       { id: 'else', title: 'else', value: '' },
     ]
-  }, [type, rawValues])
+  }, [type, rawValues, lightweight])
 
   /**
    * Compute router rows for router_v2 blocks
    */
   const routerRows = useMemo(() => {
-    if (type !== 'router_v2') return []
+    if (lightweight || type !== 'router_v2') return []
 
     const routesValue = rawValues.routes
     const raw = typeof routesValue === 'string' ? routesValue : undefined
@@ -367,7 +381,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     }
 
     return [{ id: 'route1', value: '' }]
-  }, [type, rawValues])
+  }, [type, rawValues, lightweight])
 
   if (!blockConfig) {
     return null
@@ -582,10 +596,14 @@ function shouldSkipPreviewBlockRender(
     prevProps.data.horizontalHandles !== nextProps.data.horizontalHandles ||
     prevProps.data.enabled !== nextProps.data.enabled ||
     prevProps.data.isPreviewSelected !== nextProps.data.isPreviewSelected ||
-    prevProps.data.executionStatus !== nextProps.data.executionStatus
+    prevProps.data.executionStatus !== nextProps.data.executionStatus ||
+    prevProps.data.lightweight !== nextProps.data.lightweight
   ) {
     return false
   }
+
+  /** Skip subBlockValues comparison in lightweight mode */
+  if (nextProps.data.lightweight) return true
 
   const prevValues = prevProps.data.subBlockValues
   const nextValues = nextProps.data.subBlockValues

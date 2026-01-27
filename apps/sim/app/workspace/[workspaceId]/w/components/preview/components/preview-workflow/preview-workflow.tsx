@@ -160,6 +160,8 @@ interface PreviewWorkflowProps {
   executedBlocks?: Record<string, { status: string }>
   /** Currently selected block ID for highlighting */
   selectedBlockId?: string | null
+  /** Skips expensive subblock computations for thumbnails/template previews */
+  lightweight?: boolean
 }
 
 /**
@@ -252,6 +254,7 @@ export function PreviewWorkflow({
   cursorStyle = 'grab',
   executedBlocks,
   selectedBlockId,
+  lightweight = false,
 }: PreviewWorkflowProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const nodeTypes = previewNodeTypes
@@ -379,6 +382,7 @@ export function PreviewWorkflow({
             kind: block.type as 'loop' | 'parallel',
             isPreviewSelected: isSelected,
             executionStatus: subflowExecutionStatus,
+            lightweight,
           },
         })
         return
@@ -417,6 +421,7 @@ export function PreviewWorkflow({
           isPreviewSelected: isSelected,
           executionStatus,
           subBlockValues: block.subBlocks,
+          lightweight,
         },
       })
     })
@@ -431,6 +436,7 @@ export function PreviewWorkflow({
     executedBlocks,
     selectedBlockId,
     getSubflowExecutionStatus,
+    lightweight,
   ])
 
   const edges: Edge[] = useMemo(() => {
