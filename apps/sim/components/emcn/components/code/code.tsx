@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import { List, type RowComponentProps, useDynamicRowHeight, useListRef } from 'react-window'
 import 'prismjs/components/prism-javascript'
@@ -37,6 +38,11 @@ export const CODE_LINE_HEIGHT_PX = 21
 const GUTTER_WIDTHS = [20, 20, 30, 38, 46, 54] as const
 
 /**
+ * Width of the collapse column in pixels.
+ */
+const COLLAPSE_COLUMN_WIDTH = 12
+
+/**
  * Calculates the dynamic gutter width based on the number of lines.
  * @param lineCount - The total number of lines in the code
  * @returns The gutter width in pixels
@@ -45,6 +51,259 @@ export function calculateGutterWidth(lineCount: number): number {
   const digits = String(lineCount).length
   return GUTTER_WIDTHS[Math.min(digits - 1, GUTTER_WIDTHS.length - 1)]
 }
+
+/**
+ * Information about a collapsible region in code.
+ */
+interface CollapsibleRegion {
+  /** Line index where the region starts (0-based) */
+  startLine: number
+  /** Line index where the region ends (0-based, inclusive) */
+  endLine: number
+  /** Type of collapsible region */
+  type: 'block' | 'string'
+}
+
+/**
+ * Minimum string length to be considered collapsible.
+ */
+const MIN_COLLAPSIBLE_STRING_LENGTH = 80
+
+/**
+ * Regex to match a JSON string value (key: "value" pattern).
+ * Pre-compiled for performance.
+ */
+const STRING_VALUE_REGEX = /:\s*"([^"\\]|\\.)*"[,]?\s*$/
+
+/**
+ * Finds collapsible regions in JSON code by matching braces and detecting long strings.
+ * A region is collapsible if it spans multiple lines OR contains a long string value.
+ *
+ * @param lines - Array of code lines
+ * @returns Map of start line index to CollapsibleRegion
+ */
+function findCollapsibleRegions(lines: string[]): Map<number, CollapsibleRegion> {
+  const regions = new Map<number, CollapsibleRegion>()
+  const stack: { char: '{' | '['; line: number }[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
+    const stringMatch = line.match(STRING_VALUE_REGEX)
+    if (stringMatch) {
+      const colonIdx = line.indexOf('":')
+      if (colonIdx !== -1) {
+        const valueStart = line.indexOf('"', colonIdx + 1)
+        const valueEnd = line.lastIndexOf('"')
+        if (valueStart !== -1 && valueEnd > valueStart) {
+          const stringValue = line.slice(valueStart + 1, valueEnd)
+          // Check if string is long enough or contains escaped newlines
+          if (stringValue.length >= MIN_COLLAPSIBLE_STRING_LENGTH || stringValue.includes('\\n')) {
+            regions.set(i, { startLine: i, endLine: i, type: 'string' })
+          }
+        }
+      }
+    }
+
+    // Check for block regions (objects/arrays)
+    for (const char of line) {
+      if (char === '{' || char === '[') {
+        stack.push({ char, line: i })
+      } else if (char === '}' || char === ']') {
+        const expected = char === '}' ? '{' : '['
+        if (stack.length > 0 && stack[stack.length - 1].char === expected) {
+          const start = stack.pop()!
+          // Only create a region if it spans multiple lines
+          if (i > start.line) {
+            regions.set(start.line, {
+              startLine: start.line,
+              endLine: i,
+              type: 'block',
+            })
+          }
+        }
+      }
+    }
+  }
+
+  return regions
+}
+
+/**
+ * Computes visible line indices based on collapsed regions.
+ * Only block regions hide lines; string regions just truncate content.
+ *
+ * @param totalLines - Total number of lines
+ * @param collapsedLines - Set of line indices that are collapsed (start lines of regions)
+ * @param regions - Map of collapsible regions
+ * @returns Sorted array of visible line indices
+ */
+function computeVisibleLineIndices(
+  totalLines: number,
+  collapsedLines: Set<number>,
+  regions: Map<number, CollapsibleRegion>
+): number[] {
+  if (collapsedLines.size === 0) {
+    return Array.from({ length: totalLines }, (_, i) => i)
+  }
+
+  // Build sorted list of hidden ranges (only for block regions, not string regions)
+  const hiddenRanges: Array<{ start: number; end: number }> = []
+  for (const startLine of collapsedLines) {
+    const region = regions.get(startLine)
+    if (region && region.type === 'block' && region.endLine > region.startLine + 1) {
+      hiddenRanges.push({ start: region.startLine + 1, end: region.endLine - 1 })
+    }
+  }
+  hiddenRanges.sort((a, b) => a.start - b.start)
+
+  // Merge overlapping ranges
+  const merged: Array<{ start: number; end: number }> = []
+  for (const range of hiddenRanges) {
+    if (merged.length === 0 || merged[merged.length - 1].end < range.start - 1) {
+      merged.push(range)
+    } else {
+      merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, range.end)
+    }
+  }
+
+  // Build visible indices by skipping hidden ranges
+  const visible: number[] = []
+  let rangeIdx = 0
+  for (let i = 0; i < totalLines; i++) {
+    while (rangeIdx < merged.length && merged[rangeIdx].end < i) {
+      rangeIdx++
+    }
+    if (rangeIdx < merged.length && i >= merged[rangeIdx].start && i <= merged[rangeIdx].end) {
+      continue
+    }
+    visible.push(i)
+  }
+
+  return visible
+}
+
+/**
+ * Truncates a long string value in a JSON line for collapsed display.
+ *
+ * @param line - The original line content
+ * @returns Truncated line with ellipsis
+ */
+function truncateStringLine(line: string): string {
+  const colonIdx = line.indexOf('":')
+  if (colonIdx === -1) return line
+
+  const valueStart = line.indexOf('"', colonIdx + 1)
+  if (valueStart === -1) return line
+
+  const prefix = line.slice(0, valueStart + 1)
+  const suffix = line.charCodeAt(line.length - 1) === 44 /* ',' */ ? '",' : '"'
+  const truncated = line.slice(valueStart + 1, valueStart + 31)
+
+  return `${prefix}${truncated}...${suffix}`
+}
+
+/**
+ * Custom hook for managing JSON collapse state and computations.
+ *
+ * @param lines - Array of code lines
+ * @param showCollapseColumn - Whether collapse functionality is enabled
+ * @param language - Programming language for syntax detection
+ * @returns Object containing collapse state and handlers
+ */
+function useJsonCollapse(
+  lines: string[],
+  showCollapseColumn: boolean,
+  language: string
+): {
+  collapsedLines: Set<number>
+  collapsibleLines: Set<number>
+  collapsibleRegions: Map<number, CollapsibleRegion>
+  collapsedStringLines: Set<number>
+  visibleLineIndices: number[]
+  toggleCollapse: (lineIndex: number) => void
+} {
+  const [collapsedLines, setCollapsedLines] = useState<Set<number>>(new Set())
+
+  const collapsibleRegions = useMemo(() => {
+    if (!showCollapseColumn || language !== 'json') return new Map<number, CollapsibleRegion>()
+    return findCollapsibleRegions(lines)
+  }, [lines, showCollapseColumn, language])
+
+  const collapsibleLines = useMemo(() => new Set(collapsibleRegions.keys()), [collapsibleRegions])
+
+  // Track which collapsed lines are string type (need truncation, not hiding)
+  const collapsedStringLines = useMemo(() => {
+    const stringLines = new Set<number>()
+    for (const lineIdx of collapsedLines) {
+      const region = collapsibleRegions.get(lineIdx)
+      if (region?.type === 'string') {
+        stringLines.add(lineIdx)
+      }
+    }
+    return stringLines
+  }, [collapsedLines, collapsibleRegions])
+
+  const visibleLineIndices = useMemo(() => {
+    if (!showCollapseColumn) {
+      return Array.from({ length: lines.length }, (_, i) => i)
+    }
+    return computeVisibleLineIndices(lines.length, collapsedLines, collapsibleRegions)
+  }, [lines.length, collapsedLines, collapsibleRegions, showCollapseColumn])
+
+  const toggleCollapse = useCallback((lineIndex: number) => {
+    setCollapsedLines((prev) => {
+      const next = new Set(prev)
+      if (next.has(lineIndex)) {
+        next.delete(lineIndex)
+      } else {
+        next.add(lineIndex)
+      }
+      return next
+    })
+  }, [])
+
+  return {
+    collapsedLines,
+    collapsibleLines,
+    collapsibleRegions,
+    collapsedStringLines,
+    visibleLineIndices,
+    toggleCollapse,
+  }
+}
+
+/**
+ * Props for the CollapseButton component.
+ */
+interface CollapseButtonProps {
+  /** Whether the region is currently collapsed */
+  isCollapsed: boolean
+  /** Handler for toggle click */
+  onClick: () => void
+}
+
+/**
+ * Collapse/expand button with chevron icon.
+ * Rotates chevron based on collapse state.
+ */
+const CollapseButton = memo(function CollapseButton({ isCollapsed, onClick }: CollapseButtonProps) {
+  return (
+    <button
+      type='button'
+      onClick={onClick}
+      className='flex h-[21px] w-[12px] cursor-pointer items-center justify-center border-none bg-transparent p-0 text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+      aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+    >
+      <ChevronRight
+        className={cn(
+          '!h-[12px] !w-[12px] transition-transform duration-100',
+          !isCollapsed && 'rotate-90'
+        )}
+      />
+    </button>
+  )
+})
 
 /**
  * Props for the Code.Container component.
@@ -256,28 +515,62 @@ function Placeholder({ children, gutterWidth, show, className }: CodePlaceholder
 }
 
 /**
- * Props for virtualized row rendering.
+ * Represents a highlighted line of code.
  */
 interface HighlightedLine {
+  /** 1-based line number */
   lineNumber: number
+  /** Syntax-highlighted HTML content */
   html: string
 }
 
+/**
+ * Props for virtualized row rendering.
+ */
 interface CodeRowProps {
+  /** Array of highlighted lines to render */
   lines: HighlightedLine[]
+  /** Width of the gutter in pixels */
   gutterWidth: number
+  /** Whether to show the line number gutter */
   showGutter: boolean
+  /** Custom styles for the gutter */
   gutterStyle?: React.CSSProperties
+  /** Left offset for alignment */
   leftOffset: number
+  /** Whether to wrap long lines */
   wrapText: boolean
+  /** Whether to show the collapse column */
+  showCollapseColumn: boolean
+  /** Set of line indices that can be collapsed */
+  collapsibleLines: Set<number>
+  /** Set of line indices that are currently collapsed */
+  collapsedLines: Set<number>
+  /** Handler for toggling collapse state */
+  onToggleCollapse: (lineIndex: number) => void
 }
 
 /**
  * Row component for virtualized code viewer.
+ * Renders a single line with optional gutter and collapse button.
  */
 function CodeRow({ index, style, ...props }: RowComponentProps<CodeRowProps>) {
-  const { lines, gutterWidth, showGutter, gutterStyle, leftOffset, wrapText } = props
+  const {
+    lines,
+    gutterWidth,
+    showGutter,
+    gutterStyle,
+    leftOffset,
+    wrapText,
+    showCollapseColumn,
+    collapsibleLines,
+    collapsedLines,
+    onToggleCollapse,
+  } = props
   const line = lines[index]
+  const originalLineIndex = line.lineNumber - 1
+  const isCollapsible = showCollapseColumn && collapsibleLines.has(originalLineIndex)
+  const isCollapsed = collapsedLines.has(originalLineIndex)
 
   return (
     <div style={style} className={cn('flex', wrapText && 'overflow-hidden')} data-row-index={index}>
@@ -287,6 +580,19 @@ function CodeRow({ index, style, ...props }: RowComponentProps<CodeRowProps>) {
           style={{ width: gutterWidth, marginLeft: leftOffset, ...gutterStyle }}
         >
           {line.lineNumber}
+        </div>
+      )}
+      {showCollapseColumn && (
+        <div
+          className='ml-1 flex flex-shrink-0 items-start justify-end'
+          style={{ width: COLLAPSE_COLUMN_WIDTH }}
+        >
+          {isCollapsible && (
+            <CollapseButton
+              isCollapsed={isCollapsed}
+              onClick={() => onToggleCollapse(originalLineIndex)}
+            />
+          )}
         </div>
       )}
       <pre
@@ -302,6 +608,12 @@ function CodeRow({ index, style, ...props }: RowComponentProps<CodeRowProps>) {
 
 /**
  * Applies search highlighting to a single line for virtualized rendering.
+ *
+ * @param html - The syntax-highlighted HTML string
+ * @param searchQuery - The search query to highlight
+ * @param currentMatchIndex - Index of the current match (for distinct highlighting)
+ * @param globalMatchOffset - Cumulative match count before this line
+ * @returns Object containing highlighted HTML and count of matches in this line
  */
 function applySearchHighlightingToLine(
   html: string,
@@ -366,6 +678,8 @@ interface CodeViewerProps {
   contentRef?: React.RefObject<HTMLDivElement | null>
   /** Enable virtualized rendering for large outputs (uses react-window) */
   virtualized?: boolean
+  /** Whether to show a collapse column for JSON folding (only for json language) */
+  showCollapseColumn?: boolean
 }
 
 /**
@@ -423,41 +737,38 @@ function applySearchHighlighting(
 }
 
 /**
- * Counts all matches for a search query in the given code.
- *
- * @param code - The raw code string
- * @param searchQuery - The search query
- * @returns Number of matches found
- */
-function countSearchMatches(code: string, searchQuery: string): number {
-  if (!searchQuery.trim()) return 0
-
-  const escaped = escapeRegex(searchQuery)
-  const regex = new RegExp(escaped, 'gi')
-  const matches = code.match(regex)
-
-  return matches?.length ?? 0
-}
-
-/**
  * Props for inner viewer components (with defaults already applied).
  */
 type ViewerInnerProps = {
+  /** Code content to display */
   code: string
+  /** Whether to show line numbers gutter */
   showGutter: boolean
+  /** Language for syntax highlighting */
   language: 'javascript' | 'json' | 'python'
+  /** Additional CSS classes for the container */
   className?: string
+  /** Left padding offset in pixels */
   paddingLeft: number
+  /** Custom styles for the gutter */
   gutterStyle?: React.CSSProperties
+  /** Whether to wrap long lines */
   wrapText: boolean
+  /** Search query to highlight */
   searchQuery?: string
+  /** Index of the current active match */
   currentMatchIndex: number
+  /** Callback when match count changes */
   onMatchCountChange?: (count: number) => void
+  /** Ref for the content container */
   contentRef?: React.RefObject<HTMLDivElement | null>
+  /** Whether to show collapse column for JSON folding */
+  showCollapseColumn: boolean
 }
 
 /**
  * Virtualized code viewer implementation using react-window.
+ * Optimized for large outputs with efficient scrolling and dynamic row heights.
  */
 const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   code,
@@ -471,6 +782,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   currentMatchIndex,
   onMatchCountChange,
   contentRef,
+  showCollapseColumn,
 }: ViewerInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useListRef(null)
@@ -481,52 +793,70 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     key: wrapText ? 'wrap' : 'nowrap',
   })
 
-  const matchCount = useMemo(() => countSearchMatches(code, searchQuery || ''), [code, searchQuery])
+  const lines = useMemo(() => code.split('\n'), [code])
+  const gutterWidth = useMemo(() => calculateGutterWidth(lines.length), [lines.length])
+
+  const {
+    collapsedLines,
+    collapsibleLines,
+    collapsedStringLines,
+    visibleLineIndices,
+    toggleCollapse,
+  } = useJsonCollapse(lines, showCollapseColumn, language)
+
+  // Compute display lines (accounting for truncation of collapsed strings)
+  const displayLines = useMemo(() => {
+    return lines.map((line, idx) =>
+      collapsedStringLines.has(idx) ? truncateStringLine(line) : line
+    )
+  }, [lines, collapsedStringLines])
+
+  // Pre-compute cumulative match offsets based on DISPLAYED content (handles truncation)
+  const { matchOffsets, matchCount } = useMemo(() => {
+    if (!searchQuery?.trim()) return { matchOffsets: [], matchCount: 0 }
+
+    const offsets: number[] = []
+    let cumulative = 0
+    const escaped = escapeRegex(searchQuery)
+    const regex = new RegExp(escaped, 'gi')
+    const visibleSet = new Set(visibleLineIndices)
+
+    for (let i = 0; i < lines.length; i++) {
+      offsets.push(cumulative)
+      // Only count matches in visible lines, using displayed (possibly truncated) content
+      if (visibleSet.has(i)) {
+        const matches = displayLines[i].match(regex)
+        cumulative += matches?.length ?? 0
+      }
+    }
+    return { matchOffsets: offsets, matchCount: cumulative }
+  }, [lines.length, displayLines, visibleLineIndices, searchQuery])
 
   useEffect(() => {
     onMatchCountChange?.(matchCount)
   }, [matchCount, onMatchCountChange])
 
-  const lines = useMemo(() => code.split('\n'), [code])
-  const lineCount = lines.length
-  const gutterWidth = useMemo(() => calculateGutterWidth(lineCount), [lineCount])
-
-  const highlightedLines = useMemo(() => {
+  // Only process visible lines for efficiency (not all lines)
+  const visibleLines = useMemo(() => {
     const lang = languages[language] || languages.javascript
-    return lines.map((line, idx) => ({
-      lineNumber: idx + 1,
-      html: highlight(line, lang, language),
-    }))
-  }, [lines, language])
+    const hasSearch = searchQuery?.trim()
 
-  const matchOffsets = useMemo(() => {
-    if (!searchQuery?.trim()) return []
-    const offsets: number[] = []
-    let cumulative = 0
-    const escaped = escapeRegex(searchQuery)
-    const regex = new RegExp(escaped, 'gi')
+    return visibleLineIndices.map((idx) => {
+      let html = highlight(displayLines[idx], lang, language)
 
-    for (const line of lines) {
-      offsets.push(cumulative)
-      const matches = line.match(regex)
-      cumulative += matches?.length ?? 0
-    }
-    return offsets
-  }, [lines, searchQuery])
+      if (hasSearch && searchQuery) {
+        const result = applySearchHighlightingToLine(
+          html,
+          searchQuery,
+          currentMatchIndex,
+          matchOffsets[idx]
+        )
+        html = result.html
+      }
 
-  const linesWithSearch = useMemo(() => {
-    if (!searchQuery?.trim()) return highlightedLines
-
-    return highlightedLines.map((line, idx) => {
-      const { html } = applySearchHighlightingToLine(
-        line.html,
-        searchQuery,
-        currentMatchIndex,
-        matchOffsets[idx]
-      )
-      return { ...line, html }
+      return { lineNumber: idx + 1, html }
     })
-  }, [highlightedLines, searchQuery, currentMatchIndex, matchOffsets])
+  }, [displayLines, language, visibleLineIndices, searchQuery, currentMatchIndex, matchOffsets])
 
   useEffect(() => {
     if (!searchQuery?.trim() || matchCount === 0 || !listRef.current) return
@@ -535,12 +865,15 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     for (let i = 0; i < matchOffsets.length; i++) {
       const matchesInThisLine = (matchOffsets[i + 1] ?? matchCount) - matchOffsets[i]
       if (currentMatchIndex >= accumulated && currentMatchIndex < accumulated + matchesInThisLine) {
-        listRef.current.scrollToRow({ index: i, align: 'center' })
+        const visibleIndex = visibleLineIndices.indexOf(i)
+        if (visibleIndex !== -1) {
+          listRef.current.scrollToRow({ index: visibleIndex, align: 'center' })
+        }
         break
       }
       accumulated += matchesInThisLine
     }
-  }, [currentMatchIndex, searchQuery, matchCount, matchOffsets, listRef])
+  }, [currentMatchIndex, searchQuery, matchCount, matchOffsets, listRef, visibleLineIndices])
 
   useEffect(() => {
     const container = containerRef.current
@@ -549,15 +882,11 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     const parent = container.parentElement
     if (!parent) return
 
-    const updateHeight = () => {
-      setContainerHeight(parent.clientHeight)
-    }
-
+    const updateHeight = () => setContainerHeight(parent.clientHeight)
     updateHeight()
 
     const resizeObserver = new ResizeObserver(updateHeight)
     resizeObserver.observe(parent)
-
     return () => resizeObserver.disconnect()
   }, [])
 
@@ -571,7 +900,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     if (rows.length === 0) return
 
     return dynamicRowHeight.observeRowElements(rows)
-  }, [wrapText, dynamicRowHeight, linesWithSearch])
+  }, [wrapText, dynamicRowHeight, visibleLines])
 
   const setRefs = useCallback(
     (el: HTMLDivElement | null) => {
@@ -585,14 +914,29 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
 
   const rowProps = useMemo(
     () => ({
-      lines: linesWithSearch,
+      lines: visibleLines,
       gutterWidth,
       showGutter,
       gutterStyle,
       leftOffset: paddingLeft,
       wrapText,
+      showCollapseColumn,
+      collapsibleLines,
+      collapsedLines,
+      onToggleCollapse: toggleCollapse,
     }),
-    [linesWithSearch, gutterWidth, showGutter, gutterStyle, paddingLeft, wrapText]
+    [
+      visibleLines,
+      gutterWidth,
+      showGutter,
+      gutterStyle,
+      paddingLeft,
+      wrapText,
+      showCollapseColumn,
+      collapsibleLines,
+      collapsedLines,
+      toggleCollapse,
+    ]
   )
 
   return (
@@ -609,7 +953,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
       <List
         listRef={listRef}
         defaultHeight={containerHeight}
-        rowCount={lineCount}
+        rowCount={visibleLines.length}
         rowHeight={wrapText ? dynamicRowHeight : CODE_LINE_HEIGHT_PX}
         rowComponent={CodeRow}
         rowProps={rowProps}
@@ -621,9 +965,184 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
 })
 
 /**
+ * Non-virtualized code viewer implementation.
+ * Renders all lines directly without windowing.
+ */
+function ViewerInner({
+  code,
+  showGutter,
+  language,
+  className,
+  paddingLeft,
+  gutterStyle,
+  wrapText,
+  searchQuery,
+  currentMatchIndex,
+  onMatchCountChange,
+  contentRef,
+  showCollapseColumn,
+}: ViewerInnerProps) {
+  const lines = useMemo(() => code.split('\n'), [code])
+  const gutterWidth = useMemo(() => calculateGutterWidth(lines.length), [lines.length])
+
+  const {
+    collapsedLines,
+    collapsibleLines,
+    collapsedStringLines,
+    visibleLineIndices,
+    toggleCollapse,
+  } = useJsonCollapse(lines, showCollapseColumn, language)
+
+  // Compute display lines (accounting for truncation of collapsed strings)
+  const displayLines = useMemo(() => {
+    return lines.map((line, idx) =>
+      collapsedStringLines.has(idx) ? truncateStringLine(line) : line
+    )
+  }, [lines, collapsedStringLines])
+
+  // Pre-compute cumulative match offsets based on DISPLAYED content (handles truncation)
+  const { cumulativeMatches, matchCount } = useMemo(() => {
+    if (!searchQuery?.trim()) return { cumulativeMatches: [0], matchCount: 0 }
+
+    const cumulative: number[] = [0]
+    const escaped = escapeRegex(searchQuery)
+    const regex = new RegExp(escaped, 'gi')
+    const visibleSet = new Set(visibleLineIndices)
+
+    for (let i = 0; i < lines.length; i++) {
+      const prev = cumulative[cumulative.length - 1]
+      // Only count matches in visible lines, using displayed content
+      if (visibleSet.has(i)) {
+        const matches = displayLines[i].match(regex)
+        cumulative.push(prev + (matches?.length ?? 0))
+      } else {
+        cumulative.push(prev)
+      }
+    }
+    return { cumulativeMatches: cumulative, matchCount: cumulative[cumulative.length - 1] }
+  }, [lines.length, displayLines, visibleLineIndices, searchQuery])
+
+  useEffect(() => {
+    onMatchCountChange?.(matchCount)
+  }, [matchCount, onMatchCountChange])
+
+  // Pre-compute highlighted lines with search for visible indices (for gutter mode)
+  const highlightedVisibleLines = useMemo(() => {
+    const lang = languages[language] || languages.javascript
+
+    if (!searchQuery?.trim()) {
+      return visibleLineIndices.map((idx) => ({
+        lineNumber: idx + 1,
+        html: highlight(displayLines[idx], lang, language) || '&nbsp;',
+      }))
+    }
+
+    return visibleLineIndices.map((idx) => {
+      let html = highlight(displayLines[idx], lang, language)
+      const matchCounter = { count: cumulativeMatches[idx] }
+      html = applySearchHighlighting(html, searchQuery, currentMatchIndex, matchCounter)
+      return { lineNumber: idx + 1, html: html || '&nbsp;' }
+    })
+  }, [
+    displayLines,
+    language,
+    visibleLineIndices,
+    searchQuery,
+    currentMatchIndex,
+    cumulativeMatches,
+  ])
+
+  // Pre-compute simple highlighted code (for no-gutter mode)
+  const highlightedCode = useMemo(() => {
+    const lang = languages[language] || languages.javascript
+    const visibleCode = visibleLineIndices.map((idx) => displayLines[idx]).join('\n')
+    let html = highlight(visibleCode, lang, language)
+
+    if (searchQuery?.trim()) {
+      const matchCounter = { count: 0 }
+      html = applySearchHighlighting(html, searchQuery, currentMatchIndex, matchCounter)
+    }
+    return html
+  }, [displayLines, language, visibleLineIndices, searchQuery, currentMatchIndex])
+
+  const whitespaceClass = wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+  const collapseColumnWidth = showCollapseColumn ? COLLAPSE_COLUMN_WIDTH : 0
+
+  // Grid-based rendering for gutter alignment (works with wrap)
+  if (showGutter) {
+    return (
+      <Container className={className}>
+        <Content className='code-editor-theme' editorRef={contentRef}>
+          <div
+            style={{
+              paddingLeft,
+              paddingTop: '8px',
+              paddingBottom: '8px',
+              display: 'grid',
+              gridTemplateColumns: showCollapseColumn
+                ? `${gutterWidth}px ${collapseColumnWidth}px 1fr`
+                : `${gutterWidth}px 1fr`,
+            }}
+          >
+            {highlightedVisibleLines.map(({ lineNumber, html }) => {
+              const idx = lineNumber - 1
+              const isCollapsible = collapsibleLines.has(idx)
+              const isCollapsed = collapsedLines.has(idx)
+
+              return (
+                <Fragment key={idx}>
+                  <div
+                    className='select-none pr-0.5 text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[#a8a8a8]'
+                    style={gutterStyle}
+                  >
+                    {lineNumber}
+                  </div>
+                  {showCollapseColumn && (
+                    <div className='ml-1 flex items-start justify-end'>
+                      {isCollapsible && (
+                        <CollapseButton
+                          isCollapsed={isCollapsed}
+                          onClick={() => toggleCollapse(idx)}
+                        />
+                      )}
+                    </div>
+                  )}
+                  <pre
+                    className={cn(
+                      'm-0 min-w-0 pr-2 pl-2 font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]',
+                      whitespaceClass
+                    )}
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                </Fragment>
+              )
+            })}
+          </div>
+        </Content>
+      </Container>
+    )
+  }
+
+  // Simple display without gutter
+  return (
+    <Container className={className}>
+      <Content className='code-editor-theme' editorRef={contentRef}>
+        <pre
+          className={cn(
+            whitespaceClass,
+            'p-2 font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]'
+          )}
+          style={{ paddingLeft: paddingLeft > 0 ? paddingLeft : undefined }}
+          dangerouslySetInnerHTML={{ __html: highlightedCode }}
+        />
+      </Content>
+    </Container>
+  )
+}
+
+/**
  * Readonly code viewer with optional gutter and syntax highlighting.
- * Handles all complexity internally - line numbers, gutter width calculation, and highlighting.
- * Supports optional search highlighting with navigation.
+ * Routes to either standard or virtualized implementation based on the `virtualized` prop.
  *
  * @example
  * ```tsx
@@ -645,162 +1164,6 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
  * />
  * ```
  */
-/**
- * Non-virtualized code viewer implementation.
- */
-function ViewerInner({
-  code,
-  showGutter,
-  language,
-  className,
-  paddingLeft,
-  gutterStyle,
-  wrapText,
-  searchQuery,
-  currentMatchIndex,
-  onMatchCountChange,
-  contentRef,
-}: ViewerInnerProps) {
-  // Compute match count and notify parent
-  const matchCount = useMemo(() => countSearchMatches(code, searchQuery || ''), [code, searchQuery])
-
-  useEffect(() => {
-    onMatchCountChange?.(matchCount)
-  }, [matchCount, onMatchCountChange])
-
-  // Determine whitespace class based on wrap setting
-  const whitespaceClass = wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
-
-  // Special rendering path: when wrapping with gutter, render per-line rows so gutter stays aligned.
-  if (showGutter && wrapText) {
-    const lines = code.split('\n')
-    const gutterWidth = calculateGutterWidth(lines.length)
-    const matchCounter = { count: 0 }
-
-    return (
-      <Container className={className}>
-        <Content className='code-editor-theme' editorRef={contentRef}>
-          <div
-            style={{
-              paddingLeft,
-              paddingTop: '8px',
-              paddingBottom: '8px',
-              display: 'grid',
-              gridTemplateColumns: `${gutterWidth}px 1fr`,
-            }}
-          >
-            {lines.map((line, idx) => {
-              let perLineHighlighted = highlight(
-                line,
-                languages[language] || languages.javascript,
-                language
-              )
-
-              // Apply search highlighting if query exists
-              if (searchQuery?.trim()) {
-                perLineHighlighted = applySearchHighlighting(
-                  perLineHighlighted,
-                  searchQuery,
-                  currentMatchIndex,
-                  matchCounter
-                )
-              }
-
-              return (
-                <Fragment key={idx}>
-                  <div
-                    className='select-none pr-0.5 text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[#a8a8a8]'
-                    style={{ transform: 'translateY(0.25px)', ...gutterStyle }}
-                  >
-                    {idx + 1}
-                  </div>
-                  <pre
-                    className='m-0 min-w-0 whitespace-pre-wrap break-words pr-2 pl-2 font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]'
-                    dangerouslySetInnerHTML={{ __html: perLineHighlighted || '&nbsp;' }}
-                  />
-                </Fragment>
-              )
-            })}
-          </div>
-        </Content>
-      </Container>
-    )
-  }
-
-  // Apply syntax highlighting
-  let highlightedCode = highlight(code, languages[language] || languages.javascript, language)
-
-  // Apply search highlighting if query exists
-  if (searchQuery?.trim()) {
-    const matchCounter = { count: 0 }
-    highlightedCode = applySearchHighlighting(
-      highlightedCode,
-      searchQuery,
-      currentMatchIndex,
-      matchCounter
-    )
-  }
-
-  if (!showGutter) {
-    // Simple display without gutter
-    return (
-      <Container className={className}>
-        <Content className='code-editor-theme' editorRef={contentRef}>
-          <pre
-            className={cn(
-              whitespaceClass,
-              'p-2 font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]'
-            )}
-            dangerouslySetInnerHTML={{ __html: highlightedCode }}
-          />
-        </Content>
-      </Container>
-    )
-  }
-
-  // Calculate line numbers
-  const lineCount = code.split('\n').length
-  const gutterWidth = calculateGutterWidth(lineCount)
-
-  // Render line numbers
-  const lineNumbers = []
-  for (let i = 1; i <= lineCount; i++) {
-    lineNumbers.push(
-      <div
-        key={i}
-        className='text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[#a8a8a8]'
-      >
-        {i}
-      </div>
-    )
-  }
-
-  return (
-    <Container className={className}>
-      <Gutter width={gutterWidth} style={{ left: `${paddingLeft}px`, ...gutterStyle }}>
-        {lineNumbers}
-      </Gutter>
-      <Content
-        className='code-editor-theme'
-        paddingLeft={`${gutterWidth + paddingLeft}px`}
-        editorRef={contentRef}
-      >
-        <pre
-          className={cn(
-            whitespaceClass,
-            'p-2 font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]'
-          )}
-          dangerouslySetInnerHTML={{ __html: highlightedCode }}
-        />
-      </Content>
-    </Container>
-  )
-}
-
-/**
- * Readonly code viewer with optional gutter and syntax highlighting.
- * Routes to either standard or virtualized implementation based on the `virtualized` prop.
- */
 function Viewer({
   code,
   showGutter = false,
@@ -814,6 +1177,7 @@ function Viewer({
   onMatchCountChange,
   contentRef,
   virtualized = false,
+  showCollapseColumn = false,
 }: CodeViewerProps) {
   const innerProps: ViewerInnerProps = {
     code,
@@ -827,6 +1191,7 @@ function Viewer({
     currentMatchIndex,
     onMatchCountChange,
     contentRef,
+    showCollapseColumn,
   }
 
   return virtualized ? <VirtualizedViewerInner {...innerProps} /> : <ViewerInner {...innerProps} />

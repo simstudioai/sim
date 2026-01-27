@@ -268,6 +268,7 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
       onMatchCountChange={onMatchCountChange}
       contentRef={contentRef}
       virtualized
+      showCollapseColumn={language === 'json'}
     />
   )
 })
