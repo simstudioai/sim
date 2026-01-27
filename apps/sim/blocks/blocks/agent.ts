@@ -769,7 +769,13 @@ Example 3 (Array Input):
   outputs: {
     content: { type: 'string', description: 'Generated response content' },
     model: { type: 'string', description: 'Model used for generation' },
-    tokens: { type: 'any', description: 'Token usage statistics' },
-    toolCalls: { type: 'any', description: 'Tool calls made' },
+    tokens: { type: 'json', description: 'Token usage statistics' },
+    toolCalls: { type: 'json', description: 'Tool calls made' },
+    providerTiming: {
+      type: 'json',
+      description: 'Provider timing information',
+      hiddenFromDisplay: true,
+    },
+    cost: { type: 'number', description: 'Cost of the API call', hiddenFromDisplay: true },
   },
 }

@@ -86,8 +86,8 @@ function evaluateOutputCondition(
 }
 
 /**
- * Filters outputs based on their conditions.
- * Returns a new OutputDefinition with only the outputs whose conditions are met.
+ * Filters outputs based on their conditions and hiddenFromDisplay flag.
+ * Returns a new OutputDefinition with only the outputs that should be shown.
  */
 function filterOutputsByCondition(
   outputs: OutputDefinition,
@@ -96,6 +96,16 @@ function filterOutputsByCondition(
   const filtered: OutputDefinition = {}
 
   for (const [key, value] of Object.entries(outputs)) {
+    // Skip fields marked as hidden from display
+    if (
+      value &&
+      typeof value === 'object' &&
+      'hiddenFromDisplay' in value &&
+      value.hiddenFromDisplay
+    ) {
+      continue
+    }
+
     if (!value || typeof value !== 'object' || !('condition' in value)) {
       filtered[key] = value
       continue
@@ -105,7 +115,7 @@ function filterOutputsByCondition(
     const passes = !condition || evaluateOutputCondition(condition, subBlocks)
 
     if (passes) {
-      const { condition: _, ...rest } = value
+      const { condition: _, hiddenFromDisplay: __, ...rest } = value
       filtered[key] = rest
     }
   }
@@ -259,50 +269,26 @@ export function getBlockOutputs(
   }
 
   if (blockType === 'human_in_the_loop') {
-    const hitlOutputs: OutputDefinition = {
-      url: { type: 'string', description: 'Resume UI URL' },
-      resumeEndpoint: {
-        type: 'string',
-        description: 'Resume API endpoint URL for direct curl requests',
-      },
-    }
+    // Start with block config outputs (respects hiddenFromDisplay via filterOutputsByCondition)
+    const baseOutputs = filterOutputsByCondition(
+      { ...(blockConfig.outputs || {}) } as OutputDefinition,
+      subBlocks
+    )
 
+    // Add inputFormat fields (resume form fields)
     const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
 
     for (const field of normalizedInputFormat) {
       const fieldName = field?.name?.trim()
       if (!fieldName) continue
 
-      hitlOutputs[fieldName] = {
+      baseOutputs[fieldName] = {
         type: (field?.type || 'any') as any,
-        description: `Field from resume form`,
+        description: field?.description || `Field from resume form`,
       }
     }
 
-    return hitlOutputs
-  }
-
-  if (blockType === 'approval') {
-    // Start with only url (apiUrl commented out - not accessible as output)
-    const pauseResumeOutputs: OutputDefinition = {
-      url: { type: 'string', description: 'Resume UI URL' },
-      // apiUrl: { type: 'string', description: 'Resume API URL' }, // Commented out - not accessible as output
-    }
-
-    const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
-
-    // Add each input format field as a top-level output
-    for (const field of normalizedInputFormat) {
-      const fieldName = field?.name?.trim()
-      if (!fieldName) continue
-
-      pauseResumeOutputs[fieldName] = {
-        type: (field?.type || 'any') as any,
-        description: `Field from input format`,
-      }
-    }
-
-    return pauseResumeOutputs
+    return baseOutputs
   }
 
   if (startPath === StartBlockPath.LEGACY_STARTER) {

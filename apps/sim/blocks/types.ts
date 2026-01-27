@@ -157,6 +157,11 @@ export type OutputFieldDefinition =
        * Uses the same condition format as subBlocks.
        */
       condition?: OutputCondition
+      /**
+       * If true, this output is hidden from display in the tag dropdown and logs,
+       * but still available for resolution and execution.
+       */
+      hiddenFromDisplay?: boolean
     }
 
 export interface ParamConfig {

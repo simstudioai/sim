@@ -11,8 +11,6 @@ import {
   DEFAULTS,
   EDGE,
   isSentinelBlockType,
-  isTriggerBehavior,
-  isWorkflowBlockType,
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
@@ -30,6 +28,7 @@ import type {
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { validateBlockType } from '@/executor/utils/permission-check'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
@@ -149,13 +148,15 @@ export class BlockExecutor {
         blockLog.endedAt = new Date().toISOString()
         blockLog.durationMs = duration
         blockLog.success = true
-        blockLog.output = this.filterOutputForLog(block, normalizedOutput)
+        blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
       }
 
       this.state.setBlockOutput(node.id, normalizedOutput, duration)
 
       if (!isSentinel) {
-        const displayOutput = this.filterOutputForDisplay(block, normalizedOutput)
+        const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
+          block,
+        })
         this.callOnBlockComplete(ctx, node, block, resolvedInputs, displayOutput, duration)
       }
 
@@ -233,7 +234,7 @@ export class BlockExecutor {
       blockLog.success = false
       blockLog.error = errorMessage
       blockLog.input = input
-      blockLog.output = this.filterOutputForLog(block, errorOutput)
+      blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
     }
 
     logger.error(
@@ -246,7 +247,7 @@ export class BlockExecutor {
     )
 
     if (!isSentinel) {
-      const displayOutput = this.filterOutputForDisplay(block, errorOutput)
+      const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
       this.callOnBlockComplete(ctx, node, block, input, displayOutput, duration)
     }
 
@@ -333,51 +334,6 @@ export class BlockExecutor {
     }
 
     return { result: output }
-  }
-
-  private filterOutputForLog(
-    block: SerializedBlock,
-    output: NormalizedBlockOutput
-  ): NormalizedBlockOutput {
-    const blockType = block.metadata?.id
-
-    if (blockType === BlockType.HUMAN_IN_THE_LOOP) {
-      const filtered: NormalizedBlockOutput = {}
-      for (const [key, value] of Object.entries(output)) {
-        if (key.startsWith('_')) continue
-        if (key === 'response') continue
-        filtered[key] = value
-      }
-      return filtered
-    }
-
-    if (isTriggerBehavior(block)) {
-      const filtered: NormalizedBlockOutput = {}
-      const internalKeys = ['webhook', 'workflowId']
-      for (const [key, value] of Object.entries(output)) {
-        if (internalKeys.includes(key)) continue
-        filtered[key] = value
-      }
-      return filtered
-    }
-
-    return output
-  }
-
-  private filterOutputForDisplay(
-    block: SerializedBlock,
-    output: NormalizedBlockOutput
-  ): NormalizedBlockOutput {
-    const filtered = this.filterOutputForLog(block, output)
-
-    if (isWorkflowBlockType(block.metadata?.id)) {
-      const { childTraceSpans: _, ...displayOutput } = filtered as {
-        childTraceSpans?: unknown
-      } & Record<string, unknown>
-      return displayOutput
-    }
-
-    return filtered
   }
 
   private callOnBlockStart(ctx: ExecutionContext, node: DAGNode, block: SerializedBlock): void {
