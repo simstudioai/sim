@@ -22,6 +22,7 @@ import type {
   ContextExtensions,
   ExecutionCallbacks,
   IterationContext,
+  SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -41,6 +42,11 @@ export interface ExecuteWorkflowCoreOptions {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   stopAfterBlockId?: string
+  /** Run-from-block mode: execute starting from a specific block using cached upstream outputs */
+  runFromBlock?: {
+    startBlockId: string
+    sourceSnapshot: SerializableExecutionState
+  }
 }
 
 function parseVariableValueByType(value: unknown, type: string): unknown {
@@ -116,6 +122,7 @@ export async function executeWorkflowCore(
     includeFileBase64,
     base64MaxBytes,
     stopAfterBlockId,
+    runFromBlock,
   } = options
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
@@ -322,10 +329,13 @@ export async function executeWorkflowCore(
       }
     }
 
-    const result = (await executorInstance.execute(
-      workflowId,
-      resolvedTriggerBlockId
-    )) as ExecutionResult
+    const result = runFromBlock
+      ? ((await executorInstance.executeFromBlock(
+          workflowId,
+          runFromBlock.startBlockId,
+          runFromBlock.sourceSnapshot
+        )) as ExecutionResult)
+      : ((await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult)
 
     // Build trace spans for logging from the full execution result
     const { traceSpans, totalDuration } = buildTraceSpans(result)
