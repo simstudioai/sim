@@ -245,7 +245,9 @@ export function DocumentTagEntry({
           {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
         </span>
         {tag.collapsed && tag.tagName && (
-          <Badge size='sm'>{FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}</Badge>
+          <Badge variant='type' size='sm'>
+            {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
+          </Badge>
         )}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>

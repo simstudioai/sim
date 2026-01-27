@@ -223,7 +223,11 @@ function InputMappingField({
           <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
             {fieldName}
           </span>
-          {fieldType && <Badge size='sm'>{fieldType}</Badge>}
+          {fieldType && (
+            <Badge variant='type' size='sm'>
+              {fieldType}
+            </Badge>
+          )}
         </div>
       </div>
 

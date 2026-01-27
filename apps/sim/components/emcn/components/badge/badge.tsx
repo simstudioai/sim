@@ -16,6 +16,7 @@ const badgeVariants = cva(
           'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover:text-[var(--text-primary)] hover:border-[var(--border-1)] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
         outline:
           'gap-[4px] rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-5)] dark:hover:bg-transparent dark:hover:border-[var(--surface-6)]',
+        type: 'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] dark:bg-[var(--surface-6)]',
         green: `${STATUS_BASE} bg-[#bbf7d0] text-[#15803d] dark:bg-[rgba(34,197,94,0.2)] dark:text-[#86efac]`,
         red: `${STATUS_BASE} bg-[#fecaca] text-[var(--text-error)] dark:bg-[#551a1a] dark:text-[var(--text-error)]`,
         gray: `${STATUS_BASE} bg-[#e7e5e4] text-[#57534e] dark:bg-[var(--terminal-status-info-bg)] dark:text-[var(--terminal-status-info-color)]`,
@@ -84,7 +85,7 @@ export interface BadgeProps
  *
  * @remarks
  * Supports two categories of variants:
- * - **Bordered**: `default`, `outline` - traditional badges with borders
+ * - **Bordered**: `default`, `outline`, `type` - traditional badges with borders
  * - **Status colors**: `green`, `red`, `gray`, `blue`, `blue-secondary`, `purple`,
  *   `orange`, `amber`, `teal`, `cyan`, `gray-secondary` - borderless colored badges
  *
