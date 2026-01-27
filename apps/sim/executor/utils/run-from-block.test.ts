@@ -213,6 +213,49 @@ describe('computeDirtySet', () => {
     expect(dirtySet.has('D')).toBe(true)
     expect(dirtySet.size).toBe(2)
   })
+
+  it('handles running from convergent block itself (all upstream non-dirty)', () => {
+    // A → C
+    // B → C
+    // Running from C should only include C
+    const dag = createDAG([
+      createNode('A', [{ target: 'C' }]),
+      createNode('B', [{ target: 'C' }]),
+      createNode('C', [{ target: 'D' }]),
+      createNode('D'),
+    ])
+
+    const dirtySet = computeDirtySet(dag, 'C')
+
+    expect(dirtySet.has('A')).toBe(false)
+    expect(dirtySet.has('B')).toBe(false)
+    expect(dirtySet.has('C')).toBe(true)
+    expect(dirtySet.has('D')).toBe(true)
+    expect(dirtySet.size).toBe(2)
+  })
+
+  it('handles deep downstream chains', () => {
+    // A → B → C → D → E → F
+    // Running from C should include C, D, E, F
+    const dag = createDAG([
+      createNode('A', [{ target: 'B' }]),
+      createNode('B', [{ target: 'C' }]),
+      createNode('C', [{ target: 'D' }]),
+      createNode('D', [{ target: 'E' }]),
+      createNode('E', [{ target: 'F' }]),
+      createNode('F'),
+    ])
+
+    const dirtySet = computeDirtySet(dag, 'C')
+
+    expect(dirtySet.has('A')).toBe(false)
+    expect(dirtySet.has('B')).toBe(false)
+    expect(dirtySet.has('C')).toBe(true)
+    expect(dirtySet.has('D')).toBe(true)
+    expect(dirtySet.has('E')).toBe(true)
+    expect(dirtySet.has('F')).toBe(true)
+    expect(dirtySet.size).toBe(4)
+  })
 })
 
 describe('validateRunFromBlock', () => {
