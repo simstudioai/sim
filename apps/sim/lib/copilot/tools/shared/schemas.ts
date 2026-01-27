@@ -79,7 +79,7 @@ export const KnowledgeBaseArgsSchema = z.object({
       name: z.string().optional(),
       /** Description of the knowledge base (optional for create) */
       description: z.string().optional(),
-      /** Workspace ID to associate with (optional for create/list) */
+      /** Workspace ID to associate with (required for create, optional for list) */
       workspaceId: z.string().optional(),
       /** Knowledge base ID (required for get, query) */
       knowledgeBaseId: z.string().optional(),
