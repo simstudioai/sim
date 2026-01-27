@@ -1,6 +1,7 @@
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
+import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 export interface UserFile {
@@ -255,10 +256,7 @@ export interface ExecutionContext {
    * Context for "run from block" mode. When present, only blocks in dirtySet
    * will be executed; others return cached outputs from the source snapshot.
    */
-  runFromBlockContext?: {
-    startBlockId: string
-    dirtySet: Set<string>
-  }
+  runFromBlockContext?: RunFromBlockContext
 }
 
 export interface ExecutionResult {

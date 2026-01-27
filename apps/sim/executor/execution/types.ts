@@ -1,5 +1,6 @@
 import type { Edge } from 'reactflow'
 import type { BlockLog, BlockState, NormalizedBlockOutput } from '@/executor/types'
+import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export interface ExecutionMetadata {
@@ -110,10 +111,7 @@ export interface ContextExtensions {
    * Run-from-block configuration. When provided, executor runs in partial
    * execution mode starting from the specified block.
    */
-  runFromBlockContext?: {
-    startBlockId: string
-    dirtySet: Set<string>
-  }
+  runFromBlockContext?: RunFromBlockContext
 }
 
 export interface WorkflowInput {

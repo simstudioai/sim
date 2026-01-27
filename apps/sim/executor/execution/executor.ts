@@ -15,7 +15,11 @@ import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
-import { computeDirtySet, validateRunFromBlock } from '@/executor/utils/run-from-block'
+import {
+  computeDirtySet,
+  type RunFromBlockContext,
+  validateRunFromBlock,
+} from '@/executor/utils/run-from-block'
 import {
   buildResolutionFromBlock,
   buildStartBlockOutput,
@@ -134,6 +138,29 @@ export class DAGExecutor {
       dirtyBlocks: Array.from(dirtySet),
     })
 
+    // For convergent blocks in the dirty set, remove incoming edges from non-dirty sources.
+    // This ensures that a dirty block waiting on multiple inputs doesn't wait for non-dirty
+    // upstream blocks (whose outputs are already cached).
+    for (const nodeId of dirtySet) {
+      const node = dag.nodes.get(nodeId)
+      if (!node) continue
+
+      const nonDirtyIncoming: string[] = []
+      for (const sourceId of node.incomingEdges) {
+        if (!dirtySet.has(sourceId)) {
+          nonDirtyIncoming.push(sourceId)
+        }
+      }
+
+      for (const sourceId of nonDirtyIncoming) {
+        node.incomingEdges.delete(sourceId)
+        logger.debug('Removed non-dirty incoming edge for run-from-block', {
+          nodeId,
+          sourceId,
+        })
+      }
+    }
+
     // Create context with snapshot state + runFromBlockContext
     const runFromBlockContext = { startBlockId, dirtySet }
     const { context, state } = this.createExecutionContext(workflowId, undefined, {
@@ -170,7 +197,7 @@ export class DAGExecutor {
     triggerBlockId?: string,
     overrides?: {
       snapshotState?: SerializableExecutionState
-      runFromBlockContext?: { startBlockId: string; dirtySet: Set<string> }
+      runFromBlockContext?: RunFromBlockContext
     }
   ): { context: ExecutionContext; state: ExecutionState } {
     const snapshotState = overrides?.snapshotState ?? this.contextExtensions.snapshotState

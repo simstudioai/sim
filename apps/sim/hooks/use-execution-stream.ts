@@ -6,6 +6,80 @@ import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('useExecutionStream')
 
+/**
+ * Processes SSE events from a response body and invokes appropriate callbacks.
+ */
+async function processSSEStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  callbacks: ExecutionStreamCallbacks,
+  logPrefix: string
+): Promise<void> {
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line.trim() || !line.startsWith('data: ')) continue
+
+        const data = line.substring(6).trim()
+        if (data === '[DONE]') {
+          logger.info(`${logPrefix} stream completed`)
+          continue
+        }
+
+        try {
+          const event = JSON.parse(data) as ExecutionEvent
+
+          switch (event.type) {
+            case 'execution:started':
+              callbacks.onExecutionStarted?.(event.data)
+              break
+            case 'execution:completed':
+              callbacks.onExecutionCompleted?.(event.data)
+              break
+            case 'execution:error':
+              callbacks.onExecutionError?.(event.data)
+              break
+            case 'execution:cancelled':
+              callbacks.onExecutionCancelled?.(event.data)
+              break
+            case 'block:started':
+              callbacks.onBlockStarted?.(event.data)
+              break
+            case 'block:completed':
+              callbacks.onBlockCompleted?.(event.data)
+              break
+            case 'block:error':
+              callbacks.onBlockError?.(event.data)
+              break
+            case 'stream:chunk':
+              callbacks.onStreamChunk?.(event.data)
+              break
+            case 'stream:done':
+              callbacks.onStreamDone?.(event.data)
+              break
+            default:
+              logger.warn('Unknown event type:', (event as any).type)
+          }
+        } catch (error) {
+          logger.error('Failed to parse SSE event:', error, { data })
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 export interface ExecutionStreamCallbacks {
   onExecutionStarted?: (data: { startTime: string }) => void
   onExecutionCompleted?: (data: {
@@ -127,91 +201,7 @@ export function useExecutionStream() {
       }
 
       const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-
-          if (done) {
-            break
-          }
-
-          buffer += decoder.decode(value, { stream: true })
-
-          const lines = buffer.split('\n\n')
-
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (!line.trim() || !line.startsWith('data: ')) {
-              continue
-            }
-
-            const data = line.substring(6).trim()
-
-            if (data === '[DONE]') {
-              logger.info('Stream completed')
-              continue
-            }
-
-            try {
-              const event = JSON.parse(data) as ExecutionEvent
-
-              logger.info('📡 SSE Event received:', {
-                type: event.type,
-                executionId: event.executionId,
-                data: event.data,
-              })
-
-              switch (event.type) {
-                case 'execution:started':
-                  logger.info('🚀 Execution started')
-                  callbacks.onExecutionStarted?.(event.data)
-                  break
-                case 'execution:completed':
-                  logger.info('✅ Execution completed')
-                  callbacks.onExecutionCompleted?.(event.data)
-                  break
-                case 'execution:error':
-                  logger.error('❌ Execution error')
-                  callbacks.onExecutionError?.(event.data)
-                  break
-                case 'execution:cancelled':
-                  logger.warn('🛑 Execution cancelled')
-                  callbacks.onExecutionCancelled?.(event.data)
-                  break
-                case 'block:started':
-                  logger.info('🔷 Block started:', event.data.blockId)
-                  callbacks.onBlockStarted?.(event.data)
-                  break
-                case 'block:completed':
-                  logger.info('✓ Block completed:', event.data.blockId)
-                  callbacks.onBlockCompleted?.(event.data)
-                  break
-                case 'block:error':
-                  logger.error('✗ Block error:', event.data.blockId)
-                  callbacks.onBlockError?.(event.data)
-                  break
-                case 'stream:chunk':
-                  callbacks.onStreamChunk?.(event.data)
-                  break
-                case 'stream:done':
-                  logger.info('Stream done:', event.data.blockId)
-                  callbacks.onStreamDone?.(event.data)
-                  break
-                default:
-                  logger.warn('Unknown event type:', (event as any).type)
-              }
-            } catch (error) {
-              logger.error('Failed to parse SSE event:', error, { data })
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock()
-      }
+      await processSSEStream(reader, callbacks, 'Execution')
     } catch (error: any) {
       if (error.name === 'AbortError') {
         logger.info('Execution stream cancelled')
@@ -270,82 +260,7 @@ export function useExecutionStream() {
       }
 
       const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-
-          if (done) {
-            break
-          }
-
-          buffer += decoder.decode(value, { stream: true })
-
-          const lines = buffer.split('\n\n')
-
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (!line.trim() || !line.startsWith('data: ')) {
-              continue
-            }
-
-            const data = line.substring(6).trim()
-
-            if (data === '[DONE]') {
-              logger.info('Run-from-block stream completed')
-              continue
-            }
-
-            try {
-              const event = JSON.parse(data) as ExecutionEvent
-
-              logger.info('📡 Run-from-block SSE Event:', {
-                type: event.type,
-                executionId: event.executionId,
-              })
-
-              switch (event.type) {
-                case 'execution:started':
-                  callbacks.onExecutionStarted?.(event.data)
-                  break
-                case 'execution:completed':
-                  callbacks.onExecutionCompleted?.(event.data)
-                  break
-                case 'execution:error':
-                  callbacks.onExecutionError?.(event.data)
-                  break
-                case 'execution:cancelled':
-                  callbacks.onExecutionCancelled?.(event.data)
-                  break
-                case 'block:started':
-                  callbacks.onBlockStarted?.(event.data)
-                  break
-                case 'block:completed':
-                  callbacks.onBlockCompleted?.(event.data)
-                  break
-                case 'block:error':
-                  callbacks.onBlockError?.(event.data)
-                  break
-                case 'stream:chunk':
-                  callbacks.onStreamChunk?.(event.data)
-                  break
-                case 'stream:done':
-                  callbacks.onStreamDone?.(event.data)
-                  break
-                default:
-                  logger.warn('Unknown event type:', (event as any).type)
-              }
-            } catch (error) {
-              logger.error('Failed to parse SSE event:', error, { data })
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock()
-      }
+      await processSSEStream(reader, callbacks, 'Run-from-block')
     } catch (error: any) {
       if (error.name === 'AbortError') {
         logger.info('Run-from-block execution cancelled')

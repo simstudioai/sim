@@ -182,29 +182,6 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        {isSubflowBlock && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (!disabled) {
-                    collaborativeBatchToggleBlockEnabled([blockId])
-                  }
-                }}
-                className={ACTION_BUTTON_STYLES}
-                disabled={disabled}
-              >
-                {isEnabled ? <Circle className={ICON_SIZE} /> : <CircleOff className={ICON_SIZE} />}
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
-
         {canRunFromBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>

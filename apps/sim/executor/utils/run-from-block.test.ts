@@ -66,7 +66,7 @@ function createDAG(nodes: DAGNode[]): DAG {
 }
 
 describe('computeDirtySet', () => {
-  it.concurrent('includes start block in dirty set', () => {
+  it('includes start block in dirty set', () => {
     const dag = createDAG([createNode('A'), createNode('B'), createNode('C')])
 
     const dirtySet = computeDirtySet(dag, 'B')
@@ -74,7 +74,7 @@ describe('computeDirtySet', () => {
     expect(dirtySet.has('B')).toBe(true)
   })
 
-  it.concurrent('includes all downstream blocks in linear workflow', () => {
+  it('includes all downstream blocks in linear workflow', () => {
     // A → B → C → D
     const dag = createDAG([
       createNode('A', [{ target: 'B' }]),
@@ -92,7 +92,7 @@ describe('computeDirtySet', () => {
     expect(dirtySet.size).toBe(3)
   })
 
-  it.concurrent('handles branching paths', () => {
+  it('handles branching paths', () => {
     // A → B → C
     //     ↓
     //     D → E
@@ -114,7 +114,7 @@ describe('computeDirtySet', () => {
     expect(dirtySet.size).toBe(4)
   })
 
-  it.concurrent('handles convergence points', () => {
+  it('handles convergence points', () => {
     // A → C
     // B → C → D
     const dag = createDAG([
@@ -134,7 +134,7 @@ describe('computeDirtySet', () => {
     expect(dirtySet.size).toBe(3)
   })
 
-  it.concurrent('handles diamond pattern', () => {
+  it('handles diamond pattern', () => {
     //     B
     //   ↗   ↘
     // A       D
@@ -156,7 +156,7 @@ describe('computeDirtySet', () => {
     expect(dirtySet.size).toBe(4)
   })
 
-  it.concurrent('stops at graph boundaries', () => {
+  it('stops at graph boundaries', () => {
     // A → B    C → D (disconnected)
     const dag = createDAG([
       createNode('A', [{ target: 'B' }]),
@@ -174,7 +174,7 @@ describe('computeDirtySet', () => {
     expect(dirtySet.size).toBe(2)
   })
 
-  it.concurrent('handles single node workflow', () => {
+  it('handles single node workflow', () => {
     const dag = createDAG([createNode('A')])
 
     const dirtySet = computeDirtySet(dag, 'A')
@@ -183,7 +183,7 @@ describe('computeDirtySet', () => {
     expect(dirtySet.size).toBe(1)
   })
 
-  it.concurrent('handles node not in DAG gracefully', () => {
+  it('handles node not in DAG gracefully', () => {
     const dag = createDAG([createNode('A'), createNode('B')])
 
     const dirtySet = computeDirtySet(dag, 'nonexistent')
@@ -192,10 +192,31 @@ describe('computeDirtySet', () => {
     expect(dirtySet.has('nonexistent')).toBe(true)
     expect(dirtySet.size).toBe(1)
   })
+
+  it('includes convergent block when running from one branch of parallel', () => {
+    // Parallel branches converging:
+    // A → B → D
+    // A → C → D
+    // Running from B should include B and D (but not A or C)
+    const dag = createDAG([
+      createNode('A', [{ target: 'B' }, { target: 'C' }]),
+      createNode('B', [{ target: 'D' }]),
+      createNode('C', [{ target: 'D' }]),
+      createNode('D'),
+    ])
+
+    const dirtySet = computeDirtySet(dag, 'B')
+
+    expect(dirtySet.has('A')).toBe(false)
+    expect(dirtySet.has('B')).toBe(true)
+    expect(dirtySet.has('C')).toBe(false)
+    expect(dirtySet.has('D')).toBe(true)
+    expect(dirtySet.size).toBe(2)
+  })
 })
 
 describe('validateRunFromBlock', () => {
-  it.concurrent('accepts valid block', () => {
+  it('accepts valid block', () => {
     const dag = createDAG([createNode('A'), createNode('B')])
     const executedBlocks = new Set(['A', 'B'])
 
@@ -205,7 +226,7 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toBeUndefined()
   })
 
-  it.concurrent('rejects block not found in DAG', () => {
+  it('rejects block not found in DAG', () => {
     const dag = createDAG([createNode('A')])
     const executedBlocks = new Set(['A', 'B'])
 
@@ -215,7 +236,7 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toContain('Block not found')
   })
 
-  it.concurrent('rejects blocks inside loops', () => {
+  it('rejects blocks inside loops', () => {
     const dag = createDAG([createNode('A', [], { isLoopNode: true, loopId: 'loop-1' })])
     const executedBlocks = new Set(['A'])
 
@@ -226,7 +247,7 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toContain('loop-1')
   })
 
-  it.concurrent('rejects blocks inside parallels', () => {
+  it('rejects blocks inside parallels', () => {
     const dag = createDAG([createNode('A', [], { isParallelBranch: true, parallelId: 'parallel-1' })])
     const executedBlocks = new Set(['A'])
 
@@ -237,7 +258,7 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toContain('parallel-1')
   })
 
-  it.concurrent('rejects sentinel nodes', () => {
+  it('rejects sentinel nodes', () => {
     const dag = createDAG([createNode('A', [], { isSentinel: true, sentinelType: 'start' })])
     const executedBlocks = new Set(['A'])
 
@@ -247,7 +268,7 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toContain('sentinel')
   })
 
-  it.concurrent('rejects unexecuted blocks', () => {
+  it('rejects unexecuted blocks', () => {
     const dag = createDAG([createNode('A'), createNode('B')])
     const executedBlocks = new Set(['A']) // B was not executed
 
@@ -257,7 +278,7 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toContain('was not executed')
   })
 
-  it.concurrent('accepts regular executed block', () => {
+  it('accepts regular executed block', () => {
     const dag = createDAG([
       createNode('trigger', [{ target: 'A' }]),
       createNode('A', [{ target: 'B' }]),
