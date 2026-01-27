@@ -16,7 +16,12 @@ import {
   USER_FILE_PROPERTY_TYPES,
 } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
-import type { BlockConfig, OutputCondition, OutputFieldDefinition } from '@/blocks/types'
+import {
+  type BlockConfig,
+  isHiddenFromDisplay,
+  type OutputCondition,
+  type OutputFieldDefinition,
+} from '@/blocks/types'
 import { getTool } from '@/tools/utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -96,15 +101,7 @@ function filterOutputsByCondition(
   const filtered: OutputDefinition = {}
 
   for (const [key, value] of Object.entries(outputs)) {
-    // Skip fields marked as hidden from display
-    if (
-      value &&
-      typeof value === 'object' &&
-      'hiddenFromDisplay' in value &&
-      value.hiddenFromDisplay
-    ) {
-      continue
-    }
+    if (isHiddenFromDisplay(value)) continue
 
     if (!value || typeof value !== 'object' || !('condition' in value)) {
       filtered[key] = value
