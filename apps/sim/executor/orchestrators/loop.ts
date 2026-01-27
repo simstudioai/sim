@@ -276,7 +276,18 @@ export class LoopOrchestrator {
     scope: LoopScope
   ): LoopContinuationResult {
     const results = scope.allIterationOutputs
-    this.state.setBlockOutput(loopId, { results }, DEFAULTS.EXECUTION_TIME)
+    const output = { results }
+    this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
+
+    // Emit onBlockComplete for the loop container so the UI can track it
+    if (this.contextExtensions?.onBlockComplete) {
+      this.contextExtensions.onBlockComplete(
+        loopId,
+        'Loop',
+        'loop',
+        { output, executionTime: DEFAULTS.EXECUTION_TIME }
+      )
+    }
 
     return {
       shouldContinue: false,

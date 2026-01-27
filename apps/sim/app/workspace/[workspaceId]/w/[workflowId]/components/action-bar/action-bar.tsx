@@ -118,9 +118,7 @@ export const ActionBar = memo(
     const canRunFromBlock =
       hasExecutionSnapshot &&
       wasExecuted &&
-      !isStartBlock &&
       !isNoteBlock &&
-      !isSubflowBlock &&
       !isInsideSubflow &&
       !isExecuting
 
@@ -182,25 +180,32 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        {canRunFromBlock && (
+        {!isNoteBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled) {
+                  if (canRunFromBlock && !disabled) {
                     handleRunFromBlock()
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled || isExecuting}
+                disabled={disabled || !canRunFromBlock}
               >
                 <Play className={ICON_SIZE} />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              {isExecuting ? 'Execution in progress' : getTooltipMessage('Run from this block')}
+              {(() => {
+                if (disabled) return getTooltipMessage('Run from this block')
+                if (isExecuting) return 'Execution in progress'
+                if (!hasExecutionSnapshot) return 'Run workflow first'
+                if (!wasExecuted) return 'Block not executed in last run'
+                if (isInsideSubflow) return 'Cannot run from inside subflow'
+                return 'Run from this block'
+              })()}
             </Tooltip.Content>
           </Tooltip.Root>
         )}

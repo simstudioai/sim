@@ -228,9 +228,19 @@ export class ParallelOrchestrator {
       const branchOutputs = scope.branchOutputs.get(i) || []
       results.push(branchOutputs)
     }
-    this.state.setBlockOutput(parallelId, {
-      results,
-    })
+    const output = { results }
+    this.state.setBlockOutput(parallelId, output)
+
+    // Emit onBlockComplete for the parallel container so the UI can track it
+    if (this.contextExtensions?.onBlockComplete) {
+      this.contextExtensions.onBlockComplete(
+        parallelId,
+        'Parallel',
+        'parallel',
+        { output, executionTime: 0 }
+      )
+    }
+
     return {
       allBranchesComplete: true,
       results,

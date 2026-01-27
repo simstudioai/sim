@@ -333,4 +333,113 @@ describe('validateRunFromBlock', () => {
 
     expect(result.valid).toBe(true)
   })
+
+  it('accepts loop container when executed', () => {
+    // Loop container with sentinel nodes
+    const loopId = 'loop-container-1'
+    const sentinelStartId = `loop-${loopId}-sentinel-start`
+    const sentinelEndId = `loop-${loopId}-sentinel-end`
+    const dag = createDAG([
+      createNode('A', [{ target: sentinelStartId }]),
+      createNode(sentinelStartId, [{ target: 'B' }], { isSentinel: true, sentinelType: 'start', loopId }),
+      createNode('B', [{ target: sentinelEndId }], { isLoopNode: true, loopId }),
+      createNode(sentinelEndId, [{ target: 'C' }], { isSentinel: true, sentinelType: 'end', loopId }),
+      createNode('C'),
+    ])
+    dag.loopConfigs.set(loopId, { id: loopId, nodes: ['B'], iterations: 3, loopType: 'for' } as any)
+    const executedBlocks = new Set(['A', loopId, sentinelStartId, 'B', sentinelEndId, 'C'])
+
+    const result = validateRunFromBlock(loopId, dag, executedBlocks)
+
+    expect(result.valid).toBe(true)
+  })
+
+  it('accepts parallel container when executed', () => {
+    // Parallel container with sentinel nodes
+    const parallelId = 'parallel-container-1'
+    const sentinelStartId = `parallel-${parallelId}-sentinel-start`
+    const sentinelEndId = `parallel-${parallelId}-sentinel-end`
+    const dag = createDAG([
+      createNode('A', [{ target: sentinelStartId }]),
+      createNode(sentinelStartId, [{ target: 'B₍0₎' }], { isSentinel: true, sentinelType: 'start', parallelId }),
+      createNode('B₍0₎', [{ target: sentinelEndId }], { isParallelBranch: true, parallelId }),
+      createNode(sentinelEndId, [{ target: 'C' }], { isSentinel: true, sentinelType: 'end', parallelId }),
+      createNode('C'),
+    ])
+    dag.parallelConfigs.set(parallelId, { id: parallelId, nodes: ['B'], count: 2 } as any)
+    const executedBlocks = new Set(['A', parallelId, sentinelStartId, 'B₍0₎', sentinelEndId, 'C'])
+
+    const result = validateRunFromBlock(parallelId, dag, executedBlocks)
+
+    expect(result.valid).toBe(true)
+  })
+
+  it('rejects loop container that was not executed', () => {
+    const loopId = 'loop-container-1'
+    const sentinelStartId = `loop-${loopId}-sentinel-start`
+    const dag = createDAG([
+      createNode(sentinelStartId, [], { isSentinel: true, sentinelType: 'start', loopId }),
+    ])
+    dag.loopConfigs.set(loopId, { id: loopId, nodes: [], iterations: 3, loopType: 'for' } as any)
+    const executedBlocks = new Set<string>() // Loop was not executed
+
+    const result = validateRunFromBlock(loopId, dag, executedBlocks)
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('was not executed')
+  })
+})
+
+describe('computeDirtySet with containers', () => {
+  it('includes loop container and all downstream when running from loop', () => {
+    // A → loop-sentinel-start → B (inside loop) → loop-sentinel-end → C
+    const loopId = 'loop-1'
+    const sentinelStartId = `loop-${loopId}-sentinel-start`
+    const sentinelEndId = `loop-${loopId}-sentinel-end`
+    const dag = createDAG([
+      createNode('A', [{ target: sentinelStartId }]),
+      createNode(sentinelStartId, [{ target: 'B' }], { isSentinel: true, sentinelType: 'start', loopId }),
+      createNode('B', [{ target: sentinelEndId }], { isLoopNode: true, loopId }),
+      createNode(sentinelEndId, [{ target: 'C' }], { isSentinel: true, sentinelType: 'end', loopId }),
+      createNode('C'),
+    ])
+    dag.loopConfigs.set(loopId, { id: loopId, nodes: ['B'], iterations: 3, loopType: 'for' } as any)
+
+    const dirtySet = computeDirtySet(dag, loopId)
+
+    // Should include loop container, sentinel-start, B, sentinel-end, C
+    expect(dirtySet.has(loopId)).toBe(true)
+    expect(dirtySet.has(sentinelStartId)).toBe(true)
+    expect(dirtySet.has('B')).toBe(true)
+    expect(dirtySet.has(sentinelEndId)).toBe(true)
+    expect(dirtySet.has('C')).toBe(true)
+    // Should NOT include A (upstream)
+    expect(dirtySet.has('A')).toBe(false)
+  })
+
+  it('includes parallel container and all downstream when running from parallel', () => {
+    // A → parallel-sentinel-start → B₍0₎ → parallel-sentinel-end → C
+    const parallelId = 'parallel-1'
+    const sentinelStartId = `parallel-${parallelId}-sentinel-start`
+    const sentinelEndId = `parallel-${parallelId}-sentinel-end`
+    const dag = createDAG([
+      createNode('A', [{ target: sentinelStartId }]),
+      createNode(sentinelStartId, [{ target: 'B₍0₎' }], { isSentinel: true, sentinelType: 'start', parallelId }),
+      createNode('B₍0₎', [{ target: sentinelEndId }], { isParallelBranch: true, parallelId }),
+      createNode(sentinelEndId, [{ target: 'C' }], { isSentinel: true, sentinelType: 'end', parallelId }),
+      createNode('C'),
+    ])
+    dag.parallelConfigs.set(parallelId, { id: parallelId, nodes: ['B'], count: 2 } as any)
+
+    const dirtySet = computeDirtySet(dag, parallelId)
+
+    // Should include parallel container, sentinel-start, B₍0₎, sentinel-end, C
+    expect(dirtySet.has(parallelId)).toBe(true)
+    expect(dirtySet.has(sentinelStartId)).toBe(true)
+    expect(dirtySet.has('B₍0₎')).toBe(true)
+    expect(dirtySet.has(sentinelEndId)).toBe(true)
+    expect(dirtySet.has('C')).toBe(true)
+    // Should NOT include A (upstream)
+    expect(dirtySet.has('A')).toBe(false)
+  })
 })

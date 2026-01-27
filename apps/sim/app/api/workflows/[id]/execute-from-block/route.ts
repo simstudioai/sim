@@ -8,7 +8,9 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
-import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import { clearExecutionCancellation, markExecutionCancelled } from '@/lib/execution/cancellation'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { DAGExecutor } from '@/executor/execution/executor'
@@ -93,7 +95,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Load workflow record to get workspaceId
     const [workflowRecord] = await db
-      .select({ workspaceId: workflowTable.workspaceId })
+      .select({ workspaceId: workflowTable.workspaceId, userId: workflowTable.userId })
       .from(workflowTable)
       .where(eq(workflowTable.id, workflowId))
       .limit(1)
@@ -103,6 +105,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const workspaceId = workflowRecord.workspaceId
+    const workflowUserId = workflowRecord.userId
+
+    // Initialize logging session for cost tracking
+    const loggingSession = new LoggingSession(workflowId, executionId, 'manual', requestId)
 
     // Load workflow state
     const workflowData = await loadWorkflowFromNormalizedTables(workflowId)
@@ -130,6 +136,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       parallels,
       true
     )
+
+    // Start logging session
+    await loggingSession.safeStart({
+      userId,
+      workspaceId,
+      variables: {},
+    })
 
     const encoder = new TextEncoder()
     const abortController = new AbortController()
@@ -191,6 +204,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             callbackData: { input?: unknown; output: NormalizedBlockOutput; executionTime: number },
             iterationContext?: IterationContext
           ) => {
+            // Log to session for cost tracking
+            await loggingSession.onBlockComplete(blockId, blockName, blockType, callbackData)
+
             const hasError = (callbackData.output as any)?.error
 
             if (hasError) {
@@ -299,7 +315,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             sourceSnapshot as SerializableExecutionState
           )
 
+          // Build trace spans from fresh execution logs only
+          // Trace spans show what actually executed in this run
+          const { traceSpans, totalDuration } = buildTraceSpans(result)
+
           if (result.status === 'cancelled') {
+            await loggingSession.safeCompleteWithCancellation({
+              endedAt: new Date().toISOString(),
+              totalDurationMs: totalDuration || 0,
+              traceSpans: traceSpans || [],
+            })
+            await clearExecutionCancellation(executionId)
+
             sendEvent({
               type: 'execution:cancelled',
               timestamp: new Date().toISOString(),
@@ -311,6 +338,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             })
             return
           }
+
+          // Complete logging session
+          await loggingSession.safeComplete({
+            endedAt: new Date().toISOString(),
+            totalDurationMs: totalDuration || 0,
+            finalOutput: result.output || {},
+            traceSpans: traceSpans || [],
+            workflowInput: {},
+          })
+          await clearExecutionCancellation(executionId)
 
           sendEvent({
             type: 'execution:completed',
@@ -330,6 +367,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           logger.error(`[${requestId}] Run-from-block execution failed: ${errorMessage}`)
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+          const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
+
+          // Complete logging session with error
+          await loggingSession.safeCompleteWithError({
+            endedAt: new Date().toISOString(),
+            totalDurationMs: executionResult?.metadata?.duration || 0,
+            error: {
+              message: errorMessage,
+              stackTrace: error instanceof Error ? error.stack : undefined,
+            },
+            traceSpans,
+          })
+          await clearExecutionCancellation(executionId)
 
           sendEvent({
             type: 'execution:error',

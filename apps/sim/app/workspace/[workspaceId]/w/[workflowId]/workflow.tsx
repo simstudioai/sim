@@ -758,13 +758,16 @@ const WorkflowContent = React.memo(() => {
     [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection]
   )
 
-  const { activeBlockIds, pendingBlocks, isDebugging } = useExecutionStore(
-    useShallow((state) => ({
-      activeBlockIds: state.activeBlockIds,
-      pendingBlocks: state.pendingBlocks,
-      isDebugging: state.isDebugging,
-    }))
-  )
+  const { activeBlockIds, pendingBlocks, isDebugging, isExecuting, getLastExecutionSnapshot } =
+    useExecutionStore(
+      useShallow((state) => ({
+        activeBlockIds: state.activeBlockIds,
+        pendingBlocks: state.pendingBlocks,
+        isDebugging: state.isDebugging,
+        isExecuting: state.isExecuting,
+        getLastExecutionSnapshot: state.getLastExecutionSnapshot,
+      }))
+    )
 
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
@@ -987,6 +990,16 @@ const WorkflowContent = React.memo(() => {
       usePanelEditorStore.getState().setShouldFocusRename(true)
     }
   }, [contextMenuBlocks])
+
+  const handleContextRunFromBlock = useCallback(() => {
+    if (contextMenuBlocks.length !== 1) return
+    const blockId = contextMenuBlocks[0].id
+    window.dispatchEvent(
+      new CustomEvent('run-from-block', {
+        detail: { blockId, workflowId: workflowIdParam },
+      })
+    )
+  }, [contextMenuBlocks, workflowIdParam])
 
   const handleContextAddBlock = useCallback(() => {
     useSearchModalStore.getState().open()
@@ -3308,11 +3321,40 @@ const WorkflowContent = React.memo(() => {
               onRemoveFromSubflow={handleContextRemoveFromSubflow}
               onOpenEditor={handleContextOpenEditor}
               onRename={handleContextRename}
+              onRunFromBlock={handleContextRunFromBlock}
               hasClipboard={hasClipboard()}
               showRemoveFromSubflow={contextMenuBlocks.some(
                 (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
               )}
+              canRunFromBlock={
+                contextMenuBlocks.length === 1 &&
+                (() => {
+                  const block = contextMenuBlocks[0]
+                  const snapshot = getLastExecutionSnapshot(workflowIdParam)
+                  const wasExecuted = snapshot?.executedBlocks.includes(block.id) ?? false
+                  const isNoteBlock = block.type === 'note'
+                  const isInsideSubflow =
+                    block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
+                  return !!snapshot && wasExecuted && !isNoteBlock && !isInsideSubflow && !isExecuting
+                })()
+              }
+              runFromBlockDisabledReason={
+                contextMenuBlocks.length === 1
+                  ? (() => {
+                      const block = contextMenuBlocks[0]
+                      const snapshot = getLastExecutionSnapshot(workflowIdParam)
+                      const wasExecuted = snapshot?.executedBlocks.includes(block.id) ?? false
+                      const isInsideSubflow =
+                        block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
+                      if (!snapshot) return 'Run workflow first'
+                      if (!wasExecuted) return 'Block not executed in last run'
+                      if (isInsideSubflow) return 'Cannot run from inside subflow'
+                      return undefined
+                    })()
+                  : undefined
+              }
               disableEdit={!effectivePermissions.canEdit}
+              isExecuting={isExecuting}
             />
 
             <CanvasMenu

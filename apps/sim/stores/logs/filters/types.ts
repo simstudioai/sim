@@ -98,6 +98,8 @@ export interface TraceSpan {
     total?: number
   }
   providerTiming?: ProviderTiming
+  /** Whether this span represents a cached (not re-executed) block in run-from-block mode */
+  cached?: boolean
 }
 
 export interface WorkflowLog {

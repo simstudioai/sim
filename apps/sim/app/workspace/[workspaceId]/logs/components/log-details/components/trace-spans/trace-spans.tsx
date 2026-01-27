@@ -528,6 +528,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
   const isDirectError = span.status === 'error'
   const hasNestedError = hasErrorInTree(span)
   const showErrorStyle = isDirectError || hasNestedError
+  const isCached = span.cached === true
 
   const { icon: BlockIcon, bgColor } = getBlockIconAndColor(span.type, span.name)
 
@@ -586,7 +587,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
     isIterationType(lowerType) || lowerType === 'workflow' || lowerType === 'workflow_input'
 
   return (
-    <div className='flex min-w-0 flex-col'>
+    <div className={cn('flex min-w-0 flex-col', isCached && 'opacity-40')}>
       {/* Node Header Row */}
       <div
         className={cn(
@@ -612,7 +613,10 @@ const TraceSpanNode = memo(function TraceSpanNode({
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           {!isIterationType(span.type) && (
             <div
-              className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+              className={cn(
+                'relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]',
+                isCached && 'grayscale'
+              )}
               style={{ background: bgColor }}
             >
               {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
@@ -623,6 +627,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
             style={{ color: showErrorStyle ? 'var(--text-error)' : 'var(--text-secondary)' }}
           >
             {span.name}
+            {isCached && <span className='ml-1 text-[10px] text-[var(--text-tertiary)]'>(cached)</span>}
           </span>
           {isToggleable && (
             <ChevronDown
