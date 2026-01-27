@@ -85,7 +85,7 @@ export interface BadgeProps
  *
  * @remarks
  * Supports two categories of variants:
- * - **Bordered**: `default`, `outline` - traditional badges with borders
+ * - **Bordered**: `default`, `outline`, `type` - traditional badges with borders
  * - **Status colors**: `green`, `red`, `gray`, `blue`, `blue-secondary`, `purple`,
  *   `orange`, `amber`, `teal`, `cyan`, `gray-secondary` - borderless colored badges
  *
