@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
@@ -22,6 +23,11 @@ const requestSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
+
   let stagehand: StagehandType | null = null
 
   try {

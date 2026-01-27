@@ -1,13 +1,19 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AsanaGetTaskAPI')
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const { accessToken, taskGid, workspace, project, limit } = await request.json()
 
     if (!accessToken) {

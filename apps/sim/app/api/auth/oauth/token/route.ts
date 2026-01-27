@@ -71,6 +71,22 @@ export async function POST(request: NextRequest) {
         providerId,
       })
 
+      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+      if (!auth.success || auth.authType !== 'session' || !auth.userId) {
+        logger.warn(`[${requestId}] Unauthorized request for credentialAccountUserId path`, {
+          success: auth.success,
+          authType: auth.authType,
+        })
+        return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+      }
+
+      if (auth.userId !== credentialAccountUserId) {
+        logger.warn(
+          `[${requestId}] User ${auth.userId} attempted to access credentials for ${credentialAccountUserId}`
+        )
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      }
+
       try {
         const accessToken = await getOAuthToken(credentialAccountUserId, providerId)
         if (!accessToken) {

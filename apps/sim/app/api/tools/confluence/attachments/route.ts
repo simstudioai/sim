@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -8,8 +9,13 @@ const logger = createLogger('ConfluenceAttachmentsAPI')
 export const dynamic = 'force-dynamic'
 
 // List attachments on a page
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await checkSessionOrInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const domain = searchParams.get('domain')
     const accessToken = searchParams.get('accessToken')
