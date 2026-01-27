@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 // Create a comment
 export async function POST(request: NextRequest) {
   try {
-    const auth = await checkInternalAuth(request)
+    const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 // List comments on a page
 export async function GET(request: NextRequest) {
   try {
-    const auth = await checkInternalAuth(request)
+    const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
