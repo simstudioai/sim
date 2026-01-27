@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -446,7 +447,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         // Clean up orphaned nodes - blocks whose parent was removed but weren't descendants
         // This can happen in edge cases (e.g., data inconsistency, external modifications)
         const remainingBlockIds = new Set(Object.keys(newBlocks))
-        const CONTAINER_OFFSET = { x: 16, y: 50 + 16 } // leftPadding, headerHeight + topPadding
+        const CONTAINER_OFFSET = {
+          x: CONTAINER_DIMENSIONS.LEFT_PADDING,
+          y: CONTAINER_DIMENSIONS.HEADER_HEIGHT + CONTAINER_DIMENSIONS.TOP_PADDING,
+        }
 
         Object.entries(newBlocks).forEach(([blockId, block]) => {
           const parentId = block.data?.parentId

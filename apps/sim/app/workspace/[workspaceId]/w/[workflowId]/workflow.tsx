@@ -99,18 +99,32 @@ const logger = createLogger('Workflow')
 const DEFAULT_PASTE_OFFSET = { x: 50, y: 50 }
 
 /**
- * Calculates the offset to paste blocks at viewport center
+ * Calculates the offset to paste blocks at viewport center, or simple offset for nested blocks
  */
 function calculatePasteOffset(
   clipboard: {
-    blocks: Record<string, { position: { x: number; y: number }; type: string; height?: number }>
+    blocks: Record<
+      string,
+      {
+        position: { x: number; y: number }
+        type: string
+        height?: number
+        data?: { parentId?: string }
+      }
+    >
   } | null,
-  viewportCenter: { x: number; y: number }
+  viewportCenter: { x: number; y: number },
+  existingBlocks: Record<string, { id: string }> = {}
 ): { x: number; y: number } {
   if (!clipboard) return DEFAULT_PASTE_OFFSET
 
   const clipboardBlocks = Object.values(clipboard.blocks)
   if (clipboardBlocks.length === 0) return DEFAULT_PASTE_OFFSET
+
+  const allBlocksNested = clipboardBlocks.every(
+    (b) => b.data?.parentId && existingBlocks[b.data.parentId]
+  )
+  if (allBlocksNested) return DEFAULT_PASTE_OFFSET
 
   const minX = Math.min(...clipboardBlocks.map((b) => b.position.x))
   const maxX = Math.max(
@@ -449,7 +463,6 @@ const WorkflowContent = React.memo(() => {
   /** Re-applies diff markers when blocks change after socket rehydration. */
   const diffBlocksRef = useRef(blocks)
   useEffect(() => {
-    // Track if blocks actually changed (vs other deps triggering this effect)
     const blocksChanged = blocks !== diffBlocksRef.current
     diffBlocksRef.current = blocks
 
@@ -1024,7 +1037,7 @@ const WorkflowContent = React.memo(() => {
 
     executePasteOperation(
       'paste',
-      calculatePasteOffset(clipboard, getViewportCenter()),
+      calculatePasteOffset(clipboard, getViewportCenter(), blocks),
       targetContainer,
       flowPosition // Pass the click position so blocks are centered at where user right-clicked
     )
@@ -1036,6 +1049,7 @@ const WorkflowContent = React.memo(() => {
     screenToFlowPosition,
     contextMenuPosition,
     isPointInLoopNode,
+    blocks,
   ])
 
   const handleContextDuplicate = useCallback(() => {
@@ -1146,7 +1160,10 @@ const WorkflowContent = React.memo(() => {
       } else if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
         if (effectivePermissions.canEdit && hasClipboard()) {
           event.preventDefault()
-          executePasteOperation('paste', calculatePasteOffset(clipboard, getViewportCenter()))
+          executePasteOperation(
+            'paste',
+            calculatePasteOffset(clipboard, getViewportCenter(), blocks)
+          )
         }
       }
     }
@@ -1168,6 +1185,7 @@ const WorkflowContent = React.memo(() => {
     clipboard,
     getViewportCenter,
     executePasteOperation,
+    blocks,
   ])
 
   /**
