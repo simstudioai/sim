@@ -111,17 +111,12 @@ export const ActionBar = memo(
     const isSubflowBlock = blockType === 'loop' || blockType === 'parallel'
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
 
-    // Check if run-from-block is available
-    // Block can run if all its upstream dependencies have cached outputs
     const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
     const hasExecutionSnapshot = !!snapshot
     const dependenciesSatisfied = (() => {
       if (!snapshot) return false
-      // Find all blocks that feed into this block
       const incomingEdges = edges.filter((edge) => edge.target === blockId)
-      // If no incoming edges (trigger/start block), dependencies are satisfied
       if (incomingEdges.length === 0) return true
-      // All source blocks must have been executed (have cached outputs)
       return incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
     })()
     const canRunFromBlock =

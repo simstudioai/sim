@@ -1006,6 +1006,30 @@ const WorkflowContent = React.memo(() => {
     handleRunUntilBlock(blockId, workflowIdParam)
   }, [contextMenuBlocks, workflowIdParam, handleRunUntilBlock])
 
+  const runFromBlockState = useMemo(() => {
+    if (contextMenuBlocks.length !== 1) {
+      return { canRun: false, reason: undefined }
+    }
+    const block = contextMenuBlocks[0]
+    const snapshot = getLastExecutionSnapshot(workflowIdParam)
+    if (!snapshot) return { canRun: false, reason: 'Run workflow first' }
+
+    const incomingEdges = edges.filter((edge) => edge.target === block.id)
+    const dependenciesSatisfied =
+      incomingEdges.length === 0 ||
+      incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
+    const isNoteBlock = block.type === 'note'
+    const isInsideSubflow =
+      block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
+
+    if (!dependenciesSatisfied) return { canRun: false, reason: 'Run upstream blocks first' }
+    if (isInsideSubflow) return { canRun: false, reason: 'Cannot run from inside subflow' }
+    if (isNoteBlock) return { canRun: false, reason: undefined }
+    if (isExecuting) return { canRun: false, reason: undefined }
+
+    return { canRun: true, reason: undefined }
+  }, [contextMenuBlocks, edges, workflowIdParam, getLastExecutionSnapshot, isExecuting])
+
   const handleContextAddBlock = useCallback(() => {
     useSearchModalStore.getState().open()
   }, [])
@@ -3332,42 +3356,8 @@ const WorkflowContent = React.memo(() => {
               showRemoveFromSubflow={contextMenuBlocks.some(
                 (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
               )}
-              canRunFromBlock={
-                contextMenuBlocks.length === 1 &&
-                (() => {
-                  const block = contextMenuBlocks[0]
-                  const snapshot = getLastExecutionSnapshot(workflowIdParam)
-                  if (!snapshot) return false
-                  // Check if all upstream dependencies have cached outputs
-                  const incomingEdges = edges.filter((edge) => edge.target === block.id)
-                  const dependenciesSatisfied =
-                    incomingEdges.length === 0 ||
-                    incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
-                  const isNoteBlock = block.type === 'note'
-                  const isInsideSubflow =
-                    block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
-                  return dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
-                })()
-              }
-              runFromBlockDisabledReason={
-                contextMenuBlocks.length === 1
-                  ? (() => {
-                      const block = contextMenuBlocks[0]
-                      const snapshot = getLastExecutionSnapshot(workflowIdParam)
-                      if (!snapshot) return 'Run workflow first'
-                      // Check if all upstream dependencies have cached outputs
-                      const incomingEdges = edges.filter((edge) => edge.target === block.id)
-                      const dependenciesSatisfied =
-                        incomingEdges.length === 0 ||
-                        incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
-                      const isInsideSubflow =
-                        block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
-                      if (!dependenciesSatisfied) return 'Run upstream blocks first'
-                      if (isInsideSubflow) return 'Cannot run from inside subflow'
-                      return undefined
-                    })()
-                  : undefined
-              }
+              canRunFromBlock={runFromBlockState.canRun}
+              runFromBlockDisabledReason={runFromBlockState.reason}
               disableEdit={!effectivePermissions.canEdit}
               isExecuting={isExecuting}
             />

@@ -281,12 +281,10 @@ export class LoopOrchestrator {
 
     // Emit onBlockComplete for the loop container so the UI can track it
     if (this.contextExtensions?.onBlockComplete) {
-      this.contextExtensions.onBlockComplete(
-        loopId,
-        'Loop',
-        'loop',
-        { output, executionTime: DEFAULTS.EXECUTION_TIME }
-      )
+      this.contextExtensions.onBlockComplete(loopId, 'Loop', 'loop', {
+        output,
+        executionTime: DEFAULTS.EXECUTION_TIME,
+      })
     }
 
     return {

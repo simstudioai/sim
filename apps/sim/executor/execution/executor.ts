@@ -17,8 +17,8 @@ import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
 import {
   computeDirtySet,
-  resolveContainerToSentinelStart,
   type RunFromBlockContext,
+  resolveContainerToSentinelStart,
   validateRunFromBlock,
 } from '@/executor/utils/run-from-block'
 import {
@@ -233,8 +233,6 @@ export class DAGExecutor {
       userId: this.contextExtensions.userId,
       isDeployedContext: this.contextExtensions.isDeployedContext,
       blockStates: state.getBlockStates(),
-      // For run-from-block, start with empty logs - we only want fresh execution logs for trace spans
-      // The snapshot's blockLogs are preserved separately for history
       blockLogs: overrides?.runFromBlockContext ? [] : (snapshotState?.blockLogs ?? []),
       metadata: {
         ...this.contextExtensions.metadata,
@@ -322,8 +320,6 @@ export class DAGExecutor {
         skipStarterBlockInit: true,
       })
     } else if (overrides?.runFromBlockContext) {
-      // In run-from-block mode, skip starter block initialization
-      // All block states come from the snapshot
       logger.info('Run-from-block mode: skipping starter block initialization', {
         startBlockId: overrides.runFromBlockContext.startBlockId,
       })

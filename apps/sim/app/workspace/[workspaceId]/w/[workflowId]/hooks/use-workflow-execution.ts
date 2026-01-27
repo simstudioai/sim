@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
@@ -32,7 +32,6 @@ import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('useWorkflowExecution')
-
 
 // Debug state validation result
 interface DebugValidationResult {
@@ -924,13 +923,9 @@ export function useWorkflowExecution() {
               logger.info('onBlockCompleted received:', { data })
 
               activeBlocksSet.delete(data.blockId)
-              // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
-
-              // Track successful block execution in run path
               setBlockRunStatus(data.blockId, 'success')
 
-              // Track block state for run-from-block snapshot
               executedBlockIds.add(data.blockId)
               accumulatedBlockStates.set(data.blockId, {
                 output: data.output,
@@ -938,17 +933,12 @@ export function useWorkflowExecution() {
                 executionTime: data.durationMs,
               })
 
-              // Skip adding loop/parallel containers to console and logs
-              // They're tracked for run-from-block but shouldn't appear in terminal
               const isContainerBlock = data.blockType === 'loop' || data.blockType === 'parallel'
               if (isContainerBlock) return
-
-              // Edges already tracked in onBlockStarted, no need to track again
 
               const startedAt = new Date(Date.now() - data.durationMs).toISOString()
               const endedAt = new Date().toISOString()
 
-              // Accumulate block log for the execution result
               accumulatedBlockLogs.push({
                 blockId: data.blockId,
                 blockName: data.blockName || 'Unknown Block',
@@ -1461,7 +1451,10 @@ export function useWorkflowExecution() {
         incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source))
 
       if (!dependenciesSatisfied) {
-        logger.error('Upstream dependencies not satisfied for run-from-block', { workflowId, blockId })
+        logger.error('Upstream dependencies not satisfied for run-from-block', {
+          workflowId,
+          blockId,
+        })
         return
       }
 

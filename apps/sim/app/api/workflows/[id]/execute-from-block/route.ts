@@ -11,8 +11,8 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation, markExecutionCancelled } from '@/lib/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { DAGExecutor } from '@/executor/execution/executor'
 import type { IterationContext, SerializableExecutionState } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
@@ -367,7 +367,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           logger.error(`[${requestId}] Run-from-block execution failed: ${errorMessage}`)
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
-          const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
+          const { traceSpans } = executionResult
+            ? buildTraceSpans(executionResult)
+            : { traceSpans: [] }
 
           // Complete logging session with error
           await loggingSession.safeCompleteWithError({

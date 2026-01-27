@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge, NodeMetadata } from '@/executor/dag/types'
-import type { SerializedLoop, SerializedParallel } from '@/serializer/types'
 import { computeDirtySet, validateRunFromBlock } from '@/executor/utils/run-from-block'
+import type { SerializedLoop, SerializedParallel } from '@/serializer/types'
 
 /**
  * Helper to create a DAG node for testing
@@ -291,7 +291,9 @@ describe('validateRunFromBlock', () => {
   })
 
   it('rejects blocks inside parallels', () => {
-    const dag = createDAG([createNode('A', [], { isParallelBranch: true, parallelId: 'parallel-1' })])
+    const dag = createDAG([
+      createNode('A', [], { isParallelBranch: true, parallelId: 'parallel-1' }),
+    ])
     const executedBlocks = new Set(['A'])
 
     const result = validateRunFromBlock('A', dag, executedBlocks)
@@ -352,9 +354,17 @@ describe('validateRunFromBlock', () => {
     const sentinelEndId = `loop-${loopId}-sentinel-end`
     const dag = createDAG([
       createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B' }], { isSentinel: true, sentinelType: 'start', loopId }),
+      createNode(sentinelStartId, [{ target: 'B' }], {
+        isSentinel: true,
+        sentinelType: 'start',
+        loopId,
+      }),
       createNode('B', [{ target: sentinelEndId }], { isLoopNode: true, loopId }),
-      createNode(sentinelEndId, [{ target: 'C' }], { isSentinel: true, sentinelType: 'end', loopId }),
+      createNode(sentinelEndId, [{ target: 'C' }], {
+        isSentinel: true,
+        sentinelType: 'end',
+        loopId,
+      }),
       createNode('C'),
     ])
     dag.loopConfigs.set(loopId, { id: loopId, nodes: ['B'], iterations: 3, loopType: 'for' } as any)
@@ -372,9 +382,17 @@ describe('validateRunFromBlock', () => {
     const sentinelEndId = `parallel-${parallelId}-sentinel-end`
     const dag = createDAG([
       createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B₍0₎' }], { isSentinel: true, sentinelType: 'start', parallelId }),
+      createNode(sentinelStartId, [{ target: 'B₍0₎' }], {
+        isSentinel: true,
+        sentinelType: 'start',
+        parallelId,
+      }),
       createNode('B₍0₎', [{ target: sentinelEndId }], { isParallelBranch: true, parallelId }),
-      createNode(sentinelEndId, [{ target: 'C' }], { isSentinel: true, sentinelType: 'end', parallelId }),
+      createNode(sentinelEndId, [{ target: 'C' }], {
+        isSentinel: true,
+        sentinelType: 'end',
+        parallelId,
+      }),
       createNode('C'),
     ])
     dag.parallelConfigs.set(parallelId, { id: parallelId, nodes: ['B'], count: 2 } as any)
@@ -412,9 +430,17 @@ describe('computeDirtySet with containers', () => {
     const sentinelEndId = `loop-${loopId}-sentinel-end`
     const dag = createDAG([
       createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B' }], { isSentinel: true, sentinelType: 'start', loopId }),
+      createNode(sentinelStartId, [{ target: 'B' }], {
+        isSentinel: true,
+        sentinelType: 'start',
+        loopId,
+      }),
       createNode('B', [{ target: sentinelEndId }], { isLoopNode: true, loopId }),
-      createNode(sentinelEndId, [{ target: 'C' }], { isSentinel: true, sentinelType: 'end', loopId }),
+      createNode(sentinelEndId, [{ target: 'C' }], {
+        isSentinel: true,
+        sentinelType: 'end',
+        loopId,
+      }),
       createNode('C'),
     ])
     dag.loopConfigs.set(loopId, { id: loopId, nodes: ['B'], iterations: 3, loopType: 'for' } as any)
@@ -438,9 +464,17 @@ describe('computeDirtySet with containers', () => {
     const sentinelEndId = `parallel-${parallelId}-sentinel-end`
     const dag = createDAG([
       createNode('A', [{ target: sentinelStartId }]),
-      createNode(sentinelStartId, [{ target: 'B₍0₎' }], { isSentinel: true, sentinelType: 'start', parallelId }),
+      createNode(sentinelStartId, [{ target: 'B₍0₎' }], {
+        isSentinel: true,
+        sentinelType: 'start',
+        parallelId,
+      }),
       createNode('B₍0₎', [{ target: sentinelEndId }], { isParallelBranch: true, parallelId }),
-      createNode(sentinelEndId, [{ target: 'C' }], { isSentinel: true, sentinelType: 'end', parallelId }),
+      createNode(sentinelEndId, [{ target: 'C' }], {
+        isSentinel: true,
+        sentinelType: 'end',
+        parallelId,
+      }),
       createNode('C'),
     ])
     dag.parallelConfigs.set(parallelId, { id: parallelId, nodes: ['B'], count: 2 } as any)
