@@ -1,6 +1,6 @@
+import type { PolymarketPosition } from '@/tools/polymarket/types'
+import { buildDataUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketPosition } from './types'
-import { buildDataUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetPositionsParams {
   user: string

@@ -1,6 +1,6 @@
+import type { PolymarketPaginationParams, PolymarketTag } from '@/tools/polymarket/types'
+import { buildGammaUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketPaginationParams, PolymarketTag } from './types'
-import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetTagsParams extends PolymarketPaginationParams {}
 

@@ -647,6 +647,42 @@ Retrieve a single ticket by ID from Intercom. Returns API-aligned fields only.
 | `ticketId` | string | ID of the retrieved ticket |
 | `success` | boolean | Operation success status |
 
+### `intercom_update_ticket`
+
+Update a ticket in Intercom (change state, assignment, attributes)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | Yes | The ID of the ticket to update |
+| `ticket_attributes` | string | No | JSON object with ticket attributes \(e.g., \{"_default_title_":"New Title","_default_description_":"Updated description"\}\) |
+| `open` | boolean | No | Set to false to close the ticket, true to keep it open |
+| `is_shared` | boolean | No | Whether the ticket is visible to users |
+| `snoozed_until` | number | No | Unix timestamp for when the ticket should reopen |
+| `admin_id` | string | No | The ID of the admin performing the update \(needed for workflows and attribution\) |
+| `assignee_id` | string | No | The ID of the admin or team to assign the ticket to. Set to "0" to unassign. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ticket` | object | The updated ticket object |
+| ↳ `id` | string | Unique identifier for the ticket |
+| ↳ `type` | string | Object type \(ticket\) |
+| ↳ `ticket_id` | string | Ticket ID shown in Intercom UI |
+| ↳ `ticket_state` | string | State of the ticket |
+| ↳ `ticket_attributes` | object | Attributes of the ticket |
+| ↳ `open` | boolean | Whether the ticket is open |
+| ↳ `is_shared` | boolean | Whether the ticket is visible to users |
+| ↳ `snoozed_until` | number | Unix timestamp when ticket will reopen |
+| ↳ `admin_assignee_id` | string | ID of assigned admin |
+| ↳ `team_assignee_id` | string | ID of assigned team |
+| ↳ `created_at` | number | Unix timestamp when ticket was created |
+| ↳ `updated_at` | number | Unix timestamp when ticket was last updated |
+| `ticketId` | string | ID of the updated ticket |
+| `ticket_state` | string | Current state of the ticket |
+
 ### `intercom_create_message`
 
 Create and send a new admin-initiated message in Intercom. Returns API-aligned fields only.
@@ -679,5 +715,341 @@ Create and send a new admin-initiated message in Intercom. Returns API-aligned f
 | ↳ `owner` | object | Owner of the message |
 | `messageId` | string | ID of the created message |
 | `success` | boolean | Operation success status |
+
+### `intercom_list_admins`
+
+Fetch a list of all admins for the workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `admins` | array | Array of admin objects |
+|   ↳ `id` | string | Unique identifier for the admin |
+|   ↳ `type` | string | Object type \(admin\) |
+|   ↳ `name` | string | Name of the admin |
+|   ↳ `email` | string | Email of the admin |
+|   ↳ `job_title` | string | Job title of the admin |
+|   ↳ `away_mode_enabled` | boolean | Whether admin is in away mode |
+|   ↳ `away_mode_reassign` | boolean | Whether to reassign conversations when away |
+|   ↳ `has_inbox_seat` | boolean | Whether admin has a paid inbox seat |
+|   ↳ `team_ids` | array | List of team IDs the admin belongs to |
+|   ↳ `avatar` | object | Avatar information |
+|   ↳ `email_verified` | boolean | Whether email is verified |
+| `type` | string | Object type \(admin.list\) |
+
+### `intercom_close_conversation`
+
+Close a conversation in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | The ID of the conversation to close |
+| `admin_id` | string | Yes | The ID of the admin performing the action |
+| `body` | string | No | Optional closing message to add to the conversation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | object | The closed conversation object |
+| ↳ `id` | string | Unique identifier for the conversation |
+| ↳ `type` | string | Object type \(conversation\) |
+| ↳ `state` | string | State of the conversation \(closed\) |
+| ↳ `open` | boolean | Whether the conversation is open \(false\) |
+| ↳ `read` | boolean | Whether the conversation has been read |
+| ↳ `created_at` | number | Unix timestamp when conversation was created |
+| ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| `conversationId` | string | ID of the closed conversation |
+| `state` | string | State of the conversation \(closed\) |
+
+### `intercom_open_conversation`
+
+Open a closed or snoozed conversation in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | The ID of the conversation to open |
+| `admin_id` | string | Yes | The ID of the admin performing the action |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | object | The opened conversation object |
+| ↳ `id` | string | Unique identifier for the conversation |
+| ↳ `type` | string | Object type \(conversation\) |
+| ↳ `state` | string | State of the conversation \(open\) |
+| ↳ `open` | boolean | Whether the conversation is open \(true\) |
+| ↳ `read` | boolean | Whether the conversation has been read |
+| ↳ `created_at` | number | Unix timestamp when conversation was created |
+| ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| `conversationId` | string | ID of the opened conversation |
+| `state` | string | State of the conversation \(open\) |
+
+### `intercom_snooze_conversation`
+
+Snooze a conversation to reopen at a future time
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | The ID of the conversation to snooze |
+| `admin_id` | string | Yes | The ID of the admin performing the action |
+| `snoozed_until` | number | Yes | Unix timestamp for when the conversation should reopen |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | object | The snoozed conversation object |
+| ↳ `id` | string | Unique identifier for the conversation |
+| ↳ `type` | string | Object type \(conversation\) |
+| ↳ `state` | string | State of the conversation \(snoozed\) |
+| ↳ `open` | boolean | Whether the conversation is open |
+| ↳ `snoozed_until` | number | Unix timestamp when conversation will reopen |
+| ↳ `created_at` | number | Unix timestamp when conversation was created |
+| ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| `conversationId` | string | ID of the snoozed conversation |
+| `state` | string | State of the conversation \(snoozed\) |
+| `snoozed_until` | number | Unix timestamp when conversation will reopen |
+
+### `intercom_assign_conversation`
+
+Assign a conversation to an admin or team in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | The ID of the conversation to assign |
+| `admin_id` | string | Yes | The ID of the admin performing the assignment |
+| `assignee_id` | string | Yes | The ID of the admin or team to assign the conversation to. Set to "0" to unassign. |
+| `body` | string | No | Optional message to add when assigning \(e.g., "Passing to the support team"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | object | The assigned conversation object |
+| ↳ `id` | string | Unique identifier for the conversation |
+| ↳ `type` | string | Object type \(conversation\) |
+| ↳ `state` | string | State of the conversation |
+| ↳ `open` | boolean | Whether the conversation is open |
+| ↳ `admin_assignee_id` | number | ID of the assigned admin |
+| ↳ `team_assignee_id` | string | ID of the assigned team |
+| ↳ `created_at` | number | Unix timestamp when conversation was created |
+| ↳ `updated_at` | number | Unix timestamp when conversation was last updated |
+| `conversationId` | string | ID of the assigned conversation |
+| `admin_assignee_id` | number | ID of the assigned admin |
+| `team_assignee_id` | string | ID of the assigned team |
+
+### `intercom_list_tags`
+
+Fetch a list of all tags in the workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Array of tag objects |
+|   ↳ `id` | string | Unique identifier for the tag |
+|   ↳ `type` | string | Object type \(tag\) |
+|   ↳ `name` | string | Name of the tag |
+| `type` | string | Object type \(list\) |
+
+### `intercom_create_tag`
+
+Create a new tag or update an existing tag name
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | The name of the tag. Will create a new tag if not found, or update the name if id is provided. |
+| `id` | string | No | The ID of an existing tag to update. Omit to create a new tag. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the tag |
+| `name` | string | Name of the tag |
+| `type` | string | Object type \(tag\) |
+
+### `intercom_tag_contact`
+
+Add a tag to a specific contact
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | The ID of the contact to tag |
+| `tagId` | string | Yes | The ID of the tag to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the tag |
+| `name` | string | Name of the tag |
+| `type` | string | Object type \(tag\) |
+
+### `intercom_untag_contact`
+
+Remove a tag from a specific contact
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | The ID of the contact to untag |
+| `tagId` | string | Yes | The ID of the tag to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the tag that was removed |
+| `name` | string | Name of the tag that was removed |
+| `type` | string | Object type \(tag\) |
+
+### `intercom_tag_conversation`
+
+Add a tag to a specific conversation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | The ID of the conversation to tag |
+| `tagId` | string | Yes | The ID of the tag to apply |
+| `admin_id` | string | Yes | The ID of the admin applying the tag |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the tag |
+| `name` | string | Name of the tag |
+| `type` | string | Object type \(tag\) |
+
+### `intercom_create_note`
+
+Add a note to a specific contact
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | The ID of the contact to add the note to |
+| `body` | string | Yes | The text content of the note |
+| `admin_id` | string | No | The ID of the admin creating the note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the note |
+| `body` | string | The text content of the note |
+| `created_at` | number | Unix timestamp when the note was created |
+| `type` | string | Object type \(note\) |
+| `author` | object | The admin who created the note |
+| ↳ `type` | string | Author type \(admin\) |
+| ↳ `id` | string | Author ID |
+| ↳ `name` | string | Author name |
+| ↳ `email` | string | Author email |
+| `contact` | object | The contact the note was created for |
+| ↳ `type` | string | Contact type |
+| ↳ `id` | string | Contact ID |
+
+### `intercom_create_event`
+
+Track a custom event for a contact in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `event_name` | string | Yes | The name of the event \(e.g., "order-completed"\). Use past-tense verb-noun format for readability. |
+| `created_at` | number | No | Unix timestamp for when the event occurred. Strongly recommended for uniqueness. |
+| `user_id` | string | No | Your identifier for the user \(external_id\) |
+| `email` | string | No | Email address of the user. Use only if your app uses email to uniquely identify users. |
+| `id` | string | No | The Intercom contact ID |
+| `metadata` | string | No | JSON object with up to 10 metadata key-value pairs about the event \(e.g., \{"order_value": 99.99\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether the event was accepted \(202 Accepted\) |
+
+### `intercom_attach_contact_to_company`
+
+Attach a contact to a company in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | The ID of the contact to attach to the company |
+| `companyId` | string | Yes | The ID of the company to attach the contact to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | The company object the contact was attached to |
+| ↳ `id` | string | Unique identifier for the company |
+| ↳ `type` | string | Object type \(company\) |
+| ↳ `company_id` | string | The company_id you defined |
+| ↳ `name` | string | Name of the company |
+| ↳ `created_at` | number | Unix timestamp when company was created |
+| ↳ `updated_at` | number | Unix timestamp when company was updated |
+| ↳ `user_count` | number | Number of users in the company |
+| ↳ `session_count` | number | Number of sessions |
+| ↳ `monthly_spend` | number | Monthly spend amount |
+| ↳ `plan` | object | Company plan details |
+| `companyId` | string | ID of the company |
+| `name` | string | Name of the company |
+
+### `intercom_detach_contact_from_company`
+
+Remove a contact from a company in Intercom
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | The ID of the contact to detach from the company |
+| `companyId` | string | Yes | The ID of the company to detach the contact from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | The company object the contact was detached from |
+| ↳ `id` | string | Unique identifier for the company |
+| ↳ `type` | string | Object type \(company\) |
+| ↳ `company_id` | string | The company_id you defined |
+| ↳ `name` | string | Name of the company |
+| `companyId` | string | ID of the company |
+| `name` | string | Name of the company |
 
 

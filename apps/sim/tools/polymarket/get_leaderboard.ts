@@ -1,6 +1,6 @@
+import type { PolymarketLeaderboardEntry } from '@/tools/polymarket/types'
+import { buildDataUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketLeaderboardEntry } from './types'
-import { buildDataUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetLeaderboardParams {
   category?: string

@@ -1,6 +1,6 @@
+import type { PolymarketMarket } from '@/tools/polymarket/types'
+import { buildGammaUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketMarket } from './types'
-import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetMarketParams {
   marketId?: string // Market ID
