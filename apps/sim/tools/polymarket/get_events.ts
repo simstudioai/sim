@@ -3,10 +3,10 @@ import type { PolymarketEvent, PolymarketPaginationParams } from './types'
 import { buildGammaUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetEventsParams extends PolymarketPaginationParams {
-  closed?: string // 'true' or 'false' - filter for closed/active events
-  order?: string // sort field (e.g., 'volume', 'liquidity', 'startDate', 'endDate')
-  ascending?: string // 'true' or 'false' - sort direction
-  tagId?: string // filter by tag ID
+  closed?: string
+  order?: string
+  ascending?: string
+  tagId?: string
 }
 
 export interface PolymarketGetEventsResponse {
@@ -29,7 +29,7 @@ export const polymarketGetEventsTool: ToolConfig<
     closed: {
       type: 'string',
       required: false,
-      description: 'Filter by closed status (true/false). Use false for active events only.',
+      description: 'Filter by closed status (true/false). Use false for open events only.',
       visibility: 'user-or-llm',
     },
     order: {
@@ -71,13 +71,11 @@ export const polymarketGetEventsTool: ToolConfig<
       if (params.order) queryParams.append('order', params.order)
       if (params.ascending) queryParams.append('ascending', params.ascending)
       if (params.tagId) queryParams.append('tag_id', params.tagId)
-      // Default limit to 50 to prevent browser crashes from large data sets
       queryParams.append('limit', params.limit || '50')
       if (params.offset) queryParams.append('offset', params.offset)
 
-      const query = queryParams.toString()
       const url = buildGammaUrl('/events')
-      return `${url}?${query}`
+      return `${url}?${queryParams.toString()}`
     },
     method: 'GET',
     headers: () => ({
@@ -92,7 +90,6 @@ export const polymarketGetEventsTool: ToolConfig<
       handlePolymarketError(data, response.status, 'get_events')
     }
 
-    // Response is an array of events
     const events = Array.isArray(data) ? data : []
 
     return {
@@ -107,6 +104,26 @@ export const polymarketGetEventsTool: ToolConfig<
     events: {
       type: 'array',
       description: 'Array of event objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Event ID' },
+          ticker: { type: 'string', description: 'Event ticker' },
+          slug: { type: 'string', description: 'Event slug' },
+          title: { type: 'string', description: 'Event title' },
+          description: { type: 'string', description: 'Event description' },
+          startDate: { type: 'string', description: 'Start date' },
+          endDate: { type: 'string', description: 'End date' },
+          image: { type: 'string', description: 'Event image URL' },
+          icon: { type: 'string', description: 'Event icon URL' },
+          active: { type: 'boolean', description: 'Whether event is active' },
+          closed: { type: 'boolean', description: 'Whether event is closed' },
+          archived: { type: 'boolean', description: 'Whether event is archived' },
+          liquidity: { type: 'number', description: 'Total liquidity' },
+          volume: { type: 'number', description: 'Total volume' },
+          markets: { type: 'array', description: 'Array of markets in this event' },
+        },
+      },
     },
   },
 }

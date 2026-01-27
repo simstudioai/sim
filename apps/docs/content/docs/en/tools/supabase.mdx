@@ -299,7 +299,7 @@ Upload a file to a Supabase storage bucket
 | `bucket` | string | Yes | The name of the storage bucket |
 | `fileName` | string | Yes | The name of the file \(e.g., "document.pdf", "image.jpg"\) |
 | `path` | string | No | Optional folder path \(e.g., "folder/subfolder/"\) |
-| `fileContent` | string | Yes | The file content \(base64 encoded for binary files, or plain text\) |
+| `fileData` | json | Yes | File to upload - UserFile object \(basic mode\) or string content \(advanced mode: base64 or plain text\). Supports data URLs. |
 | `contentType` | string | No | MIME type of the file \(e.g., "image/jpeg", "text/plain"\) |
 | `upsert` | boolean | No | If true, overwrites existing file \(default: false\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
@@ -309,7 +309,7 @@ Upload a file to a Supabase storage bucket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
-| `results` | object | Upload result including file path and metadata |
+| `results` | object | Upload result including file path, bucket, and public URL |
 
 ### `supabase_storage_download`
 
