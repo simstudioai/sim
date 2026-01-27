@@ -10,6 +10,7 @@ import {
   type OutputSchema,
   resolveBlockReference,
 } from '@/executor/utils/block-reference'
+import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   navigatePath,
   type ResolutionContext,
@@ -159,17 +160,13 @@ export class BlockResolver implements Resolver {
     return this.nameToBlockId.get(normalizeName(name))
   }
 
-  public formatValueForBlock(
-    value: any,
-    blockType: string | undefined,
-    isInTemplateLiteral = false
-  ): string {
+  public formatValueForBlock(value: any, blockType: string | undefined, language?: string): string {
     if (blockType === 'condition') {
       return this.stringifyForCondition(value)
     }
 
     if (blockType === 'function') {
-      return this.formatValueForCodeContext(value, isInTemplateLiteral)
+      return this.formatValueForCodeContext(value, language)
     }
 
     if (blockType === 'response') {
@@ -210,29 +207,7 @@ export class BlockResolver implements Resolver {
     return String(value)
   }
 
-  private formatValueForCodeContext(value: any, isInTemplateLiteral: boolean): string {
-    if (isInTemplateLiteral) {
-      if (typeof value === 'string') {
-        return value
-      }
-      if (typeof value === 'object' && value !== null) {
-        return JSON.stringify(value)
-      }
-      return String(value)
-    }
-
-    if (typeof value === 'string') {
-      return JSON.stringify(value)
-    }
-    if (typeof value === 'object' && value !== null) {
-      return JSON.stringify(value)
-    }
-    if (value === undefined) {
-      return 'undefined'
-    }
-    if (value === null) {
-      return 'null'
-    }
-    return String(value)
+  private formatValueForCodeContext(value: any, language?: string): string {
+    return formatLiteralForCode(value, language === 'python' ? 'python' : 'javascript')
   }
 }

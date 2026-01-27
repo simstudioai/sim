@@ -6,6 +6,9 @@ on:
     paths:
       - 'packages/ts-sdk/**'
 
+permissions:
+  contents: write
+
 jobs:
   publish-npm:
     runs-on: blacksmith-4vcpu-ubuntu-2404

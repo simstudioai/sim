@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'
-import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useCreatorProfiles } from '@/hooks/queries/creator-profile'
 import {
   useCreateTemplate,
@@ -439,13 +439,14 @@ const OGCaptureContainer = forwardRef<HTMLDivElement>((_, ref) => {
       }}
       aria-hidden='true'
     >
-      <WorkflowPreview
+      <PreviewWorkflow
         workflowState={workflowState}
         height='100%'
         width='100%'
         isPannable={false}
         defaultZoom={0.8}
         fitPadding={0.2}
+        lightweight
       />
     </div>
   )
@@ -477,7 +478,7 @@ function TemplatePreviewContent({ existingTemplate }: TemplatePreviewContentProp
   }
 
   return (
-    <WorkflowPreview
+    <PreviewWorkflow
       key={`template-preview-${existingTemplate.id}`}
       workflowState={workflowState}
       height='100%'

@@ -1,16 +1,18 @@
 import { KalshiIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 
 export const KalshiBlock: BlockConfig = {
   type: 'kalshi',
-  name: 'Kalshi',
+  name: 'Kalshi (Legacy)',
   description: 'Access prediction markets and trade on Kalshi',
   longDescription:
     'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
   docsLink: 'https://docs.sim.ai/tools/kalshi',
   authMode: AuthMode.ApiKey,
   category: 'tools',
+  hideFromToolbar: true,
   bgColor: '#09C285',
   icon: KalshiIcon,
   subBlocks: [
@@ -349,8 +351,14 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       id: 'count',
       title: 'Contracts',
       type: 'short-input',
-      placeholder: 'Number of contracts',
-      required: true,
+      placeholder: 'Number of contracts (or use countFp)',
+      condition: { field: 'operation', value: ['create_order'] },
+    },
+    {
+      id: 'countFp',
+      title: 'Contracts (Fixed-Point)',
+      type: 'short-input',
+      placeholder: 'Fixed-point count (e.g., "10.50")',
       condition: { field: 'operation', value: ['create_order'] },
     },
     {
@@ -672,5 +680,145 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
     status: { type: 'json', description: 'Exchange status (get_exchange_status)' },
     // Pagination
     paging: { type: 'json', description: 'Pagination cursor for fetching more results' },
+  },
+}
+
+export const KalshiV2Block: BlockConfig = {
+  ...KalshiBlock,
+  type: 'kalshi_v2',
+  name: 'Kalshi',
+  description: 'Access prediction markets and trade on Kalshi',
+  longDescription:
+    'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
+  hideFromToolbar: false,
+  tools: {
+    ...KalshiBlock.tools,
+    access: [
+      'kalshi_get_markets_v2',
+      'kalshi_get_market_v2',
+      'kalshi_get_events_v2',
+      'kalshi_get_event_v2',
+      'kalshi_get_balance_v2',
+      'kalshi_get_positions_v2',
+      'kalshi_get_orders_v2',
+      'kalshi_get_order_v2',
+      'kalshi_get_orderbook_v2',
+      'kalshi_get_trades_v2',
+      'kalshi_get_candlesticks_v2',
+      'kalshi_get_fills_v2',
+      'kalshi_get_series_by_ticker_v2',
+      'kalshi_get_exchange_status_v2',
+      'kalshi_create_order_v2',
+      'kalshi_cancel_order_v2',
+      'kalshi_amend_order_v2',
+    ],
+    config: {
+      ...KalshiBlock.tools!.config,
+      tool: createVersionedToolSelector({
+        baseToolSelector: (params) => {
+          switch (params.operation) {
+            case 'get_markets':
+              return 'kalshi_get_markets'
+            case 'get_market':
+              return 'kalshi_get_market'
+            case 'get_events':
+              return 'kalshi_get_events'
+            case 'get_event':
+              return 'kalshi_get_event'
+            case 'get_balance':
+              return 'kalshi_get_balance'
+            case 'get_positions':
+              return 'kalshi_get_positions'
+            case 'get_orders':
+              return 'kalshi_get_orders'
+            case 'get_order':
+              return 'kalshi_get_order'
+            case 'get_orderbook':
+              return 'kalshi_get_orderbook'
+            case 'get_trades':
+              return 'kalshi_get_trades'
+            case 'get_candlesticks':
+              return 'kalshi_get_candlesticks'
+            case 'get_fills':
+              return 'kalshi_get_fills'
+            case 'get_series_by_ticker':
+              return 'kalshi_get_series_by_ticker'
+            case 'get_exchange_status':
+              return 'kalshi_get_exchange_status'
+            case 'create_order':
+              return 'kalshi_create_order'
+            case 'cancel_order':
+              return 'kalshi_cancel_order'
+            case 'amend_order':
+              return 'kalshi_amend_order'
+            default:
+              return 'kalshi_get_markets'
+          }
+        },
+        suffix: '_v2',
+        fallbackToolId: 'kalshi_get_markets_v2',
+      }),
+    },
+  },
+  outputs: {
+    // List operations (V2 uses snake_case and flat cursor)
+    markets: { type: 'json', description: 'Array of market objects (get_markets)' },
+    events: { type: 'json', description: 'Array of event objects (get_events)' },
+    orders: { type: 'json', description: 'Array of order objects (get_orders)' },
+    market_positions: {
+      type: 'json',
+      description: 'Array of market position objects (get_positions)',
+    },
+    event_positions: {
+      type: 'json',
+      description: 'Array of event position objects (get_positions)',
+    },
+    fills: { type: 'json', description: 'Array of fill objects (get_fills)' },
+    trades: { type: 'json', description: 'Array of trade objects (get_trades)' },
+    candlesticks: {
+      type: 'json',
+      description: 'Array of candlestick data with yes_bid/yes_ask/price nested objects',
+    },
+    milestones: {
+      type: 'json',
+      description: 'Array of milestone objects (get_events with milestones)',
+    },
+    // Single item operations
+    market: { type: 'json', description: 'Single market object (get_market)' },
+    event: { type: 'json', description: 'Single event object (get_event)' },
+    order: {
+      type: 'json',
+      description: 'Order object with _dollars and _fp fields (get_order, create_order, etc.)',
+    },
+    series: { type: 'json', description: 'Series object (get_series_by_ticker)' },
+    // Account operations
+    balance: { type: 'number', description: 'Account balance in cents (get_balance)' },
+    portfolio_value: { type: 'number', description: 'Portfolio value in cents (get_balance)' },
+    updated_ts: { type: 'number', description: 'Unix timestamp of last update (get_balance)' },
+    // Orderbook (V2 uses tuple arrays)
+    orderbook: {
+      type: 'json',
+      description: 'Orderbook with yes/no/yes_dollars/no_dollars tuple arrays',
+    },
+    orderbook_fp: {
+      type: 'json',
+      description: 'Fixed-point orderbook with yes_dollars/no_dollars tuple arrays',
+    },
+    // Exchange status
+    exchange_status: {
+      type: 'string',
+      description: 'Exchange status string (get_exchange_status)',
+    },
+    trading_active: { type: 'boolean', description: 'Trading active flag (get_exchange_status)' },
+    // Cancel order specific
+    reduced_by: { type: 'number', description: 'Number of contracts reduced (cancel_order)' },
+    reduced_by_fp: {
+      type: 'string',
+      description: 'Contracts reduced in fixed-point (cancel_order)',
+    },
+    // Candlesticks ticker
+    ticker: { type: 'string', description: 'Market ticker (get_candlesticks)' },
+    // Pagination (flat cursor instead of nested paging object)
+    cursor: { type: 'string', description: 'Pagination cursor for fetching more results' },
   },
 }

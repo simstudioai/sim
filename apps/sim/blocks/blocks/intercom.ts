@@ -36,7 +36,22 @@ export const IntercomBlock: BlockConfig = {
         { label: 'Search Conversations', id: 'search_conversations' },
         { label: 'Create Ticket', id: 'create_ticket' },
         { label: 'Get Ticket', id: 'get_ticket' },
+        { label: 'Update Ticket', id: 'update_ticket' },
         { label: 'Create Message', id: 'create_message' },
+        { label: 'List Admins', id: 'list_admins' },
+        { label: 'Close Conversation', id: 'close_conversation' },
+        { label: 'Open Conversation', id: 'open_conversation' },
+        { label: 'Snooze Conversation', id: 'snooze_conversation' },
+        { label: 'Assign Conversation', id: 'assign_conversation' },
+        { label: 'List Tags', id: 'list_tags' },
+        { label: 'Create Tag', id: 'create_tag' },
+        { label: 'Tag Contact', id: 'tag_contact' },
+        { label: 'Untag Contact', id: 'untag_contact' },
+        { label: 'Tag Conversation', id: 'tag_conversation' },
+        { label: 'Create Note', id: 'create_note' },
+        { label: 'Create Event', id: 'create_event' },
+        { label: 'Attach Contact to Company', id: 'attach_contact_to_company' },
+        { label: 'Detach Contact from Company', id: 'detach_contact_from_company' },
       ],
       value: () => 'create_contact',
     },
@@ -384,7 +399,15 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       required: true,
       condition: {
         field: 'operation',
-        value: ['get_conversation', 'reply_conversation'],
+        value: [
+          'get_conversation',
+          'reply_conversation',
+          'close_conversation',
+          'open_conversation',
+          'snooze_conversation',
+          'assign_conversation',
+          'tag_conversation',
+        ],
       },
     },
     {
@@ -477,11 +500,20 @@ Return ONLY the message text - no explanations.`,
       id: 'admin_id',
       title: 'Admin ID',
       type: 'short-input',
-      placeholder: 'ID of the admin sending the message',
+      placeholder: 'ID of the admin performing the action',
       required: true,
       condition: {
         field: 'operation',
-        value: ['reply_conversation'],
+        value: [
+          'reply_conversation',
+          'close_conversation',
+          'open_conversation',
+          'snooze_conversation',
+          'assign_conversation',
+          'tag_conversation',
+          'create_note',
+          'update_ticket',
+        ],
       },
     },
     {
@@ -526,7 +558,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       required: true,
       condition: {
         field: 'operation',
-        value: ['get_ticket'],
+        value: ['get_ticket', 'update_ticket'],
       },
     },
     {
@@ -799,6 +831,307 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         value: ['list_companies'],
       },
     },
+    // Close/Open conversation body
+    {
+      id: 'close_body',
+      title: 'Closing Message',
+      type: 'long-input',
+      placeholder: 'Optional message to add when closing',
+      condition: {
+        field: 'operation',
+        value: ['close_conversation'],
+      },
+    },
+    // Snooze conversation
+    {
+      id: 'snoozed_until',
+      title: 'Snooze Until',
+      type: 'short-input',
+      placeholder: 'Unix timestamp when conversation should reopen',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['snooze_conversation'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+The timestamp should be a Unix epoch time in seconds (10 digits).
+Examples:
+- "tomorrow" -> Tomorrow at 09:00:00 as Unix timestamp
+- "in 2 hours" -> Current time plus 7200 seconds
+- "next Monday" -> Next Monday at 09:00:00 as Unix timestamp
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when to unsnooze (e.g., "tomorrow", "in 2 hours")...',
+        generationType: 'timestamp',
+      },
+    },
+    // Assign conversation
+    {
+      id: 'assignee_id',
+      title: 'Assignee ID',
+      type: 'short-input',
+      placeholder: 'Admin or team ID to assign to (0 to unassign)',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['assign_conversation'],
+      },
+    },
+    {
+      id: 'assign_body',
+      title: 'Assignment Message',
+      type: 'long-input',
+      placeholder: 'Optional message when assigning',
+      condition: {
+        field: 'operation',
+        value: ['assign_conversation'],
+      },
+    },
+    // Update ticket fields
+    {
+      id: 'update_ticket_attributes',
+      title: 'Ticket Attributes',
+      type: 'long-input',
+      placeholder: 'JSON object with ticket attributes to update',
+      condition: {
+        field: 'operation',
+        value: ['update_ticket'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for Intercom ticket attributes based on the user's description.
+Example: {"_default_title_": "Updated title", "_default_description_": "Updated description"}
+
+Return ONLY the JSON object - no explanations or markdown formatting.`,
+        placeholder: 'Describe the ticket updates (e.g., "change title to Bug Fixed")...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'ticket_open',
+      title: 'Ticket Open',
+      type: 'dropdown',
+      options: [
+        { label: 'Keep Open', id: 'true' },
+        { label: 'Close Ticket', id: 'false' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['update_ticket'],
+      },
+    },
+    {
+      id: 'ticket_is_shared',
+      title: 'Ticket Visible to Users',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['update_ticket'],
+      },
+    },
+    {
+      id: 'ticket_snoozed_until',
+      title: 'Snooze Ticket Until',
+      type: 'short-input',
+      placeholder: 'Unix timestamp when ticket should reopen',
+      condition: {
+        field: 'operation',
+        value: ['update_ticket'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+Examples:
+- "tomorrow" -> Tomorrow at 09:00:00 as Unix timestamp
+- "next week" -> 7 days from now
+
+Return ONLY the numeric timestamp.`,
+        placeholder: 'Describe when to unsnooze (e.g., "tomorrow")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'ticket_assignee_id',
+      title: 'Ticket Assignee ID',
+      type: 'short-input',
+      placeholder: 'Admin or team ID to assign to (0 to unassign)',
+      condition: {
+        field: 'operation',
+        value: ['update_ticket'],
+      },
+    },
+    // Tag fields
+    {
+      id: 'tagId',
+      title: 'Tag ID',
+      type: 'short-input',
+      placeholder: 'ID of the tag',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['tag_contact', 'untag_contact', 'tag_conversation'],
+      },
+    },
+    {
+      id: 'tag_name',
+      title: 'Tag Name',
+      type: 'short-input',
+      placeholder: 'Name of the tag to create',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['create_tag'],
+      },
+    },
+    {
+      id: 'tag_id_update',
+      title: 'Tag ID (for update)',
+      type: 'short-input',
+      placeholder: 'ID of existing tag to update (leave empty to create new)',
+      condition: {
+        field: 'operation',
+        value: ['create_tag'],
+      },
+    },
+    // Contact ID for tag/untag/note operations
+    {
+      id: 'tag_contact_id',
+      title: 'Contact ID',
+      type: 'short-input',
+      placeholder: 'ID of the contact',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'tag_contact',
+          'untag_contact',
+          'create_note',
+          'attach_contact_to_company',
+          'detach_contact_from_company',
+        ],
+      },
+    },
+    // Note fields
+    {
+      id: 'note_body',
+      title: 'Note Content',
+      type: 'long-input',
+      placeholder: 'Text content of the note',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['create_note'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a note for Intercom based on the user's description.
+The note should be clear, professional, and capture the key information.
+
+Return ONLY the note text - no explanations.`,
+        placeholder: 'Describe the note content (e.g., "customer requested callback")...',
+      },
+    },
+    // Event fields
+    {
+      id: 'event_name',
+      title: 'Event Name',
+      type: 'short-input',
+      placeholder: 'Event name (e.g., order-completed)',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['create_event'],
+      },
+    },
+    {
+      id: 'event_user_id',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'Your identifier for the user',
+      condition: {
+        field: 'operation',
+        value: ['create_event'],
+      },
+    },
+    {
+      id: 'event_email',
+      title: 'User Email',
+      type: 'short-input',
+      placeholder: 'Email address of the user',
+      condition: {
+        field: 'operation',
+        value: ['create_event'],
+      },
+    },
+    {
+      id: 'event_contact_id',
+      title: 'Contact ID',
+      type: 'short-input',
+      placeholder: 'Intercom contact ID',
+      condition: {
+        field: 'operation',
+        value: ['create_event'],
+      },
+    },
+    {
+      id: 'event_metadata',
+      title: 'Event Metadata',
+      type: 'long-input',
+      placeholder: 'JSON object with event metadata (max 10 keys)',
+      condition: {
+        field: 'operation',
+        value: ['create_event'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for Intercom event metadata based on the user's description.
+The object should contain key-value pairs (max 10 keys).
+Example: {"order_value": 99.99, "items": 3, "coupon_used": true}
+
+Return ONLY the JSON object - no explanations or markdown formatting.`,
+        placeholder: 'Describe the event data (e.g., "order value $50, 2 items")...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'event_created_at',
+      title: 'Event Time',
+      type: 'short-input',
+      placeholder: 'Unix timestamp when event occurred',
+      condition: {
+        field: 'operation',
+        value: ['create_event'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
+Examples:
+- "now" -> Current Unix timestamp
+- "5 minutes ago" -> Current time minus 300 seconds
+
+Return ONLY the numeric timestamp.`,
+        placeholder: 'Describe when the event occurred (e.g., "now")...',
+        generationType: 'timestamp',
+      },
+    },
+    // Company attachment fields
+    {
+      id: 'attach_company_id',
+      title: 'Company ID',
+      type: 'short-input',
+      placeholder: 'ID of the company to attach/detach',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['attach_contact_to_company', 'detach_contact_from_company'],
+      },
+    },
   ],
   tools: {
     access: [
@@ -818,6 +1151,21 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       'intercom_create_ticket',
       'intercom_get_ticket',
       'intercom_create_message',
+      'intercom_update_ticket_v2',
+      'intercom_list_admins_v2',
+      'intercom_close_conversation_v2',
+      'intercom_open_conversation_v2',
+      'intercom_snooze_conversation_v2',
+      'intercom_assign_conversation_v2',
+      'intercom_list_tags_v2',
+      'intercom_create_tag_v2',
+      'intercom_tag_contact_v2',
+      'intercom_untag_contact_v2',
+      'intercom_tag_conversation_v2',
+      'intercom_create_note_v2',
+      'intercom_create_event_v2',
+      'intercom_attach_contact_to_company_v2',
+      'intercom_detach_contact_from_company_v2',
     ],
     config: {
       tool: (params) => {
@@ -854,6 +1202,36 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             return 'intercom_get_ticket'
           case 'create_message':
             return 'intercom_create_message'
+          case 'update_ticket':
+            return 'intercom_update_ticket_v2'
+          case 'list_admins':
+            return 'intercom_list_admins_v2'
+          case 'close_conversation':
+            return 'intercom_close_conversation_v2'
+          case 'open_conversation':
+            return 'intercom_open_conversation_v2'
+          case 'snooze_conversation':
+            return 'intercom_snooze_conversation_v2'
+          case 'assign_conversation':
+            return 'intercom_assign_conversation_v2'
+          case 'list_tags':
+            return 'intercom_list_tags_v2'
+          case 'create_tag':
+            return 'intercom_create_tag_v2'
+          case 'tag_contact':
+            return 'intercom_tag_contact_v2'
+          case 'untag_contact':
+            return 'intercom_untag_contact_v2'
+          case 'tag_conversation':
+            return 'intercom_tag_conversation_v2'
+          case 'create_note':
+            return 'intercom_create_note_v2'
+          case 'create_event':
+            return 'intercom_create_event_v2'
+          case 'attach_contact_to_company':
+            return 'intercom_attach_contact_to_company_v2'
+          case 'detach_contact_from_company':
+            return 'intercom_detach_contact_from_company_v2'
           default:
             throw new Error(`Unknown operation: ${params.operation}`)
         }
@@ -870,6 +1248,23 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
           message_created_at,
           include_translations,
           disable_notifications,
+          close_body,
+          assign_body,
+          tag_contact_id,
+          attach_company_id,
+          update_ticket_attributes,
+          ticket_open,
+          ticket_is_shared,
+          ticket_snoozed_until,
+          ticket_assignee_id,
+          tag_name,
+          tag_id_update,
+          note_body,
+          event_user_id,
+          event_email,
+          event_contact_id,
+          event_metadata,
+          event_created_at,
           ...rest
         } = params
         const cleanParams: Record<string, any> = {}
@@ -897,7 +1292,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
           cleanParams.created_at = Number(reply_created_at)
         }
 
-        // Map ticket fields
+        // Map ticket fields for create_ticket
         if (operation === 'create_ticket') {
           if (ticket_company_id) cleanParams.company_id = ticket_company_id
           if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
@@ -918,6 +1313,71 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
           include_translations !== ''
         ) {
           cleanParams.include_translations = include_translations === 'true'
+        }
+
+        // Map close_body to body for close_conversation
+        if (operation === 'close_conversation' && close_body) {
+          cleanParams.body = close_body
+        }
+
+        // Map assign_body to body for assign_conversation
+        if (operation === 'assign_conversation' && assign_body) {
+          cleanParams.body = assign_body
+        }
+
+        // Map tag_contact_id to contactId for tag/note/company attachment operations
+        if (
+          [
+            'tag_contact',
+            'untag_contact',
+            'create_note',
+            'attach_contact_to_company',
+            'detach_contact_from_company',
+          ].includes(operation) &&
+          tag_contact_id
+        ) {
+          cleanParams.contactId = tag_contact_id
+        }
+
+        // Map attach_company_id to companyId for company attachment operations
+        if (
+          ['attach_contact_to_company', 'detach_contact_from_company'].includes(operation) &&
+          attach_company_id
+        ) {
+          cleanParams.companyId = attach_company_id
+        }
+
+        // Map update_ticket fields
+        if (operation === 'update_ticket') {
+          if (update_ticket_attributes) cleanParams.ticket_attributes = update_ticket_attributes
+          if (ticket_open !== undefined && ticket_open !== '') {
+            cleanParams.open = ticket_open === 'true'
+          }
+          if (ticket_is_shared !== undefined && ticket_is_shared !== '') {
+            cleanParams.is_shared = ticket_is_shared === 'true'
+          }
+          if (ticket_snoozed_until) cleanParams.snoozed_until = Number(ticket_snoozed_until)
+          if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
+        }
+
+        // Map tag fields for create_tag
+        if (operation === 'create_tag') {
+          if (tag_name) cleanParams.name = tag_name
+          if (tag_id_update) cleanParams.id = tag_id_update
+        }
+
+        // Map note_body to body for create_note
+        if (operation === 'create_note' && note_body) {
+          cleanParams.body = note_body
+        }
+
+        // Map event fields for create_event
+        if (operation === 'create_event') {
+          if (event_user_id) cleanParams.user_id = event_user_id
+          if (event_email) cleanParams.email = event_email
+          if (event_contact_id) cleanParams.id = event_contact_id
+          if (event_metadata) cleanParams.metadata = event_metadata
+          if (event_created_at) cleanParams.created_at = Number(event_created_at)
         }
 
         Object.entries(rest).forEach(([key, value]) => {
@@ -963,7 +1423,22 @@ export const IntercomV2Block: BlockConfig = {
       'intercom_search_conversations_v2',
       'intercom_create_ticket_v2',
       'intercom_get_ticket_v2',
+      'intercom_update_ticket_v2',
       'intercom_create_message_v2',
+      'intercom_list_admins_v2',
+      'intercom_close_conversation_v2',
+      'intercom_open_conversation_v2',
+      'intercom_snooze_conversation_v2',
+      'intercom_assign_conversation_v2',
+      'intercom_list_tags_v2',
+      'intercom_create_tag_v2',
+      'intercom_tag_contact_v2',
+      'intercom_untag_contact_v2',
+      'intercom_tag_conversation_v2',
+      'intercom_create_note_v2',
+      'intercom_create_event_v2',
+      'intercom_attach_contact_to_company_v2',
+      'intercom_detach_contact_from_company_v2',
     ],
     config: {
       tool: createVersionedToolSelector({
@@ -999,8 +1474,38 @@ export const IntercomV2Block: BlockConfig = {
               return 'intercom_create_ticket'
             case 'get_ticket':
               return 'intercom_get_ticket'
+            case 'update_ticket':
+              return 'intercom_update_ticket'
             case 'create_message':
               return 'intercom_create_message'
+            case 'list_admins':
+              return 'intercom_list_admins'
+            case 'close_conversation':
+              return 'intercom_close_conversation'
+            case 'open_conversation':
+              return 'intercom_open_conversation'
+            case 'snooze_conversation':
+              return 'intercom_snooze_conversation'
+            case 'assign_conversation':
+              return 'intercom_assign_conversation'
+            case 'list_tags':
+              return 'intercom_list_tags'
+            case 'create_tag':
+              return 'intercom_create_tag'
+            case 'tag_contact':
+              return 'intercom_tag_contact'
+            case 'untag_contact':
+              return 'intercom_untag_contact'
+            case 'tag_conversation':
+              return 'intercom_tag_conversation'
+            case 'create_note':
+              return 'intercom_create_note'
+            case 'create_event':
+              return 'intercom_create_event'
+            case 'attach_contact_to_company':
+              return 'intercom_attach_contact_to_company'
+            case 'detach_contact_from_company':
+              return 'intercom_detach_contact_from_company'
             default:
               return 'intercom_create_contact'
           }
@@ -1008,7 +1513,158 @@ export const IntercomV2Block: BlockConfig = {
         suffix: '_v2',
         fallbackToolId: 'intercom_create_contact_v2',
       }),
-      params: IntercomBlock.tools!.config!.params,
+      params: (params) => {
+        const {
+          operation,
+          message_type_msg,
+          company_name,
+          contact_company_id,
+          reply_created_at,
+          ticket_company_id,
+          ticket_created_at,
+          message_created_at,
+          include_translations,
+          disable_notifications,
+          close_body,
+          assign_body,
+          tag_contact_id,
+          attach_company_id,
+          update_ticket_attributes,
+          ticket_open,
+          ticket_is_shared,
+          ticket_snoozed_until,
+          ticket_assignee_id,
+          tag_name,
+          tag_id_update,
+          note_body,
+          event_user_id,
+          event_email,
+          event_contact_id,
+          event_metadata,
+          event_created_at,
+          ...rest
+        } = params
+        const cleanParams: Record<string, any> = {}
+
+        // Special mapping for message_type in create_message
+        if (operation === 'create_message' && message_type_msg) {
+          cleanParams.message_type = message_type_msg
+        }
+
+        // Special mapping for company name
+        if (operation === 'create_company' && company_name) {
+          cleanParams.name = company_name
+        }
+
+        // Map contact_company_id to company_id for contact operations
+        if (
+          (operation === 'create_contact' || operation === 'update_contact') &&
+          contact_company_id
+        ) {
+          cleanParams.company_id = contact_company_id
+        }
+
+        // Map reply_created_at to created_at for reply_conversation
+        if (operation === 'reply_conversation' && reply_created_at) {
+          cleanParams.created_at = Number(reply_created_at)
+        }
+
+        // Map ticket fields for create_ticket
+        if (operation === 'create_ticket') {
+          if (ticket_company_id) cleanParams.company_id = ticket_company_id
+          if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
+          if (disable_notifications !== undefined && disable_notifications !== '') {
+            cleanParams.disable_notifications = disable_notifications === 'true'
+          }
+        }
+
+        // Map message_created_at to created_at for create_message
+        if (operation === 'create_message' && message_created_at) {
+          cleanParams.created_at = Number(message_created_at)
+        }
+
+        // Convert include_translations string to boolean for get_conversation
+        if (
+          operation === 'get_conversation' &&
+          include_translations !== undefined &&
+          include_translations !== ''
+        ) {
+          cleanParams.include_translations = include_translations === 'true'
+        }
+
+        // Map close_body to body for close_conversation
+        if (operation === 'close_conversation' && close_body) {
+          cleanParams.body = close_body
+        }
+
+        // Map assign_body to body for assign_conversation
+        if (operation === 'assign_conversation' && assign_body) {
+          cleanParams.body = assign_body
+        }
+
+        // Map tag_contact_id to contactId for tag/note/company attachment operations
+        if (
+          [
+            'tag_contact',
+            'untag_contact',
+            'create_note',
+            'attach_contact_to_company',
+            'detach_contact_from_company',
+          ].includes(operation) &&
+          tag_contact_id
+        ) {
+          cleanParams.contactId = tag_contact_id
+        }
+
+        // Map attach_company_id to companyId for company attachment operations
+        if (
+          ['attach_contact_to_company', 'detach_contact_from_company'].includes(operation) &&
+          attach_company_id
+        ) {
+          cleanParams.companyId = attach_company_id
+        }
+
+        // Map update_ticket fields
+        if (operation === 'update_ticket') {
+          if (update_ticket_attributes) cleanParams.ticket_attributes = update_ticket_attributes
+          if (ticket_open !== undefined && ticket_open !== '') {
+            cleanParams.open = ticket_open === 'true'
+          }
+          if (ticket_is_shared !== undefined && ticket_is_shared !== '') {
+            cleanParams.is_shared = ticket_is_shared === 'true'
+          }
+          if (ticket_snoozed_until) cleanParams.snoozed_until = Number(ticket_snoozed_until)
+          if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
+        }
+
+        // Map tag fields for create_tag
+        if (operation === 'create_tag') {
+          if (tag_name) cleanParams.name = tag_name
+          if (tag_id_update) cleanParams.id = tag_id_update
+        }
+
+        // Map note_body to body for create_note
+        if (operation === 'create_note' && note_body) {
+          cleanParams.body = note_body
+        }
+
+        // Map event fields for create_event
+        if (operation === 'create_event') {
+          if (event_user_id) cleanParams.user_id = event_user_id
+          if (event_email) cleanParams.email = event_email
+          if (event_contact_id) cleanParams.id = event_contact_id
+          if (event_metadata) cleanParams.metadata = event_metadata
+          if (event_created_at) cleanParams.created_at = Number(event_created_at)
+        }
+
+        Object.entries(rest).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            cleanParams[key] = value
+          }
+        })
+
+        return cleanParams
+      },
     },
   },
   outputs: {
@@ -1031,10 +1687,23 @@ export const IntercomV2Block: BlockConfig = {
       type: 'array',
       description: 'Array of conversations (for list/search operations)',
     },
+    state: { type: 'string', description: 'Conversation state (for close/open/snooze operations)' },
     ticket: { type: 'json', description: 'Ticket object with id, ticket_id, ticket_state' },
-    ticketId: { type: 'string', description: 'ID of the ticket (for create operations)' },
+    ticketId: { type: 'string', description: 'ID of the ticket (for create/update operations)' },
+    ticket_state: { type: 'string', description: 'Ticket state (for update_ticket operation)' },
     message: { type: 'json', description: 'Message object with id, type' },
     messageId: { type: 'string', description: 'ID of the message (for create operations)' },
+    admins: { type: 'array', description: 'Array of admin objects (for list_admins operation)' },
+    tags: { type: 'array', description: 'Array of tag objects (for list_tags operation)' },
+    tag: { type: 'json', description: 'Tag object with id and name (for tag operations)' },
+    tagId: { type: 'string', description: 'ID of the tag (for create_tag operation)' },
+    note: { type: 'json', description: 'Note object with id and body (for create_note operation)' },
+    noteId: { type: 'string', description: 'ID of the note (for create_note operation)' },
+    event_name: {
+      type: 'string',
+      description: 'Name of the tracked event (for create_event operation)',
+    },
+    name: { type: 'string', description: 'Name of the resource (for various operations)' },
     total_count: { type: 'number', description: 'Total count (for list/search operations)' },
     pages: { type: 'json', description: 'Pagination info with page, per_page, total_pages' },
     id: { type: 'string', description: 'ID of the deleted item (for delete operations)' },

@@ -132,6 +132,8 @@ async function executeCode(request) {
     for (const [key, value] of Object.entries(contextVariables)) {
       if (value === undefined) {
         await jail.set(key, undefined)
+      } else if (value === null) {
+        await jail.set(key, null)
       } else {
         await jail.set(key, new ivm.ExternalCopy(value).copyInto())
       }

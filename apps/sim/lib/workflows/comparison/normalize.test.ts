@@ -370,7 +370,7 @@ describe('Workflow Normalization Utilities', () => {
       expect(sanitizeInputFormat({} as any)).toEqual([])
     })
 
-    it.concurrent('should remove value and collapsed fields', () => {
+    it.concurrent('should remove collapsed field but keep value', () => {
       const inputFormat = [
         { id: 'input1', name: 'Name', value: 'John', collapsed: true },
         { id: 'input2', name: 'Age', value: 25, collapsed: false },
@@ -379,13 +379,13 @@ describe('Workflow Normalization Utilities', () => {
       const result = sanitizeInputFormat(inputFormat)
 
       expect(result).toEqual([
-        { id: 'input1', name: 'Name' },
-        { id: 'input2', name: 'Age' },
+        { id: 'input1', name: 'Name', value: 'John' },
+        { id: 'input2', name: 'Age', value: 25 },
         { id: 'input3', name: 'Email' },
       ])
     })
 
-    it.concurrent('should preserve all other fields', () => {
+    it.concurrent('should preserve all other fields including value', () => {
       const inputFormat = [
         {
           id: 'input1',
@@ -402,6 +402,7 @@ describe('Workflow Normalization Utilities', () => {
       expect(result[0]).toEqual({
         id: 'input1',
         name: 'Complex Input',
+        value: 'test-value',
         type: 'string',
         required: true,
         validation: { min: 0, max: 100 },

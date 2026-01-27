@@ -9,6 +9,7 @@ import {
   generateToolUseId,
 } from '@/providers/anthropic/utils'
 import {
+  getMaxOutputTokensForModel,
   getProviderDefaultModel,
   getProviderModels,
   supportsNativeStructuredOutputs,
@@ -178,7 +179,9 @@ export const anthropicProvider: ProviderConfig = {
       model: request.model,
       messages,
       system: systemPrompt,
-      max_tokens: Number.parseInt(String(request.maxTokens)) || 1024,
+      max_tokens:
+        Number.parseInt(String(request.maxTokens)) ||
+        getMaxOutputTokensForModel(request.model, request.stream ?? false),
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
     }
 

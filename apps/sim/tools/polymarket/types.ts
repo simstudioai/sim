@@ -92,6 +92,11 @@ export interface PolymarketTag {
   id: string
   label: string
   slug: string
+  createdAt?: string
+  updatedAt?: string
+  forceShow?: boolean
+  forceHide?: boolean
+  isCarousel?: boolean
 }
 
 export interface PolymarketOrderBookEntry {
@@ -106,11 +111,13 @@ export interface PolymarketOrderBook {
   timestamp: string
   bids: PolymarketOrderBookEntry[]
   asks: PolymarketOrderBookEntry[]
+  min_order_size: string
+  tick_size: string
+  neg_risk: boolean
 }
 
 export interface PolymarketPrice {
   price: string
-  side: string
 }
 
 export interface PolymarketPriceHistoryEntry {
@@ -143,31 +150,125 @@ export interface PolymarketSeries {
 export interface PolymarketSearchResult {
   markets: PolymarketMarket[]
   events: PolymarketEvent[]
-  profiles: any[]
+  tags: PolymarketTag[]
+  profiles: PolymarketProfile[]
+}
+
+export interface PolymarketProfile {
+  id: string
+  name: string | null
+  pseudonym: string | null
+  bio: string | null
+  profileImage: string | null
+  profileImageOptimized: string | null
+  walletAddress: string
 }
 
 export interface PolymarketSpread {
-  bid: string
-  ask: string
+  spread: string
 }
 
 export interface PolymarketPosition {
-  market: string
-  asset_id: string
-  size: string
-  value: string
+  proxyWallet: string | null
+  asset: string
+  conditionId: string
+  size: number
+  avgPrice: number
+  initialValue: number
+  currentValue: number
+  cashPnl: number
+  percentPnl: number
+  totalBought: number
+  realizedPnl: number
+  percentRealizedPnl: number
+  curPrice: number
+  redeemable: boolean
+  mergeable: boolean
+  title: string | null
+  slug: string | null
+  icon: string | null
+  eventSlug: string | null
+  outcome: string | null
+  outcomeIndex: number | null
+  oppositeOutcome: string | null
+  oppositeAsset: string | null
+  endDate: string | null
+  negativeRisk: boolean
 }
 
 export interface PolymarketTrade {
-  id: string
-  market: string
-  asset_id: string
+  proxyWallet: string | null
   side: string
-  size: string
-  price: string
-  timestamp: string
-  maker: string
-  taker: string
+  asset: string
+  conditionId: string
+  size: number
+  price: number
+  timestamp: number
+  title: string | null
+  slug: string | null
+  icon: string | null
+  eventSlug: string | null
+  outcome: string | null
+  outcomeIndex: number | null
+  name: string | null
+  pseudonym: string | null
+  bio: string | null
+  profileImage: string | null
+  profileImageOptimized: string | null
+  transactionHash: string | null
+}
+
+export interface PolymarketActivity {
+  proxyWallet: string | null
+  timestamp: number
+  conditionId: string
+  type: string
+  size: number
+  usdcSize: number
+  transactionHash: string | null
+  price: number | null
+  asset: string | null
+  side: string | null
+  outcomeIndex: number | null
+  title: string | null
+  slug: string | null
+  icon: string | null
+  eventSlug: string | null
+  outcome: string | null
+  name: string | null
+  pseudonym: string | null
+  bio: string | null
+  profileImage: string | null
+  profileImageOptimized: string | null
+}
+
+export interface PolymarketLeaderboardEntry {
+  rank: string
+  proxyWallet: string
+  userName: string | null
+  vol: number
+  pnl: number
+  profileImage: string | null
+  xUsername: string | null
+  verifiedBadge: boolean
+}
+
+export interface PolymarketHolder {
+  proxyWallet: string
+  bio: string | null
+  asset: string
+  pseudonym: string | null
+  amount: number
+  displayUsernamePublic: boolean
+  outcomeIndex: number
+  name: string | null
+  profileImage: string | null
+  profileImageOptimized: string | null
+}
+
+export interface PolymarketMarketHolders {
+  token: string
+  holders: PolymarketHolder[]
 }
 
 export function handlePolymarketError(data: any, status: number, operation: string): never {

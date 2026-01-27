@@ -738,6 +738,32 @@ sharedStorage:
 extraVolumes: []
 extraVolumeMounts: []
 
+# Branding configuration
+# Use this to inject custom branding assets (logos, CSS, etc.) into the application
+branding:
+  # Enable/disable branding ConfigMap
+  enabled: false
+
+  # Mount path in the container where branding files will be available
+  mountPath: "/app/public/branding"
+
+  # Text files (CSS, JSON, HTML, etc.) - values are plain text
+  # Example:
+  #   files:
+  #     custom.css: |
+  #       .logo { background-color: #ff0000; }
+  #     config.json: |
+  #       {"theme": "dark"}
+  files: {}
+
+  # Binary files (PNG, JPG, ICO, etc.) - values must be base64 encoded
+  # Generate base64 with: base64 -i logo.png | tr -d '\n'
+  # Example:
+  #   binaryFiles:
+  #     logo.png: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk..."
+  #     favicon.ico: "AAABAAEAEBAAAAEAIABoBAAAFgAAAA..."
+  binaryFiles: {}
+
 # Additional environment variables for custom integrations
 extraEnvVars: []
 

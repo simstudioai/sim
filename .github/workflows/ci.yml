@@ -10,6 +10,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   test-build:
     name: Test and Build
@@ -278,3 +281,30 @@ jobs:
     if: needs.check-docs-changes.outputs.docs_changed == 'true'
     uses: ./.github/workflows/docs-embeddings.yml
     secrets: inherit
+
+  # Create GitHub Release (only for version commits on main, after all builds complete)
+  create-release:
+    name: Create GitHub Release
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs: [create-ghcr-manifests, detect-version]
+    if: needs.detect-version.outputs.is_release == 'true'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Create release
+        env:
+          GH_PAT: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run scripts/create-single-release.ts ${{ needs.detect-version.outputs.version }}

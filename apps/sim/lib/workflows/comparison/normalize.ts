@@ -156,10 +156,10 @@ export function normalizeVariables(variables: unknown): Record<string, Variable>
 }
 
 /** Input format item with optional UI-only fields */
-type InputFormatItem = Record<string, unknown> & { value?: unknown; collapsed?: boolean }
+type InputFormatItem = Record<string, unknown> & { collapsed?: boolean }
 
 /**
- * Sanitizes inputFormat array by removing UI-only fields like value and collapsed
+ * Sanitizes inputFormat array by removing UI-only fields like collapsed
  * @param inputFormat - Array of input format configurations
  * @returns Sanitized input format array
  */
@@ -167,7 +167,7 @@ export function sanitizeInputFormat(inputFormat: unknown[] | undefined): Record<
   if (!Array.isArray(inputFormat)) return []
   return inputFormat.map((item) => {
     if (item && typeof item === 'object' && !Array.isArray(item)) {
-      const { value, collapsed, ...rest } = item as InputFormatItem
+      const { collapsed, ...rest } = item as InputFormatItem
       return rest
     }
     return item as Record<string, unknown>

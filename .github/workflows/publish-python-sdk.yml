@@ -6,6 +6,9 @@ on:
     paths:
       - 'packages/python-sdk/**'
 
+permissions:
+  contents: write
+
 jobs:
   publish-pypi:
     runs-on: blacksmith-4vcpu-ubuntu-2404

@@ -37,6 +37,13 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          if (!args.workspaceId) {
+            return {
+              success: false,
+              message: 'Workspace ID is required for creating a knowledge base',
+            }
+          }
+
           const requestId = crypto.randomUUID().slice(0, 8)
           const newKnowledgeBase = await createKnowledgeBase(
             {

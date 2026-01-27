@@ -6,6 +6,9 @@ on:
     paths:
       - 'packages/cli/**'
 
+permissions:
+  contents: read
+
 jobs:
   publish-npm:
     runs-on: blacksmith-4vcpu-ubuntu-2404
