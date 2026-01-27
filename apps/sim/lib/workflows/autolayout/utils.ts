@@ -19,6 +19,43 @@ function resolveNumeric(value: number | undefined, fallback: number): number {
 }
 
 /**
+ * Snaps a single coordinate value to the nearest grid position
+ */
+function snapToGrid(value: number, gridSize: number): number {
+  return Math.round(value / gridSize) * gridSize
+}
+
+/**
+ * Snaps a position to the nearest grid point.
+ * Returns the original position if gridSize is 0 or not provided.
+ */
+export function snapPositionToGrid(
+  position: { x: number; y: number },
+  gridSize: number | undefined
+): { x: number; y: number } {
+  if (!gridSize || gridSize <= 0) {
+    return position
+  }
+  return {
+    x: snapToGrid(position.x, gridSize),
+    y: snapToGrid(position.y, gridSize),
+  }
+}
+
+/**
+ * Snaps all node positions in a graph to grid positions.
+ * Only applies if gridSize > 0.
+ */
+export function snapNodesToGrid(nodes: Map<string, GraphNode>, gridSize: number | undefined): void {
+  if (!gridSize || gridSize <= 0) {
+    return
+  }
+  for (const node of nodes.values()) {
+    node.position = snapPositionToGrid(node.position, gridSize)
+  }
+}
+
+/**
  * Checks if a block type is a container (loop or parallel)
  */
 export function isContainerType(blockType: string): boolean {

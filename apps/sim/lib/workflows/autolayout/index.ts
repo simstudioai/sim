@@ -36,8 +36,6 @@ export function applyAutoLayout(
     const horizontalSpacing = options.horizontalSpacing ?? DEFAULT_HORIZONTAL_SPACING
     const verticalSpacing = options.verticalSpacing ?? DEFAULT_VERTICAL_SPACING
 
-    // Pre-calculate container dimensions by laying out their children (bottom-up)
-    // This ensures accurate widths/heights before root-level layout
     prepareContainerDimensions(
       blocksCopy,
       edges,
@@ -58,8 +56,6 @@ export function applyAutoLayout(
       (edge) => layoutRootIds.includes(edge.source) && layoutRootIds.includes(edge.target)
     )
 
-    // Calculate subflow depths before laying out root blocks
-    // This ensures blocks connected to subflow ends are positioned correctly
     const subflowDepths = calculateSubflowDepths(blocksCopy, edges, assignLayers)
 
     if (Object.keys(rootBlocks).length > 0) {
@@ -95,13 +91,12 @@ export function applyAutoLayout(
 }
 
 export type { TargetedLayoutOptions } from '@/lib/workflows/autolayout/targeted'
-// Function exports
 export { applyTargetedLayout } from '@/lib/workflows/autolayout/targeted'
-// Type exports
 export type { Edge, LayoutOptions, LayoutResult } from '@/lib/workflows/autolayout/types'
 export {
   getBlockMetrics,
   isContainerType,
   shouldSkipAutoLayout,
+  snapPositionToGrid,
   transferBlockHeights,
 } from '@/lib/workflows/autolayout/utils'

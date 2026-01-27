@@ -9,6 +9,7 @@ import {
   getBlockMetrics,
   normalizePositions,
   prepareBlockMetrics,
+  snapNodesToGrid,
 } from '@/lib/workflows/autolayout/utils'
 import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { EDGE } from '@/executor/constants'
@@ -84,7 +85,6 @@ export function assignLayers(
 ): Map<string, GraphNode> {
   const nodes = new Map<string, GraphNode>()
 
-  // Initialize nodes
   for (const [id, block] of Object.entries(blocks)) {
     nodes.set(id, {
       id,
@@ -97,7 +97,6 @@ export function assignLayers(
     })
   }
 
-  // Build a map of target node -> edges coming into it (to check sourceHandle later)
   const incomingEdgesMap = new Map<string, Edge[]>()
   for (const edge of edges) {
     if (!incomingEdgesMap.has(edge.target)) {
@@ -106,7 +105,6 @@ export function assignLayers(
     incomingEdgesMap.get(edge.target)!.push(edge)
   }
 
-  // Build adjacency from edges
   for (const edge of edges) {
     const sourceNode = nodes.get(edge.source)
     const targetNode = nodes.get(edge.target)
@@ -117,7 +115,6 @@ export function assignLayers(
     }
   }
 
-  // Find starter nodes (no incoming edges)
   const starterNodes = Array.from(nodes.values()).filter((node) => node.incoming.size === 0)
 
   if (starterNodes.length === 0 && nodes.size > 0) {
@@ -126,7 +123,6 @@ export function assignLayers(
     logger.warn('No starter blocks found, using first block as starter', { blockId: firstNode.id })
   }
 
-  // Topological sort using Kahn's algorithm
   const inDegreeCount = new Map<string, number>()
 
   for (const node of nodes.values()) {
@@ -144,8 +140,6 @@ export function assignLayers(
     const node = nodes.get(nodeId)!
     processed.add(nodeId)
 
-    // Calculate layer based on max incoming layer + 1
-    // For edges from subflow ends, add the subflow's internal depth (minus 1 to avoid double-counting)
     if (node.incoming.size > 0) {
       let maxEffectiveLayer = -1
       const incomingEdges = incomingEdgesMap.get(nodeId) || []
@@ -153,16 +147,11 @@ export function assignLayers(
       for (const incomingId of node.incoming) {
         const incomingNode = nodes.get(incomingId)
         if (incomingNode) {
-          // Find edges from this incoming node to check if it's a subflow end edge
           const edgesFromSource = incomingEdges.filter((e) => e.source === incomingId)
           let additionalDepth = 0
 
-          // Check if any edge from this source is a subflow end edge
           const hasSubflowEndEdge = edgesFromSource.some(isSubflowEndEdge)
           if (hasSubflowEndEdge && subflowDepths) {
-            // Get the internal depth of the subflow
-            // Subtract 1 because the +1 at the end of layer calculation already accounts for one layer
-            // E.g., if subflow has 2 internal layers (depth=2), we add 1 extra so total offset is 2
             const depth = subflowDepths.get(incomingId) ?? 1
             additionalDepth = Math.max(0, depth - 1)
           }
@@ -174,7 +163,6 @@ export function assignLayers(
       node.layer = maxEffectiveLayer + 1
     }
 
-    // Add outgoing nodes when all dependencies processed
     for (const targetId of node.outgoing) {
       const currentCount = inDegreeCount.get(targetId) || 0
       inDegreeCount.set(targetId, currentCount - 1)
@@ -185,7 +173,6 @@ export function assignLayers(
     }
   }
 
-  // Handle isolated nodes
   for (const node of nodes.values()) {
     if (!processed.has(node.id)) {
       logger.debug('Isolated node detected, assigning to layer 0', { blockId: node.id })
@@ -224,7 +211,6 @@ function resolveVerticalOverlaps(nodes: GraphNode[], verticalSpacing: number): v
     hasOverlap = false
     iteration++
 
-    // Group nodes by layer for same-layer overlap resolution
     const nodesByLayer = new Map<number, GraphNode[]>()
     for (const node of nodes) {
       if (!nodesByLayer.has(node.layer)) {
@@ -233,11 +219,9 @@ function resolveVerticalOverlaps(nodes: GraphNode[], verticalSpacing: number): v
       nodesByLayer.get(node.layer)!.push(node)
     }
 
-    // Process each layer independently
     for (const [layer, layerNodes] of nodesByLayer) {
       if (layerNodes.length < 2) continue
 
-      // Sort by Y position for consistent processing
       layerNodes.sort((a, b) => a.position.y - b.position.y)
 
       for (let i = 0; i < layerNodes.length - 1; i++) {
@@ -302,7 +286,6 @@ export function calculatePositions(
 
   const layerNumbers = Array.from(layers.keys()).sort((a, b) => a - b)
 
-  // Calculate max width for each layer
   const layerWidths = new Map<number, number>()
   for (const layerNum of layerNumbers) {
     const nodesInLayer = layers.get(layerNum)!
@@ -310,7 +293,6 @@ export function calculatePositions(
     layerWidths.set(layerNum, maxWidth)
   }
 
-  // Calculate cumulative X positions for each layer based on actual widths
   const layerXPositions = new Map<number, number>()
   let cumulativeX = padding.x
 
@@ -319,7 +301,6 @@ export function calculatePositions(
     cumulativeX += layerWidths.get(layerNum)! + horizontalSpacing
   }
 
-  // Build a flat map of all nodes for quick lookups
   const allNodes = new Map<string, GraphNode>()
   for (const nodesInLayer of layers.values()) {
     for (const node of nodesInLayer) {
@@ -327,7 +308,6 @@ export function calculatePositions(
     }
   }
 
-  // Build incoming edges map for handle lookups
   const incomingEdgesMap = new Map<string, Edge[]>()
   for (const edge of edges) {
     if (!incomingEdgesMap.has(edge.target)) {
@@ -336,20 +316,16 @@ export function calculatePositions(
     incomingEdgesMap.get(edge.target)!.push(edge)
   }
 
-  // Position nodes layer by layer, aligning with connected predecessors
   for (const layerNum of layerNumbers) {
     const nodesInLayer = layers.get(layerNum)!
     const xPosition = layerXPositions.get(layerNum)!
 
-    // Separate containers and non-containers
     const containersInLayer = nodesInLayer.filter(isContainerBlock)
     const nonContainersInLayer = nodesInLayer.filter((n) => !isContainerBlock(n))
 
-    // For the first layer (layer 0), position sequentially from padding.y
     if (layerNum === 0) {
       let yOffset = padding.y
 
-      // Sort containers by height for visual balance
       containersInLayer.sort((a, b) => b.metrics.height - a.metrics.height)
 
       for (const node of containersInLayer) {
@@ -361,7 +337,6 @@ export function calculatePositions(
         yOffset += CONTAINER_VERTICAL_CLEARANCE
       }
 
-      // Sort non-containers by outgoing connections
       nonContainersInLayer.sort((a, b) => b.outgoing.size - a.outgoing.size)
 
       for (const node of nonContainersInLayer) {
@@ -371,9 +346,7 @@ export function calculatePositions(
       continue
     }
 
-    // For subsequent layers, align with connected predecessors (handle-to-handle)
     for (const node of [...containersInLayer, ...nonContainersInLayer]) {
-      // Find the bottommost predecessor handle Y (highest value) and align to it
       let bestSourceHandleY = -1
       let bestEdge: Edge | null = null
       const incomingEdges = incomingEdgesMap.get(node.id) || []
@@ -381,7 +354,6 @@ export function calculatePositions(
       for (const edge of incomingEdges) {
         const predecessor = allNodes.get(edge.source)
         if (predecessor) {
-          // Calculate actual source handle Y position based on block type and handle
           const sourceHandleOffset = getSourceHandleYOffset(predecessor.block, edge.sourceHandle)
           const sourceHandleY = predecessor.position.y + sourceHandleOffset
 
@@ -392,20 +364,16 @@ export function calculatePositions(
         }
       }
 
-      // If no predecessors found (shouldn't happen for layer > 0), use padding
       if (bestSourceHandleY < 0) {
         bestSourceHandleY = padding.y + HANDLE_POSITIONS.DEFAULT_Y_OFFSET
       }
 
-      // Calculate the target handle Y offset for this node
       const targetHandleOffset = getTargetHandleYOffset(node.block, bestEdge?.targetHandle)
 
-      // Position node so its target handle aligns with the source handle Y
       node.position = { x: xPosition, y: bestSourceHandleY - targetHandleOffset }
     }
   }
 
-  // Resolve vertical overlaps within layers (X overlaps prevented by cumulative positioning)
   resolveVerticalOverlaps(Array.from(layers.values()).flat(), verticalSpacing)
 }
 
@@ -435,7 +403,7 @@ export function layoutBlocksCore(
     return { nodes: new Map(), dimensions: { width: 0, height: 0 } }
   }
 
-  const layoutOptions =
+  const layoutOptions: LayoutOptions =
     options.layoutOptions ??
     (options.isContainer ? CONTAINER_LAYOUT_OPTIONS : DEFAULT_LAYOUT_OPTIONS)
 
@@ -453,6 +421,9 @@ export function layoutBlocksCore(
 
   // 5. Normalize positions
   const dimensions = normalizePositions(nodes, { isContainer: options.isContainer })
+
+  // 6. Snap to grid if gridSize is specified
+  snapNodesToGrid(nodes, layoutOptions.gridSize)
 
   return { nodes, dimensions }
 }
