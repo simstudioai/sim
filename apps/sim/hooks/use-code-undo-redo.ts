@@ -25,7 +25,7 @@ export function useCodeUndoRedo({
   enabled = true,
   isReadOnly = false,
   isStreaming = false,
-  debounceMs = 300,
+  debounceMs = 500,
 }: UseCodeUndoRedoOptions) {
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
