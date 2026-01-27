@@ -66,7 +66,6 @@ import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
@@ -100,33 +99,13 @@ const logger = createLogger('Workflow')
 const DEFAULT_PASTE_OFFSET = { x: 50, y: 50 }
 
 /**
- * Gets the center of the current viewport in flow coordinates
- */
-function getViewportCenter(
-  screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number }
-): { x: number; y: number } {
-  const flowContainer = document.querySelector('.react-flow')
-  if (!flowContainer) {
-    return screenToFlowPosition({
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2,
-    })
-  }
-  const rect = flowContainer.getBoundingClientRect()
-  return screenToFlowPosition({
-    x: rect.width / 2,
-    y: rect.height / 2,
-  })
-}
-
-/**
  * Calculates the offset to paste blocks at viewport center
  */
 function calculatePasteOffset(
   clipboard: {
     blocks: Record<string, { position: { x: number; y: number }; type: string; height?: number }>
   } | null,
-  screenToFlowPosition: (pos: { x: number; y: number }) => { x: number; y: number }
+  viewportCenter: { x: number; y: number }
 ): { x: number; y: number } {
   if (!clipboard) return DEFAULT_PASTE_OFFSET
 
@@ -154,8 +133,6 @@ function calculatePasteOffset(
     })
   )
   const clipboardCenter = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
-
-  const viewportCenter = getViewportCenter(screenToFlowPosition)
 
   return {
     x: viewportCenter.x - clipboardCenter.x,
@@ -266,7 +243,7 @@ const WorkflowContent = React.memo(() => {
   const router = useRouter()
   const reactFlowInstance = useReactFlow()
   const { screenToFlowPosition, getNodes, setNodes, getIntersectingNodes } = reactFlowInstance
-  const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
+  const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance)
   const { emitCursorUpdate } = useSocket()
 
   const workspaceId = params.workspaceId as string
@@ -338,8 +315,6 @@ const WorkflowContent = React.memo(() => {
   const isVariablesOpen = useVariablesStore((state) => state.isOpen)
   const isChatOpen = useChatStore((state) => state.isChatOpen)
 
-  // Permission config for invitation control
-  const { isInvitationsDisabled } = usePermissionConfig()
   const snapGrid: [number, number] = useMemo(
     () => [snapToGridSize, snapToGridSize],
     [snapToGridSize]
@@ -901,11 +876,125 @@ const WorkflowContent = React.memo(() => {
    * Consolidates shared logic for context paste, duplicate, and keyboard paste.
    */
   const executePasteOperation = useCallback(
-    (operation: 'paste' | 'duplicate', pasteOffset: { x: number; y: number }) => {
-      const pasteData = preparePasteData(pasteOffset)
+    (
+      operation: 'paste' | 'duplicate',
+      pasteOffset: { x: number; y: number },
+      targetContainer?: {
+        loopId: string
+        loopPosition: { x: number; y: number }
+        dimensions: { width: number; height: number }
+      } | null,
+      pasteTargetPosition?: { x: number; y: number }
+    ) => {
+      // For context menu paste into a subflow, calculate offset to center blocks at click position
+      // Skip click-position centering if blocks came from inside a subflow (relative coordinates)
+      let effectiveOffset = pasteOffset
+      if (targetContainer && pasteTargetPosition && clipboard) {
+        const clipboardBlocks = Object.values(clipboard.blocks)
+        // Only use click-position centering for top-level blocks (absolute coordinates)
+        // Blocks with parentId have relative positions that can't be mixed with absolute click position
+        const hasNestedBlocks = clipboardBlocks.some((b) => b.data?.parentId)
+        if (clipboardBlocks.length > 0 && !hasNestedBlocks) {
+          const minX = Math.min(...clipboardBlocks.map((b) => b.position.x))
+          const maxX = Math.max(
+            ...clipboardBlocks.map((b) => b.position.x + BLOCK_DIMENSIONS.FIXED_WIDTH)
+          )
+          const minY = Math.min(...clipboardBlocks.map((b) => b.position.y))
+          const maxY = Math.max(
+            ...clipboardBlocks.map((b) => b.position.y + BLOCK_DIMENSIONS.MIN_HEIGHT)
+          )
+          const clipboardCenter = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
+          effectiveOffset = {
+            x: pasteTargetPosition.x - clipboardCenter.x,
+            y: pasteTargetPosition.y - clipboardCenter.y,
+          }
+        }
+      }
+
+      const pasteData = preparePasteData(effectiveOffset)
       if (!pasteData) return
 
-      const pastedBlocksArray = Object.values(pasteData.blocks)
+      let pastedBlocksArray = Object.values(pasteData.blocks)
+
+      // If pasting into a subflow, adjust blocks to be children of that subflow
+      if (targetContainer) {
+        // Check if any pasted block is a trigger - triggers cannot be in subflows
+        const hasTrigger = pastedBlocksArray.some((b) => TriggerUtils.isTriggerBlock(b))
+        if (hasTrigger) {
+          addNotification({
+            level: 'error',
+            message: 'Triggers cannot be placed inside loop or parallel subflows.',
+            workflowId: activeWorkflowId || undefined,
+          })
+          return
+        }
+
+        // Check if any pasted block is a subflow - subflows cannot be nested
+        const hasSubflow = pastedBlocksArray.some((b) => b.type === 'loop' || b.type === 'parallel')
+        if (hasSubflow) {
+          addNotification({
+            level: 'error',
+            message: 'Subflows cannot be nested inside other subflows.',
+            workflowId: activeWorkflowId || undefined,
+          })
+          return
+        }
+
+        // Adjust each block's position to be relative to the container and set parentId
+        pastedBlocksArray = pastedBlocksArray.map((block) => {
+          // For blocks already nested (have parentId), positions are already relative - use as-is
+          // For top-level blocks, convert absolute position to relative by subtracting container position
+          const wasNested = Boolean(block.data?.parentId)
+          const relativePosition = wasNested
+            ? { x: block.position.x, y: block.position.y }
+            : {
+                x: block.position.x - targetContainer.loopPosition.x,
+                y: block.position.y - targetContainer.loopPosition.y,
+              }
+
+          // Clamp position to keep block inside container (below header)
+          const clampedPosition = {
+            x: Math.max(
+              CONTAINER_DIMENSIONS.LEFT_PADDING,
+              Math.min(
+                relativePosition.x,
+                targetContainer.dimensions.width -
+                  BLOCK_DIMENSIONS.FIXED_WIDTH -
+                  CONTAINER_DIMENSIONS.RIGHT_PADDING
+              )
+            ),
+            y: Math.max(
+              CONTAINER_DIMENSIONS.HEADER_HEIGHT + CONTAINER_DIMENSIONS.TOP_PADDING,
+              Math.min(
+                relativePosition.y,
+                targetContainer.dimensions.height -
+                  BLOCK_DIMENSIONS.MIN_HEIGHT -
+                  CONTAINER_DIMENSIONS.BOTTOM_PADDING
+              )
+            ),
+          }
+
+          return {
+            ...block,
+            position: clampedPosition,
+            data: {
+              ...block.data,
+              parentId: targetContainer.loopId,
+              extent: 'parent',
+            },
+          }
+        })
+
+        // Update pasteData.blocks with the modified blocks
+        pasteData.blocks = pastedBlocksArray.reduce(
+          (acc, block) => {
+            acc[block.id] = block
+            return acc
+          },
+          {} as Record<string, (typeof pastedBlocksArray)[0]>
+        )
+      }
+
       const validation = validateTriggerPaste(pastedBlocksArray, blocks, operation)
       if (!validation.isValid) {
         addNotification({
@@ -926,21 +1015,46 @@ const WorkflowContent = React.memo(() => {
         pasteData.parallels,
         pasteData.subBlockValues
       )
+
+      // Resize container if we pasted into a subflow
+      if (targetContainer) {
+        resizeLoopNodesWrapper()
+      }
     },
     [
       preparePasteData,
       blocks,
+      clipboard,
       addNotification,
       activeWorkflowId,
       collaborativeBatchAddBlocks,
       setPendingSelection,
+      resizeLoopNodesWrapper,
     ]
   )
 
   const handleContextPaste = useCallback(() => {
     if (!hasClipboard()) return
-    executePasteOperation('paste', calculatePasteOffset(clipboard, screenToFlowPosition))
-  }, [hasClipboard, executePasteOperation, clipboard, screenToFlowPosition])
+
+    // Convert context menu position to flow coordinates and check if inside a subflow
+    const flowPosition = screenToFlowPosition(contextMenuPosition)
+    const targetContainer = isPointInLoopNode(flowPosition)
+
+    executePasteOperation(
+      'paste',
+      calculatePasteOffset(clipboard, getViewportCenter()),
+      targetContainer,
+      flowPosition // Pass the click position so blocks are centered at where user right-clicked
+    )
+  }, [
+    hasClipboard,
+    executePasteOperation,
+    clipboard,
+    getViewportCenter,
+    screenToFlowPosition,
+    contextMenuPosition,
+    isPointInLoopNode,
+  ])
 
   const handleContextDuplicate = useCallback(() => {
     copyBlocks(contextMenuBlocks.map((b) => b.id))
@@ -1006,10 +1120,6 @@ const WorkflowContent = React.memo(() => {
     setIsChatOpen(!isChatOpen)
   }, [])
 
-  const handleContextInvite = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('open-invite-modal'))
-  }, [])
-
   useEffect(() => {
     let cleanup: (() => void) | null = null
 
@@ -1054,7 +1164,7 @@ const WorkflowContent = React.memo(() => {
       } else if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
         if (effectivePermissions.canEdit && hasClipboard()) {
           event.preventDefault()
-          executePasteOperation('paste', calculatePasteOffset(clipboard, screenToFlowPosition))
+          executePasteOperation('paste', calculatePasteOffset(clipboard, getViewportCenter()))
         }
       }
     }
@@ -1074,7 +1184,7 @@ const WorkflowContent = React.memo(() => {
     hasClipboard,
     effectivePermissions.canEdit,
     clipboard,
-    screenToFlowPosition,
+    getViewportCenter,
     executePasteOperation,
   ])
 
@@ -1507,7 +1617,7 @@ const WorkflowContent = React.memo(() => {
       if (!type) return
       if (type === 'connectionBlock') return
 
-      const basePosition = getViewportCenter(screenToFlowPosition)
+      const basePosition = getViewportCenter()
 
       if (type === 'loop' || type === 'parallel') {
         const id = crypto.randomUUID()
@@ -1576,7 +1686,7 @@ const WorkflowContent = React.memo(() => {
       )
     }
   }, [
-    screenToFlowPosition,
+    getViewportCenter,
     blocks,
     addBlock,
     effectivePermissions.canEdit,
