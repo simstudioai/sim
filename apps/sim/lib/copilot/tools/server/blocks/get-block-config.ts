@@ -357,7 +357,7 @@ function extractOutputs(
   // Use block-level outputs
   if (blockConfig.outputs) {
     for (const [key, def] of Object.entries(blockConfig.outputs)) {
-      if (def && typeof def === 'object' && (def as any).hiddenFromDisplay) continue
+      if (isHiddenFromDisplay(def)) continue
       outputs[key] = extractOutputField(def)
     }
   }

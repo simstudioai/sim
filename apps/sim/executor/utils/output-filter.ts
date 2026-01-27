@@ -1,4 +1,5 @@
 import { getBlock } from '@/blocks'
+import { isHiddenFromDisplay } from '@/blocks/types'
 import { isTriggerBehavior, isTriggerInternalKey } from '@/executor/constants'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
@@ -29,12 +30,8 @@ export function filterOutputForLog(
     // Skip internal keys (underscore prefix)
     if (key.startsWith('_')) continue
 
-    // Skip fields marked as hidden in block config
-    if (blockConfig?.outputs) {
-      const outputDef = blockConfig.outputs[key]
-      if (outputDef && typeof outputDef === 'object' && outputDef.hiddenFromDisplay) {
-        continue
-      }
+    if (blockConfig?.outputs && isHiddenFromDisplay(blockConfig.outputs[key])) {
+      continue
     }
 
     // Skip runtime-injected trigger keys not in block config
