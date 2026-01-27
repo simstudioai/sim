@@ -23,6 +23,7 @@ import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution'
+import { useNotificationStore } from '@/stores/notifications'
 import { useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
 import { type ConsoleEntry, useTerminalConsoleStore } from '@/stores/terminal'
@@ -101,11 +102,13 @@ export function useWorkflowExecution() {
     setEdgeRunStatus,
     setLastExecutionSnapshot,
     getLastExecutionSnapshot,
+    clearLastExecutionSnapshot,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
   const currentChatExecutionIdRef = useRef<string | null>(null)
   const isViewingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
+  const addNotification = useNotificationStore((state) => state.addNotification)
 
   /**
    * Validates debug state before performing debug operations
@@ -1620,6 +1623,23 @@ export function useWorkflowExecution() {
 
             onExecutionError: (data) => {
               logger.error('Run-from-block execution error:', data.error)
+
+              // If block not found, the snapshot is stale - clear it
+              if (data.error?.includes('Block not found in workflow')) {
+                clearLastExecutionSnapshot(workflowId)
+                addNotification({
+                  level: 'info',
+                  message: 'Workflow was modified. Run the workflow again to refresh.',
+                  workflowId,
+                })
+                logger.info('Cleared stale execution snapshot', { workflowId })
+              } else {
+                addNotification({
+                  level: 'error',
+                  message: data.error || 'Run from block failed',
+                  workflowId,
+                })
+              }
             },
 
             onExecutionCancelled: () => {
@@ -1639,10 +1659,12 @@ export function useWorkflowExecution() {
     [
       getLastExecutionSnapshot,
       setLastExecutionSnapshot,
+      clearLastExecutionSnapshot,
       setIsExecuting,
       setActiveBlocks,
       setBlockRunStatus,
       setEdgeRunStatus,
+      addNotification,
       addConsole,
       executionStream,
     ]

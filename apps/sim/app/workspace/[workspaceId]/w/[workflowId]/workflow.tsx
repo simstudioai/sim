@@ -3356,7 +3356,6 @@ const WorkflowContent = React.memo(() => {
                 (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
               )}
               canRunFromBlock={runFromBlockState.canRun}
-              runFromBlockDisabledReason={runFromBlockState.reason}
               disableEdit={!effectivePermissions.canEdit}
               isExecuting={isExecuting}
             />

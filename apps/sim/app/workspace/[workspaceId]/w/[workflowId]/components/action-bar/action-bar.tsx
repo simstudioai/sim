@@ -168,11 +168,11 @@ export const ActionBar = memo(
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {(() => {
-                if (disabled) return getTooltipMessage('Run from this block')
+                if (disabled) return getTooltipMessage('Run from block')
                 if (isExecuting) return 'Execution in progress'
                 if (isInsideSubflow) return 'Cannot run from inside subflow'
                 if (!dependenciesSatisfied) return 'Run upstream blocks first'
-                return 'Run from this block'
+                return 'Run from block'
               })()}
             </Tooltip.Content>
           </Tooltip.Root>

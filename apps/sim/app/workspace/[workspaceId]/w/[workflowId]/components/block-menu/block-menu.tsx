@@ -46,8 +46,6 @@ export interface BlockMenuProps {
   showRemoveFromSubflow?: boolean
   /** Whether run from block is available (has snapshot, was executed, not inside subflow) */
   canRunFromBlock?: boolean
-  /** Reason why run from block is disabled (for tooltip) */
-  runFromBlockDisabledReason?: string
   disableEdit?: boolean
   isExecuting?: boolean
 }
@@ -77,7 +75,6 @@ export function BlockMenu({
   hasClipboard = false,
   showRemoveFromSubflow = false,
   canRunFromBlock = false,
-  runFromBlockDisabledReason,
   disableEdit = false,
   isExecuting = false,
 }: BlockMenuProps) {
@@ -228,11 +225,7 @@ export function BlockMenu({
                 }
               }}
             >
-              {isExecuting
-                ? 'Execution in progress...'
-                : !canRunFromBlock && runFromBlockDisabledReason
-                  ? runFromBlockDisabledReason
-                  : 'Run from this block'}
+              Run from block
             </PopoverItem>
             <PopoverItem
               disabled={isExecuting}
@@ -243,7 +236,7 @@ export function BlockMenu({
                 }
               }}
             >
-              {isExecuting ? 'Execution in progress...' : 'Run until this block'}
+              Run until block
             </PopoverItem>
           </>
         )}
