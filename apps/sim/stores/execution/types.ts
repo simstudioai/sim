@@ -19,20 +19,8 @@ export interface ExecutionState {
   pendingBlocks: string[]
   executor: Executor | null
   debugContext: ExecutionContext | null
-  /**
-   * Tracks blocks from the last execution run and their success/error status.
-   * Cleared when a new run starts. Used to show run path indicators (rings on blocks).
-   */
   lastRunPath: Map<string, BlockRunStatus>
-  /**
-   * Tracks edges from the last execution run and their success/error status.
-   * Cleared when a new run starts. Used to show run path indicators on edges.
-   */
   lastRunEdges: Map<string, EdgeRunStatus>
-  /**
-   * Stores the last successful execution snapshot per workflow.
-   * Used for run-from-block functionality.
-   */
   lastExecutionSnapshots: Map<string, SerializableExecutionState>
 }
 
@@ -47,17 +35,8 @@ export interface ExecutionActions {
   setEdgeRunStatus: (edgeId: string, status: EdgeRunStatus) => void
   clearRunPath: () => void
   reset: () => void
-  /**
-   * Store the execution snapshot for a workflow after successful execution.
-   */
   setLastExecutionSnapshot: (workflowId: string, snapshot: SerializableExecutionState) => void
-  /**
-   * Get the last execution snapshot for a workflow.
-   */
   getLastExecutionSnapshot: (workflowId: string) => SerializableExecutionState | undefined
-  /**
-   * Clear the execution snapshot for a workflow.
-   */
   clearLastExecutionSnapshot: (workflowId: string) => void
 }
 
