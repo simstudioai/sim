@@ -247,6 +247,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     tokens: { type: 'json', description: 'Token usage' },
     cost: { type: 'json', description: 'Cost information' },
     selectedPath: { type: 'json', description: 'Selected routing path' },
+    selectedRoute: { type: 'string', description: 'Selected route ID' },
   },
 }
 

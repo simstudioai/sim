@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import {
   Badge,
   Button,
-  Code,
   Input,
   Label,
   Table,
@@ -777,15 +776,6 @@ export default function ResumeExecutionPage({
     refreshSelectedDetail,
   ])
 
-  const pauseResponsePreview = useMemo(() => {
-    if (!selectedDetail?.pausePoint.response?.data) return '{}'
-    try {
-      return JSON.stringify(selectedDetail.pausePoint.response.data, null, 2)
-    } catch {
-      return String(selectedDetail.pausePoint.response.data)
-    }
-  }, [selectedDetail])
-
   const isFormComplete = useMemo(() => {
     if (!isHumanMode || !hasInputFormat) return true
     return inputFormatFields.every((field) => {
@@ -1155,10 +1145,12 @@ export default function ResumeExecutionPage({
                               borderBottom: '1px solid var(--border)',
                             }}
                           >
-                            <Label>Pause Data</Label>
+                            <Label>Display Data</Label>
                           </div>
                           <div style={{ padding: '16px' }}>
-                            <Code.Viewer code={pauseResponsePreview} language='json' />
+                            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                              No display data configured
+                            </p>
                           </div>
                         </div>
                       )}

@@ -7,8 +7,7 @@ import {
   GetBlocksMetadataResult,
 } from '@/lib/copilot/tools/shared/schemas'
 import { registry as blockRegistry } from '@/blocks/registry'
-import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
@@ -249,6 +248,12 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           }
         }
 
+        const filteredOutputs = blockConfig.outputs
+          ? Object.fromEntries(
+              Object.entries(blockConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
+            )
+          : undefined
+
         metadata = {
           id: blockId,
           name: blockConfig.name || blockId,
@@ -262,7 +267,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           triggers,
           operationInputSchema: operationParameters,
           operations,
-          outputs: blockConfig.outputs,
+          outputs: filteredOutputs,
         }
       }
 
