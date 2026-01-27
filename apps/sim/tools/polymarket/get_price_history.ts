@@ -1,6 +1,6 @@
+import type { PolymarketPriceHistoryEntry } from '@/tools/polymarket/types'
+import { buildClobUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketPriceHistoryEntry } from './types'
-import { buildClobUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetPriceHistoryParams {
   tokenId: string

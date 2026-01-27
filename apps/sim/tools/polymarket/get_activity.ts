@@ -1,6 +1,6 @@
+import type { PolymarketActivity } from '@/tools/polymarket/types'
+import { buildDataUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketActivity } from './types'
-import { buildDataUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetActivityParams {
   user: string

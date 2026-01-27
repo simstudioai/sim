@@ -1,6 +1,6 @@
+import type { PolymarketSpread } from '@/tools/polymarket/types'
+import { buildClobUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketSpread } from './types'
-import { buildClobUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetSpreadParams {
   tokenId: string // The token ID (CLOB token ID from market)

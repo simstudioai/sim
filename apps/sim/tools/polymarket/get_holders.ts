@@ -1,6 +1,6 @@
+import type { PolymarketMarketHolders } from '@/tools/polymarket/types'
+import { buildDataUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketMarketHolders } from './types'
-import { buildDataUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetHoldersParams {
   market: string

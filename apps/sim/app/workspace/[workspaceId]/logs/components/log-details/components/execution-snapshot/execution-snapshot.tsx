@@ -58,7 +58,6 @@ export function ExecutionSnapshot({
   onClose = () => {},
 }: ExecutionSnapshotProps) {
   const { data, isLoading, error } = useExecutionSnapshot(executionId)
-  const lastExecutionIdRef = useRef<string | null>(null)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
@@ -81,12 +80,6 @@ export function ExecutionSnapshot({
   }, [executionId, closeMenu])
 
   const workflowState = data?.workflowState as WorkflowState | undefined
-
-  // Track execution ID changes for key reset
-  const executionKey = executionId !== lastExecutionIdRef.current ? executionId : undefined
-  if (executionId !== lastExecutionIdRef.current) {
-    lastExecutionIdRef.current = executionId
-  }
 
   const renderContent = () => {
     if (isLoading) {
@@ -152,7 +145,7 @@ export function ExecutionSnapshot({
 
     return (
       <Preview
-        key={executionKey}
+        key={executionId}
         workflowState={workflowState}
         traceSpans={traceSpans}
         className={className}
