@@ -321,7 +321,6 @@ const WorkflowContent = React.memo(() => {
 
   const isAutoConnectEnabled = useAutoConnect()
   const autoConnectRef = useRef(isAutoConnectEnabled)
-  // Keep ref in sync with latest value for use in callbacks (no effect needed)
   autoConnectRef.current = isAutoConnectEnabled
 
   // Panel open states for context menu
@@ -463,10 +462,13 @@ const WorkflowContent = React.memo(() => {
   /** Re-applies diff markers when blocks change after socket rehydration. */
   const diffBlocksRef = useRef(blocks)
   useEffect(() => {
+    if (!isWorkflowReady) return
+
     const blocksChanged = blocks !== diffBlocksRef.current
+    if (!blocksChanged) return
+
     diffBlocksRef.current = blocks
 
-    if (!isWorkflowReady || !blocksChanged) return
     if (hasActiveDiff && isDiffReady) {
       setTimeout(() => reapplyDiffMarkers(), 0)
     }
