@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Google Drive file request received`)
 
-  const auth = await checkInternalAuth(request)
+  const auth = await checkSessionOrInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
   }
