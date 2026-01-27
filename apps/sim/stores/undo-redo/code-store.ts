@@ -25,13 +25,6 @@ interface CodeUndoRedoState {
   undo: (workflowId: string, blockId: string, subBlockId: string) => CodeUndoRedoEntry | null
   redo: (workflowId: string, blockId: string, subBlockId: string) => CodeUndoRedoEntry | null
   clear: (workflowId: string, blockId: string, subBlockId: string) => void
-  clearRedo: (workflowId: string, blockId: string, subBlockId: string) => void
-  getStackSizes: (
-    workflowId: string,
-    blockId: string,
-    subBlockId: string
-  ) => { undoSize: number; redoSize: number }
-  reset: () => void
 }
 
 const DEFAULT_CAPACITY = 500
@@ -142,27 +135,6 @@ export const useCodeUndoRedoStore = create<CodeUndoRedoState>()(
           const state = get()
           const { [key]: _, ...rest } = state.stacks
           set({ stacks: rest })
-        },
-        clearRedo: (workflowId, blockId, subBlockId) => {
-          const key = getStackKey(workflowId, blockId, subBlockId)
-          const state = get()
-          const stack = state.stacks[key]
-          if (!stack) return
-          set({
-            stacks: {
-              ...state.stacks,
-              [key]: { ...stack, redo: [], lastUpdated: Date.now() },
-            },
-          })
-        },
-        getStackSizes: (workflowId, blockId, subBlockId) => {
-          const key = getStackKey(workflowId, blockId, subBlockId)
-          const stack = get().stacks[key]
-          if (!stack) return { undoSize: 0, redoSize: 0 }
-          return { undoSize: stack.undo.length, redoSize: stack.redo.length }
-        },
-        reset: () => {
-          set(initialState)
         },
       }),
       {

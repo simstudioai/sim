@@ -224,9 +224,9 @@ export function useCodeUndoRedo({
 
   useEffect(() => {
     return () => {
-      clearTimer()
+      flushPending()
     }
-  }, [clearTimer])
+  }, [flushPending])
 
   return {
     recordChange,
