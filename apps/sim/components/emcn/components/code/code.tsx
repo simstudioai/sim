@@ -70,6 +70,11 @@ interface CollapsibleRegion {
 const MIN_COLLAPSIBLE_STRING_LENGTH = 80
 
 /**
+ * Maximum length of truncated string preview when collapsed.
+ */
+const MAX_TRUNCATED_STRING_LENGTH = 30
+
+/**
  * Regex to match a JSON string value (key: "value" pattern).
  * Pre-compiled for performance.
  */
@@ -78,17 +83,20 @@ const STRING_VALUE_REGEX = /:\s*"([^"\\]|\\.)*"[,]?\s*$/
 /**
  * Finds collapsible regions in JSON code by matching braces and detecting long strings.
  * A region is collapsible if it spans multiple lines OR contains a long string value.
+ * Properly handles braces inside JSON strings by tracking string boundaries.
  *
  * @param lines - Array of code lines
  * @returns Map of start line index to CollapsibleRegion
  */
 function findCollapsibleRegions(lines: string[]): Map<number, CollapsibleRegion> {
   const regions = new Map<number, CollapsibleRegion>()
+  const stringRegions = new Map<number, CollapsibleRegion>()
   const stack: { char: '{' | '['; line: number }[] = []
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
 
+    // Detect collapsible string values (long strings on a single line)
     const stringMatch = line.match(STRING_VALUE_REGEX)
     if (stringMatch) {
       const colonIdx = line.indexOf('":')
@@ -97,23 +105,35 @@ function findCollapsibleRegions(lines: string[]): Map<number, CollapsibleRegion>
         const valueEnd = line.lastIndexOf('"')
         if (valueStart !== -1 && valueEnd > valueStart) {
           const stringValue = line.slice(valueStart + 1, valueEnd)
-          // Check if string is long enough or contains escaped newlines
           if (stringValue.length >= MIN_COLLAPSIBLE_STRING_LENGTH || stringValue.includes('\\n')) {
-            regions.set(i, { startLine: i, endLine: i, type: 'string' })
+            // Store separately to avoid conflicts with block regions
+            stringRegions.set(i, { startLine: i, endLine: i, type: 'string' })
           }
         }
       }
     }
 
-    // Check for block regions (objects/arrays)
-    for (const char of line) {
+    // Check for block regions, skipping characters inside strings
+    let inString = false
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j]
+      const prevChar = j > 0 ? line[j - 1] : ''
+
+      // Toggle string state on unescaped quotes
+      if (char === '"' && prevChar !== '\\') {
+        inString = !inString
+        continue
+      }
+
+      // Skip braces inside strings
+      if (inString) continue
+
       if (char === '{' || char === '[') {
         stack.push({ char, line: i })
       } else if (char === '}' || char === ']') {
         const expected = char === '}' ? '{' : '['
         if (stack.length > 0 && stack[stack.length - 1].char === expected) {
           const start = stack.pop()!
-          // Only create a region if it spans multiple lines
           if (i > start.line) {
             regions.set(start.line, {
               startLine: start.line,
@@ -123,6 +143,13 @@ function findCollapsibleRegions(lines: string[]): Map<number, CollapsibleRegion>
           }
         }
       }
+    }
+  }
+
+  // Merge string regions only where no block region exists (block takes priority)
+  for (const [lineIdx, region] of stringRegions) {
+    if (!regions.has(lineIdx)) {
+      regions.set(lineIdx, region)
     }
   }
 
@@ -198,7 +225,7 @@ function truncateStringLine(line: string): string {
 
   const prefix = line.slice(0, valueStart + 1)
   const suffix = line.charCodeAt(line.length - 1) === 44 /* ',' */ ? '",' : '"'
-  const truncated = line.slice(valueStart + 1, valueStart + 31)
+  const truncated = line.slice(valueStart + 1, valueStart + 1 + MAX_TRUNCATED_STRING_LENGTH)
 
   return `${prefix}${truncated}...${suffix}`
 }
