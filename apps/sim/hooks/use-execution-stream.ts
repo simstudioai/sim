@@ -151,6 +151,7 @@ export interface ExecuteFromBlockOptions {
   workflowId: string
   startBlockId: string
   sourceSnapshot: SerializableExecutionState
+  input?: any
   callbacks?: ExecutionStreamCallbacks
 }
 
@@ -222,7 +223,7 @@ export function useExecutionStream() {
   }, [])
 
   const executeFromBlock = useCallback(async (options: ExecuteFromBlockOptions) => {
-    const { workflowId, startBlockId, sourceSnapshot, callbacks = {} } = options
+    const { workflowId, startBlockId, sourceSnapshot, input, callbacks = {} } = options
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -238,7 +239,7 @@ export function useExecutionStream() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ startBlockId, sourceSnapshot }),
+        body: JSON.stringify({ startBlockId, sourceSnapshot, input }),
         signal: abortController.signal,
       })
 

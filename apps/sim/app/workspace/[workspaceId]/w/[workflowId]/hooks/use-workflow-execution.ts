@@ -1469,10 +1469,45 @@ export function useWorkflowExecution() {
         activeExecutionPath: [],
       }
 
+      // Extract mock payload for trigger blocks
+      let workflowInput: any
+      if (isTriggerBlock) {
+        const workflowBlocks = useWorkflowStore.getState().blocks
+        const mergedStates = mergeSubblockState(workflowBlocks, workflowId)
+        const candidates = resolveStartCandidates(mergedStates, { execution: 'manual' })
+        const candidate = candidates.find((c) => c.blockId === blockId)
+
+        if (candidate) {
+          if (triggerNeedsMockPayload(candidate)) {
+            workflowInput = extractTriggerMockPayload(candidate)
+            logger.info('Extracted mock payload for trigger block', { blockId, workflowInput })
+          } else if (
+            candidate.path === StartBlockPath.SPLIT_API ||
+            candidate.path === StartBlockPath.SPLIT_INPUT ||
+            candidate.path === StartBlockPath.UNIFIED
+          ) {
+            const inputFormatValue = candidate.block.subBlocks?.inputFormat?.value
+            if (Array.isArray(inputFormatValue)) {
+              const testInput: Record<string, any> = {}
+              inputFormatValue.forEach((field: any) => {
+                if (field && typeof field === 'object' && field.name && field.value !== undefined) {
+                  testInput[field.name] = coerceValue(field.type, field.value)
+                }
+              })
+              if (Object.keys(testInput).length > 0) {
+                workflowInput = testInput
+                logger.info('Extracted test input for trigger block', { blockId, workflowInput })
+              }
+            }
+          }
+        }
+      }
+
       logger.info('Starting run-from-block execution', {
         workflowId,
         startBlockId: blockId,
         isTriggerBlock,
+        hasInput: !!workflowInput,
       })
 
       setIsExecuting(true)
@@ -1487,6 +1522,7 @@ export function useWorkflowExecution() {
           workflowId,
           startBlockId: blockId,
           sourceSnapshot: effectiveSnapshot,
+          input: workflowInput,
           callbacks: {
             onExecutionStarted: (data) => {
               logger.info('Run-from-block execution started:', data)

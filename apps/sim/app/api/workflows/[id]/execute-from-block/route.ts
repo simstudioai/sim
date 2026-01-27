@@ -33,6 +33,7 @@ const ExecuteFromBlockSchema = z.object({
     parallelBlockMapping: z.record(z.any()).optional(),
     activeExecutionPath: z.array(z.string()),
   }),
+  input: z.any().optional(),
 })
 
 export const runtime = 'nodejs'
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
-    const { startBlockId, sourceSnapshot } = validation.data
+    const { startBlockId, sourceSnapshot, input } = validation.data
     const executionId = uuidv4()
 
     const [workflowRecord] = await db
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           startTime: new Date().toISOString(),
         }
 
-        const snapshot = new ExecutionSnapshot(metadata, {}, {}, {})
+        const snapshot = new ExecutionSnapshot(metadata, {}, input || {}, {})
 
         try {
           const startTime = new Date()
