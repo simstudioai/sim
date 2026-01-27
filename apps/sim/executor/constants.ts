@@ -275,6 +275,26 @@ export function isTriggerBlockType(blockType: string | undefined): boolean {
   return blockType !== undefined && (TRIGGER_BLOCK_TYPES as readonly string[]).includes(blockType)
 }
 
+/**
+ * Determines if a block behaves as a trigger based on its metadata and config.
+ * This is used for execution flow decisions where trigger-like behavior matters.
+ *
+ * A block is considered trigger-like if:
+ * - Its category is 'triggers'
+ * - It has triggerMode enabled
+ * - It's a starter block (legacy entry point)
+ */
+export function isTriggerBehavior(block: {
+  metadata?: { category?: string; id?: string }
+  config?: { params?: { triggerMode?: boolean } }
+}): boolean {
+  return (
+    block.metadata?.category === 'triggers' ||
+    block.config?.params?.triggerMode === true ||
+    block.metadata?.id === BlockType.STARTER
+  )
+}
+
 export function isMetadataOnlyBlockType(blockType: string | undefined): boolean {
   return (
     blockType !== undefined && (METADATA_ONLY_BLOCK_TYPES as readonly string[]).includes(blockType)

@@ -11,6 +11,7 @@ import {
   DEFAULTS,
   EDGE,
   isSentinelBlockType,
+  isTriggerBehavior,
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
@@ -346,12 +347,7 @@ export class BlockExecutor {
       return filtered
     }
 
-    const isTrigger =
-      block.metadata?.category === 'triggers' ||
-      block.config?.params?.triggerMode === true ||
-      block.metadata?.id === BlockType.STARTER
-
-    if (isTrigger) {
+    if (isTriggerBehavior(block)) {
       const filtered: NormalizedBlockOutput = {}
       const internalKeys = ['webhook', 'workflowId']
       for (const [key, value] of Object.entries(output)) {
