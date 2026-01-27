@@ -2,20 +2,15 @@ import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  filterNewEdges,
-  filterValidEdges,
-  getUniqueBlockName,
-  mergeSubblockState,
-} from '@/stores/workflows/utils'
+import { filterNewEdges, filterValidEdges } from '@/stores/workflows/utils'
 import type {
+  BlockState,
   Position,
   SubBlockState,
   WorkflowState,
@@ -139,30 +134,30 @@ export const useWorkflowStore = create<WorkflowStore>()(
             ...(parentId && { parentId, extent: extent || 'parent' }),
           }
 
-          const newState = {
-            blocks: {
-              ...get().blocks,
-              [id]: {
-                id,
-                type,
-                name,
-                position,
-                subBlocks: {},
-                outputs: {},
-                enabled: blockProperties?.enabled ?? true,
-                horizontalHandles: blockProperties?.horizontalHandles ?? true,
-                advancedMode: blockProperties?.advancedMode ?? false,
-                triggerMode: blockProperties?.triggerMode ?? false,
-                height: blockProperties?.height ?? 0,
-                data: nodeData,
-              },
+          const newBlocks = {
+            ...get().blocks,
+            [id]: {
+              id,
+              type,
+              name,
+              position,
+              subBlocks: {},
+              outputs: {},
+              enabled: blockProperties?.enabled ?? true,
+              horizontalHandles: blockProperties?.horizontalHandles ?? true,
+              advancedMode: blockProperties?.advancedMode ?? false,
+              triggerMode: blockProperties?.triggerMode ?? false,
+              height: blockProperties?.height ?? 0,
+              data: nodeData,
             },
-            edges: [...get().edges],
-            loops: get().generateLoopBlocks(),
-            parallels: get().generateParallelBlocks(),
           }
 
-          set(newState)
+          set({
+            blocks: newBlocks,
+            edges: [...get().edges],
+            loops: generateLoopBlocks(newBlocks),
+            parallels: generateParallelBlocks(newBlocks),
+          })
           get().updateLastSaved()
           return
         }
@@ -215,31 +210,31 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const triggerMode = blockProperties?.triggerMode ?? false
         const outputs = getBlockOutputs(type, subBlocks, triggerMode)
 
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [id]: {
-              id,
-              type,
-              name,
-              position,
-              subBlocks,
-              outputs,
-              enabled: blockProperties?.enabled ?? true,
-              horizontalHandles: blockProperties?.horizontalHandles ?? true,
-              advancedMode: blockProperties?.advancedMode ?? false,
-              triggerMode: triggerMode,
-              height: blockProperties?.height ?? 0,
-              layout: {},
-              data: nodeData,
-            },
+        const newBlocks = {
+          ...get().blocks,
+          [id]: {
+            id,
+            type,
+            name,
+            position,
+            subBlocks,
+            outputs,
+            enabled: blockProperties?.enabled ?? true,
+            horizontalHandles: blockProperties?.horizontalHandles ?? true,
+            advancedMode: blockProperties?.advancedMode ?? false,
+            triggerMode: triggerMode,
+            height: blockProperties?.height ?? 0,
+            layout: {},
+            data: nodeData,
           },
-          edges: [...get().edges],
-          loops: get().generateLoopBlocks(),
-          parallels: get().generateParallelBlocks(),
         }
 
-        set(newState)
+        set({
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: generateLoopBlocks(newBlocks),
+          parallels: generateParallelBlocks(newBlocks),
+        })
         get().updateLastSaved()
       },
 
@@ -451,20 +446,23 @@ export const useWorkflowStore = create<WorkflowStore>()(
         // Clean up orphaned nodes - blocks whose parent was removed but weren't descendants
         // This can happen in edge cases (e.g., data inconsistency, external modifications)
         const remainingBlockIds = new Set(Object.keys(newBlocks))
+        const CONTAINER_OFFSET = { x: 16, y: 50 + 16 } // leftPadding, headerHeight + topPadding
+
         Object.entries(newBlocks).forEach(([blockId, block]) => {
           const parentId = block.data?.parentId
           if (parentId && !remainingBlockIds.has(parentId)) {
             // Parent was removed - convert to absolute position and clear parentId
-            // Calculate absolute position by traversing up the (now-deleted) parent chain
+            // Child positions are relative to container content area (after header + padding)
             let absoluteX = block.position.x
             let absoluteY = block.position.y
 
-            // Try to get parent's position from original blocks before deletion
+            // Traverse up the parent chain, adding position + container offset for each level
             let currentParentId: string | undefined = parentId
-            while (currentParentId && currentBlocks[currentParentId]) {
-              const parent = currentBlocks[currentParentId]
-              absoluteX += parent.position.x
-              absoluteY += parent.position.y
+            while (currentParentId) {
+              const parent: BlockState | undefined = currentBlocks[currentParentId]
+              if (!parent) break
+              absoluteX += parent.position.x + CONTAINER_OFFSET.x
+              absoluteY += parent.position.y + CONTAINER_OFFSET.y
               currentParentId = parent.data?.parentId
             }
 
@@ -657,66 +655,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           edges: [...get().edges],
           loops: { ...get().loops },
           parallels: { ...get().parallels },
-        }
-
-        set(newState)
-        get().updateLastSaved()
-      },
-
-      duplicateBlock: (id: string) => {
-        const block = get().blocks[id]
-        if (!block) return
-
-        const newId = crypto.randomUUID()
-        const offsetPosition = {
-          x: block.position.x + DEFAULT_DUPLICATE_OFFSET.x,
-          y: block.position.y + DEFAULT_DUPLICATE_OFFSET.y,
-        }
-
-        const newName = getUniqueBlockName(block.name, get().blocks)
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        const mergedBlock = mergeSubblockState(get().blocks, activeWorkflowId || undefined, id)[id]
-
-        const newSubBlocks = Object.entries(mergedBlock.subBlocks).reduce(
-          (acc, [subId, subBlock]) => ({
-            ...acc,
-            [subId]: {
-              ...subBlock,
-              value: JSON.parse(JSON.stringify(subBlock.value)),
-            },
-          }),
-          {}
-        )
-
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [newId]: {
-              ...block,
-              id: newId,
-              name: newName,
-              position: offsetPosition,
-              subBlocks: newSubBlocks,
-            },
-          },
-          edges: [...get().edges],
-          loops: get().generateLoopBlocks(),
-          parallels: get().generateParallelBlocks(),
-        }
-
-        if (activeWorkflowId) {
-          const subBlockValues =
-            useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}
-          useSubBlockStore.setState((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [activeWorkflowId]: {
-                ...state.workflowValues[activeWorkflowId],
-                [newId]: JSON.parse(JSON.stringify(subBlockValues)),
-              },
-            },
-          }))
         }
 
         set(newState)
@@ -918,27 +856,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         get().updateLastSaved()
       },
 
-      setBlockTriggerMode: (id: string, triggerMode: boolean) => {
-        set((state) => ({
-          blocks: {
-            ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              triggerMode,
-            },
-          },
-          edges: [...state.edges],
-          loops: { ...state.loops },
-        }))
-        get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
-      },
-
       updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => {
         set((state) => {
           const block = state.blocks[id]
           if (!block) {
-            logger.warn(`Cannot update layout metrics: Block ${id} not found in workflow store`)
             return state
           }
 
@@ -960,7 +881,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         })
         get().updateLastSaved()
-        // No sync needed for layout changes, just visual
       },
 
       updateLoopCount: (loopId: string, count: number) =>
@@ -1078,30 +998,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }),
 
-      updateLoopCollection: (loopId: string, collection: string) => {
-        const store = get()
-        const block = store.blocks[loopId]
-        if (!block || block.type !== 'loop') return
-
-        const loopType = block.data?.loopType || 'for'
-
-        if (loopType === 'while') {
-          store.setLoopWhileCondition(loopId, collection)
-        } else if (loopType === 'doWhile') {
-          store.setLoopDoWhileCondition(loopId, collection)
-        } else if (loopType === 'forEach') {
-          store.setLoopForEachItems(loopId, collection)
-        } else {
-          // Default to forEach-style storage for backward compatibility
-          store.setLoopForEachItems(loopId, collection)
-        }
-      },
-
-      // Function to convert UI loop blocks to execution format
-      generateLoopBlocks: () => {
-        return generateLoopBlocks(get().blocks)
-      },
-
       triggerUpdate: () => {
         set((state) => ({
           ...state,
@@ -1189,28 +1085,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
       },
 
-      toggleBlockAdvancedMode: (id: string) => {
-        const block = get().blocks[id]
-        if (!block) return
-
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [id]: {
-              ...block,
-              advancedMode: !block.advancedMode,
-            },
-          },
-          edges: [...get().edges],
-          loops: { ...get().loops },
-        }
-
-        set(newState)
-
-        get().triggerUpdate()
-        // Note: Socket.IO handles real-time sync automatically
-      },
-
       // Parallel block methods implementation
       updateParallelCount: (parallelId: string, count: number) => {
         const block = get().blocks[parallelId]
@@ -1236,7 +1110,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         set(newState)
         get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateParallelCollection: (parallelId: string, collection: string) => {
@@ -1263,7 +1136,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         set(newState)
         get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateParallelType: (parallelId: string, parallelType: 'count' | 'collection') => {
@@ -1290,12 +1162,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         set(newState)
         get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
-      },
-
-      // Function to convert UI parallel blocks to execution format
-      generateParallelBlocks: () => {
-        return generateParallelBlocks(get().blocks)
       },
 
       setDragStartPosition: (position) => {

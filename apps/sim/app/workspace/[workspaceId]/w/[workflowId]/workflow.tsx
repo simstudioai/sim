@@ -517,8 +517,7 @@ const WorkflowContent = React.memo(() => {
     })
   }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
 
-  const { userPermissions, workspacePermissions, permissionsError } =
-    useWorkspacePermissionsContext()
+  const { userPermissions } = useWorkspacePermissionsContext()
 
   /** Returns read-only permissions when viewing snapshot, otherwise user permissions. */
   const effectivePermissions = useMemo(() => {
@@ -753,25 +752,6 @@ const WorkflowContent = React.memo(() => {
     }),
     [isErrorConnectionDrag]
   )
-
-  /** Logs permission loading results for debugging. */
-  useEffect(() => {
-    if (permissionsError) {
-      logger.error('Failed to load workspace permissions', {
-        workspaceId,
-        error: permissionsError,
-      })
-    } else if (workspacePermissions) {
-      logger.info('Workspace permissions loaded in workflow', {
-        workspaceId,
-        userCount: workspacePermissions.total,
-        permissions: workspacePermissions.users.map((u) => ({
-          email: u.email,
-          permissions: u.permissionType,
-        })),
-      })
-    }
-  }, [workspacePermissions, permissionsError, workspaceId])
 
   const updateNodeParent = useCallback(
     (nodeId: string, newParentId: string | null, affectedEdges: any[] = []) => {
