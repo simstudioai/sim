@@ -162,5 +162,9 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
       type: 'string',
       description: 'Resume API endpoint URL for direct curl requests',
     },
+    response: { type: 'json', description: 'Display data shown to the approver' },
+    submission: { type: 'json', description: 'Form submission data from the approver' },
+    resumeInput: { type: 'json', description: 'Raw input data submitted when resuming' },
+    submittedAt: { type: 'string', description: 'ISO timestamp when the workflow was resumed' },
   },
 }
