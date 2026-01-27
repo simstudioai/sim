@@ -278,11 +278,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   const blockConfig = getBlock(type)
 
   const canonicalIndex = useMemo(
-    () =>
-      lightweight
-        ? { groupsById: {}, canonicalIdBySubBlockId: {} }
-        : buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks, lightweight]
+    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
+    [blockConfig?.subBlocks]
   )
 
   const rawValues = useMemo(() => {
@@ -294,16 +291,28 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   }, [subBlockValues, lightweight])
 
   const visibleSubBlocks = useMemo(() => {
-    if (lightweight || !blockConfig?.subBlocks) return []
+    if (!blockConfig?.subBlocks) return []
 
-    const isStarterOrTrigger =
-      blockConfig.category === 'triggers' || type === 'starter' || isTrigger
+    const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
+    const effectiveTrigger = isTrigger || type === 'starter'
 
     return blockConfig.subBlocks.filter((subBlock) => {
       if (subBlock.hidden) return false
       if (subBlock.hideFromPreview) return false
       if (!isSubBlockFeatureEnabled(subBlock)) return false
-      if (subBlock.mode === 'trigger' && !isStarterOrTrigger) return false
+
+      if (effectiveTrigger) {
+        const isValidTriggerSubblock = isPureTriggerBlock
+          ? subBlock.mode === 'trigger' || !subBlock.mode
+          : subBlock.mode === 'trigger'
+        if (!isValidTriggerSubblock) return false
+      } else {
+        if (subBlock.mode === 'trigger') return false
+      }
+
+      /** Skip value-dependent visibility checks in lightweight mode */
+      if (lightweight) return !subBlock.condition
+
       if (!isSubBlockVisibleForMode(subBlock, false, canonicalIndex, rawValues, undefined)) {
         return false
       }
@@ -311,20 +320,30 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       return evaluateSubBlockCondition(subBlock.condition, rawValues)
     })
   }, [
+    lightweight,
     blockConfig?.subBlocks,
+    blockConfig?.triggers?.enabled,
     blockConfig?.category,
     type,
     isTrigger,
     canonicalIndex,
     rawValues,
-    lightweight,
   ])
 
   /**
-   * Compute condition rows for condition blocks
+   * Compute condition rows for condition blocks.
+   * In lightweight mode, returns default structure without parsing values.
    */
   const conditionRows = useMemo(() => {
-    if (lightweight || type !== 'condition') return []
+    if (type !== 'condition') return []
+
+    /** Default structure for lightweight mode or when no values */
+    const defaultRows = [
+      { id: 'if', title: 'if', value: '' },
+      { id: 'else', title: 'else', value: '' },
+    ]
+
+    if (lightweight) return defaultRows
 
     const conditionsValue = rawValues.conditions
     const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
@@ -348,17 +367,20 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       /* empty */
     }
 
-    return [
-      { id: 'if', title: 'if', value: '' },
-      { id: 'else', title: 'else', value: '' },
-    ]
+    return defaultRows
   }, [type, rawValues, lightweight])
 
   /**
-   * Compute router rows for router_v2 blocks
+   * Compute router rows for router_v2 blocks.
+   * In lightweight mode, returns default structure without parsing values.
    */
   const routerRows = useMemo(() => {
-    if (lightweight || type !== 'router_v2') return []
+    if (type !== 'router_v2') return []
+
+    /** Default structure for lightweight mode or when no values */
+    const defaultRows = [{ id: 'route1', value: '' }]
+
+    if (lightweight) return defaultRows
 
     const routesValue = rawValues.routes
     const raw = typeof routesValue === 'string' ? routesValue : undefined
@@ -380,7 +402,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       /* empty */
     }
 
-    return [{ id: 'route1', value: '' }]
+    return defaultRows
   }, [type, rawValues, lightweight])
 
   if (!blockConfig) {
@@ -457,32 +479,36 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         <div className='flex flex-col gap-[8px] p-[8px]'>
           {type === 'condition' ? (
             conditionRows.map((cond) => (
-              <SubBlockRow key={cond.id} title={cond.title} value={getDisplayValue(cond.value)} />
+              <SubBlockRow
+                key={cond.id}
+                title={cond.title}
+                value={lightweight ? undefined : getDisplayValue(cond.value)}
+              />
             ))
           ) : type === 'router_v2' ? (
             <>
               <SubBlockRow
                 key='context'
                 title='Context'
-                value={getDisplayValue(rawValues.context)}
+                value={lightweight ? undefined : getDisplayValue(rawValues.context)}
               />
               {routerRows.map((route, index) => (
                 <SubBlockRow
                   key={route.id}
                   title={`Route ${index + 1}`}
-                  value={getDisplayValue(route.value)}
+                  value={lightweight ? undefined : getDisplayValue(route.value)}
                 />
               ))}
             </>
           ) : (
             visibleSubBlocks.map((subBlock) => {
-              const rawValue = rawValues[subBlock.id]
+              const rawValue = lightweight ? undefined : rawValues[subBlock.id]
               return (
                 <SubBlockRow
                   key={subBlock.id}
                   title={subBlock.title ?? subBlock.id}
-                  value={getDisplayValue(rawValue)}
-                  subBlock={subBlock}
+                  value={lightweight ? undefined : getDisplayValue(rawValue)}
+                  subBlock={lightweight ? undefined : subBlock}
                   rawValue={rawValue}
                 />
               )

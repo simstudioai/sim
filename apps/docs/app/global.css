@@ -377,6 +377,16 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   button[aria-label="Toggle Sidebar"],
   button[aria-label="Collapse Sidebar"],
   /* Hide nav title/logo in sidebar on desktop - target all possible locations */
+    /* Lower specificity selectors first (attribute selectors) */
+    [data-sidebar-header],
+  [data-sidebar] [data-title],
+  aside[data-sidebar] a[href="/"],
+  aside[data-sidebar] a[href="/"] img,
+  aside[data-sidebar] > a:first-child,
+  aside[data-sidebar] > div > a:first-child,
+  aside[data-sidebar] img[alt="Sim"],
+  aside[data-sidebar] svg[aria-label="Sim"],
+  /* Higher specificity selectors (ID selectors) */
     #nd-sidebar
     a[href="/"],
   #nd-sidebar a[href="/"] img,
@@ -385,14 +395,6 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   #nd-sidebar > div:first-child > a:first-child,
   #nd-sidebar img[alt="Sim"],
   #nd-sidebar svg[aria-label="Sim"],
-  aside[data-sidebar] a[href="/"],
-  aside[data-sidebar] a[href="/"] img,
-  aside[data-sidebar] > a:first-child,
-  aside[data-sidebar] > div > a:first-child,
-  aside[data-sidebar] img[alt="Sim"],
-  aside[data-sidebar] svg[aria-label="Sim"],
-  [data-sidebar-header],
-  [data-sidebar] [data-title],
   /* Hide theme toggle at bottom of sidebar on desktop */
     #nd-sidebar
     > footer,
