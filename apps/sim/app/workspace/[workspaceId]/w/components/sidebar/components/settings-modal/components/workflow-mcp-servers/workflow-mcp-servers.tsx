@@ -185,6 +185,16 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         return `claude mcp add "${safeName}" --url "${mcpServerUrl}" --header "X-API-Key:$SIM_API_KEY"`
       }
 
+      // Cursor supports direct URL configuration (no mcp-remote needed)
+      if (client === 'cursor') {
+        const cursorConfig = isPublic
+          ? { url: mcpServerUrl }
+          : { url: mcpServerUrl, headers: { 'X-API-Key': '$SIM_API_KEY' } }
+
+        return JSON.stringify({ mcpServers: { [safeName]: cursorConfig } }, null, 2)
+      }
+
+      // Claude Desktop and VS Code still use mcp-remote (stdio transport)
       const mcpRemoteArgs = isPublic
         ? ['-y', 'mcp-remote', mcpServerUrl]
         : ['-y', 'mcp-remote', mcpServerUrl, '--header', 'X-API-Key:$SIM_API_KEY']
@@ -265,14 +275,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         .replace(/[^a-z0-9-]/g, '')
 
       const config = isPublic
-        ? {
-            command: 'npx',
-            args: ['-y', 'mcp-remote', mcpServerUrl],
-          }
-        : {
-            command: 'npx',
-            args: ['-y', 'mcp-remote', mcpServerUrl, '--header', 'X-API-Key:$SIM_API_KEY'],
-          }
+        ? { url: mcpServerUrl }
+        : { url: mcpServerUrl, headers: { 'X-API-Key': '$SIM_API_KEY' } }
 
       const base64Config = btoa(JSON.stringify(config))
       return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(safeName)}&config=${encodeURIComponent(base64Config)}`
