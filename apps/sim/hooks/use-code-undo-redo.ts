@@ -41,6 +41,10 @@ export function useCodeUndoRedo({
     () => Boolean(enabled && activeWorkflowId && !isReadOnly && !isStreaming && !isBaselineView),
     [enabled, activeWorkflowId, isReadOnly, isStreaming, isBaselineView]
   )
+  const isReplaceEnabled = useMemo(
+    () => Boolean(enabled && activeWorkflowId && !isReadOnly && !isBaselineView),
+    [enabled, activeWorkflowId, isReadOnly, isBaselineView]
+  )
 
   const lastCommittedValueRef = useRef<string>(value ?? '')
   const pendingBeforeRef = useRef<string | null>(null)
@@ -110,7 +114,7 @@ export function useCodeUndoRedo({
 
   const recordReplace = useCallback(
     (nextValue: string) => {
-      if (!isEnabled || isApplyingRef.current || !activeWorkflowId) return
+      if (!isReplaceEnabled || isApplyingRef.current || !activeWorkflowId) return
 
       if (pendingBeforeRef.current !== null) {
         commitPending()
@@ -137,20 +141,15 @@ export function useCodeUndoRedo({
       clearTimer()
       resetPending()
     },
-    [activeWorkflowId, blockId, clearTimer, commitPending, isEnabled, resetPending, subBlockId]
-  )
-
-  const clearHistory = useCallback(
-    (nextValue?: string) => {
-      if (!activeWorkflowId) return
-      clearTimer()
-      resetPending()
-      useCodeUndoRedoStore.getState().clear(activeWorkflowId, blockId, subBlockId)
-      if (nextValue !== undefined) {
-        lastCommittedValueRef.current = nextValue
-      }
-    },
-    [activeWorkflowId, blockId, clearTimer, resetPending, subBlockId]
+    [
+      activeWorkflowId,
+      blockId,
+      clearTimer,
+      commitPending,
+      isReplaceEnabled,
+      resetPending,
+      subBlockId,
+    ]
   )
 
   const flushPending = useCallback(() => {
@@ -207,7 +206,7 @@ export function useCodeUndoRedo({
   }, [activeWorkflowId, applyValue, blockId, flushPending, isEnabled, subBlockId])
 
   useEffect(() => {
-    if (isApplyingRef.current) return
+    if (isApplyingRef.current || isStreaming) return
 
     const nextValue = value ?? ''
 
@@ -221,7 +220,7 @@ export function useCodeUndoRedo({
     }
 
     lastCommittedValueRef.current = nextValue
-  }, [clearTimer, resetPending, value])
+  }, [clearTimer, isStreaming, resetPending, value])
 
   useEffect(() => {
     return () => {
@@ -231,7 +230,6 @@ export function useCodeUndoRedo({
 
   return {
     recordChange,
-    clearHistory,
     recordReplace,
     flushPending,
     startSession,
