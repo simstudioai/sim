@@ -22,7 +22,7 @@ function buildParallelSentinelStartId(parallelId: string): string {
  * Checks if a block ID is a loop or parallel container and returns the sentinel-start ID if so.
  * Returns null if the block is not a container.
  */
-function resolveContainerToSentinelStart(blockId: string, dag: DAG): string | null {
+export function resolveContainerToSentinelStart(blockId: string, dag: DAG): string | null {
   if (dag.loopConfigs.has(blockId)) {
     return buildLoopSentinelStartId(blockId)
   }

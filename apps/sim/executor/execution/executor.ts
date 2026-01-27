@@ -17,6 +17,7 @@ import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
 import {
   computeDirtySet,
+  resolveContainerToSentinelStart,
   type RunFromBlockContext,
   validateRunFromBlock,
 } from '@/executor/utils/run-from-block'
@@ -130,9 +131,14 @@ export class DAGExecutor {
     // Compute dirty set (blocks that will be re-executed)
     const dirtySet = computeDirtySet(dag, startBlockId)
 
+    // Resolve container IDs to sentinel IDs for execution
+    // The engine needs to start from the sentinel node, not the container ID
+    const effectiveStartBlockId = resolveContainerToSentinelStart(startBlockId, dag) ?? startBlockId
+
     logger.info('Executing from block', {
       workflowId,
       startBlockId,
+      effectiveStartBlockId,
       dirtySetSize: dirtySet.size,
       totalBlocks: dag.nodes.size,
       dirtyBlocks: Array.from(dirtySet),
@@ -162,7 +168,7 @@ export class DAGExecutor {
     }
 
     // Create context with snapshot state + runFromBlockContext
-    const runFromBlockContext = { startBlockId, dirtySet }
+    const runFromBlockContext = { startBlockId: effectiveStartBlockId, dirtySet }
     const { context, state } = this.createExecutionContext(workflowId, undefined, {
       snapshotState: sourceSnapshot,
       runFromBlockContext,
