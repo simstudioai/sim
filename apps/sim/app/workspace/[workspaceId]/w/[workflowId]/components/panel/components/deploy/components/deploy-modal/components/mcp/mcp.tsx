@@ -511,7 +511,9 @@ export function McpDeploy({
                     <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
                       {field.name}
                     </span>
-                    <Badge size='sm'>{field.type}</Badge>
+                    <Badge variant='type' size='sm'>
+                      {field.type}
+                    </Badge>
                   </div>
                 </div>
                 <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>

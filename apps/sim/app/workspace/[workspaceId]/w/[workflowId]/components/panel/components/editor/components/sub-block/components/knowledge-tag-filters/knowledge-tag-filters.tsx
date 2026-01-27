@@ -238,7 +238,9 @@ export function KnowledgeTagFilters({
           {filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
         </span>
         {filter.collapsed && filter.tagName && (
-          <Badge size='sm'>{FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}</Badge>
+          <Badge variant='type' size='sm'>
+            {FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}
+          </Badge>
         )}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
