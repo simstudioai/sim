@@ -260,7 +260,6 @@ export class ExecutionEngine {
   }
 
   private initializeQueue(triggerBlockId?: string): void {
-    // Run-from-block mode: start directly from specified block
     if (this.context.runFromBlockContext) {
       const { startBlockId } = this.context.runFromBlockContext
       logger.info('Initializing queue for run-from-block mode', {
@@ -397,7 +396,6 @@ export class ExecutionEngine {
       this.finalOutput = output
     }
 
-    // Check if we should stop after this block (run-until-block feature)
     if (this.context.stopAfterBlockId === nodeId) {
       logger.info('Stopping execution after target block', { nodeId })
       this.stoppedEarlyFlag = true

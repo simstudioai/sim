@@ -1068,10 +1068,8 @@ export function useWorkflowExecution() {
                 logs: accumulatedBlockLogs,
               }
 
-              // Store execution snapshot for run-from-block
               if (data.success && activeWorkflowId) {
                 if (stopAfterBlockId) {
-                  // Partial run (run-until-block): merge with existing snapshot
                   const existingSnapshot = getLastExecutionSnapshot(activeWorkflowId)
                   const mergedBlockStates = {
                     ...(existingSnapshot?.blockStates || {}),
@@ -1096,7 +1094,6 @@ export function useWorkflowExecution() {
                     totalExecutedBlocks: mergedExecutedBlocks.size,
                   })
                 } else {
-                  // Full run: replace snapshot entirely
                   const snapshot: SerializableExecutionState = {
                     blockStates: Object.fromEntries(accumulatedBlockStates),
                     executedBlocks: Array.from(executedBlockIds),
@@ -1443,7 +1440,6 @@ export function useWorkflowExecution() {
         return
       }
 
-      // Check if all upstream dependencies have cached outputs
       const workflowEdges = useWorkflowStore.getState().edges
       const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
       const dependenciesSatisfied =
@@ -1504,7 +1500,6 @@ export function useWorkflowExecution() {
                 executionTime: data.durationMs,
               })
 
-              // Skip adding loop/parallel containers to console and logs
               const isContainerBlock = data.blockType === 'loop' || data.blockType === 'parallel'
               if (isContainerBlock) return
 
@@ -1584,7 +1579,6 @@ export function useWorkflowExecution() {
 
             onExecutionCompleted: (data) => {
               if (data.success) {
-                // Merge new states with snapshot states for updated snapshot
                 const mergedBlockStates: Record<string, BlockState> = { ...snapshot.blockStates }
                 for (const [bId, state] of accumulatedBlockStates) {
                   mergedBlockStates[bId] = state

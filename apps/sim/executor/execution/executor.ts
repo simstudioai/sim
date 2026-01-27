@@ -100,39 +100,22 @@ export class DAGExecutor {
   }
 
   /**
-   * Execute workflow starting from a specific block, using cached outputs
-   * for all upstream/unaffected blocks from the source snapshot.
-   *
-   * This implements Jupyter notebook-style execution where:
-   * - The start block and all downstream blocks are re-executed
-   * - Upstream blocks retain their cached outputs from the source snapshot
-   * - The result is a merged execution state
-   *
-   * @param workflowId - The workflow ID
-   * @param startBlockId - The block to start execution from
-   * @param sourceSnapshot - The execution state from a previous run
-   * @returns Merged execution result with cached + fresh outputs
+   * Execute from a specific block using cached outputs for upstream blocks.
    */
   async executeFromBlock(
     workflowId: string,
     startBlockId: string,
     sourceSnapshot: SerializableExecutionState
   ): Promise<ExecutionResult> {
-    // Build full DAG (no trigger constraint - we need all blocks for validation)
     const dag = this.dagBuilder.build(this.workflow)
 
-    // Validate the start block
     const executedBlocks = new Set(sourceSnapshot.executedBlocks)
     const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)
     if (!validation.valid) {
       throw new Error(validation.error)
     }
 
-    // Compute dirty set (blocks that will be re-executed)
     const dirtySet = computeDirtySet(dag, startBlockId)
-
-    // Resolve container IDs to sentinel IDs for execution
-    // The engine needs to start from the sentinel node, not the container ID
     const effectiveStartBlockId = resolveContainerToSentinelStart(startBlockId, dag) ?? startBlockId
 
     logger.info('Executing from block', {
@@ -144,9 +127,7 @@ export class DAGExecutor {
       dirtyBlocks: Array.from(dirtySet),
     })
 
-    // For convergent blocks in the dirty set, remove incoming edges from non-dirty sources.
-    // This ensures that a dirty block waiting on multiple inputs doesn't wait for non-dirty
-    // upstream blocks (whose outputs are already cached).
+    // Remove incoming edges from non-dirty sources so convergent blocks don't wait for cached upstream
     for (const nodeId of dirtySet) {
       const node = dag.nodes.get(nodeId)
       if (!node) continue
@@ -167,14 +148,12 @@ export class DAGExecutor {
       }
     }
 
-    // Create context with snapshot state + runFromBlockContext
     const runFromBlockContext = { startBlockId: effectiveStartBlockId, dirtySet }
     const { context, state } = this.createExecutionContext(workflowId, undefined, {
       snapshotState: sourceSnapshot,
       runFromBlockContext,
     })
 
-    // Setup orchestrators and engine (same as execute())
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
     loopOrchestrator.setContextExtensions(this.contextExtensions)
@@ -194,7 +173,6 @@ export class DAGExecutor {
     )
     const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
 
-    // Run and return result
     return await engine.run()
   }
 
@@ -214,7 +192,6 @@ export class DAGExecutor {
       ? new Set(snapshotState.executedBlocks)
       : new Set<string>()
 
-    // In run-from-block mode, clear the executed status for dirty blocks so they can be re-executed
     if (overrides?.runFromBlockContext) {
       const { dirtySet } = overrides.runFromBlockContext
       executedBlocks = new Set([...executedBlocks].filter((id) => !dirtySet.has(id)))

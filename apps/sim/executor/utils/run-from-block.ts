@@ -63,8 +63,6 @@ export interface RunFromBlockContext {
  */
 export function computeDirtySet(dag: DAG, startBlockId: string): Set<string> {
   const dirty = new Set<string>([startBlockId])
-
-  // For loop/parallel containers, resolve to sentinel-start for BFS traversal
   const sentinelStartId = resolveContainerToSentinelStart(startBlockId, dag)
   const traversalStartId = sentinelStartId ?? startBlockId
 
@@ -118,8 +116,6 @@ export function validateRunFromBlock(
   executedBlocks: Set<string>
 ): RunFromBlockValidation {
   const node = dag.nodes.get(blockId)
-
-  // Check if this is a loop or parallel container (not in dag.nodes but in configs)
   const isLoopContainer = dag.loopConfigs.has(blockId)
   const isParallelContainer = dag.parallelConfigs.has(blockId)
   const isContainer = isLoopContainer || isParallelContainer
@@ -128,7 +124,6 @@ export function validateRunFromBlock(
     return { valid: false, error: `Block not found in workflow: ${blockId}` }
   }
 
-  // For containers, verify the sentinel-start exists
   if (isContainer) {
     const sentinelStartId = resolveContainerToSentinelStart(blockId, dag)
     if (!sentinelStartId || !dag.nodes.has(sentinelStartId)) {
@@ -139,7 +134,6 @@ export function validateRunFromBlock(
     }
   }
 
-  // For regular nodes, check if inside loop/parallel
   if (node) {
     if (node.metadata.isLoopNode) {
       return {
@@ -159,8 +153,6 @@ export function validateRunFromBlock(
       return { valid: false, error: 'Cannot run from sentinel node' }
     }
 
-    // Check if all upstream dependencies have been executed (have cached outputs)
-    // If no incoming edges (trigger/start block), dependencies are satisfied
     if (node.incomingEdges.size > 0) {
       for (const sourceId of node.incomingEdges.keys()) {
         if (!executedBlocks.has(sourceId)) {
