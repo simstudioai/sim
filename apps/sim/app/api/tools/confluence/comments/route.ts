@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
@@ -8,8 +9,13 @@ const logger = createLogger('ConfluenceCommentsAPI')
 export const dynamic = 'force-dynamic'
 
 // Create a comment
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const { domain, accessToken, cloudId: providedCloudId, pageId, comment } = await request.json()
 
     if (!domain) {
@@ -86,8 +92,13 @@ export async function POST(request: Request) {
 }
 
 // List comments on a page
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const domain = searchParams.get('domain')
     const accessToken = searchParams.get('accessToken')
