@@ -619,7 +619,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -634,7 +634,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -648,7 +648,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -663,7 +663,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -678,7 +678,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -692,7 +692,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -1669,7 +1669,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -1683,7 +1683,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -1697,7 +1697,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -1711,7 +1711,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 4096 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
