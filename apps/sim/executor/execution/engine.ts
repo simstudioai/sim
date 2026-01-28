@@ -397,9 +397,14 @@ export class ExecutionEngine {
     }
 
     if (this.context.stopAfterBlockId === nodeId) {
-      logger.info('Stopping execution after target block', { nodeId })
-      this.stoppedEarlyFlag = true
-      return
+      // For loop/parallel sentinels, only stop if the subflow has fully exited (all iterations done)
+      // shouldContinue: true means more iterations, shouldExit: true means loop is done
+      const shouldContinueLoop = output.shouldContinue === true
+      if (!shouldContinueLoop) {
+        logger.info('Stopping execution after target block', { nodeId })
+        this.stoppedEarlyFlag = true
+        return
+      }
     }
 
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)

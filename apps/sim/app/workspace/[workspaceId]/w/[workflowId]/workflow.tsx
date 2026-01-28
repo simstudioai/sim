@@ -1128,8 +1128,22 @@ const WorkflowContent = React.memo(() => {
     const snapshot = getLastExecutionSnapshot(workflowIdParam)
     const incomingEdges = edges.filter((edge) => edge.target === block.id)
     const isTriggerBlock = incomingEdges.length === 0
+    const isSubflow = block.type === 'loop' || block.type === 'parallel'
+
+    // For subflows, check if the sentinel-end was executed (meaning the subflow completed at least once)
+    // Sentinel IDs follow the pattern: loop-{id}-sentinel-end or parallel-{id}-sentinel-end
+    const subflowWasExecuted =
+      isSubflow &&
+      snapshot &&
+      snapshot.executedBlocks.some(
+        (executedId) =>
+          executedId === `loop-${block.id}-sentinel-end` ||
+          executedId === `parallel-${block.id}-sentinel-end`
+      )
+
     const dependenciesSatisfied =
       isTriggerBlock ||
+      subflowWasExecuted ||
       (snapshot && incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source)))
     const isNoteBlock = block.type === 'note'
     const isInsideSubflow =

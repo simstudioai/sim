@@ -26,6 +26,10 @@ import {
   buildStartBlockOutput,
   resolveExecutorStartBlock,
 } from '@/executor/utils/start-block'
+import {
+  extractLoopIdFromSentinel,
+  extractParallelIdFromSentinel,
+} from '@/executor/utils/subflow-utils'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedWorkflow } from '@/serializer/types'
 
@@ -119,19 +123,50 @@ export class DAGExecutor {
     const { dirtySet, upstreamSet } = computeExecutionSets(dag, startBlockId)
     const effectiveStartBlockId = resolveContainerToSentinelStart(startBlockId, dag) ?? startBlockId
 
+    // Extract container IDs from sentinel IDs in upstream set
+    const upstreamContainerIds = new Set<string>()
+    for (const nodeId of upstreamSet) {
+      const loopId = extractLoopIdFromSentinel(nodeId)
+      if (loopId) upstreamContainerIds.add(loopId)
+      const parallelId = extractParallelIdFromSentinel(nodeId)
+      if (parallelId) upstreamContainerIds.add(parallelId)
+    }
+
     // Filter snapshot to only include upstream blocks - prevents references to non-upstream blocks
     const filteredBlockStates: Record<string, any> = {}
     for (const [blockId, state] of Object.entries(sourceSnapshot.blockStates)) {
-      if (upstreamSet.has(blockId)) {
+      if (upstreamSet.has(blockId) || upstreamContainerIds.has(blockId)) {
         filteredBlockStates[blockId] = state
       }
     }
-    const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter((id) => upstreamSet.has(id))
+    const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter(
+      (id) => upstreamSet.has(id) || upstreamContainerIds.has(id)
+    )
+
+    // Filter loop/parallel executions to only include upstream containers
+    const filteredLoopExecutions: Record<string, any> = {}
+    if (sourceSnapshot.loopExecutions) {
+      for (const [loopId, execution] of Object.entries(sourceSnapshot.loopExecutions)) {
+        if (upstreamContainerIds.has(loopId)) {
+          filteredLoopExecutions[loopId] = execution
+        }
+      }
+    }
+    const filteredParallelExecutions: Record<string, any> = {}
+    if (sourceSnapshot.parallelExecutions) {
+      for (const [parallelId, execution] of Object.entries(sourceSnapshot.parallelExecutions)) {
+        if (upstreamContainerIds.has(parallelId)) {
+          filteredParallelExecutions[parallelId] = execution
+        }
+      }
+    }
 
     const filteredSnapshot: SerializableExecutionState = {
       ...sourceSnapshot,
       blockStates: filteredBlockStates,
       executedBlocks: filteredExecutedBlocks,
+      loopExecutions: filteredLoopExecutions,
+      parallelExecutions: filteredParallelExecutions,
     }
 
     logger.info('Executing from block', {

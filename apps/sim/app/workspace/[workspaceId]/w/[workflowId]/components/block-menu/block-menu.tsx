@@ -91,6 +91,9 @@ export function BlockMenu({
   const allNoteBlocks = selectedBlocks.every((b) => b.type === 'note')
   const isSubflow =
     isSingleBlock && (selectedBlocks[0]?.type === 'loop' || selectedBlocks[0]?.type === 'parallel')
+  const isInsideSubflow =
+    isSingleBlock &&
+    (selectedBlocks[0]?.parentType === 'loop' || selectedBlocks[0]?.parentType === 'parallel')
 
   const canRemoveFromSubflow = showRemoveFromSubflow && !hasTriggerBlock
 
@@ -212,8 +215,8 @@ export function BlockMenu({
           </PopoverItem>
         )}
 
-        {/* Run from/until block - only for single non-note block selection */}
-        {isSingleBlock && !allNoteBlocks && (
+        {/* Run from/until block - only for single non-note block, not inside subflows */}
+        {isSingleBlock && !allNoteBlocks && !isInsideSubflow && (
           <>
             <PopoverDivider />
             <PopoverItem
@@ -227,17 +230,20 @@ export function BlockMenu({
             >
               Run from block
             </PopoverItem>
-            <PopoverItem
-              disabled={isExecuting}
-              onClick={() => {
-                if (!isExecuting) {
-                  onRunUntilBlock?.()
-                  onClose()
-                }
-              }}
-            >
-              Run until block
-            </PopoverItem>
+            {/* Hide "Run until" for triggers - they're always at the start */}
+            {!hasTriggerBlock && (
+              <PopoverItem
+                disabled={isExecuting}
+                onClick={() => {
+                  if (!isExecuting) {
+                    onRunUntilBlock?.()
+                    onClose()
+                  }
+                }}
+              >
+                Run until block
+              </PopoverItem>
+            )}
           </>
         )}
 
