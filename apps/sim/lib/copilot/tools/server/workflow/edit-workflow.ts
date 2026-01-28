@@ -2508,6 +2508,10 @@ async function validateWorkflowSelectorIds(
     for (const subBlockConfig of blockConfig.subBlocks) {
       if (!SELECTOR_TYPES.has(subBlockConfig.type)) continue
 
+      // Skip oauth-input - credentials are pre-validated before edit application
+      // This allows existing collaborator credentials to remain untouched
+      if (subBlockConfig.type === 'oauth-input') continue
+
       const subBlockValue = blockData.subBlocks?.[subBlockConfig.id]?.value
       if (!subBlockValue) continue
 
@@ -2571,6 +2575,156 @@ async function validateWorkflowSelectorIds(
   }
 
   return errors
+}
+
+/**
+ * Pre-validates credential and apiKey inputs in operations before they are applied.
+ * - Validates oauth-input (credential) IDs belong to the user
+ * - Filters out apiKey inputs for hosted models when isHosted is true
+ * Returns validation errors for any removed inputs.
+ */
+async function preValidateCredentialInputs(
+  operations: EditWorkflowOperation[],
+  context: { userId: string }
+): Promise<{ filteredOperations: EditWorkflowOperation[]; errors: ValidationError[] }> {
+  const { isHosted } = await import('@/lib/core/config/feature-flags')
+  const { getHostedModels } = await import('@/providers/utils')
+
+  const logger = createLogger('PreValidateCredentials')
+  const errors: ValidationError[] = []
+
+  // Collect credential and apiKey inputs that need validation/filtering
+  const credentialInputs: Array<{
+    operationIndex: number
+    blockId: string
+    blockType: string
+    fieldName: string
+    value: string
+  }> = []
+
+  const hostedApiKeyInputs: Array<{
+    operationIndex: number
+    blockId: string
+    blockType: string
+    model: string
+  }> = []
+
+  const hostedModelsLower = isHosted ? new Set(getHostedModels().map((m) => m.toLowerCase())) : null
+
+  operations.forEach((op, opIndex) => {
+    if (!op.params?.inputs || !op.params?.type) return
+
+    const blockConfig = getBlock(op.params.type)
+    if (!blockConfig) return
+
+    // Find oauth-input subblocks
+    for (const subBlockConfig of blockConfig.subBlocks) {
+      if (subBlockConfig.type !== 'oauth-input') continue
+
+      const inputValue = op.params.inputs[subBlockConfig.id]
+      if (!inputValue || typeof inputValue !== 'string' || inputValue.trim() === '') continue
+
+      credentialInputs.push({
+        operationIndex: opIndex,
+        blockId: op.block_id,
+        blockType: op.params.type,
+        fieldName: subBlockConfig.id,
+        value: inputValue,
+      })
+    }
+
+    // Check for apiKey inputs on hosted models
+    if (hostedModelsLower && op.params.inputs.apiKey) {
+      const modelValue = op.params.inputs.model
+      if (modelValue && typeof modelValue === 'string') {
+        if (hostedModelsLower.has(modelValue.toLowerCase())) {
+          hostedApiKeyInputs.push({
+            operationIndex: opIndex,
+            blockId: op.block_id,
+            blockType: op.params.type,
+            model: modelValue,
+          })
+        }
+      }
+    }
+  })
+
+  const hasCredentialsToValidate = credentialInputs.length > 0
+  const hasHostedApiKeysToFilter = hostedApiKeyInputs.length > 0
+
+  if (!hasCredentialsToValidate && !hasHostedApiKeysToFilter) {
+    return { filteredOperations: operations, errors }
+  }
+
+  // Deep clone operations so we can modify them
+  const filteredOperations = structuredClone(operations)
+
+  // Filter out apiKey inputs for hosted models and add validation errors
+  if (hasHostedApiKeysToFilter) {
+    logger.info('Filtering apiKey inputs for hosted models', { count: hostedApiKeyInputs.length })
+
+    for (const apiKeyInput of hostedApiKeyInputs) {
+      const op = filteredOperations[apiKeyInput.operationIndex]
+      if (op.params?.inputs?.apiKey) {
+        op.params.inputs.apiKey = undefined
+        logger.debug('Filtered apiKey for hosted model', {
+          blockId: apiKeyInput.blockId,
+          model: apiKeyInput.model,
+        })
+
+        errors.push({
+          blockId: apiKeyInput.blockId,
+          blockType: apiKeyInput.blockType,
+          field: 'apiKey',
+          value: '[redacted]',
+          error: `Cannot set API key for hosted model "${apiKeyInput.model}" - API keys are managed by the platform when using hosted models`,
+        })
+      }
+    }
+  }
+
+  // Validate credential inputs
+  if (hasCredentialsToValidate) {
+    logger.info('Pre-validating credential inputs', {
+      credentialCount: credentialInputs.length,
+      userId: context.userId,
+    })
+
+    const allCredentialIds = credentialInputs.map((c) => c.value)
+    const validationResult = await validateSelectorIds('oauth-input', allCredentialIds, context)
+    const invalidSet = new Set(validationResult.invalid)
+
+    if (invalidSet.size > 0) {
+      for (const credInput of credentialInputs) {
+        if (!invalidSet.has(credInput.value)) continue
+
+        const op = filteredOperations[credInput.operationIndex]
+        if (op.params?.inputs?.[credInput.fieldName]) {
+          delete op.params.inputs[credInput.fieldName]
+          logger.info('Removed invalid credential from operation', {
+            blockId: credInput.blockId,
+            field: credInput.fieldName,
+            invalidValue: credInput.value,
+          })
+        }
+
+        const warningInfo = validationResult.warning ? `. ${validationResult.warning}` : ''
+        errors.push({
+          blockId: credInput.blockId,
+          blockType: credInput.blockType,
+          field: credInput.fieldName,
+          value: credInput.value,
+          error: `Invalid credential ID "${credInput.value}" - credential does not exist or user doesn't have access${warningInfo}`,
+        })
+      }
+
+      logger.warn('Filtered out invalid credentials', {
+        invalidCount: invalidSet.size,
+      })
+    }
+  }
+
+  return { filteredOperations, errors }
 }
 
 async function getCurrentWorkflowStateFromDb(
@@ -2657,12 +2811,28 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     // Get permission config for the user
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
 
+    // Pre-validate credential and apiKey inputs before applying operations
+    // This filters out invalid credentials and apiKeys for hosted models
+    let operationsToApply = operations
+    const credentialErrors: ValidationError[] = []
+    if (context?.userId) {
+      const { filteredOperations, errors: credErrors } = await preValidateCredentialInputs(
+        operations,
+        { userId: context.userId }
+      )
+      operationsToApply = filteredOperations
+      credentialErrors.push(...credErrors)
+    }
+
     // Apply operations directly to the workflow state
     const {
       state: modifiedWorkflowState,
       validationErrors,
       skippedItems,
-    } = applyOperationsToWorkflowState(workflowState, operations, permissionConfig)
+    } = applyOperationsToWorkflowState(workflowState, operationsToApply, permissionConfig)
+
+    // Add credential validation errors
+    validationErrors.push(...credentialErrors)
 
     // Get workspaceId for selector validation
     let workspaceId: string | undefined
