@@ -17,11 +17,7 @@ import type {
   BlockInfo,
   TerminalFilters,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
-import {
-  formatRunId,
-  getBlockIcon,
-  getRunIdColor,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
+import { getBlockIcon } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
 
 /**
  * Props for the FilterPopover component
@@ -32,10 +28,7 @@ export interface FilterPopoverProps {
   filters: TerminalFilters
   toggleStatus: (status: 'error' | 'info') => void
   toggleBlock: (blockId: string) => void
-  toggleRunId: (runId: string) => void
   uniqueBlocks: BlockInfo[]
-  uniqueRunIds: string[]
-  executionColorMap: Map<string, string>
   hasActiveFilters: boolean
 }
 
@@ -48,10 +41,7 @@ export const FilterPopover = memo(function FilterPopover({
   filters,
   toggleStatus,
   toggleBlock,
-  toggleRunId,
   uniqueBlocks,
-  uniqueRunIds,
-  executionColorMap,
   hasActiveFilters,
 }: FilterPopoverProps) {
   return (
@@ -69,7 +59,7 @@ export const FilterPopover = memo(function FilterPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        side='bottom'
+        side='top'
         align='end'
         sideOffset={4}
         onClick={(e) => e.stopPropagation()}
@@ -103,7 +93,7 @@ export const FilterPopover = memo(function FilterPopover({
 
         {uniqueBlocks.length > 0 && (
           <>
-            <PopoverDivider />
+            <PopoverDivider className='my-[4px]' />
             <PopoverSection className='!mt-0'>Blocks</PopoverSection>
             <PopoverScrollArea className='max-h-[100px]'>
               {uniqueBlocks.map((block) => {
@@ -119,35 +109,6 @@ export const FilterPopover = memo(function FilterPopover({
                   >
                     {BlockIcon && <BlockIcon className='h-3 w-3' />}
                     <span className='flex-1'>{block.blockName}</span>
-                  </PopoverItem>
-                )
-              })}
-            </PopoverScrollArea>
-          </>
-        )}
-
-        {uniqueRunIds.length > 0 && (
-          <>
-            <PopoverDivider />
-            <PopoverSection className='!mt-0'>Run ID</PopoverSection>
-            <PopoverScrollArea className='max-h-[100px]'>
-              {uniqueRunIds.map((runId) => {
-                const isSelected = filters.runIds.has(runId)
-                const runIdColor = getRunIdColor(runId, executionColorMap)
-
-                return (
-                  <PopoverItem
-                    key={runId}
-                    active={isSelected}
-                    showCheck={isSelected}
-                    onClick={() => toggleRunId(runId)}
-                  >
-                    <span
-                      className='flex-1 font-mono text-[11px]'
-                      style={{ color: runIdColor || '#D2D2D2' }}
-                    >
-                      {formatRunId(runId)}
-                    </span>
                   </PopoverItem>
                 )
               })}

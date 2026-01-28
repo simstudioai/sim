@@ -1,8 +1,7 @@
-'use client'
-
 import type React from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { getBlock } from '@/blocks'
+import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
 
 /**
@@ -12,20 +11,6 @@ const SUBFLOW_COLORS = {
   loop: '#2FB3FF',
   parallel: '#FEE12B',
 } as const
-
-/**
- * Run ID color palette for visual distinction between executions
- */
-export const RUN_ID_COLORS = [
-  '#4ADE80', // Green
-  '#F472B6', // Pink
-  '#60C5FF', // Blue
-  '#FF8533', // Orange
-  '#C084FC', // Purple
-  '#EAB308', // Yellow
-  '#2DD4BF', // Teal
-  '#FB7185', // Rose
-] as const
 
 /**
  * Retrieves the icon component for a given block type
@@ -75,25 +60,6 @@ export function formatDuration(ms?: number): string {
   if (ms === undefined || ms === null) return '-'
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(2)}s`
-}
-
-/**
- * Truncates execution ID for display as run ID
- */
-export function formatRunId(executionId?: string): string {
-  if (!executionId) return '-'
-  return executionId.slice(0, 8)
-}
-
-/**
- * Gets color for a run ID from the precomputed color map
- */
-export function getRunIdColor(
-  executionId: string | undefined,
-  colorMap: Map<string, string>
-): string | null {
-  if (!executionId) return null
-  return colorMap.get(executionId) ?? null
 }
 
 /**
@@ -476,13 +442,11 @@ export function flattenBlockEntriesOnly(
   return result
 }
 
-// BlockInfo is now in types.ts for shared use across terminal components
-
 /**
  * Terminal height configuration constants
  */
 export const TERMINAL_CONFIG = {
   NEAR_MIN_THRESHOLD: 40,
-  BLOCK_COLUMN_WIDTH_PX: 240,
+  BLOCK_COLUMN_WIDTH_PX: TERMINAL_BLOCK_COLUMN_WIDTH,
   HEADER_TEXT_CLASS: 'font-medium text-[var(--text-tertiary)] text-[12px]',
 } as const

@@ -15,7 +15,6 @@ export function useTerminalFilters() {
   const [filters, setFilters] = useState<TerminalFilters>({
     blockIds: new Set(),
     statuses: new Set(),
-    runIds: new Set(),
   })
 
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -54,21 +53,6 @@ export function useTerminalFilters() {
   }, [])
 
   /**
-   * Toggles a run ID filter
-   */
-  const toggleRunId = useCallback((runId: string) => {
-    setFilters((prev) => {
-      const newRunIds = new Set(prev.runIds)
-      if (newRunIds.has(runId)) {
-        newRunIds.delete(runId)
-      } else {
-        newRunIds.add(runId)
-      }
-      return { ...prev, runIds: newRunIds }
-    })
-  }, [])
-
-  /**
    * Toggles sort direction between ascending and descending
    */
   const toggleSort = useCallback(() => {
@@ -85,7 +69,6 @@ export function useTerminalFilters() {
     setFilters({
       blockIds: new Set(),
       statuses: new Set(),
-      runIds: new Set(),
     })
   }, [])
 
@@ -93,7 +76,7 @@ export function useTerminalFilters() {
    * Checks if any filters are active
    */
   const hasActiveFilters = useMemo(() => {
-    return filters.blockIds.size > 0 || filters.statuses.size > 0 || filters.runIds.size > 0
+    return filters.blockIds.size > 0 || filters.statuses.size > 0
   }, [filters])
 
   /**
@@ -118,14 +101,6 @@ export function useTerminalFilters() {
             if (!hasStatus) return false
           }
 
-          // Run ID filter
-          if (
-            filters.runIds.size > 0 &&
-            (!entry.executionId || !filters.runIds.has(entry.executionId))
-          ) {
-            return false
-          }
-
           return true
         })
       }
@@ -148,7 +123,6 @@ export function useTerminalFilters() {
     sortConfig,
     toggleBlock,
     toggleStatus,
-    toggleRunId,
     toggleSort,
     clearFilters,
     hasActiveFilters,

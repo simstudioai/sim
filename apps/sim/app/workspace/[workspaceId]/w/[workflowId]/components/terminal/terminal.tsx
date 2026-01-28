@@ -8,7 +8,6 @@ import {
   ArrowDownToLine,
   ArrowUp,
   Database,
-  FilterX,
   MoreHorizontal,
   Palette,
   Pause,
@@ -16,7 +15,6 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import {
-  Badge,
   Button,
   ChevronDown,
   Popover,
@@ -32,6 +30,7 @@ import {
   FilterPopover,
   LogRowContextMenu,
   OutputPanel,
+  StatusDisplay,
   ToggleButton,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components'
 import {
@@ -39,23 +38,17 @@ import {
   useTerminalFilters,
   useTerminalResize,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
-import {
-  BADGE_STYLES,
-  ROW_STYLES,
-  StatusDisplay,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
+import { ROW_STYLES } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import {
   type EntryNode,
   type ExecutionGroup,
   flattenBlockEntriesOnly,
   formatDuration,
-  formatRunId,
   getBlockColor,
   getBlockIcon,
   groupEntriesByExecution,
   isEventFromEditableElement,
   type NavigableBlockEntry,
-  RUN_ID_COLORS,
   TERMINAL_CONFIG,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -165,7 +158,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
   const hasCanceledChild = children.some((c) => c.entry.isCanceled) && !hasRunningChild
 
   const iterationLabel = iterationInfo
-    ? `Iteration ${iterationInfo.current}${iterationInfo.total !== undefined ? ` / ${iterationInfo.total}` : ''}`
+    ? `Iteration ${iterationInfo.current + 1}${iterationInfo.total !== undefined ? ` / ${iterationInfo.total}` : ''}`
     : entry.blockName
 
   return (
@@ -398,124 +391,43 @@ const EntryNodeRow = memo(function EntryNodeRow({
 })
 
 /**
- * Status badge component for execution rows
+ * Execution group row component with dashed separator
  */
-const StatusBadge = memo(function StatusBadge({
-  hasError,
-  isRunning,
-  isCanceled,
-}: {
-  hasError: boolean
-  isRunning: boolean
-  isCanceled: boolean
-}) {
-  if (isRunning) {
-    return (
-      <Badge variant='green' className={BADGE_STYLES.base}>
-        Running
-      </Badge>
-    )
-  }
-  if (isCanceled) {
-    return (
-      <Badge variant='gray' className={BADGE_STYLES.mono}>
-        canceled
-      </Badge>
-    )
-  }
-  return (
-    <Badge variant={hasError ? 'red' : 'gray'} className={BADGE_STYLES.mono}>
-      {hasError ? 'error' : 'info'}
-    </Badge>
-  )
-})
-
-/**
- * Execution row component with expand/collapse
- */
-const ExecutionRow = memo(function ExecutionRow({
+const ExecutionGroupRow = memo(function ExecutionGroupRow({
   group,
-  isExpanded,
-  onToggle,
+  showSeparator,
   selectedEntryId,
   onSelectEntry,
   expandedNodes,
   onToggleNode,
 }: {
   group: ExecutionGroup
-  isExpanded: boolean
-  onToggle: () => void
+  showSeparator: boolean
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
 }) {
-  const hasError = group.status === 'error'
-  const hasRunningEntry = group.entries.some((entry) => entry.isRunning)
-  const hasCanceledEntry = group.entries.some((entry) => entry.isCanceled) && !hasRunningEntry
-
   return (
     <div className='flex flex-col px-[6px]'>
-      {/* Execution header */}
-      <div
-        className={clsx(ROW_STYLES.base, 'ml-[4px] h-[24px]', ROW_STYLES.hover)}
-        onClick={onToggle}
-      >
-        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-          <span
-            className={clsx(
-              'font-medium text-[13px]',
-              isExpanded
-                ? 'text-[var(--text-primary)]'
-                : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
-            )}
-          >
-            Run #{formatRunId(group.executionId)}
-          </span>
-          <StatusBadge
-            hasError={hasError}
-            isRunning={hasRunningEntry}
-            isCanceled={hasCanceledEntry}
-          />
-          <ChevronDown
-            className={clsx(
-              'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
-              !isExpanded && '-rotate-90'
-            )}
-          />
-        </div>
-        <span
-          className={clsx(
-            'flex-shrink-0 font-medium text-[13px]',
-            !hasRunningEntry &&
-              (hasCanceledEntry ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')
-          )}
-        >
-          <StatusDisplay
-            isRunning={hasRunningEntry}
-            isCanceled={hasCanceledEntry}
-            formattedDuration={formatDuration(group.duration)}
-          />
-        </span>
-      </div>
-
-      {/* Expanded content - Tree structure */}
-      {isExpanded && (
-        <div className='flex flex-col pb-[4px] pl-[10px]'>
-          <div className={ROW_STYLES.nested}>
-            {group.entryTree.map((node) => (
-              <EntryNodeRow
-                key={node.entry.id}
-                node={node}
-                selectedEntryId={selectedEntryId}
-                onSelectEntry={onSelectEntry}
-                expandedNodes={expandedNodes}
-                onToggleNode={onToggleNode}
-              />
-            ))}
-          </div>
-        </div>
+      {/* Dashed separator between executions */}
+      {showSeparator && (
+        <div className='mx-[4px] my-[4px] border-[var(--border)] border-t border-dashed' />
       )}
+
+      {/* Entry tree */}
+      <div className='ml-[4px] flex flex-col gap-[2px] pb-[4px]'>
+        {group.entryTree.map((node) => (
+          <EntryNodeRow
+            key={node.entry.id}
+            node={node}
+            selectedEntryId={selectedEntryId}
+            onSelectEntry={onSelectEntry}
+            expandedNodes={expandedNodes}
+            onToggleNode={onToggleNode}
+          />
+        ))}
+      </div>
     </div>
   )
 })
@@ -526,7 +438,6 @@ const ExecutionRow = memo(function ExecutionRow({
 export const Terminal = memo(function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
-  const prevEntriesLengthRef = useRef(0)
   const prevWorkflowEntriesLengthRef = useRef(0)
   const hasInitializedEntriesRef = useRef(false)
   const isTerminalFocusedRef = useRef(false)
@@ -544,10 +455,6 @@ export const Terminal = memo(function Terminal() {
   const setOutputPanelWidth = useTerminalStore((state) => state.setOutputPanelWidth)
   const openOnRun = useTerminalStore((state) => state.openOnRun)
   const setOpenOnRun = useTerminalStore((state) => state.setOpenOnRun)
-  const wrapText = useTerminalStore((state) => state.wrapText)
-  const setWrapText = useTerminalStore((state) => state.setWrapText)
-  const structuredView = useTerminalStore((state) => state.structuredView)
-  const setStructuredView = useTerminalStore((state) => state.setStructuredView)
   const setHasHydrated = useTerminalStore((state) => state.setHasHydrated)
   const isExpanded = useTerminalStore(
     (state) => state.terminalHeight > TERMINAL_CONFIG.NEAR_MIN_THRESHOLD
@@ -566,7 +473,6 @@ export const Terminal = memo(function Terminal() {
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
 
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
-  const [expandedExecutions, setExpandedExecutions] = useState<Set<string>>(new Set())
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [isToggling, setIsToggling] = useState(false)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
@@ -589,7 +495,6 @@ export const Terminal = memo(function Terminal() {
     sortConfig,
     toggleBlock,
     toggleStatus,
-    toggleRunId,
     toggleSort,
     clearFilters,
     filterEntries,
@@ -635,7 +540,7 @@ export const Terminal = memo(function Terminal() {
 
   /**
    * Navigable block entries for keyboard navigation.
-   * Only includes actual block outputs (not subflows/iterations/headers).
+   * Only includes actual block outputs (excludes subflow/iteration container nodes).
    * Includes parent node IDs for auto-expanding when navigating.
    */
   const navigableEntries = useMemo(() => {
@@ -661,65 +566,6 @@ export const Terminal = memo(function Terminal() {
       }
     })
     return Array.from(blocksMap.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
-  }, [allWorkflowEntries])
-
-  /**
-   * Get unique run IDs from all workflow entries
-   */
-  const uniqueRunIds = useMemo(() => {
-    const runIdsSet = new Set<string>()
-    allWorkflowEntries.forEach((entry) => {
-      if (entry.executionId) {
-        runIdsSet.add(entry.executionId)
-      }
-    })
-    return Array.from(runIdsSet).sort()
-  }, [allWorkflowEntries])
-
-  /**
-   * Track color offset for run IDs
-   */
-  const colorStateRef = useRef<{ executionIds: string[]; offset: number }>({
-    executionIds: [],
-    offset: 0,
-  })
-
-  /**
-   * Compute colors for each execution ID
-   */
-  const executionColorMap = useMemo(() => {
-    const currentIds: string[] = []
-    const seen = new Set<string>()
-    for (let i = allWorkflowEntries.length - 1; i >= 0; i--) {
-      const execId = allWorkflowEntries[i].executionId
-      if (execId && !seen.has(execId)) {
-        currentIds.push(execId)
-        seen.add(execId)
-      }
-    }
-
-    const { executionIds: prevIds, offset: prevOffset } = colorStateRef.current
-    let newOffset = prevOffset
-
-    if (prevIds.length > 0 && currentIds.length > 0) {
-      const currentOldest = currentIds[0]
-      if (prevIds[0] !== currentOldest) {
-        const trimmedCount = prevIds.indexOf(currentOldest)
-        if (trimmedCount > 0) {
-          newOffset = (prevOffset + trimmedCount) % RUN_ID_COLORS.length
-        }
-      }
-    }
-
-    const colorMap = new Map<string, string>()
-    for (let i = 0; i < currentIds.length; i++) {
-      const colorIndex = (newOffset + i) % RUN_ID_COLORS.length
-      colorMap.set(currentIds[i], RUN_ID_COLORS[colorIndex])
-    }
-
-    colorStateRef.current = { executionIds: currentIds, offset: newOffset }
-
-    return colorMap
   }, [allWorkflowEntries])
 
   /**
@@ -815,21 +661,13 @@ export const Terminal = memo(function Terminal() {
   ])
 
   /**
-   * Auto-expand newest execution, subflows, and iterations when new entries arrive.
+   * Auto-expand subflows and iterations when new entries arrive.
    * This always runs regardless of autoSelectEnabled - new runs should always be visible.
    */
   useEffect(() => {
     if (executionGroups.length === 0) return
 
     const newestExec = executionGroups[0]
-
-    // Always expand the newest execution group
-    setExpandedExecutions((prev) => {
-      if (prev.has(newestExec.executionId)) return prev
-      const next = new Set(prev)
-      next.add(newestExec.executionId)
-      return next
-    })
 
     // Collect all node IDs that should be expanded (subflows and their iterations)
     const nodeIdsToExpand: string[] = []
@@ -865,34 +703,19 @@ export const Terminal = memo(function Terminal() {
   }, [])
 
   /**
-   * Handle entry selection
+   * Handle entry selection - clicking same entry toggles selection off
    */
   const handleSelectEntry = useCallback(
     (entry: ConsoleEntry) => {
       focusTerminal()
       setSelectedEntry((prev) => {
-        const isDeselecting = prev?.id === entry.id
-        setAutoSelectEnabled(isDeselecting)
-        return isDeselecting ? null : entry
+        // Disable auto-select on any manual selection/deselection
+        setAutoSelectEnabled(false)
+        return prev?.id === entry.id ? null : entry
       })
     },
     [focusTerminal]
   )
-
-  /**
-   * Toggle execution expansion
-   */
-  const handleToggleExecution = useCallback((executionId: string) => {
-    setExpandedExecutions((prev) => {
-      const next = new Set(prev)
-      if (next.has(executionId)) {
-        next.delete(executionId)
-      } else {
-        next.add(executionId)
-      }
-      return next
-    })
-  }, [])
 
   /**
    * Toggle subflow node expansion
@@ -943,7 +766,6 @@ export const Terminal = memo(function Terminal() {
     if (activeWorkflowId) {
       clearWorkflowConsole(activeWorkflowId)
       setSelectedEntry(null)
-      setExpandedExecutions(new Set())
       setExpandedNodes(new Set())
     }
   }, [activeWorkflowId, clearWorkflowConsole])
@@ -980,14 +802,6 @@ export const Terminal = memo(function Terminal() {
       closeLogRowMenu()
     },
     [toggleStatus, closeLogRowMenu]
-  )
-
-  const handleFilterByRunId = useCallback(
-    (runId: string) => {
-      toggleRunId(runId)
-      closeLogRowMenu()
-    },
-    [toggleRunId, closeLogRowMenu]
   )
 
   const handleCopyRunId = useCallback(
@@ -1084,85 +898,57 @@ export const Terminal = memo(function Terminal() {
     }
   }, [showCopySuccess])
 
-  /**
-   * Scroll the logs container to the bottom.
-   */
-  const scrollToBottom = useCallback(() => {
-    requestAnimationFrame(() => {
-      const container = logsContainerRef.current
-      if (!container) return
-      container.scrollTop = container.scrollHeight
-    })
-  }, [])
-
-  /**
-   * Scroll an entry into view (for keyboard navigation).
-   */
   const scrollEntryIntoView = useCallback((entryId: string) => {
-    requestAnimationFrame(() => {
-      const container = logsContainerRef.current
-      if (!container) return
-      const el = container.querySelector(`[data-entry-id="${entryId}"]`)
-      if (el) {
-        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      }
-    })
+    const container = logsContainerRef.current
+    if (!container) return
+    const el = container.querySelector(`[data-entry-id="${entryId}"]`)
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
   }, [])
 
-  /**
-   * Auto-select the last entry (bottom of the list) when new logs arrive.
-   */
   useEffect(() => {
     if (executionGroups.length === 0 || navigableEntries.length === 0) {
       setAutoSelectEnabled(true)
       setSelectedEntry(null)
-      prevEntriesLengthRef.current = 0
       return
     }
 
-    if (autoSelectEnabled && navigableEntries.length > prevEntriesLengthRef.current) {
-      // Get the last entry from the newest execution (it's at the bottom of the list)
-      const newestExecutionId = executionGroups[0].executionId
-      let lastNavEntry: NavigableBlockEntry | null = null
+    if (!autoSelectEnabled) return
 
-      for (const navEntry of navigableEntries) {
-        if (navEntry.executionId === newestExecutionId) {
-          lastNavEntry = navEntry
-        } else {
-          break
-        }
+    const newestExecutionId = executionGroups[0].executionId
+    let lastNavEntry: NavigableBlockEntry | null = null
+
+    for (const navEntry of navigableEntries) {
+      if (navEntry.executionId === newestExecutionId) {
+        lastNavEntry = navEntry
+      } else {
+        break
       }
-
-      if (!lastNavEntry) {
-        prevEntriesLengthRef.current = navigableEntries.length
-        return
-      }
-
-      setSelectedEntry(lastNavEntry.entry)
-      focusTerminal()
-
-      // Expand execution and parent nodes
-      setExpandedExecutions((prev) => {
-        if (prev.has(lastNavEntry.executionId)) return prev
-        const next = new Set(prev)
-        next.add(lastNavEntry.executionId)
-        return next
-      })
-      if (lastNavEntry.parentNodeIds.length > 0) {
-        setExpandedNodes((prev) => {
-          const hasAll = lastNavEntry.parentNodeIds.every((id) => prev.has(id))
-          if (hasAll) return prev
-          const next = new Set(prev)
-          lastNavEntry.parentNodeIds.forEach((id) => next.add(id))
-          return next
-        })
-      }
-
-      scrollToBottom()
     }
 
-    prevEntriesLengthRef.current = navigableEntries.length
-  }, [executionGroups, navigableEntries, autoSelectEnabled, focusTerminal, scrollToBottom])
+    if (!lastNavEntry) return
+    if (selectedEntry?.id === lastNavEntry.entry.id) return
+
+    setSelectedEntry(lastNavEntry.entry)
+    focusTerminal()
+
+    if (lastNavEntry.parentNodeIds.length > 0) {
+      setExpandedNodes((prev) => {
+        const hasAll = lastNavEntry.parentNodeIds.every((id) => prev.has(id))
+        if (hasAll) return prev
+        const next = new Set(prev)
+        lastNavEntry.parentNodeIds.forEach((id) => next.add(id))
+        return next
+      })
+    }
+  }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntry?.id, focusTerminal])
+
+  useEffect(() => {
+    if (selectedEntry) {
+      scrollEntryIntoView(selectedEntry.id)
+    }
+  }, [selectedEntry?.id, scrollEntryIntoView])
 
   /**
    * Sync selected entry with latest data from store.
@@ -1203,14 +989,6 @@ export const Terminal = memo(function Terminal() {
     (navEntry: NavigableBlockEntry) => {
       setAutoSelectEnabled(false)
       setSelectedEntry(navEntry.entry)
-
-      // Auto-expand the execution group
-      setExpandedExecutions((prev) => {
-        if (prev.has(navEntry.executionId)) return prev
-        const next = new Set(prev)
-        next.add(navEntry.executionId)
-        return next
-      })
 
       // Auto-expand parent nodes (subflows, iterations)
       if (navEntry.parentNodeIds.length > 0) {
@@ -1401,10 +1179,7 @@ export const Terminal = memo(function Terminal() {
                       filters={filters}
                       toggleStatus={toggleStatus}
                       toggleBlock={toggleBlock}
-                      toggleRunId={toggleRunId}
                       uniqueBlocks={uniqueBlocks}
-                      uniqueRunIds={uniqueRunIds}
-                      executionColorMap={executionColorMap}
                       hasActiveFilters={hasActiveFilters}
                     />
                   )}
@@ -1475,27 +1250,6 @@ export const Terminal = memo(function Terminal() {
                       </Tooltip.Trigger>
                       <Tooltip.Content>
                         <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  {hasActiveFilters && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            clearFilters()
-                          }}
-                          aria-label='Clear filters'
-                          className='!p-1.5 -m-1.5'
-                        >
-                          <FilterX className='h-3 w-3' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Clear filters</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
@@ -1588,12 +1342,11 @@ export const Terminal = memo(function Terminal() {
                   No logs yet
                 </div>
               ) : (
-                executionGroups.map((group) => (
-                  <ExecutionRow
+                executionGroups.map((group, index) => (
+                  <ExecutionGroupRow
                     key={group.executionId}
                     group={group}
-                    isExpanded={expandedExecutions.has(group.executionId)}
-                    onToggle={() => handleToggleExecution(group.executionId)}
+                    showSeparator={index > 0}
                     selectedEntryId={selectedEntry?.id || null}
                     onSelectEntry={handleSelectEntry}
                     expandedNodes={expandedNodes}
@@ -1624,7 +1377,6 @@ export const Terminal = memo(function Terminal() {
               filteredEntries={filteredEntries}
               handleExportConsole={handleExportConsole}
               hasActiveFilters={hasActiveFilters}
-              clearFilters={clearFilters}
               handleClearConsole={handleClearConsole}
               shouldShowCodeDisplay={shouldShowCodeDisplay}
               outputDataStringified={outputDataStringified}
@@ -1633,10 +1385,7 @@ export const Terminal = memo(function Terminal() {
               filters={filters}
               toggleBlock={toggleBlock}
               toggleStatus={toggleStatus}
-              toggleRunId={toggleRunId}
               uniqueBlocks={uniqueBlocks}
-              uniqueRunIds={uniqueRunIds}
-              executionColorMap={executionColorMap}
             />
           )}
         </div>
@@ -1652,15 +1401,9 @@ export const Terminal = memo(function Terminal() {
         filters={filters}
         onFilterByBlock={handleFilterByBlock}
         onFilterByStatus={handleFilterByStatus}
-        onFilterByRunId={handleFilterByRunId}
         onCopyRunId={handleCopyRunId}
-        onClearFilters={() => {
-          clearFilters()
-          closeLogRowMenu()
-        }}
         onClearConsole={handleClearConsoleFromMenu}
         onFixInCopilot={handleFixInCopilot}
-        hasActiveFilters={hasActiveFilters}
       />
     </>
   )

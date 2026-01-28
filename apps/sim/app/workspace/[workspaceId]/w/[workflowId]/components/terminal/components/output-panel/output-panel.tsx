@@ -9,7 +9,6 @@ import {
   Check,
   Clipboard,
   Database,
-  FilterX,
   MoreHorizontal,
   Palette,
   Pause,
@@ -102,7 +101,6 @@ export interface OutputPanelProps {
   filteredEntries: ConsoleEntry[]
   handleExportConsole: (e: React.MouseEvent) => void
   hasActiveFilters: boolean
-  clearFilters: () => void
   handleClearConsole: (e: React.MouseEvent) => void
   shouldShowCodeDisplay: boolean
   outputDataStringified: string
@@ -111,10 +109,7 @@ export interface OutputPanelProps {
   filters: TerminalFilters
   toggleBlock: (blockId: string) => void
   toggleStatus: (status: 'error' | 'info') => void
-  toggleRunId: (runId: string) => void
   uniqueBlocks: BlockInfo[]
-  uniqueRunIds: string[]
-  executionColorMap: Map<string, string>
 }
 
 /**
@@ -139,7 +134,6 @@ export const OutputPanel = React.memo(function OutputPanel({
   filteredEntries,
   handleExportConsole,
   hasActiveFilters,
-  clearFilters,
   handleClearConsole,
   shouldShowCodeDisplay,
   outputDataStringified,
@@ -148,10 +142,7 @@ export const OutputPanel = React.memo(function OutputPanel({
   filters,
   toggleBlock,
   toggleStatus,
-  toggleRunId,
   uniqueBlocks,
-  uniqueRunIds,
-  executionColorMap,
 }: OutputPanelProps) {
   // Access store-backed settings directly to reduce prop drilling
   const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
@@ -223,14 +214,6 @@ export const OutputPanel = React.memo(function OutputPanel({
   const handleToggleOpenOnRun = useCallback(() => {
     setOpenOnRun(!openOnRun)
   }, [openOnRun, setOpenOnRun])
-
-  const handleClearFiltersClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      clearFilters()
-    },
-    [clearFilters]
-  )
 
   const handleCopyClick = useCallback(
     (e: React.MouseEvent) => {
@@ -364,10 +347,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 filters={filters}
                 toggleStatus={toggleStatus}
                 toggleBlock={toggleBlock}
-                toggleRunId={toggleRunId}
                 uniqueBlocks={uniqueBlocks}
-                uniqueRunIds={uniqueRunIds}
-                executionColorMap={executionColorMap}
                 hasActiveFilters={hasActiveFilters}
               />
             )}
@@ -470,55 +450,38 @@ export const OutputPanel = React.memo(function OutputPanel({
               </Tooltip.Content>
             </Tooltip.Root>
             {filteredEntries.length > 0 && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={handleExportConsole}
-                    aria-label='Download console CSV'
-                    className='!p-1.5 -m-1.5'
-                  >
-                    <ArrowDownToLine className='h-3 w-3' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>Download CSV</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-            {hasActiveFilters && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={handleClearFiltersClick}
-                    aria-label='Clear filters'
-                    className='!p-1.5 -m-1.5'
-                  >
-                    <FilterX className='h-3 w-3' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>Clear filters</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-            {filteredEntries.length > 0 && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={handleClearConsole}
-                    aria-label='Clear console'
-                    className='!p-1.5 -m-1.5'
-                  >
-                    <Trash2 className='h-3 w-3' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
-                </Tooltip.Content>
-              </Tooltip.Root>
+              <>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={handleExportConsole}
+                      aria-label='Download console CSV'
+                      className='!p-1.5 -m-1.5'
+                    >
+                      <ArrowDownToLine className='h-3 w-3' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
+                    <span>Download CSV</span>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={handleClearConsole}
+                      aria-label='Clear console'
+                      className='!p-1.5 -m-1.5'
+                    >
+                      <Trash2 className='h-3 w-3' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
+                    <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </>
             )}
             <Popover open={outputOptionsOpen} onOpenChange={setOutputOptionsOpen} size='sm'>
               <PopoverTrigger asChild>

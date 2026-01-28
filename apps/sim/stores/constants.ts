@@ -61,3 +61,6 @@ export const OUTPUT_PANEL_WIDTH = {
   DEFAULT: 440,
   MIN: 440,
 } as const
+
+/** Terminal block column width - minimum width for the logs column */
+export const TERMINAL_BLOCK_COLUMN_WIDTH = 240 as const

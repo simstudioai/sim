@@ -23,12 +23,9 @@ export interface LogRowContextMenuProps {
   filters: TerminalFilters
   onFilterByBlock: (blockId: string) => void
   onFilterByStatus: (status: 'error' | 'info') => void
-  onFilterByRunId: (runId: string) => void
   onCopyRunId: (runId: string) => void
-  onClearFilters: () => void
   onClearConsole: () => void
   onFixInCopilot: (entry: ConsoleEntry) => void
-  hasActiveFilters: boolean
 }
 
 /**
@@ -44,19 +41,15 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   filters,
   onFilterByBlock,
   onFilterByStatus,
-  onFilterByRunId,
   onCopyRunId,
-  onClearFilters,
   onClearConsole,
   onFixInCopilot,
-  hasActiveFilters,
 }: LogRowContextMenuProps) {
   const hasRunId = entry?.executionId != null
 
   const isBlockFiltered = entry ? filters.blockIds.has(entry.blockId) : false
   const entryStatus = entry?.success ? 'info' : 'error'
   const isStatusFiltered = entry ? filters.statuses.has(entryStatus) : false
-  const isRunIdFiltered = entry?.executionId ? filters.runIds.has(entry.executionId) : false
 
   return (
     <Popover
@@ -127,34 +120,11 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
             >
               Filter by Status
             </PopoverItem>
-            {hasRunId && (
-              <PopoverItem
-                showCheck={isRunIdFiltered}
-                onClick={() => {
-                  onFilterByRunId(entry.executionId!)
-                  onClose()
-                }}
-              >
-                Filter by Run ID
-              </PopoverItem>
-            )}
           </>
         )}
 
-        {/* Clear filters */}
-        {hasActiveFilters && (
-          <PopoverItem
-            onClick={() => {
-              onClearFilters()
-              onClose()
-            }}
-          >
-            Clear All Filters
-          </PopoverItem>
-        )}
-
         {/* Destructive action */}
-        {(entry || hasActiveFilters) && <PopoverDivider />}
+        {entry && <PopoverDivider />}
         <PopoverItem
           onClick={() => {
             onClearConsole()

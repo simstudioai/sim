@@ -1,15 +1,9 @@
-'use client'
-
-import { memo } from 'react'
-import { Badge } from '@/components/emcn'
-
 /**
  * Terminal filter configuration state
  */
 export interface TerminalFilters {
   blockIds: Set<string>
   statuses: Set<'error' | 'info'>
-  runIds: Set<string>
 }
 
 /**
@@ -67,45 +61,4 @@ export const ROW_STYLES = {
 /**
  * Common badge styling for status badges
  */
-export const BADGE_STYLES = {
-  base: 'rounded-[4px] px-[4px] py-[0px] text-[11px]',
-  mono: 'rounded-[4px] px-[4px] py-[0px] font-mono text-[11px]',
-} as const
-
-/**
- * Running badge component - displays a consistent "Running" indicator
- */
-export const RunningBadge = memo(function RunningBadge() {
-  return (
-    <Badge variant='green' className={BADGE_STYLES.base}>
-      Running
-    </Badge>
-  )
-})
-
-/**
- * Props for StatusDisplay component
- */
-export interface StatusDisplayProps {
-  isRunning: boolean
-  isCanceled: boolean
-  formattedDuration: string
-}
-
-/**
- * Reusable status display for terminal rows.
- * Shows Running badge, 'canceled' text, or formatted duration.
- */
-export const StatusDisplay = memo(function StatusDisplay({
-  isRunning,
-  isCanceled,
-  formattedDuration,
-}: StatusDisplayProps) {
-  if (isRunning) {
-    return <RunningBadge />
-  }
-  if (isCanceled) {
-    return <>canceled</>
-  }
-  return <>{formattedDuration}</>
-})
+export const BADGE_STYLE = 'rounded-[4px] px-[4px] py-[0px] text-[11px]'
