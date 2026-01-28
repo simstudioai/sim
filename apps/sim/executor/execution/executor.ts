@@ -145,9 +145,6 @@ export class DAGExecutor {
       effectiveStartBlockId,
       dirtySetSize: dirtySet.size,
       upstreamSetSize: upstreamSet.size,
-      filteredBlockStatesCount: Object.keys(filteredBlockStates).length,
-      totalBlocks: dag.nodes.size,
-      dirtyBlocks: Array.from(dirtySet),
     })
 
     // Remove incoming edges from non-dirty sources so convergent blocks don't wait for cached upstream
@@ -164,10 +161,6 @@ export class DAGExecutor {
 
       for (const sourceId of nonDirtyIncoming) {
         node.incomingEdges.delete(sourceId)
-        logger.debug('Removed non-dirty incoming edge for run-from-block', {
-          nodeId,
-          sourceId,
-        })
       }
     }
 
@@ -327,11 +320,6 @@ export class DAGExecutor {
 
       if (isRegularBlock) {
         this.initializeStarterBlock(context, state, startBlockId)
-        logger.info('Run-from-block mode: initialized start block', { startBlockId })
-      } else {
-        logger.info('Run-from-block mode: skipping starter block init for container/sentinel', {
-          startBlockId,
-        })
       }
     } else {
       this.initializeStarterBlock(context, state, triggerBlockId)

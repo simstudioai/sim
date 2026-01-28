@@ -27,10 +27,7 @@ import type {
 } from '@/executor/execution/types'
 import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
-import {
-  buildParallelSentinelEndId,
-  buildSentinelEndId,
-} from '@/executor/utils/subflow-utils'
+import { buildParallelSentinelEndId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
 import { Serializer } from '@/serializer'
 
 const logger = createLogger('ExecutionCore')
@@ -264,16 +261,8 @@ export async function executeWorkflowCore(
     if (stopAfterBlockId) {
       if (serializedWorkflow.loops?.[stopAfterBlockId]) {
         resolvedStopAfterBlockId = buildSentinelEndId(stopAfterBlockId)
-        logger.info(`[${requestId}] Resolved loop container to sentinel-end`, {
-          original: stopAfterBlockId,
-          resolved: resolvedStopAfterBlockId,
-        })
       } else if (serializedWorkflow.parallels?.[stopAfterBlockId]) {
         resolvedStopAfterBlockId = buildParallelSentinelEndId(stopAfterBlockId)
-        logger.info(`[${requestId}] Resolved parallel container to sentinel-end`, {
-          original: stopAfterBlockId,
-          resolved: resolvedStopAfterBlockId,
-        })
       }
     }
 

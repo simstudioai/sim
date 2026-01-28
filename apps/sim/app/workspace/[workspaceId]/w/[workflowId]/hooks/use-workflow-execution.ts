@@ -1482,31 +1482,9 @@ export function useWorkflowExecution() {
         const candidates = resolveStartCandidates(mergedStates, { execution: 'manual' })
         const candidate = candidates.find((c) => c.blockId === blockId)
 
-        logger.info('Run-from-block trigger analysis', {
-          blockId,
-          blockType: workflowBlocks[blockId]?.type,
-          blockTriggerMode: workflowBlocks[blockId]?.triggerMode,
-          candidateFound: !!candidate,
-          candidatePath: candidate?.path,
-          allCandidates: candidates.map((c) => ({
-            blockId: c.blockId,
-            type: c.block.type,
-            path: c.path,
-          })),
-        })
-
         if (candidate) {
-          const needsMockPayload = triggerNeedsMockPayload(candidate)
-          logger.info('Trigger mock payload check', {
-            needsMockPayload,
-            path: candidate.path,
-            isExternalTrigger: candidate.path === StartBlockPath.EXTERNAL_TRIGGER,
-            blockType: candidate.block.type,
-          })
-
-          if (needsMockPayload) {
+          if (triggerNeedsMockPayload(candidate)) {
             workflowInput = extractTriggerMockPayload(candidate)
-            logger.info('Extracted mock payload for trigger block', { blockId, workflowInput })
           } else if (
             candidate.path === StartBlockPath.SPLIT_API ||
             candidate.path === StartBlockPath.SPLIT_INPUT ||
@@ -1522,45 +1500,26 @@ export function useWorkflowExecution() {
               })
               if (Object.keys(testInput).length > 0) {
                 workflowInput = testInput
-                logger.info('Extracted test input for trigger block', { blockId, workflowInput })
               }
             }
           }
         } else {
-          // Fallback for trigger blocks not found in candidates
-          // This can happen when the block is a trigger by position (no incoming edges)
-          // but wasn't classified as a start candidate (e.g., triggerMode not set)
+          // Fallback: block is trigger by position but not classified as start candidate
           const block = mergedStates[blockId]
           if (block) {
             const blockConfig = getBlock(block.type)
             const hasTriggers = blockConfig?.triggers?.available?.length
 
             if (hasTriggers || block.triggerMode) {
-              // Block has trigger capability - extract mock payload
-              const syntheticCandidate = {
+              workflowInput = extractTriggerMockPayload({
                 blockId,
                 block,
                 path: StartBlockPath.EXTERNAL_TRIGGER,
-              }
-              workflowInput = extractTriggerMockPayload(syntheticCandidate)
-              logger.info('Extracted mock payload for trigger block (fallback)', {
-                blockId,
-                blockType: block.type,
-                hasTriggers,
-                triggerMode: block.triggerMode,
-                workflowInput,
               })
             }
           }
         }
       }
-
-      logger.info('Starting run-from-block execution', {
-        workflowId,
-        startBlockId: blockId,
-        isTriggerBlock,
-        hasInput: !!workflowInput,
-      })
 
       setIsExecuting(true)
       const executionId = uuidv4()
@@ -1576,10 +1535,6 @@ export function useWorkflowExecution() {
           sourceSnapshot: effectiveSnapshot,
           input: workflowInput,
           callbacks: {
-            onExecutionStarted: (data) => {
-              logger.info('Run-from-block execution started:', data)
-            },
-
             onBlockStarted: (data) => {
               activeBlocksSet.add(data.blockId)
               setActiveBlocks(new Set(activeBlocksSet))
@@ -1702,17 +1657,10 @@ export function useWorkflowExecution() {
                   activeExecutionPath: Array.from(mergedExecutedBlocks),
                 }
                 setLastExecutionSnapshot(workflowId, updatedSnapshot)
-                logger.info('Updated execution snapshot after run-from-block', {
-                  workflowId,
-                  newBlocksExecuted: executedBlockIds.size,
-                })
               }
             },
 
             onExecutionError: (data) => {
-              logger.error('Run-from-block execution error:', data.error)
-
-              // If block not found, the snapshot is stale - clear it
               if (data.error?.includes('Block not found in workflow')) {
                 clearLastExecutionSnapshot(workflowId)
                 addNotification({
@@ -1720,7 +1668,6 @@ export function useWorkflowExecution() {
                   message: 'Workflow was modified. Run the workflow again to refresh.',
                   workflowId,
                 })
-                logger.info('Cleared stale execution snapshot', { workflowId })
               } else {
                 addNotification({
                   level: 'error',
@@ -1729,15 +1676,11 @@ export function useWorkflowExecution() {
                 })
               }
             },
-
-            onExecutionCancelled: () => {
-              logger.info('Run-from-block execution cancelled')
-            },
           },
         })
       } catch (error) {
         if ((error as Error).name !== 'AbortError') {
-          logger.error('Run-from-block execution failed:', error)
+          logger.error('Run-from-block failed:', error)
         }
       } finally {
         setIsExecuting(false)

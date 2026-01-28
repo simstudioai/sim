@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge, NodeMetadata } from '@/executor/dag/types'
-import { computeDirtySet, validateRunFromBlock } from '@/executor/utils/run-from-block'
+import { computeExecutionSets, validateRunFromBlock } from '@/executor/utils/run-from-block'
 import type { SerializedLoop, SerializedParallel } from '@/serializer/types'
+
+/**
+ * Helper to extract dirty set from computeExecutionSets
+ */
+function computeDirtySet(dag: DAG, startBlockId: string): Set<string> {
+  return computeExecutionSets(dag, startBlockId).dirtySet
+}
 
 /**
  * Helper to create a DAG node for testing
@@ -489,5 +496,97 @@ describe('computeDirtySet with containers', () => {
     expect(dirtySet.has('C')).toBe(true)
     // Should NOT include A (upstream)
     expect(dirtySet.has('A')).toBe(false)
+  })
+})
+
+describe('computeExecutionSets upstream set', () => {
+  it('includes all upstream blocks in linear workflow', () => {
+    // A → B → C → D
+    const dag = createDAG([
+      createNode('A', [{ target: 'B' }]),
+      createNode('B', [{ target: 'C' }]),
+      createNode('C', [{ target: 'D' }]),
+      createNode('D'),
+    ])
+
+    const { upstreamSet } = computeExecutionSets(dag, 'C')
+
+    expect(upstreamSet.has('A')).toBe(true)
+    expect(upstreamSet.has('B')).toBe(true)
+    expect(upstreamSet.has('C')).toBe(false) // start block not in upstream
+    expect(upstreamSet.has('D')).toBe(false) // downstream
+  })
+
+  it('includes all branches in convergent upstream', () => {
+    // A → C
+    // B → C → D
+    const dag = createDAG([
+      createNode('A', [{ target: 'C' }]),
+      createNode('B', [{ target: 'C' }]),
+      createNode('C', [{ target: 'D' }]),
+      createNode('D'),
+    ])
+
+    const { upstreamSet } = computeExecutionSets(dag, 'C')
+
+    expect(upstreamSet.has('A')).toBe(true)
+    expect(upstreamSet.has('B')).toBe(true)
+    expect(upstreamSet.has('C')).toBe(false)
+    expect(upstreamSet.has('D')).toBe(false)
+  })
+
+  it('excludes parallel branches not in upstream path', () => {
+    // A → B → D
+    // A → C → D
+    // Running from B: upstream is A only, not C
+    const dag = createDAG([
+      createNode('A', [{ target: 'B' }, { target: 'C' }]),
+      createNode('B', [{ target: 'D' }]),
+      createNode('C', [{ target: 'D' }]),
+      createNode('D'),
+    ])
+
+    const { upstreamSet, dirtySet } = computeExecutionSets(dag, 'B')
+
+    // Upstream should only contain A
+    expect(upstreamSet.has('A')).toBe(true)
+    expect(upstreamSet.has('C')).toBe(false) // parallel branch, not upstream of B
+    // Dirty should contain B and D
+    expect(dirtySet.has('B')).toBe(true)
+    expect(dirtySet.has('D')).toBe(true)
+    expect(dirtySet.has('C')).toBe(false)
+  })
+
+  it('handles diamond pattern upstream correctly', () => {
+    //     B
+    //   ↗   ↘
+    // A       D → E
+    //   ↘   ↗
+    //     C
+    // Running from D: upstream should be A, B, C
+    const dag = createDAG([
+      createNode('A', [{ target: 'B' }, { target: 'C' }]),
+      createNode('B', [{ target: 'D' }]),
+      createNode('C', [{ target: 'D' }]),
+      createNode('D', [{ target: 'E' }]),
+      createNode('E'),
+    ])
+
+    const { upstreamSet, dirtySet } = computeExecutionSets(dag, 'D')
+
+    expect(upstreamSet.has('A')).toBe(true)
+    expect(upstreamSet.has('B')).toBe(true)
+    expect(upstreamSet.has('C')).toBe(true)
+    expect(upstreamSet.has('D')).toBe(false)
+    expect(dirtySet.has('D')).toBe(true)
+    expect(dirtySet.has('E')).toBe(true)
+  })
+
+  it('returns empty upstream set for root block', () => {
+    const dag = createDAG([createNode('A', [{ target: 'B' }]), createNode('B')])
+
+    const { upstreamSet } = computeExecutionSets(dag, 'A')
+
+    expect(upstreamSet.size).toBe(0)
   })
 })

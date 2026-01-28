@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { LOOP, PARALLEL } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
-
-const logger = createLogger('run-from-block')
 
 /**
  * Builds the sentinel-start node ID for a loop.
@@ -112,28 +109,7 @@ export function computeExecutionSets(dag: DAG, startBlockId: string): ExecutionS
     }
   }
 
-  logger.debug('Computed execution sets', {
-    startBlockId,
-    traversalStartId,
-    dirtySetSize: dirty.size,
-    upstreamSetSize: upstream.size,
-  })
-
   return { dirtySet: dirty, upstreamSet: upstream }
-}
-
-/**
- * @deprecated Use computeExecutionSets instead for combined computation
- */
-export function computeDirtySet(dag: DAG, startBlockId: string): Set<string> {
-  return computeExecutionSets(dag, startBlockId).dirtySet
-}
-
-/**
- * @deprecated Use computeExecutionSets instead for combined computation
- */
-export function computeUpstreamSet(dag: DAG, blockId: string): Set<string> {
-  return computeExecutionSets(dag, blockId).upstreamSet
 }
 
 /**
