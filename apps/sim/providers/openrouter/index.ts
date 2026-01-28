@@ -516,7 +516,7 @@ export const openRouterProvider: ProviderConfig = {
         return streamingResult as StreamingExecution
       }
 
-      if (request.responseFormat && hasActiveTools && toolCalls.length > 0) {
+      if (request.responseFormat && hasActiveTools) {
         const finalPayload: any = {
           model: payload.model,
           messages: [...currentMessages],
