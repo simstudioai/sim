@@ -1,6 +1,6 @@
 'use client'
 
-import type { RefObject } from 'react'
+import { memo, type RefObject } from 'react'
 import {
   Popover,
   PopoverAnchor,
@@ -8,20 +8,13 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
+import type {
+  ContextMenuPosition,
+  TerminalFilters,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import type { ConsoleEntry } from '@/stores/terminal'
 
-interface ContextMenuPosition {
-  x: number
-  y: number
-}
-
-interface TerminalFilters {
-  blockIds: Set<string>
-  statuses: Set<'error' | 'info'>
-  runIds: Set<string>
-}
-
-interface LogRowContextMenuProps {
+export interface LogRowContextMenuProps {
   isOpen: boolean
   position: ContextMenuPosition
   menuRef: RefObject<HTMLDivElement | null>
@@ -42,7 +35,7 @@ interface LogRowContextMenuProps {
  * Context menu for terminal log rows (left side).
  * Displays filtering options based on the selected row's properties.
  */
-export function LogRowContextMenu({
+export const LogRowContextMenu = memo(function LogRowContextMenu({
   isOpen,
   position,
   menuRef,
@@ -173,4 +166,4 @@ export function LogRowContextMenu({
       </PopoverContent>
     </Popover>
   )
-}
+})

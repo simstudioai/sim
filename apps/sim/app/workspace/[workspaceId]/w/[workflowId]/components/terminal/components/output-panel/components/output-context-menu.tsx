@@ -1,6 +1,6 @@
 'use client'
 
-import type { RefObject } from 'react'
+import { memo, type RefObject } from 'react'
 import {
   Popover,
   PopoverAnchor,
@@ -8,13 +8,9 @@ import {
   PopoverDivider,
   PopoverItem,
 } from '@/components/emcn'
+import type { ContextMenuPosition } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 
-interface ContextMenuPosition {
-  x: number
-  y: number
-}
-
-interface OutputContextMenuProps {
+export interface OutputContextMenuProps {
   isOpen: boolean
   position: ContextMenuPosition
   menuRef: RefObject<HTMLDivElement | null>
@@ -36,7 +32,7 @@ interface OutputContextMenuProps {
  * Context menu for terminal output panel (right side).
  * Displays copy, search, and display options for the code viewer.
  */
-export function OutputContextMenu({
+export const OutputContextMenu = memo(function OutputContextMenu({
   isOpen,
   position,
   menuRef,
@@ -123,4 +119,4 @@ export function OutputContextMenu({
       </PopoverContent>
     </Popover>
   )
-}
+})

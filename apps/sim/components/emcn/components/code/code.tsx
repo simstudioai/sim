@@ -949,6 +949,9 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     [contentRef]
   )
 
+  const hasCollapsibleContent = collapsibleLines.size > 0
+  const effectiveShowCollapseColumn = showCollapseColumn && hasCollapsibleContent
+
   const rowProps = useMemo(
     () => ({
       lines: visibleLines,
@@ -957,7 +960,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
       gutterStyle,
       leftOffset: paddingLeft,
       wrapText,
-      showCollapseColumn,
+      showCollapseColumn: effectiveShowCollapseColumn,
       collapsibleLines,
       collapsedLines,
       onToggleCollapse: toggleCollapse,
@@ -969,7 +972,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
       gutterStyle,
       paddingLeft,
       wrapText,
-      showCollapseColumn,
+      effectiveShowCollapseColumn,
       collapsibleLines,
       collapsedLines,
       toggleCollapse,
@@ -1103,7 +1106,10 @@ function ViewerInner({
   }, [displayLines, language, visibleLineIndices, searchQuery, currentMatchIndex])
 
   const whitespaceClass = wrapText ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
-  const collapseColumnWidth = showCollapseColumn ? COLLAPSE_COLUMN_WIDTH : 0
+
+  const hasCollapsibleContent = collapsibleLines.size > 0
+  const effectiveShowCollapseColumn = showCollapseColumn && hasCollapsibleContent
+  const collapseColumnWidth = effectiveShowCollapseColumn ? COLLAPSE_COLUMN_WIDTH : 0
 
   // Grid-based rendering for gutter alignment (works with wrap)
   if (showGutter) {
@@ -1116,7 +1122,7 @@ function ViewerInner({
               paddingTop: '8px',
               paddingBottom: '8px',
               display: 'grid',
-              gridTemplateColumns: showCollapseColumn
+              gridTemplateColumns: effectiveShowCollapseColumn
                 ? `${gutterWidth}px ${collapseColumnWidth}px 1fr`
                 : `${gutterWidth}px 1fr`,
             }}
@@ -1134,7 +1140,7 @@ function ViewerInner({
                   >
                     {lineNumber}
                   </div>
-                  {showCollapseColumn && (
+                  {effectiveShowCollapseColumn && (
                     <div className='ml-1 flex items-start justify-end'>
                       {isCollapsible && (
                         <CollapseButton

@@ -1,25 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
+import type {
+  SortConfig,
+  TerminalFilters,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import type { ConsoleEntry } from '@/stores/terminal'
-
-/**
- * Sort configuration
- */
-export type SortField = 'timestamp'
-export type SortDirection = 'asc' | 'desc'
-
-export interface SortConfig {
-  field: SortField
-  direction: SortDirection
-}
-
-/**
- * Filter configuration state
- */
-export interface TerminalFilters {
-  blockIds: Set<string>
-  statuses: Set<'error' | 'info'>
-  runIds: Set<string>
-}
 
 /**
  * Custom hook to manage terminal filters and sorting.

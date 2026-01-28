@@ -573,7 +573,19 @@ const TraceSpanNode = memo(function TraceSpanNode({
     return children.sort((a, b) => parseTime(a.startTime) - parseTime(b.startTime))
   }, [span, spanId, spanStartTime])
 
-  const hasChildren = allChildren.length > 0
+  // Hide empty model timing segments for agents without tool calls
+  const filteredChildren = useMemo(() => {
+    const isAgent = span.type?.toLowerCase() === 'agent'
+    const hasToolCalls =
+      (span.toolCalls?.length ?? 0) > 0 || allChildren.some((c) => c.type?.toLowerCase() === 'tool')
+
+    if (isAgent && !hasToolCalls) {
+      return allChildren.filter((c) => c.type?.toLowerCase() !== 'model')
+    }
+    return allChildren
+  }, [allChildren, span.type, span.toolCalls])
+
+  const hasChildren = filteredChildren.length > 0
   const isExpanded = isRootWorkflow || expandedNodes.has(spanId)
   const isToggleable = !isRootWorkflow
 
@@ -685,7 +697,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
           {/* Nested Children */}
           {hasChildren && (
             <div className='flex min-w-0 flex-col gap-[2px] border-[var(--border)] border-l pl-[10px]'>
-              {allChildren.map((child, index) => (
+              {filteredChildren.map((child, index) => (
                 <div key={child.id || `${spanId}-child-${index}`} className='pl-[6px]'>
                   <TraceSpanNode
                     span={child}

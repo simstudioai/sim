@@ -7,44 +7,58 @@ import {
   ArrowDown,
   ArrowDownToLine,
   ArrowUp,
-  ChevronDown,
   Database,
-  Filter,
   FilterX,
   MoreHorizontal,
   Palette,
   Pause,
-  RepeatIcon,
-  SplitIcon,
   Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
   Button,
+  ChevronDown,
   Popover,
   PopoverContent,
   PopoverItem,
-  PopoverScrollArea,
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { formatTimeWithSeconds } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
+  FilterPopover,
   LogRowContextMenu,
   OutputPanel,
+  ToggleButton,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components'
 import {
   useOutputPanelResize,
   useTerminalFilters,
   useTerminalResize,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
+import {
+  BADGE_STYLES,
+  ROW_STYLES,
+  StatusDisplay,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
+import {
+  type EntryNode,
+  type ExecutionGroup,
+  flattenBlockEntriesOnly,
+  formatDuration,
+  formatRunId,
+  getBlockColor,
+  getBlockIcon,
+  groupEntriesByExecution,
+  isEventFromEditableElement,
+  type NavigableBlockEntry,
+  RUN_ID_COLORS,
+  TERMINAL_CONFIG,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { getBlock } from '@/blocks'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
@@ -57,197 +71,474 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
  * Terminal height configuration constants
  */
 const MIN_HEIGHT = TERMINAL_HEIGHT.MIN
-const NEAR_MIN_THRESHOLD = 40
 const DEFAULT_EXPANDED_HEIGHT = TERMINAL_HEIGHT.DEFAULT
-
-/**
- * Column width constants - numeric values for calculations
- */
-const BLOCK_COLUMN_WIDTH_PX = 240
 const MIN_OUTPUT_PANEL_WIDTH_PX = OUTPUT_PANEL_WIDTH.MIN
 
 /**
- * Column width constants - Tailwind classes for styling
+ * Block row component for displaying actual block entries
  */
-const COLUMN_WIDTHS = {
-  BLOCK: 'w-[240px]',
-  STATUS: 'w-[120px]',
-  DURATION: 'w-[120px]',
-  RUN_ID: 'w-[120px]',
-  TIMESTAMP: 'w-[120px]',
-  OUTPUT_PANEL: 'w-[400px]',
-} as const
-
-/**
- * Shared styling constants
- */
-const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-[12px]'
-const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-[12px]'
-const COLUMN_BASE_CLASS = 'flex-shrink-0'
-
-/**
- * Retrieves the icon component for a given block type
- * @param blockType - The block type to get the icon for
- * @returns The icon component or null if not found
- */
-const getBlockIcon = (blockType: string): React.ComponentType<{ className?: string }> | null => {
-  const blockConfig = getBlock(blockType)
-
-  if (blockConfig?.icon) {
-    return blockConfig.icon
-  }
-
-  if (blockType === 'loop') {
-    return RepeatIcon
-  }
-
-  if (blockType === 'parallel') {
-    return SplitIcon
-  }
-
-  return null
-}
-
-/**
- * Formats duration from milliseconds to readable format
- */
-const formatDuration = (ms?: number): string => {
-  if (ms === undefined || ms === null) return '-'
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
-/**
- * Determines if an entry should show a status badge and which type
- */
-const getStatusInfo = (
-  success?: boolean,
-  error?: string | Error | null
-): { isError: boolean; label: string } | null => {
-  if (error) return { isError: true, label: 'Error' }
-  if (success === undefined) return null
-  return { isError: !success, label: success ? 'Info' : 'Error' }
-}
-
-/**
- * Reusable column header component with optional filter button
- */
-const ColumnHeader = ({
-  label,
-  width,
-  filterButton,
+const BlockRow = memo(function BlockRow({
+  entry,
+  isSelected,
+  onSelect,
 }: {
-  label: string
-  width: string
-  filterButton?: React.ReactNode
-}) => (
-  <div className={clsx(width, COLUMN_BASE_CLASS, 'flex items-center')}>
-    <span className={HEADER_TEXT_CLASS}>{label}</span>
-    {filterButton && <div className='-mt-[0.75px] ml-[8px] flex items-center'>{filterButton}</div>}
-  </div>
-)
+  entry: ConsoleEntry
+  isSelected: boolean
+  onSelect: (entry: ConsoleEntry) => void
+}) {
+  const BlockIcon = getBlockIcon(entry.blockType)
+  const hasError = Boolean(entry.error)
+  const isRunning = Boolean(entry.isRunning)
+  const isCanceled = Boolean(entry.isCanceled)
+  const bgColor = getBlockColor(entry.blockType)
 
-/**
- * Reusable toggle button component
- */
-const ToggleButton = ({
-  isExpanded,
-  onClick,
-}: {
-  isExpanded: boolean
-  onClick: (e: React.MouseEvent) => void
-}) => (
-  <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={onClick} aria-label='Toggle terminal'>
-    <ChevronDown
+  return (
+    <div
+      data-entry-id={entry.id}
       className={clsx(
-        'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
-        !isExpanded && 'rotate-180'
+        ROW_STYLES.base,
+        'h-[26px]',
+        isSelected ? ROW_STYLES.selected : ROW_STYLES.hover
       )}
+      onClick={(e) => {
+        e.stopPropagation()
+        onSelect(entry)
+      }}
+    >
+      <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <div
+          className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+          style={{ background: bgColor }}
+        >
+          {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+        </div>
+        <span
+          className={clsx(
+            'min-w-0 truncate font-medium text-[13px]',
+            hasError
+              ? 'text-[var(--text-error)]'
+              : isSelected
+                ? 'text-[var(--text-primary)]'
+                : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+          )}
+        >
+          {entry.blockName}
+        </span>
+      </div>
+      <span
+        className={clsx(
+          'flex-shrink-0 font-medium text-[13px]',
+          !isRunning &&
+            (isCanceled ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')
+        )}
+      >
+        <StatusDisplay
+          isRunning={isRunning}
+          isCanceled={isCanceled}
+          formattedDuration={formatDuration(entry.durationMs)}
+        />
+      </span>
+    </div>
+  )
+})
+
+/**
+ * Iteration node component - shows iteration header with nested blocks
+ */
+const IterationNodeRow = memo(function IterationNodeRow({
+  node,
+  selectedEntryId,
+  onSelectEntry,
+  isExpanded,
+  onToggle,
+}: {
+  node: EntryNode
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  isExpanded: boolean
+  onToggle: () => void
+}) {
+  const { entry, children, iterationInfo } = node
+  const hasError = Boolean(entry.error) || children.some((c) => c.entry.error)
+  const hasChildren = children.length > 0
+  const hasRunningChild = children.some((c) => c.entry.isRunning)
+  const hasCanceledChild = children.some((c) => c.entry.isCanceled) && !hasRunningChild
+
+  const iterationLabel = iterationInfo
+    ? `Iteration ${iterationInfo.current}${iterationInfo.total !== undefined ? ` / ${iterationInfo.total}` : ''}`
+    : entry.blockName
+
+  return (
+    <div className='flex min-w-0 flex-col'>
+      {/* Iteration Header */}
+      <div
+        className={clsx(ROW_STYLES.base, 'h-[26px]', ROW_STYLES.hover)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle()
+        }}
+      >
+        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+          <span
+            className={clsx(
+              'min-w-0 truncate font-medium text-[13px]',
+              hasError
+                ? 'text-[var(--text-error)]'
+                : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+            )}
+          >
+            {iterationLabel}
+          </span>
+          {hasChildren && (
+            <ChevronDown
+              className={clsx(
+                'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                !isExpanded && '-rotate-90'
+              )}
+            />
+          )}
+        </div>
+        <span
+          className={clsx(
+            'flex-shrink-0 font-medium text-[13px]',
+            !hasRunningChild &&
+              (hasCanceledChild ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')
+          )}
+        >
+          <StatusDisplay
+            isRunning={hasRunningChild}
+            isCanceled={hasCanceledChild}
+            formattedDuration={formatDuration(entry.durationMs)}
+          />
+        </span>
+      </div>
+
+      {/* Nested Blocks */}
+      {isExpanded && hasChildren && (
+        <div className={ROW_STYLES.nested}>
+          {children.map((child) => (
+            <BlockRow
+              key={child.entry.id}
+              entry={child.entry}
+              isSelected={selectedEntryId === child.entry.id}
+              onSelect={onSelectEntry}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+})
+
+/**
+ * Subflow node component - shows subflow header with nested iterations
+ */
+const SubflowNodeRow = memo(function SubflowNodeRow({
+  node,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+}: {
+  node: EntryNode
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+}) {
+  const { entry, children } = node
+  const BlockIcon = getBlockIcon(entry.blockType)
+  const hasError =
+    Boolean(entry.error) ||
+    children.some((c) => c.entry.error || c.children.some((gc) => gc.entry.error))
+  const bgColor = getBlockColor(entry.blockType)
+  const nodeId = entry.id
+  const isExpanded = expandedNodes.has(nodeId)
+  const hasChildren = children.length > 0
+
+  // Check if any nested block is running or canceled
+  const hasRunningDescendant = children.some(
+    (c) => c.entry.isRunning || c.children.some((gc) => gc.entry.isRunning)
+  )
+  const hasCanceledDescendant =
+    children.some((c) => c.entry.isCanceled || c.children.some((gc) => gc.entry.isCanceled)) &&
+    !hasRunningDescendant
+
+  const displayName =
+    entry.blockType === 'loop'
+      ? 'Loop'
+      : entry.blockType === 'parallel'
+        ? 'Parallel'
+        : entry.blockName
+
+  return (
+    <div className='flex min-w-0 flex-col'>
+      {/* Subflow Header */}
+      <div
+        className={clsx(ROW_STYLES.base, 'h-[26px]', ROW_STYLES.hover)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleNode(nodeId)
+        }}
+      >
+        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+          <div
+            className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+            style={{ background: bgColor }}
+          >
+            {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+          </div>
+          <span
+            className={clsx(
+              'min-w-0 truncate font-medium text-[13px]',
+              hasError
+                ? 'text-[var(--text-error)]'
+                : isExpanded
+                  ? 'text-[var(--text-primary)]'
+                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+            )}
+          >
+            {displayName}
+          </span>
+          {hasChildren && (
+            <ChevronDown
+              className={clsx(
+                'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                !isExpanded && '-rotate-90'
+              )}
+            />
+          )}
+        </div>
+        <span
+          className={clsx(
+            'flex-shrink-0 font-medium text-[13px]',
+            !hasRunningDescendant &&
+              (hasCanceledDescendant
+                ? 'text-[var(--text-secondary)]'
+                : 'text-[var(--text-tertiary)]')
+          )}
+        >
+          <StatusDisplay
+            isRunning={hasRunningDescendant}
+            isCanceled={hasCanceledDescendant}
+            formattedDuration={formatDuration(entry.durationMs)}
+          />
+        </span>
+      </div>
+
+      {/* Nested Iterations */}
+      {isExpanded && hasChildren && (
+        <div className={ROW_STYLES.nested}>
+          {children.map((iterNode) => (
+            <IterationNodeRow
+              key={iterNode.entry.id}
+              node={iterNode}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={onSelectEntry}
+              isExpanded={expandedNodes.has(iterNode.entry.id)}
+              onToggle={() => onToggleNode(iterNode.entry.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+})
+
+/**
+ * Entry node component - dispatches to appropriate component based on node type
+ */
+const EntryNodeRow = memo(function EntryNodeRow({
+  node,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+}: {
+  node: EntryNode
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+}) {
+  const { nodeType } = node
+
+  if (nodeType === 'subflow') {
+    return (
+      <SubflowNodeRow
+        node={node}
+        selectedEntryId={selectedEntryId}
+        onSelectEntry={onSelectEntry}
+        expandedNodes={expandedNodes}
+        onToggleNode={onToggleNode}
+      />
+    )
+  }
+
+  if (nodeType === 'iteration') {
+    return (
+      <IterationNodeRow
+        node={node}
+        selectedEntryId={selectedEntryId}
+        onSelectEntry={onSelectEntry}
+        isExpanded={expandedNodes.has(node.entry.id)}
+        onToggle={() => onToggleNode(node.entry.id)}
+      />
+    )
+  }
+
+  // Regular block
+  return (
+    <BlockRow
+      entry={node.entry}
+      isSelected={selectedEntryId === node.entry.id}
+      onSelect={onSelectEntry}
     />
-  </Button>
-)
+  )
+})
 
 /**
- * Truncates execution ID for display as run ID
+ * Status badge component for execution rows
  */
-const formatRunId = (executionId?: string): string => {
-  if (!executionId) return '-'
-  return executionId.slice(0, 8)
-}
-
-/**
- * Run ID colors
- */
-const RUN_ID_COLORS = [
-  '#4ADE80', // Green
-  '#F472B6', // Pink
-  '#60C5FF', // Blue
-  '#FF8533', // Orange
-  '#C084FC', // Purple
-  '#EAB308', // Yellow
-  '#2DD4BF', // Teal
-  '#FB7185', // Rose
-] as const
-
-/**
- * Gets color for a run ID from the precomputed color map.
- */
-const getRunIdColor = (executionId: string | undefined, colorMap: Map<string, string>) => {
-  if (!executionId) return null
-  return colorMap.get(executionId) ?? null
-}
-
-/**
- * Determines if a keyboard event originated from a text-editable element.
- *
- * Treats native inputs, textareas, contenteditable elements, and elements with
- * textbox-like roles as editable. If the event target or any of its ancestors
- * match these criteria, we consider it editable and skip global key handlers.
- *
- * @param e - Keyboard event to inspect
- * @returns True if the event is from an editable context, false otherwise
- */
-const isEventFromEditableElement = (e: KeyboardEvent): boolean => {
-  const target = e.target as HTMLElement | null
-  if (!target) return false
-
-  const isEditable = (el: HTMLElement | null): boolean => {
-    if (!el) return false
-    if (el instanceof HTMLInputElement) return true
-    if (el instanceof HTMLTextAreaElement) return true
-    if ((el as HTMLElement).isContentEditable) return true
-    const role = el.getAttribute('role')
-    if (role === 'textbox' || role === 'combobox') return true
-    return false
+const StatusBadge = memo(function StatusBadge({
+  hasError,
+  isRunning,
+  isCanceled,
+}: {
+  hasError: boolean
+  isRunning: boolean
+  isCanceled: boolean
+}) {
+  if (isRunning) {
+    return (
+      <Badge variant='green' className={BADGE_STYLES.base}>
+        Running
+      </Badge>
+    )
   }
-
-  let el: HTMLElement | null = target
-  while (el) {
-    if (isEditable(el)) return true
-    el = el.parentElement
+  if (isCanceled) {
+    return (
+      <Badge variant='gray' className={BADGE_STYLES.mono}>
+        canceled
+      </Badge>
+    )
   }
-  return false
-}
+  return (
+    <Badge variant={hasError ? 'red' : 'gray'} className={BADGE_STYLES.mono}>
+      {hasError ? 'error' : 'info'}
+    </Badge>
+  )
+})
+
+/**
+ * Execution row component with expand/collapse
+ */
+const ExecutionRow = memo(function ExecutionRow({
+  group,
+  isExpanded,
+  onToggle,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+}: {
+  group: ExecutionGroup
+  isExpanded: boolean
+  onToggle: () => void
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+}) {
+  const hasError = group.status === 'error'
+  const hasRunningEntry = group.entries.some((entry) => entry.isRunning)
+  const hasCanceledEntry = group.entries.some((entry) => entry.isCanceled) && !hasRunningEntry
+
+  return (
+    <div className='flex flex-col px-[6px]'>
+      {/* Execution header */}
+      <div
+        className={clsx(ROW_STYLES.base, 'ml-[4px] h-[24px]', ROW_STYLES.hover)}
+        onClick={onToggle}
+      >
+        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+          <span
+            className={clsx(
+              'font-medium text-[13px]',
+              isExpanded
+                ? 'text-[var(--text-primary)]'
+                : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+            )}
+          >
+            Run #{formatRunId(group.executionId)}
+          </span>
+          <StatusBadge
+            hasError={hasError}
+            isRunning={hasRunningEntry}
+            isCanceled={hasCanceledEntry}
+          />
+          <ChevronDown
+            className={clsx(
+              'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+              !isExpanded && '-rotate-90'
+            )}
+          />
+        </div>
+        <span
+          className={clsx(
+            'flex-shrink-0 font-medium text-[13px]',
+            !hasRunningEntry &&
+              (hasCanceledEntry ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')
+          )}
+        >
+          <StatusDisplay
+            isRunning={hasRunningEntry}
+            isCanceled={hasCanceledEntry}
+            formattedDuration={formatDuration(group.duration)}
+          />
+        </span>
+      </div>
+
+      {/* Expanded content - Tree structure */}
+      {isExpanded && (
+        <div className='flex flex-col pb-[4px] pl-[10px]'>
+          <div className={ROW_STYLES.nested}>
+            {group.entryTree.map((node) => (
+              <EntryNodeRow
+                key={node.entry.id}
+                node={node}
+                selectedEntryId={selectedEntryId}
+                onSelectEntry={onSelectEntry}
+                expandedNodes={expandedNodes}
+                onToggleNode={onToggleNode}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+})
 
 /**
  * Terminal component with resizable height that persists across page refreshes.
- *
- * Uses a CSS-based approach to prevent hydration mismatches:
- * 1. Height is controlled by CSS variable (--terminal-height)
- * 2. Blocking script in layout.tsx sets CSS variable before React hydrates
- * 3. Store updates CSS variable when height changes
- *
- * This ensures server and client render identical HTML, preventing hydration errors.
- *
- * @returns Terminal at the bottom of the workflow
  */
 export const Terminal = memo(function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
+  const logsContainerRef = useRef<HTMLDivElement>(null)
   const prevEntriesLengthRef = useRef(0)
   const prevWorkflowEntriesLengthRef = useRef(0)
   const hasInitializedEntriesRef = useRef(false)
   const isTerminalFocusedRef = useRef(false)
   const lastExpandedHeightRef = useRef<number>(DEFAULT_EXPANDED_HEIGHT)
+
+  // Store refs for keyboard handler to avoid stale closures
+  const selectedEntryRef = useRef<ConsoleEntry | null>(null)
+  const navigableEntriesRef = useRef<NavigableBlockEntry[]>([])
+  const showInputRef = useRef(false)
+  const hasInputDataRef = useRef(false)
+  const isExpandedRef = useRef(false)
+
   const setTerminalHeight = useTerminalStore((state) => state.setTerminalHeight)
   const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
   const setOutputPanelWidth = useTerminalStore((state) => state.setOutputPanelWidth)
@@ -258,28 +549,31 @@ export const Terminal = memo(function Terminal() {
   const structuredView = useTerminalStore((state) => state.structuredView)
   const setStructuredView = useTerminalStore((state) => state.setStructuredView)
   const setHasHydrated = useTerminalStore((state) => state.setHasHydrated)
-  const isExpanded = useTerminalStore((state) => state.terminalHeight > NEAR_MIN_THRESHOLD)
+  const isExpanded = useTerminalStore(
+    (state) => state.terminalHeight > TERMINAL_CONFIG.NEAR_MIN_THRESHOLD
+  )
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
-  const workflowEntriesSelector = useCallback(
-    (state: { entries: ConsoleEntry[] }) =>
-      state.entries.filter((entry) => entry.workflowId === activeWorkflowId),
-    [activeWorkflowId]
-  )
-  const entriesFromStore = useTerminalConsoleStore(useShallow(workflowEntriesSelector))
-  const entries = hasConsoleHydrated ? entriesFromStore : []
+
+  // Get all entries and filter in useMemo to avoid new array on every store update
+  const allStoreEntries = useTerminalConsoleStore((state) => state.entries)
+  const entries = useMemo(() => {
+    if (!hasConsoleHydrated) return []
+    return allStoreEntries.filter((entry) => entry.workflowId === activeWorkflowId)
+  }, [allStoreEntries, activeWorkflowId, hasConsoleHydrated])
+
   const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
+
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
+  const [expandedExecutions, setExpandedExecutions] = useState<Set<string>>(new Set())
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [isToggling, setIsToggling] = useState(false)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
-  const [blockFilterOpen, setBlockFilterOpen] = useState(false)
-  const [statusFilterOpen, setStatusFilterOpen] = useState(false)
-  const [runIdFilterOpen, setRunIdFilterOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
-  const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
 
   const [isTrainingEnvEnabled, setIsTrainingEnvEnabled] = useState(false)
   const showTrainingControls = useShowTrainingControls()
@@ -302,22 +596,15 @@ export const Terminal = memo(function Terminal() {
     hasActiveFilters,
   } = useTerminalFilters()
 
-  const [contextMenuEntry, setContextMenuEntry] = useState<ConsoleEntry | null>(null)
-
   const {
     isOpen: isLogRowMenuOpen,
     position: logRowMenuPosition,
     menuRef: logRowMenuRef,
-    handleContextMenu: handleLogRowContextMenu,
     closeMenu: closeLogRowMenu,
   } = useContextMenu()
 
   /**
-   * Expands the terminal to its last meaningful height, with safeguards:
-   * - Never expands below {@link DEFAULT_EXPANDED_HEIGHT}.
-   * - Never exceeds 70% of the viewport height.
-   *
-   * Uses ref for lastExpandedHeight to avoid re-renders during resize.
+   * Expands the terminal to its last meaningful height
    */
   const expandToLastHeight = useCallback(() => {
     setIsToggling(true)
@@ -338,6 +625,26 @@ export const Terminal = memo(function Terminal() {
   const filteredEntries = useMemo(() => {
     return filterEntries(allWorkflowEntries)
   }, [allWorkflowEntries, filterEntries])
+
+  /**
+   * Group filtered entries by execution
+   */
+  const executionGroups = useMemo(() => {
+    return groupEntriesByExecution(filteredEntries)
+  }, [filteredEntries])
+
+  /**
+   * Navigable block entries for keyboard navigation.
+   * Only includes actual block outputs (not subflows/iterations/headers).
+   * Includes parent node IDs for auto-expanding when navigating.
+   */
+  const navigableEntries = useMemo(() => {
+    const result: NavigableBlockEntry[] = []
+    for (const group of executionGroups) {
+      result.push(...flattenBlockEntriesOnly(group.entryTree, group.executionId))
+    }
+    return result
+  }, [executionGroups])
 
   /**
    * Get unique blocks (by ID) from all workflow entries
@@ -370,15 +677,7 @@ export const Terminal = memo(function Terminal() {
   }, [allWorkflowEntries])
 
   /**
-   * Check if there are any entries with status information (error or success)
-   */
-  const hasStatusEntries = useMemo(() => {
-    return allWorkflowEntries.some((entry) => entry.error || entry.success !== undefined)
-  }, [allWorkflowEntries])
-
-  /**
-   * Track color offset - increments when old executions are trimmed
-   * so remaining executions keep their colors.
+   * Track color offset for run IDs
    */
   const colorStateRef = useRef<{ executionIds: string[]; offset: number }>({
     executionIds: [],
@@ -386,9 +685,7 @@ export const Terminal = memo(function Terminal() {
   })
 
   /**
-   * Compute colors for each execution ID using sequential assignment.
-   * Colors cycle through RUN_ID_COLORS based on position + offset.
-   * When old executions are trimmed, offset increments to preserve colors.
+   * Compute colors for each execution ID
    */
   const executionColorMap = useMemo(() => {
     const currentIds: string[] = []
@@ -459,6 +756,15 @@ export const Terminal = memo(function Terminal() {
     return JSON.stringify(outputData, null, 2)
   }, [outputData])
 
+  // Keep refs in sync for keyboard handler
+  useEffect(() => {
+    selectedEntryRef.current = selectedEntry
+    navigableEntriesRef.current = navigableEntries
+    showInputRef.current = showInput
+    hasInputDataRef.current = hasInputData
+    isExpandedRef.current = isExpanded
+  }, [selectedEntry, navigableEntries, showInput, hasInputData, isExpanded])
+
   /**
    * Reset entry tracking when switching workflows to ensure auto-open
    * works correctly for each workflow independently.
@@ -509,17 +815,97 @@ export const Terminal = memo(function Terminal() {
   ])
 
   /**
-   * Handle row click - toggle if clicking same entry
-   * Disables auto-selection when user manually selects, re-enables when deselecting
-   * Also focuses the terminal to enable keyboard navigation
+   * Auto-expand newest execution, subflows, and iterations when new entries arrive.
+   * This always runs regardless of autoSelectEnabled - new runs should always be visible.
    */
-  const handleRowClick = useCallback((entry: ConsoleEntry) => {
-    // Focus the terminal to enable keyboard navigation
+  useEffect(() => {
+    if (executionGroups.length === 0) return
+
+    const newestExec = executionGroups[0]
+
+    // Always expand the newest execution group
+    setExpandedExecutions((prev) => {
+      if (prev.has(newestExec.executionId)) return prev
+      const next = new Set(prev)
+      next.add(newestExec.executionId)
+      return next
+    })
+
+    // Collect all node IDs that should be expanded (subflows and their iterations)
+    const nodeIdsToExpand: string[] = []
+    for (const node of newestExec.entryTree) {
+      if (node.nodeType === 'subflow' && node.children.length > 0) {
+        nodeIdsToExpand.push(node.entry.id)
+        // Also expand all iteration children
+        for (const iterNode of node.children) {
+          if (iterNode.nodeType === 'iteration') {
+            nodeIdsToExpand.push(iterNode.entry.id)
+          }
+        }
+      }
+    }
+
+    if (nodeIdsToExpand.length > 0) {
+      setExpandedNodes((prev) => {
+        const hasAll = nodeIdsToExpand.every((id) => prev.has(id))
+        if (hasAll) return prev
+        const next = new Set(prev)
+        nodeIdsToExpand.forEach((id) => next.add(id))
+        return next
+      })
+    }
+  }, [executionGroups])
+
+  /**
+   * Focus the terminal for keyboard navigation
+   */
+  const focusTerminal = useCallback(() => {
     terminalRef.current?.focus()
-    setSelectedEntry((prev) => {
-      const isDeselecting = prev?.id === entry.id
-      setAutoSelectEnabled(isDeselecting)
-      return isDeselecting ? null : entry
+    isTerminalFocusedRef.current = true
+  }, [])
+
+  /**
+   * Handle entry selection
+   */
+  const handleSelectEntry = useCallback(
+    (entry: ConsoleEntry) => {
+      focusTerminal()
+      setSelectedEntry((prev) => {
+        const isDeselecting = prev?.id === entry.id
+        setAutoSelectEnabled(isDeselecting)
+        return isDeselecting ? null : entry
+      })
+    },
+    [focusTerminal]
+  )
+
+  /**
+   * Toggle execution expansion
+   */
+  const handleToggleExecution = useCallback((executionId: string) => {
+    setExpandedExecutions((prev) => {
+      const next = new Set(prev)
+      if (next.has(executionId)) {
+        next.delete(executionId)
+      } else {
+        next.add(executionId)
+      }
+      return next
+    })
+  }, [])
+
+  /**
+   * Toggle subflow node expansion
+   */
+  const handleToggleNode = useCallback((nodeId: string) => {
+    setExpandedNodes((prev) => {
+      const next = new Set(prev)
+      if (next.has(nodeId)) {
+        next.delete(nodeId)
+      } else {
+        next.add(nodeId)
+      }
+      return next
     })
   }, [])
 
@@ -536,44 +922,29 @@ export const Terminal = memo(function Terminal() {
     setIsToggling(false)
   }, [])
 
-  /**
-   * Handle terminal focus - enables keyboard navigation
-   */
   const handleTerminalFocus = useCallback(() => {
     isTerminalFocusedRef.current = true
   }, [])
 
-  /**
-   * Handle terminal blur - disables keyboard navigation
-   */
   const handleTerminalBlur = useCallback((e: React.FocusEvent) => {
-    // Only blur if focus is moving outside the terminal
     if (!terminalRef.current?.contains(e.relatedTarget as Node)) {
       isTerminalFocusedRef.current = false
     }
   }, [])
 
-  /**
-   * Handle copy output to clipboard
-   */
   const handleCopy = useCallback(() => {
     if (!selectedEntry) return
-
     const textToCopy = shouldShowCodeDisplay ? selectedEntry.input.code : outputDataStringified
-
     navigator.clipboard.writeText(textToCopy)
     setShowCopySuccess(true)
   }, [selectedEntry, outputDataStringified, shouldShowCodeDisplay])
 
-  /**
-   * Clears the console for the active workflow.
-   *
-   * Extracted so it can be reused both by click handlers and global commands.
-   */
   const clearCurrentWorkflowConsole = useCallback(() => {
     if (activeWorkflowId) {
       clearWorkflowConsole(activeWorkflowId)
       setSelectedEntry(null)
+      setExpandedExecutions(new Set())
+      setExpandedNodes(new Set())
     }
   }, [activeWorkflowId, clearWorkflowConsole])
 
@@ -593,14 +964,6 @@ export const Terminal = memo(function Terminal() {
       }
     },
     [activeWorkflowId, exportConsoleCSV]
-  )
-
-  const handleRowContextMenu = useCallback(
-    (e: React.MouseEvent, entry: ConsoleEntry) => {
-      setContextMenuEntry(entry)
-      handleLogRowContextMenu(e)
-    },
-    [handleLogRowContextMenu]
   )
 
   const handleFilterByBlock = useCallback(
@@ -664,13 +1027,6 @@ export const Terminal = memo(function Terminal() {
 
   const shouldShowTrainingButton = isTrainingEnvEnabled && showTrainingControls
 
-  /**
-   * Register global keyboard shortcuts for the terminal:
-   * - Mod+D: Clear terminal console for the active workflow
-   *
-   * The command is disabled in editable contexts so it does not interfere
-   * with typing inside inputs, textareas, or editors.
-   */
   useRegisterGlobalCommands(() =>
     createCommands([
       {
@@ -685,62 +1041,40 @@ export const Terminal = memo(function Terminal() {
     ])
   )
 
-  /**
-   * Mark hydration as complete on mount
-   */
   useEffect(() => {
     setHasHydrated(true)
   }, [setHasHydrated])
 
-  /**
-   * Sync lastExpandedHeightRef with store value on mount.
-   * Uses subscription to keep ref updated without causing re-renders.
-   */
   useEffect(() => {
-    // Initialize with current value
     lastExpandedHeightRef.current = useTerminalStore.getState().lastExpandedHeight
-
     const unsub = useTerminalStore.subscribe((state) => {
       lastExpandedHeightRef.current = state.lastExpandedHeight
     })
     return unsub
   }, [])
 
-  /**
-   * Check environment variables on mount
-   */
   useEffect(() => {
     setIsTrainingEnvEnabled(isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED')))
     setIsPlaygroundEnabled(isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
   }, [])
 
-  /**
-   * Adjust showInput when selected entry changes
-   * Stay on input view if the new entry has input data
-   */
   useEffect(() => {
     if (!selectedEntry) {
       setShowInput(false)
       return
     }
-
-    // If we're viewing input but the new entry has no input, switch to output
     if (showInput) {
       const newHasInput =
         selectedEntry.input &&
         (typeof selectedEntry.input === 'object'
           ? Object.keys(selectedEntry.input).length > 0
           : true)
-
       if (!newHasInput) {
         setShowInput(false)
       }
     }
   }, [selectedEntry, showInput])
 
-  /**
-   * Reset copy success state after 2 seconds
-   */
   useEffect(() => {
     if (showCopySuccess) {
       const timer = setTimeout(() => {
@@ -751,96 +1085,224 @@ export const Terminal = memo(function Terminal() {
   }, [showCopySuccess])
 
   /**
-   * Auto-select the latest entry when new logs arrive
-   * Re-enables auto-selection when all entries are cleared
-   * Only auto-selects when NEW entries are added (length increases)
+   * Scroll the logs container to the bottom.
+   */
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      const container = logsContainerRef.current
+      if (!container) return
+      container.scrollTop = container.scrollHeight
+    })
+  }, [])
+
+  /**
+   * Scroll an entry into view (for keyboard navigation).
+   */
+  const scrollEntryIntoView = useCallback((entryId: string) => {
+    requestAnimationFrame(() => {
+      const container = logsContainerRef.current
+      if (!container) return
+      const el = container.querySelector(`[data-entry-id="${entryId}"]`)
+      if (el) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    })
+  }, [])
+
+  /**
+   * Auto-select the last entry (bottom of the list) when new logs arrive.
    */
   useEffect(() => {
-    if (filteredEntries.length === 0) {
-      // Re-enable auto-selection when console is cleared
+    if (executionGroups.length === 0 || navigableEntries.length === 0) {
       setAutoSelectEnabled(true)
       setSelectedEntry(null)
       prevEntriesLengthRef.current = 0
       return
     }
 
-    // Auto-select the latest entry only when a NEW entry is added (length increased)
-    if (autoSelectEnabled && filteredEntries.length > prevEntriesLengthRef.current) {
-      const latestEntry = filteredEntries[0]
-      setSelectedEntry(latestEntry)
-    }
+    if (autoSelectEnabled && navigableEntries.length > prevEntriesLengthRef.current) {
+      // Get the last entry from the newest execution (it's at the bottom of the list)
+      const newestExecutionId = executionGroups[0].executionId
+      let lastNavEntry: NavigableBlockEntry | null = null
 
-    prevEntriesLengthRef.current = filteredEntries.length
-  }, [filteredEntries, autoSelectEnabled])
+      for (const navEntry of navigableEntries) {
+        if (navEntry.executionId === newestExecutionId) {
+          lastNavEntry = navEntry
+        } else {
+          break
+        }
+      }
 
-  /**
-   * Handle keyboard navigation through logs
-   * Disables auto-selection when user manually navigates
-   * Only active when the terminal is focused
-   */
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle navigation when terminal is focused
-      if (!isTerminalFocusedRef.current) return
-      if (isEventFromEditableElement(e)) return
-      const activeElement = document.activeElement as HTMLElement | null
-      const toolbarRoot = document.querySelector(
-        '[data-toolbar-root][data-search-active=\"true\"]'
-      ) as HTMLElement | null
-      if (toolbarRoot && activeElement && toolbarRoot.contains(activeElement)) {
+      if (!lastNavEntry) {
+        prevEntriesLengthRef.current = navigableEntries.length
         return
       }
 
-      if (!selectedEntry || filteredEntries.length === 0) return
+      setSelectedEntry(lastNavEntry.entry)
+      focusTerminal()
 
-      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
-
-      e.preventDefault()
-
-      const currentIndex = filteredEntries.findIndex((entry) => entry.id === selectedEntry.id)
-      if (currentIndex === -1) return
-
-      if (e.key === 'ArrowUp' && currentIndex > 0) {
-        setAutoSelectEnabled(false)
-        setSelectedEntry(filteredEntries[currentIndex - 1])
-      } else if (e.key === 'ArrowDown' && currentIndex < filteredEntries.length - 1) {
-        setAutoSelectEnabled(false)
-        setSelectedEntry(filteredEntries[currentIndex + 1])
+      // Expand execution and parent nodes
+      setExpandedExecutions((prev) => {
+        if (prev.has(lastNavEntry.executionId)) return prev
+        const next = new Set(prev)
+        next.add(lastNavEntry.executionId)
+        return next
+      })
+      if (lastNavEntry.parentNodeIds.length > 0) {
+        setExpandedNodes((prev) => {
+          const hasAll = lastNavEntry.parentNodeIds.every((id) => prev.has(id))
+          if (hasAll) return prev
+          const next = new Set(prev)
+          lastNavEntry.parentNodeIds.forEach((id) => next.add(id))
+          return next
+        })
       }
+
+      scrollToBottom()
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntry, filteredEntries])
+    prevEntriesLengthRef.current = navigableEntries.length
+  }, [executionGroups, navigableEntries, autoSelectEnabled, focusTerminal, scrollToBottom])
 
   /**
-   * Handle keyboard navigation for input/output toggle
-   * Left arrow shows output, right arrow shows input
-   * Only active when the terminal is focused
+   * Sync selected entry with latest data from store.
+   * This ensures the output panel updates when a running block completes or is canceled.
+   */
+  useEffect(() => {
+    if (!selectedEntry) return
+
+    const updatedEntry = filteredEntries.find((e) => e.id === selectedEntry.id)
+    if (updatedEntry && updatedEntry !== selectedEntry) {
+      // Only update if the entry data has actually changed
+      const hasChanged =
+        updatedEntry.output !== selectedEntry.output ||
+        updatedEntry.isRunning !== selectedEntry.isRunning ||
+        updatedEntry.isCanceled !== selectedEntry.isCanceled ||
+        updatedEntry.durationMs !== selectedEntry.durationMs ||
+        updatedEntry.error !== selectedEntry.error ||
+        updatedEntry.success !== selectedEntry.success
+      if (hasChanged) {
+        setSelectedEntry(updatedEntry)
+      }
+    }
+  }, [filteredEntries, selectedEntry])
+
+  /**
+   * Clear filters when there are no logs
+   */
+  useEffect(() => {
+    if (allWorkflowEntries.length === 0 && hasActiveFilters) {
+      clearFilters()
+    }
+  }, [allWorkflowEntries.length, hasActiveFilters, clearFilters])
+
+  /**
+   * Navigate to a block entry and auto-expand its parents
+   */
+  const navigateToEntry = useCallback(
+    (navEntry: NavigableBlockEntry) => {
+      setAutoSelectEnabled(false)
+      setSelectedEntry(navEntry.entry)
+
+      // Auto-expand the execution group
+      setExpandedExecutions((prev) => {
+        if (prev.has(navEntry.executionId)) return prev
+        const next = new Set(prev)
+        next.add(navEntry.executionId)
+        return next
+      })
+
+      // Auto-expand parent nodes (subflows, iterations)
+      if (navEntry.parentNodeIds.length > 0) {
+        setExpandedNodes((prev) => {
+          const hasAll = navEntry.parentNodeIds.every((id) => prev.has(id))
+          if (hasAll) return prev
+          const next = new Set(prev)
+          navEntry.parentNodeIds.forEach((id) => next.add(id))
+          return next
+        })
+      }
+
+      // Keep terminal focused for continued navigation
+      focusTerminal()
+
+      // Scroll entry into view if needed
+      scrollEntryIntoView(navEntry.entry.id)
+    },
+    [focusTerminal, scrollEntryIntoView]
+  )
+
+  /**
+   * Consolidated keyboard handler for all terminal navigation
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle navigation when terminal is focused
-      if (!isTerminalFocusedRef.current) return
-      // Ignore when typing/navigating inside editable inputs/editors
+      // Common guards
       if (isEventFromEditableElement(e)) return
 
-      if (!selectedEntry) return
-
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-
-      e.preventDefault()
-
-      if (!isExpanded) {
-        expandToLastHeight()
+      const activeElement = document.activeElement as HTMLElement | null
+      const searchOverlay = document.querySelector('[data-toolbar-root][data-search-active="true"]')
+      if (searchOverlay && activeElement && searchOverlay.contains(activeElement)) {
+        return
       }
 
-      if (e.key === 'ArrowLeft') {
-        if (showInput) {
-          setShowInput(false)
+      const currentEntry = selectedEntryRef.current
+      const entries = navigableEntriesRef.current
+
+      // Escape to unselect
+      if (e.key === 'Escape') {
+        if (currentEntry) {
+          e.preventDefault()
+          setSelectedEntry(null)
+          setAutoSelectEnabled(true)
         }
-      } else if (e.key === 'ArrowRight') {
-        if (!showInput && hasInputData) {
+        return
+      }
+
+      // Terminal must be focused for arrow keys
+      if (!isTerminalFocusedRef.current) return
+
+      // Arrow up/down for entry navigation (only block outputs)
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        if (entries.length === 0) return
+
+        e.preventDefault()
+
+        // If no entry selected, select the first or last based on direction
+        if (!currentEntry) {
+          const targetEntry = e.key === 'ArrowDown' ? entries[0] : entries[entries.length - 1]
+          navigateToEntry(targetEntry)
+          return
+        }
+
+        const currentIndex = entries.findIndex((navEntry) => navEntry.entry.id === currentEntry.id)
+        if (currentIndex === -1) {
+          // Current entry not in navigable list (shouldn't happen), select first
+          navigateToEntry(entries[0])
+          return
+        }
+
+        if (e.key === 'ArrowUp' && currentIndex > 0) {
+          navigateToEntry(entries[currentIndex - 1])
+        } else if (e.key === 'ArrowDown' && currentIndex < entries.length - 1) {
+          navigateToEntry(entries[currentIndex + 1])
+        }
+        return
+      }
+
+      // Arrow left/right for input/output toggle
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (!currentEntry) return
+
+        e.preventDefault()
+
+        if (!isExpandedRef.current) {
+          expandToLastHeight()
+        }
+
+        if (e.key === 'ArrowLeft' && showInputRef.current) {
+          setShowInput(false)
+        } else if (e.key === 'ArrowRight' && !showInputRef.current && hasInputDataRef.current) {
           setShowInput(true)
         }
       }
@@ -848,35 +1310,10 @@ export const Terminal = memo(function Terminal() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [expandToLastHeight, selectedEntry, showInput, hasInputData, isExpanded])
+  }, [expandToLastHeight, navigateToEntry])
 
   /**
-   * Handle Escape to unselect entry (search close is handled by OutputPanel internally)
-   * Check if the focused element is in the search overlay to avoid conflicting with search close.
-   */
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || !selectedEntry) return
-
-      // Don't unselect if focus is in the search overlay (search close takes priority)
-      const activeElement = document.activeElement as HTMLElement | null
-      const searchOverlay = document.querySelector('[data-toolbar-root][data-search-active="true"]')
-      if (searchOverlay && activeElement && searchOverlay.contains(activeElement)) {
-        return
-      }
-
-      e.preventDefault()
-      setSelectedEntry(null)
-      setAutoSelectEnabled(true)
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEntry])
-
-  /**
-   * Adjust output panel width when sidebar or panel width changes.
-   * Ensures output panel doesn't exceed maximum allowed width.
+   * Adjust output panel width on resize
    */
   useEffect(() => {
     const handleResize = () => {
@@ -890,7 +1327,7 @@ export const Terminal = memo(function Terminal() {
       )
 
       const terminalWidth = window.innerWidth - sidebarWidth - panelWidth
-      const maxWidth = terminalWidth - BLOCK_COLUMN_WIDTH_PX
+      const maxWidth = terminalWidth - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
 
       if (outputPanelWidth > maxWidth && maxWidth >= MIN_OUTPUT_PANEL_WIDTH_PX) {
         setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
@@ -940,215 +1377,64 @@ export const Terminal = memo(function Terminal() {
         aria-label='Terminal'
       >
         <div className='relative flex h-full border-[var(--border)] border-t'>
-          {/* Left Section - Logs Table */}
+          {/* Left Section - Logs */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
             style={selectedEntry ? { width: `calc(100% - ${outputPanelWidth}px)` } : undefined}
           >
             {/* Header */}
             <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center bg-[var(--surface-1)] pr-[16px] pl-[24px]'
+              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] pr-[16px] pl-[16px]'
               onClick={handleHeaderClick}
             >
-              {uniqueBlocks.length > 0 ? (
-                <div className={clsx(COLUMN_WIDTHS.BLOCK, COLUMN_BASE_CLASS, 'flex items-center')}>
-                  <Popover open={blockFilterOpen} onOpenChange={setBlockFilterOpen} size='sm'>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        className='!h-auto !p-0 flex items-center'
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label='Filter by block'
-                      >
-                        <span className={HEADER_TEXT_CLASS}>Block</span>
-                        <div className='-mt-[0.75px] ml-[8px] flex items-center'>
-                          <Filter
-                            className={clsx(
-                              'h-[11px] w-[11px]',
-                              filters.blockIds.size > 0 && 'text-[var(--brand-secondary)]'
-                            )}
-                          />
-                        </div>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side='bottom'
-                      align='start'
-                      sideOffset={4}
-                      onClick={(e) => e.stopPropagation()}
-                      minWidth={120}
-                      maxWidth={200}
-                    >
-                      <PopoverScrollArea style={{ maxHeight: '140px' }}>
-                        {uniqueBlocks.map((block, index) => {
-                          const BlockIcon = getBlockIcon(block.blockType)
-                          const isSelected = filters.blockIds.has(block.blockId)
+              {/* Left side - Logs label */}
+              <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
 
-                          return (
-                            <PopoverItem
-                              key={block.blockId}
-                              active={isSelected}
-                              showCheck={isSelected}
-                              onClick={() => toggleBlock(block.blockId)}
-                              className={index > 0 ? 'mt-[2px]' : ''}
-                            >
-                              {BlockIcon && <BlockIcon className='h-3 w-3' />}
-                              <span className='flex-1'>{block.blockName}</span>
-                            </PopoverItem>
-                          )
-                        })}
-                      </PopoverScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              ) : (
-                <ColumnHeader label='Block' width={COLUMN_WIDTHS.BLOCK} />
-              )}
-              {hasStatusEntries ? (
-                <div className={clsx(COLUMN_WIDTHS.STATUS, COLUMN_BASE_CLASS, 'flex items-center')}>
-                  <Popover open={statusFilterOpen} onOpenChange={setStatusFilterOpen} size='sm'>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        className='!h-auto !p-0 flex items-center'
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label='Filter by status'
-                      >
-                        <span className={HEADER_TEXT_CLASS}>Status</span>
-                        <div className='-mt-[0.75px] ml-[8px] flex items-center'>
-                          <Filter
-                            className={clsx(
-                              'h-[11px] w-[11px]',
-                              filters.statuses.size > 0 && 'text-[var(--brand-secondary)]'
-                            )}
-                          />
-                        </div>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side='bottom'
-                      align='start'
-                      sideOffset={4}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ minWidth: '120px', maxWidth: '120px' }}
-                    >
-                      <PopoverScrollArea style={{ maxHeight: '140px' }}>
-                        <PopoverItem
-                          active={filters.statuses.has('error')}
-                          showCheck={filters.statuses.has('error')}
-                          onClick={() => toggleStatus('error')}
-                        >
-                          <div
-                            className='h-[6px] w-[6px] rounded-[2px]'
-                            style={{ backgroundColor: 'var(--text-error)' }}
-                          />
-                          <span className='flex-1'>Error</span>
-                        </PopoverItem>
-                        <PopoverItem
-                          active={filters.statuses.has('info')}
-                          showCheck={filters.statuses.has('info')}
-                          onClick={() => toggleStatus('info')}
-                          className='mt-[2px]'
-                        >
-                          <div
-                            className='h-[6px] w-[6px] rounded-[2px]'
-                            style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
-                          />
-                          <span className='flex-1'>Info</span>
-                        </PopoverItem>
-                      </PopoverScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              ) : (
-                <ColumnHeader label='Status' width={COLUMN_WIDTHS.STATUS} />
-              )}
-              {uniqueRunIds.length > 0 ? (
-                <div className={clsx(COLUMN_WIDTHS.RUN_ID, COLUMN_BASE_CLASS, 'flex items-center')}>
-                  <Popover open={runIdFilterOpen} onOpenChange={setRunIdFilterOpen} size='sm'>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        className='!h-auto !p-0 flex items-center'
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label='Filter by run ID'
-                      >
-                        <span className={HEADER_TEXT_CLASS}>Run ID</span>
-                        <div className='-mt-[0.75px] ml-[8px] flex items-center'>
-                          <Filter
-                            className={clsx(
-                              'h-[11px] w-[11px]',
-                              filters.runIds.size > 0 && 'text-[var(--brand-secondary)]'
-                            )}
-                          />
-                        </div>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      side='bottom'
-                      align='start'
-                      sideOffset={4}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ minWidth: '90px', maxWidth: '90px' }}
-                    >
-                      <PopoverScrollArea style={{ maxHeight: '140px' }}>
-                        {uniqueRunIds.map((runId, index) => {
-                          const isSelected = filters.runIds.has(runId)
-                          const runIdColor = getRunIdColor(runId, executionColorMap)
-
-                          return (
-                            <PopoverItem
-                              key={runId}
-                              active={isSelected}
-                              showCheck={isSelected}
-                              onClick={() => toggleRunId(runId)}
-                              className={index > 0 ? 'mt-[2px]' : ''}
-                            >
-                              <span
-                                className='flex-1 font-mono text-[11px]'
-                                style={{ color: runIdColor || '#D2D2D2' }}
-                              >
-                                {formatRunId(runId)}
-                              </span>
-                            </PopoverItem>
-                          )
-                        })}
-                      </PopoverScrollArea>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              ) : (
-                <ColumnHeader label='Run ID' width={COLUMN_WIDTHS.RUN_ID} />
-              )}
-              <ColumnHeader label='Duration' width={COLUMN_WIDTHS.DURATION} />
-              {allWorkflowEntries.length > 0 ? (
-                <div
-                  className={clsx(COLUMN_WIDTHS.TIMESTAMP, COLUMN_BASE_CLASS, 'flex items-center')}
-                >
-                  <Button
-                    variant='ghost'
-                    className='!h-auto !p-0 flex items-center'
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleSort()
-                    }}
-                    aria-label='Sort by timestamp'
-                  >
-                    <span className={HEADER_TEXT_CLASS}>Timestamp</span>
-                    <div className='-mt-[0.75px] ml-[8px] flex items-center'>
-                      {sortConfig.direction === 'desc' ? (
-                        <ArrowDown className='h-[13px] w-[13px]' />
-                      ) : (
-                        <ArrowUp className='h-[13px] w-[13px]' />
-                      )}
-                    </div>
-                  </Button>
-                </div>
-              ) : (
-                <ColumnHeader label='Timestamp' width={COLUMN_WIDTHS.TIMESTAMP} />
-              )}
+              {/* Right side - Filters and icons */}
               {!selectedEntry && (
-                <div className='ml-auto flex items-center gap-[8px]'>
+                <div className='flex items-center gap-[8px]'>
+                  {/* Unified filter popover */}
+                  {allWorkflowEntries.length > 0 && (
+                    <FilterPopover
+                      open={filtersOpen}
+                      onOpenChange={setFiltersOpen}
+                      filters={filters}
+                      toggleStatus={toggleStatus}
+                      toggleBlock={toggleBlock}
+                      toggleRunId={toggleRunId}
+                      uniqueBlocks={uniqueBlocks}
+                      uniqueRunIds={uniqueRunIds}
+                      executionColorMap={executionColorMap}
+                      hasActiveFilters={hasActiveFilters}
+                    />
+                  )}
+
+                  {/* Sort toggle */}
+                  {allWorkflowEntries.length > 0 && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleSort()
+                          }}
+                          aria-label='Sort by timestamp'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          {sortConfig.direction === 'desc' ? (
+                            <ArrowDown className='h-3 w-3' />
+                          ) : (
+                            <ArrowUp className='h-3 w-3' />
+                          )}
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Sort by time</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
+
                   {isPlaygroundEnabled && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
@@ -1167,6 +1453,7 @@ export const Terminal = memo(function Terminal() {
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
+
                   {shouldShowTrainingButton && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
@@ -1191,6 +1478,7 @@ export const Terminal = memo(function Terminal() {
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
+
                   {hasActiveFilters && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
@@ -1211,6 +1499,7 @@ export const Terminal = memo(function Terminal() {
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
+
                   {filteredEntries.length > 0 && (
                     <>
                       <Tooltip.Root>
@@ -1245,6 +1534,7 @@ export const Terminal = memo(function Terminal() {
                       </Tooltip.Root>
                     </>
                   )}
+
                   <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen} size='sm'>
                     <PopoverTrigger asChild>
                       <Button
@@ -1279,6 +1569,7 @@ export const Terminal = memo(function Terminal() {
                       </PopoverItem>
                     </PopoverContent>
                   </Popover>
+
                   <ToggleButton
                     isExpanded={isExpanded}
                     onClick={(e) => {
@@ -1290,98 +1581,25 @@ export const Terminal = memo(function Terminal() {
               )}
             </div>
 
-            {/* Rows */}
-            <div className='flex-1 overflow-y-auto overflow-x-hidden'>
-              {filteredEntries.length === 0 ? (
+            {/* Execution list */}
+            <div ref={logsContainerRef} className='flex-1 overflow-y-auto overflow-x-hidden'>
+              {executionGroups.length === 0 ? (
                 <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
                   No logs yet
                 </div>
               ) : (
-                filteredEntries.map((entry) => {
-                  const statusInfo = getStatusInfo(entry.success, entry.error)
-                  const isSelected = selectedEntry?.id === entry.id
-                  const BlockIcon = getBlockIcon(entry.blockType)
-                  const runIdColor = getRunIdColor(entry.executionId, executionColorMap)
-
-                  return (
-                    <div
-                      key={entry.id}
-                      className={clsx(
-                        'flex h-[36px] cursor-pointer items-center px-[24px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-4)]',
-                        isSelected && 'bg-[var(--surface-6)] dark:bg-[var(--surface-4)]'
-                      )}
-                      onClick={() => handleRowClick(entry)}
-                      onContextMenu={(e) => handleRowContextMenu(e, entry)}
-                    >
-                      {/* Block */}
-                      <div
-                        className={clsx(
-                          COLUMN_WIDTHS.BLOCK,
-                          COLUMN_BASE_CLASS,
-                          'flex items-center gap-[8px]'
-                        )}
-                      >
-                        {BlockIcon && (
-                          <BlockIcon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--text-secondary)]' />
-                        )}
-                        <span className={clsx('truncate', ROW_TEXT_CLASS)}>{entry.blockName}</span>
-                      </div>
-
-                      {/* Status */}
-                      <div
-                        className={clsx(
-                          COLUMN_WIDTHS.STATUS,
-                          COLUMN_BASE_CLASS,
-                          'flex items-center'
-                        )}
-                      >
-                        {statusInfo ? (
-                          <Badge variant={statusInfo.isError ? 'red' : 'gray'} dot>
-                            {statusInfo.label}
-                          </Badge>
-                        ) : (
-                          <span className={ROW_TEXT_CLASS}>-</span>
-                        )}
-                      </div>
-
-                      {/* Run ID */}
-                      <span
-                        className={clsx(
-                          COLUMN_WIDTHS.RUN_ID,
-                          COLUMN_BASE_CLASS,
-                          'truncate font-medium font-mono text-[12px]'
-                        )}
-                        style={{ color: runIdColor || '#D2D2D2' }}
-                      >
-                        {formatRunId(entry.executionId)}
-                      </span>
-
-                      {/* Duration */}
-                      <span
-                        className={clsx(
-                          COLUMN_WIDTHS.DURATION,
-                          COLUMN_BASE_CLASS,
-                          'truncate',
-                          ROW_TEXT_CLASS
-                        )}
-                      >
-                        {formatDuration(entry.durationMs)}
-                      </span>
-
-                      {/* Timestamp */}
-                      <span
-                        className={clsx(
-                          COLUMN_WIDTHS.TIMESTAMP,
-                          COLUMN_BASE_CLASS,
-                          'truncate',
-                          ROW_TEXT_CLASS
-                        )}
-                      >
-                        {formatTimeWithSeconds(new Date(entry.timestamp))}
-                      </span>
-                    </div>
-                  )
-                })
+                executionGroups.map((group) => (
+                  <ExecutionRow
+                    key={group.executionId}
+                    group={group}
+                    isExpanded={expandedExecutions.has(group.executionId)}
+                    onToggle={() => handleToggleExecution(group.executionId)}
+                    selectedEntryId={selectedEntry?.id || null}
+                    onSelectEntry={handleSelectEntry}
+                    expandedNodes={expandedNodes}
+                    onToggleNode={handleToggleNode}
+                  />
+                ))
               )}
             </div>
           </div>
@@ -1390,7 +1608,6 @@ export const Terminal = memo(function Terminal() {
           {selectedEntry && (
             <OutputPanel
               selectedEntry={selectedEntry}
-              outputPanelWidth={outputPanelWidth}
               handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
               handleHeaderClick={handleHeaderClick}
               isExpanded={isExpanded}
@@ -1409,18 +1626,17 @@ export const Terminal = memo(function Terminal() {
               hasActiveFilters={hasActiveFilters}
               clearFilters={clearFilters}
               handleClearConsole={handleClearConsole}
-              wrapText={wrapText}
-              setWrapText={setWrapText}
-              openOnRun={openOnRun}
-              setOpenOnRun={setOpenOnRun}
-              structuredView={structuredView}
-              setStructuredView={setStructuredView}
-              outputOptionsOpen={outputOptionsOpen}
-              setOutputOptionsOpen={setOutputOptionsOpen}
               shouldShowCodeDisplay={shouldShowCodeDisplay}
               outputDataStringified={outputDataStringified}
               outputData={outputData}
               handleClearConsoleFromMenu={handleClearConsoleFromMenu}
+              filters={filters}
+              toggleBlock={toggleBlock}
+              toggleStatus={toggleStatus}
+              toggleRunId={toggleRunId}
+              uniqueBlocks={uniqueBlocks}
+              uniqueRunIds={uniqueRunIds}
+              executionColorMap={executionColorMap}
             />
           )}
         </div>
@@ -1432,7 +1648,7 @@ export const Terminal = memo(function Terminal() {
         position={logRowMenuPosition}
         menuRef={logRowMenuRef}
         onClose={closeLogRowMenu}
-        entry={contextMenuEntry}
+        entry={selectedEntry}
         filters={filters}
         onFilterByBlock={handleFilterByBlock}
         onFilterByStatus={handleFilterByStatus}

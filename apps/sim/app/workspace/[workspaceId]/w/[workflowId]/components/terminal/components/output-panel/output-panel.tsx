@@ -1,13 +1,12 @@
 'use client'
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   ArrowDown,
   ArrowDownToLine,
   ArrowUp,
   Check,
-  ChevronDown,
   Clipboard,
   Database,
   FilterX,
@@ -29,11 +28,18 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
+import { FilterPopover } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/filter-popover'
 import { OutputContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/output-context-menu'
 import { StructuredOutput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/structured-output'
+import { ToggleButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/toggle-button'
+import type {
+  BlockInfo,
+  TerminalFilters,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { ConsoleEntry } from '@/stores/terminal'
+import { useTerminalStore } from '@/stores/terminal'
 
 interface OutputCodeContentProps {
   code: string
@@ -74,31 +80,12 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
 })
 
 /**
- * Reusable toggle button component
- */
-const ToggleButton = ({
-  isExpanded,
-  onClick,
-}: {
-  isExpanded: boolean
-  onClick: (e: React.MouseEvent) => void
-}) => (
-  <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={onClick} aria-label='Toggle terminal'>
-    <ChevronDown
-      className={clsx(
-        'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
-        !isExpanded && 'rotate-180'
-      )}
-    />
-  </Button>
-)
-
-/**
  * Props for the OutputPanel component
+ * Store-backed settings (wrapText, openOnRun, structuredView, outputPanelWidth)
+ * are accessed directly from useTerminalStore to reduce prop drilling.
  */
 export interface OutputPanelProps {
   selectedEntry: ConsoleEntry
-  outputPanelWidth: number
   handleOutputPanelResizeMouseDown: (e: React.MouseEvent) => void
   handleHeaderClick: () => void
   isExpanded: boolean
@@ -117,26 +104,25 @@ export interface OutputPanelProps {
   hasActiveFilters: boolean
   clearFilters: () => void
   handleClearConsole: (e: React.MouseEvent) => void
-  wrapText: boolean
-  setWrapText: (wrap: boolean) => void
-  openOnRun: boolean
-  setOpenOnRun: (open: boolean) => void
-  structuredView: boolean
-  setStructuredView: (structured: boolean) => void
-  outputOptionsOpen: boolean
-  setOutputOptionsOpen: (open: boolean) => void
   shouldShowCodeDisplay: boolean
   outputDataStringified: string
   outputData: unknown
   handleClearConsoleFromMenu: () => void
+  filters: TerminalFilters
+  toggleBlock: (blockId: string) => void
+  toggleStatus: (status: 'error' | 'info') => void
+  toggleRunId: (runId: string) => void
+  uniqueBlocks: BlockInfo[]
+  uniqueRunIds: string[]
+  executionColorMap: Map<string, string>
 }
 
 /**
  * Output panel component that manages its own search state.
+ * Accesses store-backed settings directly to reduce prop drilling.
  */
 export const OutputPanel = React.memo(function OutputPanel({
   selectedEntry,
-  outputPanelWidth,
   handleOutputPanelResizeMouseDown,
   handleHeaderClick,
   isExpanded,
@@ -155,20 +141,30 @@ export const OutputPanel = React.memo(function OutputPanel({
   hasActiveFilters,
   clearFilters,
   handleClearConsole,
-  wrapText,
-  setWrapText,
-  openOnRun,
-  setOpenOnRun,
-  structuredView,
-  setStructuredView,
-  outputOptionsOpen,
-  setOutputOptionsOpen,
   shouldShowCodeDisplay,
   outputDataStringified,
   outputData,
   handleClearConsoleFromMenu,
+  filters,
+  toggleBlock,
+  toggleStatus,
+  toggleRunId,
+  uniqueBlocks,
+  uniqueRunIds,
+  executionColorMap,
 }: OutputPanelProps) {
+  // Access store-backed settings directly to reduce prop drilling
+  const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
+  const wrapText = useTerminalStore((state) => state.wrapText)
+  const setWrapText = useTerminalStore((state) => state.setWrapText)
+  const openOnRun = useTerminalStore((state) => state.openOnRun)
+  const setOpenOnRun = useTerminalStore((state) => state.setOpenOnRun)
+  const structuredView = useTerminalStore((state) => state.structuredView)
+  const setStructuredView = useTerminalStore((state) => state.setStructuredView)
+
   const outputContentRef = useRef<HTMLDivElement>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
   const {
     isSearchActive: isOutputSearchActive,
     searchQuery: outputSearchQuery,
@@ -215,6 +211,81 @@ export const OutputPanel = React.memo(function OutputPanel({
     }
   }, [storedSelectionText])
 
+  // Memoized callbacks to avoid inline arrow functions
+  const handleToggleStructuredView = useCallback(() => {
+    setStructuredView(!structuredView)
+  }, [structuredView, setStructuredView])
+
+  const handleToggleWrapText = useCallback(() => {
+    setWrapText(!wrapText)
+  }, [wrapText, setWrapText])
+
+  const handleToggleOpenOnRun = useCallback(() => {
+    setOpenOnRun(!openOnRun)
+  }, [openOnRun, setOpenOnRun])
+
+  const handleClearFiltersClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      clearFilters()
+    },
+    [clearFilters]
+  )
+
+  const handleCopyClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      handleCopy()
+    },
+    [handleCopy]
+  )
+
+  const handleSearchClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      activateOutputSearch()
+    },
+    [activateOutputSearch]
+  )
+
+  const handleCloseSearchClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      closeOutputSearch()
+    },
+    [closeOutputSearch]
+  )
+
+  const handleOutputButtonClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!isExpanded) {
+        expandToLastHeight()
+      }
+      if (showInput) setShowInput(false)
+    },
+    [isExpanded, expandToLastHeight, showInput, setShowInput]
+  )
+
+  const handleInputButtonClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!isExpanded) {
+        expandToLastHeight()
+      }
+      setShowInput(true)
+    },
+    [isExpanded, expandToLastHeight, setShowInput]
+  )
+
+  const handleToggleButtonClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      handleHeaderClick()
+    },
+    [handleHeaderClick]
+  )
+
   /**
    * Track text selection state for context menu.
    * Skip updates when the context menu is open to prevent the selection
@@ -231,6 +302,12 @@ export const OutputPanel = React.memo(function OutputPanel({
     document.addEventListener('selectionchange', handleSelectionChange)
     return () => document.removeEventListener('selectionchange', handleSelectionChange)
   }, [isOutputMenuOpen])
+
+  // Memoize the search query for structured output to avoid re-renders
+  const structuredSearchQuery = useMemo(
+    () => (isOutputSearchActive ? outputSearchQuery : undefined),
+    [isOutputSearchActive, outputSearchQuery]
+  )
 
   return (
     <>
@@ -259,13 +336,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 'px-[8px] py-[6px] text-[12px]',
                 !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
               )}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (!isExpanded) {
-                  expandToLastHeight()
-                }
-                if (showInput) setShowInput(false)
-              }}
+              onClick={handleOutputButtonClick}
               aria-label='Show output'
             >
               Output
@@ -277,13 +348,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   'px-[8px] py-[6px] text-[12px]',
                   showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
                 )}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (!isExpanded) {
-                    expandToLastHeight()
-                  }
-                  setShowInput(true)
-                }}
+                onClick={handleInputButtonClick}
                 aria-label='Show input'
               >
                 Input
@@ -291,16 +356,29 @@ export const OutputPanel = React.memo(function OutputPanel({
             )}
           </div>
           <div className='flex flex-shrink-0 items-center gap-[8px]'>
+            {/* Unified filter popover */}
+            {filteredEntries.length > 0 && (
+              <FilterPopover
+                open={filtersOpen}
+                onOpenChange={setFiltersOpen}
+                filters={filters}
+                toggleStatus={toggleStatus}
+                toggleBlock={toggleBlock}
+                toggleRunId={toggleRunId}
+                uniqueBlocks={uniqueBlocks}
+                uniqueRunIds={uniqueRunIds}
+                executionColorMap={executionColorMap}
+                hasActiveFilters={hasActiveFilters}
+              />
+            )}
+
             {isOutputSearchActive ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closeOutputSearch()
-                    }}
-                    aria-label='Search in output'
+                    onClick={handleCloseSearchClick}
+                    aria-label='Close search'
                     className='!p-1.5 -m-1.5'
                   >
                     <X className='h-[12px] w-[12px]' />
@@ -315,10 +393,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      activateOutputSearch()
-                    }}
+                    onClick={handleSearchClick}
                     aria-label='Search in output'
                     className='!p-1.5 -m-1.5'
                   >
@@ -379,10 +454,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleCopy()
-                  }}
+                  onClick={handleCopyClick}
                   aria-label='Copy output'
                   className='!p-1.5 -m-1.5'
                 >
@@ -419,10 +491,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      clearFilters()
-                    }}
+                    onClick={handleClearFiltersClick}
                     aria-label='Clear filters'
                     className='!p-1.5 -m-1.5'
                   >
@@ -455,9 +524,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               <PopoverTrigger asChild>
                 <Button
                   variant='ghost'
-                  onClick={(e) => {
-                    e.stopPropagation()
-                  }}
+                  onClick={(e) => e.stopPropagation()}
                   aria-label='Terminal options'
                   className='!p-1.5 -m-1.5'
                 >
@@ -476,42 +543,23 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <PopoverItem
                   active={structuredView}
                   showCheck={structuredView}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setStructuredView(!structuredView)
-                  }}
+                  onClick={handleToggleStructuredView}
                 >
                   <span>Structured view</span>
                 </PopoverItem>
-                <PopoverItem
-                  active={wrapText}
-                  showCheck={wrapText}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setWrapText(!wrapText)
-                  }}
-                >
+                <PopoverItem active={wrapText} showCheck={wrapText} onClick={handleToggleWrapText}>
                   <span>Wrap text</span>
                 </PopoverItem>
                 <PopoverItem
                   active={openOnRun}
                   showCheck={openOnRun}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setOpenOnRun(!openOnRun)
-                  }}
+                  onClick={handleToggleOpenOnRun}
                 >
                   <span>Open on run</span>
                 </PopoverItem>
               </PopoverContent>
             </Popover>
-            <ToggleButton
-              isExpanded={isExpanded}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleHeaderClick()
-              }}
-            />
+            <ToggleButton isExpanded={isExpanded} onClick={handleToggleButtonClick} />
           </div>
         </div>
 
@@ -578,7 +626,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               code={selectedEntry.input.code}
               language={(selectedEntry.input.language as 'javascript' | 'json') || 'javascript'}
               wrapText={wrapText}
-              searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+              searchQuery={structuredSearchQuery}
               currentMatchIndex={currentMatchIndex}
               onMatchCountChange={handleMatchCountChange}
               contentRef={outputContentRef}
@@ -588,8 +636,9 @@ export const OutputPanel = React.memo(function OutputPanel({
               data={outputData}
               wrapText={wrapText}
               isError={!showInput && Boolean(selectedEntry.error)}
+              isRunning={!showInput && Boolean(selectedEntry.isRunning)}
               className='min-h-full'
-              searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+              searchQuery={structuredSearchQuery}
               currentMatchIndex={currentMatchIndex}
               onMatchCountChange={handleMatchCountChange}
               contentRef={outputContentRef}
@@ -599,7 +648,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               code={outputDataStringified}
               language='json'
               wrapText={wrapText}
-              searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+              searchQuery={structuredSearchQuery}
               currentMatchIndex={currentMatchIndex}
               onMatchCountChange={handleMatchCountChange}
               contentRef={outputContentRef}
@@ -618,11 +667,11 @@ export const OutputPanel = React.memo(function OutputPanel({
         onCopyAll={handleCopy}
         onSearch={activateOutputSearch}
         structuredView={structuredView}
-        onToggleStructuredView={() => setStructuredView(!structuredView)}
+        onToggleStructuredView={handleToggleStructuredView}
         wrapText={wrapText}
-        onToggleWrap={() => setWrapText(!wrapText)}
+        onToggleWrap={handleToggleWrapText}
         openOnRun={openOnRun}
-        onToggleOpenOnRun={() => setOpenOnRun(!openOnRun)}
+        onToggleOpenOnRun={handleToggleOpenOnRun}
         onClearConsole={handleClearConsoleFromMenu}
         hasSelection={hasSelection}
       />

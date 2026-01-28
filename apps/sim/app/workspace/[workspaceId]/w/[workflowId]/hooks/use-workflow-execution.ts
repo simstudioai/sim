@@ -81,7 +81,8 @@ export function useWorkflowExecution() {
   const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const { toggleConsole, addConsole } = useTerminalConsoleStore()
+  const { toggleConsole, addConsole, updateConsole, cancelRunningEntries } =
+    useTerminalConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
@@ -867,6 +868,8 @@ export function useWorkflowExecution() {
     if (activeWorkflowId) {
       logger.info('Using server-side executor')
 
+      const executionId = uuidv4()
+
       let executionResult: ExecutionResult = {
         success: false,
         output: {},
@@ -910,6 +913,27 @@ export function useWorkflowExecution() {
               incomingEdges.forEach((edge) => {
                 setEdgeRunStatus(edge.id, 'success')
               })
+
+              // Add entry to terminal immediately with isRunning=true
+              const startedAt = new Date().toISOString()
+              addConsole({
+                input: {},
+                output: undefined,
+                success: undefined,
+                durationMs: undefined,
+                startedAt,
+                endedAt: undefined,
+                workflowId: activeWorkflowId,
+                blockId: data.blockId,
+                executionId,
+                blockName: data.blockName || 'Unknown Block',
+                blockType: data.blockType || 'unknown',
+                isRunning: true,
+                // Pass through iteration context for subflow grouping
+                iterationCurrent: data.iterationCurrent,
+                iterationTotal: data.iterationTotal,
+                iterationType: data.iterationType,
+              })
             },
 
             onBlockCompleted: (data) => {
@@ -940,24 +964,23 @@ export function useWorkflowExecution() {
                 endedAt,
               })
 
-              // Add to console
-              addConsole({
-                input: data.input || {},
-                output: data.output,
-                success: true,
-                durationMs: data.durationMs,
-                startedAt,
-                endedAt,
-                workflowId: activeWorkflowId,
-                blockId: data.blockId,
-                executionId: executionId || uuidv4(),
-                blockName: data.blockName || 'Unknown Block',
-                blockType: data.blockType || 'unknown',
-                // Pass through iteration context for console pills
-                iterationCurrent: data.iterationCurrent,
-                iterationTotal: data.iterationTotal,
-                iterationType: data.iterationType,
-              })
+              // Update existing console entry (created in onBlockStarted) with completion data
+              updateConsole(
+                data.blockId,
+                {
+                  input: data.input || {},
+                  replaceOutput: data.output,
+                  success: true,
+                  durationMs: data.durationMs,
+                  endedAt,
+                  isRunning: false,
+                  // Pass through iteration context for subflow grouping
+                  iterationCurrent: data.iterationCurrent,
+                  iterationTotal: data.iterationTotal,
+                  iterationType: data.iterationType,
+                },
+                executionId
+              )
 
               // Call onBlockComplete callback if provided
               if (onBlockComplete) {
@@ -992,25 +1015,24 @@ export function useWorkflowExecution() {
                 endedAt,
               })
 
-              // Add error to console
-              addConsole({
-                input: data.input || {},
-                output: {},
-                success: false,
-                error: data.error,
-                durationMs: data.durationMs,
-                startedAt,
-                endedAt,
-                workflowId: activeWorkflowId,
-                blockId: data.blockId,
-                executionId: executionId || uuidv4(),
-                blockName: data.blockName,
-                blockType: data.blockType,
-                // Pass through iteration context for console pills
-                iterationCurrent: data.iterationCurrent,
-                iterationTotal: data.iterationTotal,
-                iterationType: data.iterationType,
-              })
+              // Update existing console entry (created in onBlockStarted) with error data
+              updateConsole(
+                data.blockId,
+                {
+                  input: data.input || {},
+                  replaceOutput: {},
+                  success: false,
+                  error: data.error,
+                  durationMs: data.durationMs,
+                  endedAt,
+                  isRunning: false,
+                  // Pass through iteration context for subflow grouping
+                  iterationCurrent: data.iterationCurrent,
+                  iterationTotal: data.iterationTotal,
+                  iterationType: data.iterationType,
+                },
+                executionId
+              )
             },
 
             onStreamChunk: (data) => {
@@ -1089,7 +1111,7 @@ export function useWorkflowExecution() {
                   endedAt: new Date().toISOString(),
                   workflowId: activeWorkflowId,
                   blockId: 'validation',
-                  executionId: executionId || uuidv4(),
+                  executionId,
                   blockName: 'Workflow Validation',
                   blockType: 'validation',
                 })
@@ -1358,6 +1380,11 @@ export function useWorkflowExecution() {
     // Mark current chat execution as superseded so its cleanup won't affect new executions
     currentChatExecutionIdRef.current = null
 
+    // Mark all running entries as canceled in the terminal
+    if (activeWorkflowId) {
+      cancelRunningEntries(activeWorkflowId)
+    }
+
     // Reset execution state - this triggers chat stream cleanup via useEffect in chat.tsx
     setIsExecuting(false)
     setIsDebugging(false)
@@ -1374,6 +1401,8 @@ export function useWorkflowExecution() {
     setIsExecuting,
     setIsDebugging,
     setActiveBlocks,
+    activeWorkflowId,
+    cancelRunningEntries,
   ])
 
   return {
