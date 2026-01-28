@@ -54,11 +54,28 @@ function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
       return
     }
 
-    // Recursively process children - spans are already clean from buildTraceSpans
-    const processedSpan: TraceSpan = {
-      ...span,
-      children: Array.isArray(span.children) ? flattenWorkflowChildren(span.children) : undefined,
+    const processedSpan: TraceSpan = { ...span }
+
+    const directChildren = Array.isArray(span.children) ? span.children : []
+    const outputChildren =
+      span.output &&
+      typeof span.output === 'object' &&
+      Array.isArray((span.output as { childTraceSpans?: TraceSpan[] }).childTraceSpans)
+        ? ((span.output as { childTraceSpans?: TraceSpan[] }).childTraceSpans as TraceSpan[])
+        : []
+
+    const allChildren = [...directChildren, ...outputChildren]
+    if (allChildren.length > 0) {
+      processedSpan.children = flattenWorkflowChildren(allChildren)
     }
+
+    if (outputChildren.length > 0 && processedSpan.output) {
+      const { childTraceSpans: _, ...cleanOutput } = processedSpan.output as {
+        childTraceSpans?: TraceSpan[]
+      } & Record<string, unknown>
+      processedSpan.output = cleanOutput
+    }
+
     flattened.push(processedSpan)
   })
 
@@ -325,23 +342,17 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    // Handle child workflow trace spans - check both log.childTraceSpans (preferred)
-    // and log.output.childTraceSpans (backward compatibility)
     if (isWorkflowBlockType(log.blockType)) {
-      const childTraceSpansFromLog = (log as { childTraceSpans?: TraceSpan[] }).childTraceSpans
-      const childTraceSpansFromOutput = log.output?.childTraceSpans
-
-      const childTraceSpans = Array.isArray(childTraceSpansFromLog)
-        ? childTraceSpansFromLog
-        : Array.isArray(childTraceSpansFromOutput)
-          ? (childTraceSpansFromOutput as TraceSpan[])
+      const childTraceSpans = Array.isArray(log.childTraceSpans)
+        ? log.childTraceSpans
+        : Array.isArray(log.output?.childTraceSpans)
+          ? (log.output.childTraceSpans as TraceSpan[])
           : null
 
       if (childTraceSpans) {
         const flattenedChildren = flattenWorkflowChildren(childTraceSpans)
         span.children = flattenedChildren
 
-        // Clean childTraceSpans from output if present
         if (span.output && typeof span.output === 'object' && 'childTraceSpans' in span.output) {
           const { childTraceSpans: _, ...cleanOutput } = span.output as {
             childTraceSpans?: TraceSpan[]

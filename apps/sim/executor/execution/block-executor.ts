@@ -249,8 +249,6 @@ export class BlockExecutor {
       blockLog.input = this.sanitizeInputsForLog(input)
       blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
 
-      // Extract childTraceSpans for nested workflow execution errors
-      // Store separately to keep output clean for display while preserving for trace processing
       if (errorOutput.childTraceSpans && Array.isArray(errorOutput.childTraceSpans)) {
         blockLog.childTraceSpans = errorOutput.childTraceSpans
       }
