@@ -96,7 +96,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
         <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
           <div
             className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-            style={{ backgroundColor: enabled ? blockIconBg : 'gray' }}
+            style={{ backgroundColor: enabled ? blockIconBg : 'var(--surface-4)' }}
           >
             <BlockIcon className='h-[16px] w-[16px] text-white' />
           </div>
