@@ -107,8 +107,13 @@ export class DAGExecutor {
     startBlockId: string,
     sourceSnapshot: SerializableExecutionState
   ): Promise<ExecutionResult> {
-    // Pass startBlockId as trigger so DAG includes it and all downstream blocks
-    const dag = this.dagBuilder.build(this.workflow, startBlockId)
+    // Check if startBlockId is a regular block in the workflow
+    // Parallel/loop containers are not in workflow.blocks, so we need to handle them differently
+    const isRegularBlock = this.workflow.blocks.some((b) => b.id === startBlockId)
+
+    // For regular blocks, pass startBlockId so DAG includes it and all downstream blocks
+    // For containers (parallel/loop), build DAG normally and let it find the trigger
+    const dag = this.dagBuilder.build(this.workflow, isRegularBlock ? startBlockId : undefined)
 
     const executedBlocks = new Set(sourceSnapshot.executedBlocks)
     const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)
@@ -298,12 +303,19 @@ export class DAGExecutor {
         skipStarterBlockInit: true,
       })
     } else if (overrides?.runFromBlockContext) {
-      // In run-from-block mode, still initialize the start block with workflow input
-      // This ensures trigger blocks get their mock payload
-      this.initializeStarterBlock(context, state, overrides.runFromBlockContext.startBlockId)
-      logger.info('Run-from-block mode: initialized start block', {
-        startBlockId: overrides.runFromBlockContext.startBlockId,
-      })
+      // In run-from-block mode, initialize the start block only if it's a regular block
+      // Skip for sentinels/containers (loop/parallel) which aren't real blocks
+      const startBlockId = overrides.runFromBlockContext.startBlockId
+      const isRegularBlock = this.workflow.blocks.some((b) => b.id === startBlockId)
+
+      if (isRegularBlock) {
+        this.initializeStarterBlock(context, state, startBlockId)
+        logger.info('Run-from-block mode: initialized start block', { startBlockId })
+      } else {
+        logger.info('Run-from-block mode: skipping starter block init for container/sentinel', {
+          startBlockId,
+        })
+      }
     } else {
       this.initializeStarterBlock(context, state, triggerBlockId)
     }
