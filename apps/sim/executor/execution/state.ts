@@ -27,6 +27,8 @@ export interface ParallelScope {
   items?: any[]
   /** Error message if parallel validation failed (e.g., exceeded max branches) */
   validationError?: string
+  /** Whether the parallel has an empty distribution and should be skipped */
+  isEmpty?: boolean
 }
 
 export class ExecutionState implements BlockStateController {

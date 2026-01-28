@@ -390,6 +390,12 @@ export class ExecutionEngine {
     logger.info('Processing outgoing edges', {
       nodeId,
       outgoingEdgesCount: node.outgoingEdges.size,
+      outgoingEdges: Array.from(node.outgoingEdges.entries()).map(([id, e]) => ({
+        id,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+      })),
+      output,
       readyNodesCount: readyNodes.length,
       readyNodes,
     })
