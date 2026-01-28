@@ -361,6 +361,8 @@ export class BlockExecutor {
     let hasChanges = false
 
     for (const [key, value] of Object.entries(inputs)) {
+      // isJSONString is a quick heuristic (checks for { or [), not a validator.
+      // Invalid JSON is safely caught below - this just avoids JSON.parse on every string.
       if (typeof value !== 'string' || !isJSONString(value)) {
         continue
       }
