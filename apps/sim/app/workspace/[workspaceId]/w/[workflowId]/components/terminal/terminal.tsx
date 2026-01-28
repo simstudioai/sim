@@ -410,10 +410,8 @@ const ExecutionGroupRow = memo(function ExecutionGroupRow({
 }) {
   return (
     <div className='flex flex-col px-[6px]'>
-      {/* Dashed separator between executions */}
-      {showSeparator && (
-        <div className='mx-[4px] my-[4px] border-[var(--border)] border-t border-dashed' />
-      )}
+      {/* Separator between executions */}
+      {showSeparator && <div className='mx-[4px] my-[4px] border-[var(--border)] border-t' />}
 
       {/* Entry tree */}
       <div className='ml-[4px] flex flex-col gap-[2px] pb-[4px]'>
@@ -1091,7 +1089,8 @@ export const Terminal = memo(function Terminal() {
   }, [expandToLastHeight, navigateToEntry])
 
   /**
-   * Adjust output panel width on resize
+   * Adjust output panel width on resize.
+   * Closes the output panel if there's not enough space for the minimum width.
    */
   useEffect(() => {
     const handleResize = () => {
@@ -1107,7 +1106,14 @@ export const Terminal = memo(function Terminal() {
       const terminalWidth = window.innerWidth - sidebarWidth - panelWidth
       const maxWidth = terminalWidth - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
 
-      if (outputPanelWidth > maxWidth && maxWidth >= MIN_OUTPUT_PANEL_WIDTH_PX) {
+      // Close output panel if there's not enough space for minimum width
+      if (maxWidth < MIN_OUTPUT_PANEL_WIDTH_PX) {
+        setAutoSelectEnabled(false)
+        setSelectedEntry(null)
+        return
+      }
+
+      if (outputPanelWidth > maxWidth) {
         setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
       }
     }
