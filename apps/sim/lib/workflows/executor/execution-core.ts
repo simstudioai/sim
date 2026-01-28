@@ -27,6 +27,10 @@ import type {
 } from '@/executor/execution/types'
 import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import {
+  buildParallelSentinelEndId,
+  buildSentinelEndId,
+} from '@/executor/utils/subflow-utils'
 import { Serializer } from '@/serializer'
 
 const logger = createLogger('ExecutionCore')
@@ -255,6 +259,24 @@ export async function executeWorkflowCore(
 
     processedInput = input || {}
 
+    // Resolve stopAfterBlockId for loop/parallel containers to their sentinel-end IDs
+    let resolvedStopAfterBlockId = stopAfterBlockId
+    if (stopAfterBlockId) {
+      if (serializedWorkflow.loops?.[stopAfterBlockId]) {
+        resolvedStopAfterBlockId = buildSentinelEndId(stopAfterBlockId)
+        logger.info(`[${requestId}] Resolved loop container to sentinel-end`, {
+          original: stopAfterBlockId,
+          resolved: resolvedStopAfterBlockId,
+        })
+      } else if (serializedWorkflow.parallels?.[stopAfterBlockId]) {
+        resolvedStopAfterBlockId = buildParallelSentinelEndId(stopAfterBlockId)
+        logger.info(`[${requestId}] Resolved parallel container to sentinel-end`, {
+          original: stopAfterBlockId,
+          resolved: resolvedStopAfterBlockId,
+        })
+      }
+    }
+
     // Create and execute workflow with callbacks
     if (resumeFromSnapshot) {
       logger.info(`[${requestId}] Resume execution detected`, {
@@ -305,7 +327,7 @@ export async function executeWorkflowCore(
       abortSignal,
       includeFileBase64,
       base64MaxBytes,
-      stopAfterBlockId,
+      stopAfterBlockId: resolvedStopAfterBlockId,
     }
 
     const executorInstance = new Executor({

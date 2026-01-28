@@ -16,7 +16,7 @@ import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
 import {
-  computeDirtySet,
+  computeExecutionSets,
   type RunFromBlockContext,
   resolveContainerToSentinelStart,
   validateRunFromBlock,
@@ -121,14 +121,31 @@ export class DAGExecutor {
       throw new Error(validation.error)
     }
 
-    const dirtySet = computeDirtySet(dag, startBlockId)
+    const { dirtySet, upstreamSet } = computeExecutionSets(dag, startBlockId)
     const effectiveStartBlockId = resolveContainerToSentinelStart(startBlockId, dag) ?? startBlockId
+
+    // Filter snapshot to only include upstream blocks - prevents references to non-upstream blocks
+    const filteredBlockStates: Record<string, any> = {}
+    for (const [blockId, state] of Object.entries(sourceSnapshot.blockStates)) {
+      if (upstreamSet.has(blockId)) {
+        filteredBlockStates[blockId] = state
+      }
+    }
+    const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter((id) => upstreamSet.has(id))
+
+    const filteredSnapshot: SerializableExecutionState = {
+      ...sourceSnapshot,
+      blockStates: filteredBlockStates,
+      executedBlocks: filteredExecutedBlocks,
+    }
 
     logger.info('Executing from block', {
       workflowId,
       startBlockId,
       effectiveStartBlockId,
       dirtySetSize: dirtySet.size,
+      upstreamSetSize: upstreamSet.size,
+      filteredBlockStatesCount: Object.keys(filteredBlockStates).length,
       totalBlocks: dag.nodes.size,
       dirtyBlocks: Array.from(dirtySet),
     })
@@ -156,7 +173,7 @@ export class DAGExecutor {
 
     const runFromBlockContext = { startBlockId: effectiveStartBlockId, dirtySet }
     const { context, state } = this.createExecutionContext(workflowId, undefined, {
-      snapshotState: sourceSnapshot,
+      snapshotState: filteredSnapshot,
       runFromBlockContext,
     })
 

@@ -51,18 +51,30 @@ export interface RunFromBlockContext {
 }
 
 /**
- * Computes all blocks that need re-execution when running from a specific block.
- * Uses BFS to find all downstream blocks reachable via outgoing edges.
+ * Result of computing execution sets for run-from-block mode.
+ */
+export interface ExecutionSets {
+  /** Blocks that need re-execution (start block + all downstream) */
+  dirtySet: Set<string>
+  /** Blocks that are upstream (ancestors) of the start block */
+  upstreamSet: Set<string>
+}
+
+/**
+ * Computes both the dirty set (downstream) and upstream set in a single traversal pass.
+ * - Dirty set: start block + all blocks reachable via outgoing edges (need re-execution)
+ * - Upstream set: all blocks reachable via incoming edges (can be referenced)
  *
  * For loop/parallel containers, starts from the sentinel-start node and includes
  * the container ID itself in the dirty set.
  *
  * @param dag - The workflow DAG
  * @param startBlockId - The block to start execution from
- * @returns Set of block IDs that are "dirty" and need re-execution
+ * @returns Object containing both dirtySet and upstreamSet
  */
-export function computeDirtySet(dag: DAG, startBlockId: string): Set<string> {
+export function computeExecutionSets(dag: DAG, startBlockId: string): ExecutionSets {
   const dirty = new Set<string>([startBlockId])
+  const upstream = new Set<string>()
   const sentinelStartId = resolveContainerToSentinelStart(startBlockId, dag)
   const traversalStartId = sentinelStartId ?? startBlockId
 
@@ -70,29 +82,58 @@ export function computeDirtySet(dag: DAG, startBlockId: string): Set<string> {
     dirty.add(sentinelStartId)
   }
 
-  const queue = [traversalStartId]
-
-  while (queue.length > 0) {
-    const nodeId = queue.shift()!
+  // BFS downstream for dirty set
+  const downstreamQueue = [traversalStartId]
+  while (downstreamQueue.length > 0) {
+    const nodeId = downstreamQueue.shift()!
     const node = dag.nodes.get(nodeId)
     if (!node) continue
 
     for (const [, edge] of node.outgoingEdges) {
       if (!dirty.has(edge.target)) {
         dirty.add(edge.target)
-        queue.push(edge.target)
+        downstreamQueue.push(edge.target)
       }
     }
   }
 
-  logger.debug('Computed dirty set', {
+  // BFS upstream for upstream set
+  const upstreamQueue = [traversalStartId]
+  while (upstreamQueue.length > 0) {
+    const nodeId = upstreamQueue.shift()!
+    const node = dag.nodes.get(nodeId)
+    if (!node) continue
+
+    for (const sourceId of node.incomingEdges) {
+      if (!upstream.has(sourceId)) {
+        upstream.add(sourceId)
+        upstreamQueue.push(sourceId)
+      }
+    }
+  }
+
+  logger.debug('Computed execution sets', {
     startBlockId,
     traversalStartId,
     dirtySetSize: dirty.size,
-    dirtyBlocks: Array.from(dirty),
+    upstreamSetSize: upstream.size,
   })
 
-  return dirty
+  return { dirtySet: dirty, upstreamSet: upstream }
+}
+
+/**
+ * @deprecated Use computeExecutionSets instead for combined computation
+ */
+export function computeDirtySet(dag: DAG, startBlockId: string): Set<string> {
+  return computeExecutionSets(dag, startBlockId).dirtySet
+}
+
+/**
+ * @deprecated Use computeExecutionSets instead for combined computation
+ */
+export function computeUpstreamSet(dag: DAG, blockId: string): Set<string> {
+  return computeExecutionSets(dag, blockId).upstreamSet
 }
 
 /**
