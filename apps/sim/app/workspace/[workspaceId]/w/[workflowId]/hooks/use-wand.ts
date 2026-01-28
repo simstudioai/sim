@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { readSSEStream } from '@/lib/core/utils/sse'
 import type { GenerationType } from '@/blocks/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 
@@ -184,52 +185,10 @@ export function useWand({
           throw new Error('Response body is null')
         }
 
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let accumulatedContent = ''
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            const chunk = decoder.decode(value)
-            const lines = chunk.split('\n\n')
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const lineData = line.substring(6)
-
-                if (lineData === '[DONE]') {
-                  continue
-                }
-
-                try {
-                  const data = JSON.parse(lineData)
-
-                  if (data.error) {
-                    throw new Error(data.error)
-                  }
-
-                  if (data.chunk) {
-                    accumulatedContent += data.chunk
-                    if (onStreamChunk) {
-                      onStreamChunk(data.chunk)
-                    }
-                  }
-
-                  if (data.done) {
-                    break
-                  }
-                } catch (parseError) {
-                  logger.debug('Failed to parse SSE line', { line, parseError })
-                }
-              }
-            }
-          }
-        } finally {
-          reader.releaseLock()
-        }
+        const accumulatedContent = await readSSEStream(response.body, {
+          onChunk: onStreamChunk,
+          signal: abortControllerRef.current?.signal,
+        })
 
         if (accumulatedContent) {
           onGeneratedContent(accumulatedContent)

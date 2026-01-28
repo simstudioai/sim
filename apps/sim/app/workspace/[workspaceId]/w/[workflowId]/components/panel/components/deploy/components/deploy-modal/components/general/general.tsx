@@ -32,7 +32,6 @@ interface GeneralDeployProps {
   versionsLoading: boolean
   onPromoteToLive: (version: number) => Promise<void>
   onLoadDeploymentComplete: () => void
-  fetchVersions: () => Promise<void>
 }
 
 type PreviewMode = 'active' | 'selected'
@@ -48,7 +47,6 @@ export function GeneralDeploy({
   versionsLoading,
   onPromoteToLive,
   onLoadDeploymentComplete,
-  fetchVersions,
 }: GeneralDeployProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [previewMode, setPreviewMode] = useState<PreviewMode>('active')
@@ -229,7 +227,6 @@ export function GeneralDeploy({
             onSelectVersion={handleSelectVersion}
             onPromoteToLive={handlePromoteToLive}
             onLoadDeployment={handleLoadDeployment}
-            fetchVersions={fetchVersions}
           />
         </div>
       </div>

@@ -19,3 +19,68 @@ export const SSE_HEADERS = {
 export function encodeSSE(data: any): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
 }
+
+/**
+ * Options for reading SSE stream
+ */
+export interface ReadSSEStreamOptions {
+  onChunk?: (chunk: string) => void
+  onAccumulated?: (accumulated: string) => void
+  signal?: AbortSignal
+}
+
+/**
+ * Reads and parses an SSE stream from a Response body.
+ * Handles the wand API SSE format with data chunks and done signals.
+ *
+ * @param body - The ReadableStream body from a fetch Response
+ * @param options - Callbacks for handling stream data
+ * @returns The accumulated content from the stream
+ */
+export async function readSSEStream(
+  body: ReadableStream<Uint8Array>,
+  options: ReadSSEStreamOptions = {}
+): Promise<string> {
+  const { onChunk, onAccumulated, signal } = options
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let accumulatedContent = ''
+
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        break
+      }
+
+      const { done, value } = await reader.read()
+      if (done) break
+
+      const chunk = decoder.decode(value)
+      const lines = chunk.split('\n\n')
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const lineData = line.substring(6)
+          if (lineData === '[DONE]') continue
+
+          try {
+            const data = JSON.parse(lineData)
+            if (data.error) throw new Error(data.error)
+            if (data.chunk) {
+              accumulatedContent += data.chunk
+              onChunk?.(data.chunk)
+              onAccumulated?.(accumulatedContent)
+            }
+            if (data.done) break
+          } catch {
+            // Skip unparseable lines
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  return accumulatedContent
+}

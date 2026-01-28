@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { fetchDeploymentVersionState } from './workflows'
 
 const logger = createLogger('DeploymentQueries')
 
@@ -344,6 +345,173 @@ export function useUndeployWorkflow() {
     },
     onError: (error) => {
       logger.error('Failed to undeploy workflow', { error })
+    },
+  })
+}
+
+/**
+ * Variables for update deployment version mutation
+ */
+interface UpdateDeploymentVersionVariables {
+  workflowId: string
+  version: number
+  name?: string
+  description?: string | null
+}
+
+/**
+ * Response from update deployment version mutation
+ */
+interface UpdateDeploymentVersionResult {
+  name: string | null
+  description: string | null
+}
+
+/**
+ * Mutation hook for updating a deployment version's name or description.
+ * Invalidates versions query on success.
+ */
+export function useUpdateDeploymentVersion() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      version,
+      name,
+      description,
+    }: UpdateDeploymentVersionVariables): Promise<UpdateDeploymentVersionResult> => {
+      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, description }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update deployment version')
+      }
+
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      logger.info('Deployment version updated', {
+        workflowId: variables.workflowId,
+        version: variables.version,
+      })
+
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.versions(variables.workflowId),
+      })
+    },
+    onError: (error) => {
+      logger.error('Failed to update deployment version', { error })
+    },
+  })
+}
+
+/**
+ * Variables for generating a version description
+ */
+interface GenerateVersionDescriptionVariables {
+  workflowId: string
+  version: number
+  onStreamChunk?: (accumulated: string) => void
+}
+
+const VERSION_DESCRIPTION_SYSTEM_PROMPT = `You are a technical writer generating concise deployment version descriptions.
+
+Given a diff of changes between two workflow versions, write a brief, factual description (1-2 sentences, under 300 characters) that states ONLY what changed.
+
+RULES:
+- State specific values when provided (e.g. "model changed from X to Y")
+- Do NOT wrap your response in quotes
+- Do NOT add filler phrases like "streamlining the workflow", "for improved efficiency"
+- Do NOT use markdown formatting
+- Do NOT include version numbers
+- Do NOT start with "This version" or similar phrases
+
+Good examples:
+- Changes model in Agent 1 from gpt-4o to claude-sonnet-4-20250514.
+- Adds Slack notification block. Updates webhook URL to production endpoint.
+- Removes Function block and its connection to Router.
+
+Bad examples:
+- "Changes model..." (NO - don't wrap in quotes)
+- Changes model, streamlining the workflow. (NO - don't add filler)
+
+Respond with ONLY the plain text description.`
+
+/**
+ * Hook for generating a version description using AI based on workflow diff
+ */
+export function useGenerateVersionDescription() {
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      version,
+      onStreamChunk,
+    }: GenerateVersionDescriptionVariables): Promise<string> => {
+      const { generateWorkflowDiffSummary, formatDiffSummaryForDescription } = await import(
+        '@/lib/workflows/comparison/compare'
+      )
+
+      const currentState = await fetchDeploymentVersionState(workflowId, version)
+
+      let previousState = null
+      if (version > 1) {
+        try {
+          previousState = await fetchDeploymentVersionState(workflowId, version - 1)
+        } catch {
+          // Previous version may not exist, continue without it
+        }
+      }
+
+      const diffSummary = generateWorkflowDiffSummary(currentState, previousState)
+      const diffText = formatDiffSummaryForDescription(diffSummary)
+
+      const wandResponse = await fetch('/api/wand', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-transform',
+        },
+        body: JSON.stringify({
+          prompt: `Generate a deployment version description based on these changes:\n\n${diffText}`,
+          systemPrompt: VERSION_DESCRIPTION_SYSTEM_PROMPT,
+          stream: true,
+          workflowId,
+        }),
+        cache: 'no-store',
+      })
+
+      if (!wandResponse.ok) {
+        const errorText = await wandResponse.text()
+        throw new Error(errorText || 'Failed to generate description')
+      }
+
+      if (!wandResponse.body) {
+        throw new Error('Response body is null')
+      }
+
+      const { readSSEStream } = await import('@/lib/core/utils/sse')
+      const accumulatedContent = await readSSEStream(wandResponse.body, {
+        onAccumulated: onStreamChunk,
+      })
+
+      if (!accumulatedContent) {
+        throw new Error('Failed to generate description')
+      }
+
+      return accumulatedContent.trim()
+    },
+    onSuccess: (content) => {
+      logger.info('Generated version description', { length: content.length })
+    },
+    onError: (error) => {
+      logger.error('Failed to generate version description', { error })
     },
   })
 }
