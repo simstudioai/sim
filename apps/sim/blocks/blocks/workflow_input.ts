@@ -43,5 +43,10 @@ export const WorkflowInputBlock: BlockConfig = {
     childWorkflowName: { type: 'string', description: 'Child workflow name' },
     result: { type: 'json', description: 'Workflow execution result' },
     error: { type: 'string', description: 'Error message' },
+    childTraceSpans: {
+      type: 'json',
+      description: 'Child workflow trace spans',
+      hiddenFromDisplay: true,
+    },
   },
 }

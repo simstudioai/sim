@@ -11,8 +11,6 @@ import {
   DEFAULTS,
   EDGE,
   isSentinelBlockType,
-  isTriggerBehavior,
-  isWorkflowBlockType,
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
@@ -30,6 +28,8 @@ import type {
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import { isJSONString } from '@/executor/utils/json'
+import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { validateBlockType } from '@/executor/utils/permission-check'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
@@ -87,7 +87,7 @@ export class BlockExecutor {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
 
       if (blockLog) {
-        blockLog.input = resolvedInputs
+        blockLog.input = this.parseJsonInputs(resolvedInputs)
       }
     } catch (error) {
       cleanupSelfReference?.()
@@ -149,14 +149,23 @@ export class BlockExecutor {
         blockLog.endedAt = new Date().toISOString()
         blockLog.durationMs = duration
         blockLog.success = true
-        blockLog.output = this.filterOutputForLog(block, normalizedOutput)
+        blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
       }
 
       this.state.setBlockOutput(node.id, normalizedOutput, duration)
 
       if (!isSentinel) {
-        const displayOutput = this.filterOutputForDisplay(block, normalizedOutput)
-        this.callOnBlockComplete(ctx, node, block, resolvedInputs, displayOutput, duration)
+        const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
+          block,
+        })
+        this.callOnBlockComplete(
+          ctx,
+          node,
+          block,
+          this.parseJsonInputs(resolvedInputs),
+          displayOutput,
+          duration
+        )
       }
 
       return normalizedOutput
@@ -232,8 +241,8 @@ export class BlockExecutor {
       blockLog.durationMs = duration
       blockLog.success = false
       blockLog.error = errorMessage
-      blockLog.input = input
-      blockLog.output = this.filterOutputForLog(block, errorOutput)
+      blockLog.input = this.parseJsonInputs(input)
+      blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
     }
 
     logger.error(
@@ -246,8 +255,15 @@ export class BlockExecutor {
     )
 
     if (!isSentinel) {
-      const displayOutput = this.filterOutputForDisplay(block, errorOutput)
-      this.callOnBlockComplete(ctx, node, block, input, displayOutput, duration)
+      const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
+      this.callOnBlockComplete(
+        ctx,
+        node,
+        block,
+        this.parseJsonInputs(input),
+        displayOutput,
+        duration
+      )
     }
 
     const hasErrorPort = this.hasErrorPortEdge(node)
@@ -335,49 +351,34 @@ export class BlockExecutor {
     return { result: output }
   }
 
-  private filterOutputForLog(
-    block: SerializedBlock,
-    output: NormalizedBlockOutput
-  ): NormalizedBlockOutput {
-    const blockType = block.metadata?.id
+  /**
+   * Parse JSON string inputs to objects for log display only.
+   * Attempts to parse any string that looks like JSON.
+   * Returns a new object - does not mutate the original inputs.
+   */
+  private parseJsonInputs(inputs: Record<string, any>): Record<string, any> {
+    let result = inputs
+    let hasChanges = false
 
-    if (blockType === BlockType.HUMAN_IN_THE_LOOP) {
-      const filtered: NormalizedBlockOutput = {}
-      for (const [key, value] of Object.entries(output)) {
-        if (key.startsWith('_')) continue
-        if (key === 'response') continue
-        filtered[key] = value
+    for (const [key, value] of Object.entries(inputs)) {
+      // isJSONString is a quick heuristic (checks for { or [), not a validator.
+      // Invalid JSON is safely caught below - this just avoids JSON.parse on every string.
+      if (typeof value !== 'string' || !isJSONString(value)) {
+        continue
       }
-      return filtered
-    }
 
-    if (isTriggerBehavior(block)) {
-      const filtered: NormalizedBlockOutput = {}
-      const internalKeys = ['webhook', 'workflowId']
-      for (const [key, value] of Object.entries(output)) {
-        if (internalKeys.includes(key)) continue
-        filtered[key] = value
+      try {
+        if (!hasChanges) {
+          result = { ...inputs }
+          hasChanges = true
+        }
+        result[key] = JSON.parse(value.trim())
+      } catch {
+        // Not valid JSON, keep original string
       }
-      return filtered
     }
 
-    return output
-  }
-
-  private filterOutputForDisplay(
-    block: SerializedBlock,
-    output: NormalizedBlockOutput
-  ): NormalizedBlockOutput {
-    const filtered = this.filterOutputForLog(block, output)
-
-    if (isWorkflowBlockType(block.metadata?.id)) {
-      const { childTraceSpans: _, ...displayOutput } = filtered as {
-        childTraceSpans?: unknown
-      } & Record<string, unknown>
-      return displayOutput
-    }
-
-    return filtered
+    return result
   }
 
   private callOnBlockStart(ctx: ExecutionContext, node: DAGNode, block: SerializedBlock): void {

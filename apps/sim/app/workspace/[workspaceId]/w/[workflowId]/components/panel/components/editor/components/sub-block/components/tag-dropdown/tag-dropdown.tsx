@@ -1183,19 +1183,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks, true)
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
-        } else if (sourceBlock.type === 'approval') {
-          const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
-
-          const isSelfReference = activeSourceBlockId === blockId
-
-          if (dynamicOutputs.length > 0) {
-            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-            blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
-          } else {
-            const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
-            const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-            blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
-          }
         } else if (sourceBlock.type === 'human_in_the_loop') {
           const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
 
@@ -1400,13 +1387,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (!accessibleBlock) continue
 
       // Skip the current block - blocks cannot reference their own outputs
-      // Exception: approval and human_in_the_loop blocks can reference their own outputs
-      if (
-        accessibleBlockId === blockId &&
-        accessibleBlock.type !== 'approval' &&
-        accessibleBlock.type !== 'human_in_the_loop'
-      )
-        continue
+      // Exception: human_in_the_loop blocks can reference their own outputs (url, resumeEndpoint)
+      if (accessibleBlockId === blockId && accessibleBlock.type !== 'human_in_the_loop') continue
 
       const blockConfig = getBlock(accessibleBlock.type)
 
@@ -1519,19 +1501,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           } else {
             const outputPaths = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, true)
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-          }
-        } else if (accessibleBlock.type === 'approval') {
-          const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
-
-          const isSelfReference = accessibleBlockId === blockId
-
-          if (dynamicOutputs.length > 0) {
-            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-            blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
-          } else {
-            const outputPaths = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
-            const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-            blockTags = isSelfReference ? allTags.filter((tag) => tag.endsWith('.url')) : allTags
           }
         } else if (accessibleBlock.type === 'human_in_the_loop') {
           const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
