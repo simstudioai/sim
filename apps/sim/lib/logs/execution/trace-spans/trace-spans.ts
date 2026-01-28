@@ -318,19 +318,30 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    if (
-      isWorkflowBlockType(log.blockType) &&
-      log.output?.childTraceSpans &&
-      Array.isArray(log.output.childTraceSpans)
-    ) {
-      const childTraceSpans = log.output.childTraceSpans as TraceSpan[]
-      const flattenedChildren = flattenWorkflowChildren(childTraceSpans)
-      span.children = mergeTraceSpanChildren(span.children || [], flattenedChildren)
+    // Handle child workflow trace spans - check both log.childTraceSpans (preferred)
+    // and log.output.childTraceSpans (backward compatibility)
+    if (isWorkflowBlockType(log.blockType)) {
+      const childTraceSpansFromLog = (log as { childTraceSpans?: TraceSpan[] }).childTraceSpans
+      const childTraceSpansFromOutput = log.output?.childTraceSpans
 
-      const { childTraceSpans: _, ...cleanOutput } = span.output as {
-        childTraceSpans?: TraceSpan[]
-      } & Record<string, unknown>
-      span.output = cleanOutput
+      const childTraceSpans = Array.isArray(childTraceSpansFromLog)
+        ? childTraceSpansFromLog
+        : Array.isArray(childTraceSpansFromOutput)
+          ? (childTraceSpansFromOutput as TraceSpan[])
+          : null
+
+      if (childTraceSpans) {
+        const flattenedChildren = flattenWorkflowChildren(childTraceSpans)
+        span.children = mergeTraceSpanChildren(span.children || [], flattenedChildren)
+
+        // Clean childTraceSpans from output if present
+        if (span.output && typeof span.output === 'object' && 'childTraceSpans' in span.output) {
+          const { childTraceSpans: _, ...cleanOutput } = span.output as {
+            childTraceSpans?: TraceSpan[]
+          } & Record<string, unknown>
+          span.output = cleanOutput
+        }
+      }
     }
 
     spanMap.set(spanId, span)

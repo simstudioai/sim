@@ -152,6 +152,12 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
+
+        // Extract childTraceSpans for nested workflow execution
+        // Store separately to keep output clean for display while preserving for trace processing
+        if (normalizedOutput.childTraceSpans && Array.isArray(normalizedOutput.childTraceSpans)) {
+          blockLog.childTraceSpans = normalizedOutput.childTraceSpans
+        }
       }
 
       this.state.setBlockOutput(node.id, normalizedOutput, duration)
@@ -245,6 +251,12 @@ export class BlockExecutor {
       blockLog.error = errorMessage
       blockLog.input = this.sanitizeInputsForLog(input)
       blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
+
+      // Extract childTraceSpans for nested workflow execution errors
+      // Store separately to keep output clean for display while preserving for trace processing
+      if (errorOutput.childTraceSpans && Array.isArray(errorOutput.childTraceSpans)) {
+        blockLog.childTraceSpans = errorOutput.childTraceSpans
+      }
     }
 
     logger.error(
