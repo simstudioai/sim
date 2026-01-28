@@ -112,8 +112,4 @@ spec:
             limits:
               cpu: 50m
               memory: 50Mi
-  {{- if .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml .Values.nodeSelector | nindent 8 }}
-  {{- end }}
 {{- end }}

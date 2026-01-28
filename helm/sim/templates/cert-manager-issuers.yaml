@@ -69,6 +69,7 @@ spec:
 # 3. CA ClusterIssuer
 # This is the issuer that should be used by applications to obtain certificates.
 # It signs certificates using the root CA created above.
+# Uses post-install hook to ensure Certificate is ready before this issuer is created.
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -76,6 +77,9 @@ metadata:
   labels:
     {{- include "sim.labels" . | nindent 4 }}
     app.kubernetes.io/component: cert-manager
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
 spec:
   ca:
     secretName: {{ .Values.certManager.rootCA.secretName }}
