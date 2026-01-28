@@ -819,10 +819,7 @@ describe('run from trigger scenarios', () => {
 
   it('validates trigger block even when not previously executed', () => {
     // Trigger blocks are entry points, so they don't need upstream deps
-    const dag = createDAG([
-      createNode('trigger', [{ target: 'A' }]),
-      createNode('A'),
-    ])
+    const dag = createDAG([createNode('trigger', [{ target: 'A' }]), createNode('A')])
     const executedBlocks = new Set<string>() // Nothing executed yet
 
     const result = validateRunFromBlock('trigger', dag, executedBlocks)
@@ -897,9 +894,7 @@ describe('run from subflow (loop) scenarios', () => {
 
   it('rejects running from block inside loop', () => {
     const loopId = 'loop-1'
-    const dag = createDAG([
-      createNode('inside-loop', [], { isLoopNode: true, loopId }),
-    ])
+    const dag = createDAG([createNode('inside-loop', [], { isLoopNode: true, loopId })])
     const executedBlocks = new Set(['inside-loop'])
 
     const result = validateRunFromBlock('inside-loop', dag, executedBlocks)
