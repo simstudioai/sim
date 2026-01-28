@@ -406,9 +406,11 @@ export function PreviewWorkflow({
         }
       }
 
+      const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
+
       nodeArray.push({
         id: blockId,
-        type: 'workflowBlock',
+        type: nodeType,
         position: absolutePosition,
         draggable: false,
         zIndex: block.data?.parentId ? 10 : undefined,

@@ -22,6 +22,8 @@ interface OutputContextMenuProps {
   onCopySelection: () => void
   onCopyAll: () => void
   onSearch: () => void
+  structuredView: boolean
+  onToggleStructuredView: () => void
   wrapText: boolean
   onToggleWrap: () => void
   openOnRun: boolean
@@ -42,6 +44,8 @@ export function OutputContextMenu({
   onCopySelection,
   onCopyAll,
   onSearch,
+  structuredView,
+  onToggleStructuredView,
   wrapText,
   onToggleWrap,
   openOnRun,
@@ -96,6 +100,9 @@ export function OutputContextMenu({
 
         {/* Display settings - toggles don't close menu */}
         <PopoverDivider />
+        <PopoverItem showCheck={structuredView} onClick={onToggleStructuredView}>
+          Structured View
+        </PopoverItem>
         <PopoverItem showCheck={wrapText} onClick={onToggleWrap}>
           Wrap Text
         </PopoverItem>

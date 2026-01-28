@@ -30,6 +30,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { OutputContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/output-context-menu'
+import { StructuredOutput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/structured-output'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -120,10 +121,13 @@ export interface OutputPanelProps {
   setWrapText: (wrap: boolean) => void
   openOnRun: boolean
   setOpenOnRun: (open: boolean) => void
+  structuredView: boolean
+  setStructuredView: (structured: boolean) => void
   outputOptionsOpen: boolean
   setOutputOptionsOpen: (open: boolean) => void
   shouldShowCodeDisplay: boolean
   outputDataStringified: string
+  outputData: unknown
   handleClearConsoleFromMenu: () => void
 }
 
@@ -155,10 +159,13 @@ export const OutputPanel = React.memo(function OutputPanel({
   setWrapText,
   openOnRun,
   setOpenOnRun,
+  structuredView,
+  setStructuredView,
   outputOptionsOpen,
   setOutputOptionsOpen,
   shouldShowCodeDisplay,
   outputDataStringified,
+  outputData,
   handleClearConsoleFromMenu,
 }: OutputPanelProps) {
   const outputContentRef = useRef<HTMLDivElement>(null)
@@ -467,6 +474,16 @@ export const OutputPanel = React.memo(function OutputPanel({
                 className='gap-[2px]'
               >
                 <PopoverItem
+                  active={structuredView}
+                  showCheck={structuredView}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setStructuredView(!structuredView)
+                  }}
+                >
+                  <span>Structured view</span>
+                </PopoverItem>
+                <PopoverItem
                   active={wrapText}
                   showCheck={wrapText}
                   onClick={(e) => {
@@ -566,6 +583,17 @@ export const OutputPanel = React.memo(function OutputPanel({
               onMatchCountChange={handleMatchCountChange}
               contentRef={outputContentRef}
             />
+          ) : structuredView ? (
+            <StructuredOutput
+              data={outputData}
+              wrapText={wrapText}
+              isError={!showInput && Boolean(selectedEntry.error)}
+              className='min-h-full'
+              searchQuery={isOutputSearchActive ? outputSearchQuery : undefined}
+              currentMatchIndex={currentMatchIndex}
+              onMatchCountChange={handleMatchCountChange}
+              contentRef={outputContentRef}
+            />
           ) : (
             <OutputCodeContent
               code={outputDataStringified}
@@ -589,6 +617,8 @@ export const OutputPanel = React.memo(function OutputPanel({
         onCopySelection={handleCopySelection}
         onCopyAll={handleCopy}
         onSearch={activateOutputSearch}
+        structuredView={structuredView}
+        onToggleStructuredView={() => setStructuredView(!structuredView)}
         wrapText={wrapText}
         onToggleWrap={() => setWrapText(!wrapText)}
         openOnRun={openOnRun}

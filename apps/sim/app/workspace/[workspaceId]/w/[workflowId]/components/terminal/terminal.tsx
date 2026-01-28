@@ -255,6 +255,8 @@ export const Terminal = memo(function Terminal() {
   const setOpenOnRun = useTerminalStore((state) => state.setOpenOnRun)
   const wrapText = useTerminalStore((state) => state.wrapText)
   const setWrapText = useTerminalStore((state) => state.setWrapText)
+  const structuredView = useTerminalStore((state) => state.structuredView)
+  const setStructuredView = useTerminalStore((state) => state.setStructuredView)
   const setHasHydrated = useTerminalStore((state) => state.setHasHydrated)
   const isExpanded = useTerminalStore((state) => state.terminalHeight > NEAR_MIN_THRESHOLD)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -1411,10 +1413,13 @@ export const Terminal = memo(function Terminal() {
               setWrapText={setWrapText}
               openOnRun={openOnRun}
               setOpenOnRun={setOpenOnRun}
+              structuredView={structuredView}
+              setStructuredView={setStructuredView}
               outputOptionsOpen={outputOptionsOpen}
               setOutputOptionsOpen={setOutputOptionsOpen}
               shouldShowCodeDisplay={shouldShowCodeDisplay}
               outputDataStringified={outputDataStringified}
+              outputData={outputData}
               handleClearConsoleFromMenu={handleClearConsoleFromMenu}
             />
           )}

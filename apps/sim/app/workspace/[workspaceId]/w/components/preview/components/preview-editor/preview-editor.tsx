@@ -1141,15 +1141,17 @@ function PreviewEditorContent({
     <div className='relative flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-[8px] rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-[12px] py-[6px]'>
-        <div
-          className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
-          style={{ backgroundColor: blockConfig.bgColor }}
-        >
-          <IconComponent
-            icon={blockConfig.icon}
-            className='h-[12px] w-[12px] text-[var(--white)]'
-          />
-        </div>
+        {block.type !== 'note' && (
+          <div
+            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            style={{ backgroundColor: blockConfig.bgColor }}
+          >
+            <IconComponent
+              icon={blockConfig.icon}
+              className='h-[12px] w-[12px] text-[var(--white)]'
+            />
+          </div>
+        )}
         <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
           {block.name || blockConfig.name}
         </span>

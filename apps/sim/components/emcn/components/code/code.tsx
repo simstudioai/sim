@@ -83,7 +83,8 @@ const STRING_VALUE_REGEX = /:\s*"([^"\\]|\\.)*"[,]?\s*$/
 /**
  * Finds collapsible regions in JSON code by matching braces and detecting long strings.
  * A region is collapsible if it spans multiple lines OR contains a long string value.
- * Properly handles braces inside JSON strings by tracking string boundaries.
+ * Properly handles braces inside JSON strings by tracking string boundaries with correct
+ * escape sequence handling (counts consecutive backslashes to determine if quotes are escaped).
  *
  * @param lines - Array of code lines
  * @returns Map of start line index to CollapsibleRegion
@@ -117,11 +118,20 @@ function findCollapsibleRegions(lines: string[]): Map<number, CollapsibleRegion>
     let inString = false
     for (let j = 0; j < line.length; j++) {
       const char = line[j]
-      const prevChar = j > 0 ? line[j - 1] : ''
 
       // Toggle string state on unescaped quotes
-      if (char === '"' && prevChar !== '\\') {
-        inString = !inString
+      // Must count consecutive backslashes: odd = escaped quote, even = unescaped quote
+      if (char === '"') {
+        let backslashCount = 0
+        let k = j - 1
+        while (k >= 0 && line[k] === '\\') {
+          backslashCount++
+          k--
+        }
+        // Only toggle if quote is not escaped (even number of preceding backslashes)
+        if (backslashCount % 2 === 0) {
+          inString = !inString
+        }
         continue
       }
 
