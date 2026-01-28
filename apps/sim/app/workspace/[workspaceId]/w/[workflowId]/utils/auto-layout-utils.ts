@@ -21,6 +21,7 @@ export interface AutoLayoutOptions {
     x?: number
     y?: number
   }
+  gridSize?: number
 }
 
 /**
@@ -62,6 +63,7 @@ export async function applyAutoLayoutAndUpdateStore(
         x: options.padding?.x ?? DEFAULT_LAYOUT_PADDING.x,
         y: options.padding?.y ?? DEFAULT_LAYOUT_PADDING.y,
       },
+      gridSize: options.gridSize,
     }
 
     // Call the autolayout API route
