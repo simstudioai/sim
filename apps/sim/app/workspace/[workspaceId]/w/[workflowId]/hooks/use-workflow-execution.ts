@@ -1460,8 +1460,9 @@ export function useWorkflowExecution() {
         return
       }
 
-      // For trigger blocks with no snapshot, create an empty one
-      const effectiveSnapshot: SerializableExecutionState = snapshot || {
+      // For trigger blocks, always use empty snapshot to prevent stale data from different
+      // execution paths from being resolved. For non-trigger blocks, use the existing snapshot.
+      const emptySnapshot: SerializableExecutionState = {
         blockStates: {},
         executedBlocks: [],
         blockLogs: [],
@@ -1469,6 +1470,9 @@ export function useWorkflowExecution() {
         completedLoops: [],
         activeExecutionPath: [],
       }
+      const effectiveSnapshot: SerializableExecutionState = isTriggerBlock
+        ? emptySnapshot
+        : snapshot || emptySnapshot
 
       // Extract mock payload for trigger blocks
       let workflowInput: any
