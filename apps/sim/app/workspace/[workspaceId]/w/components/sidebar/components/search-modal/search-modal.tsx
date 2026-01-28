@@ -59,7 +59,7 @@ export function SearchModal({
   const workspaceId = params.workspaceId as string
   const brand = useBrandConfig()
   const inputRef = useRef<HTMLInputElement>(null)
-  const lastSearchRef = useRef('')
+  const [search, setSearch] = useState('')
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -97,7 +97,7 @@ export function SearchModal({
 
   useEffect(() => {
     if (open) {
-      lastSearchRef.current = ''
+      setSearch('')
       requestAnimationFrame(() => {
         inputRef.current?.focus()
       })
@@ -105,17 +105,13 @@ export function SearchModal({
   }, [open])
 
   const handleSearchChange = useCallback((value: string) => {
-    const previousValue = lastSearchRef.current
-    lastSearchRef.current = value
-
-    if (previousValue !== value) {
-      requestAnimationFrame(() => {
-        const list = document.querySelector('[cmdk-list]')
-        if (list) {
-          list.scrollTop = 0
-        }
-      })
-    }
+    setSearch(value)
+    requestAnimationFrame(() => {
+      const list = document.querySelector('[cmdk-list]')
+      if (list) {
+        list.scrollTop = 0
+      }
+    })
   }, [])
 
   useEffect(() => {
@@ -257,6 +253,7 @@ export function SearchModal({
         <Command label='Search' filter={customFilter}>
           <Command.Input
             ref={inputRef}
+            value={search}
             autoFocus
             onValueChange={handleSearchChange}
             placeholder='Search anything...'
