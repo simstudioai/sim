@@ -95,13 +95,7 @@ Read a specific page from a SharePoint site
 |   ↳ `pageLayout` | string | The layout type of the page |
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
-|   ↳ `id` | string | The unique ID of the page |
-|   ↳ `name` | string | The name of the page |
-|   ↳ `title` | string | The title of the page |
-|   ↳ `webUrl` | string | The URL to access the page |
-|   ↳ `pageLayout` | string | The layout type of the page |
-|   ↳ `createdDateTime` | string | When the page was created |
-|   ↳ `lastModifiedDateTime` | string | When the page was last modified |
+|   ↳ `content` | object | Extracted text content from the page |
 |   ↳ `content` | string | Extracted text content from the page |
 |   ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
 | `content` | object | Content of the SharePoint page |
@@ -135,10 +129,8 @@ List details of all SharePoint sites
 | ↳ `isPersonalSite` | boolean | Whether this is a personal site |
 | ↳ `root` | object | Server relative URL |
 |   ↳ `serverRelativeUrl` | string | Server relative URL |
-| ↳ `serverRelativeUrl` | string | Server relative URL |
 | ↳ `siteCollection` | object | Site collection hostname |
 |   ↳ `hostname` | string | Site collection hostname |
-| ↳ `hostname` | string | Site collection hostname |
 | `sites` | array | List of all accessible SharePoint sites |
 |   ↳ `id` | string | The unique ID of the site |
 |   ↳ `name` | string | The name of the site |
@@ -193,7 +185,7 @@ Get metadata (and optionally columns/items) for a SharePoint list
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `list` | object | Information about the SharePoint list |
-| ↳ `id` | string | Item ID |
+| ↳ `id` | string | The unique ID of the list |
 | ↳ `displayName` | string | The display name of the list |
 | ↳ `name` | string | The internal name of the list |
 | ↳ `webUrl` | string | The web URL of the list |
@@ -201,7 +193,6 @@ Get metadata (and optionally columns/items) for a SharePoint list
 | ↳ `lastModifiedDateTime` | string | When the list was last modified |
 | ↳ `list` | object | List properties \(e.g., template\) |
 | ↳ `columns` | array | List column definitions |
-| ↳ `fields` | object | Field values for the item |
 | `lists` | array | All lists in the site when no listId/title provided |
 
 ### `sharepoint_update_list`

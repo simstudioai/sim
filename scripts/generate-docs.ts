@@ -1122,6 +1122,15 @@ function parsePropertiesContent(propertiesContent: string): Record<string, any> 
       continue
     }
 
+    // Check if this match is at depth 0 (not inside nested braces)
+    // Only process top-level properties, skip nested ones
+    const beforeMatch = propertiesContent.substring(0, match.index)
+    const openBraces = (beforeMatch.match(/{/g) || []).length
+    const closeBraces = (beforeMatch.match(/}/g) || []).length
+    if (openBraces !== closeBraces) {
+      continue // Skip - this is a nested property
+    }
+
     const startPos = match.index + match[0].length - 1
 
     let braceCount = 1

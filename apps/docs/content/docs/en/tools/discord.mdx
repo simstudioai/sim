@@ -64,7 +64,7 @@ Send a message to a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Discord message data |
-| ↳ `id` | string | Author user ID |
+| ↳ `id` | string | Message ID |
 | ↳ `content` | string | Message content |
 | ↳ `channel_id` | string | Channel ID where message was sent |
 | ↳ `author` | object | Message author information |
@@ -72,9 +72,6 @@ Send a message to a Discord channel
 |   ↳ `username` | string | Author username |
 |   ↳ `avatar` | string | Author avatar hash |
 |   ↳ `bot` | boolean | Whether author is a bot |
-| ↳ `username` | string | Author username |
-| ↳ `avatar` | string | Author avatar hash |
-| ↳ `bot` | boolean | Whether author is a bot |
 | ↳ `timestamp` | string | Message timestamp |
 | ↳ `edited_timestamp` | string | Message edited timestamp |
 | ↳ `embeds` | array | Message embeds |
@@ -102,14 +99,11 @@ Retrieve messages from a Discord channel
 | `message` | string | Success or error message |
 | `data` | object | Container for messages data |
 | ↳ `messages` | array | Array of Discord messages with full metadata |
-|   ↳ `id` | string | Author user ID |
+|   ↳ `id` | string | Message ID |
 |   ↳ `content` | string | Message content |
 |   ↳ `channel_id` | string | Channel ID |
 |   ↳ `author` | object | Message author information |
 |   ↳ `id` | string | Author user ID |
-|   ↳ `username` | string | Author username |
-|   ↳ `avatar` | string | Author avatar hash |
-|   ↳ `bot` | boolean | Whether author is a bot |
 |   ↳ `username` | string | Author username |
 |   ↳ `avatar` | string | Author avatar hash |
 |   ↳ `bot` | boolean | Whether author is a bot |
@@ -120,24 +114,7 @@ Retrieve messages from a Discord channel
 |   ↳ `mentions` | array | User mentions in message |
 |   ↳ `mention_roles` | array | Role mentions in message |
 |   ↳ `mention_everyone` | boolean | Whether message mentions everyone |
-| ↳ `id` | string | Author user ID |
-| ↳ `content` | string | Message content |
 | ↳ `channel_id` | string | Channel ID |
-| ↳ `author` | object | Message author information |
-|   ↳ `id` | string | Author user ID |
-|   ↳ `username` | string | Author username |
-|   ↳ `avatar` | string | Author avatar hash |
-|   ↳ `bot` | boolean | Whether author is a bot |
-| ↳ `username` | string | Author username |
-| ↳ `avatar` | string | Author avatar hash |
-| ↳ `bot` | boolean | Whether author is a bot |
-| ↳ `timestamp` | string | Message timestamp |
-| ↳ `edited_timestamp` | string | Message edited timestamp |
-| ↳ `embeds` | array | Message embeds |
-| ↳ `attachments` | array | Message attachments |
-| ↳ `mentions` | array | User mentions in message |
-| ↳ `mention_roles` | array | Role mentions in message |
-| ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 
 ### `discord_get_server`
 
@@ -681,9 +658,6 @@ Get information about a member in a Discord server
 |   ↳ `id` | string | User ID |
 |   ↳ `username` | string | Username |
 |   ↳ `avatar` | string | Avatar hash |
-| ↳ `id` | string | User ID |
-| ↳ `username` | string | Username |
-| ↳ `avatar` | string | Avatar hash |
 | ↳ `nick` | string | Server nickname |
 | ↳ `roles` | array | Array of role IDs |
 | ↳ `joined_at` | string | When the member joined |

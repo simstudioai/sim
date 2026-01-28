@@ -76,6 +76,19 @@ import {
 } from '@/tools/calendly'
 import { clayPopulateTool } from '@/tools/clay'
 import {
+  clerkCreateOrganizationTool,
+  clerkCreateUserTool,
+  clerkDeleteUserTool,
+  clerkGetOrganizationTool,
+  clerkGetSessionTool,
+  clerkGetUserTool,
+  clerkListOrganizationsTool,
+  clerkListSessionsTool,
+  clerkListUsersTool,
+  clerkRevokeSessionTool,
+  clerkUpdateUserTool,
+} from '@/tools/clerk'
+import {
   confluenceCreateCommentTool,
   confluenceCreatePageTool,
   confluenceDeleteAttachmentTool,
@@ -2571,6 +2584,17 @@ export const tools: Record<string, ToolConfig> = {
   telegram_send_video: telegramSendVideoTool,
   telegram_send_document: telegramSendDocumentTool,
   clay_populate: clayPopulateTool,
+  clerk_list_users: clerkListUsersTool,
+  clerk_get_user: clerkGetUserTool,
+  clerk_create_user: clerkCreateUserTool,
+  clerk_update_user: clerkUpdateUserTool,
+  clerk_delete_user: clerkDeleteUserTool,
+  clerk_list_organizations: clerkListOrganizationsTool,
+  clerk_get_organization: clerkGetOrganizationTool,
+  clerk_create_organization: clerkCreateOrganizationTool,
+  clerk_list_sessions: clerkListSessionsTool,
+  clerk_get_session: clerkGetSessionTool,
+  clerk_revoke_session: clerkRevokeSessionTool,
   discord_send_message: discordSendMessageTool,
   discord_get_messages: discordGetMessagesTool,
   discord_get_server: discordGetServerTool,

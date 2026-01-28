@@ -62,7 +62,7 @@ Create a new contact in Intercom with email, external_id, or role. Returns API-a
 | --------- | ---- | ----------- |
 | `contact` | object | Created contact object |
 | ↳ `id` | string | Unique identifier for the contact |
-| ↳ `type` | string | List type |
+| ↳ `type` | string | Object type \(contact\) |
 | ↳ `role` | string | Role of the contact \(user or lead\) |
 | ↳ `email` | string | Email address of the contact |
 | ↳ `phone` | string | Phone number of the contact |
@@ -82,10 +82,6 @@ Create a new contact in Intercom with email, external_id, or role. Returns API-a
 |   ↳ `data` | array | Array of tag objects |
 |   ↳ `has_more` | boolean | Whether there are more tags |
 |   ↳ `total_count` | number | Total number of tags |
-| ↳ `url` | string | URL to fetch companies |
-| ↳ `data` | array | Array of social profile objects |
-| ↳ `has_more` | boolean | Whether there are more companies |
-| ↳ `total_count` | number | Total number of companies |
 | ↳ `notes` | object | Notes associated with the contact |
 |   ↳ `type` | string | List type |
 |   ↳ `url` | string | URL to fetch notes |
@@ -105,11 +101,6 @@ Create a new contact in Intercom with email, external_id, or role. Returns API-a
 |   ↳ `country` | string | Country |
 |   ↳ `country_code` | string | Country code |
 |   ↳ `continent_code` | string | Continent code |
-| ↳ `city` | string | City |
-| ↳ `region` | string | Region/State |
-| ↳ `country` | string | Country |
-| ↳ `country_code` | string | Country code |
-| ↳ `continent_code` | string | Continent code |
 | ↳ `social_profiles` | object | Social profiles of the contact |
 |   ↳ `type` | string | List type |
 |   ↳ `data` | array | Array of social profile objects |
@@ -323,7 +314,7 @@ Create or update a company in Intercom
 | --------- | ---- | ----------- |
 | `company` | object | Created or updated company object |
 | ↳ `id` | string | Unique identifier for the company |
-| ↳ `type` | string | Segment list type |
+| ↳ `type` | string | Object type \(company\) |
 | ↳ `app_id` | string | Intercom app ID |
 | ↳ `company_id` | string | Your unique identifier for the company |
 | ↳ `name` | string | Name of the company |
@@ -338,8 +329,12 @@ Create or update a company in Intercom
 | ↳ `updated_at` | number | Unix timestamp when company was last updated |
 | ↳ `remote_created_at` | number | Unix timestamp when company was created by you |
 | ↳ `custom_attributes` | object | Custom attributes set on the company |
-| ↳ `tags` | array | Array of tag objects |
-| ↳ `segments` | array | Array of segment objects |
+| ↳ `tags` | object | Tags associated with the company |
+|   ↳ `type` | string | Tag list type |
+|   ↳ `tags` | array | Array of tag objects |
+| ↳ `segments` | object | Segments the company belongs to |
+|   ↳ `type` | string | Segment list type |
+|   ↳ `segments` | array | Array of segment objects |
 | `companyId` | string | ID of the created/updated company |
 
 ### `intercom_get_company`
