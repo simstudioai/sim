@@ -158,6 +158,17 @@ export class NodeExecutionOrchestrator {
           this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, nodesInParallel)
         }
       }
+
+      const scope = this.parallelOrchestrator.getParallelScope(ctx, parallelId)
+      if (scope?.isEmpty) {
+        logger.info('Parallel has empty distribution, skipping parallel body', { parallelId })
+        return {
+          sentinelStart: true,
+          shouldExit: true,
+          selectedRoute: EDGE.PARALLEL_EXIT,
+        }
+      }
+
       return { sentinelStart: true }
     }
 

@@ -386,10 +386,10 @@ export class LoopOrchestrator {
       return true
     }
 
-    // forEach: skip if items array is empty
     if (scope.loopType === 'forEach') {
       if (!scope.items || scope.items.length === 0) {
-        logger.info('ForEach loop has empty items, skipping loop body', { loopId })
+        logger.info('ForEach loop has empty collection, skipping loop body', { loopId })
+        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
         return false
       }
       return true
@@ -399,6 +399,8 @@ export class LoopOrchestrator {
     if (scope.loopType === 'for') {
       if (scope.maxIterations === 0) {
         logger.info('For loop has 0 iterations, skipping loop body', { loopId })
+        // Set empty output for the loop
+        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
         return false
       }
       return true
