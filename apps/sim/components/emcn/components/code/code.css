@@ -37,7 +37,7 @@
 .code-editor-theme .token.char,
 .code-editor-theme .token.builtin,
 .code-editor-theme .token.inserted {
-  color: #dc2626 !important;
+  color: #b45309 !important;
 }
 
 .code-editor-theme .token.operator,
@@ -49,7 +49,7 @@
 .code-editor-theme .token.atrule,
 .code-editor-theme .token.attr-value,
 .code-editor-theme .token.keyword {
-  color: #2563eb !important;
+  color: #2f55ff !important;
 }
 
 .code-editor-theme .token.function,
@@ -119,7 +119,7 @@
 .dark .code-editor-theme .token.atrule,
 .dark .code-editor-theme .token.attr-value,
 .dark .code-editor-theme .token.keyword {
-  color: #4db8ff !important;
+  color: #2fa1ff !important;
 }
 
 .dark .code-editor-theme .token.function,

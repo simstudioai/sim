@@ -36,7 +36,7 @@ export const PANEL_WIDTH = {
 
 /** Terminal height constraints */
 export const TERMINAL_HEIGHT = {
-  DEFAULT: 155,
+  DEFAULT: 206,
   MIN: 30,
   /** Maximum is 70% of viewport, enforced dynamically */
   MAX_PERCENTAGE: 0.7,
@@ -58,6 +58,9 @@ export const EDITOR_CONNECTIONS_HEIGHT = {
 
 /** Output panel (terminal execution results) width constraints */
 export const OUTPUT_PANEL_WIDTH = {
-  DEFAULT: 440,
-  MIN: 440,
+  DEFAULT: 560,
+  MIN: 280,
 } as const
+
+/** Terminal block column width - minimum width for the logs column */
+export const TERMINAL_BLOCK_COLUMN_WIDTH = 240 as const
