@@ -40,8 +40,6 @@ export const useSearchModalStore = create<SearchModalState>()(
       },
 
       initializeData: (filterBlocks) => {
-        if (get().data.isInitialized) return
-
         const allBlocks = getAllBlocks()
         const filteredAllBlocks = filterBlocks(allBlocks) as typeof allBlocks
 
