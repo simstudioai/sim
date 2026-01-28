@@ -55,19 +55,23 @@ export interface ExecutionSets {
   dirtySet: Set<string>
   /** Blocks that are upstream (ancestors) of the start block */
   upstreamSet: Set<string>
+  /** Blocks that are upstream of any dirty block (for snapshot preservation) */
+  reachableUpstreamSet: Set<string>
 }
 
 /**
- * Computes both the dirty set (downstream) and upstream set in a single traversal pass.
+ * Computes the dirty set, upstream set, and reachable upstream set.
  * - Dirty set: start block + all blocks reachable via outgoing edges (need re-execution)
- * - Upstream set: all blocks reachable via incoming edges (can be referenced)
+ * - Upstream set: all blocks reachable via incoming edges from the start block
+ * - Reachable upstream set: all non-dirty blocks that are upstream of ANY dirty block
+ *   (includes sibling branches that dirty blocks may reference)
  *
  * For loop/parallel containers, starts from the sentinel-start node and includes
  * the container ID itself in the dirty set.
  *
  * @param dag - The workflow DAG
  * @param startBlockId - The block to start execution from
- * @returns Object containing both dirtySet and upstreamSet
+ * @returns Object containing dirtySet, upstreamSet, and reachableUpstreamSet
  */
 export function computeExecutionSets(dag: DAG, startBlockId: string): ExecutionSets {
   const dirty = new Set<string>([startBlockId])
@@ -94,7 +98,7 @@ export function computeExecutionSets(dag: DAG, startBlockId: string): ExecutionS
     }
   }
 
-  // BFS upstream for upstream set
+  // BFS upstream from start block for upstream set
   const upstreamQueue = [traversalStartId]
   while (upstreamQueue.length > 0) {
     const nodeId = upstreamQueue.shift()!
@@ -109,7 +113,29 @@ export function computeExecutionSets(dag: DAG, startBlockId: string): ExecutionS
     }
   }
 
-  return { dirtySet: dirty, upstreamSet: upstream }
+  // Compute reachable upstream: all non-dirty blocks upstream of ANY dirty block
+  // This handles the case where a dirty block (like C in A->C, B->C) may reference
+  // sibling branches (like B when running from A)
+  const reachableUpstream = new Set<string>()
+  for (const dirtyNodeId of dirty) {
+    const node = dag.nodes.get(dirtyNodeId)
+    if (!node) continue
+
+    // BFS upstream from this dirty node
+    const queue = [...node.incomingEdges]
+    while (queue.length > 0) {
+      const sourceId = queue.shift()!
+      if (reachableUpstream.has(sourceId) || dirty.has(sourceId)) continue
+
+      reachableUpstream.add(sourceId)
+      const sourceNode = dag.nodes.get(sourceId)
+      if (sourceNode) {
+        queue.push(...sourceNode.incomingEdges)
+      }
+    }
+  }
+
+  return { dirtySet: dirty, upstreamSet: upstream, reachableUpstreamSet: reachableUpstream }
 }
 
 /**

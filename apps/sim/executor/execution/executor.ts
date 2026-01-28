@@ -124,34 +124,38 @@ export class DAGExecutor {
       throw new Error(validation.error)
     }
 
-    const { dirtySet, upstreamSet } = computeExecutionSets(dag, startBlockId)
+    const { dirtySet, upstreamSet, reachableUpstreamSet } = computeExecutionSets(dag, startBlockId)
     const effectiveStartBlockId = resolveContainerToSentinelStart(startBlockId, dag) ?? startBlockId
 
-    // Extract container IDs from sentinel IDs in upstream set
-    const upstreamContainerIds = new Set<string>()
-    for (const nodeId of upstreamSet) {
+    // Extract container IDs from sentinel IDs in reachable upstream set
+    // Use reachableUpstreamSet (not upstreamSet) to preserve sibling branch outputs
+    // Example: A->C, B->C where C references A.result || B.result
+    // When running from A, B's output should be preserved for C to reference
+    const reachableContainerIds = new Set<string>()
+    for (const nodeId of reachableUpstreamSet) {
       const loopId = extractLoopIdFromSentinel(nodeId)
-      if (loopId) upstreamContainerIds.add(loopId)
+      if (loopId) reachableContainerIds.add(loopId)
       const parallelId = extractParallelIdFromSentinel(nodeId)
-      if (parallelId) upstreamContainerIds.add(parallelId)
+      if (parallelId) reachableContainerIds.add(parallelId)
     }
 
-    // Filter snapshot to only include upstream blocks - prevents references to non-upstream blocks
+    // Filter snapshot to include all blocks reachable from dirty blocks
+    // This preserves sibling branch outputs that dirty blocks may reference
     const filteredBlockStates: Record<string, any> = {}
     for (const [blockId, state] of Object.entries(sourceSnapshot.blockStates)) {
-      if (upstreamSet.has(blockId) || upstreamContainerIds.has(blockId)) {
+      if (reachableUpstreamSet.has(blockId) || reachableContainerIds.has(blockId)) {
         filteredBlockStates[blockId] = state
       }
     }
     const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter(
-      (id) => upstreamSet.has(id) || upstreamContainerIds.has(id)
+      (id) => reachableUpstreamSet.has(id) || reachableContainerIds.has(id)
     )
 
-    // Filter loop/parallel executions to only include upstream containers
+    // Filter loop/parallel executions to only include reachable containers
     const filteredLoopExecutions: Record<string, any> = {}
     if (sourceSnapshot.loopExecutions) {
       for (const [loopId, execution] of Object.entries(sourceSnapshot.loopExecutions)) {
-        if (upstreamContainerIds.has(loopId)) {
+        if (reachableContainerIds.has(loopId)) {
           filteredLoopExecutions[loopId] = execution
         }
       }
@@ -159,7 +163,7 @@ export class DAGExecutor {
     const filteredParallelExecutions: Record<string, any> = {}
     if (sourceSnapshot.parallelExecutions) {
       for (const [parallelId, execution] of Object.entries(sourceSnapshot.parallelExecutions)) {
-        if (upstreamContainerIds.has(parallelId)) {
+        if (reachableContainerIds.has(parallelId)) {
           filteredParallelExecutions[parallelId] = execution
         }
       }
@@ -179,6 +183,7 @@ export class DAGExecutor {
       effectiveStartBlockId,
       dirtySetSize: dirtySet.size,
       upstreamSetSize: upstreamSet.size,
+      reachableUpstreamSetSize: reachableUpstreamSet.size,
     })
 
     // Remove incoming edges from non-dirty sources so convergent blocks don't wait for cached upstream
