@@ -2366,7 +2366,12 @@ const WorkflowContent = React.memo(() => {
       // Handle position changes (e.g., from keyboard arrow key movement)
       // Update container dimensions when child nodes are moved
       for (const change of changes) {
-        if (change.type === 'position' && 'position' in change && change.position) {
+        if (
+          change.type === 'position' &&
+          !change.dragging &&
+          'position' in change &&
+          change.position
+        ) {
           updateContainerDimensionsDuringMove(change.id, change.position)
         }
       }
