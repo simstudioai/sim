@@ -400,8 +400,10 @@ postgresql:
       algorithm: RSA  # RSA or ECDSA
       size: 4096  # Key size in bits
     # Issuer reference (REQUIRED if tls.enabled is true)
+    # By default, references the CA issuer created by certManager.caIssuer
+    # Make sure certManager.enabled is true, or provide your own issuer
     issuerRef:
-      name: selfsigned-cluster-issuer  # Name of your cert-manager Issuer/ClusterIssuer
+      name: sim-ca-issuer  # Name of your cert-manager Issuer/ClusterIssuer
       kind: ClusterIssuer  # ClusterIssuer or Issuer
       group: ""  # Optional: cert-manager.io (leave empty for default)
     # Additional DNS names (optional)
@@ -463,20 +465,26 @@ externalDatabase:
 ollama:
   # Enable/disable Ollama deployment
   enabled: false
-  
+
   # Image configuration
   image:
     repository: ollama/ollama
     tag: latest
     pullPolicy: Always
-  
+
   # Number of replicas
   replicaCount: 1
-  
+
   # GPU configuration
   gpu:
     enabled: false
     count: 1
+    # GPU sharing strategy: "mig" (Multi-Instance GPU) or "time-slicing"
+    # - mig: Hardware-level GPU partitioning (requires supported GPUs like A100)
+    # - time-slicing: Software-level GPU sharing (works with most NVIDIA GPUs)
+    strategy: "time-slicing"
+    # Number of time-slicing replicas (only used when strategy is "time-slicing")
+    timeSlicingReplicas: 5
   
   # Node selector for GPU workloads (adjust labels based on your cluster configuration)
   nodeSelector:
@@ -1186,3 +1194,52 @@ externalSecrets:
     externalDatabase:
       # Path to external database password in external store
       password: ""
+
+# cert-manager configuration
+# Prerequisites: Install cert-manager in your cluster first
+# See: https://cert-manager.io/docs/installation/
+#
+# This implements the recommended CA bootstrap pattern from cert-manager:
+# 1. Self-signed ClusterIssuer (bootstrap only - creates root CA)
+# 2. Root CA Certificate (self-signed, becomes the trust anchor)
+# 3. CA ClusterIssuer (signs application certificates using root CA)
+#
+# Reference: https://cert-manager.io/docs/configuration/selfsigned/
+certManager:
+  # Enable/disable cert-manager issuer resources
+  enabled: false
+
+  # Self-signed ClusterIssuer (used ONLY to bootstrap the root CA)
+  # Do not reference this issuer directly for application certificates
+  selfSignedIssuer:
+    name: "sim-selfsigned-bootstrap-issuer"
+
+  # Root CA Certificate configuration
+  # This certificate is signed by the self-signed issuer and used as the trust anchor
+  rootCA:
+    # Name of the Certificate resource
+    certificateName: "sim-root-ca"
+    # Namespace where the root CA certificate and secret will be created
+    # Must match cert-manager's cluster-resource-namespace (default: cert-manager)
+    namespace: "cert-manager"
+    # Common name for the root CA certificate
+    commonName: "sim-root-ca"
+    # Secret name where the root CA certificate and key will be stored
+    secretName: "sim-root-ca-secret"
+    # Certificate validity duration (default: 10 years)
+    duration: "87600h"
+    # Renew before expiry (default: 90 days)
+    renewBefore: "2160h"
+    # Private key configuration
+    privateKey:
+      algorithm: RSA
+      size: 4096
+    # Subject configuration
+    subject:
+      organizations: []
+      # If empty, defaults to the release name
+
+  # CA ClusterIssuer configuration
+  # This is the issuer that applications should reference for obtaining certificates
+  caIssuer:
+    name: "sim-ca-issuer"
