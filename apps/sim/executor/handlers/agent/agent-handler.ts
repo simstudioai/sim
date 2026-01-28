@@ -936,8 +936,12 @@ export class AgentBlockHandler implements BlockHandler {
       systemPrompt: validMessages ? undefined : inputs.systemPrompt,
       context: validMessages ? undefined : stringifyJSON(messages),
       tools: formattedTools,
-      temperature: inputs.temperature != null ? Number(inputs.temperature) : undefined,
-      maxTokens: inputs.maxTokens != null ? Number(inputs.maxTokens) : undefined,
+      temperature:
+        inputs.temperature != null && inputs.temperature !== ''
+          ? Number(inputs.temperature)
+          : undefined,
+      maxTokens:
+        inputs.maxTokens != null && inputs.maxTokens !== '' ? Number(inputs.maxTokens) : undefined,
       apiKey: inputs.apiKey,
       azureEndpoint: inputs.azureEndpoint,
       azureApiVersion: inputs.azureApiVersion,
