@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
-import { BookOpen, Layout, ScrollText } from 'lucide-react'
+import { Database, HelpCircle, Layout, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
+import { Library } from '@/components/emcn'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/core/utils/cn'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
@@ -15,6 +16,7 @@ import type {
   SearchDocItem,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
+import { useSettingsModalStore } from '@/stores/modals/settings/store'
 
 interface SearchModalProps {
   open: boolean
@@ -43,7 +45,8 @@ interface PageItem {
   id: string
   name: string
   icon: React.ComponentType<{ className?: string }>
-  href: string
+  href?: string
+  onClick?: () => void
   shortcut?: string
 }
 
@@ -61,6 +64,7 @@ export function SearchModal({
   const inputRef = useRef<HTMLInputElement>(null)
   const [search, setSearch] = useState('')
   const [mounted, setMounted] = useState(false)
+  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
 
   useEffect(() => {
     setMounted(true)
@@ -70,12 +74,16 @@ export function SearchModal({
     (state) => state.data
   )
 
+  const openHelpModal = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-help-modal'))
+  }, [])
+
   const pages = useMemo(
     (): PageItem[] => [
       {
         id: 'logs',
         name: 'Logs',
-        icon: ScrollText,
+        icon: Library,
         href: `/workspace/${workspaceId}/logs`,
         shortcut: '⌘⇧L',
       },
@@ -86,13 +94,26 @@ export function SearchModal({
         href: `/workspace/${workspaceId}/templates`,
       },
       {
-        id: 'docs',
-        name: 'Docs',
-        icon: BookOpen,
-        href: brand.documentationUrl || 'https://docs.sim.ai/',
+        id: 'knowledge-base',
+        name: 'Knowledge Base',
+        icon: Database,
+        href: `/workspace/${workspaceId}/knowledge`,
+      },
+      {
+        id: 'help',
+        name: 'Help',
+        icon: HelpCircle,
+        onClick: openHelpModal,
+      },
+      {
+        id: 'settings',
+        name: 'Settings',
+        icon: Settings,
+        onClick: openSettingsModal,
+        shortcut: '⌘,',
       },
     ],
-    [workspaceId, brand.documentationUrl]
+    [workspaceId, openHelpModal, openSettingsModal]
   )
 
   useEffect(() => {
@@ -179,10 +200,14 @@ export function SearchModal({
 
   const handlePageSelect = useCallback(
     (page: PageItem) => {
-      if (page.href.startsWith('http')) {
-        window.open(page.href, '_blank', 'noopener,noreferrer')
-      } else {
-        router.push(page.href)
+      if (page.onClick) {
+        page.onClick()
+      } else if (page.href) {
+        if (page.href.startsWith('http')) {
+          window.open(page.href, '_blank', 'noopener,noreferrer')
+        } else {
+          router.push(page.href)
+        }
       }
       onOpenChange(false)
     },
@@ -269,8 +294,8 @@ export function SearchModal({
                 {blocks.map((block) => (
                   <CommandItem
                     key={block.id}
-                    value={block.name}
-                    keywords={[block.description]}
+                    value={`block-${block.name}`}
+                    keywords={[block.name, block.description]}
                     onSelect={() => handleBlockSelect(block, 'block')}
                     icon={block.icon}
                     bgColor={block.bgColor}
@@ -287,8 +312,8 @@ export function SearchModal({
                 {tools.map((tool) => (
                   <CommandItem
                     key={tool.id}
-                    value={tool.name}
-                    keywords={[tool.description]}
+                    value={`tool-${tool.name}`}
+                    keywords={[tool.name, tool.description]}
                     onSelect={() => handleBlockSelect(tool, 'tool')}
                     icon={tool.icon}
                     bgColor={tool.bgColor}
@@ -305,8 +330,8 @@ export function SearchModal({
                 {triggers.map((trigger) => (
                   <CommandItem
                     key={trigger.id}
-                    value={trigger.name}
-                    keywords={[trigger.description]}
+                    value={`trigger-${trigger.name}`}
+                    keywords={[trigger.name, trigger.description]}
                     onSelect={() => handleBlockSelect(trigger, 'trigger')}
                     icon={trigger.icon}
                     bgColor={trigger.bgColor}
@@ -323,7 +348,8 @@ export function SearchModal({
                 {workflows.map((workflow) => (
                   <Command.Item
                     key={workflow.id}
-                    value={workflow.name}
+                    value={`workflow-${workflow.id}`}
+                    keywords={[workflow.name]}
                     onSelect={() => handleWorkflowSelect(workflow)}
                     className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                   >
@@ -345,8 +371,8 @@ export function SearchModal({
                 {toolOperations.map((op) => (
                   <CommandItem
                     key={op.id}
-                    value={op.searchValue}
-                    keywords={op.keywords}
+                    value={`operation-${op.id}`}
+                    keywords={[op.searchValue, ...(op.keywords || [])]}
                     onSelect={() => handleToolOperationSelect(op)}
                     icon={op.icon}
                     bgColor={op.bgColor}
@@ -363,7 +389,8 @@ export function SearchModal({
                 {workspaces.map((workspace) => (
                   <Command.Item
                     key={workspace.id}
-                    value={workspace.name}
+                    value={`workspace-${workspace.id}`}
+                    keywords={[workspace.name]}
                     onSelect={() => handleWorkspaceSelect(workspace)}
                     className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                   >
@@ -381,7 +408,8 @@ export function SearchModal({
                 {docs.map((doc) => (
                   <CommandItem
                     key={doc.id}
-                    value={`${doc.name} docs documentation`}
+                    value={`doc-${doc.id}`}
+                    keywords={[doc.name, 'docs', 'documentation']}
                     onSelect={() => handleDocSelect(doc)}
                     icon={doc.icon}
                     bgColor='#6B7280'
@@ -400,7 +428,8 @@ export function SearchModal({
                   return (
                     <Command.Item
                       key={page.id}
-                      value={page.name}
+                      value={`page-${page.id}`}
+                      keywords={[page.name]}
                       onSelect={() => handlePageSelect(page)}
                       className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                     >
