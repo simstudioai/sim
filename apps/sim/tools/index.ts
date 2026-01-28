@@ -639,7 +639,6 @@ async function executeToolRequest(
           signal: controller.signal,
         })
       } catch (error) {
-        if (timeoutId) clearTimeout(timeoutId)
         // Convert AbortError to a timeout error message
         if (error instanceof Error && error.name === 'AbortError') {
           throw new Error(`Request timed out after ${requestParams.timeout}ms`)
