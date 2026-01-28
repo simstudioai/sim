@@ -2364,7 +2364,8 @@ const WorkflowContent = React.memo(() => {
       }
 
       // Handle position changes (e.g., from keyboard arrow key movement)
-      // Update container dimensions when child nodes are moved
+      // Update container dimensions when child nodes are moved and persist to backend
+      const keyboardPositionUpdates: Array<{ id: string; position: { x: number; y: number } }> = []
       for (const change of changes) {
         if (
           change.type === 'position' &&
@@ -2373,10 +2374,15 @@ const WorkflowContent = React.memo(() => {
           change.position
         ) {
           updateContainerDimensionsDuringMove(change.id, change.position)
+          keyboardPositionUpdates.push({ id: change.id, position: change.position })
         }
       }
+      // Persist keyboard movements to backend for collaboration sync
+      if (keyboardPositionUpdates.length > 0) {
+        collaborativeBatchUpdatePositions(keyboardPositionUpdates)
+      }
     },
-    [blocks, updateContainerDimensionsDuringMove]
+    [blocks, updateContainerDimensionsDuringMove, collaborativeBatchUpdatePositions]
   )
 
   /**
