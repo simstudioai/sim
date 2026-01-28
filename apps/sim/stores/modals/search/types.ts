@@ -25,7 +25,6 @@ export interface SearchToolOperationItem {
   bgColor: string
   blockType: string
   operationId: string
-  keywords: string[]
 }
 
 /**

@@ -135,7 +135,6 @@ export const useSearchModalStore = create<SearchModalState>()(
             bgColor: op.bgColor,
             blockType: op.blockType,
             operationId: op.operationId,
-            keywords: op.aliases,
           }))
 
         set({
