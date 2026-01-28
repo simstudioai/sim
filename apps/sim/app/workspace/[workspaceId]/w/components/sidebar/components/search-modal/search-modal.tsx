@@ -294,8 +294,8 @@ export function SearchModal({
                 {blocks.map((block) => (
                   <CommandItem
                     key={block.id}
-                    value={`block-${block.name}`}
-                    keywords={[block.name, block.description]}
+                    value={`${block.name} block-${block.id}`}
+                    keywords={[block.description]}
                     onSelect={() => handleBlockSelect(block, 'block')}
                     icon={block.icon}
                     bgColor={block.bgColor}
@@ -312,8 +312,8 @@ export function SearchModal({
                 {tools.map((tool) => (
                   <CommandItem
                     key={tool.id}
-                    value={`tool-${tool.name}`}
-                    keywords={[tool.name, tool.description]}
+                    value={`${tool.name} tool-${tool.id}`}
+                    keywords={[tool.description]}
                     onSelect={() => handleBlockSelect(tool, 'tool')}
                     icon={tool.icon}
                     bgColor={tool.bgColor}
@@ -330,8 +330,8 @@ export function SearchModal({
                 {triggers.map((trigger) => (
                   <CommandItem
                     key={trigger.id}
-                    value={`trigger-${trigger.name}`}
-                    keywords={[trigger.name, trigger.description]}
+                    value={`${trigger.name} trigger-${trigger.id}`}
+                    keywords={[trigger.description]}
                     onSelect={() => handleBlockSelect(trigger, 'trigger')}
                     icon={trigger.icon}
                     bgColor={trigger.bgColor}
@@ -348,8 +348,7 @@ export function SearchModal({
                 {workflows.map((workflow) => (
                   <Command.Item
                     key={workflow.id}
-                    value={`workflow-${workflow.id}`}
-                    keywords={[workflow.name]}
+                    value={`${workflow.name} workflow-${workflow.id}`}
                     onSelect={() => handleWorkflowSelect(workflow)}
                     className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                   >
@@ -371,8 +370,8 @@ export function SearchModal({
                 {toolOperations.map((op) => (
                   <CommandItem
                     key={op.id}
-                    value={`operation-${op.id}`}
-                    keywords={[op.searchValue, ...(op.keywords || [])]}
+                    value={`${op.searchValue} operation-${op.id}`}
+                    keywords={op.keywords}
                     onSelect={() => handleToolOperationSelect(op)}
                     icon={op.icon}
                     bgColor={op.bgColor}
@@ -389,8 +388,7 @@ export function SearchModal({
                 {workspaces.map((workspace) => (
                   <Command.Item
                     key={workspace.id}
-                    value={`workspace-${workspace.id}`}
-                    keywords={[workspace.name]}
+                    value={`${workspace.name} workspace-${workspace.id}`}
                     onSelect={() => handleWorkspaceSelect(workspace)}
                     className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                   >
@@ -408,8 +406,7 @@ export function SearchModal({
                 {docs.map((doc) => (
                   <CommandItem
                     key={doc.id}
-                    value={`doc-${doc.id}`}
-                    keywords={[doc.name, 'docs', 'documentation']}
+                    value={`${doc.name} docs documentation doc-${doc.id}`}
                     onSelect={() => handleDocSelect(doc)}
                     icon={doc.icon}
                     bgColor='#6B7280'
@@ -428,8 +425,7 @@ export function SearchModal({
                   return (
                     <Command.Item
                       key={page.id}
-                      value={`page-${page.id}`}
-                      keywords={[page.name]}
+                      value={`${page.name} page-${page.id}`}
                       onSelect={() => handlePageSelect(page)}
                       className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                     >
