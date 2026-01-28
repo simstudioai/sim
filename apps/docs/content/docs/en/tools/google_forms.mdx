@@ -139,25 +139,10 @@ Apply multiple updates to a form (add items, update info, change settings, etc.)
 |   ↳ `title` | string | The form title visible to responders |
 |   ↳ `description` | string | The form description |
 |   ↳ `documentTitle` | string | The document title visible in Drive |
-| ↳ `title` | string | Item title |
-| ↳ `description` | string | Item description |
-| ↳ `documentTitle` | string | The document title visible in Drive |
 | ↳ `settings` | object | Form settings |
 |   ↳ `quizSettings` | object | Quiz settings |
 |   ↳ `isQuiz` | boolean | Whether the form is a quiz |
-|   ↳ `isQuiz` | boolean | Whether the form is a quiz |
 |   ↳ `emailCollectionType` | string | Email collection type |
-| ↳ `quizSettings` | object | Quiz settings |
-|   ↳ `isQuiz` | boolean | Whether the form is a quiz |
-| ↳ `isQuiz` | boolean | Whether the form is a quiz |
-| ↳ `emailCollectionType` | string | Email collection type |
-| ↳ `itemId` | string | Item ID |
-| ↳ `questionItem` | json | Question item configuration |
-| ↳ `questionGroupItem` | json | Question group configuration |
-| ↳ `pageBreakItem` | json | Page break configuration |
-| ↳ `textItem` | json | Text item configuration |
-| ↳ `imageItem` | json | Image item configuration |
-| ↳ `videoItem` | json | Video item configuration |
 | ↳ `revisionId` | string | The revision ID of the form |
 | ↳ `responderUri` | string | The URI to share with responders |
 | ↳ `linkedSheetId` | string | The ID of the linked Google Sheet |
@@ -165,13 +150,6 @@ Apply multiple updates to a form (add items, update info, change settings, etc.)
 |   ↳ `publishState` | object | Current publish state |
 |   ↳ `isPublished` | boolean | Whether the form is published |
 |   ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
-|   ↳ `isPublished` | boolean | Whether the form is published |
-|   ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
-| ↳ `publishState` | object | Current publish state |
-|   ↳ `isPublished` | boolean | Whether the form is published |
-|   ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
-| ↳ `isPublished` | boolean | Whether the form is published |
-| ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
 
 ### `google_forms_set_publish_settings`
 
@@ -194,8 +172,6 @@ Update the publish settings of a form (publish/unpublish, accept responses)
 | ↳ `publishState` | object | The publish state |
 |   ↳ `isPublished` | boolean | Whether the form is published |
 |   ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
-| ↳ `isPublished` | boolean | Whether the form is published |
-| ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
 
 ### `google_forms_create_watch`
 
