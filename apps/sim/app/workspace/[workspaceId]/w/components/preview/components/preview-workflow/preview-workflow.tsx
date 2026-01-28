@@ -361,6 +361,7 @@ export function PreviewWorkflow({
             width: dimensions.width,
             height: dimensions.height,
             kind: block.type as 'loop' | 'parallel',
+            enabled: block.enabled ?? true,
             isPreviewSelected: isSelected,
             executionStatus: subflowExecutionStatus,
             lightweight,

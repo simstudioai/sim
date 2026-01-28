@@ -3,6 +3,8 @@
 import { memo } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
+import { Badge } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 
 /** Execution status for subflows in preview mode */
@@ -13,6 +15,8 @@ interface WorkflowPreviewSubflowData {
   width?: number
   height?: number
   kind: 'loop' | 'parallel'
+  /** Whether this subflow is enabled */
+  enabled?: boolean
   /** Whether this subflow is selected in preview mode */
   isPreviewSelected?: boolean
   /** Execution status for highlighting the subflow container */
@@ -27,7 +31,15 @@ interface WorkflowPreviewSubflowData {
  * or interactive features.
  */
 function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowData>) {
-  const { name, width = 500, height = 300, kind, isPreviewSelected = false, executionStatus } = data
+  const {
+    name,
+    width = 500,
+    height = 300,
+    kind,
+    enabled = true,
+    isPreviewSelected = false,
+    executionStatus,
+  } = data
 
   const isLoop = kind === 'loop'
   const BlockIcon = isLoop ? RepeatIcon : SplitIcon
@@ -84,14 +96,21 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
         <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
           <div
             className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-            style={{ backgroundColor: blockIconBg }}
+            style={{ backgroundColor: enabled ? blockIconBg : 'var(--surface-4)' }}
           >
             <BlockIcon className='h-[16px] w-[16px] text-white' />
           </div>
-          <span className='font-medium text-[16px]' title={blockName}>
+          <span
+            className={cn(
+              'truncate font-medium text-[16px]',
+              !enabled && 'text-[var(--text-muted)]'
+            )}
+            title={blockName}
+          >
             {blockName}
           </span>
         </div>
+        {!enabled && <Badge variant='gray-secondary'>disabled</Badge>}
       </div>
 
       {/* Content area - matches workflow structure */}
