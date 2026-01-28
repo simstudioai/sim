@@ -163,7 +163,7 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
       description: 'Name of the Tinybird Data Source',
     },
     data: {
-      type: 'json',
+      type: 'string',
       description: 'Data to send as JSON or NDJSON string',
     },
     wait: { type: 'boolean', description: 'Wait for database acknowledgment' },

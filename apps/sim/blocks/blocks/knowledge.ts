@@ -144,8 +144,10 @@ export const KnowledgeBlock: BlockConfig = {
     documentId: { type: 'string', description: 'Document identifier' },
     content: { type: 'string', description: 'Content data' },
     name: { type: 'string', description: 'Document name' },
-    tagFilters: { type: 'json', description: 'Tag filter criteria' },
-    documentTags: { type: 'json', description: 'Document tags' },
+    // Dynamic tag filters for search
+    tagFilters: { type: 'string', description: 'Tag filter criteria' },
+    // Document tags for create document (JSON string of tag objects)
+    documentTags: { type: 'string', description: 'Document tags' },
   },
   outputs: {
     results: { type: 'json', description: 'Search results' },

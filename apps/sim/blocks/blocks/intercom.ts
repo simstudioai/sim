@@ -1393,9 +1393,6 @@ Return ONLY the numeric timestamp.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     accessToken: { type: 'string', description: 'Intercom API access token' },
-    custom_attributes: { type: 'json', description: 'Custom attributes for contact' },
-    ticket_attributes: { type: 'json', description: 'Ticket attributes' },
-    contacts: { type: 'json', description: 'Contacts array' },
   },
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },

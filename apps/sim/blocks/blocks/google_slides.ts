@@ -806,7 +806,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     // Add slide operation
     layout: { type: 'string', description: 'Slide layout' },
     insertionIndex: { type: 'number', description: 'Position to insert slide' },
-    placeholderIdMappings: { type: 'json', description: 'JSON array of placeholder ID mappings' },
+    placeholderIdMappings: { type: 'string', description: 'JSON array of placeholder ID mappings' },
     // Add image operation
     pageObjectId: { type: 'string', description: 'Slide object ID for image' },
     imageUrl: { type: 'string', description: 'Image URL' },
@@ -824,7 +824,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     deleteObjectId: { type: 'string', description: 'Object ID to delete' },
     // Duplicate object operation
     duplicateObjectId: { type: 'string', description: 'Object ID to duplicate' },
-    duplicateObjectIds: { type: 'json', description: 'JSON object ID mappings' },
+    duplicateObjectIds: { type: 'string', description: 'JSON object ID mappings' },
     // Reorder slides operation
     reorderSlideIds: { type: 'string', description: 'Comma-separated slide IDs to move' },
     reorderInsertionIndex: { type: 'number', description: 'New position for slides' },

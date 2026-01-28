@@ -369,14 +369,12 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     title: { type: 'string', description: 'Page title' },
     // Query database inputs
     databaseId: { type: 'string', description: 'Database identifier' },
-    filter: { type: 'json', description: 'Filter criteria' },
-    sorts: { type: 'json', description: 'Sort criteria' },
+    filter: { type: 'string', description: 'Filter criteria' },
+    sorts: { type: 'string', description: 'Sort criteria' },
     pageSize: { type: 'number', description: 'Page size limit' },
     // Search inputs
     query: { type: 'string', description: 'Search query' },
     filterType: { type: 'string', description: 'Filter type' },
-    // Create/update inputs
-    properties: { type: 'json', description: 'Page or database properties' },
   },
   outputs: {
     // Common outputs across all Notion operations

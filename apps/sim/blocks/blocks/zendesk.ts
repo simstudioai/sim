@@ -624,10 +624,6 @@ Return ONLY the search query - no explanations.`,
     email: { type: 'string', description: 'Zendesk email address' },
     apiToken: { type: 'string', description: 'Zendesk API token' },
     subdomain: { type: 'string', description: 'Zendesk subdomain' },
-    customFields: { type: 'json', description: 'Custom fields for ticket' },
-    tickets: { type: 'json', description: 'Ticket data' },
-    users: { type: 'json', description: 'User data' },
-    organizations: { type: 'json', description: 'Organization data' },
   },
   outputs: {
     // Ticket operations - list

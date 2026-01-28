@@ -395,7 +395,7 @@ Return ONLY the JSON object - no explanations or markdown.`,
     accessLevel: { type: 'string', description: 'List access level' },
     memberAddress: { type: 'string', description: 'Member email address' },
     memberName: { type: 'string', description: 'Member name' },
-    vars: { type: 'json', description: 'Custom variables JSON' },
+    vars: { type: 'string', description: 'Custom variables JSON' },
     subscribed: { type: 'string', description: 'Member subscription status' },
   },
 
