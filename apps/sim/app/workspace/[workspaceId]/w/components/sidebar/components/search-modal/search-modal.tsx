@@ -18,6 +18,23 @@ import type {
 } from '@/stores/modals/search/types'
 import { useSettingsModalStore } from '@/stores/modals/settings/store'
 
+function customFilter(value: string, search: string): number {
+  const searchLower = search.toLowerCase()
+  const valueLower = value.toLowerCase()
+
+  if (valueLower === searchLower) return 1
+  if (valueLower.startsWith(searchLower)) return 0.9
+  if (valueLower.includes(searchLower)) return 0.7
+
+  const searchWords = searchLower.split(/\s+/).filter(Boolean)
+  if (searchWords.length > 1) {
+    const allWordsMatch = searchWords.every((word) => valueLower.includes(word))
+    if (allWordsMatch) return 0.5
+  }
+
+  return 0
+}
+
 interface SearchModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -62,7 +79,6 @@ export function SearchModal({
   const workspaceId = params.workspaceId as string
   const brand = useBrandConfig()
   const inputRef = useRef<HTMLInputElement>(null)
-  const [search, setSearch] = useState('')
   const [mounted, setMounted] = useState(false)
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
 
@@ -110,23 +126,26 @@ export function SearchModal({
         name: 'Settings',
         icon: Settings,
         onClick: openSettingsModal,
-        shortcut: '⌘,',
       },
     ],
     [workspaceId, openHelpModal, openSettingsModal]
   )
 
   useEffect(() => {
-    if (open) {
-      setSearch('')
-      requestAnimationFrame(() => {
-        inputRef.current?.focus()
-      })
+    if (open && inputRef.current) {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(inputRef.current, '')
+        inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      inputRef.current.focus()
     }
   }, [open])
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearch(value)
+  const handleSearchChange = useCallback(() => {
     requestAnimationFrame(() => {
       const list = document.querySelector('[cmdk-list]')
       if (list) {
@@ -228,28 +247,6 @@ export function SearchModal({
   const showToolOperations = isOnWorkflowPage && toolOperations.length > 0
   const showDocs = isOnWorkflowPage && docs.length > 0
 
-  const customFilter = useCallback((value: string, search: string, keywords?: string[]) => {
-    const searchLower = search.toLowerCase()
-    const valueLower = value.toLowerCase()
-
-    if (valueLower === searchLower) return 1
-    if (valueLower.startsWith(searchLower)) return 0.8
-    if (valueLower.includes(searchLower)) return 0.6
-
-    const searchWords = searchLower.split(/\s+/).filter(Boolean)
-    const allWordsMatch = searchWords.every((word) => valueLower.includes(word))
-    if (allWordsMatch && searchWords.length > 0) return 0.4
-
-    if (keywords?.length) {
-      const keywordsLower = keywords.join(' ').toLowerCase()
-      if (keywordsLower.includes(searchLower)) return 0.3
-      const keywordWordsMatch = searchWords.every((word) => keywordsLower.includes(word))
-      if (keywordWordsMatch && searchWords.length > 0) return 0.2
-    }
-
-    return 0
-  }, [])
-
   if (!mounted) return null
 
   return createPortal(
@@ -278,7 +275,6 @@ export function SearchModal({
         <Command label='Search' filter={customFilter}>
           <Command.Input
             ref={inputRef}
-            value={search}
             autoFocus
             onValueChange={handleSearchChange}
             placeholder='Search anything...'
@@ -295,7 +291,6 @@ export function SearchModal({
                   <CommandItem
                     key={block.id}
                     value={`${block.name} block-${block.id}`}
-                    keywords={[block.description]}
                     onSelect={() => handleBlockSelect(block, 'block')}
                     icon={block.icon}
                     bgColor={block.bgColor}
@@ -313,7 +308,6 @@ export function SearchModal({
                   <CommandItem
                     key={tool.id}
                     value={`${tool.name} tool-${tool.id}`}
-                    keywords={[tool.description]}
                     onSelect={() => handleBlockSelect(tool, 'tool')}
                     icon={tool.icon}
                     bgColor={tool.bgColor}
@@ -331,7 +325,6 @@ export function SearchModal({
                   <CommandItem
                     key={trigger.id}
                     value={`${trigger.name} trigger-${trigger.id}`}
-                    keywords={[trigger.description]}
                     onSelect={() => handleBlockSelect(trigger, 'trigger')}
                     icon={trigger.icon}
                     bgColor={trigger.bgColor}
@@ -371,7 +364,6 @@ export function SearchModal({
                   <CommandItem
                     key={op.id}
                     value={`${op.searchValue} operation-${op.id}`}
-                    keywords={op.keywords}
                     onSelect={() => handleToolOperationSelect(op)}
                     icon={op.icon}
                     bgColor={op.bgColor}
@@ -458,7 +450,6 @@ const groupHeadingClassName =
 
 interface CommandItemProps {
   value: string
-  keywords?: string[]
   onSelect: () => void
   icon: React.ComponentType<{ className?: string }>
   bgColor: string
@@ -468,7 +459,6 @@ interface CommandItemProps {
 
 function CommandItem({
   value,
-  keywords,
   onSelect,
   icon: Icon,
   bgColor,
@@ -478,7 +468,6 @@ function CommandItem({
   return (
     <Command.Item
       value={value}
-      keywords={keywords}
       onSelect={onSelect}
       className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
     >
