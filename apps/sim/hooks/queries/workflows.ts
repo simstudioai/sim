@@ -411,7 +411,11 @@ interface DeploymentVersionStateResponse {
   deployedState: WorkflowState
 }
 
-async function fetchDeploymentVersionState(
+/**
+ * Fetches the deployed state for a specific deployment version.
+ * Exported for reuse in other query hooks.
+ */
+export async function fetchDeploymentVersionState(
   workflowId: string,
   version: number
 ): Promise<WorkflowState> {

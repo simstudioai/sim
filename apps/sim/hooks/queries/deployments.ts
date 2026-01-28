@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { fetchDeploymentVersionState } from './workflows'
 
 const logger = createLogger('DeploymentQueries')
 
@@ -457,21 +458,14 @@ export function useGenerateVersionDescription() {
         '@/lib/workflows/comparison/compare'
       )
 
-      const currentResponse = await fetch(`/api/workflows/${workflowId}/deployments/${version}`)
-      if (!currentResponse.ok) {
-        throw new Error('Failed to fetch current version state')
-      }
-      const currentData = await currentResponse.json()
-      const currentState = currentData.deployedState
+      const currentState = await fetchDeploymentVersionState(workflowId, version)
 
       let previousState = null
       if (version > 1) {
-        const previousResponse = await fetch(
-          `/api/workflows/${workflowId}/deployments/${version - 1}`
-        )
-        if (previousResponse.ok) {
-          const previousData = await previousResponse.json()
-          previousState = previousData.deployedState
+        try {
+          previousState = await fetchDeploymentVersionState(workflowId, version - 1)
+        } catch {
+          // Previous version may not exist, continue without it
         }
       }
 
