@@ -628,6 +628,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Salesforce credential' },
+    filters: { type: 'json', description: 'Report filters' },
   },
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },

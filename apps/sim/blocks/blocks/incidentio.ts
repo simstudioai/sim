@@ -957,6 +957,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     state: { type: 'string', description: 'Workflow state' },
     // Schedule fields
     timezone: { type: 'string', description: 'Schedule timezone' },
+    config: { type: 'json', description: 'Schedule configuration' },
     // Custom field fields
     description: { type: 'string', description: 'Custom field description' },
     field_type: { type: 'string', description: 'Custom field type' },
