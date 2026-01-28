@@ -7,6 +7,7 @@ export interface LayoutOptions {
   horizontalSpacing?: number
   verticalSpacing?: number
   padding?: { x: number; y: number }
+  gridSize?: number
 }
 
 export interface LayoutResult {

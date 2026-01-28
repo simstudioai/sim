@@ -19,6 +19,61 @@ function resolveNumeric(value: number | undefined, fallback: number): number {
 }
 
 /**
+ * Snaps a single coordinate value to the nearest grid position
+ */
+function snapToGrid(value: number, gridSize: number): number {
+  return Math.round(value / gridSize) * gridSize
+}
+
+/**
+ * Snaps a position to the nearest grid point.
+ * Returns the original position if gridSize is 0 or not provided.
+ */
+export function snapPositionToGrid(
+  position: { x: number; y: number },
+  gridSize: number | undefined
+): { x: number; y: number } {
+  if (!gridSize || gridSize <= 0) {
+    return position
+  }
+  return {
+    x: snapToGrid(position.x, gridSize),
+    y: snapToGrid(position.y, gridSize),
+  }
+}
+
+/**
+ * Snaps all node positions in a graph to grid positions and returns updated dimensions.
+ * Returns null if gridSize is not set or no snapping was needed.
+ */
+export function snapNodesToGrid(
+  nodes: Map<string, GraphNode>,
+  gridSize: number | undefined
+): { width: number; height: number } | null {
+  if (!gridSize || gridSize <= 0 || nodes.size === 0) {
+    return null
+  }
+
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+
+  for (const node of nodes.values()) {
+    node.position = snapPositionToGrid(node.position, gridSize)
+    minX = Math.min(minX, node.position.x)
+    minY = Math.min(minY, node.position.y)
+    maxX = Math.max(maxX, node.position.x + node.metrics.width)
+    maxY = Math.max(maxY, node.position.y + node.metrics.height)
+  }
+
+  return {
+    width: maxX - minX + CONTAINER_PADDING * 2,
+    height: maxY - minY + CONTAINER_PADDING * 2,
+  }
+}
+
+/**
  * Checks if a block type is a container (loop or parallel)
  */
 export function isContainerType(blockType: string): boolean {
@@ -314,6 +369,7 @@ export type LayoutFunction = (
       horizontalSpacing?: number
       verticalSpacing?: number
       padding?: { x: number; y: number }
+      gridSize?: number
     }
     subflowDepths?: Map<string, number>
   }
@@ -329,13 +385,15 @@ export type LayoutFunction = (
  * @param layoutFn - The layout function to use for calculating dimensions
  * @param horizontalSpacing - Horizontal spacing between blocks
  * @param verticalSpacing - Vertical spacing between blocks
+ * @param gridSize - Optional grid size for snap-to-grid
  */
 export function prepareContainerDimensions(
   blocks: Record<string, BlockState>,
   edges: Edge[],
   layoutFn: LayoutFunction,
   horizontalSpacing: number,
-  verticalSpacing: number
+  verticalSpacing: number,
+  gridSize?: number
 ): void {
   const { children } = getBlocksByParent(blocks)
 
@@ -402,6 +460,7 @@ export function prepareContainerDimensions(
       layoutOptions: {
         horizontalSpacing: horizontalSpacing * 0.85,
         verticalSpacing,
+        gridSize,
       },
     })
 
