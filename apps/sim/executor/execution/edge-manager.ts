@@ -78,14 +78,18 @@ export class EdgeManager {
     }
 
     // Check if any deactivation targets that previously received an activated edge are now ready
-    for (const { target } of edgesToDeactivate) {
-      if (
-        !readyNodes.includes(target) &&
-        !activatedTargets.includes(target) &&
-        this.nodesWithActivatedEdge.has(target) &&
-        this.isTargetReady(target)
-      ) {
-        readyNodes.push(target)
+    // Skip this check when exiting a loop/parallel, as deactivated targets are loop body nodes
+    // that should not execute
+    if (output.selectedRoute !== EDGE.LOOP_EXIT && output.selectedRoute !== EDGE.PARALLEL_EXIT) {
+      for (const { target } of edgesToDeactivate) {
+        if (
+          !readyNodes.includes(target) &&
+          !activatedTargets.includes(target) &&
+          this.nodesWithActivatedEdge.has(target) &&
+          this.isTargetReady(target)
+        ) {
+          readyNodes.push(target)
+        }
       }
     }
 
