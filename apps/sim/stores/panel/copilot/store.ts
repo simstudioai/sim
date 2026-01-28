@@ -5,6 +5,11 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
 import type { CopilotTransportMode } from '@/lib/copilot/models'
+import {
+  isServerExecutedToolSync,
+  markToolCallServerHandled,
+  prefetchServerExecutedTools,
+} from '@/lib/copilot/server-executed-tools'
 import type {
   BaseClientToolMetadata,
   ClientToolDisplay,
@@ -75,6 +80,7 @@ import { ManageMcpToolClientTool } from '@/lib/copilot/tools/client/workflow/man
 import { RedeployClientTool } from '@/lib/copilot/tools/client/workflow/redeploy'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { SetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/set-global-workflow-variables'
+import { extractToolCallId } from '@/lib/copilot/tools/shared/schemas'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import type {
@@ -344,6 +350,17 @@ function isBackgroundState(state: any): boolean {
     return state === 'background' || state === (ClientToolCallState as any).background
   } catch {
     return state === 'background'
+  }
+}
+
+/**
+ * Checks if a tool call state is aborted
+ */
+function isAbortedState(state: any): boolean {
+  try {
+    return state === 'aborted' || state === (ClientToolCallState as any).aborted
+  } catch {
+    return state === 'aborted'
   }
 }
 
@@ -1138,8 +1155,8 @@ const sseHandlers: Record<string, SSEHandler> = {
   },
   tool_result: (data, context, get, set) => {
     try {
-      const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
-      const success: boolean | undefined = data?.success
+      const toolCallId = extractToolCallId(data)
+      const success: boolean | undefined = (data as Record<string, unknown>)?.success as boolean
       const failedDependency: boolean = data?.failedDependency === true
       const skipped: boolean = data?.result?.skipped === true
       if (!toolCallId) return
@@ -1149,9 +1166,10 @@ const sseHandlers: Record<string, SSEHandler> = {
         if (
           isRejectedState(current.state) ||
           isReviewState(current.state) ||
-          isBackgroundState(current.state)
+          isBackgroundState(current.state) ||
+          isAbortedState(current.state)
         ) {
-          // Preserve terminal review/rejected state; do not override
+          // Preserve terminal review/rejected/aborted state; do not override
           return
         }
         const targetState = success
@@ -1207,7 +1225,8 @@ const sseHandlers: Record<string, SSEHandler> = {
           if (
             isRejectedState(b.toolCall?.state) ||
             isReviewState(b.toolCall?.state) ||
-            isBackgroundState(b.toolCall?.state)
+            isBackgroundState(b.toolCall?.state) ||
+            isAbortedState(b.toolCall?.state)
           )
             break
           const targetState = success
@@ -1236,8 +1255,8 @@ const sseHandlers: Record<string, SSEHandler> = {
   },
   tool_error: (data, context, get, set) => {
     try {
-      const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
-      const failedDependency: boolean = data?.failedDependency === true
+      const toolCallId = extractToolCallId(data)
+      const failedDependency: boolean = (data as Record<string, unknown>)?.failedDependency === true
       if (!toolCallId) return
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
@@ -1245,7 +1264,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         if (
           isRejectedState(current.state) ||
           isReviewState(current.state) ||
-          isBackgroundState(current.state)
+          isBackgroundState(current.state) ||
+          isAbortedState(current.state)
         ) {
           return
         }
@@ -1271,7 +1291,8 @@ const sseHandlers: Record<string, SSEHandler> = {
           if (
             isRejectedState(b.toolCall?.state) ||
             isReviewState(b.toolCall?.state) ||
-            isBackgroundState(b.toolCall?.state)
+            isBackgroundState(b.toolCall?.state) ||
+            isAbortedState(b.toolCall?.state)
           )
             break
           const targetState = failedDependency
@@ -1362,6 +1383,28 @@ const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
+    // Check if this tool is executed server-side
+    // If so, skip client execution - the server will handle it and send tool_result
+    if (name && isServerExecutedToolSync(name)) {
+      markToolCallServerHandled(id, name)
+      logger.info('[toolCallsById] Tool is server-executed, skipping client execution', {
+        id,
+        name,
+      })
+      // Update state to executing to show progress in UI
+      const executingMap = { ...get().toolCallsById }
+      executingMap[id] = {
+        ...executingMap[id],
+        state: ClientToolCallState.executing,
+        display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
+      }
+      set({ toolCallsById: executingMap })
+      // Update inline content block
+      upsertToolCallBlock(context, executingMap[id])
+      updateStreamingMessage(set, context)
+      return
+    }
+
     // Prefer interface-based registry to determine interrupt and execute
     try {
       const def = name ? getTool(name) : undefined
@@ -1419,11 +1462,12 @@ const sseHandlers: Record<string, SSEHandler> = {
                     ? result.status >= 200 && result.status < 300
                     : true
                 const completeMap = { ...get().toolCallsById }
-                // Do not override terminal review/rejected
+                // Do not override terminal review/rejected/aborted
                 if (
                   isRejectedState(completeMap[id]?.state) ||
                   isReviewState(completeMap[id]?.state) ||
-                  isBackgroundState(completeMap[id]?.state)
+                  isBackgroundState(completeMap[id]?.state) ||
+                  isAbortedState(completeMap[id]?.state)
                 ) {
                   return
                 }
@@ -1461,11 +1505,12 @@ const sseHandlers: Record<string, SSEHandler> = {
               })
               .catch((e) => {
                 const errorMap = { ...get().toolCallsById }
-                // Do not override terminal review/rejected
+                // Do not override terminal review/rejected/aborted
                 if (
                   isRejectedState(errorMap[id]?.state) ||
                   isReviewState(errorMap[id]?.state) ||
-                  isBackgroundState(errorMap[id]?.state)
+                  isBackgroundState(errorMap[id]?.state) ||
+                  isAbortedState(errorMap[id]?.state)
                 ) {
                   return
                 }
@@ -1530,11 +1575,12 @@ const sseHandlers: Record<string, SSEHandler> = {
             })
             .catch(() => {
               const errorMap = { ...get().toolCallsById }
-              // Do not override terminal review/rejected
+              // Do not override terminal review/rejected/aborted
               if (
                 isRejectedState(errorMap[id]?.state) ||
                 isReviewState(errorMap[id]?.state) ||
-                isBackgroundState(errorMap[id]?.state)
+                isBackgroundState(errorMap[id]?.state) ||
+                isAbortedState(errorMap[id]?.state)
               ) {
                 return
               }
@@ -2157,8 +2203,8 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
 
-    const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
-    const success: boolean | undefined = data?.success !== false // Default to true if not specified
+    const toolCallId = extractToolCallId(data)
+    const success: boolean | undefined = (data as Record<string, unknown>)?.success !== false // Default to true if not specified
     if (!toolCallId) return
 
     // Initialize if needed
@@ -2173,6 +2219,12 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
     if (existingIndex >= 0) {
       const existing = context.subAgentToolCalls[parentToolCallId][existingIndex]
+
+      // Preserve aborted state - don't override if user aborted
+      if (isAbortedState(existing.state)) {
+        return
+      }
+
       const updatedSubAgentToolCall = {
         ...existing,
         state: targetState,
@@ -2191,6 +2243,10 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
       // Update the individual tool call in toolCallsById so ToolCall component gets latest state
       const { toolCallsById } = get()
       if (toolCallsById[toolCallId]) {
+        // Also check toolCallsById state in case it was aborted there
+        if (isAbortedState(toolCallsById[toolCallId].state)) {
+          return
+        }
         const updatedMap = {
           ...toolCallsById,
           [toolCallId]: updatedSubAgentToolCall,
@@ -2384,6 +2440,9 @@ export const useCopilotStore = create<CopilotStore>()(
       if (currentWorkflowId === workflowId) return
       const { isSendingMessage } = get()
       if (isSendingMessage) get().abortMessage()
+
+      // Prefetch server-executed tools list (for skipping client execution)
+      prefetchServerExecutedTools()
 
       // Abort all in-progress tools and clear any diff preview
       abortAllInProgressTools(set, get)
@@ -3063,9 +3122,9 @@ export const useCopilotStore = create<CopilotStore>()(
         const map = { ...get().toolCallsById }
         const current = map[id]
         if (!current) return
-        // Preserve rejected state from being overridden
+        // Preserve rejected/aborted state from being overridden with success
         if (
-          isRejectedState(current.state) &&
+          (isRejectedState(current.state) || isAbortedState(current.state)) &&
           (newState === 'success' || newState === (ClientToolCallState as any).success)
         ) {
           return
@@ -3143,8 +3202,11 @@ export const useCopilotStore = create<CopilotStore>()(
       if (!id) return
       const current = toolCallsById[id]
       if (!current) return
-      // Do not override a rejected tool with success
-      if (isRejectedState(current.state) && targetState === (ClientToolCallState as any).success) {
+      // Do not override a rejected or aborted tool with success
+      if (
+        (isRejectedState(current.state) || isAbortedState(current.state)) &&
+        targetState === (ClientToolCallState as any).success
+      ) {
         return
       }
 
@@ -3862,11 +3924,12 @@ export const useCopilotStore = create<CopilotStore>()(
         const success = result.success && result.result?.success
         const completeMap = { ...get().toolCallsById }
 
-        // Do not override terminal review/rejected
+        // Do not override terminal review/rejected/aborted
         if (
           isRejectedState(completeMap[id]?.state) ||
           isReviewState(completeMap[id]?.state) ||
-          isBackgroundState(completeMap[id]?.state)
+          isBackgroundState(completeMap[id]?.state) ||
+          isAbortedState(completeMap[id]?.state)
         ) {
           return
         }
@@ -3911,11 +3974,12 @@ export const useCopilotStore = create<CopilotStore>()(
         } catch {}
       } catch (e) {
         const errorMap = { ...get().toolCallsById }
-        // Do not override terminal review/rejected
+        // Do not override terminal review/rejected/aborted
         if (
           isRejectedState(errorMap[id]?.state) ||
           isReviewState(errorMap[id]?.state) ||
-          isBackgroundState(errorMap[id]?.state)
+          isBackgroundState(errorMap[id]?.state) ||
+          isAbortedState(errorMap[id]?.state)
         ) {
           return
         }

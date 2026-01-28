@@ -16,6 +16,10 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import {
+  handleToolCallEvent,
+  registerServerHandledTool,
+} from '@/lib/copilot/server-executor/stream-handler'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import type { CopilotProviderConfig } from '@/lib/copilot/types'
 import { env } from '@/lib/core/config/env'
@@ -618,6 +622,33 @@ export async function POST(req: NextRequest) {
                           toolCalls.push(event.data)
                           if (event.data?.id) {
                             announcedToolCallIds.add(event.data.id)
+
+                            // Execute server-side tools automatically
+                            // This runs async and calls mark-complete when done
+                            handleToolCallEvent(
+                              {
+                                id: event.data.id,
+                                name: event.data.name,
+                                arguments: event.data.arguments || {},
+                                partial: false,
+                              },
+                              {
+                                userId: authenticatedUserId,
+                                workflowId,
+                                chatId: actualChatId,
+                              }
+                            ).then((handledServerSide) => {
+                              if (handledServerSide) {
+                                registerServerHandledTool(event.data.id, event.data.name)
+                                logger.info(
+                                  `[${tracker.requestId}] Tool will be executed server-side`,
+                                  {
+                                    toolCallId: event.data.id,
+                                    toolName: event.data.name,
+                                  }
+                                )
+                              }
+                            })
                           }
                         }
                         break

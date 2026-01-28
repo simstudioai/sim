@@ -9,19 +9,12 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { MarkCompletePayloadSchema } from '@/lib/copilot/tools/shared/schemas'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotMarkToolCompleteAPI')
 
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
-
-const MarkCompleteSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  status: z.number().int(),
-  message: z.any().optional(),
-  data: z.any().optional(),
-})
 
 /**
  * POST /api/copilot/tools/mark-complete
@@ -46,7 +39,7 @@ export async function POST(req: NextRequest) {
       })
     } catch {}
 
-    const parsed = MarkCompleteSchema.parse(body)
+    const parsed = MarkCompletePayloadSchema.parse(body)
 
     const messagePreview = (() => {
       try {
