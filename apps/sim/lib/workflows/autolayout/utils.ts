@@ -54,18 +54,22 @@ export function snapNodesToGrid(
     return null
   }
 
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
   let maxX = Number.NEGATIVE_INFINITY
   let maxY = Number.NEGATIVE_INFINITY
 
   for (const node of nodes.values()) {
     node.position = snapPositionToGrid(node.position, gridSize)
+    minX = Math.min(minX, node.position.x)
+    minY = Math.min(minY, node.position.y)
     maxX = Math.max(maxX, node.position.x + node.metrics.width)
     maxY = Math.max(maxY, node.position.y + node.metrics.height)
   }
 
   return {
-    width: maxX + CONTAINER_PADDING,
-    height: maxY + CONTAINER_PADDING,
+    width: maxX - minX + CONTAINER_PADDING * 2,
+    height: maxY - minY + CONTAINER_PADDING * 2,
   }
 }
 
@@ -365,6 +369,7 @@ export type LayoutFunction = (
       horizontalSpacing?: number
       verticalSpacing?: number
       padding?: { x: number; y: number }
+      gridSize?: number
     }
     subflowDepths?: Map<string, number>
   }
@@ -380,13 +385,15 @@ export type LayoutFunction = (
  * @param layoutFn - The layout function to use for calculating dimensions
  * @param horizontalSpacing - Horizontal spacing between blocks
  * @param verticalSpacing - Vertical spacing between blocks
+ * @param gridSize - Optional grid size for snap-to-grid
  */
 export function prepareContainerDimensions(
   blocks: Record<string, BlockState>,
   edges: Edge[],
   layoutFn: LayoutFunction,
   horizontalSpacing: number,
-  verticalSpacing: number
+  verticalSpacing: number,
+  gridSize?: number
 ): void {
   const { children } = getBlocksByParent(blocks)
 
@@ -453,6 +460,7 @@ export function prepareContainerDimensions(
       layoutOptions: {
         horizontalSpacing: horizontalSpacing * 0.85,
         verticalSpacing,
+        gridSize,
       },
     })
 

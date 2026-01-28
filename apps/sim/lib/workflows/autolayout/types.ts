@@ -7,7 +7,6 @@ export interface LayoutOptions {
   horizontalSpacing?: number
   verticalSpacing?: number
   padding?: { x: number; y: number }
-  /** Grid size for snap-to-grid. When > 0, positions are snapped to grid multiples. */
   gridSize?: number
 }
 

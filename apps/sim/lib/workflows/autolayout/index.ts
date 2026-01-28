@@ -41,7 +41,8 @@ export function applyAutoLayout(
       edges,
       layoutBlocksCore,
       horizontalSpacing,
-      verticalSpacing
+      verticalSpacing,
+      options.gridSize
     )
 
     const { root: rootBlockIds } = getBlocksByParent(blocksCopy)

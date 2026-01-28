@@ -52,7 +52,8 @@ export function applyTargetedLayout(
     edges,
     layoutBlocksCore,
     horizontalSpacing,
-    verticalSpacing
+    verticalSpacing,
+    gridSize
   )
 
   const groups = getBlocksByParent(blocksCopy)
