@@ -43,15 +43,29 @@ export function snapPositionToGrid(
 }
 
 /**
- * Snaps all node positions in a graph to grid positions.
- * Only applies if gridSize > 0.
+ * Snaps all node positions in a graph to grid positions and returns updated dimensions.
+ * Returns null if gridSize is not set or no snapping was needed.
  */
-export function snapNodesToGrid(nodes: Map<string, GraphNode>, gridSize: number | undefined): void {
-  if (!gridSize || gridSize <= 0) {
-    return
+export function snapNodesToGrid(
+  nodes: Map<string, GraphNode>,
+  gridSize: number | undefined
+): { width: number; height: number } | null {
+  if (!gridSize || gridSize <= 0 || nodes.size === 0) {
+    return null
   }
+
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+
   for (const node of nodes.values()) {
     node.position = snapPositionToGrid(node.position, gridSize)
+    maxX = Math.max(maxX, node.position.x + node.metrics.width)
+    maxY = Math.max(maxY, node.position.y + node.metrics.height)
+  }
+
+  return {
+    width: maxX + CONTAINER_PADDING,
+    height: maxY + CONTAINER_PADDING,
   }
 }
 

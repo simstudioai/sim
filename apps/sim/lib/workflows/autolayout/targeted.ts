@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import {
   CONTAINER_PADDING,
   DEFAULT_HORIZONTAL_SPACING,
@@ -14,11 +13,10 @@ import {
   isContainerType,
   prepareContainerDimensions,
   shouldSkipAutoLayout,
+  snapPositionToGrid,
 } from '@/lib/workflows/autolayout/utils'
 import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-
-const logger = createLogger('AutoLayout:Targeted')
 
 export interface TargetedLayoutOptions extends LayoutOptions {
   changedBlockIds: string[]
@@ -186,10 +184,7 @@ function layoutGroup(
     const block = blocks[id]
     const newPos = layoutPositions.get(id)
     if (!block || !newPos) continue
-    block.position = {
-      x: newPos.x + offsetX,
-      y: newPos.y + offsetY,
-    }
+    block.position = snapPositionToGrid({ x: newPos.x + offsetX, y: newPos.y + offsetY }, gridSize)
   }
 }
 

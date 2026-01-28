@@ -420,10 +420,13 @@ export function layoutBlocksCore(
   calculatePositions(layers, edges, layoutOptions)
 
   // 5. Normalize positions
-  const dimensions = normalizePositions(nodes, { isContainer: options.isContainer })
+  let dimensions = normalizePositions(nodes, { isContainer: options.isContainer })
 
-  // 6. Snap to grid if gridSize is specified
-  snapNodesToGrid(nodes, layoutOptions.gridSize)
+  // 6. Snap to grid if gridSize is specified (recalculates dimensions)
+  const snappedDimensions = snapNodesToGrid(nodes, layoutOptions.gridSize)
+  if (snappedDimensions) {
+    dimensions = snappedDimensions
+  }
 
   return { nodes, dimensions }
 }
