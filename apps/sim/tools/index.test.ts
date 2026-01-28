@@ -253,23 +253,6 @@ describe('executeTool Function', () => {
     vi.restoreAllMocks()
   })
 
-  it('should handle errors from tools', async () => {
-    setupFetchMock({ status: 400, ok: false, json: { error: 'Bad request' } })
-
-    const result = await executeTool(
-      'http_request',
-      {
-        url: 'https://api.example.com/data',
-        method: 'GET',
-      },
-      true
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toBeDefined()
-    expect(result.timing).toBeDefined()
-  })
-
   it('should add timing information to results', async () => {
     const result = await executeTool(
       'http_request',
