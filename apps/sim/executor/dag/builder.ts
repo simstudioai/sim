@@ -136,17 +136,17 @@ export class DAGBuilder {
     nodes: string[] | undefined,
     type: 'Loop' | 'Parallel'
   ): void {
-    if (!nodes || nodes.length === 0) {
-      throw new Error(
-        `${type} has no blocks inside. Add at least one block to the ${type.toLowerCase()}.`
-      )
-    }
-
     const sentinelStartId =
       type === 'Loop' ? buildSentinelStartId(id) : buildParallelSentinelStartId(id)
     const sentinelStartNode = dag.nodes.get(sentinelStartId)
 
     if (!sentinelStartNode) return
+
+    if (!nodes || nodes.length === 0) {
+      throw new Error(
+        `${type} has no blocks inside. Add at least one block to the ${type.toLowerCase()}.`
+      )
+    }
 
     const hasConnections = Array.from(sentinelStartNode.outgoingEdges.values()).some((edge) =>
       nodes.includes(extractBaseBlockId(edge.target))
