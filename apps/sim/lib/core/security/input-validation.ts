@@ -931,7 +931,7 @@ export async function secureFetchWithPinnedIP(
       method: options.method || 'GET',
       headers: sanitizedHeaders,
       agent,
-      timeout: options.timeout || 30000,
+      timeout: options.timeout || 300000, // Default 5 minutes
     }
 
     const protocol = isHttps ? https : http

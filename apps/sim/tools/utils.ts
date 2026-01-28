@@ -75,6 +75,7 @@ interface RequestParams {
   method: string
   headers: Record<string, string>
   body?: string
+  timeout?: number
 }
 
 /**
@@ -122,7 +123,10 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     }
   }
 
-  return { url, method, headers, body }
+  // Get timeout from params (if specified)
+  const timeout = params.timeout as number | undefined
+
+  return { url, method, headers, body, timeout }
 }
 
 /**

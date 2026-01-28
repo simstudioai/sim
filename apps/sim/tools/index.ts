@@ -640,6 +640,7 @@ async function executeToolRequest(
         method: requestParams.method,
         headers: headersRecord,
         body: requestParams.body ?? undefined,
+        timeout: requestParams.timeout,
       })
 
       const responseHeaders = new Headers(secureResponse.headers.toRecord())

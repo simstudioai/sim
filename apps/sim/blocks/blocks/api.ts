@@ -80,6 +80,15 @@ Example:
         generationType: 'json-object',
       },
     },
+    {
+      id: 'timeout',
+      title: 'Timeout (ms)',
+      type: 'short-input',
+      placeholder: '300000',
+      description:
+        'Request timeout in milliseconds (default: 300000 = 5 minutes, max: 600000 = 10 minutes)',
+      mode: 'advanced',
+    },
   ],
   tools: {
     access: ['http_request'],
@@ -90,6 +99,7 @@ Example:
     headers: { type: 'json', description: 'Request headers' },
     body: { type: 'json', description: 'Request body data' },
     params: { type: 'json', description: 'URL query parameters' },
+    timeout: { type: 'number', description: 'Request timeout in milliseconds' },
   },
   outputs: {
     data: { type: 'json', description: 'API response data (JSON, text, or other formats)' },
