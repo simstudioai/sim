@@ -74,7 +74,7 @@ export const groqProvider: ProviderConfig = {
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+    if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
     if (request.responseFormat) {
       payload.response_format = {

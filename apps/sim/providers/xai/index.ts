@@ -92,7 +92,7 @@ export const xAIProvider: ProviderConfig = {
     }
 
     if (request.temperature !== undefined) basePayload.temperature = request.temperature
-    if (request.maxTokens !== undefined) basePayload.max_tokens = request.maxTokens
+    if (request.maxTokens != null) basePayload.max_tokens = request.maxTokens
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
     if (tools?.length) {

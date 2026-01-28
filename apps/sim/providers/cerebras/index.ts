@@ -77,7 +77,7 @@ export const cerebrasProvider: ProviderConfig = {
         messages: allMessages,
       }
       if (request.temperature !== undefined) payload.temperature = request.temperature
-      if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+      if (request.maxTokens != null) payload.max_tokens = request.maxTokens
       if (request.responseFormat) {
         payload.response_format = {
           type: 'json_schema',
