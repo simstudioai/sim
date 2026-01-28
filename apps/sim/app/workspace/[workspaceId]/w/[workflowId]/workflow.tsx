@@ -100,18 +100,32 @@ const logger = createLogger('Workflow')
 const DEFAULT_PASTE_OFFSET = { x: 50, y: 50 }
 
 /**
- * Calculates the offset to paste blocks at viewport center
+ * Calculates the offset to paste blocks at viewport center, or simple offset for nested blocks
  */
 function calculatePasteOffset(
   clipboard: {
-    blocks: Record<string, { position: { x: number; y: number }; type: string; height?: number }>
+    blocks: Record<
+      string,
+      {
+        position: { x: number; y: number }
+        type: string
+        height?: number
+        data?: { parentId?: string }
+      }
+    >
   } | null,
-  viewportCenter: { x: number; y: number }
+  viewportCenter: { x: number; y: number },
+  existingBlocks: Record<string, { id: string }> = {}
 ): { x: number; y: number } {
   if (!clipboard) return DEFAULT_PASTE_OFFSET
 
   const clipboardBlocks = Object.values(clipboard.blocks)
   if (clipboardBlocks.length === 0) return DEFAULT_PASTE_OFFSET
+
+  const allBlocksNested = clipboardBlocks.every(
+    (b) => b.data?.parentId && existingBlocks[b.data.parentId]
+  )
+  if (allBlocksNested) return DEFAULT_PASTE_OFFSET
 
   const minX = Math.min(...clipboardBlocks.map((b) => b.position.x))
   const maxX = Math.max(
@@ -310,9 +324,7 @@ const WorkflowContent = React.memo(() => {
 
   const isAutoConnectEnabled = useAutoConnect()
   const autoConnectRef = useRef(isAutoConnectEnabled)
-  useEffect(() => {
-    autoConnectRef.current = isAutoConnectEnabled
-  }, [isAutoConnectEnabled])
+  autoConnectRef.current = isAutoConnectEnabled
 
   // Panel open states for context menu
   const isVariablesOpen = useVariablesStore((state) => state.isOpen)
@@ -451,11 +463,16 @@ const WorkflowContent = React.memo(() => {
   )
 
   /** Re-applies diff markers when blocks change after socket rehydration. */
-  const blocksRef = useRef(blocks)
+  const diffBlocksRef = useRef(blocks)
   useEffect(() => {
     if (!isWorkflowReady) return
-    if (hasActiveDiff && isDiffReady && blocks !== blocksRef.current) {
-      blocksRef.current = blocks
+
+    const blocksChanged = blocks !== diffBlocksRef.current
+    if (!blocksChanged) return
+
+    diffBlocksRef.current = blocks
+
+    if (hasActiveDiff && isDiffReady) {
       setTimeout(() => reapplyDiffMarkers(), 0)
     }
   }, [blocks, hasActiveDiff, isDiffReady, reapplyDiffMarkers, isWorkflowReady])
@@ -518,8 +535,7 @@ const WorkflowContent = React.memo(() => {
     })
   }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
 
-  const { userPermissions, workspacePermissions, permissionsError } =
-    useWorkspacePermissionsContext()
+  const { userPermissions } = useWorkspacePermissionsContext()
 
   /** Returns read-only permissions when viewing snapshot, otherwise user permissions. */
   const effectivePermissions = useMemo(() => {
@@ -757,25 +773,6 @@ const WorkflowContent = React.memo(() => {
     }),
     [isErrorConnectionDrag]
   )
-
-  /** Logs permission loading results for debugging. */
-  useEffect(() => {
-    if (permissionsError) {
-      logger.error('Failed to load workspace permissions', {
-        workspaceId,
-        error: permissionsError,
-      })
-    } else if (workspacePermissions) {
-      logger.info('Workspace permissions loaded in workflow', {
-        workspaceId,
-        userCount: workspacePermissions.total,
-        permissions: workspacePermissions.users.map((u) => ({
-          email: u.email,
-          permissions: u.permissionType,
-        })),
-      })
-    }
-  }, [workspacePermissions, permissionsError, workspaceId])
 
   const updateNodeParent = useCallback(
     (nodeId: string, newParentId: string | null, affectedEdges: any[] = []) => {
@@ -1048,7 +1045,7 @@ const WorkflowContent = React.memo(() => {
 
     executePasteOperation(
       'paste',
-      calculatePasteOffset(clipboard, getViewportCenter()),
+      calculatePasteOffset(clipboard, getViewportCenter(), blocks),
       targetContainer,
       flowPosition // Pass the click position so blocks are centered at where user right-clicked
     )
@@ -1060,6 +1057,7 @@ const WorkflowContent = React.memo(() => {
     screenToFlowPosition,
     contextMenuPosition,
     isPointInLoopNode,
+    blocks,
   ])
 
   const handleContextDuplicate = useCallback(() => {
@@ -1214,7 +1212,10 @@ const WorkflowContent = React.memo(() => {
       } else if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
         if (effectivePermissions.canEdit && hasClipboard()) {
           event.preventDefault()
-          executePasteOperation('paste', calculatePasteOffset(clipboard, getViewportCenter()))
+          executePasteOperation(
+            'paste',
+            calculatePasteOffset(clipboard, getViewportCenter(), blocks)
+          )
         }
       }
     }
@@ -1236,6 +1237,7 @@ const WorkflowContent = React.memo(() => {
     clipboard,
     getViewportCenter,
     executePasteOperation,
+    blocks,
   ])
 
   /**
@@ -2210,6 +2212,8 @@ const WorkflowContent = React.memo(() => {
   // Local state for nodes - allows smooth drag without store updates on every frame
   const [displayNodes, setDisplayNodes] = useState<Node[]>([])
 
+  // Sync derivedNodes to displayNodes while preserving selection state
+  // This effect handles both normal sync and pending selection from paste/duplicate
   useEffect(() => {
     // Check for pending selection (from paste/duplicate), otherwise preserve existing selection
     if (pendingSelection && pendingSelection.length > 0) {
@@ -2239,7 +2243,6 @@ const WorkflowContent = React.memo(() => {
   }, [derivedNodes, blocks, pendingSelection, clearPendingSelection])
 
   // Phase 2: When displayNodes updates, check if pending zoom blocks are ready
-  // (Phase 1 is located earlier in the file where pendingZoomBlockIdsRef is defined)
   useEffect(() => {
     const pendingBlockIds = pendingZoomBlockIdsRef.current
     if (!pendingBlockIds || pendingBlockIds.size === 0) {
@@ -2457,40 +2460,6 @@ const WorkflowContent = React.memo(() => {
     // Resize all loops to fit their children
     resizeLoopNodesWrapper()
   }, [derivedNodes, resizeLoopNodesWrapper, isWorkflowReady])
-
-  /** Cleans up orphaned nodes with invalid parent references after deletion. */
-  useEffect(() => {
-    if (!isWorkflowReady) return
-
-    // Create a mapping of node IDs to check for missing parent references
-    const nodeIds = new Set(Object.keys(blocks))
-
-    // Check for nodes with invalid parent references and collect updates
-    const orphanedUpdates: Array<{
-      id: string
-      position: { x: number; y: number }
-      parentId: string
-    }> = []
-    Object.entries(blocks).forEach(([id, block]) => {
-      const parentId = block.data?.parentId
-
-      // If block has a parent reference but parent no longer exists
-      if (parentId && !nodeIds.has(parentId)) {
-        logger.warn('Found orphaned node with invalid parent reference', {
-          nodeId: id,
-          missingParentId: parentId,
-        })
-
-        const absolutePosition = getNodeAbsolutePosition(id)
-        orphanedUpdates.push({ id, position: absolutePosition, parentId: '' })
-      }
-    })
-
-    // Batch update all orphaned nodes at once
-    if (orphanedUpdates.length > 0) {
-      batchUpdateBlocksWithParent(orphanedUpdates)
-    }
-  }, [blocks, batchUpdateBlocksWithParent, getNodeAbsolutePosition, isWorkflowReady])
 
   /** Handles edge removal changes. */
   const onEdgesChange = useCallback(

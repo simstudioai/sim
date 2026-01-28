@@ -214,7 +214,6 @@ export interface WorkflowActions {
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
   setBlockEnabled: (id: string, enabled: boolean) => void
-  duplicateBlock: (id: string) => void
   setBlockHandles: (id: string, horizontalHandles: boolean) => void
   updateBlockName: (
     id: string,
@@ -225,23 +224,18 @@ export interface WorkflowActions {
   }
   setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
   setBlockCanonicalMode: (id: string, canonicalId: string, mode: 'basic' | 'advanced') => void
-  setBlockTriggerMode: (id: string, triggerMode: boolean) => void
   updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => void
   triggerUpdate: () => void
   updateLoopCount: (loopId: string, count: number) => void
   updateLoopType: (loopId: string, loopType: 'for' | 'forEach' | 'while' | 'doWhile') => void
-  updateLoopCollection: (loopId: string, collection: string) => void
   setLoopForEachItems: (loopId: string, items: any) => void
   setLoopWhileCondition: (loopId: string, condition: string) => void
   setLoopDoWhileCondition: (loopId: string, condition: string) => void
   updateParallelCount: (parallelId: string, count: number) => void
   updateParallelCollection: (parallelId: string, collection: string) => void
   updateParallelType: (parallelId: string, parallelType: 'count' | 'collection') => void
-  generateLoopBlocks: () => Record<string, Loop>
-  generateParallelBlocks: () => Record<string, Parallel>
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   revertToDeployedState: (deployedState: WorkflowState) => void
-  toggleBlockAdvancedMode: (id: string) => void
   setDragStartPosition: (position: DragStartPosition | null) => void
   getDragStartPosition: () => DragStartPosition | null
   getWorkflowState: () => WorkflowState

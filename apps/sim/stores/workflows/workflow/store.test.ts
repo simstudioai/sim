@@ -22,8 +22,6 @@ import {
   WorkflowBuilder,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 describe('workflow store', () => {
@@ -365,30 +363,6 @@ describe('workflow store', () => {
     })
   })
 
-  describe('duplicateBlock', () => {
-    it('should duplicate a block', () => {
-      const { addBlock, duplicateBlock } = useWorkflowStore.getState()
-
-      addBlock('original', 'agent', 'Original Agent', { x: 0, y: 0 })
-
-      duplicateBlock('original')
-
-      const { blocks } = useWorkflowStore.getState()
-      const blockIds = Object.keys(blocks)
-
-      expect(blockIds.length).toBe(2)
-
-      const duplicatedId = blockIds.find((id) => id !== 'original')
-      expect(duplicatedId).toBeDefined()
-
-      if (duplicatedId) {
-        expect(blocks[duplicatedId].type).toBe('agent')
-        expect(blocks[duplicatedId].name).toContain('Original Agent')
-        expect(blocks[duplicatedId].position.x).not.toBe(0)
-      }
-    })
-  })
-
   describe('batchUpdatePositions', () => {
     it('should update block position', () => {
       const { addBlock, batchUpdatePositions } = useWorkflowStore.getState()
@@ -450,29 +424,6 @@ describe('workflow store', () => {
       expect(state.loops.loop1).toBeDefined()
       expect(state.loops.loop1.loopType).toBe('forEach')
       expect(state.loops.loop1.forEachItems).toBe('["a", "b", "c"]')
-    })
-
-    it('should regenerate loops when updateLoopCollection is called', () => {
-      const { addBlock, updateLoopCollection } = useWorkflowStore.getState()
-
-      addBlock(
-        'loop1',
-        'loop',
-        'Test Loop',
-        { x: 0, y: 0 },
-        {
-          loopType: 'forEach',
-          collection: '["item1", "item2"]',
-        }
-      )
-
-      updateLoopCollection('loop1', '["item1", "item2", "item3"]')
-
-      const state = useWorkflowStore.getState()
-
-      expect(state.blocks.loop1?.data?.collection).toBe('["item1", "item2", "item3"]')
-      expect(state.loops.loop1).toBeDefined()
-      expect(state.loops.loop1.forEachItems).toBe('["item1", "item2", "item3"]')
     })
 
     it('should clamp loop count between 1 and 1000', () => {
@@ -596,118 +547,6 @@ describe('workflow store', () => {
       expect(state.blocks.parallel1?.data?.parallelType).toBe('count')
       expect(state.parallels.parallel1).toBeDefined()
       expect(state.parallels.parallel1.parallelType).toBe('count')
-    })
-  })
-
-  describe('mode switching', () => {
-    it('should toggle advanced mode on a block', () => {
-      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
-
-      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
-
-      let state = useWorkflowStore.getState()
-      expect(state.blocks.agent1?.advancedMode).toBe(false)
-
-      toggleBlockAdvancedMode('agent1')
-      state = useWorkflowStore.getState()
-      expect(state.blocks.agent1?.advancedMode).toBe(true)
-
-      toggleBlockAdvancedMode('agent1')
-      state = useWorkflowStore.getState()
-      expect(state.blocks.agent1?.advancedMode).toBe(false)
-    })
-
-    it('should preserve systemPrompt and userPrompt when switching modes', () => {
-      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
-      const { setState: setSubBlockState } = useSubBlockStore
-      useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
-      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
-      setSubBlockState({
-        workflowValues: {
-          'test-workflow': {
-            agent1: {
-              systemPrompt: 'You are a helpful assistant',
-              userPrompt: 'Hello, how are you?',
-            },
-          },
-        },
-      })
-      toggleBlockAdvancedMode('agent1')
-      let subBlockState = useSubBlockStore.getState()
-      expect(subBlockState.workflowValues['test-workflow'].agent1.systemPrompt).toBe(
-        'You are a helpful assistant'
-      )
-      expect(subBlockState.workflowValues['test-workflow'].agent1.userPrompt).toBe(
-        'Hello, how are you?'
-      )
-      toggleBlockAdvancedMode('agent1')
-      subBlockState = useSubBlockStore.getState()
-      expect(subBlockState.workflowValues['test-workflow'].agent1.systemPrompt).toBe(
-        'You are a helpful assistant'
-      )
-      expect(subBlockState.workflowValues['test-workflow'].agent1.userPrompt).toBe(
-        'Hello, how are you?'
-      )
-    })
-
-    it('should preserve memories when switching from advanced to basic mode', () => {
-      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
-      const { setState: setSubBlockState } = useSubBlockStore
-
-      useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
-
-      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
-
-      toggleBlockAdvancedMode('agent1')
-
-      setSubBlockState({
-        workflowValues: {
-          'test-workflow': {
-            agent1: {
-              systemPrompt: 'You are a helpful assistant',
-              userPrompt: 'What did we discuss?',
-              memories: [
-                { role: 'user', content: 'My name is John' },
-                { role: 'assistant', content: 'Nice to meet you, John!' },
-              ],
-            },
-          },
-        },
-      })
-
-      toggleBlockAdvancedMode('agent1')
-
-      const subBlockState = useSubBlockStore.getState()
-      expect(subBlockState.workflowValues['test-workflow'].agent1.systemPrompt).toBe(
-        'You are a helpful assistant'
-      )
-      expect(subBlockState.workflowValues['test-workflow'].agent1.userPrompt).toBe(
-        'What did we discuss?'
-      )
-      expect(subBlockState.workflowValues['test-workflow'].agent1.memories).toEqual([
-        { role: 'user', content: 'My name is John' },
-        { role: 'assistant', content: 'Nice to meet you, John!' },
-      ])
-    })
-
-    it('should handle mode switching when no subblock values exist', () => {
-      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
-
-      useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
-
-      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
-
-      expect(useWorkflowStore.getState().blocks.agent1?.advancedMode).toBe(false)
-      expect(() => toggleBlockAdvancedMode('agent1')).not.toThrow()
-
-      const state = useWorkflowStore.getState()
-      expect(state.blocks.agent1?.advancedMode).toBe(true)
-    })
-
-    it('should not throw when toggling non-existent block', () => {
-      const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
-
-      expect(() => toggleBlockAdvancedMode('non-existent')).not.toThrow()
     })
   })
 
