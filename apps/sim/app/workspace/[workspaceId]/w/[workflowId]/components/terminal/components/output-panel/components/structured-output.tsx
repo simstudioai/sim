@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -24,9 +25,8 @@ interface NodeEntry {
 }
 
 /**
- * Search context for the structured output tree.
- * Separates stable values (query, pathToMatchIndices) from frequently changing currentMatchIndex
- * to avoid unnecessary re-renders of the entire tree.
+ * Search context for structured output tree.
+ * Separates stable values from frequently changing currentMatchIndex to avoid re-renders.
  */
 interface SearchContextValue {
   query: string
@@ -35,6 +35,18 @@ interface SearchContextValue {
 }
 
 const SearchContext = createContext<SearchContextValue | null>(null)
+
+/**
+ * Configuration for virtualized rendering.
+ */
+const CONFIG = {
+  ROW_HEIGHT: 22,
+  INDENT_PER_LEVEL: 12,
+  BASE_PADDING: 20,
+  MAX_SEARCH_DEPTH: 100,
+  OVERSCAN_COUNT: 10,
+  VIRTUALIZATION_THRESHOLD: 200,
+} as const
 
 const BADGE_VARIANTS: Record<ValueType, BadgeVariant> = {
   string: 'green',
@@ -46,6 +58,9 @@ const BADGE_VARIANTS: Record<ValueType, BadgeVariant> = {
   object: 'gray',
 } as const
 
+/**
+ * Styling constants matching the original non-virtualized implementation.
+ */
 const STYLES = {
   row: 'group flex min-h-[22px] cursor-pointer items-center gap-[6px] rounded-[8px] px-[6px] -mx-[6px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
   chevron:
@@ -56,7 +71,7 @@ const STYLES = {
   summary: 'text-[12px] text-[var(--text-tertiary)]',
   indent:
     'mt-[2px] ml-[3px] flex min-w-0 flex-col gap-[2px] border-[var(--border)] border-l pl-[9px]',
-  value: 'py-[2px] text-[13px] text-[var(--text-primary)]',
+  value: 'min-w-0 py-[2px] text-[13px] text-[var(--text-primary)]',
   emptyValue: 'py-[2px] text-[13px] text-[var(--text-tertiary)]',
   matchHighlight: 'bg-yellow-200/60 dark:bg-yellow-500/40',
   currentMatchHighlight: 'bg-orange-400',
@@ -64,9 +79,6 @@ const STYLES = {
 
 const EMPTY_MATCH_INDICES: number[] = []
 
-/**
- * Returns the type label for a value
- */
 function getTypeLabel(value: unknown): ValueType {
   if (value === null) return 'null'
   if (value === undefined) return 'undefined'
@@ -74,34 +86,22 @@ function getTypeLabel(value: unknown): ValueType {
   return typeof value as ValueType
 }
 
-/**
- * Formats a primitive value for display
- */
 function formatPrimitive(value: unknown): string {
   if (value === null) return 'null'
   if (value === undefined) return 'undefined'
   return String(value)
 }
 
-/**
- * Checks if a value is a primitive (not object/array)
- */
 function isPrimitive(value: unknown): value is null | undefined | string | number | boolean {
   return value === null || value === undefined || typeof value !== 'object'
 }
 
-/**
- * Checks if a value is an empty object or array
- */
 function isEmpty(value: unknown): boolean {
   if (Array.isArray(value)) return value.length === 0
   if (typeof value === 'object' && value !== null) return Object.keys(value).length === 0
   return false
 }
 
-/**
- * Extracts error message from various error data formats
- */
 function extractErrorMessage(data: unknown): string {
   if (typeof data === 'string') return data
   if (data instanceof Error) return data.message
@@ -111,9 +111,6 @@ function extractErrorMessage(data: unknown): string {
   return JSON.stringify(data, null, 2)
 }
 
-/**
- * Builds node entries from an object or array value
- */
 function buildEntries(value: unknown, basePath: string): NodeEntry[] {
   if (Array.isArray(value)) {
     return value.map((item, i) => ({ key: String(i), value: item, path: `${basePath}[${i}]` }))
@@ -125,9 +122,6 @@ function buildEntries(value: unknown, basePath: string): NodeEntry[] {
   }))
 }
 
-/**
- * Gets the count summary for collapsed arrays/objects
- */
 function getCollapsedSummary(value: unknown): string | null {
   if (Array.isArray(value)) {
     const len = value.length
@@ -140,9 +134,6 @@ function getCollapsedSummary(value: unknown): string | null {
   return null
 }
 
-/**
- * Computes initial expanded paths for first-level items
- */
 function computeInitialPaths(data: unknown, isError: boolean): Set<string> {
   if (isError) return new Set(['root.error'])
   if (!data || typeof data !== 'object') return new Set()
@@ -152,9 +143,6 @@ function computeInitialPaths(data: unknown, isError: boolean): Set<string> {
   return new Set(entries)
 }
 
-/**
- * Gets all ancestor paths needed to reach a given path
- */
 function getAncestorPaths(path: string): string[] {
   const ancestors: string[] = []
   let current = path
@@ -169,9 +157,6 @@ function getAncestorPaths(path: string): string[] {
   return ancestors
 }
 
-/**
- * Finds all case-insensitive matches of a query within text
- */
 function findTextMatches(text: string, query: string): Array<[number, number]> {
   if (!query) return []
 
@@ -190,9 +175,6 @@ function findTextMatches(text: string, query: string): Array<[number, number]> {
   return matches
 }
 
-/**
- * Adds match entries for a primitive value at the given path
- */
 function addPrimitiveMatches(value: unknown, path: string, query: string, matches: string[]): void {
   const text = formatPrimitive(value)
   const count = findTextMatches(text, query).length
@@ -201,11 +183,8 @@ function addPrimitiveMatches(value: unknown, path: string, query: string, matche
   }
 }
 
-/**
- * Recursively collects all match paths across the entire data tree
- */
-function collectAllMatchPaths(data: unknown, query: string, basePath: string): string[] {
-  if (!query) return []
+function collectAllMatchPaths(data: unknown, query: string, basePath: string, depth = 0): string[] {
+  if (!query || depth > CONFIG.MAX_SEARCH_DEPTH) return []
 
   const matches: string[] = []
 
@@ -218,16 +197,13 @@ function collectAllMatchPaths(data: unknown, query: string, basePath: string): s
     if (isPrimitive(entry.value)) {
       addPrimitiveMatches(entry.value, entry.path, query, matches)
     } else {
-      matches.push(...collectAllMatchPaths(entry.value, query, entry.path))
+      matches.push(...collectAllMatchPaths(entry.value, query, entry.path, depth + 1))
     }
   }
 
   return matches
 }
 
-/**
- * Builds a map from path to array of global match indices
- */
 function buildPathToIndicesMap(matchPaths: string[]): Map<string, number[]> {
   const map = new Map<string, number[]>()
   matchPaths.forEach((path, globalIndex) => {
@@ -241,29 +217,20 @@ function buildPathToIndicesMap(matchPaths: string[]): Map<string, number[]> {
   return map
 }
 
-interface HighlightedTextProps {
-  text: string
-  matchIndices: number[]
-  path: string
-}
-
 /**
- * Renders text with search highlights.
- * Uses context to access search state and avoid prop drilling.
+ * Renders text with search highlights using segments.
  */
-const HighlightedText = memo(function HighlightedText({
-  text,
-  matchIndices,
-  path,
-}: HighlightedTextProps) {
-  const searchContext = useContext(SearchContext)
+function renderHighlightedSegments(
+  text: string,
+  query: string,
+  matchIndices: number[],
+  currentMatchIndex: number,
+  path: string
+): React.ReactNode {
+  if (!query || matchIndices.length === 0) return text
 
-  if (!searchContext || matchIndices.length === 0) return <>{text}</>
-
-  const textMatches = findTextMatches(text, searchContext.query)
-  if (textMatches.length === 0) return <>{text}</>
-
-  const currentMatchIndex = searchContext.currentMatchIndexRef.current
+  const textMatches = findTextMatches(text, query)
+  if (textMatches.length === 0) return text
 
   const segments: React.ReactNode[] = []
   let lastEnd = 0
@@ -297,6 +264,37 @@ const HighlightedText = memo(function HighlightedText({
   }
 
   return <>{segments}</>
+}
+
+interface HighlightedTextProps {
+  text: string
+  matchIndices: number[]
+  path: string
+}
+
+/**
+ * Renders text with search highlights for non-virtualized mode.
+ */
+const HighlightedText = memo(function HighlightedText({
+  text,
+  matchIndices,
+  path,
+}: HighlightedTextProps) {
+  const searchContext = useContext(SearchContext)
+
+  if (!searchContext || matchIndices.length === 0) return <>{text}</>
+
+  return (
+    <>
+      {renderHighlightedSegments(
+        text,
+        searchContext.query,
+        matchIndices,
+        searchContext.currentMatchIndexRef.current,
+        path
+      )}
+    </>
+  )
 })
 
 interface StructuredNodeProps {
@@ -310,8 +308,8 @@ interface StructuredNodeProps {
 }
 
 /**
- * Recursive node component for rendering structured data.
- * Uses context for search state to avoid re-renders when currentMatchIndex changes.
+ * Recursive node component for non-virtualized rendering.
+ * Preserves exact original styling with border-left tree lines.
  */
 const StructuredNode = memo(function StructuredNode({
   name,
@@ -406,6 +404,250 @@ const StructuredNode = memo(function StructuredNode({
   )
 })
 
+/**
+ * Flattened row for virtualization.
+ */
+interface FlatRow {
+  path: string
+  key: string
+  value: unknown
+  depth: number
+  type: 'header' | 'value' | 'empty'
+  valueType: ValueType
+  isExpanded: boolean
+  isError: boolean
+  collapsedSummary: string | null
+  displayText: string
+  matchIndices: number[]
+}
+
+/**
+ * Flattens the tree into rows for virtualization.
+ */
+function flattenTree(
+  data: unknown,
+  expandedPaths: Set<string>,
+  pathToMatchIndices: Map<string, number[]>,
+  isError: boolean
+): FlatRow[] {
+  const rows: FlatRow[] = []
+
+  if (isError) {
+    const errorText = extractErrorMessage(data)
+    const isExpanded = expandedPaths.has('root.error')
+
+    rows.push({
+      path: 'root.error',
+      key: 'error',
+      value: errorText,
+      depth: 0,
+      type: 'header',
+      valueType: 'string',
+      isExpanded,
+      isError: true,
+      collapsedSummary: null,
+      displayText: '',
+      matchIndices: [],
+    })
+
+    if (isExpanded) {
+      rows.push({
+        path: 'root.error.value',
+        key: '',
+        value: errorText,
+        depth: 1,
+        type: 'value',
+        valueType: 'string',
+        isExpanded: false,
+        isError: true,
+        collapsedSummary: null,
+        displayText: errorText,
+        matchIndices: pathToMatchIndices.get('root.error') ?? [],
+      })
+    }
+
+    return rows
+  }
+
+  function processNode(key: string, value: unknown, path: string, depth: number): void {
+    const valueType = getTypeLabel(value)
+    const isPrimitiveValue = isPrimitive(value)
+    const isEmptyValue = !isPrimitiveValue && isEmpty(value)
+    const isExpanded = expandedPaths.has(path)
+    const collapsedSummary = isPrimitiveValue ? null : getCollapsedSummary(value)
+
+    rows.push({
+      path,
+      key,
+      value,
+      depth,
+      type: 'header',
+      valueType,
+      isExpanded,
+      isError: false,
+      collapsedSummary,
+      displayText: '',
+      matchIndices: [],
+    })
+
+    if (isExpanded) {
+      if (isPrimitiveValue) {
+        rows.push({
+          path: `${path}.value`,
+          key: '',
+          value,
+          depth: depth + 1,
+          type: 'value',
+          valueType,
+          isExpanded: false,
+          isError: false,
+          collapsedSummary: null,
+          displayText: formatPrimitive(value),
+          matchIndices: pathToMatchIndices.get(path) ?? [],
+        })
+      } else if (isEmptyValue) {
+        rows.push({
+          path: `${path}.empty`,
+          key: '',
+          value,
+          depth: depth + 1,
+          type: 'empty',
+          valueType,
+          isExpanded: false,
+          isError: false,
+          collapsedSummary: null,
+          displayText: Array.isArray(value) ? '[]' : '{}',
+          matchIndices: [],
+        })
+      } else {
+        for (const entry of buildEntries(value, path)) {
+          processNode(entry.key, entry.value, entry.path, depth + 1)
+        }
+      }
+    }
+  }
+
+  if (isPrimitive(data)) {
+    processNode('value', data, 'root.value', 0)
+  } else if (data && typeof data === 'object') {
+    for (const entry of buildEntries(data, 'root')) {
+      processNode(entry.key, entry.value, entry.path, 0)
+    }
+  }
+
+  return rows
+}
+
+/**
+ * Counts total visible rows for determining virtualization threshold.
+ */
+function countVisibleRows(data: unknown, expandedPaths: Set<string>, isError: boolean): number {
+  if (isError) return expandedPaths.has('root.error') ? 2 : 1
+
+  let count = 0
+
+  function countNode(value: unknown, path: string): void {
+    count++
+    if (!expandedPaths.has(path)) return
+
+    if (isPrimitive(value) || isEmpty(value)) {
+      count++
+    } else {
+      for (const entry of buildEntries(value, path)) {
+        countNode(entry.value, entry.path)
+      }
+    }
+  }
+
+  if (isPrimitive(data)) {
+    countNode(data, 'root.value')
+  } else if (data && typeof data === 'object') {
+    for (const entry of buildEntries(data, 'root')) {
+      countNode(entry.value, entry.path)
+    }
+  }
+
+  return count
+}
+
+interface VirtualizedRowProps {
+  rows: FlatRow[]
+  onToggle: (path: string) => void
+  wrapText: boolean
+  searchQuery: string
+  currentMatchIndex: number
+}
+
+/**
+ * Virtualized row component for large data sets.
+ */
+function VirtualizedRow({ index, style, ...props }: RowComponentProps<VirtualizedRowProps>) {
+  const { rows, onToggle, wrapText, searchQuery, currentMatchIndex } = props
+  const row = rows[index]
+  const paddingLeft = CONFIG.BASE_PADDING + row.depth * CONFIG.INDENT_PER_LEVEL
+
+  if (row.type === 'header') {
+    const badgeVariant = row.isError ? 'red' : BADGE_VARIANTS[row.valueType]
+
+    return (
+      <div style={{ ...style, paddingLeft }} data-row-index={index}>
+        <div
+          className={STYLES.row}
+          onClick={() => onToggle(row.path)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onToggle(row.path)
+            }
+          }}
+          role='button'
+          tabIndex={0}
+          aria-expanded={row.isExpanded}
+        >
+          <span className={cn(STYLES.keyName, row.isError && 'text-[var(--text-error)]')}>
+            {row.key}
+          </span>
+          <Badge variant={badgeVariant} className={STYLES.badge}>
+            {row.valueType}
+          </Badge>
+          {!row.isExpanded && row.collapsedSummary && (
+            <span className={STYLES.summary}>{row.collapsedSummary}</span>
+          )}
+          <ChevronDown className={cn(STYLES.chevron, !row.isExpanded && '-rotate-90')} />
+        </div>
+      </div>
+    )
+  }
+
+  if (row.type === 'empty') {
+    return (
+      <div style={{ ...style, paddingLeft }} data-row-index={index}>
+        <div className={STYLES.emptyValue}>{row.displayText}</div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ ...style, paddingLeft }} data-row-index={index}>
+      <div
+        className={cn(
+          STYLES.value,
+          row.isError && 'text-[var(--text-error)]',
+          wrapText ? '[word-break:break-word]' : 'whitespace-nowrap'
+        )}
+      >
+        {renderHighlightedSegments(
+          row.displayText,
+          searchQuery,
+          row.matchIndices,
+          currentMatchIndex,
+          row.path
+        )}
+      </div>
+    </div>
+  )
+}
+
 export interface StructuredOutputProps {
   data: unknown
   wrapText?: boolean
@@ -420,8 +662,8 @@ export interface StructuredOutputProps {
 
 /**
  * Renders structured data as nested collapsible blocks.
- * Supports search with highlighting, auto-expand, and scroll-to-match.
- * Uses React Context for search state to prevent re-render cascade.
+ * Uses virtualization for large data sets (>200 visible rows) while
+ * preserving exact original styling for smaller data sets.
  */
 export const StructuredOutput = memo(function StructuredOutput({
   data,
@@ -441,11 +683,12 @@ export const StructuredOutput = memo(function StructuredOutput({
   const prevIsErrorRef = useRef(isError)
   const internalRef = useRef<HTMLDivElement>(null)
   const currentMatchIndexRef = useRef(currentMatchIndex)
+  const listRef = useListRef(null)
+  const [containerHeight, setContainerHeight] = useState(400)
 
-  // Keep ref in sync
   currentMatchIndexRef.current = currentMatchIndex
 
-  // Force re-render of highlighted text when currentMatchIndex changes
+  // Force re-render when currentMatchIndex changes
   const [, forceUpdate] = useState(0)
   useEffect(() => {
     forceUpdate((n) => n + 1)
@@ -461,6 +704,20 @@ export const StructuredOutput = memo(function StructuredOutput({
     [contentRef]
   )
 
+  // Measure container height
+  useEffect(() => {
+    const container = internalRef.current?.parentElement
+    if (!container) return
+
+    const updateHeight = () => setContainerHeight(container.clientHeight)
+    updateHeight()
+
+    const resizeObserver = new ResizeObserver(updateHeight)
+    resizeObserver.observe(container)
+    return () => resizeObserver.disconnect()
+  }, [])
+
+  // Reset expanded paths when data changes
   useEffect(() => {
     if (prevDataRef.current !== data || prevIsErrorRef.current !== isError) {
       prevDataRef.current = data
@@ -485,6 +742,7 @@ export const StructuredOutput = memo(function StructuredOutput({
 
   const pathToMatchIndices = useMemo(() => buildPathToIndicesMap(allMatchPaths), [allMatchPaths])
 
+  // Auto-expand to current match
   useEffect(() => {
     if (
       allMatchPaths.length === 0 ||
@@ -505,19 +763,6 @@ export const StructuredOutput = memo(function StructuredOutput({
     })
   }, [currentMatchIndex, allMatchPaths])
 
-  useEffect(() => {
-    if (allMatchPaths.length === 0) return
-
-    const rafId = requestAnimationFrame(() => {
-      const match = internalRef.current?.querySelector(
-        `[data-match-index="${currentMatchIndex}"]`
-      ) as HTMLElement | null
-      match?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    })
-
-    return () => cancelAnimationFrame(rafId)
-  }, [currentMatchIndex, allMatchPaths.length, expandedPaths])
-
   const handleToggle = useCallback((path: string) => {
     setExpandedPaths((prev) => {
       const next = new Set(prev)
@@ -531,25 +776,58 @@ export const StructuredOutput = memo(function StructuredOutput({
   }, [])
 
   const rootEntries = useMemo<NodeEntry[]>(() => {
-    if (isPrimitive(data)) {
-      return [{ key: 'value', value: data, path: 'root.value' }]
-    }
+    if (isPrimitive(data)) return [{ key: 'value', value: data, path: 'root.value' }]
     return buildEntries(data, 'root')
   }, [data])
 
-  // Create stable search context value - only changes when query or pathToMatchIndices change
   const searchContextValue = useMemo<SearchContextValue | null>(() => {
     if (!searchQuery) return null
-    return {
-      query: searchQuery,
-      pathToMatchIndices,
-      currentMatchIndexRef,
-    }
+    return { query: searchQuery, pathToMatchIndices, currentMatchIndexRef }
   }, [searchQuery, pathToMatchIndices])
 
-  const containerClass = cn('flex flex-col pl-[20px]', className)
+  const visibleRowCount = useMemo(
+    () => countVisibleRows(data, expandedPaths, isError),
+    [data, expandedPaths, isError]
+  )
+  const useVirtualization = visibleRowCount > CONFIG.VIRTUALIZATION_THRESHOLD
 
-  // Show "Running" badge when running with undefined data
+  const flatRows = useMemo(() => {
+    if (!useVirtualization) return []
+    return flattenTree(data, expandedPaths, pathToMatchIndices, isError)
+  }, [data, expandedPaths, pathToMatchIndices, isError, useVirtualization])
+
+  // Scroll to match (virtualized)
+  useEffect(() => {
+    if (!useVirtualization || allMatchPaths.length === 0 || !listRef.current) return
+
+    const currentPath = allMatchPaths[currentMatchIndex]
+    const targetPath = currentPath.endsWith('.value') ? currentPath : `${currentPath}.value`
+    const rowIndex = flatRows.findIndex((r) => r.path === targetPath || r.path === currentPath)
+
+    if (rowIndex !== -1) {
+      listRef.current.scrollToRow({ index: rowIndex, align: 'center' })
+    }
+  }, [currentMatchIndex, allMatchPaths, flatRows, listRef, useVirtualization])
+
+  // Scroll to match (non-virtualized)
+  useEffect(() => {
+    if (useVirtualization || allMatchPaths.length === 0) return
+
+    const rafId = requestAnimationFrame(() => {
+      const match = internalRef.current?.querySelector(
+        `[data-match-index="${currentMatchIndex}"]`
+      ) as HTMLElement | null
+      match?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+
+    return () => cancelAnimationFrame(rafId)
+  }, [currentMatchIndex, allMatchPaths.length, expandedPaths, useVirtualization])
+
+  const containerClass = cn('flex flex-col pl-[20px]', wrapText && 'overflow-x-hidden', className)
+  const virtualizedContainerClass = cn('relative', wrapText && 'overflow-x-hidden', className)
+  const listClass = wrapText ? 'overflow-x-hidden' : 'overflow-x-auto'
+
+  // Running state
   if (isRunning && data === undefined) {
     return (
       <div ref={setContainerRef} className={containerClass}>
@@ -563,6 +841,44 @@ export const StructuredOutput = memo(function StructuredOutput({
     )
   }
 
+  // Empty state
+  if (rootEntries.length === 0 && !isError) {
+    return (
+      <div ref={setContainerRef} className={containerClass}>
+        <span className={STYLES.emptyValue}>null</span>
+      </div>
+    )
+  }
+
+  // Virtualized rendering
+  if (useVirtualization) {
+    return (
+      <div
+        ref={setContainerRef}
+        className={virtualizedContainerClass}
+        style={{ height: containerHeight }}
+      >
+        <List
+          listRef={listRef}
+          defaultHeight={containerHeight}
+          rowCount={flatRows.length}
+          rowHeight={CONFIG.ROW_HEIGHT}
+          rowComponent={VirtualizedRow}
+          rowProps={{
+            rows: flatRows,
+            onToggle: handleToggle,
+            wrapText,
+            searchQuery: searchQuery ?? '',
+            currentMatchIndex,
+          }}
+          overscanCount={CONFIG.OVERSCAN_COUNT}
+          className={listClass}
+        />
+      </div>
+    )
+  }
+
+  // Non-virtualized rendering (preserves exact original styling)
   if (isError) {
     return (
       <SearchContext.Provider value={searchContextValue}>
@@ -578,14 +894,6 @@ export const StructuredOutput = memo(function StructuredOutput({
           />
         </div>
       </SearchContext.Provider>
-    )
-  }
-
-  if (rootEntries.length === 0) {
-    return (
-      <div ref={setContainerRef} className={containerClass}>
-        <span className={STYLES.emptyValue}>null</span>
-      </div>
     )
   }
 
