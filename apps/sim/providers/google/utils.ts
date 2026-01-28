@@ -123,13 +123,16 @@ export function extractFunctionCallPart(candidate: Candidate | undefined): Part 
 }
 
 /**
- * Converts usage metadata from SDK response to our format
+ * Converts usage metadata from SDK response to our format.
+ * Includes thinking tokens in candidatesTokenCount for correct billing.
  */
 export function convertUsageMetadata(
   usageMetadata: GenerateContentResponseUsageMetadata | undefined
 ): GeminiUsage {
   const promptTokenCount = usageMetadata?.promptTokenCount ?? 0
-  const candidatesTokenCount = usageMetadata?.candidatesTokenCount ?? 0
+  const thoughtsTokenCount = usageMetadata?.thoughtsTokenCount ?? 0
+  // Include thinking tokens in output count for correct billing
+  const candidatesTokenCount = (usageMetadata?.candidatesTokenCount ?? 0) + thoughtsTokenCount
   return {
     promptTokenCount,
     candidatesTokenCount,
