@@ -1137,8 +1137,9 @@ const WorkflowContent = React.memo(() => {
       return sourceIncomingEdges.length === 0
     }
 
+    // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
     const dependenciesSatisfied =
-      isTriggerBlock || incomingEdges.every((edge) => isSourceSatisfied(edge.source))
+      isTriggerBlock || (snapshot && incomingEdges.every((edge) => isSourceSatisfied(edge.source)))
     const isNoteBlock = block.type === 'note'
     const isInsideSubflow =
       block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')

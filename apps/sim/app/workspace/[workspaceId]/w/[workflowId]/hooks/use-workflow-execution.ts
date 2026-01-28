@@ -1456,11 +1456,8 @@ export function useWorkflowExecution() {
         return sourceIncomingEdges.length === 0
       }
 
-      if (
-        !snapshot &&
-        !isTriggerBlock &&
-        !incomingEdges.every((edge) => isSourceSatisfied(edge.source))
-      ) {
+      // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
+      if (!snapshot && !isTriggerBlock) {
         logger.error('No execution snapshot available for run-from-block', { workflowId, blockId })
         return
       }

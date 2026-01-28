@@ -123,8 +123,9 @@ export const ActionBar = memo(
       return sourceIncomingEdges.length === 0
     }
 
+    // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
     const dependenciesSatisfied =
-      isTriggerBlock || incomingEdges.every((edge) => isSourceSatisfied(edge.source))
+      isTriggerBlock || (snapshot && incomingEdges.every((edge) => isSourceSatisfied(edge.source)))
     const canRunFromBlock =
       dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
 
