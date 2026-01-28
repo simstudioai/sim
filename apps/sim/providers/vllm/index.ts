@@ -135,7 +135,7 @@ export const vllmProvider: ProviderConfig = {
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens != null) payload.max_tokens = request.maxTokens
+    if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
     if (request.responseFormat) {
       payload.response_format = {
