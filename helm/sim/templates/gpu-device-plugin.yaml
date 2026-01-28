@@ -1,6 +1,36 @@
 {{- if and .Values.ollama.enabled .Values.ollama.gpu.enabled }}
 ---
-# NVIDIA Device Plugin DaemonSet for GPU support
+# 1. ConfigMap for NVIDIA Device Plugin Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sim.fullname" . }}-nvidia-device-plugin-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nvidia-device-plugin
+data:
+  config.yaml: |
+    version: v1
+    flags:
+      {{- if eq .Values.ollama.gpu.strategy "mig" }}
+      migStrategy: "single"
+      {{- else }}
+      migStrategy: "none"
+      {{- end }}
+      failOnInitError: false
+    plugin:
+      passDeviceSpecs: true
+      deviceListStrategy: envvar
+    {{- if eq .Values.ollama.gpu.strategy "time-slicing" }}
+    sharing:
+      timeSlicing:
+        resources:
+          - name: nvidia.com/gpu
+            replicas: {{ .Values.ollama.gpu.timeSlicingReplicas | default 5 }}
+    {{- end }}
+---
+# 2. NVIDIA Device Plugin DaemonSet for GPU support
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -35,9 +65,6 @@ spec:
         # Only schedule on nodes with NVIDIA GPUs
         accelerator: nvidia
       priorityClassName: system-node-critical
-      runtimeClassName: nvidia
-      hostNetwork: true
-      hostPID: true
       volumes:
         - name: device-plugin
           hostPath:
@@ -48,22 +75,21 @@ spec:
         - name: sys
           hostPath:
             path: /sys
-        - name: proc-driver-nvidia
-          hostPath:
-            path: /proc/driver/nvidia
+        # Volume to mount the ConfigMap
+        - name: nvidia-device-plugin-config
+          configMap:
+            name: {{ include "sim.fullname" . }}-nvidia-device-plugin-config
       containers:
         - name: nvidia-device-plugin
-          image: nvcr.io/nvidia/k8s-device-plugin:v0.14.5
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.18.2
           imagePullPolicy: Always
           args:
-            - --mig-strategy=single
-            - --pass-device-specs=true
-            - --fail-on-init-error=false
-            - --device-list-strategy=envvar
-            - --nvidia-driver-root=/host-sys/fs/cgroup
+            - "--config-file=/etc/device-plugin/config.yaml"
+          {{- if eq .Values.ollama.gpu.strategy "mig" }}
           env:
             - name: NVIDIA_MIG_MONITOR_DEVICES
               value: all
+          {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -74,29 +100,16 @@ spec:
             - name: dev
               mountPath: /dev
             - name: sys
-              mountPath: /host-sys
+              mountPath: /sys
               readOnly: true
-            - name: proc-driver-nvidia
-              mountPath: /proc/driver/nvidia
+            - name: nvidia-device-plugin-config
+              mountPath: /etc/device-plugin/
               readOnly: true
           resources:
             requests:
               cpu: 50m
-              memory: 10Mi
+              memory: 20Mi
             limits:
               cpu: 50m
-              memory: 20Mi
-  {{- if .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml .Values.nodeSelector | nindent 8 }}
-  {{- end }}
----
-# RuntimeClass for NVIDIA Container Runtime
-apiVersion: node.k8s.io/v1
-kind: RuntimeClass
-metadata:
-  name: {{ include "sim.fullname" . }}-nvidia
-  labels:
-    {{- include "sim.labels" . | nindent 4 }}
-handler: nvidia
+              memory: 50Mi
 {{- end }}
