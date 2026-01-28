@@ -129,7 +129,7 @@ export const useSearchModalStore = create<SearchModalState>()(
           .filter((op) => allowedBlockTypes.has(op.blockType))
           .map((op) => ({
             id: op.id,
-            name: op.operationName,
+            name: `${op.serviceName}: ${op.operationName}`,
             searchValue: `${op.serviceName} ${op.operationName}`,
             icon: op.icon,
             bgColor: op.bgColor,

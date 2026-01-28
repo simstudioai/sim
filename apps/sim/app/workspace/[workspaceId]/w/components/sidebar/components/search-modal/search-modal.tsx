@@ -207,9 +207,9 @@ export function SearchModal({
   const showToolOperations = isOnWorkflowPage && toolOperations.length > 0
   const showDocs = isOnWorkflowPage && docs.length > 0
 
-  const customFilter = useCallback((value: string, search: string) => {
-    const valueLower = value.toLowerCase()
+  const customFilter = useCallback((value: string, search: string, keywords?: string[]) => {
     const searchLower = search.toLowerCase()
+    const valueLower = value.toLowerCase()
 
     if (valueLower === searchLower) return 1
     if (valueLower.startsWith(searchLower)) return 0.8
@@ -218,6 +218,13 @@ export function SearchModal({
     const searchWords = searchLower.split(/\s+/).filter(Boolean)
     const allWordsMatch = searchWords.every((word) => valueLower.includes(word))
     if (allWordsMatch && searchWords.length > 0) return 0.4
+
+    if (keywords?.length) {
+      const keywordsLower = keywords.join(' ').toLowerCase()
+      if (keywordsLower.includes(searchLower)) return 0.3
+      const keywordWordsMatch = searchWords.every((word) => keywordsLower.includes(word))
+      if (keywordWordsMatch && searchWords.length > 0) return 0.2
+    }
 
     return 0
   }, [])
