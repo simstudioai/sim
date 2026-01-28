@@ -349,7 +349,7 @@ export async function executeGeminiRequest(
     if (request.temperature !== undefined) {
       geminiConfig.temperature = request.temperature
     }
-    if (request.maxTokens !== undefined) {
+    if (request.maxTokens != null) {
       geminiConfig.maxOutputTokens = request.maxTokens
     }
     if (systemInstruction) {

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createDynamoDBClient, updateItem } from '@/app/api/tools/dynamodb/utils'
 
 const UpdateSchema = z.object({
@@ -16,8 +17,13 @@ const UpdateSchema = z.object({
   conditionExpression: z.string().optional(),
 })
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const validatedData = UpdateSchema.parse(body)
 

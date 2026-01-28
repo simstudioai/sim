@@ -116,7 +116,7 @@ Get detailed information about a specific event type
 | --------- | ---- | ----------- |
 | `resource` | object | Event type details |
 | ↳ `uri` | string | Canonical reference to the event type |
-| ↳ `name` | string | Question text |
+| ↳ `name` | string | Event type name |
 | ↳ `active` | boolean | Whether the event type is active |
 | ↳ `booking_method` | string | Booking method |
 | ↳ `color` | string | Hex color code |
@@ -128,16 +128,12 @@ Get detailed information about a specific event type
 |   ↳ `enabled` | boolean | Whether question is enabled |
 |   ↳ `required` | boolean | Whether question is required |
 |   ↳ `answer_choices` | array | Available answer choices |
-| ↳ `type` | string | Event type classification |
-| ↳ `position` | number | Question order |
-| ↳ `enabled` | boolean | Whether question is enabled |
-| ↳ `required` | boolean | Whether question is required |
-| ↳ `answer_choices` | array | Available answer choices |
 | ↳ `description_html` | string | HTML formatted description |
 | ↳ `description_plain` | string | Plain text description |
 | ↳ `duration` | number | Duration in minutes |
 | ↳ `scheduling_url` | string | URL to scheduling page |
 | ↳ `slug` | string | Unique identifier for URLs |
+| ↳ `type` | string | Event type classification |
 | ↳ `updated_at` | string | ISO timestamp of last update |
 
 ### `calendly_list_scheduled_events`
@@ -170,13 +166,11 @@ Retrieve a list of scheduled events for a user or organization
 |   ↳ `start_time` | string | ISO timestamp of event start |
 |   ↳ `end_time` | string | ISO timestamp of event end |
 |   ↳ `event_type` | string | URI of the event type |
-|   ↳ `location` | string | Location description |
+|   ↳ `location` | object | Event location details |
 |   ↳ `type` | string | Location type \(e.g.,  |
+|   ↳ `location` | string | Location description |
 |   ↳ `join_url` | string | URL to join online meeting \(if applicable\) |
 |   ↳ `invitees_counter` | object | Invitee count information |
-|   ↳ `total` | number | Total number of invitees |
-|   ↳ `active` | number | Number of active invitees |
-|   ↳ `limit` | number | Maximum number of invitees |
 |   ↳ `total` | number | Total number of invitees |
 |   ↳ `active` | number | Number of active invitees |
 |   ↳ `limit` | number | Maximum number of invitees |
@@ -211,28 +205,22 @@ Get detailed information about a specific scheduled event
 | ↳ `start_time` | string | ISO timestamp of event start |
 | ↳ `end_time` | string | ISO timestamp of event end |
 | ↳ `event_type` | string | URI of the event type |
-| ↳ `location` | string | Location description |
-| ↳ `type` | string | Location type |
-| ↳ `join_url` | string | URL to join online meeting |
+| ↳ `location` | object | Event location details |
+|   ↳ `type` | string | Location type |
+|   ↳ `location` | string | Location description |
+|   ↳ `join_url` | string | URL to join online meeting |
 | ↳ `invitees_counter` | object | Invitee count information |
 |   ↳ `total` | number | Total number of invitees |
 |   ↳ `active` | number | Number of active invitees |
 |   ↳ `limit` | number | Maximum number of invitees |
-| ↳ `total` | number | Total number of invitees |
-| ↳ `active` | number | Number of active invitees |
-| ↳ `limit` | number | Maximum number of invitees |
 | ↳ `event_memberships` | array | Event hosts/members |
 |   ↳ `user` | string | User URI |
 |   ↳ `user_email` | string | User email |
 |   ↳ `user_name` | string | User name |
-| ↳ `user` | string | User URI |
-| ↳ `user_email` | string | User email |
-| ↳ `user_name` | string | User name |
 | ↳ `event_guests` | array | Additional guests |
 |   ↳ `email` | string | Guest email |
 |   ↳ `created_at` | string | When guest was added |
 |   ↳ `updated_at` | string | When guest info was updated |
-| ↳ `email` | string | Guest email |
 | ↳ `created_at` | string | ISO timestamp of event creation |
 | ↳ `updated_at` | string | ISO timestamp of last update |
 
@@ -264,9 +252,6 @@ Retrieve a list of invitees for a scheduled event
 |   ↳ `last_name` | string | Invitee last name |
 |   ↳ `status` | string | Invitee status \(active or canceled\) |
 |   ↳ `questions_and_answers` | array | Responses to custom questions |
-|   ↳ `question` | string | Question text |
-|   ↳ `answer` | string | Invitee answer |
-|   ↳ `position` | number | Question order |
 |   ↳ `question` | string | Question text |
 |   ↳ `answer` | string | Invitee answer |
 |   ↳ `position` | number | Question order |

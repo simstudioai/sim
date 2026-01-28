@@ -1,5 +1,16 @@
 import type { LoopType, ParallelType } from '@/lib/workflows/types'
 
+/**
+ * Runtime-injected keys for trigger blocks that should be hidden from logs/display.
+ * These are added during execution but aren't part of the block's static output schema.
+ */
+export const TRIGGER_INTERNAL_KEYS = ['webhook', 'workflowId'] as const
+export type TriggerInternalKey = (typeof TRIGGER_INTERNAL_KEYS)[number]
+
+export function isTriggerInternalKey(key: string): key is TriggerInternalKey {
+  return TRIGGER_INTERNAL_KEYS.includes(key as TriggerInternalKey)
+}
+
 export enum BlockType {
   PARALLEL = 'parallel',
   LOOP = 'loop',

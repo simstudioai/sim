@@ -63,7 +63,7 @@ Parse documents using AWS Textract OCR and document analysis
 | `blocks` | array | Array of Block objects containing detected text, tables, forms, and other elements |
 |   ↳ `BlockType` | string | Type of block \(PAGE, LINE, WORD, TABLE, CELL, KEY_VALUE_SET, etc.\) |
 |   ↳ `Id` | string | Unique identifier for the block |
-|   ↳ `Text` | string | Query text |
+|   ↳ `Text` | string | The text content \(for LINE and WORD blocks\) |
 |   ↳ `TextType` | string | Type of text \(PRINTED or HANDWRITING\) |
 |   ↳ `Confidence` | number | Confidence score \(0-100\) |
 |   ↳ `Page` | number | Page number |
@@ -73,32 +73,10 @@ Parse documents using AWS Textract OCR and document analysis
 |   ↳ `Left` | number | Left position as ratio of document width |
 |   ↳ `Top` | number | Top position as ratio of document height |
 |   ↳ `Width` | number | Width as ratio of document width |
-|   ↳ `Height` | number | Height as ratio of document height |
-|   ↳ `Left` | number | Left position as ratio of document width |
-|   ↳ `Top` | number | Top position as ratio of document height |
-|   ↳ `Width` | number | Width as ratio of document width |
 |   ↳ `Polygon` | array | Polygon coordinates |
-|   ↳ `X` | number | X coordinate |
-|   ↳ `Y` | number | Y coordinate |
-|   ↳ `X` | number | X coordinate |
-|   ↳ `Y` | number | Y coordinate |
-|   ↳ `BoundingBox` | object | Height as ratio of document height |
-|   ↳ `Height` | number | Height as ratio of document height |
-|   ↳ `Left` | number | Left position as ratio of document width |
-|   ↳ `Top` | number | Top position as ratio of document height |
-|   ↳ `Width` | number | Width as ratio of document width |
-|   ↳ `Height` | number | Height as ratio of document height |
-|   ↳ `Left` | number | Left position as ratio of document width |
-|   ↳ `Top` | number | Top position as ratio of document height |
-|   ↳ `Width` | number | Width as ratio of document width |
-|   ↳ `Polygon` | array | Polygon coordinates |
-|   ↳ `X` | number | X coordinate |
-|   ↳ `Y` | number | Y coordinate |
 |   ↳ `X` | number | X coordinate |
 |   ↳ `Y` | number | Y coordinate |
 |   ↳ `Relationships` | array | Relationships to other blocks |
-|   ↳ `Type` | string | Relationship type \(CHILD, VALUE, ANSWER, etc.\) |
-|   ↳ `Ids` | array | IDs of related blocks |
 |   ↳ `Type` | string | Relationship type \(CHILD, VALUE, ANSWER, etc.\) |
 |   ↳ `Ids` | array | IDs of related blocks |
 |   ↳ `EntityTypes` | array | Entity types for KEY_VALUE_SET \(KEY or VALUE\) |
@@ -109,8 +87,6 @@ Parse documents using AWS Textract OCR and document analysis
 |   ↳ `ColumnSpan` | number | Column span for merged cells |
 |   ↳ `Query` | object | Query information for QUERY blocks |
 |   ↳ `Text` | string | Query text |
-|   ↳ `Alias` | string | Query alias |
-|   ↳ `Pages` | array | Pages to search |
 |   ↳ `Alias` | string | Query alias |
 |   ↳ `Pages` | array | Pages to search |
 | `documentMetadata` | object | Metadata about the analyzed document |

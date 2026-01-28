@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createSqsClient, sendMessage } from '../utils'
 
 const logger = createLogger('SQSSendMessageAPI')
@@ -20,6 +21,11 @@ const SendMessageSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
+
+  const auth = await checkInternalAuth(request)
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+  }
 
   try {
     const body = await request.json()

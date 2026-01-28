@@ -310,7 +310,11 @@ export function FieldFormat({
         <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
           {field.name || `${title} ${index + 1}`}
         </span>
-        {field.name && showType && <Badge size='sm'>{field.type}</Badge>}
+        {field.name && showType && (
+          <Badge variant='type' size='sm'>
+            {field.type}
+          </Badge>
+        )}
       </div>
       <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
         <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>

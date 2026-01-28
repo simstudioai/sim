@@ -147,9 +147,9 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | --------- | ---- | ----------- |
 | `messages` | array | Array of message objects from the channel |
 |   ↳ `type` | string | Message type |
-|   ↳ `ts` | string | Edit timestamp |
+|   ↳ `ts` | string | Message timestamp |
 |   ↳ `text` | string | Message text content |
-|   ↳ `user` | string | User ID who edited |
+|   ↳ `user` | string | User ID who sent the message |
 |   ↳ `bot_id` | string | Bot ID if sent by a bot |
 |   ↳ `username` | string | Display username |
 |   ↳ `channel` | string | Channel ID |
@@ -167,9 +167,6 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 |   ↳ `name` | string | Emoji name |
 |   ↳ `count` | number | Number of reactions |
 |   ↳ `users` | array | Array of user IDs who reacted |
-|   ↳ `name` | string | File name |
-|   ↳ `count` | number | Number of reactions |
-|   ↳ `users` | array | Array of user IDs who reacted |
 |   ↳ `is_starred` | boolean | Whether message is starred |
 |   ↳ `pinned_to` | array | Array of channel IDs where message is pinned |
 |   ↳ `files` | array | Array of files attached to message |
@@ -180,17 +177,12 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 |   ↳ `url_private` | string | Private download URL |
 |   ↳ `permalink` | string | Permanent link to file |
 |   ↳ `mode` | string | File mode |
-|   ↳ `id` | string | File ID |
-|   ↳ `mimetype` | string | MIME type |
-|   ↳ `size` | number | File size in bytes |
-|   ↳ `url_private` | string | Private download URL |
-|   ↳ `permalink` | string | Permanent link to message |
-|   ↳ `mode` | string | File mode |
 |   ↳ `attachments` | array | Array of legacy attachments |
 |   ↳ `blocks` | array | Array of Block Kit blocks |
 |   ↳ `edited` | object | Edit information if message was edited |
 |   ↳ `user` | string | User ID who edited |
 |   ↳ `ts` | string | Edit timestamp |
+|   ↳ `permalink` | string | Permanent link to message |
 
 ### `slack_get_message`
 
@@ -211,9 +203,9 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 | --------- | ---- | ----------- |
 | `message` | object | The retrieved message object |
 | ↳ `type` | string | Message type |
-| ↳ `ts` | string | Edit timestamp |
+| ↳ `ts` | string | Message timestamp |
 | ↳ `text` | string | Message text content |
-| ↳ `user` | string | User ID who edited |
+| ↳ `user` | string | User ID who sent the message |
 | ↳ `bot_id` | string | Bot ID if sent by a bot |
 | ↳ `username` | string | Display username |
 | ↳ `channel` | string | Channel ID |
@@ -228,9 +220,6 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 |   ↳ `name` | string | Emoji name |
 |   ↳ `count` | number | Number of reactions |
 |   ↳ `users` | array | User IDs who reacted |
-| ↳ `name` | string | File name |
-| ↳ `count` | number | Number of reactions |
-| ↳ `users` | array | User IDs who reacted |
 | ↳ `is_starred` | boolean | Whether message is starred |
 | ↳ `pinned_to` | array | Channel IDs where message is pinned |
 | ↳ `files` | array | Files attached to message |
@@ -240,16 +229,12 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 |   ↳ `size` | number | File size in bytes |
 |   ↳ `url_private` | string | Private download URL |
 |   ↳ `permalink` | string | Permanent link to file |
-| ↳ `id` | string | File ID |
-| ↳ `mimetype` | string | MIME type |
-| ↳ `size` | number | File size in bytes |
-| ↳ `url_private` | string | Private download URL |
-| ↳ `permalink` | string | Permanent link to message |
 | ↳ `attachments` | array | Legacy attachments |
 | ↳ `blocks` | array | Block Kit blocks |
 | ↳ `edited` | object | Edit information if message was edited |
 |   ↳ `user` | string | User ID who edited |
 |   ↳ `ts` | string | Edit timestamp |
+| ↳ `permalink` | string | Permanent link to message |
 
 ### `slack_get_thread`
 
@@ -283,17 +268,11 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 |   ↳ `name` | string | Emoji name |
 |   ↳ `count` | number | Number of reactions |
 |   ↳ `users` | array | User IDs who reacted |
-| ↳ `name` | string | File name |
-| ↳ `count` | number | Number of reactions |
-| ↳ `users` | array | User IDs who reacted |
 | ↳ `files` | array | Files attached to the parent message |
 |   ↳ `id` | string | File ID |
 |   ↳ `name` | string | File name |
 |   ↳ `mimetype` | string | MIME type |
 |   ↳ `size` | number | File size in bytes |
-| ↳ `id` | string | File ID |
-| ↳ `mimetype` | string | MIME type |
-| ↳ `size` | number | File size in bytes |
 | `replies` | array | Array of reply messages in the thread \(excluding the parent\) |
 |   ↳ `ts` | string | Message timestamp |
 |   ↳ `text` | string | Message text content |

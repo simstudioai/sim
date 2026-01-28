@@ -121,7 +121,7 @@ export const openRouterProvider: ProviderConfig = {
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+    if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
     let hasActiveTools = false
@@ -516,7 +516,7 @@ export const openRouterProvider: ProviderConfig = {
         return streamingResult as StreamingExecution
       }
 
-      if (request.responseFormat && hasActiveTools && toolCalls.length > 0) {
+      if (request.responseFormat && hasActiveTools) {
         const finalPayload: any = {
           model: payload.model,
           messages: [...currentMessages],

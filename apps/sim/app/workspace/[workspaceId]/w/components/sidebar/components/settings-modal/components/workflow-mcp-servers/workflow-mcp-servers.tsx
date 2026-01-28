@@ -611,7 +611,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                                 <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
                                   {name}
                                 </span>
-                                <Badge size='sm'>{prop.type || 'any'}</Badge>
+                                <Badge variant='type' size='sm'>
+                                  {prop.type || 'any'}
+                                </Badge>
                               </div>
                             </div>
                             <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>

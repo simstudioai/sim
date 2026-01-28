@@ -34,6 +34,7 @@ export function layoutContainers(
       : DEFAULT_CONTAINER_HORIZONTAL_SPACING,
     verticalSpacing: options.verticalSpacing ?? DEFAULT_VERTICAL_SPACING,
     padding: { x: CONTAINER_PADDING_X, y: CONTAINER_PADDING_Y },
+    gridSize: options.gridSize,
   }
 
   for (const [parentId, childIds] of children.entries()) {
@@ -56,18 +57,15 @@ export function layoutContainers(
       continue
     }
 
-    // Use the shared core layout function with container options
     const { nodes, dimensions } = layoutBlocksCore(childBlocks, childEdges, {
       isContainer: true,
       layoutOptions: containerOptions,
     })
 
-    // Apply positions back to blocks
     for (const node of nodes.values()) {
       blocks[node.id].position = node.position
     }
 
-    // Update container dimensions
     const calculatedWidth = dimensions.width
     const calculatedHeight = dimensions.height
 

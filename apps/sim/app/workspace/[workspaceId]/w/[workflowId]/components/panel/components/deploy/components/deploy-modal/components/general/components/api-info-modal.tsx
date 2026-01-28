@@ -203,7 +203,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                           <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
                             {field.name}
                           </span>
-                          <Badge size='sm'>{field.type || 'string'}</Badge>
+                          <Badge variant='type' size='sm'>
+                            {field.type || 'string'}
+                          </Badge>
                         </div>
                       </div>
                       <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>

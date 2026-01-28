@@ -55,21 +55,21 @@ export const {serviceName}{Action}Tool: ToolConfig<
   },
 
   params: {
-    // Hidden params (system-injected)
+    // Hidden params (system-injected, only use hidden for oauth accessToken)
     accessToken: {
       type: 'string',
       required: true,
       visibility: 'hidden',
       description: 'OAuth access token',
     },
-    // User-only params (credentials, IDs user must provide)
+    // User-only params (credentials, api key, IDs user must provide)
     someId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
       description: 'The ID of the resource',
     },
-    // User-or-LLM params (can be provided by user OR computed by LLM)
+    // User-or-LLM params (everything else, can be provided by user OR computed by LLM)
     query: {
       type: 'string',
       required: false,                // Use false for optional
@@ -114,8 +114,8 @@ export const {serviceName}{Action}Tool: ToolConfig<
 
 ### Visibility Options
 - `'hidden'` - System-injected (OAuth tokens, internal params). User never sees.
-- `'user-only'` - User must provide (credentials, account-specific IDs)
-- `'user-or-llm'` - User provides OR LLM can compute (search queries, content, filters)
+- `'user-only'` - User must provide (credentials, api keys, account-specific IDs)
+- `'user-or-llm'` - User provides OR LLM can compute (search queries, content, filters, most fall into this category)
 
 ### Parameter Types
 - `'string'` - Text values

@@ -14,8 +14,8 @@ export interface AgentInputs {
   slidingWindowSize?: string // For message-based sliding window
   slidingWindowTokens?: string // For token-based sliding window
   // LLM parameters
-  temperature?: number
-  maxTokens?: number
+  temperature?: string
+  maxTokens?: string
   apiKey?: string
   azureEndpoint?: string
   azureApiVersion?: string

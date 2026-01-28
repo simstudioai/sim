@@ -58,14 +58,9 @@ Retrieve accounts from Salesforce CRM
 |   ↳ `nextRecordsUrl` | string | URL for next page of results |
 |   ↳ `totalSize` | number | Total number of records |
 |   ↳ `done` | boolean | Whether all records returned |
-| ↳ `nextRecordsUrl` | string | URL for next page of results |
-| ↳ `totalSize` | number | Total number of records |
-| ↳ `done` | boolean | Whether all records returned |
 | ↳ `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of accounts returned |
 |   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `totalReturned` | number | Number of accounts returned |
-| ↳ `hasMore` | boolean | Whether more records exist |
 | ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_create_account`
@@ -184,14 +179,9 @@ Get contact(s) from Salesforce - single contact if ID provided, or list if not
 |   ↳ `nextRecordsUrl` | string | URL for next page of results |
 |   ↳ `totalSize` | number | Total number of records |
 |   ↳ `done` | boolean | Whether all records returned |
-| ↳ `nextRecordsUrl` | string | URL for next page of results |
-| ↳ `totalSize` | number | Total number of records |
-| ↳ `done` | boolean | Whether all records returned |
 | ↳ `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of contacts returned |
 |   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `totalReturned` | number | Number of contacts returned |
-| ↳ `hasMore` | boolean | Whether more records exist |
 | ↳ `singleContact` | boolean | Whether single contact was returned |
 | ↳ `success` | boolean | Salesforce operation success |
 
@@ -311,14 +301,9 @@ Get lead(s) from Salesforce
 |   ↳ `nextRecordsUrl` | string | URL for next page of results |
 |   ↳ `totalSize` | number | Total number of records |
 |   ↳ `done` | boolean | Whether all records returned |
-| ↳ `nextRecordsUrl` | string | URL for next page of results |
-| ↳ `totalSize` | number | Total number of records |
-| ↳ `done` | boolean | Whether all records returned |
 | ↳ `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of leads returned |
 |   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `totalReturned` | number | Number of leads returned |
-| ↳ `hasMore` | boolean | Whether more records exist |
 | ↳ `singleLead` | boolean | Whether single lead was returned |
 | ↳ `success` | boolean | Operation success status |
 
@@ -430,14 +415,9 @@ Get opportunity(ies) from Salesforce
 |   ↳ `nextRecordsUrl` | string | URL for next page of results |
 |   ↳ `totalSize` | number | Total number of records |
 |   ↳ `done` | boolean | Whether all records returned |
-| ↳ `nextRecordsUrl` | string | URL for next page of results |
-| ↳ `totalSize` | number | Total number of records |
-| ↳ `done` | boolean | Whether all records returned |
 | ↳ `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of opportunities returned |
 |   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `totalReturned` | number | Number of opportunities returned |
-| ↳ `hasMore` | boolean | Whether more records exist |
 | ↳ `success` | boolean | Operation success status |
 
 ### `salesforce_create_opportunity`
@@ -544,14 +524,9 @@ Get case(s) from Salesforce
 |   ↳ `nextRecordsUrl` | string | URL for next page of results |
 |   ↳ `totalSize` | number | Total number of records |
 |   ↳ `done` | boolean | Whether all records returned |
-| ↳ `nextRecordsUrl` | string | URL for next page of results |
-| ↳ `totalSize` | number | Total number of records |
-| ↳ `done` | boolean | Whether all records returned |
 | ↳ `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of cases returned |
 |   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `totalReturned` | number | Number of cases returned |
-| ↳ `hasMore` | boolean | Whether more records exist |
 | ↳ `success` | boolean | Operation success status |
 
 ### `salesforce_create_case`
@@ -655,14 +630,9 @@ Get task(s) from Salesforce
 |   ↳ `nextRecordsUrl` | string | URL for next page of results |
 |   ↳ `totalSize` | number | Total number of records |
 |   ↳ `done` | boolean | Whether all records returned |
-| ↳ `nextRecordsUrl` | string | URL for next page of results |
-| ↳ `totalSize` | number | Total number of records |
-| ↳ `done` | boolean | Whether all records returned |
 | ↳ `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of tasks returned |
 |   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `totalReturned` | number | Number of tasks returned |
-| ↳ `hasMore` | boolean | Whether more records exist |
 | ↳ `success` | boolean | Operation success status |
 
 ### `salesforce_create_task`
@@ -938,8 +908,6 @@ Execute a custom SOQL query to retrieve data from Salesforce
 | ↳ `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `totalReturned` | number | Number of records returned in this response |
-| ↳ `hasMore` | boolean | Whether more records exist |
 | ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_query_more`
@@ -967,8 +935,6 @@ Retrieve additional query results using the nextRecordsUrl from a previous query
 | ↳ `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `totalReturned` | number | Number of records returned in this response |
-| ↳ `hasMore` | boolean | Whether more records exist |
 | ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_describe_object`

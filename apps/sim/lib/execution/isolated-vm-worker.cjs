@@ -8,7 +8,7 @@ const ivm = require('isolated-vm')
 const USER_CODE_START_LINE = 4
 const pendingFetches = new Map()
 let fetchIdCounter = 0
-const FETCH_TIMEOUT_MS = 30000
+const FETCH_TIMEOUT_MS = 300000 // 5 minutes
 
 /**
  * Extract line and column from error stack or message

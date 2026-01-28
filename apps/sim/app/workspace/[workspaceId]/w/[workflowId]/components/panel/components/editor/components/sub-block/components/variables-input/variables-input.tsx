@@ -345,7 +345,11 @@ export function VariablesInput({
                     <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
                       {assignment.variableName || `Variable ${index + 1}`}
                     </span>
-                    {assignment.variableName && <Badge size='sm'>{assignment.type}</Badge>}
+                    {assignment.variableName && (
+                      <Badge variant='type' size='sm'>
+                        {assignment.type}
+                      </Badge>
+                    )}
                   </div>
                   <div
                     className='flex items-center gap-[8px] pl-[8px]'
