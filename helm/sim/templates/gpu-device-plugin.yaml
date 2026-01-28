@@ -19,7 +19,6 @@ data:
       migStrategy: "none"
       {{- end }}
       failOnInitError: false
-      nvidiaDriverRoot: /host-proc/driver/nvidia
     plugin:
       passDeviceSpecs: true
       deviceListStrategy: envvar
@@ -28,7 +27,7 @@ data:
       timeSlicing:
         resources:
           - name: nvidia.com/gpu
-            replicas: {{ .Values.ollama.gpu.timeSlicingReplicas | default 10 }}
+            replicas: {{ .Values.ollama.gpu.timeSlicingReplicas | default 5 }}
     {{- end }}
 ---
 # 2. NVIDIA Device Plugin DaemonSet for GPU support
@@ -76,9 +75,6 @@ spec:
         - name: sys
           hostPath:
             path: /sys
-        - name: proc-driver-nvidia
-          hostPath:
-            path: /proc/driver/nvidia
         # Volume to mount the ConfigMap
         - name: nvidia-device-plugin-config
           configMap:
@@ -89,6 +85,11 @@ spec:
           imagePullPolicy: Always
           args:
             - "--config-file=/etc/device-plugin/config.yaml"
+          {{- if eq .Values.ollama.gpu.strategy "mig" }}
+          env:
+            - name: NVIDIA_MIG_MONITOR_DEVICES
+              value: all
+          {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -100,9 +101,6 @@ spec:
               mountPath: /dev
             - name: sys
               mountPath: /sys
-              readOnly: true
-            - name: proc-driver-nvidia
-              mountPath: /host-proc/driver/nvidia
               readOnly: true
             - name: nvidia-device-plugin-config
               mountPath: /etc/device-plugin/

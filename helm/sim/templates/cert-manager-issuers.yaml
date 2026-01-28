@@ -2,6 +2,12 @@
 {{- /*
   cert-manager Issuer Bootstrap Pattern
 
+  PREREQUISITE: cert-manager must be installed in your cluster before enabling this.
+  The root CA Certificate is created in the namespace specified by certManager.rootCA.namespace
+  (defaults to "cert-manager"). Ensure this namespace exists and cert-manager is running there.
+
+  Install cert-manager: https://cert-manager.io/docs/installation/
+
   This implements the recommended pattern from cert-manager documentation:
   1. A self-signed ClusterIssuer (for bootstrapping the root CA only)
   2. A root CA Certificate (self-signed, used to sign other certificates)
@@ -28,11 +34,13 @@ spec:
 # 2. Root CA Certificate
 # This certificate is signed by the self-signed issuer and becomes the root of trust.
 # The secret created here will be used by the CA issuer to sign certificates.
+# NOTE: This must be created in the cert-manager namespace (or the namespace specified
+# in certManager.rootCA.namespace). Ensure cert-manager is installed there first.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ .Values.certManager.rootCA.certificateName }}
-  namespace: {{ .Values.certManager.rootCA.namespace | default "cert-manager" }}
+  namespace: {{ .Values.certManager.rootCA.namespace | default "cert-manager" }}  # Must match cert-manager's cluster-resource-namespace
   labels:
     {{- include "sim.labels" . | nindent 4 }}
     app.kubernetes.io/component: cert-manager
