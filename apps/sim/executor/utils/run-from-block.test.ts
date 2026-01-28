@@ -331,6 +331,24 @@ describe('validateRunFromBlock', () => {
     expect(result.error).toContain('Upstream dependency not executed')
   })
 
+  it('rejects blocks with unexecuted transitive upstream dependencies', () => {
+    // A → X → B → C, where X is new (not executed)
+    // Running from C should fail because X in upstream chain wasn't executed
+    const dag = createDAG([
+      createNode('A', [{ target: 'X' }]),
+      createNode('X', [{ target: 'B' }]),
+      createNode('B', [{ target: 'C' }]),
+      createNode('C'),
+    ])
+    const executedBlocks = new Set(['A', 'B', 'C']) // X was not executed (new block)
+
+    const result = validateRunFromBlock('C', dag, executedBlocks)
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('Upstream dependency not executed')
+    expect(result.error).toContain('X')
+  })
+
   it('allows blocks with no dependencies even if not previously executed', () => {
     // A and B are independent (no edges)
     const dag = createDAG([createNode('A'), createNode('B')])

@@ -1661,11 +1661,16 @@ export function useWorkflowExecution() {
             },
 
             onExecutionError: (data) => {
-              if (data.error?.includes('Block not found in workflow')) {
+              const isWorkflowModified =
+                data.error?.includes('Block not found in workflow') ||
+                data.error?.includes('Upstream dependency not executed')
+
+              if (isWorkflowModified) {
                 clearLastExecutionSnapshot(workflowId)
                 addNotification({
-                  level: 'info',
-                  message: 'Workflow was modified. Run the workflow again to refresh.',
+                  level: 'error',
+                  message:
+                    'Workflow was modified. Run the workflow again to enable running from block.',
                   workflowId,
                 })
               } else {
