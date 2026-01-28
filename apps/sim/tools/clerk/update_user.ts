@@ -1,5 +1,12 @@
 import { createLogger } from '@sim/logger'
-import type { ClerkUpdateUserParams, ClerkUpdateUserResponse } from '@/tools/clerk/types'
+import type {
+  ClerkApiError,
+  ClerkEmailAddress,
+  ClerkPhoneNumber,
+  ClerkUpdateUserParams,
+  ClerkUpdateUserResponse,
+  ClerkUser,
+} from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkUpdateUser')
@@ -126,39 +133,42 @@ export const clerkUpdateUserTool: ToolConfig<ClerkUpdateUserParams, ClerkUpdateU
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: ClerkUser | ClerkApiError = await response.json()
 
     if (!response.ok) {
       logger.error('Clerk API request failed', { data, status: response.status })
-      throw new Error(data.errors?.[0]?.message || 'Failed to update user in Clerk')
+      throw new Error(
+        (data as ClerkApiError).errors?.[0]?.message || 'Failed to update user in Clerk'
+      )
     }
 
+    const user = data as ClerkUser
     return {
       success: true,
       output: {
-        id: data.id,
-        username: data.username ?? null,
-        firstName: data.first_name ?? null,
-        lastName: data.last_name ?? null,
-        imageUrl: data.image_url ?? null,
-        primaryEmailAddressId: data.primary_email_address_id ?? null,
-        primaryPhoneNumberId: data.primary_phone_number_id ?? null,
-        emailAddresses: (data.email_addresses ?? []).map((email: any) => ({
+        id: user.id,
+        username: user.username ?? null,
+        firstName: user.first_name ?? null,
+        lastName: user.last_name ?? null,
+        imageUrl: user.image_url ?? null,
+        primaryEmailAddressId: user.primary_email_address_id ?? null,
+        primaryPhoneNumberId: user.primary_phone_number_id ?? null,
+        emailAddresses: (user.email_addresses ?? []).map((email: ClerkEmailAddress) => ({
           id: email.id,
           emailAddress: email.email_address,
           verified: email.verification?.status === 'verified',
         })),
-        phoneNumbers: (data.phone_numbers ?? []).map((phone: any) => ({
+        phoneNumbers: (user.phone_numbers ?? []).map((phone: ClerkPhoneNumber) => ({
           id: phone.id,
           phoneNumber: phone.phone_number,
           verified: phone.verification?.status === 'verified',
         })),
-        externalId: data.external_id ?? null,
-        banned: data.banned ?? false,
-        locked: data.locked ?? false,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
-        publicMetadata: data.public_metadata ?? {},
+        externalId: user.external_id ?? null,
+        banned: user.banned ?? false,
+        locked: user.locked ?? false,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at,
+        publicMetadata: user.public_metadata ?? {},
         success: true,
       },
     }

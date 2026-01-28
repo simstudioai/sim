@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
 import type {
+  ClerkApiError,
   ClerkListOrganizationsParams,
   ClerkListOrganizationsResponse,
+  ClerkOrganization,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -83,17 +85,20 @@ export const clerkListOrganizationsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const json: { data: ClerkOrganization[]; total_count: number } | ClerkApiError =
+      await response.json()
 
     if (!response.ok) {
-      logger.error('Clerk API request failed', { data, status: response.status })
-      throw new Error(data.errors?.[0]?.message || 'Failed to list organizations from Clerk')
+      logger.error('Clerk API request failed', { data: json, status: response.status })
+      throw new Error(
+        (json as ClerkApiError).errors?.[0]?.message || 'Failed to list organizations from Clerk'
+      )
     }
 
-    const totalCount = Number.parseInt(response.headers.get('x-total-count') || '0', 10)
+    const responseData = json as { data: ClerkOrganization[]; total_count: number }
 
     // Transform each organization to extract key fields
-    const organizations = (data as any[]).map((org) => ({
+    const organizations = responseData.data.map((org) => ({
       id: org.id,
       name: org.name,
       slug: org.slug ?? null,
@@ -113,7 +118,7 @@ export const clerkListOrganizationsTool: ToolConfig<
       success: true,
       output: {
         organizations,
-        totalCount: totalCount || data.length,
+        totalCount: responseData.total_count ?? organizations.length,
         success: true,
       },
     }

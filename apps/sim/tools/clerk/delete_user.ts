@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type { ClerkDeleteUserParams, ClerkDeleteUserResponse } from '@/tools/clerk/types'
+import type {
+  ClerkApiError,
+  ClerkDeleteResponse,
+  ClerkDeleteUserParams,
+  ClerkDeleteUserResponse,
+} from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkDeleteUser')
@@ -40,19 +45,22 @@ export const clerkDeleteUserTool: ToolConfig<ClerkDeleteUserParams, ClerkDeleteU
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: ClerkDeleteResponse | ClerkApiError = await response.json()
 
     if (!response.ok) {
       logger.error('Clerk API request failed', { data, status: response.status })
-      throw new Error(data.errors?.[0]?.message || 'Failed to delete user from Clerk')
+      throw new Error(
+        (data as ClerkApiError).errors?.[0]?.message || 'Failed to delete user from Clerk'
+      )
     }
 
+    const deleteData = data as ClerkDeleteResponse
     return {
       success: true,
       output: {
-        id: data.id,
-        object: data.object ?? 'user',
-        deleted: data.deleted ?? true,
+        id: deleteData.id,
+        object: deleteData.object ?? 'user',
+        deleted: deleteData.deleted ?? true,
         success: true,
       },
     }

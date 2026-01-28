@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type { ClerkGetSessionParams, ClerkGetSessionResponse } from '@/tools/clerk/types'
+import type {
+  ClerkApiError,
+  ClerkGetSessionParams,
+  ClerkGetSessionResponse,
+  ClerkSession,
+} from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkGetSession')
@@ -40,26 +45,29 @@ export const clerkGetSessionTool: ToolConfig<ClerkGetSessionParams, ClerkGetSess
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: ClerkSession | ClerkApiError = await response.json()
 
     if (!response.ok) {
       logger.error('Clerk API request failed', { data, status: response.status })
-      throw new Error(data.errors?.[0]?.message || 'Failed to get session from Clerk')
+      throw new Error(
+        (data as ClerkApiError).errors?.[0]?.message || 'Failed to get session from Clerk'
+      )
     }
 
+    const session = data as ClerkSession
     return {
       success: true,
       output: {
-        id: data.id,
-        userId: data.user_id,
-        clientId: data.client_id,
-        status: data.status,
-        lastActiveAt: data.last_active_at ?? null,
-        lastActiveOrganizationId: data.last_active_organization_id ?? null,
-        expireAt: data.expire_at ?? null,
-        abandonAt: data.abandon_at ?? null,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
+        id: session.id,
+        userId: session.user_id,
+        clientId: session.client_id,
+        status: session.status,
+        lastActiveAt: session.last_active_at ?? null,
+        lastActiveOrganizationId: session.last_active_organization_id ?? null,
+        expireAt: session.expire_at ?? null,
+        abandonAt: session.abandon_at ?? null,
+        createdAt: session.created_at,
+        updatedAt: session.updated_at,
         success: true,
       },
     }

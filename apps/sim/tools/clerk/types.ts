@@ -1,6 +1,22 @@
 import type { ToolResponse } from '@/tools/types'
 
 /**
+ * Clerk API error response
+ */
+export interface ClerkApiError {
+  errors?: { message: string }[]
+}
+
+/**
+ * Clerk delete response
+ */
+export interface ClerkDeleteResponse {
+  id: string
+  object: string
+  deleted: boolean
+}
+
+/**
  * Clerk User object
  */
 export interface ClerkUser {

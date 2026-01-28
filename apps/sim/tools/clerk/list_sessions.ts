@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type { ClerkListSessionsParams, ClerkListSessionsResponse } from '@/tools/clerk/types'
+import type {
+  ClerkApiError,
+  ClerkListSessionsParams,
+  ClerkListSessionsResponse,
+  ClerkSession,
+} from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkListSessions')
@@ -79,16 +84,18 @@ export const clerkListSessionsTool: ToolConfig<ClerkListSessionsParams, ClerkLis
     },
 
     transformResponse: async (response: Response) => {
-      const data = await response.json()
+      const data: ClerkSession[] | ClerkApiError = await response.json()
 
       if (!response.ok) {
         logger.error('Clerk API request failed', { data, status: response.status })
-        throw new Error(data.errors?.[0]?.message || 'Failed to list sessions from Clerk')
+        throw new Error(
+          (data as ClerkApiError).errors?.[0]?.message || 'Failed to list sessions from Clerk'
+        )
       }
 
       const totalCount = Number.parseInt(response.headers.get('x-total-count') || '0', 10)
 
-      const sessions = (data as any[]).map((session) => ({
+      const sessions = (data as ClerkSession[]).map((session) => ({
         id: session.id,
         userId: session.user_id,
         clientId: session.client_id,
@@ -105,7 +112,7 @@ export const clerkListSessionsTool: ToolConfig<ClerkListSessionsParams, ClerkLis
         success: true,
         output: {
           sessions,
-          totalCount: totalCount || data.length,
+          totalCount: totalCount || sessions.length,
           success: true,
         },
       }

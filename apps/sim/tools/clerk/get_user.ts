@@ -1,5 +1,12 @@
 import { createLogger } from '@sim/logger'
-import type { ClerkGetUserParams, ClerkGetUserResponse } from '@/tools/clerk/types'
+import type {
+  ClerkApiError,
+  ClerkEmailAddress,
+  ClerkGetUserParams,
+  ClerkGetUserResponse,
+  ClerkPhoneNumber,
+  ClerkUser,
+} from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkGetUser')
@@ -40,51 +47,55 @@ export const clerkGetUserTool: ToolConfig<ClerkGetUserParams, ClerkGetUserRespon
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: ClerkUser | ClerkApiError = await response.json()
 
     if (!response.ok) {
       logger.error('Clerk API request failed', { data, status: response.status })
-      throw new Error(data.errors?.[0]?.message || 'Failed to get user from Clerk')
+      throw new Error(
+        (data as ClerkApiError).errors?.[0]?.message || 'Failed to get user from Clerk'
+      )
     }
+
+    const user = data as ClerkUser
 
     return {
       success: true,
       output: {
-        id: data.id,
-        username: data.username ?? null,
-        firstName: data.first_name ?? null,
-        lastName: data.last_name ?? null,
-        imageUrl: data.image_url ?? null,
-        hasImage: data.has_image ?? false,
-        primaryEmailAddressId: data.primary_email_address_id ?? null,
-        primaryPhoneNumberId: data.primary_phone_number_id ?? null,
-        primaryWeb3WalletId: data.primary_web3_wallet_id ?? null,
-        emailAddresses: (data.email_addresses ?? []).map((email: any) => ({
+        id: user.id,
+        username: user.username ?? null,
+        firstName: user.first_name ?? null,
+        lastName: user.last_name ?? null,
+        imageUrl: user.image_url ?? null,
+        hasImage: user.has_image ?? false,
+        primaryEmailAddressId: user.primary_email_address_id ?? null,
+        primaryPhoneNumberId: user.primary_phone_number_id ?? null,
+        primaryWeb3WalletId: user.primary_web3_wallet_id ?? null,
+        emailAddresses: (user.email_addresses ?? []).map((email: ClerkEmailAddress) => ({
           id: email.id,
           emailAddress: email.email_address,
           verified: email.verification?.status === 'verified',
         })),
-        phoneNumbers: (data.phone_numbers ?? []).map((phone: any) => ({
+        phoneNumbers: (user.phone_numbers ?? []).map((phone: ClerkPhoneNumber) => ({
           id: phone.id,
           phoneNumber: phone.phone_number,
           verified: phone.verification?.status === 'verified',
         })),
-        externalId: data.external_id ?? null,
-        passwordEnabled: data.password_enabled ?? false,
-        twoFactorEnabled: data.two_factor_enabled ?? false,
-        totpEnabled: data.totp_enabled ?? false,
-        backupCodeEnabled: data.backup_code_enabled ?? false,
-        banned: data.banned ?? false,
-        locked: data.locked ?? false,
-        deleteSelfEnabled: data.delete_self_enabled ?? false,
-        createOrganizationEnabled: data.create_organization_enabled ?? false,
-        lastSignInAt: data.last_sign_in_at ?? null,
-        lastActiveAt: data.last_active_at ?? null,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
-        publicMetadata: data.public_metadata ?? {},
-        privateMetadata: data.private_metadata ?? {},
-        unsafeMetadata: data.unsafe_metadata ?? {},
+        externalId: user.external_id ?? null,
+        passwordEnabled: user.password_enabled ?? false,
+        twoFactorEnabled: user.two_factor_enabled ?? false,
+        totpEnabled: user.totp_enabled ?? false,
+        backupCodeEnabled: user.backup_code_enabled ?? false,
+        banned: user.banned ?? false,
+        locked: user.locked ?? false,
+        deleteSelfEnabled: user.delete_self_enabled ?? false,
+        createOrganizationEnabled: user.create_organization_enabled ?? false,
+        lastSignInAt: user.last_sign_in_at ?? null,
+        lastActiveAt: user.last_active_at ?? null,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at,
+        publicMetadata: user.public_metadata ?? {},
+        privateMetadata: user.private_metadata ?? {},
+        unsafeMetadata: user.unsafe_metadata ?? {},
         success: true,
       },
     }

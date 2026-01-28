@@ -1,5 +1,12 @@
 import { createLogger } from '@sim/logger'
-import type { ClerkListUsersParams, ClerkListUsersResponse } from '@/tools/clerk/types'
+import type {
+  ClerkApiError,
+  ClerkEmailAddress,
+  ClerkListUsersParams,
+  ClerkListUsersResponse,
+  ClerkPhoneNumber,
+  ClerkUser,
+} from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkListUsers')
@@ -127,18 +134,20 @@ export const clerkListUsersTool: ToolConfig<ClerkListUsersParams, ClerkListUsers
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: ClerkUser[] | ClerkApiError = await response.json()
 
     if (!response.ok) {
       logger.error('Clerk API request failed', { data, status: response.status })
-      throw new Error(data.errors?.[0]?.message || 'Failed to list users from Clerk')
+      throw new Error(
+        (data as ClerkApiError).errors?.[0]?.message || 'Failed to list users from Clerk'
+      )
     }
 
     // The response is an array of users, total_count is in the header
     const totalCount = Number.parseInt(response.headers.get('x-total-count') || '0', 10)
 
     // Transform each user to extract key fields
-    const users = (data as any[]).map((user) => ({
+    const users = (data as ClerkUser[]).map((user) => ({
       id: user.id,
       username: user.username ?? null,
       firstName: user.first_name ?? null,
@@ -147,11 +156,11 @@ export const clerkListUsersTool: ToolConfig<ClerkListUsersParams, ClerkListUsers
       hasImage: user.has_image ?? false,
       primaryEmailAddressId: user.primary_email_address_id ?? null,
       primaryPhoneNumberId: user.primary_phone_number_id ?? null,
-      emailAddresses: (user.email_addresses ?? []).map((email: any) => ({
+      emailAddresses: (user.email_addresses ?? []).map((email: ClerkEmailAddress) => ({
         id: email.id,
         emailAddress: email.email_address,
       })),
-      phoneNumbers: (user.phone_numbers ?? []).map((phone: any) => ({
+      phoneNumbers: (user.phone_numbers ?? []).map((phone: ClerkPhoneNumber) => ({
         id: phone.id,
         phoneNumber: phone.phone_number,
       })),
@@ -171,7 +180,7 @@ export const clerkListUsersTool: ToolConfig<ClerkListUsersParams, ClerkListUsers
       success: true,
       output: {
         users,
-        totalCount: totalCount || data.length,
+        totalCount: totalCount || users.length,
         success: true,
       },
     }

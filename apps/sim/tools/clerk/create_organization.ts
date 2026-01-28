@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
 import type {
+  ClerkApiError,
   ClerkCreateOrganizationParams,
   ClerkCreateOrganizationResponse,
+  ClerkOrganization,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -90,29 +92,32 @@ export const clerkCreateOrganizationTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: ClerkOrganization | ClerkApiError = await response.json()
 
     if (!response.ok) {
       logger.error('Clerk API request failed', { data, status: response.status })
-      throw new Error(data.errors?.[0]?.message || 'Failed to create organization in Clerk')
+      throw new Error(
+        (data as ClerkApiError).errors?.[0]?.message || 'Failed to create organization in Clerk'
+      )
     }
 
+    const org = data as ClerkOrganization
     return {
       success: true,
       output: {
-        id: data.id,
-        name: data.name,
-        slug: data.slug ?? null,
-        imageUrl: data.image_url ?? null,
-        hasImage: data.has_image ?? false,
-        membersCount: data.members_count ?? null,
-        pendingInvitationsCount: data.pending_invitations_count ?? null,
-        maxAllowedMemberships: data.max_allowed_memberships ?? 0,
-        adminDeleteEnabled: data.admin_delete_enabled ?? false,
-        createdBy: data.created_by ?? null,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
-        publicMetadata: data.public_metadata ?? {},
+        id: org.id,
+        name: org.name,
+        slug: org.slug ?? null,
+        imageUrl: org.image_url ?? null,
+        hasImage: org.has_image ?? false,
+        membersCount: org.members_count ?? null,
+        pendingInvitationsCount: org.pending_invitations_count ?? null,
+        maxAllowedMemberships: org.max_allowed_memberships ?? 0,
+        adminDeleteEnabled: org.admin_delete_enabled ?? false,
+        createdBy: org.created_by ?? null,
+        createdAt: org.created_at,
+        updatedAt: org.updated_at,
+        publicMetadata: org.public_metadata ?? {},
         success: true,
       },
     }
