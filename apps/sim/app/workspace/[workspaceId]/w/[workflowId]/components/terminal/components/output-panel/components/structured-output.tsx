@@ -26,12 +26,10 @@ interface NodeEntry {
 
 /**
  * Search context for structured output tree.
- * Separates stable values from frequently changing currentMatchIndex to avoid re-renders.
  */
 interface SearchContextValue {
   query: string
   pathToMatchIndices: Map<string, number[]>
-  currentMatchIndexRef: React.RefObject<number>
 }
 
 const SearchContext = createContext<SearchContextValue | null>(null)
@@ -270,15 +268,18 @@ interface HighlightedTextProps {
   text: string
   matchIndices: number[]
   path: string
+  currentMatchIndex: number
 }
 
 /**
  * Renders text with search highlights for non-virtualized mode.
+ * Accepts currentMatchIndex as prop to ensure re-render when it changes.
  */
 const HighlightedText = memo(function HighlightedText({
   text,
   matchIndices,
   path,
+  currentMatchIndex,
 }: HighlightedTextProps) {
   const searchContext = useContext(SearchContext)
 
@@ -286,13 +287,7 @@ const HighlightedText = memo(function HighlightedText({
 
   return (
     <>
-      {renderHighlightedSegments(
-        text,
-        searchContext.query,
-        matchIndices,
-        searchContext.currentMatchIndexRef.current,
-        path
-      )}
+      {renderHighlightedSegments(text, searchContext.query, matchIndices, currentMatchIndex, path)}
     </>
   )
 })
@@ -304,6 +299,7 @@ interface StructuredNodeProps {
   expandedPaths: Set<string>
   onToggle: (path: string) => void
   wrapText: boolean
+  currentMatchIndex: number
   isError?: boolean
 }
 
@@ -318,6 +314,7 @@ const StructuredNode = memo(function StructuredNode({
   expandedPaths,
   onToggle,
   wrapText,
+  currentMatchIndex,
   isError = false,
 }: StructuredNodeProps) {
   const searchContext = useContext(SearchContext)
@@ -381,7 +378,12 @@ const StructuredNode = memo(function StructuredNode({
                 wrapText ? '[word-break:break-word]' : 'whitespace-nowrap'
               )}
             >
-              <HighlightedText text={valueText} matchIndices={matchIndices} path={path} />
+              <HighlightedText
+                text={valueText}
+                matchIndices={matchIndices}
+                path={path}
+                currentMatchIndex={currentMatchIndex}
+              />
             </div>
           ) : isEmptyValue ? (
             <div className={STYLES.emptyValue}>{Array.isArray(value) ? '[]' : '{}'}</div>
@@ -395,6 +397,7 @@ const StructuredNode = memo(function StructuredNode({
                 expandedPaths={expandedPaths}
                 onToggle={onToggle}
                 wrapText={wrapText}
+                currentMatchIndex={currentMatchIndex}
               />
             ))
           )}
@@ -682,17 +685,8 @@ export const StructuredOutput = memo(function StructuredOutput({
   const prevDataRef = useRef(data)
   const prevIsErrorRef = useRef(isError)
   const internalRef = useRef<HTMLDivElement>(null)
-  const currentMatchIndexRef = useRef(currentMatchIndex)
   const listRef = useListRef(null)
   const [containerHeight, setContainerHeight] = useState(400)
-
-  currentMatchIndexRef.current = currentMatchIndex
-
-  // Force re-render when currentMatchIndex changes
-  const [, forceUpdate] = useState(0)
-  useEffect(() => {
-    forceUpdate((n) => n + 1)
-  }, [currentMatchIndex])
 
   const setContainerRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -782,7 +776,7 @@ export const StructuredOutput = memo(function StructuredOutput({
 
   const searchContextValue = useMemo<SearchContextValue | null>(() => {
     if (!searchQuery) return null
-    return { query: searchQuery, pathToMatchIndices, currentMatchIndexRef }
+    return { query: searchQuery, pathToMatchIndices }
   }, [searchQuery, pathToMatchIndices])
 
   const visibleRowCount = useMemo(
@@ -890,6 +884,7 @@ export const StructuredOutput = memo(function StructuredOutput({
             expandedPaths={expandedPaths}
             onToggle={handleToggle}
             wrapText={wrapText}
+            currentMatchIndex={currentMatchIndex}
             isError
           />
         </div>
@@ -909,6 +904,7 @@ export const StructuredOutput = memo(function StructuredOutput({
             expandedPaths={expandedPaths}
             onToggle={handleToggle}
             wrapText={wrapText}
+            currentMatchIndex={currentMatchIndex}
           />
         ))}
       </div>
