@@ -27,6 +27,7 @@ export interface WorkflowDeploymentVersionResponse {
   id: string
   version: number
   name?: string | null
+  description?: string | null
   isActive: boolean
   createdAt: string
   createdBy?: string | null

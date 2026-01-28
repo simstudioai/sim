@@ -3,10 +3,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
-import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
+import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Tooltip,
+} from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
+import { formatDateTime } from '@/lib/core/utils/formatting'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { VersionDescriptionModal } from './version-description-modal'
 
 const logger = createLogger('Versions')
 
@@ -20,7 +29,7 @@ const COLUMN_WIDTHS = {
   VERSION: 'w-[180px]',
   DEPLOYED_BY: 'w-[140px]',
   TIMESTAMP: 'flex-1',
-  ACTIONS: 'w-[32px]',
+  ACTIONS: 'w-[56px]',
 } as const
 
 interface VersionsProps {
@@ -37,28 +46,14 @@ interface VersionsProps {
 /**
  * Formats a timestamp into a readable string.
  * @param value - The date string or Date object to format
- * @returns Formatted string like "8:36 PM PT on Oct 11, 2025"
+ * @returns Formatted string like "Jan 28, 2026, 10:43 AM"
  */
-const formatDate = (value: string | Date): string => {
+const formatTimestamp = (value: string | Date): string => {
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) {
     return '-'
   }
-
-  const timePart = date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZoneName: 'short',
-  })
-
-  const datePart = date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-
-  return `${timePart} on ${datePart}`
+  return formatDateTime(date)
 }
 
 /**
@@ -79,6 +74,7 @@ export function Versions({
   const [editValue, setEditValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
+  const [descriptionModalVersion, setDescriptionModalVersion] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -149,6 +145,16 @@ export function Versions({
     onLoadDeployment(version)
   }
 
+  const handleOpenDescriptionModal = (version: number) => {
+    setOpenDropdown(null)
+    setDescriptionModalVersion(version)
+  }
+
+  const descriptionModalVersionData =
+    descriptionModalVersion !== null
+      ? versions.find((v) => v.version === descriptionModalVersion)
+      : null
+
   if (versionsLoading && versions.length === 0) {
     return (
       <div className='overflow-hidden rounded-[4px] border border-[var(--border)]'>
@@ -179,7 +185,14 @@ export function Versions({
               <div className={clsx(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
                 <Skeleton className='h-[12px] w-[160px]' />
               </div>
-              <div className={clsx(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS, 'flex justify-end')}>
+              <div
+                className={clsx(
+                  COLUMN_WIDTHS.ACTIONS,
+                  COLUMN_BASE_CLASS,
+                  'flex justify-end gap-[2px]'
+                )}
+              >
+                <Skeleton className='h-[20px] w-[20px] rounded-[4px]' />
                 <Skeleton className='h-[20px] w-[20px] rounded-[4px]' />
               </div>
             </div>
@@ -289,14 +302,40 @@ export function Versions({
                 <span
                   className={clsx('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}
                 >
-                  {formatDate(v.createdAt)}
+                  {formatTimestamp(v.createdAt)}
                 </span>
               </div>
 
               <div
-                className={clsx(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS, 'flex justify-end')}
+                className={clsx(
+                  COLUMN_WIDTHS.ACTIONS,
+                  COLUMN_BASE_CLASS,
+                  'flex items-center justify-end gap-[2px]'
+                )}
                 onClick={(e) => e.stopPropagation()}
               >
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      className={clsx(
+                        '!p-1',
+                        !v.description &&
+                          'text-[var(--text-quaternary)] hover:text-[var(--text-tertiary)]'
+                      )}
+                      onClick={() => handleOpenDescriptionModal(v.version)}
+                    >
+                      <FileText className='h-3.5 w-3.5' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top' className='max-w-[240px]'>
+                    {v.description ? (
+                      <p className='line-clamp-3 text-[12px]'>{v.description}</p>
+                    ) : (
+                      <p className='text-[12px]'>Add description</p>
+                    )}
+                  </Tooltip.Content>
+                </Tooltip.Root>
                 <Popover
                   open={openDropdown === v.version}
                   onOpenChange={(open) => setOpenDropdown(open ? v.version : null)}
@@ -310,6 +349,10 @@ export function Versions({
                     <PopoverItem onClick={() => handleStartRename(v.version, v.name)}>
                       <Pencil className='h-3 w-3' />
                       <span>Rename</span>
+                    </PopoverItem>
+                    <PopoverItem onClick={() => handleOpenDescriptionModal(v.version)}>
+                      <FileText className='h-3 w-3' />
+                      <span>{v.description ? 'Edit description' : 'Add description'}</span>
                     </PopoverItem>
                     {!v.isActive && (
                       <PopoverItem onClick={() => handlePromote(v.version)}>
@@ -328,6 +371,20 @@ export function Versions({
           )
         })}
       </div>
+
+      {workflowId && descriptionModalVersionData && (
+        <VersionDescriptionModal
+          open={descriptionModalVersion !== null}
+          onOpenChange={(open) => !open && setDescriptionModalVersion(null)}
+          workflowId={workflowId}
+          version={descriptionModalVersionData.version}
+          versionName={
+            descriptionModalVersionData.name || `v${descriptionModalVersionData.version}`
+          }
+          currentDescription={descriptionModalVersionData.description}
+          onSave={fetchVersions}
+        />
+      )}
     </div>
   )
 }

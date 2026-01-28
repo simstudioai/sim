@@ -9,13 +9,24 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 
 const logger = createLogger('WorkflowDeploymentVersionAPI')
 
-const patchBodySchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Name cannot be empty')
-    .max(100, 'Name must be 100 characters or less'),
-})
+const patchBodySchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'Name cannot be empty')
+      .max(100, 'Name must be 100 characters or less')
+      .optional(),
+    description: z
+      .string()
+      .trim()
+      .max(500, 'Description must be 500 characters or less')
+      .nullable()
+      .optional(),
+  })
+  .refine((data) => data.name !== undefined || data.description !== undefined, {
+    message: 'At least one of name or description must be provided',
+  })
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -88,33 +99,46 @@ export async function PATCH(
       return createErrorResponse(validation.error.errors[0]?.message || 'Invalid request body', 400)
     }
 
-    const { name } = validation.data
+    const { name, description } = validation.data
+
+    const updateData: { name?: string; description?: string | null } = {}
+    if (name !== undefined) {
+      updateData.name = name
+    }
+    if (description !== undefined) {
+      updateData.description = description
+    }
 
     const [updated] = await db
       .update(workflowDeploymentVersion)
-      .set({ name })
+      .set(updateData)
       .where(
         and(
           eq(workflowDeploymentVersion.workflowId, id),
           eq(workflowDeploymentVersion.version, versionNum)
         )
       )
-      .returning({ id: workflowDeploymentVersion.id, name: workflowDeploymentVersion.name })
+      .returning({
+        id: workflowDeploymentVersion.id,
+        name: workflowDeploymentVersion.name,
+        description: workflowDeploymentVersion.description,
+      })
 
     if (!updated) {
       return createErrorResponse('Deployment version not found', 404)
     }
 
-    logger.info(
-      `[${requestId}] Renamed deployment version ${version} for workflow ${id} to "${name}"`
-    )
+    logger.info(`[${requestId}] Updated deployment version ${version} for workflow ${id}`, {
+      name: updateData.name,
+      description: updateData.description,
+    })
 
-    return createSuccessResponse({ name: updated.name })
+    return createSuccessResponse({ name: updated.name, description: updated.description })
   } catch (error: any) {
     logger.error(
       `[${requestId}] Error renaming deployment version ${version} for workflow ${id}`,
       error
     )
-    return createErrorResponse(error.message || 'Failed to rename deployment version', 500)
+    return createErrorResponse(error.message || 'Failed to update deployment version', 500)
   }
 }
