@@ -47,6 +47,7 @@ import {
   useCurrentWorkflow,
   useNodeUtilities,
   useShiftSelectionLock,
+  useWorkflowExecution,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   calculateContainerDimensions,
@@ -301,6 +302,8 @@ const WorkflowContent = React.memo(() => {
   const copilotCleanup = useCopilotStore((state) => state.cleanup)
 
   const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
+
+  const { handleRunFromBlock, handleRunUntilBlock } = useWorkflowExecution()
 
   const snapToGridSize = useSnapToGridSize()
   const snapToGrid = snapToGridSize > 0
@@ -733,13 +736,16 @@ const WorkflowContent = React.memo(() => {
     [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection]
   )
 
-  const { activeBlockIds, pendingBlocks, isDebugging } = useExecutionStore(
-    useShallow((state) => ({
-      activeBlockIds: state.activeBlockIds,
-      pendingBlocks: state.pendingBlocks,
-      isDebugging: state.isDebugging,
-    }))
-  )
+  const { activeBlockIds, pendingBlocks, isDebugging, isExecuting, getLastExecutionSnapshot } =
+    useExecutionStore(
+      useShallow((state) => ({
+        activeBlockIds: state.activeBlockIds,
+        pendingBlocks: state.pendingBlocks,
+        isDebugging: state.isDebugging,
+        isExecuting: state.isExecuting,
+        getLastExecutionSnapshot: state.getLastExecutionSnapshot,
+      }))
+    )
 
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
@@ -1101,6 +1107,50 @@ const WorkflowContent = React.memo(() => {
       usePanelEditorStore.getState().setShouldFocusRename(true)
     }
   }, [contextMenuBlocks])
+
+  const handleContextRunFromBlock = useCallback(() => {
+    if (contextMenuBlocks.length !== 1) return
+    const blockId = contextMenuBlocks[0].id
+    handleRunFromBlock(blockId, workflowIdParam)
+  }, [contextMenuBlocks, workflowIdParam, handleRunFromBlock])
+
+  const handleContextRunUntilBlock = useCallback(() => {
+    if (contextMenuBlocks.length !== 1) return
+    const blockId = contextMenuBlocks[0].id
+    handleRunUntilBlock(blockId, workflowIdParam)
+  }, [contextMenuBlocks, workflowIdParam, handleRunUntilBlock])
+
+  const runFromBlockState = useMemo(() => {
+    if (contextMenuBlocks.length !== 1) {
+      return { canRun: false, reason: undefined }
+    }
+    const block = contextMenuBlocks[0]
+    const snapshot = getLastExecutionSnapshot(workflowIdParam)
+    const incomingEdges = edges.filter((edge) => edge.target === block.id)
+    const isTriggerBlock = incomingEdges.length === 0
+
+    // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
+    const isSourceSatisfied = (sourceId: string) => {
+      if (snapshot?.executedBlocks.includes(sourceId)) return true
+      // Check if source is a trigger (has no incoming edges itself)
+      const sourceIncomingEdges = edges.filter((edge) => edge.target === sourceId)
+      return sourceIncomingEdges.length === 0
+    }
+
+    // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
+    const dependenciesSatisfied =
+      isTriggerBlock || (snapshot && incomingEdges.every((edge) => isSourceSatisfied(edge.source)))
+    const isNoteBlock = block.type === 'note'
+    const isInsideSubflow =
+      block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
+
+    if (isInsideSubflow) return { canRun: false, reason: 'Cannot run from inside subflow' }
+    if (!dependenciesSatisfied) return { canRun: false, reason: 'Run upstream blocks first' }
+    if (isNoteBlock) return { canRun: false, reason: undefined }
+    if (isExecuting) return { canRun: false, reason: undefined }
+
+    return { canRun: true, reason: undefined }
+  }, [contextMenuBlocks, edges, workflowIdParam, getLastExecutionSnapshot, isExecuting])
 
   const handleContextAddBlock = useCallback(() => {
     useSearchModalStore.getState().open()
@@ -3446,11 +3496,19 @@ const WorkflowContent = React.memo(() => {
               onRemoveFromSubflow={handleContextRemoveFromSubflow}
               onOpenEditor={handleContextOpenEditor}
               onRename={handleContextRename}
+              onRunFromBlock={handleContextRunFromBlock}
+              onRunUntilBlock={handleContextRunUntilBlock}
               hasClipboard={hasClipboard()}
               showRemoveFromSubflow={contextMenuBlocks.some(
                 (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
               )}
+              canRunFromBlock={runFromBlockState.canRun}
               disableEdit={!effectivePermissions.canEdit}
+              isExecuting={isExecuting}
+              isPositionalTrigger={
+                contextMenuBlocks.length === 1 &&
+                edges.filter((e) => e.target === contextMenuBlocks[0]?.id).length === 0
+              }
             />
 
             <CanvasMenu

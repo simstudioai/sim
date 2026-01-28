@@ -1,6 +1,7 @@
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
+import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 export interface UserFile {
@@ -250,6 +251,17 @@ export interface ExecutionContext {
    * will not have their base64 content fetched.
    */
   base64MaxBytes?: number
+
+  /**
+   * Context for "run from block" mode. When present, only blocks in dirtySet
+   * will be executed; others return cached outputs from the source snapshot.
+   */
+  runFromBlockContext?: RunFromBlockContext
+
+  /**
+   * Stop execution after this block completes. Used for "run until block" feature.
+   */
+  stopAfterBlockId?: string
 }
 
 export interface ExecutionResult {

@@ -31,7 +31,18 @@ export class NodeExecutionOrchestrator {
       throw new Error(`Node not found in DAG: ${nodeId}`)
     }
 
-    if (this.state.hasExecuted(nodeId)) {
+    if (ctx.runFromBlockContext && !ctx.runFromBlockContext.dirtySet.has(nodeId)) {
+      const cachedOutput = this.state.getBlockOutput(nodeId) || {}
+      logger.debug('Skipping non-dirty block in run-from-block mode', { nodeId })
+      return {
+        nodeId,
+        output: cachedOutput,
+        isFinalOutput: false,
+      }
+    }
+
+    const isDirtyBlock = ctx.runFromBlockContext?.dirtySet.has(nodeId) ?? false
+    if (!isDirtyBlock && this.state.hasExecuted(nodeId)) {
       const output = this.state.getBlockOutput(nodeId) || {}
       return {
         nodeId,

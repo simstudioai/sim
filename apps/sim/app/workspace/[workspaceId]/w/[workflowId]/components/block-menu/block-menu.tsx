@@ -40,9 +40,16 @@ export interface BlockMenuProps {
   onRemoveFromSubflow: () => void
   onOpenEditor: () => void
   onRename: () => void
+  onRunFromBlock?: () => void
+  onRunUntilBlock?: () => void
   hasClipboard?: boolean
   showRemoveFromSubflow?: boolean
+  /** Whether run from block is available (has snapshot, was executed, not inside subflow) */
+  canRunFromBlock?: boolean
   disableEdit?: boolean
+  isExecuting?: boolean
+  /** Whether the selected block is a trigger (has no incoming edges) */
+  isPositionalTrigger?: boolean
 }
 
 /**
@@ -65,9 +72,14 @@ export function BlockMenu({
   onRemoveFromSubflow,
   onOpenEditor,
   onRename,
+  onRunFromBlock,
+  onRunUntilBlock,
   hasClipboard = false,
   showRemoveFromSubflow = false,
+  canRunFromBlock = false,
   disableEdit = false,
+  isExecuting = false,
+  isPositionalTrigger = false,
 }: BlockMenuProps) {
   const isSingleBlock = selectedBlocks.length === 1
 
@@ -78,10 +90,15 @@ export function BlockMenu({
     (b) =>
       TriggerUtils.requiresSingleInstance(b.type) || TriggerUtils.isSingleInstanceBlockType(b.type)
   )
-  const hasTriggerBlock = selectedBlocks.some((b) => TriggerUtils.isTriggerBlock(b))
+  // A block is a trigger if it's explicitly a trigger type OR has no incoming edges (positional trigger)
+  const hasTriggerBlock =
+    selectedBlocks.some((b) => TriggerUtils.isTriggerBlock(b)) || isPositionalTrigger
   const allNoteBlocks = selectedBlocks.every((b) => b.type === 'note')
   const isSubflow =
     isSingleBlock && (selectedBlocks[0]?.type === 'loop' || selectedBlocks[0]?.type === 'parallel')
+  const isInsideSubflow =
+    isSingleBlock &&
+    (selectedBlocks[0]?.parentType === 'loop' || selectedBlocks[0]?.parentType === 'parallel')
 
   const canRemoveFromSubflow = showRemoveFromSubflow && !hasTriggerBlock
 
@@ -201,6 +218,38 @@ export function BlockMenu({
           >
             Open Editor
           </PopoverItem>
+        )}
+
+        {/* Run from/until block - only for single non-note block, not inside subflows */}
+        {isSingleBlock && !allNoteBlocks && !isInsideSubflow && (
+          <>
+            <PopoverDivider />
+            <PopoverItem
+              disabled={!canRunFromBlock || isExecuting}
+              onClick={() => {
+                if (canRunFromBlock && !isExecuting) {
+                  onRunFromBlock?.()
+                  onClose()
+                }
+              }}
+            >
+              Run from block
+            </PopoverItem>
+            {/* Hide "Run until" for triggers - they're always at the start */}
+            {!hasTriggerBlock && (
+              <PopoverItem
+                disabled={isExecuting}
+                onClick={() => {
+                  if (!isExecuting) {
+                    onRunUntilBlock?.()
+                    onClose()
+                  }
+                }}
+              >
+                Run until block
+              </PopoverItem>
+            )}
+          </>
         )}
 
         {/* Destructive action */}
