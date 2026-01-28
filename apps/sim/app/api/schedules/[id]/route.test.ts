@@ -344,7 +344,7 @@ describe('Schedule PUT API (Reactivate)', () => {
       expect(nextRunAt).toBeGreaterThan(beforeCall)
       expect(nextRunAt).toBeLessThanOrEqual(afterCall + 5 * 60 * 1000 + 1000)
       // Should align with 5-minute intervals (minute divisible by 5)
-      expect(new Date(nextRunAt).getMinutes() % 5).toBe(0)
+      expect(new Date(nextRunAt).getUTCMinutes() % 5).toBe(0)
     })
 
     it('calculates nextRunAt from daily cron expression', async () => {
@@ -572,7 +572,7 @@ describe('Schedule PUT API (Reactivate)', () => {
       expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
       expect(nextRunAt.getTime()).toBeLessThanOrEqual(beforeCall + 10 * 60 * 1000 + 1000)
       // Should align with 10-minute intervals
-      expect(nextRunAt.getMinutes() % 10).toBe(0)
+      expect(nextRunAt.getUTCMinutes() % 10).toBe(0)
     })
 
     it('handles hourly schedules with timezone correctly', async () => {
@@ -598,8 +598,8 @@ describe('Schedule PUT API (Reactivate)', () => {
 
       // Should be a future date at minute 15
       expect(nextRunAt.getTime()).toBeGreaterThan(beforeCall)
-      expect(nextRunAt.getMinutes()).toBe(15)
-      expect(nextRunAt.getSeconds()).toBe(0)
+      expect(nextRunAt.getUTCMinutes()).toBe(15)
+      expect(nextRunAt.getUTCSeconds()).toBe(0)
     })
 
     it('handles custom cron expressions with complex patterns and timezone', async () => {
