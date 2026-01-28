@@ -4,7 +4,14 @@
  */
 
 import type { Edge } from 'reactflow'
-import type { Loop, Parallel, Variable } from '@/stores/workflows/workflow/types'
+import type {
+  BlockState,
+  Loop,
+  Parallel,
+  Variable,
+  WorkflowState,
+} from '@/stores/workflows/workflow/types'
+import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 /**
  * Normalizes a value for consistent comparison by sorting object keys recursively
@@ -219,4 +226,156 @@ export function sortEdges(
       `${b.source}-${b.sourceHandle}-${b.target}-${b.targetHandle}`
     )
   )
+}
+
+/** Block with optional diff markers added by copilot */
+type BlockWithDiffMarkers = BlockState & {
+  is_diff?: string
+  field_diffs?: Record<string, unknown>
+}
+
+/** SubBlock with optional diff marker */
+type SubBlockWithDiffMarker = {
+  id: string
+  type: string
+  value: unknown
+  is_diff?: string
+}
+
+/** Normalized block structure for comparison */
+interface NormalizedBlock {
+  [key: string]: unknown
+  data: Record<string, unknown>
+  subBlocks: Record<string, NormalizedSubBlock>
+}
+
+/** Normalized subBlock structure */
+interface NormalizedSubBlock {
+  [key: string]: unknown
+  value: unknown
+}
+
+/** Normalized workflow state structure */
+export interface NormalizedWorkflowState {
+  blocks: Record<string, NormalizedBlock>
+  edges: Array<{
+    source: string
+    sourceHandle?: string | null
+    target: string
+    targetHandle?: string | null
+  }>
+  loops: Record<string, unknown>
+  parallels: Record<string, unknown>
+  variables: unknown
+}
+
+/**
+ * Normalizes a workflow state for comparison or hashing.
+ * Excludes non-functional fields (position, layout, height, outputs, diff markers)
+ * and system/trigger runtime subBlocks.
+ *
+ * @param state - The workflow state to normalize
+ * @returns A normalized workflow state suitable for comparison or hashing
+ */
+export function normalizeWorkflowState(state: WorkflowState): NormalizedWorkflowState {
+  // 1. Normalize and sort edges (connection-relevant fields only)
+  const normalizedEdges = sortEdges((state.edges || []).map(normalizeEdge))
+
+  // 2. Normalize blocks
+  const normalizedBlocks: Record<string, NormalizedBlock> = {}
+
+  for (const [blockId, block] of Object.entries(state.blocks || {})) {
+    const blockWithDiff = block as BlockWithDiffMarkers
+
+    // Exclude non-functional fields:
+    // - position: visual positioning only
+    // - layout: contains measuredWidth/measuredHeight from autolayout
+    // - height: block height measurement from autolayout
+    // - outputs: derived from subBlocks, already compared via subBlocks
+    // - is_diff, field_diffs: diff markers from copilot edits
+    // - subBlocks: handled separately
+    const {
+      position: _position,
+      subBlocks: blockSubBlocks = {},
+      layout: _layout,
+      height: _height,
+      outputs: _outputs,
+      is_diff: _isDiff,
+      field_diffs: _fieldDiffs,
+      ...blockRest
+    } = blockWithDiff
+
+    // Exclude from data object:
+    // - width/height: container dimensions from autolayout
+    // - nodes: subflow node membership (derived/runtime for parallel/loop blocks)
+    // - distribution: parallel distribution (derived/runtime)
+    const {
+      width: _dataWidth,
+      height: _dataHeight,
+      nodes: _dataNodes,
+      distribution: _dataDistribution,
+      ...dataRest
+    } = (blockRest.data || {}) as Record<string, unknown>
+
+    // Filter and normalize subBlocks (exclude system/trigger runtime subBlocks)
+    const normalizedSubBlocks: Record<string, NormalizedSubBlock> = {}
+    const subBlockIds = Object.keys(blockSubBlocks)
+      .filter(
+        (id) => !SYSTEM_SUBBLOCK_IDS.includes(id) && !TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(id)
+      )
+      .sort()
+
+    for (const subBlockId of subBlockIds) {
+      const subBlock = blockSubBlocks[subBlockId] as SubBlockWithDiffMarker
+      let value: unknown = subBlock.value ?? null
+
+      // Sanitize UI-only fields from tools and inputFormat
+      if (subBlockId === 'tools' && Array.isArray(value)) {
+        value = sanitizeTools(value)
+      }
+      if (subBlockId === 'inputFormat' && Array.isArray(value)) {
+        value = sanitizeInputFormat(value)
+      }
+
+      // Exclude diff markers from subBlock
+      const { value: _v, is_diff: _sd, ...subBlockRest } = subBlock
+
+      normalizedSubBlocks[subBlockId] = {
+        ...subBlockRest,
+        value: normalizeValue(value),
+      }
+    }
+
+    normalizedBlocks[blockId] = {
+      ...blockRest,
+      data: dataRest,
+      subBlocks: normalizedSubBlocks,
+    }
+  }
+
+  // 3. Normalize loops using specialized normalizeLoop (extracts only type-relevant fields)
+  const normalizedLoops: Record<string, unknown> = {}
+  for (const [loopId, loop] of Object.entries(state.loops || {})) {
+    normalizedLoops[loopId] = normalizeValue(normalizeLoop(loop))
+  }
+
+  // 4. Normalize parallels using specialized normalizeParallel
+  const normalizedParallels: Record<string, unknown> = {}
+  for (const [parallelId, parallel] of Object.entries(state.parallels || {})) {
+    normalizedParallels[parallelId] = normalizeValue(normalizeParallel(parallel))
+  }
+
+  // 5. Normalize variables (remove UI-only validationError field)
+  const variables = normalizeVariables(state.variables)
+  const normalizedVariablesObj = normalizeValue(
+    Object.fromEntries(Object.entries(variables).map(([id, v]) => [id, sanitizeVariable(v)]))
+  )
+
+  return {
+    blocks: normalizedBlocks,
+    edges: normalizedEdges,
+    loops: normalizedLoops,
+    parallels: normalizedParallels,
+    variables: normalizedVariablesObj,
+  }
 }
