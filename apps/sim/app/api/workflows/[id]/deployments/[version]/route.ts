@@ -136,7 +136,7 @@ export async function PATCH(
     return createSuccessResponse({ name: updated.name, description: updated.description })
   } catch (error: any) {
     logger.error(
-      `[${requestId}] Error renaming deployment version ${version} for workflow ${id}`,
+      `[${requestId}] Error updating deployment version ${version} for workflow ${id}`,
       error
     )
     return createErrorResponse(error.message || 'Failed to update deployment version', 500)

@@ -349,6 +349,69 @@ export function useUndeployWorkflow() {
 }
 
 /**
+ * Variables for update deployment version mutation
+ */
+interface UpdateDeploymentVersionVariables {
+  workflowId: string
+  version: number
+  name?: string
+  description?: string | null
+}
+
+/**
+ * Response from update deployment version mutation
+ */
+interface UpdateDeploymentVersionResult {
+  name: string | null
+  description: string | null
+}
+
+/**
+ * Mutation hook for updating a deployment version's name or description.
+ * Invalidates versions query on success.
+ */
+export function useUpdateDeploymentVersion() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      version,
+      name,
+      description,
+    }: UpdateDeploymentVersionVariables): Promise<UpdateDeploymentVersionResult> => {
+      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, description }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update deployment version')
+      }
+
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      logger.info('Deployment version updated', {
+        workflowId: variables.workflowId,
+        version: variables.version,
+      })
+
+      queryClient.invalidateQueries({
+        queryKey: deploymentKeys.versions(variables.workflowId),
+      })
+    },
+    onError: (error) => {
+      logger.error('Failed to update deployment version', { error })
+    },
+  })
+}
+
+/**
  * Variables for activate version mutation
  */
 interface ActivateVersionVariables {

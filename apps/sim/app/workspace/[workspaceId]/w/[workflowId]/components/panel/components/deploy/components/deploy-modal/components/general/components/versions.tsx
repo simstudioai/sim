@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import {
@@ -15,16 +14,13 @@ import {
 import { Skeleton } from '@/components/ui'
 import { formatDateTime } from '@/lib/core/utils/formatting'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'
 
-const logger = createLogger('Versions')
-
-/** Shared styling constants aligned with terminal component */
 const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-[12px]'
 const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-[12px]'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
-/** Column width configuration */
 const COLUMN_WIDTHS = {
   VERSION: 'w-[180px]',
   DEPLOYED_BY: 'w-[140px]',
@@ -40,20 +36,6 @@ interface VersionsProps {
   onSelectVersion: (version: number | null) => void
   onPromoteToLive: (version: number) => void
   onLoadDeployment: (version: number) => void
-  fetchVersions: () => Promise<void>
-}
-
-/**
- * Formats a timestamp into a readable string.
- * @param value - The date string or Date object to format
- * @returns Formatted string like "Jan 28, 2026, 10:43 AM"
- */
-const formatTimestamp = (value: string | Date): string => {
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return '-'
-  }
-  return formatDateTime(date)
 }
 
 /**
@@ -68,14 +50,14 @@ export function Versions({
   onSelectVersion,
   onPromoteToLive,
   onLoadDeployment,
-  fetchVersions,
 }: VersionsProps) {
   const [editingVersion, setEditingVersion] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
-  const [isRenaming, setIsRenaming] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
   const [descriptionModalVersion, setDescriptionModalVersion] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const renameMutation = useUpdateDeploymentVersion()
 
   useEffect(() => {
     if (editingVersion !== null && inputRef.current) {
@@ -90,7 +72,7 @@ export function Versions({
     setEditValue(currentName || `v${version}`)
   }
 
-  const handleSaveRename = async (version: number) => {
+  const handleSaveRename = (version: number) => {
     if (!workflowId || !editValue.trim()) {
       setEditingVersion(null)
       return
@@ -104,25 +86,21 @@ export function Versions({
       return
     }
 
-    setIsRenaming(true)
-    try {
-      const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editValue.trim() }),
-      })
-
-      if (res.ok) {
-        await fetchVersions()
-        setEditingVersion(null)
-      } else {
-        logger.error('Failed to rename version')
+    renameMutation.mutate(
+      {
+        workflowId,
+        version,
+        name: editValue.trim(),
+      },
+      {
+        onSuccess: () => {
+          setEditingVersion(null)
+        },
+        onError: () => {
+          // Keep editing state open on error so user can retry
+        },
       }
-    } catch (error) {
-      logger.error('Error renaming version:', error)
-    } finally {
-      setIsRenaming(false)
-    }
+    )
   }
 
   const handleCancelRename = () => {
@@ -270,7 +248,7 @@ export function Versions({
                         'text-[var(--text-primary)] focus:outline-none focus:ring-0'
                       )}
                       maxLength={100}
-                      disabled={isRenaming}
+                      disabled={renameMutation.isPending}
                       autoComplete='off'
                       autoCorrect='off'
                       autoCapitalize='off'
@@ -302,7 +280,7 @@ export function Versions({
                 <span
                   className={clsx('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}
                 >
-                  {formatTimestamp(v.createdAt)}
+                  {formatDateTime(new Date(v.createdAt))}
                 </span>
               </div>
 
@@ -374,6 +352,7 @@ export function Versions({
 
       {workflowId && descriptionModalVersionData && (
         <VersionDescriptionModal
+          key={descriptionModalVersionData.version}
           open={descriptionModalVersion !== null}
           onOpenChange={(open) => !open && setDescriptionModalVersion(null)}
           workflowId={workflowId}
@@ -382,7 +361,6 @@ export function Versions({
             descriptionModalVersionData.name || `v${descriptionModalVersionData.version}`
           }
           currentDescription={descriptionModalVersionData.description}
-          onSave={fetchVersions}
         />
       )}
     </div>

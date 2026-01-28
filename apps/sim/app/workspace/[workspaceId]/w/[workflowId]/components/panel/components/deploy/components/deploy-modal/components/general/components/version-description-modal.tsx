@@ -1,7 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
+import { useCallback, useState } from 'react'
 import {
   Button,
   Modal,
@@ -11,8 +10,7 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
-
-const logger = createLogger('VersionDescriptionModal')
+import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 
 interface VersionDescriptionModalProps {
   open: boolean
@@ -21,7 +19,6 @@ interface VersionDescriptionModalProps {
   version: number
   versionName: string
   currentDescription: string | null | undefined
-  onSave: () => Promise<void>
 }
 
 export function VersionDescriptionModal({
@@ -31,69 +28,46 @@ export function VersionDescriptionModal({
   version,
   versionName,
   currentDescription,
-  onSave,
 }: VersionDescriptionModalProps) {
-  const [description, setDescription] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Initialize state from props - component remounts via key prop when version changes
+  const initialDescription = currentDescription || ''
+  const [description, setDescription] = useState(initialDescription)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
 
-  const initialDescriptionRef = useRef('')
+  const updateMutation = useUpdateDeploymentVersion()
 
-  useEffect(() => {
-    if (open) {
-      const initialDescription = currentDescription || ''
-      setDescription(initialDescription)
-      initialDescriptionRef.current = initialDescription
-      setError(null)
-    }
-  }, [open, currentDescription])
-
-  const hasChanges = description.trim() !== initialDescriptionRef.current.trim()
+  const hasChanges = description.trim() !== initialDescription.trim()
 
   const handleCloseAttempt = useCallback(() => {
-    if (hasChanges && !isSaving) {
+    if (hasChanges && !updateMutation.isPending) {
       setShowUnsavedChangesAlert(true)
     } else {
       onOpenChange(false)
     }
-  }, [hasChanges, isSaving, onOpenChange])
+  }, [hasChanges, updateMutation.isPending, onOpenChange])
 
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
-    setDescription(initialDescriptionRef.current)
+    setDescription(initialDescription)
     onOpenChange(false)
-  }, [onOpenChange])
+  }, [initialDescription, onOpenChange])
 
   const handleSave = useCallback(async () => {
     if (!workflowId) return
 
-    setIsSaving(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: description.trim() || null }),
-      })
-
-      if (res.ok) {
-        await onSave()
-        onOpenChange(false)
-      } else {
-        const data = await res.json().catch(() => ({}))
-        const message = data.error || 'Failed to save description'
-        setError(message)
-        logger.error('Failed to save description:', message)
+    updateMutation.mutate(
+      {
+        workflowId,
+        version,
+        description: description.trim() || null,
+      },
+      {
+        onSuccess: () => {
+          onOpenChange(false)
+        },
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'An unexpected error occurred'
-      setError(message)
-      logger.error('Error saving description:', err)
-    } finally {
-      setIsSaving(false)
-    }
-  }, [workflowId, version, description, onSave, onOpenChange])
+    )
+  }, [workflowId, version, description, updateMutation, onOpenChange])
 
   return (
     <>
@@ -104,7 +78,7 @@ export function VersionDescriptionModal({
           </ModalHeader>
           <ModalBody className='space-y-[12px]'>
             <p className='text-[12px] text-[var(--text-secondary)]'>
-              {currentDescription ? 'Edit' : 'Add'} a description for{' '}
+              {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
               <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
             </p>
             <Textarea
@@ -115,16 +89,30 @@ export function VersionDescriptionModal({
               maxLength={500}
             />
             <div className='flex items-center justify-between'>
-              {error ? <p className='text-[12px] text-[var(--text-error)]'>{error}</p> : <div />}
+              {updateMutation.error ? (
+                <p className='text-[12px] text-[var(--text-error)]'>
+                  {updateMutation.error.message}
+                </p>
+              ) : (
+                <div />
+              )}
               <p className='text-[11px] text-[var(--text-tertiary)]'>{description.length}/500</p>
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button variant='default' onClick={handleCloseAttempt} disabled={isSaving}>
+            <Button
+              variant='default'
+              onClick={handleCloseAttempt}
+              disabled={updateMutation.isPending}
+            >
               Cancel
             </Button>
-            <Button variant='tertiary' onClick={handleSave} disabled={isSaving || !hasChanges}>
-              {isSaving ? 'Saving...' : 'Save'}
+            <Button
+              variant='tertiary'
+              onClick={handleSave}
+              disabled={updateMutation.isPending || !hasChanges}
+            >
+              {updateMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
           </ModalFooter>
         </ModalContent>
