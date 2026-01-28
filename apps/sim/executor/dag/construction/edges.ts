@@ -262,8 +262,6 @@ export class EdgeConstructor {
         continue
       }
 
-      // Only add LOOP_EXIT edge if target is outside the loop
-      // (target would be inside if it's in blocksInLoops for the same loop)
       if (loopSentinelStartId && !blocksInLoops.has(originalTarget)) {
         this.addEdge(dag, loopSentinelStartId, target, EDGE.LOOP_EXIT, targetHandle)
       }
