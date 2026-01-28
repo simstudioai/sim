@@ -39,8 +39,8 @@ interface WorkflowStackEntry {
 
 /**
  * Extracts child trace spans from a workflow block's execution data.
- * Checks both the `children` property (where trace span processing moves them)
- * and the legacy `output.childTraceSpans` for compatibility.
+ * Checks `children` property (where trace-spans processing puts them),
+ * with fallback to `output.childTraceSpans` for old stored logs.
  */
 function extractChildTraceSpans(blockExecution: BlockExecutionData | undefined): TraceSpan[] {
   if (!blockExecution) return []
@@ -49,6 +49,7 @@ function extractChildTraceSpans(blockExecution: BlockExecutionData | undefined):
     return blockExecution.children
   }
 
+  // Backward compat: old stored logs may have childTraceSpans in output
   if (blockExecution.output && typeof blockExecution.output === 'object') {
     const output = blockExecution.output as Record<string, unknown>
     if (Array.isArray(output.childTraceSpans)) {

@@ -118,7 +118,7 @@ describe('WorkflowBlockHandler', () => {
       }
 
       await expect(handler.execute(deepContext, mockBlock, inputs)).rejects.toThrow(
-        'Error in child workflow "child-workflow-id": Maximum workflow nesting depth of 10 exceeded'
+        '"child-workflow-id" failed: Maximum workflow nesting depth of 10 exceeded'
       )
     })
 
@@ -132,7 +132,7 @@ describe('WorkflowBlockHandler', () => {
       })
 
       await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-        'Error in child workflow "non-existent-workflow": Child workflow non-existent-workflow not found'
+        '"non-existent-workflow" failed: Child workflow non-existent-workflow not found'
       )
     })
 
@@ -142,7 +142,7 @@ describe('WorkflowBlockHandler', () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
       await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-        'Error in child workflow "child-workflow-id": Network error'
+        '"child-workflow-id" failed: Network error'
       )
     })
   })
@@ -212,7 +212,7 @@ describe('WorkflowBlockHandler', () => {
 
       expect(() =>
         (handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow', 100)
-      ).toThrow('Error in child workflow "Child Workflow": Child workflow failed')
+      ).toThrow('"Child Workflow" failed: Child workflow failed')
 
       try {
         ;(handler as any).mapChildOutputToParent(childResult, 'child-id', 'Child Workflow', 100)
