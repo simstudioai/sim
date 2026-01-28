@@ -1557,20 +1557,20 @@ Search for code across GitHub repositories. Use qualifiers like repo:owner/name,
 | `total_count` | number | Total matching results |
 | `incomplete_results` | boolean | Whether results are incomplete |
 | `items` | array | Array of code matches from GitHub API |
-|   ↳ `name` | string | Repository name |
+|   ↳ `name` | string | File name |
 |   ↳ `path` | string | File path |
 |   ↳ `sha` | string | Blob SHA |
 |   ↳ `url` | string | API URL |
 |   ↳ `git_url` | string | Git blob URL |
-|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `html_url` | string | GitHub web URL |
 |   ↳ `score` | number | Search relevance score |
 |   ↳ `repository` | object | Repository containing the code |
-|   ↳ `id` | number | User ID |
+|   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | GraphQL node ID |
 |   ↳ `name` | string | Repository name |
 |   ↳ `full_name` | string | Full name \(owner/repo\) |
 |   ↳ `private` | boolean | Whether repository is private |
-|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `html_url` | string | GitHub web URL |
 |   ↳ `description` | string | Repository description |
 |   ↳ `fork` | boolean | Whether this is a fork |
 |   ↳ `url` | string | API URL |
@@ -1581,29 +1581,6 @@ Search for code across GitHub repositories. Use qualifiers like repo:owner/name,
 |   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `login` | string | Username |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `id` | number | User ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `full_name` | string | Full name \(owner/repo\) |
-|   ↳ `private` | boolean | Whether repository is private |
-|   ↳ `description` | string | Repository description |
-|   ↳ `fork` | boolean | Whether this is a fork |
-|   ↳ `owner` | object | Repository owner |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `login` | string | Username |
-|   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 |   ↳ `text_matches` | array | Text matches showing context |
@@ -1612,17 +1589,6 @@ Search for code across GitHub repositories. Use qualifiers like repo:owner/name,
 |   ↳ `property` | string | Property matched |
 |   ↳ `fragment` | string | Text fragment with match |
 |   ↳ `matches` | array | Match indices |
-|   ↳ `text` | string | Matched text |
-|   ↳ `indices` | array | Start and end indices |
-|   ↳ `text` | string | Matched text |
-|   ↳ `indices` | array | Start and end indices |
-|   ↳ `object_url` | string | Object URL |
-|   ↳ `object_type` | string | Object type |
-|   ↳ `property` | string | Property matched |
-|   ↳ `fragment` | string | Text fragment with match |
-|   ↳ `matches` | array | Match indices |
-|   ↳ `text` | string | Matched text |
-|   ↳ `indices` | array | Start and end indices |
 |   ↳ `text` | string | Matched text |
 |   ↳ `indices` | array | Start and end indices |
 
@@ -1648,23 +1614,20 @@ Search for commits across GitHub. Use qualifiers like repo:owner/name, author:us
 | `total_count` | number | Total matching results |
 | `incomplete_results` | boolean | Whether results are incomplete |
 | `items` | array | Array of commit objects from GitHub API |
-|   ↳ `sha` | string | Parent SHA |
+|   ↳ `sha` | string | Commit SHA |
 |   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `html_url` | string | Parent web URL |
-|   ↳ `url` | string | Parent API URL |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `url` | string | API URL |
 |   ↳ `comments_url` | string | Comments API URL |
 |   ↳ `score` | number | Search relevance score |
 |   ↳ `commit` | object | Core commit data |
-|   ↳ `url` | string | Tree API URL |
+|   ↳ `url` | string | Commit API URL |
 |   ↳ `message` | string | Commit message |
 |   ↳ `comment_count` | number | Number of comments |
 |   ↳ `author` | object | Git author |
 |   ↳ `name` | string | Author name |
 |   ↳ `email` | string | Author email |
 |   ↳ `date` | string | Author date \(ISO 8601\) |
-|   ↳ `name` | string | Committer name |
-|   ↳ `email` | string | Committer email |
-|   ↳ `date` | string | Commit date \(ISO 8601\) |
 |   ↳ `committer` | object | Git committer |
 |   ↳ `name` | string | Committer name |
 |   ↳ `email` | string | Committer email |
@@ -1672,9 +1635,6 @@ Search for commits across GitHub. Use qualifiers like repo:owner/name, author:us
 |   ↳ `tree` | object | Tree object |
 |   ↳ `sha` | string | Tree SHA |
 |   ↳ `url` | string | Tree API URL |
-|   ↳ `sha` | string | Tree SHA |
-|   ↳ `message` | string | Commit message |
-|   ↳ `comment_count` | number | Number of comments |
 |   ↳ `author` | object | GitHub user \(author\) |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
@@ -1684,9 +1644,6 @@ Search for commits across GitHub. Use qualifiers like repo:owner/name, author:us
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `name` | string | Repository name |
-|   ↳ `email` | string | Committer email |
-|   ↳ `date` | string | Commit date \(ISO 8601\) |
 |   ↳ `committer` | object | GitHub user \(committer\) |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
@@ -1696,38 +1653,13 @@ Search for commits across GitHub. Use qualifiers like repo:owner/name, author:us
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `tree` | object | Tree object |
-|   ↳ `sha` | string | Tree SHA |
-|   ↳ `url` | string | Tree API URL |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
 |   ↳ `repository` | object | Repository containing the commit |
-|   ↳ `id` | number | User ID |
+|   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | GraphQL node ID |
 |   ↳ `name` | string | Repository name |
 |   ↳ `full_name` | string | Full name \(owner/repo\) |
 |   ↳ `private` | boolean | Whether repository is private |
-|   ↳ `html_url` | string | Profile page URL |
-|   ↳ `description` | string | Repository description |
-|   ↳ `owner` | object | Repository owner |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `login` | string | Username |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `full_name` | string | Full name \(owner/repo\) |
-|   ↳ `private` | boolean | Whether repository is private |
+|   ↳ `html_url` | string | GitHub web URL |
 |   ↳ `description` | string | Repository description |
 |   ↳ `owner` | object | Repository owner |
 |   ↳ `login` | string | Username |
@@ -1765,10 +1697,10 @@ Search for issues and pull requests across GitHub. Use qualifiers like repo:owne
 | `total_count` | number | Total matching results |
 | `incomplete_results` | boolean | Whether results are incomplete |
 | `items` | array | Array of issue/PR objects from GitHub API |
-|   ↳ `id` | number | Milestone ID |
+|   ↳ `id` | number | Issue ID |
 |   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `number` | number | Milestone number |
-|   ↳ `title` | string | Milestone title |
+|   ↳ `number` | number | Issue number |
+|   ↳ `title` | string | Title |
 |   ↳ `state` | string | State \(open or closed\) |
 |   ↳ `locked` | boolean | Whether issue is locked |
 |   ↳ `html_url` | string | Web URL |
@@ -1790,20 +1722,12 @@ Search for issues and pull requests across GitHub. Use qualifiers like repo:owne
 |   ↳ `html_url` | string | Profile page URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `login` | string | Username |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
 |   ↳ `labels` | array | Issue labels |
 |   ↳ `id` | number | Label ID |
 |   ↳ `node_id` | string | GraphQL node ID |
 |   ↳ `url` | string | API URL |
 |   ↳ `name` | string | Label name |
 |   ↳ `description` | string | Label description |
-|   ↳ `color` | string | Hex color code |
-|   ↳ `default` | boolean | Whether this is a default label |
-|   ↳ `name` | string | Label name |
-|   ↳ `description` | string | Milestone description |
 |   ↳ `color` | string | Hex color code |
 |   ↳ `default` | boolean | Whether this is a default label |
 |   ↳ `assignee` | object | Primary assignee |
@@ -1833,12 +1757,9 @@ Search for issues and pull requests across GitHub. Use qualifiers like repo:owne
 |   ↳ `state` | string | State \(open or closed\) |
 |   ↳ `html_url` | string | Web URL |
 |   ↳ `due_on` | string | Due date |
-|   ↳ `due_on` | string | Due date |
 |   ↳ `pull_request` | object | Pull request details \(if this is a PR\) |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Web URL |
-|   ↳ `diff_url` | string | Diff URL |
-|   ↳ `patch_url` | string | Patch URL |
 |   ↳ `diff_url` | string | Diff URL |
 |   ↳ `patch_url` | string | Patch URL |
 
@@ -1864,13 +1785,13 @@ Search for repositories across GitHub. Use qualifiers like language:python, star
 | `total_count` | number | Total matching results |
 | `incomplete_results` | boolean | Whether results are incomplete |
 | `items` | array | Array of repository objects from GitHub API |
-|   ↳ `id` | number | User ID |
+|   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `name` | string | License name |
+|   ↳ `name` | string | Repository name |
 |   ↳ `full_name` | string | Full name \(owner/repo\) |
 |   ↳ `private` | boolean | Whether repository is private |
 |   ↳ `description` | string | Repository description |
-|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `html_url` | string | GitHub web URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `fork` | boolean | Whether this is a fork |
 |   ↳ `created_at` | string | Creation timestamp |
@@ -1889,8 +1810,6 @@ Search for repositories across GitHub. Use qualifiers like language:python, star
 |   ↳ `key` | string | License key \(e.g., mit\) |
 |   ↳ `name` | string | License name |
 |   ↳ `spdx_id` | string | SPDX identifier |
-|   ↳ `key` | string | License key \(e.g., mit\) |
-|   ↳ `spdx_id` | string | SPDX identifier |
 |   ↳ `owner` | object | Repository owner |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
@@ -1898,10 +1817,6 @@ Search for repositories across GitHub. Use qualifiers like language:python, star
 |   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `login` | string | Username |
-|   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 
@@ -1969,22 +1884,19 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of commit objects from GitHub API |
-|   ↳ `sha` | string | Parent SHA |
+|   ↳ `sha` | string | Commit SHA |
 |   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `html_url` | string | Parent web URL |
-|   ↳ `url` | string | Parent API URL |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `url` | string | API URL |
 |   ↳ `comments_url` | string | Comments API URL |
 |   ↳ `commit` | object | Core commit data |
-|   ↳ `url` | string | Tree API URL |
+|   ↳ `url` | string | Commit API URL |
 |   ↳ `message` | string | Commit message |
 |   ↳ `comment_count` | number | Number of comments |
 |   ↳ `author` | object | Git author |
 |   ↳ `name` | string | Author name |
 |   ↳ `email` | string | Author email |
 |   ↳ `date` | string | Author date \(ISO 8601\) |
-|   ↳ `name` | string | Committer name |
-|   ↳ `email` | string | Committer email |
-|   ↳ `date` | string | Commit date \(ISO 8601\) |
 |   ↳ `committer` | object | Git committer |
 |   ↳ `name` | string | Committer name |
 |   ↳ `email` | string | Committer email |
@@ -1992,18 +1904,11 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 |   ↳ `tree` | object | Tree object |
 |   ↳ `sha` | string | Tree SHA |
 |   ↳ `url` | string | Tree API URL |
-|   ↳ `sha` | string | Tree SHA |
 |   ↳ `verification` | object | Signature verification |
 |   ↳ `verified` | boolean | Whether signature is verified |
 |   ↳ `reason` | string | Verification reason |
 |   ↳ `signature` | string | GPG signature |
 |   ↳ `payload` | string | Signed payload |
-|   ↳ `verified` | boolean | Whether signature is verified |
-|   ↳ `reason` | string | Verification reason |
-|   ↳ `signature` | string | GPG signature |
-|   ↳ `payload` | string | Signed payload |
-|   ↳ `message` | string | Commit message |
-|   ↳ `comment_count` | number | Number of comments |
 |   ↳ `author` | object | GitHub user \(author\) |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
@@ -2013,9 +1918,6 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `name` | string | Committer name |
-|   ↳ `email` | string | Committer email |
-|   ↳ `date` | string | Commit date \(ISO 8601\) |
 |   ↳ `committer` | object | GitHub user \(committer\) |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
@@ -2023,23 +1925,6 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 |   ↳ `avatar_url` | string | Avatar URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Profile URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `tree` | object | Tree object |
-|   ↳ `sha` | string | Tree SHA |
-|   ↳ `url` | string | Tree API URL |
-|   ↳ `verification` | object | Signature verification |
-|   ↳ `verified` | boolean | Whether signature is verified |
-|   ↳ `reason` | string | Verification reason |
-|   ↳ `signature` | string | GPG signature |
-|   ↳ `payload` | string | Signed payload |
-|   ↳ `verified` | boolean | Whether signature is verified |
-|   ↳ `reason` | string | Verification reason |
-|   ↳ `signature` | string | GPG signature |
-|   ↳ `payload` | string | Signed payload |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
-|   ↳ `avatar_url` | string | Avatar URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 |   ↳ `parents` | array | Parent commits |
@@ -2071,16 +1956,13 @@ Get detailed information about a specific commit including files changed and sta
 | `url` | string | API URL |
 | `comments_url` | string | Comments API URL |
 | `commit` | object | Core commit data |
-| ↳ `url` | string | Tree API URL |
+| ↳ `url` | string | Commit API URL |
 | ↳ `message` | string | Commit message |
 | ↳ `comment_count` | number | Number of comments |
 | ↳ `author` | object | Git author |
 |   ↳ `name` | string | Author name |
 |   ↳ `email` | string | Author email |
 |   ↳ `date` | string | Author date \(ISO 8601\) |
-| ↳ `name` | string | Committer name |
-| ↳ `email` | string | Committer email |
-| ↳ `date` | string | Commit date \(ISO 8601\) |
 | ↳ `committer` | object | Git committer |
 |   ↳ `name` | string | Committer name |
 |   ↳ `email` | string | Committer email |
@@ -2088,16 +1970,11 @@ Get detailed information about a specific commit including files changed and sta
 | ↳ `tree` | object | Tree object |
 |   ↳ `sha` | string | Tree SHA |
 |   ↳ `url` | string | Tree API URL |
-| ↳ `sha` | string | Tree SHA |
 | ↳ `verification` | object | Signature verification |
 |   ↳ `verified` | boolean | Whether signature is verified |
 |   ↳ `reason` | string | Verification reason |
 |   ↳ `signature` | string | GPG signature |
 |   ↳ `payload` | string | Signed payload |
-| ↳ `verified` | boolean | Whether signature is verified |
-| ↳ `reason` | string | Verification reason |
-| ↳ `signature` | string | GPG signature |
-| ↳ `payload` | string | Signed payload |
 | `author` | object | GitHub user \(author\) |
 | ↳ `login` | string | Username |
 | ↳ `id` | number | User ID |
@@ -2167,7 +2044,6 @@ Compare two commits or branches to see the diff, commits between them, and chang
 |   ↳ `message` | string | Commit message |
 |   ↳ `author` | object | Git author \(name, email, date\) |
 |   ↳ `committer` | object | Git committer \(name, email, date\) |
-| ↳ `message` | string | Commit message |
 | ↳ `author` | object | GitHub user \(author\) |
 | ↳ `committer` | object | GitHub user \(committer\) |
 | `merge_base_commit` | object | Merge base commit object |
@@ -2180,7 +2056,6 @@ Compare two commits or branches to see the diff, commits between them, and chang
 |   ↳ `message` | string | Commit message |
 |   ↳ `author` | object | Git author \(name, email, date\) |
 |   ↳ `committer` | object | Git committer \(name, email, date\) |
-|   ↳ `message` | string | Commit message |
 |   ↳ `author` | object | GitHub user |
 |   ↳ `committer` | object | GitHub user |
 | `files` | array | Changed files \(diff entries\) |
@@ -2271,13 +2146,6 @@ Get a gist by ID including its file contents
 | `comments_url` | string | Comments API URL |
 | `truncated` | boolean | Whether content is truncated |
 | `files` | object | Files in the gist \(keyed by filename\) |
-| ↳ `filename` | string | File name |
-| ↳ `type` | string | MIME type |
-| ↳ `language` | string | Programming language |
-| ↳ `raw_url` | string | Raw file URL |
-| ↳ `size` | number | File size in bytes |
-| ↳ `truncated` | boolean | Whether content is truncated |
-| ↳ `content` | string | File content |
 | `owner` | object | Gist owner |
 | ↳ `login` | string | Username |
 | ↳ `id` | number | User ID |
@@ -2307,10 +2175,10 @@ List gists for a user or the authenticated user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of gist objects from GitHub API |
-|   ↳ `id` | number | User ID |
+|   ↳ `id` | string | Gist ID |
 |   ↳ `node_id` | string | GraphQL node ID |
 |   ↳ `url` | string | API URL |
-|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `html_url` | string | Web URL |
 |   ↳ `forks_url` | string | Forks API URL |
 |   ↳ `commits_url` | string | Commits API URL |
 |   ↳ `git_pull_url` | string | Git pull URL |
@@ -2330,10 +2198,6 @@ List gists for a user or the authenticated user
 |   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `login` | string | Username |
-|   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 | `count` | number | Number of gists returned |
@@ -2503,14 +2367,13 @@ Fork a repository to your account or an organization
 | ↳ `type` | string | User or Organization |
 | ↳ `site_admin` | boolean | GitHub staff indicator |
 | `parent` | object | Parent repository \(source of the fork\) |
-| ↳ `id` | number | User ID |
+| ↳ `id` | number | Repository ID |
 | ↳ `full_name` | string | Full name |
 | ↳ `html_url` | string | Web URL |
 | ↳ `description` | string | Description |
 | ↳ `owner` | object | Parent owner |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
-| ↳ `login` | string | Username |
 | `source` | object | Source repository \(ultimate origin\) |
 | ↳ `id` | number | Repository ID |
 | ↳ `full_name` | string | Full name |
@@ -2536,13 +2399,13 @@ List forks of a repository
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of fork repository objects from GitHub API |
-|   ↳ `id` | number | User ID |
+|   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | GraphQL node ID |
 |   ↳ `name` | string | Repository name |
 |   ↳ `full_name` | string | Full name \(owner/repo\) |
 |   ↳ `private` | boolean | Whether repository is private |
 |   ↳ `description` | string | Repository description |
-|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `html_url` | string | GitHub web URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `fork` | boolean | Whether this is a fork |
 |   ↳ `created_at` | string | Creation timestamp |
@@ -2565,10 +2428,6 @@ List forks of a repository
 |   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `login` | string | Username |
-|   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 | `count` | number | Number of forks returned |
@@ -2667,14 +2526,14 @@ List milestones in a repository
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of milestone objects from GitHub API |
-|   ↳ `id` | number | User ID |
+|   ↳ `id` | number | Milestone ID |
 |   ↳ `node_id` | string | GraphQL node ID |
 |   ↳ `number` | number | Milestone number |
 |   ↳ `title` | string | Milestone title |
 |   ↳ `description` | string | Milestone description |
 |   ↳ `state` | string | State \(open or closed\) |
 |   ↳ `url` | string | API URL |
-|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `html_url` | string | GitHub web URL |
 |   ↳ `labels_url` | string | Labels API URL |
 |   ↳ `due_on` | string | Due date \(ISO 8601\) |
 |   ↳ `open_issues` | number | Number of open issues |
@@ -2689,10 +2548,6 @@ List milestones in a repository
 |   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `login` | string | Username |
-|   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 | `count` | number | Number of milestones returned |
