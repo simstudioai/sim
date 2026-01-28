@@ -39,11 +39,9 @@ export const useSearchModalStore = create<SearchModalState>((set, get) => ({
   initializeData: (filterBlocks) => {
     if (get().data.isInitialized) return
 
-    // Cache getAllBlocks result to avoid redundant calls
     const allBlocks = getAllBlocks()
     const filteredAllBlocks = filterBlocks(allBlocks) as typeof allBlocks
 
-    // Process blocks, tools, triggers, and docs in a single pass
     const regularBlocks: SearchBlockItem[] = []
     const tools: SearchBlockItem[] = []
     const docs: SearchDocItem[] = []
@@ -97,7 +95,6 @@ export const useSearchModalStore = create<SearchModalState>((set, get) => ({
 
     const blocks = [...regularBlocks, ...(filterBlocks(specialBlocks) as SearchBlockItem[])]
 
-    // getTriggersForSidebar filters from allBlocks internally, pass allBlocks to avoid re-fetch
     const allTriggers = getTriggersForSidebar()
     const filteredTriggers = filterBlocks(allTriggers) as typeof allTriggers
     const priorityOrder = ['Start', 'Schedule', 'Webhook']
