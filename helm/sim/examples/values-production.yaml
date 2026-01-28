@@ -1,9 +1,14 @@
 # Production values for Sim
 # This configuration is suitable for production deployments
+#
+# IMPORTANT: For database volumes, use a StorageClass with reclaimPolicy: Retain
+# to protect data from accidental deletion. The default "Delete" policy will
+# destroy the underlying disk when a PVC is deleted (including via namespace deletion).
 
 # Global configuration
 global:
   imageRegistry: "ghcr.io"
+  # Use a StorageClass with reclaimPolicy: Retain for production database workloads
   storageClass: "managed-csi-premium"
 
 # Main application

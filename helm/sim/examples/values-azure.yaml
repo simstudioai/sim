@@ -6,6 +6,22 @@ global:
   imageRegistry: "ghcr.io"
   # Use "managed-csi-premium" for Premium SSD (requires Premium storage-capable VMs like Standard_DS*)
   # Use "managed-csi" for Standard SSD (works with all VM types)
+  #
+  # IMPORTANT: For production database workloads, create a StorageClass with reclaimPolicy: Retain
+  # to protect volumes from accidental deletion (e.g., kubectl delete namespace):
+  #
+  #   apiVersion: storage.k8s.io/v1
+  #   kind: StorageClass
+  #   metadata:
+  #     name: managed-csi-premium-retain
+  #   provisioner: disk.csi.azure.com
+  #   parameters:
+  #     skuname: Premium_LRS
+  #   reclaimPolicy: Retain
+  #   volumeBindingMode: WaitForFirstConsumer
+  #   allowVolumeExpansion: true
+  #
+  # Then use: storageClass: "managed-csi-premium-retain"
   storageClass: "managed-csi"
 
 # Main application
@@ -113,9 +129,10 @@ postgresql:
       cpu: "500m"
   
   # Persistent storage using Azure Managed Disk
+  # For production, use a StorageClass with reclaimPolicy: Retain (see global.storageClass comment)
   persistence:
     enabled: true
-    storageClass: "managed-csi"
+    storageClass: "managed-csi-premium-retain"
     size: 10Gi
   
   # SSL/TLS configuration (requires cert-manager to be installed)
