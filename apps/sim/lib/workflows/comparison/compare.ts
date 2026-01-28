@@ -10,7 +10,6 @@ import {
   sanitizeInputFormat,
   sanitizeTools,
   sanitizeVariable,
-  sortEdges,
 } from './normalize'
 
 /** Block with optional diff markers added by copilot */
@@ -28,252 +27,14 @@ type SubBlockWithDiffMarker = {
 }
 
 /**
- * Compare the current workflow state with the deployed state to detect meaningful changes
- * @param currentState - The current workflow state
- * @param deployedState - The deployed workflow state
- * @returns True if there are meaningful changes, false if only position changes or no changes
+ * Compare the current workflow state with the deployed state to detect meaningful changes.
+ * Uses generateWorkflowDiffSummary internally to ensure consistent change detection.
  */
 export function hasWorkflowChanged(
   currentState: WorkflowState,
   deployedState: WorkflowState | null
 ): boolean {
-  // If no deployed state exists, then the workflow has changed
-  if (!deployedState) return true
-
-  // 1. Compare edges (connections between blocks)
-  const currentEdges = currentState.edges || []
-  const deployedEdges = deployedState.edges || []
-
-  const normalizedCurrentEdges = sortEdges(currentEdges.map(normalizeEdge))
-  const normalizedDeployedEdges = sortEdges(deployedEdges.map(normalizeEdge))
-
-  if (
-    normalizedStringify(normalizedCurrentEdges) !== normalizedStringify(normalizedDeployedEdges)
-  ) {
-    return true
-  }
-
-  // 2. Compare blocks and their configurations
-  const currentBlockIds = Object.keys(currentState.blocks || {}).sort()
-  const deployedBlockIds = Object.keys(deployedState.blocks || {}).sort()
-
-  if (
-    currentBlockIds.length !== deployedBlockIds.length ||
-    normalizedStringify(currentBlockIds) !== normalizedStringify(deployedBlockIds)
-  ) {
-    return true
-  }
-
-  // 3. Build normalized representations of blocks for comparison
-  const normalizedCurrentBlocks: Record<string, unknown> = {}
-  const normalizedDeployedBlocks: Record<string, unknown> = {}
-
-  for (const blockId of currentBlockIds) {
-    const currentBlock = currentState.blocks[blockId]
-    const deployedBlock = deployedState.blocks[blockId]
-
-    // Destructure and exclude non-functional fields:
-    // - position: visual positioning only
-    // - subBlocks: handled separately below
-    // - layout: contains measuredWidth/measuredHeight from autolayout
-    // - height: block height measurement from autolayout
-    // - outputs: derived from subBlocks (e.g., inputFormat), already compared via subBlocks
-    // - is_diff, field_diffs: diff markers from copilot edits
-    const currentBlockWithDiff = currentBlock as BlockWithDiffMarkers
-    const deployedBlockWithDiff = deployedBlock as BlockWithDiffMarkers
-
-    const {
-      position: _currentPos,
-      subBlocks: currentSubBlocks = {},
-      layout: _currentLayout,
-      height: _currentHeight,
-      outputs: _currentOutputs,
-      is_diff: _currentIsDiff,
-      field_diffs: _currentFieldDiffs,
-      ...currentRest
-    } = currentBlockWithDiff
-
-    const {
-      position: _deployedPos,
-      subBlocks: deployedSubBlocks = {},
-      layout: _deployedLayout,
-      height: _deployedHeight,
-      outputs: _deployedOutputs,
-      is_diff: _deployedIsDiff,
-      field_diffs: _deployedFieldDiffs,
-      ...deployedRest
-    } = deployedBlockWithDiff
-
-    // Also exclude width/height from data object (container dimensions from autolayout)
-    const {
-      width: _currentDataWidth,
-      height: _currentDataHeight,
-      ...currentDataRest
-    } = currentRest.data || {}
-    const {
-      width: _deployedDataWidth,
-      height: _deployedDataHeight,
-      ...deployedDataRest
-    } = deployedRest.data || {}
-
-    normalizedCurrentBlocks[blockId] = {
-      ...currentRest,
-      data: currentDataRest,
-      subBlocks: undefined,
-    }
-
-    normalizedDeployedBlocks[blockId] = {
-      ...deployedRest,
-      data: deployedDataRest,
-      subBlocks: undefined,
-    }
-
-    // Get all subBlock IDs from both states, excluding runtime metadata and UI-only elements
-    const allSubBlockIds = [
-      ...new Set([...Object.keys(currentSubBlocks), ...Object.keys(deployedSubBlocks)]),
-    ]
-      .filter(
-        (id) => !TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(id) && !SYSTEM_SUBBLOCK_IDS.includes(id)
-      )
-      .sort()
-
-    // Normalize and compare each subBlock
-    for (const subBlockId of allSubBlockIds) {
-      // If the subBlock doesn't exist in either state, there's a difference
-      if (!currentSubBlocks[subBlockId] || !deployedSubBlocks[subBlockId]) {
-        return true
-      }
-
-      // Get values with special handling for null/undefined
-      // Using unknown type since sanitization functions return different types
-      let currentValue: unknown = currentSubBlocks[subBlockId].value ?? null
-      let deployedValue: unknown = deployedSubBlocks[subBlockId].value ?? null
-
-      if (subBlockId === 'tools' && Array.isArray(currentValue) && Array.isArray(deployedValue)) {
-        currentValue = sanitizeTools(currentValue)
-        deployedValue = sanitizeTools(deployedValue)
-      }
-
-      if (
-        subBlockId === 'inputFormat' &&
-        Array.isArray(currentValue) &&
-        Array.isArray(deployedValue)
-      ) {
-        currentValue = sanitizeInputFormat(currentValue)
-        deployedValue = sanitizeInputFormat(deployedValue)
-      }
-
-      // For string values, compare directly to catch even small text changes
-      if (typeof currentValue === 'string' && typeof deployedValue === 'string') {
-        if (currentValue !== deployedValue) {
-          return true
-        }
-      } else {
-        // For other types, use normalized comparison
-        const normalizedCurrentValue = normalizeValue(currentValue)
-        const normalizedDeployedValue = normalizeValue(deployedValue)
-
-        if (
-          normalizedStringify(normalizedCurrentValue) !==
-          normalizedStringify(normalizedDeployedValue)
-        ) {
-          return true
-        }
-      }
-
-      // Compare type and other properties (excluding diff markers and value)
-      const currentSubBlockWithDiff = currentSubBlocks[subBlockId] as SubBlockWithDiffMarker
-      const deployedSubBlockWithDiff = deployedSubBlocks[subBlockId] as SubBlockWithDiffMarker
-      const { value: _cv, is_diff: _cd, ...currentSubBlockRest } = currentSubBlockWithDiff
-      const { value: _dv, is_diff: _dd, ...deployedSubBlockRest } = deployedSubBlockWithDiff
-
-      if (normalizedStringify(currentSubBlockRest) !== normalizedStringify(deployedSubBlockRest)) {
-        return true
-      }
-    }
-
-    const blocksEqual =
-      normalizedStringify(normalizedCurrentBlocks[blockId]) ===
-      normalizedStringify(normalizedDeployedBlocks[blockId])
-
-    if (!blocksEqual) {
-      return true
-    }
-  }
-
-  // 4. Compare loops
-  const currentLoops = currentState.loops || {}
-  const deployedLoops = deployedState.loops || {}
-
-  const currentLoopIds = Object.keys(currentLoops).sort()
-  const deployedLoopIds = Object.keys(deployedLoops).sort()
-
-  if (
-    currentLoopIds.length !== deployedLoopIds.length ||
-    normalizedStringify(currentLoopIds) !== normalizedStringify(deployedLoopIds)
-  ) {
-    return true
-  }
-
-  for (const loopId of currentLoopIds) {
-    const normalizedCurrentLoop = normalizeValue(normalizeLoop(currentLoops[loopId]))
-    const normalizedDeployedLoop = normalizeValue(normalizeLoop(deployedLoops[loopId]))
-
-    if (
-      normalizedStringify(normalizedCurrentLoop) !== normalizedStringify(normalizedDeployedLoop)
-    ) {
-      return true
-    }
-  }
-
-  // 5. Compare parallels
-  const currentParallels = currentState.parallels || {}
-  const deployedParallels = deployedState.parallels || {}
-
-  const currentParallelIds = Object.keys(currentParallels).sort()
-  const deployedParallelIds = Object.keys(deployedParallels).sort()
-
-  if (
-    currentParallelIds.length !== deployedParallelIds.length ||
-    normalizedStringify(currentParallelIds) !== normalizedStringify(deployedParallelIds)
-  ) {
-    return true
-  }
-
-  for (const parallelId of currentParallelIds) {
-    const normalizedCurrentParallel = normalizeValue(
-      normalizeParallel(currentParallels[parallelId])
-    )
-    const normalizedDeployedParallel = normalizeValue(
-      normalizeParallel(deployedParallels[parallelId])
-    )
-
-    if (
-      normalizedStringify(normalizedCurrentParallel) !==
-      normalizedStringify(normalizedDeployedParallel)
-    ) {
-      return true
-    }
-  }
-
-  // 6. Compare variables
-  const currentVariables = normalizeVariables(currentState.variables)
-  const deployedVariables = normalizeVariables(deployedState.variables)
-
-  const normalizedCurrentVars = normalizeValue(
-    Object.fromEntries(Object.entries(currentVariables).map(([id, v]) => [id, sanitizeVariable(v)]))
-  )
-  const normalizedDeployedVars = normalizeValue(
-    Object.fromEntries(
-      Object.entries(deployedVariables).map(([id, v]) => [id, sanitizeVariable(v)])
-    )
-  )
-
-  if (normalizedStringify(normalizedCurrentVars) !== normalizedStringify(normalizedDeployedVars)) {
-    return true
-  }
-
-  return false
+  return generateWorkflowDiffSummary(currentState, deployedState).hasChanges
 }
 
 /**
@@ -368,29 +129,83 @@ export function generateWorkflowDiffSummary(
     const previousBlock = previousBlocks[id] as BlockWithDiffMarkers
     const changes: FieldChange[] = []
 
-    if (currentBlock.name !== previousBlock.name) {
-      changes.push({ field: 'name', oldValue: previousBlock.name, newValue: currentBlock.name })
-    }
-    if (currentBlock.enabled !== previousBlock.enabled) {
-      changes.push({
-        field: 'enabled',
-        oldValue: previousBlock.enabled,
-        newValue: currentBlock.enabled,
-      })
+    // Compare block-level properties (excluding visual-only fields)
+    const {
+      position: _currentPos,
+      subBlocks: currentSubBlocks = {},
+      layout: _currentLayout,
+      height: _currentHeight,
+      outputs: _currentOutputs,
+      is_diff: _currentIsDiff,
+      field_diffs: _currentFieldDiffs,
+      ...currentRest
+    } = currentBlock
+
+    const {
+      position: _previousPos,
+      subBlocks: previousSubBlocks = {},
+      layout: _previousLayout,
+      height: _previousHeight,
+      outputs: _previousOutputs,
+      is_diff: _previousIsDiff,
+      field_diffs: _previousFieldDiffs,
+      ...previousRest
+    } = previousBlock
+
+    // Exclude width/height from data object (container dimensions from autolayout)
+    const { width: _cw, height: _ch, ...currentDataRest } = currentRest.data || {}
+    const { width: _pw, height: _ph, ...previousDataRest } = previousRest.data || {}
+
+    const normalizedCurrentBlock = { ...currentRest, data: currentDataRest, subBlocks: undefined }
+    const normalizedPreviousBlock = {
+      ...previousRest,
+      data: previousDataRest,
+      subBlocks: undefined,
     }
 
-    const currentSubBlocks = currentBlock.subBlocks || {}
-    const previousSubBlocks = previousBlock.subBlocks || {}
-    const allSubBlockIds = new Set([
-      ...Object.keys(currentSubBlocks),
-      ...Object.keys(previousSubBlocks),
-    ])
+    if (
+      normalizedStringify(normalizedCurrentBlock) !== normalizedStringify(normalizedPreviousBlock)
+    ) {
+      if (currentBlock.type !== previousBlock.type) {
+        changes.push({ field: 'type', oldValue: previousBlock.type, newValue: currentBlock.type })
+      }
+      if (currentBlock.name !== previousBlock.name) {
+        changes.push({ field: 'name', oldValue: previousBlock.name, newValue: currentBlock.name })
+      }
+      if (currentBlock.enabled !== previousBlock.enabled) {
+        changes.push({
+          field: 'enabled',
+          oldValue: previousBlock.enabled,
+          newValue: currentBlock.enabled,
+        })
+      }
+      // Check other block properties
+      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode'] as const
+      for (const field of blockFields) {
+        if (currentBlock[field] !== previousBlock[field]) {
+          changes.push({
+            field,
+            oldValue: previousBlock[field],
+            newValue: currentBlock[field],
+          })
+        }
+      }
+      if (normalizedStringify(currentDataRest) !== normalizedStringify(previousDataRest)) {
+        changes.push({ field: 'data', oldValue: previousDataRest, newValue: currentDataRest })
+      }
+    }
+
+    // Compare subBlocks
+    const allSubBlockIds = [
+      ...new Set([...Object.keys(currentSubBlocks), ...Object.keys(previousSubBlocks)]),
+    ]
+      .filter(
+        (subId) =>
+          !TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(subId) && !SYSTEM_SUBBLOCK_IDS.includes(subId)
+      )
+      .sort()
 
     for (const subId of allSubBlockIds) {
-      if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(subId) || SYSTEM_SUBBLOCK_IDS.includes(subId)) {
-        continue
-      }
-
       const currentSub = currentSubBlocks[subId]
       const previousSub = previousSubBlocks[subId]
 
@@ -403,11 +218,45 @@ export function generateWorkflowDiffSummary(
         continue
       }
 
-      const currentValue = normalizeValue(currentSub.value ?? null)
-      const previousValue = normalizeValue(previousSub.value ?? null)
+      // Compare subBlock values with sanitization
+      let currentValue: unknown = currentSub.value ?? null
+      let previousValue: unknown = previousSub.value ?? null
 
-      if (normalizedStringify(currentValue) !== normalizedStringify(previousValue)) {
-        changes.push({ field: subId, oldValue: previousSub.value, newValue: currentSub.value })
+      if (subId === 'tools' && Array.isArray(currentValue) && Array.isArray(previousValue)) {
+        currentValue = sanitizeTools(currentValue)
+        previousValue = sanitizeTools(previousValue)
+      }
+
+      if (subId === 'inputFormat' && Array.isArray(currentValue) && Array.isArray(previousValue)) {
+        currentValue = sanitizeInputFormat(currentValue)
+        previousValue = sanitizeInputFormat(previousValue)
+      }
+
+      // For string values, compare directly to catch even small text changes
+      if (typeof currentValue === 'string' && typeof previousValue === 'string') {
+        if (currentValue !== previousValue) {
+          changes.push({ field: subId, oldValue: previousSub.value, newValue: currentSub.value })
+        }
+      } else {
+        const normalizedCurrent = normalizeValue(currentValue)
+        const normalizedPrevious = normalizeValue(previousValue)
+        if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
+          changes.push({ field: subId, oldValue: previousSub.value, newValue: currentSub.value })
+        }
+      }
+
+      // Compare subBlock REST properties (type, id, etc. - excluding value and is_diff)
+      const currentSubWithDiff = currentSub as SubBlockWithDiffMarker
+      const previousSubWithDiff = previousSub as SubBlockWithDiffMarker
+      const { value: _cv, is_diff: _cd, ...currentSubRest } = currentSubWithDiff
+      const { value: _pv, is_diff: _pd, ...previousSubRest } = previousSubWithDiff
+
+      if (normalizedStringify(currentSubRest) !== normalizedStringify(previousSubRest)) {
+        changes.push({
+          field: `${subId}.properties`,
+          oldValue: previousSubRest,
+          newValue: currentSubRest,
+        })
       }
     }
 
@@ -433,22 +282,54 @@ export function generateWorkflowDiffSummary(
     if (!currentEdgeSet.has(edge)) result.edgeChanges.removed++
   }
 
-  const currentLoopIds = Object.keys(currentState.loops || {})
-  const previousLoopIds = Object.keys(previousState.loops || {})
-  result.loopChanges.added = currentLoopIds.filter((id) => !previousLoopIds.includes(id)).length
-  result.loopChanges.removed = previousLoopIds.filter((id) => !currentLoopIds.includes(id)).length
+  const currentLoops = currentState.loops || {}
+  const previousLoops = previousState.loops || {}
+  const currentLoopIds = Object.keys(currentLoops)
+  const previousLoopIds = Object.keys(previousLoops)
 
-  const currentParallelIds = Object.keys(currentState.parallels || {})
-  const previousParallelIds = Object.keys(previousState.parallels || {})
-  result.parallelChanges.added = currentParallelIds.filter(
-    (id) => !previousParallelIds.includes(id)
-  ).length
-  result.parallelChanges.removed = previousParallelIds.filter(
-    (id) => !currentParallelIds.includes(id)
-  ).length
+  for (const id of currentLoopIds) {
+    if (!previousLoopIds.includes(id)) {
+      result.loopChanges.added++
+    } else {
+      const normalizedCurrent = normalizeValue(normalizeLoop(currentLoops[id]))
+      const normalizedPrevious = normalizeValue(normalizeLoop(previousLoops[id]))
+      if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
+        result.loopChanges.added++
+        result.loopChanges.removed++
+      }
+    }
+  }
+  for (const id of previousLoopIds) {
+    if (!currentLoopIds.includes(id)) {
+      result.loopChanges.removed++
+    }
+  }
 
-  const currentVars = currentState.variables || {}
-  const previousVars = previousState.variables || {}
+  const currentParallels = currentState.parallels || {}
+  const previousParallels = previousState.parallels || {}
+  const currentParallelIds = Object.keys(currentParallels)
+  const previousParallelIds = Object.keys(previousParallels)
+
+  for (const id of currentParallelIds) {
+    if (!previousParallelIds.includes(id)) {
+      result.parallelChanges.added++
+    } else {
+      const normalizedCurrent = normalizeValue(normalizeParallel(currentParallels[id]))
+      const normalizedPrevious = normalizeValue(normalizeParallel(previousParallels[id]))
+      if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
+        result.parallelChanges.added++
+        result.parallelChanges.removed++
+      }
+    }
+  }
+  for (const id of previousParallelIds) {
+    if (!currentParallelIds.includes(id)) {
+      result.parallelChanges.removed++
+    }
+  }
+
+  const currentVars = normalizeVariables(currentState.variables)
+  const previousVars = normalizeVariables(previousState.variables)
   const currentVarIds = Object.keys(currentVars)
   const previousVarIds = Object.keys(previousVars)
 

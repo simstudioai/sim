@@ -73,6 +73,7 @@ export function Versions({
   }
 
   const handleSaveRename = (version: number) => {
+    if (renameMutation.isPending) return
     if (!workflowId || !editValue.trim()) {
       setEditingVersion(null)
       return

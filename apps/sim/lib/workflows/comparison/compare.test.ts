@@ -7,7 +7,11 @@ import {
 } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { hasWorkflowChanged } from './compare'
+import {
+  formatDiffSummaryForDescription,
+  generateWorkflowDiffSummary,
+  hasWorkflowChanged,
+} from './compare'
 
 /**
  * Type helper for converting test workflow state to app workflow state.
@@ -2733,5 +2737,301 @@ describe('hasWorkflowChanged', () => {
 
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
     })
+  })
+})
+
+describe('generateWorkflowDiffSummary', () => {
+  describe('Basic Cases', () => {
+    it.concurrent('should return hasChanges=true when previousState is null', () => {
+      const currentState = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+      })
+      const result = generateWorkflowDiffSummary(currentState, null)
+      expect(result.hasChanges).toBe(true)
+      expect(result.addedBlocks).toHaveLength(1)
+      expect(result.addedBlocks[0].id).toBe('block1')
+    })
+
+    it.concurrent('should return hasChanges=false for identical states', () => {
+      const state = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+      })
+      const result = generateWorkflowDiffSummary(state, state)
+      expect(result.hasChanges).toBe(false)
+      expect(result.addedBlocks).toHaveLength(0)
+      expect(result.removedBlocks).toHaveLength(0)
+      expect(result.modifiedBlocks).toHaveLength(0)
+    })
+  })
+
+  describe('Block Changes', () => {
+    it.concurrent('should detect added blocks', () => {
+      const previousState = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+      })
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+          block2: createBlock('block2'),
+        },
+      })
+      const result = generateWorkflowDiffSummary(currentState, previousState)
+      expect(result.hasChanges).toBe(true)
+      expect(result.addedBlocks).toHaveLength(1)
+      expect(result.addedBlocks[0].id).toBe('block2')
+    })
+
+    it.concurrent('should detect removed blocks', () => {
+      const previousState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+          block2: createBlock('block2'),
+        },
+      })
+      const currentState = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+      })
+      const result = generateWorkflowDiffSummary(currentState, previousState)
+      expect(result.hasChanges).toBe(true)
+      expect(result.removedBlocks).toHaveLength(1)
+      expect(result.removedBlocks[0].id).toBe('block2')
+    })
+
+    it.concurrent('should detect modified blocks with field changes', () => {
+      const previousState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: { model: { id: 'model', type: 'dropdown', value: 'gpt-4o' } },
+          }),
+        },
+      })
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: { model: { id: 'model', type: 'dropdown', value: 'claude-sonnet' } },
+          }),
+        },
+      })
+      const result = generateWorkflowDiffSummary(currentState, previousState)
+      expect(result.hasChanges).toBe(true)
+      expect(result.modifiedBlocks).toHaveLength(1)
+      expect(result.modifiedBlocks[0].id).toBe('block1')
+      expect(result.modifiedBlocks[0].changes.length).toBeGreaterThan(0)
+      const modelChange = result.modifiedBlocks[0].changes.find((c) => c.field === 'model')
+      expect(modelChange).toBeDefined()
+      expect(modelChange?.oldValue).toBe('gpt-4o')
+      expect(modelChange?.newValue).toBe('claude-sonnet')
+    })
+  })
+
+  describe('Edge Changes', () => {
+    it.concurrent('should detect added edges', () => {
+      const previousState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+          block2: createBlock('block2'),
+        },
+        edges: [],
+      })
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+          block2: createBlock('block2'),
+        },
+        edges: [{ id: 'e1', source: 'block1', target: 'block2' }],
+      })
+      const result = generateWorkflowDiffSummary(currentState, previousState)
+      expect(result.hasChanges).toBe(true)
+      expect(result.edgeChanges.added).toBe(1)
+      expect(result.edgeChanges.removed).toBe(0)
+    })
+
+    it.concurrent('should detect removed edges', () => {
+      const previousState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+          block2: createBlock('block2'),
+        },
+        edges: [{ id: 'e1', source: 'block1', target: 'block2' }],
+      })
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1'),
+          block2: createBlock('block2'),
+        },
+        edges: [],
+      })
+      const result = generateWorkflowDiffSummary(currentState, previousState)
+      expect(result.hasChanges).toBe(true)
+      expect(result.edgeChanges.added).toBe(0)
+      expect(result.edgeChanges.removed).toBe(1)
+    })
+  })
+
+  describe('Variable Changes', () => {
+    it.concurrent('should detect added variables', () => {
+      const previousState = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+        variables: {},
+      })
+      const currentState = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+        variables: { var1: { id: 'var1', name: 'test', type: 'string', value: 'hello' } },
+      })
+      const result = generateWorkflowDiffSummary(currentState, previousState)
+      expect(result.hasChanges).toBe(true)
+      expect(result.variableChanges.added).toBe(1)
+    })
+
+    it.concurrent('should detect modified variables', () => {
+      const previousState = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+        variables: { var1: { id: 'var1', name: 'test', type: 'string', value: 'hello' } },
+      })
+      const currentState = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+        variables: { var1: { id: 'var1', name: 'test', type: 'string', value: 'world' } },
+      })
+      const result = generateWorkflowDiffSummary(currentState, previousState)
+      expect(result.hasChanges).toBe(true)
+      expect(result.variableChanges.modified).toBe(1)
+    })
+  })
+
+  describe('Consistency with hasWorkflowChanged', () => {
+    it.concurrent('hasChanges should match hasWorkflowChanged result', () => {
+      const state1 = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+      })
+      const state2 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: { prompt: { id: 'prompt', type: 'long-input', value: 'new value' } },
+          }),
+        },
+      })
+
+      const diffResult = generateWorkflowDiffSummary(state2, state1)
+      const hasChangedResult = hasWorkflowChanged(state2, state1)
+
+      expect(diffResult.hasChanges).toBe(hasChangedResult)
+    })
+
+    it.concurrent('should return same result as hasWorkflowChanged for no changes', () => {
+      const state = createWorkflowState({
+        blocks: { block1: createBlock('block1') },
+      })
+
+      const diffResult = generateWorkflowDiffSummary(state, state)
+      const hasChangedResult = hasWorkflowChanged(state, state)
+
+      expect(diffResult.hasChanges).toBe(hasChangedResult)
+      expect(diffResult.hasChanges).toBe(false)
+    })
+  })
+})
+
+describe('formatDiffSummaryForDescription', () => {
+  it.concurrent('should return no changes message when hasChanges is false', () => {
+    const summary = {
+      addedBlocks: [],
+      removedBlocks: [],
+      modifiedBlocks: [],
+      edgeChanges: { added: 0, removed: 0 },
+      loopChanges: { added: 0, removed: 0 },
+      parallelChanges: { added: 0, removed: 0 },
+      variableChanges: { added: 0, removed: 0, modified: 0 },
+      hasChanges: false,
+    }
+    const result = formatDiffSummaryForDescription(summary)
+    expect(result).toContain('No structural changes')
+  })
+
+  it.concurrent('should format added blocks', () => {
+    const summary = {
+      addedBlocks: [{ id: 'block1', type: 'agent', name: 'My Agent' }],
+      removedBlocks: [],
+      modifiedBlocks: [],
+      edgeChanges: { added: 0, removed: 0 },
+      loopChanges: { added: 0, removed: 0 },
+      parallelChanges: { added: 0, removed: 0 },
+      variableChanges: { added: 0, removed: 0, modified: 0 },
+      hasChanges: true,
+    }
+    const result = formatDiffSummaryForDescription(summary)
+    expect(result).toContain('Added block: My Agent (agent)')
+  })
+
+  it.concurrent('should format removed blocks', () => {
+    const summary = {
+      addedBlocks: [],
+      removedBlocks: [{ id: 'block1', type: 'function', name: 'Old Function' }],
+      modifiedBlocks: [],
+      edgeChanges: { added: 0, removed: 0 },
+      loopChanges: { added: 0, removed: 0 },
+      parallelChanges: { added: 0, removed: 0 },
+      variableChanges: { added: 0, removed: 0, modified: 0 },
+      hasChanges: true,
+    }
+    const result = formatDiffSummaryForDescription(summary)
+    expect(result).toContain('Removed block: Old Function (function)')
+  })
+
+  it.concurrent('should format modified blocks with field changes', () => {
+    const summary = {
+      addedBlocks: [],
+      removedBlocks: [],
+      modifiedBlocks: [
+        {
+          id: 'block1',
+          type: 'agent',
+          name: 'Agent 1',
+          changes: [{ field: 'model', oldValue: 'gpt-4o', newValue: 'claude-sonnet' }],
+        },
+      ],
+      edgeChanges: { added: 0, removed: 0 },
+      loopChanges: { added: 0, removed: 0 },
+      parallelChanges: { added: 0, removed: 0 },
+      variableChanges: { added: 0, removed: 0, modified: 0 },
+      hasChanges: true,
+    }
+    const result = formatDiffSummaryForDescription(summary)
+    expect(result).toContain('Modified Agent 1')
+    expect(result).toContain('model')
+    expect(result).toContain('gpt-4o')
+    expect(result).toContain('claude-sonnet')
+  })
+
+  it.concurrent('should format edge changes', () => {
+    const summary = {
+      addedBlocks: [],
+      removedBlocks: [],
+      modifiedBlocks: [],
+      edgeChanges: { added: 2, removed: 1 },
+      loopChanges: { added: 0, removed: 0 },
+      parallelChanges: { added: 0, removed: 0 },
+      variableChanges: { added: 0, removed: 0, modified: 0 },
+      hasChanges: true,
+    }
+    const result = formatDiffSummaryForDescription(summary)
+    expect(result).toContain('Added 2 connection(s)')
+    expect(result).toContain('Removed 1 connection(s)')
+  })
+
+  it.concurrent('should format variable changes', () => {
+    const summary = {
+      addedBlocks: [],
+      removedBlocks: [],
+      modifiedBlocks: [],
+      edgeChanges: { added: 0, removed: 0 },
+      loopChanges: { added: 0, removed: 0 },
+      parallelChanges: { added: 0, removed: 0 },
+      variableChanges: { added: 1, removed: 0, modified: 2 },
+      hasChanges: true,
+    }
+    const result = formatDiffSummaryForDescription(summary)
+    expect(result).toContain('Variables:')
+    expect(result).toContain('1 added')
+    expect(result).toContain('2 modified')
   })
 })

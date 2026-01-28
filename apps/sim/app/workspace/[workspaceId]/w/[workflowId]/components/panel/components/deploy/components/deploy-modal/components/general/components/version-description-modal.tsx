@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   Button,
   Modal,
@@ -32,14 +32,14 @@ export function VersionDescriptionModal({
   versionName,
   currentDescription,
 }: VersionDescriptionModalProps) {
-  const initialDescription = currentDescription || ''
-  const [description, setDescription] = useState(initialDescription)
+  const initialDescriptionRef = useRef(currentDescription || '')
+  const [description, setDescription] = useState(initialDescriptionRef.current)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
 
   const updateMutation = useUpdateDeploymentVersion()
   const generateMutation = useGenerateVersionDescription()
 
-  const hasChanges = description.trim() !== initialDescription.trim()
+  const hasChanges = description.trim() !== initialDescriptionRef.current.trim()
   const isGenerating = generateMutation.isPending
 
   const handleCloseAttempt = useCallback(() => {
@@ -55,9 +55,9 @@ export function VersionDescriptionModal({
 
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
-    setDescription(initialDescription)
+    setDescription(initialDescriptionRef.current)
     onOpenChange(false)
-  }, [initialDescription, onOpenChange])
+  }, [onOpenChange])
 
   const handleGenerateDescription = useCallback(() => {
     generateMutation.mutate({
