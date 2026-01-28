@@ -2302,12 +2302,33 @@ const WorkflowContent = React.memo(() => {
       window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
   }, [blocks, edgesForDisplay, getNodeAbsolutePosition, collaborativeBatchUpdateParent])
 
+  /** Handles node changes - applies changes and resolves parent-child selection conflicts. */
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      selectedIdsRef.current = null
+      setDisplayNodes((nds) => {
+        const updated = applyNodeChanges(changes, nds)
+        const hasSelectionChange = changes.some((c) => c.type === 'select')
+        if (!hasSelectionChange) return updated
+        const resolved = resolveParentChildSelectionConflicts(updated, blocks)
+        selectedIdsRef.current = resolved.filter((node) => node.selected).map((node) => node.id)
+        return resolved
+      })
+      const selectedIds = selectedIdsRef.current as string[] | null
+      if (selectedIds !== null) {
+        syncPanelWithSelection(selectedIds)
+      }
+    },
+    [blocks]
+  )
+
   /**
-   * Updates container dimensions in displayNodes during drag or keyboard movement.
+   * Updates container dimensions in displayNodes during drag.
+   * This allows live resizing of containers as their children are dragged.
    */
-  const updateContainerDimensionsDuringMove = useCallback(
-    (movedNodeId: string, movedNodePosition: { x: number; y: number }) => {
-      const parentId = blocks[movedNodeId]?.data?.parentId
+  const updateContainerDimensionsDuringDrag = useCallback(
+    (draggedNodeId: string, draggedNodePosition: { x: number; y: number }) => {
+      const parentId = blocks[draggedNodeId]?.data?.parentId
       if (!parentId) return
 
       setDisplayNodes((currentNodes) => {
@@ -2315,7 +2336,7 @@ const WorkflowContent = React.memo(() => {
         if (childNodes.length === 0) return currentNodes
 
         const childPositions = childNodes.map((node) => {
-          const nodePosition = node.id === movedNodeId ? movedNodePosition : node.position
+          const nodePosition = node.id === draggedNodeId ? draggedNodePosition : node.position
           const { width, height } = getBlockDimensions(node.id)
           return { x: nodePosition.x, y: nodePosition.y, width, height }
         })
@@ -2344,34 +2365,6 @@ const WorkflowContent = React.memo(() => {
       })
     },
     [blocks, getBlockDimensions]
-  )
-
-  /** Handles node changes - applies changes and resolves parent-child selection conflicts. */
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      selectedIdsRef.current = null
-      setDisplayNodes((nds) => {
-        const updated = applyNodeChanges(changes, nds)
-        const hasSelectionChange = changes.some((c) => c.type === 'select')
-        if (!hasSelectionChange) return updated
-        const resolved = resolveParentChildSelectionConflicts(updated, blocks)
-        selectedIdsRef.current = resolved.filter((node) => node.selected).map((node) => node.id)
-        return resolved
-      })
-      const selectedIds = selectedIdsRef.current as string[] | null
-      if (selectedIds !== null) {
-        syncPanelWithSelection(selectedIds)
-      }
-
-      // Handle position changes (e.g., from keyboard arrow key movement)
-      // Update container dimensions when child nodes are moved
-      for (const change of changes) {
-        if (change.type === 'position' && 'position' in change && change.position) {
-          updateContainerDimensionsDuringMove(change.id, change.position)
-        }
-      }
-    },
-    [blocks, updateContainerDimensionsDuringMove]
   )
 
   /**
@@ -2618,7 +2611,7 @@ const WorkflowContent = React.memo(() => {
 
       // If the node is inside a container, update container dimensions during drag
       if (currentParentId) {
-        updateContainerDimensionsDuringMove(node.id, node.position)
+        updateContainerDimensionsDuringDrag(node.id, node.position)
       }
 
       // Check if this is a starter block - starter blocks should never be in containers
@@ -2735,7 +2728,7 @@ const WorkflowContent = React.memo(() => {
       blocks,
       getNodeAbsolutePosition,
       getNodeDepth,
-      updateContainerDimensionsDuringMove,
+      updateContainerDimensionsDuringDrag,
       highlightContainerNode,
     ]
   )
