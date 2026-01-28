@@ -4,6 +4,7 @@
 # Global configuration
 global:
   imageRegistry: "ghcr.io"
+  # For production, use a StorageClass with reclaimPolicy: Retain
   storageClass: "managed-csi-premium"
 
 # Main application

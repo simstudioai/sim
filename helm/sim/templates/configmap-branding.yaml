@@ -1,4 +1,4 @@
-{{- if .Values.branding.enabled }}
+{{- if and .Values.branding.enabled (or .Values.branding.files .Values.branding.binaryFiles) }}
 ---
 # Branding ConfigMap
 # Mounts custom branding assets (logos, CSS, etc.) into the application

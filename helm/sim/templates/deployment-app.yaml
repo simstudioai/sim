@@ -110,9 +110,10 @@ spec:
           {{- end }}
           {{- include "sim.resources" .Values.app | nindent 10 }}
           {{- include "sim.securityContext" .Values.app | nindent 10 }}
-          {{- if or .Values.branding.enabled .Values.extraVolumeMounts .Values.app.extraVolumeMounts }}
+          {{- $hasBranding := and .Values.branding.enabled (or .Values.branding.files .Values.branding.binaryFiles) }}
+          {{- if or $hasBranding .Values.extraVolumeMounts .Values.app.extraVolumeMounts }}
           volumeMounts:
-            {{- if .Values.branding.enabled }}
+            {{- if $hasBranding }}
             - name: branding
               mountPath: {{ .Values.branding.mountPath | default "/app/public/branding" }}
               readOnly: true
@@ -124,9 +125,10 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or .Values.branding.enabled .Values.extraVolumes .Values.app.extraVolumes }}
+      {{- $hasBranding := and .Values.branding.enabled (or .Values.branding.files .Values.branding.binaryFiles) }}
+      {{- if or $hasBranding .Values.extraVolumes .Values.app.extraVolumes }}
       volumes:
-        {{- if .Values.branding.enabled }}
+        {{- if $hasBranding }}
         - name: branding
           configMap:
             name: {{ include "sim.fullname" . }}-branding

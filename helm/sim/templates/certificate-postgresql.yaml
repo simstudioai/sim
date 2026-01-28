@@ -11,12 +11,12 @@ spec:
   duration: {{ .Values.postgresql.tls.duration | default "87600h" }}  # Default: 10 years
   renewBefore: {{ .Values.postgresql.tls.renewBefore | default "2160h" }}  # Default: 90 days before expiry
   isCA: false
-  {{- if .Values.postgresql.tls.rotationPolicy }}
-  rotationPolicy: {{ .Values.postgresql.tls.rotationPolicy }}
-  {{- end }}
   privateKey:
     algorithm: {{ .Values.postgresql.tls.privateKey.algorithm | default "RSA" }}
     size: {{ .Values.postgresql.tls.privateKey.size | default 4096 }}
+    {{- if .Values.postgresql.tls.rotationPolicy }}
+    rotationPolicy: {{ .Values.postgresql.tls.rotationPolicy }}
+    {{- end }}
   usages:
     - server auth
     - client auth
