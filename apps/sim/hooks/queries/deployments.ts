@@ -412,6 +412,147 @@ export function useUpdateDeploymentVersion() {
 }
 
 /**
+ * Variables for generating a version description
+ */
+interface GenerateVersionDescriptionVariables {
+  workflowId: string
+  version: number
+  onStreamChunk?: (accumulated: string) => void
+}
+
+const VERSION_DESCRIPTION_SYSTEM_PROMPT = `You are a technical writer generating concise deployment version descriptions.
+
+Given a diff of changes between two workflow versions, write a brief, factual description (1-2 sentences, under 300 characters) that states ONLY what changed.
+
+RULES:
+- State specific values when provided (e.g. "model changed from X to Y")
+- Do NOT wrap your response in quotes
+- Do NOT add filler phrases like "streamlining the workflow", "for improved efficiency"
+- Do NOT use markdown formatting
+- Do NOT include version numbers
+- Do NOT start with "This version" or similar phrases
+
+Good examples:
+- Changes model in Agent 1 from gpt-4o to claude-sonnet-4-20250514.
+- Adds Slack notification block. Updates webhook URL to production endpoint.
+- Removes Function block and its connection to Router.
+
+Bad examples:
+- "Changes model..." (NO - don't wrap in quotes)
+- Changes model, streamlining the workflow. (NO - don't add filler)
+
+Respond with ONLY the plain text description.`
+
+/**
+ * Hook for generating a version description using AI based on workflow diff
+ */
+export function useGenerateVersionDescription() {
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      version,
+      onStreamChunk,
+    }: GenerateVersionDescriptionVariables): Promise<string> => {
+      const { generateWorkflowDiffSummary, formatDiffSummaryForDescription } = await import(
+        '@/lib/workflows/comparison/compare'
+      )
+
+      const currentResponse = await fetch(`/api/workflows/${workflowId}/deployments/${version}`)
+      if (!currentResponse.ok) {
+        throw new Error('Failed to fetch current version state')
+      }
+      const currentData = await currentResponse.json()
+      const currentState = currentData.deployedState
+
+      let previousState = null
+      if (version > 1) {
+        const previousResponse = await fetch(
+          `/api/workflows/${workflowId}/deployments/${version - 1}`
+        )
+        if (previousResponse.ok) {
+          const previousData = await previousResponse.json()
+          previousState = previousData.deployedState
+        }
+      }
+
+      const diffSummary = generateWorkflowDiffSummary(currentState, previousState)
+      const diffText = formatDiffSummaryForDescription(diffSummary)
+
+      const wandResponse = await fetch('/api/wand', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-transform',
+        },
+        body: JSON.stringify({
+          prompt: `Generate a deployment version description based on these changes:\n\n${diffText}`,
+          systemPrompt: VERSION_DESCRIPTION_SYSTEM_PROMPT,
+          stream: true,
+          workflowId,
+        }),
+        cache: 'no-store',
+      })
+
+      if (!wandResponse.ok) {
+        const errorText = await wandResponse.text()
+        throw new Error(errorText || 'Failed to generate description')
+      }
+
+      if (!wandResponse.body) {
+        throw new Error('Response body is null')
+      }
+
+      const reader = wandResponse.body.getReader()
+      const decoder = new TextDecoder()
+      let accumulatedContent = ''
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const lineData = line.substring(6)
+              if (lineData === '[DONE]') continue
+
+              try {
+                const data = JSON.parse(lineData)
+                if (data.error) throw new Error(data.error)
+                if (data.chunk) {
+                  accumulatedContent += data.chunk
+                  onStreamChunk?.(accumulatedContent)
+                }
+                if (data.done) break
+              } catch {
+                // Skip unparseable lines
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+
+      if (!accumulatedContent) {
+        throw new Error('Failed to generate description')
+      }
+
+      return accumulatedContent.trim()
+    },
+    onSuccess: (content) => {
+      logger.info('Generated version description', { length: content.length })
+    },
+    onError: (error) => {
+      logger.error('Failed to generate version description', { error })
+    },
+  })
+}
+
+/**
  * Variables for activate version mutation
  */
 interface ActivateVersionVariables {

@@ -10,7 +10,10 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
-import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
+import {
+  useGenerateVersionDescription,
+  useUpdateDeploymentVersion,
+} from '@/hooks/queries/deployments'
 
 interface VersionDescriptionModalProps {
   open: boolean
@@ -29,14 +32,15 @@ export function VersionDescriptionModal({
   versionName,
   currentDescription,
 }: VersionDescriptionModalProps) {
-  // Initialize state from props - component remounts via key prop when version changes
   const initialDescription = currentDescription || ''
   const [description, setDescription] = useState(initialDescription)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
 
   const updateMutation = useUpdateDeploymentVersion()
+  const generateMutation = useGenerateVersionDescription()
 
   const hasChanges = description.trim() !== initialDescription.trim()
+  const isGenerating = generateMutation.isPending
 
   const handleCloseAttempt = useCallback(() => {
     if (hasChanges && !updateMutation.isPending) {
@@ -51,6 +55,16 @@ export function VersionDescriptionModal({
     setDescription(initialDescription)
     onOpenChange(false)
   }, [initialDescription, onOpenChange])
+
+  const handleGenerateDescription = useCallback(() => {
+    generateMutation.mutate({
+      workflowId,
+      version,
+      onStreamChunk: (accumulated) => {
+        setDescription(accumulated)
+      },
+    })
+  }, [workflowId, version, generateMutation])
 
   const handleSave = useCallback(async () => {
     if (!workflowId) return
@@ -76,26 +90,36 @@ export function VersionDescriptionModal({
           <ModalHeader>
             <span>Version Description</span>
           </ModalHeader>
-          <ModalBody className='space-y-[12px]'>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
-              {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
-            </p>
+          <ModalBody className='space-y-[10px]'>
+            <div className='flex items-center justify-between'>
+              <p className='text-[12px] text-[var(--text-secondary)]'>
+                {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
+                <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
+              </p>
+              <Button
+                variant='active'
+                className='-my-1 h-5 px-2 py-0 text-[11px]'
+                onClick={handleGenerateDescription}
+                disabled={isGenerating || updateMutation.isPending}
+              >
+                {isGenerating ? 'Generating...' : 'Generate'}
+              </Button>
+            </div>
             <Textarea
               placeholder='Describe the changes in this deployment version...'
               className='min-h-[120px] resize-none'
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={500}
+              disabled={isGenerating}
             />
             <div className='flex items-center justify-between'>
-              {updateMutation.error ? (
+              {(updateMutation.error || generateMutation.error) && (
                 <p className='text-[12px] text-[var(--text-error)]'>
-                  {updateMutation.error.message}
+                  {updateMutation.error?.message || generateMutation.error?.message}
                 </p>
-              ) : (
-                <div />
               )}
+              {!updateMutation.error && !generateMutation.error && <div />}
               <p className='text-[11px] text-[var(--text-tertiary)]'>{description.length}/500</p>
             </div>
           </ModalBody>
@@ -103,14 +127,14 @@ export function VersionDescriptionModal({
             <Button
               variant='default'
               onClick={handleCloseAttempt}
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || isGenerating}
             >
               Cancel
             </Button>
             <Button
               variant='tertiary'
               onClick={handleSave}
-              disabled={updateMutation.isPending || !hasChanges}
+              disabled={updateMutation.isPending || isGenerating || !hasChanges}
             >
               {updateMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
