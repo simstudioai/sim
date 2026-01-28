@@ -66,7 +66,7 @@ export interface SendMessageRequest {
   userMessageId?: string // ID from frontend for the user message
   chatId?: string
   workflowId?: string
-  mode?: CopilotMode | CopilotTransportMode
+mode?: CopilotMode | CopilotTransportMode
   model?: CopilotModelId
   prefetch?: boolean
   createNewChat?: boolean
