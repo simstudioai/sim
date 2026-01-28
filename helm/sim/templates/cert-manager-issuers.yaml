@@ -1,0 +1,84 @@
+{{- if .Values.certManager.enabled }}
+{{- /*
+  cert-manager Issuer Bootstrap Pattern
+
+  PREREQUISITE: cert-manager must be installed in your cluster before enabling this.
+  The root CA Certificate is created in the namespace specified by certManager.rootCA.namespace
+  (defaults to "cert-manager"). Ensure this namespace exists and cert-manager is running there.
+
+  Install cert-manager: https://cert-manager.io/docs/installation/
+
+  This implements the recommended pattern from cert-manager documentation:
+  1. A self-signed ClusterIssuer (for bootstrapping the root CA only)
+  2. A root CA Certificate (self-signed, used to sign other certificates)
+  3. A CA ClusterIssuer (uses the root CA to sign certificates)
+
+  Reference: https://cert-manager.io/docs/configuration/selfsigned/
+*/ -}}
+
+---
+# 1. Self-Signed ClusterIssuer (Bootstrap Only)
+# This issuer is used ONLY to create the root CA certificate.
+# It should NOT be used directly for application certificates.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.certManager.selfSignedIssuer.name }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cert-manager
+spec:
+  selfSigned: {}
+
+---
+# 2. Root CA Certificate
+# This certificate is signed by the self-signed issuer and becomes the root of trust.
+# The secret created here will be used by the CA issuer to sign certificates.
+# NOTE: This must be created in the cert-manager namespace (or the namespace specified
+# in certManager.rootCA.namespace). Ensure cert-manager is installed there first.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.certManager.rootCA.certificateName }}
+  namespace: {{ .Values.certManager.rootCA.namespace | default "cert-manager" }}  # Must match cert-manager's cluster-resource-namespace
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cert-manager
+spec:
+  isCA: true
+  commonName: {{ .Values.certManager.rootCA.commonName }}
+  secretName: {{ .Values.certManager.rootCA.secretName }}
+  duration: {{ .Values.certManager.rootCA.duration | default "87600h" }}
+  renewBefore: {{ .Values.certManager.rootCA.renewBefore | default "2160h" }}
+  privateKey:
+    algorithm: {{ .Values.certManager.rootCA.privateKey.algorithm | default "RSA" }}
+    size: {{ .Values.certManager.rootCA.privateKey.size | default 4096 }}
+  subject:
+    organizations:
+      {{- if .Values.certManager.rootCA.subject.organizations }}
+      {{- toYaml .Values.certManager.rootCA.subject.organizations | nindent 6 }}
+      {{- else }}
+      - {{ .Release.Name }}
+      {{- end }}
+  issuerRef:
+    name: {{ .Values.certManager.selfSignedIssuer.name }}
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+# 3. CA ClusterIssuer
+# This is the issuer that should be used by applications to obtain certificates.
+# It signs certificates using the root CA created above.
+# NOTE: This issuer may briefly show "not ready" on first install while cert-manager
+# processes the Certificate above and creates the secret. It will auto-reconcile.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.certManager.caIssuer.name }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cert-manager
+spec:
+  ca:
+    secretName: {{ .Values.certManager.rootCA.secretName }}
+{{- end }}

@@ -108,7 +108,7 @@ export class NodeExecutionOrchestrator {
         if (loopId) {
           const shouldExecute = await this.loopOrchestrator.evaluateInitialCondition(ctx, loopId)
           if (!shouldExecute) {
-            logger.info('While loop initial condition false, skipping loop body', { loopId })
+            logger.info('Loop initial condition false, skipping loop body', { loopId })
             return {
               sentinelStart: true,
               shouldExit: true,
@@ -169,6 +169,17 @@ export class NodeExecutionOrchestrator {
           this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, nodesInParallel)
         }
       }
+
+      const scope = this.parallelOrchestrator.getParallelScope(ctx, parallelId)
+      if (scope?.isEmpty) {
+        logger.info('Parallel has empty distribution, skipping parallel body', { parallelId })
+        return {
+          sentinelStart: true,
+          shouldExit: true,
+          selectedRoute: EDGE.PARALLEL_EXIT,
+        }
+      }
+
       return { sentinelStart: true }
     }
 
