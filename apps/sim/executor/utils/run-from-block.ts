@@ -169,15 +169,18 @@ export function validateRunFromBlock(
     if (node.metadata.isSentinel) {
       return { valid: false, error: 'Cannot run from sentinel node' }
     }
-  }
 
-  // Check that ALL upstream blocks were executed (transitive check)
-  const { upstreamSet } = computeExecutionSets(dag, blockId)
-  for (const upstreamId of upstreamSet) {
-    if (!executedBlocks.has(upstreamId)) {
-      return {
-        valid: false,
-        error: `Upstream dependency not executed: ${upstreamId}`,
+    // Check immediate upstream dependencies were executed
+    for (const sourceId of node.incomingEdges) {
+      const sourceNode = dag.nodes.get(sourceId)
+      // Skip sentinel nodes - they're internal and not in executedBlocks
+      if (sourceNode?.metadata.isSentinel) continue
+
+      if (!executedBlocks.has(sourceId)) {
+        return {
+          valid: false,
+          error: `Upstream dependency not executed: ${sourceId}`,
+        }
       }
     }
   }
