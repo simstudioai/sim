@@ -1,30 +1,17 @@
-import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
+  extractBlockFieldsForComparison,
+  extractSubBlockRest,
+  filterSubBlockIds,
   normalizedStringify,
   normalizeEdge,
   normalizeLoop,
   normalizeParallel,
+  normalizeSubBlockValue,
   normalizeValue,
   normalizeVariables,
-  sanitizeInputFormat,
-  sanitizeTools,
   sanitizeVariable,
 } from './normalize'
-
-/** Block with optional diff markers added by copilot */
-type BlockWithDiffMarkers = BlockState & {
-  is_diff?: string
-  field_diffs?: Record<string, unknown>
-}
-
-/** SubBlock with optional diff marker */
-type SubBlockWithDiffMarker = {
-  id: string
-  type: string
-  value: unknown
-  is_diff?: string
-}
 
 /**
  * Compare the current workflow state with the deployed state to detect meaningful changes.
@@ -125,51 +112,21 @@ export function generateWorkflowDiffSummary(
   for (const id of currentBlockIds) {
     if (!previousBlockIds.has(id)) continue
 
-    const currentBlock = currentBlocks[id] as BlockWithDiffMarkers
-    const previousBlock = previousBlocks[id] as BlockWithDiffMarkers
+    const currentBlock = currentBlocks[id]
+    const previousBlock = previousBlocks[id]
     const changes: FieldChange[] = []
 
-    // Compare block-level properties (excluding visual-only fields)
+    // Use shared helpers for block field extraction (single source of truth)
     const {
-      position: _currentPos,
-      subBlocks: currentSubBlocks = {},
-      layout: _currentLayout,
-      height: _currentHeight,
-      outputs: _currentOutputs,
-      is_diff: _currentIsDiff,
-      field_diffs: _currentFieldDiffs,
-      ...currentRest
-    } = currentBlock
-
+      blockRest: currentRest,
+      normalizedData: currentDataRest,
+      subBlocks: currentSubBlocks,
+    } = extractBlockFieldsForComparison(currentBlock)
     const {
-      position: _previousPos,
-      subBlocks: previousSubBlocks = {},
-      layout: _previousLayout,
-      height: _previousHeight,
-      outputs: _previousOutputs,
-      is_diff: _previousIsDiff,
-      field_diffs: _previousFieldDiffs,
-      ...previousRest
-    } = previousBlock
-
-    // Exclude from data object:
-    // - width/height: container dimensions from autolayout
-    // - nodes: subflow node membership (derived/runtime for parallel/loop blocks)
-    // - distribution: parallel distribution (derived/runtime)
-    const {
-      width: _cw,
-      height: _ch,
-      nodes: _cn,
-      distribution: _cd,
-      ...currentDataRest
-    } = (currentRest.data || {}) as Record<string, unknown>
-    const {
-      width: _pw,
-      height: _ph,
-      nodes: _pn,
-      distribution: _pd,
-      ...previousDataRest
-    } = (previousRest.data || {}) as Record<string, unknown>
+      blockRest: previousRest,
+      normalizedData: previousDataRest,
+      subBlocks: previousSubBlocks,
+    } = extractBlockFieldsForComparison(previousBlock)
 
     const normalizedCurrentBlock = { ...currentRest, data: currentDataRest, subBlocks: undefined }
     const normalizedPreviousBlock = {
@@ -194,10 +151,11 @@ export function generateWorkflowDiffSummary(
           newValue: currentBlock.enabled,
         })
       }
-      // Check other block properties
+      // Check other block properties (boolean fields)
+      // Use !! to normalize: null/undefined/false are all equivalent (falsy)
       const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode'] as const
       for (const field of blockFields) {
-        if (currentBlock[field] !== previousBlock[field]) {
+        if (!!currentBlock[field] !== !!previousBlock[field]) {
           changes.push({
             field,
             oldValue: previousBlock[field],
@@ -210,42 +168,27 @@ export function generateWorkflowDiffSummary(
       }
     }
 
-    // Compare subBlocks
-    const allSubBlockIds = [
+    // Compare subBlocks using shared helper for filtering (single source of truth)
+    const allSubBlockIds = filterSubBlockIds([
       ...new Set([...Object.keys(currentSubBlocks), ...Object.keys(previousSubBlocks)]),
-    ]
-      .filter(
-        (subId) =>
-          !TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(subId) && !SYSTEM_SUBBLOCK_IDS.includes(subId)
-      )
-      .sort()
+    ])
 
     for (const subId of allSubBlockIds) {
-      const currentSub = currentSubBlocks[subId]
-      const previousSub = previousSubBlocks[subId]
+      const currentSub = currentSubBlocks[subId] as Record<string, unknown> | undefined
+      const previousSub = previousSubBlocks[subId] as Record<string, unknown> | undefined
 
       if (!currentSub || !previousSub) {
         changes.push({
           field: subId,
-          oldValue: previousSub?.value ?? null,
-          newValue: currentSub?.value ?? null,
+          oldValue: (previousSub as Record<string, unknown> | undefined)?.value ?? null,
+          newValue: (currentSub as Record<string, unknown> | undefined)?.value ?? null,
         })
         continue
       }
 
-      // Compare subBlock values with sanitization
-      let currentValue: unknown = currentSub.value ?? null
-      let previousValue: unknown = previousSub.value ?? null
-
-      if (subId === 'tools' && Array.isArray(currentValue) && Array.isArray(previousValue)) {
-        currentValue = sanitizeTools(currentValue)
-        previousValue = sanitizeTools(previousValue)
-      }
-
-      if (subId === 'inputFormat' && Array.isArray(currentValue) && Array.isArray(previousValue)) {
-        currentValue = sanitizeInputFormat(currentValue)
-        previousValue = sanitizeInputFormat(previousValue)
-      }
+      // Use shared helper for subBlock value normalization (single source of truth)
+      const currentValue = normalizeSubBlockValue(subId, currentSub.value)
+      const previousValue = normalizeSubBlockValue(subId, previousSub.value)
 
       // For string values, compare directly to catch even small text changes
       if (typeof currentValue === 'string' && typeof previousValue === 'string') {
@@ -260,11 +203,9 @@ export function generateWorkflowDiffSummary(
         }
       }
 
-      // Compare subBlock REST properties (type, id, etc. - excluding value and is_diff)
-      const currentSubWithDiff = currentSub as SubBlockWithDiffMarker
-      const previousSubWithDiff = previousSub as SubBlockWithDiffMarker
-      const { value: _cv, is_diff: _cd, ...currentSubRest } = currentSubWithDiff
-      const { value: _pv, is_diff: _pd, ...previousSubRest } = previousSubWithDiff
+      // Use shared helper for subBlock REST extraction (single source of truth)
+      const currentSubRest = extractSubBlockRest(currentSub)
+      const previousSubRest = extractSubBlockRest(previousSub)
 
       if (normalizedStringify(currentSubRest) !== normalizedStringify(previousSubRest)) {
         changes.push({

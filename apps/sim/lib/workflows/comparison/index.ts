@@ -4,12 +4,22 @@ export {
   generateWorkflowDiffSummary,
   hasWorkflowChanged,
 } from './compare'
-export type { NormalizedWorkflowState } from './normalize'
+export type {
+  BlockWithDiffMarkers,
+  NormalizedWorkflowState,
+  SubBlockWithDiffMarker,
+} from './normalize'
 export {
+  EXCLUDED_BLOCK_DATA_FIELDS,
+  extractBlockFieldsForComparison,
+  extractSubBlockRest,
+  filterSubBlockIds,
+  normalizeBlockData,
   normalizedStringify,
   normalizeEdge,
   normalizeLoop,
   normalizeParallel,
+  normalizeSubBlockValue,
   normalizeValue,
   normalizeVariables,
   normalizeWorkflowState,
