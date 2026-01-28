@@ -54,8 +54,8 @@ export interface WorkflowDiffSummary {
   removedBlocks: Array<{ id: string; type: string; name?: string }>
   modifiedBlocks: Array<{ id: string; type: string; name?: string; changes: FieldChange[] }>
   edgeChanges: { added: number; removed: number }
-  loopChanges: { added: number; removed: number }
-  parallelChanges: { added: number; removed: number }
+  loopChanges: { added: number; removed: number; modified: number }
+  parallelChanges: { added: number; removed: number; modified: number }
   variableChanges: { added: number; removed: number; modified: number }
   hasChanges: boolean
 }
@@ -72,8 +72,8 @@ export function generateWorkflowDiffSummary(
     removedBlocks: [],
     modifiedBlocks: [],
     edgeChanges: { added: 0, removed: 0 },
-    loopChanges: { added: 0, removed: 0 },
-    parallelChanges: { added: 0, removed: 0 },
+    loopChanges: { added: 0, removed: 0, modified: 0 },
+    parallelChanges: { added: 0, removed: 0, modified: 0 },
     variableChanges: { added: 0, removed: 0, modified: 0 },
     hasChanges: false,
   }
@@ -294,8 +294,7 @@ export function generateWorkflowDiffSummary(
       const normalizedCurrent = normalizeValue(normalizeLoop(currentLoops[id]))
       const normalizedPrevious = normalizeValue(normalizeLoop(previousLoops[id]))
       if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
-        result.loopChanges.added++
-        result.loopChanges.removed++
+        result.loopChanges.modified++
       }
     }
   }
@@ -317,8 +316,7 @@ export function generateWorkflowDiffSummary(
       const normalizedCurrent = normalizeValue(normalizeParallel(currentParallels[id]))
       const normalizedPrevious = normalizeValue(normalizeParallel(previousParallels[id]))
       if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
-        result.parallelChanges.added++
-        result.parallelChanges.removed++
+        result.parallelChanges.modified++
       }
     }
   }
@@ -353,8 +351,10 @@ export function generateWorkflowDiffSummary(
     result.edgeChanges.removed > 0 ||
     result.loopChanges.added > 0 ||
     result.loopChanges.removed > 0 ||
+    result.loopChanges.modified > 0 ||
     result.parallelChanges.added > 0 ||
     result.parallelChanges.removed > 0 ||
+    result.parallelChanges.modified > 0 ||
     result.variableChanges.added > 0 ||
     result.variableChanges.removed > 0 ||
     result.variableChanges.modified > 0
@@ -420,12 +420,18 @@ export function formatDiffSummaryForDescription(summary: WorkflowDiffSummary): s
   if (summary.loopChanges.removed > 0) {
     changes.push(`Removed ${summary.loopChanges.removed} loop(s)`)
   }
+  if (summary.loopChanges.modified > 0) {
+    changes.push(`Modified ${summary.loopChanges.modified} loop(s)`)
+  }
 
   if (summary.parallelChanges.added > 0) {
     changes.push(`Added ${summary.parallelChanges.added} parallel group(s)`)
   }
   if (summary.parallelChanges.removed > 0) {
     changes.push(`Removed ${summary.parallelChanges.removed} parallel group(s)`)
+  }
+  if (summary.parallelChanges.modified > 0) {
+    changes.push(`Modified ${summary.parallelChanges.modified} parallel group(s)`)
   }
 
   const varChanges: string[] = []

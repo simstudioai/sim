@@ -502,40 +502,10 @@ export function useGenerateVersionDescription() {
         throw new Error('Response body is null')
       }
 
-      const reader = wandResponse.body.getReader()
-      const decoder = new TextDecoder()
-      let accumulatedContent = ''
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n\n')
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const lineData = line.substring(6)
-              if (lineData === '[DONE]') continue
-
-              try {
-                const data = JSON.parse(lineData)
-                if (data.error) throw new Error(data.error)
-                if (data.chunk) {
-                  accumulatedContent += data.chunk
-                  onStreamChunk?.(accumulatedContent)
-                }
-                if (data.done) break
-              } catch {
-                // Skip unparseable lines
-              }
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock()
-      }
+      const { readSSEStream } = await import('@/lib/core/utils/sse')
+      const accumulatedContent = await readSSEStream(wandResponse.body, {
+        onAccumulated: onStreamChunk,
+      })
 
       if (!accumulatedContent) {
         throw new Error('Failed to generate description')
