@@ -266,9 +266,9 @@ describe('Schedule Utilities', () => {
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
 
       // Should return the future start date with time
-      expect(nextRun.getFullYear()).toBe(2025)
-      expect(nextRun.getMonth()).toBe(3) // April
-      expect(nextRun.getDate()).toBe(15)
+      expect(nextRun.getUTCFullYear()).toBe(2025)
+      expect(nextRun.getUTCMonth()).toBe(3) // April
+      expect(nextRun.getUTCDate()).toBe(15)
     })
 
     it.concurrent('should calculate next run for hourly schedule using Croner', () => {
@@ -292,7 +292,7 @@ describe('Schedule Utilities', () => {
       expect(nextRun instanceof Date).toBe(true)
       expect(nextRun > new Date()).toBe(true)
       // Croner calculates based on cron "30 * * * *"
-      expect(nextRun.getMinutes()).toBe(30)
+      expect(nextRun.getUTCMinutes()).toBe(30)
     })
 
     it.concurrent('should calculate next run for daily schedule using Croner with timezone', () => {
@@ -439,7 +439,7 @@ describe('Schedule Utilities', () => {
 
       // Should not use the past date but calculate normally
       expect(nextRun > new Date()).toBe(true)
-      expect(nextRun.getMinutes() % 10).toBe(0) // Should align with the interval
+      expect(nextRun.getUTCMinutes() % 10).toBe(0) // Should align with the interval
     })
   })
 
