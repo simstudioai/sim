@@ -321,9 +321,14 @@ describe('validateRunFromBlock', () => {
   })
 
   it('rejects blocks with unexecuted upstream dependencies', () => {
-    // A → B, only A executed but B depends on A
-    const dag = createDAG([createNode('A', [{ target: 'B' }]), createNode('B')])
-    const executedBlocks = new Set<string>() // A was not executed
+    // X → A → B, where A was not executed but B depends on A
+    // X is the entry point (no incoming edges), A is a regular block
+    const dag = createDAG([
+      createNode('X', [{ target: 'A' }]),
+      createNode('A', [{ target: 'B' }]),
+      createNode('B'),
+    ])
+    const executedBlocks = new Set(['X']) // X executed but A was not
 
     const result = validateRunFromBlock('B', dag, executedBlocks)
 
