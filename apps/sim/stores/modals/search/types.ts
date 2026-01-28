@@ -82,5 +82,5 @@ export interface SearchModalState {
   /**
    * Initialize search data. Called once on app load.
    */
-  initializeData: (filterBlocks: (blocks: unknown[]) => unknown[]) => void
+  initializeData: <T extends { type: string }>(filterBlocks: (blocks: T[]) => T[]) => void
 }
