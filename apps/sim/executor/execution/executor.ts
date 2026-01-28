@@ -62,7 +62,10 @@ export class DAGExecutor {
 
   async execute(workflowId: string, triggerBlockId?: string): Promise<ExecutionResult> {
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
-    const dag = this.dagBuilder.build(this.workflow, triggerBlockId, savedIncomingEdges)
+    const dag = this.dagBuilder.build(this.workflow, {
+      triggerBlockId,
+      savedIncomingEdges,
+    })
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
 
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
@@ -111,8 +114,9 @@ export class DAGExecutor {
     startBlockId: string,
     sourceSnapshot: SerializableExecutionState
   ): Promise<ExecutionResult> {
-    // Build full DAG to compute upstream set for snapshot filtering
-    const dag = this.dagBuilder.build(this.workflow)
+    // Build full DAG with all blocks to compute upstream set for snapshot filtering
+    // includeAllBlocks is needed because the startBlockId might be a trigger not reachable from the main trigger
+    const dag = this.dagBuilder.build(this.workflow, { includeAllBlocks: true })
 
     const executedBlocks = new Set(sourceSnapshot.executedBlocks)
     const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)

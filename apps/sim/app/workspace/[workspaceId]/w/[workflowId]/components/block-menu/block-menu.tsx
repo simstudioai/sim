@@ -48,6 +48,8 @@ export interface BlockMenuProps {
   canRunFromBlock?: boolean
   disableEdit?: boolean
   isExecuting?: boolean
+  /** Whether the selected block is a trigger (has no incoming edges) */
+  isPositionalTrigger?: boolean
 }
 
 /**
@@ -77,6 +79,7 @@ export function BlockMenu({
   canRunFromBlock = false,
   disableEdit = false,
   isExecuting = false,
+  isPositionalTrigger = false,
 }: BlockMenuProps) {
   const isSingleBlock = selectedBlocks.length === 1
 
@@ -87,7 +90,9 @@ export function BlockMenu({
     (b) =>
       TriggerUtils.requiresSingleInstance(b.type) || TriggerUtils.isSingleInstanceBlockType(b.type)
   )
-  const hasTriggerBlock = selectedBlocks.some((b) => TriggerUtils.isTriggerBlock(b))
+  // A block is a trigger if it's explicitly a trigger type OR has no incoming edges (positional trigger)
+  const hasTriggerBlock =
+    selectedBlocks.some((b) => TriggerUtils.isTriggerBlock(b)) || isPositionalTrigger
   const allNoteBlocks = selectedBlocks.every((b) => b.type === 'note')
   const isSubflow =
     isSingleBlock && (selectedBlocks[0]?.type === 'loop' || selectedBlocks[0]?.type === 'parallel')

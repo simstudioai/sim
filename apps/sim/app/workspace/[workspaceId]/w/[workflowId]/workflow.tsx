@@ -1128,23 +1128,17 @@ const WorkflowContent = React.memo(() => {
     const snapshot = getLastExecutionSnapshot(workflowIdParam)
     const incomingEdges = edges.filter((edge) => edge.target === block.id)
     const isTriggerBlock = incomingEdges.length === 0
-    const isSubflow = block.type === 'loop' || block.type === 'parallel'
 
-    // For subflows, check if the sentinel-end was executed (meaning the subflow completed at least once)
-    // Sentinel IDs follow the pattern: loop-{id}-sentinel-end or parallel-{id}-sentinel-end
-    const subflowWasExecuted =
-      isSubflow &&
-      snapshot &&
-      snapshot.executedBlocks.some(
-        (executedId) =>
-          executedId === `loop-${block.id}-sentinel-end` ||
-          executedId === `parallel-${block.id}-sentinel-end`
-      )
+    // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
+    const isSourceSatisfied = (sourceId: string) => {
+      if (snapshot?.executedBlocks.includes(sourceId)) return true
+      // Check if source is a trigger (has no incoming edges itself)
+      const sourceIncomingEdges = edges.filter((edge) => edge.target === sourceId)
+      return sourceIncomingEdges.length === 0
+    }
 
     const dependenciesSatisfied =
-      isTriggerBlock ||
-      subflowWasExecuted ||
-      (snapshot && incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source)))
+      isTriggerBlock || incomingEdges.every((edge) => isSourceSatisfied(edge.source))
     const isNoteBlock = block.type === 'note'
     const isInsideSubflow =
       block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
@@ -3482,6 +3476,10 @@ const WorkflowContent = React.memo(() => {
               canRunFromBlock={runFromBlockState.canRun}
               disableEdit={!effectivePermissions.canEdit}
               isExecuting={isExecuting}
+              isPositionalTrigger={
+                contextMenuBlocks.length === 1 &&
+                edges.filter((e) => e.target === contextMenuBlocks[0]?.id).length === 0
+              }
             />
 
             <CanvasMenu

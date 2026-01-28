@@ -1072,6 +1072,11 @@ export function useWorkflowExecution() {
                 logs: accumulatedBlockLogs,
               }
 
+              // Add trigger block to executed blocks so downstream blocks can use run-from-block
+              if (data.success && startBlockId) {
+                executedBlockIds.add(startBlockId)
+              }
+
               if (data.success && activeWorkflowId) {
                 if (stopAfterBlockId) {
                   const existingSnapshot = getLastExecutionSnapshot(activeWorkflowId)
@@ -1443,14 +1448,25 @@ export function useWorkflowExecution() {
       const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
       const isTriggerBlock = incomingEdges.length === 0
 
-      if (!snapshot && !isTriggerBlock) {
+      // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
+      const isSourceSatisfied = (sourceId: string) => {
+        if (snapshot?.executedBlocks.includes(sourceId)) return true
+        // Check if source is a trigger (has no incoming edges itself)
+        const sourceIncomingEdges = workflowEdges.filter((edge) => edge.target === sourceId)
+        return sourceIncomingEdges.length === 0
+      }
+
+      if (
+        !snapshot &&
+        !isTriggerBlock &&
+        !incomingEdges.every((edge) => isSourceSatisfied(edge.source))
+      ) {
         logger.error('No execution snapshot available for run-from-block', { workflowId, blockId })
         return
       }
 
       const dependenciesSatisfied =
-        isTriggerBlock ||
-        (snapshot && incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source)))
+        isTriggerBlock || incomingEdges.every((edge) => isSourceSatisfied(edge.source))
 
       if (!dependenciesSatisfied) {
         logger.error('Upstream dependencies not satisfied for run-from-block', {
@@ -1637,6 +1653,9 @@ export function useWorkflowExecution() {
 
             onExecutionCompleted: (data) => {
               if (data.success) {
+                // Add the start block (trigger) to executed blocks
+                executedBlockIds.add(blockId)
+
                 const mergedBlockStates: Record<string, BlockState> = {
                   ...effectiveSnapshot.blockStates,
                 }

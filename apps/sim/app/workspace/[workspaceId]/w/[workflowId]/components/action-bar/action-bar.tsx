@@ -114,9 +114,17 @@ export const ActionBar = memo(
     const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
     const incomingEdges = edges.filter((edge) => edge.target === blockId)
     const isTriggerBlock = incomingEdges.length === 0
+
+    // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
+    const isSourceSatisfied = (sourceId: string) => {
+      if (snapshot?.executedBlocks.includes(sourceId)) return true
+      // Check if source is a trigger (has no incoming edges itself)
+      const sourceIncomingEdges = edges.filter((edge) => edge.target === sourceId)
+      return sourceIncomingEdges.length === 0
+    }
+
     const dependenciesSatisfied =
-      isTriggerBlock ||
-      (snapshot && incomingEdges.every((edge) => snapshot.executedBlocks.includes(edge.source)))
+      isTriggerBlock || incomingEdges.every((edge) => isSourceSatisfied(edge.source))
     const canRunFromBlock =
       dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
 
@@ -149,7 +157,7 @@ export const ActionBar = memo(
           'dark:border-transparent dark:bg-[var(--surface-4)]'
         )}
       >
-        {!isNoteBlock && (
+        {!isNoteBlock && !isInsideSubflow && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -170,7 +178,6 @@ export const ActionBar = memo(
               {(() => {
                 if (disabled) return getTooltipMessage('Run from block')
                 if (isExecuting) return 'Execution in progress'
-                if (isInsideSubflow) return 'Cannot run from inside subflow'
                 if (!dependenciesSatisfied) return 'Run upstream blocks first'
                 return 'Run from block'
               })()}

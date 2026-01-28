@@ -176,6 +176,10 @@ export function validateRunFromBlock(
       // Skip sentinel nodes - they're internal and not in executedBlocks
       if (sourceNode?.metadata.isSentinel) continue
 
+      // Skip trigger nodes - they're entry points and don't need prior execution
+      // A trigger node has no incoming edges
+      if (sourceNode && sourceNode.incomingEdges.size === 0) continue
+
       if (!executedBlocks.has(sourceId)) {
         return {
           valid: false,
