@@ -243,187 +243,189 @@ export function SearchModal({
         aria-hidden={!open}
       />
 
-      {/* Command palette - only render when open to ensure SVG gradients work */}
-      {open && (
-        <div
-          role='dialog'
-          aria-modal={true}
-          aria-label='Search'
-          className='-translate-x-1/2 fixed top-[15%] left-1/2 z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg'
-        >
-          <Command label='Search' filter={customFilter}>
-            <Command.Input
-              ref={inputRef}
-              autoFocus
-              onValueChange={handleSearchChange}
-              placeholder='Search anything...'
-              className='w-full border-0 border-[var(--border)] border-b bg-transparent px-[12px] py-[10px] font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
-            />
-            <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto p-[8px]'>
-              <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[15px] text-[var(--text-subtle)]'>
-                No results found.
-              </Command.Empty>
+      {/* Command palette - always rendered for instant opening, hidden with CSS */}
+      <div
+        role='dialog'
+        aria-modal={open}
+        aria-hidden={!open}
+        aria-label='Search'
+        className={cn(
+          '-translate-x-1/2 fixed top-[15%] left-1/2 z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
+          open ? 'visible opacity-100' : 'invisible opacity-0'
+        )}
+      >
+        <Command label='Search' filter={customFilter}>
+          <Command.Input
+            ref={inputRef}
+            autoFocus
+            onValueChange={handleSearchChange}
+            placeholder='Search anything...'
+            className='w-full border-0 border-[var(--border)] border-b bg-transparent px-[12px] py-[10px] font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
+          />
+          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto p-[8px]'>
+            <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[15px] text-[var(--text-subtle)]'>
+              No results found.
+            </Command.Empty>
 
-              {showBlocks && (
-                <Command.Group heading='Blocks' className={groupHeadingClassName}>
-                  {blocks.map((block) => (
-                    <CommandItem
-                      key={block.id}
-                      value={block.name}
-                      keywords={[block.description]}
-                      onSelect={() => handleBlockSelect(block, 'block')}
-                      icon={block.icon}
-                      bgColor={block.bgColor}
-                      showColoredIcon
-                    >
-                      {block.name}
-                    </CommandItem>
-                  ))}
-                </Command.Group>
-              )}
+            {showBlocks && (
+              <Command.Group heading='Blocks' className={groupHeadingClassName}>
+                {blocks.map((block) => (
+                  <CommandItem
+                    key={block.id}
+                    value={block.name}
+                    keywords={[block.description]}
+                    onSelect={() => handleBlockSelect(block, 'block')}
+                    icon={block.icon}
+                    bgColor={block.bgColor}
+                    showColoredIcon
+                  >
+                    {block.name}
+                  </CommandItem>
+                ))}
+              </Command.Group>
+            )}
 
-              {showTools && (
-                <Command.Group heading='Tools' className={groupHeadingClassName}>
-                  {tools.map((tool) => (
-                    <CommandItem
-                      key={tool.id}
-                      value={tool.name}
-                      keywords={[tool.description]}
-                      onSelect={() => handleBlockSelect(tool, 'tool')}
-                      icon={tool.icon}
-                      bgColor={tool.bgColor}
-                      showColoredIcon
-                    >
-                      {tool.name}
-                    </CommandItem>
-                  ))}
-                </Command.Group>
-              )}
+            {showTools && (
+              <Command.Group heading='Tools' className={groupHeadingClassName}>
+                {tools.map((tool) => (
+                  <CommandItem
+                    key={tool.id}
+                    value={tool.name}
+                    keywords={[tool.description]}
+                    onSelect={() => handleBlockSelect(tool, 'tool')}
+                    icon={tool.icon}
+                    bgColor={tool.bgColor}
+                    showColoredIcon
+                  >
+                    {tool.name}
+                  </CommandItem>
+                ))}
+              </Command.Group>
+            )}
 
-              {showTriggers && (
-                <Command.Group heading='Triggers' className={groupHeadingClassName}>
-                  {triggers.map((trigger) => (
-                    <CommandItem
-                      key={trigger.id}
-                      value={trigger.name}
-                      keywords={[trigger.description]}
-                      onSelect={() => handleBlockSelect(trigger, 'trigger')}
-                      icon={trigger.icon}
-                      bgColor={trigger.bgColor}
-                      showColoredIcon
-                    >
-                      {trigger.name}
-                    </CommandItem>
-                  ))}
-                </Command.Group>
-              )}
+            {showTriggers && (
+              <Command.Group heading='Triggers' className={groupHeadingClassName}>
+                {triggers.map((trigger) => (
+                  <CommandItem
+                    key={trigger.id}
+                    value={trigger.name}
+                    keywords={[trigger.description]}
+                    onSelect={() => handleBlockSelect(trigger, 'trigger')}
+                    icon={trigger.icon}
+                    bgColor={trigger.bgColor}
+                    showColoredIcon
+                  >
+                    {trigger.name}
+                  </CommandItem>
+                ))}
+              </Command.Group>
+            )}
 
-              {workflows.length > 0 && (
-                <Command.Group heading='Workflows' className={groupHeadingClassName}>
-                  {workflows.map((workflow) => (
+            {workflows.length > 0 && (
+              <Command.Group heading='Workflows' className={groupHeadingClassName}>
+                {workflows.map((workflow) => (
+                  <Command.Item
+                    key={workflow.id}
+                    value={workflow.name}
+                    onSelect={() => handleWorkflowSelect(workflow)}
+                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                  >
+                    <div
+                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px]'
+                      style={{ backgroundColor: workflow.color }}
+                    />
+                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                      {workflow.name}
+                      {workflow.isCurrent && ' (current)'}
+                    </span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            {showToolOperations && (
+              <Command.Group heading='Tool Operations' className={groupHeadingClassName}>
+                {toolOperations.map((op) => (
+                  <CommandItem
+                    key={op.id}
+                    value={op.searchValue}
+                    keywords={op.keywords}
+                    onSelect={() => handleToolOperationSelect(op)}
+                    icon={op.icon}
+                    bgColor={op.bgColor}
+                    showColoredIcon
+                  >
+                    {op.name}
+                  </CommandItem>
+                ))}
+              </Command.Group>
+            )}
+
+            {workspaces.length > 0 && (
+              <Command.Group heading='Workspaces' className={groupHeadingClassName}>
+                {workspaces.map((workspace) => (
+                  <Command.Item
+                    key={workspace.id}
+                    value={workspace.name}
+                    onSelect={() => handleWorkspaceSelect(workspace)}
+                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                  >
+                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                      {workspace.name}
+                      {workspace.isCurrent && ' (current)'}
+                    </span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            {showDocs && (
+              <Command.Group heading='Docs' className={groupHeadingClassName}>
+                {docs.map((doc) => (
+                  <CommandItem
+                    key={doc.id}
+                    value={`${doc.name} docs documentation`}
+                    onSelect={() => handleDocSelect(doc)}
+                    icon={doc.icon}
+                    bgColor='#6B7280'
+                    showColoredIcon
+                  >
+                    {doc.name}
+                  </CommandItem>
+                ))}
+              </Command.Group>
+            )}
+
+            {pages.length > 0 && (
+              <Command.Group heading='Pages' className={groupHeadingClassName}>
+                {pages.map((page) => {
+                  const Icon = page.icon
+                  return (
                     <Command.Item
-                      key={workflow.id}
-                      value={workflow.name}
-                      onSelect={() => handleWorkflowSelect(workflow)}
+                      key={page.id}
+                      value={page.name}
+                      onSelect={() => handlePageSelect(page)}
                       className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                     >
-                      <div
-                        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px]'
-                        style={{ backgroundColor: workflow.color }}
-                      />
+                      <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                        <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
+                      </div>
                       <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
-                        {workflow.name}
-                        {workflow.isCurrent && ' (current)'}
+                        {page.name}
                       </span>
-                    </Command.Item>
-                  ))}
-                </Command.Group>
-              )}
-
-              {showToolOperations && (
-                <Command.Group heading='Tool Operations' className={groupHeadingClassName}>
-                  {toolOperations.map((op) => (
-                    <CommandItem
-                      key={op.id}
-                      value={op.searchValue}
-                      keywords={op.keywords}
-                      onSelect={() => handleToolOperationSelect(op)}
-                      icon={op.icon}
-                      bgColor={op.bgColor}
-                      showColoredIcon
-                    >
-                      {op.name}
-                    </CommandItem>
-                  ))}
-                </Command.Group>
-              )}
-
-              {workspaces.length > 0 && (
-                <Command.Group heading='Workspaces' className={groupHeadingClassName}>
-                  {workspaces.map((workspace) => (
-                    <Command.Item
-                      key={workspace.id}
-                      value={workspace.name}
-                      onSelect={() => handleWorkspaceSelect(workspace)}
-                      className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
-                    >
-                      <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
-                        {workspace.name}
-                        {workspace.isCurrent && ' (current)'}
-                      </span>
-                    </Command.Item>
-                  ))}
-                </Command.Group>
-              )}
-
-              {showDocs && (
-                <Command.Group heading='Docs' className={groupHeadingClassName}>
-                  {docs.map((doc) => (
-                    <CommandItem
-                      key={doc.id}
-                      value={`${doc.name} docs documentation`}
-                      onSelect={() => handleDocSelect(doc)}
-                      icon={doc.icon}
-                      bgColor='#6B7280'
-                      showColoredIcon
-                    >
-                      {doc.name}
-                    </CommandItem>
-                  ))}
-                </Command.Group>
-              )}
-
-              {pages.length > 0 && (
-                <Command.Group heading='Pages' className={groupHeadingClassName}>
-                  {pages.map((page) => {
-                    const Icon = page.icon
-                    return (
-                      <Command.Item
-                        key={page.id}
-                        value={page.name}
-                        onSelect={() => handlePageSelect(page)}
-                        className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
-                      >
-                        <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                          <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
-                        </div>
-                        <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
-                          {page.name}
+                      {page.shortcut && (
+                        <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)]'>
+                          {page.shortcut}
                         </span>
-                        {page.shortcut && (
-                          <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)]'>
-                            {page.shortcut}
-                          </span>
-                        )}
-                      </Command.Item>
-                    )
-                  })}
-                </Command.Group>
-              )}
-            </Command.List>
-          </Command>
-        </div>
-      )}
+                      )}
+                    </Command.Item>
+                  )
+                })}
+              </Command.Group>
+            )}
+          </Command.List>
+        </Command>
+      </div>
     </>,
     document.body
   )
