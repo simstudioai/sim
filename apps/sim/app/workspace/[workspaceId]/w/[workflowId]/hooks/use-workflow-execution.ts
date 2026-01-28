@@ -15,6 +15,7 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -1477,8 +1478,29 @@ export function useWorkflowExecution() {
         const candidates = resolveStartCandidates(mergedStates, { execution: 'manual' })
         const candidate = candidates.find((c) => c.blockId === blockId)
 
+        logger.info('Run-from-block trigger analysis', {
+          blockId,
+          blockType: workflowBlocks[blockId]?.type,
+          blockTriggerMode: workflowBlocks[blockId]?.triggerMode,
+          candidateFound: !!candidate,
+          candidatePath: candidate?.path,
+          allCandidates: candidates.map((c) => ({
+            blockId: c.blockId,
+            type: c.block.type,
+            path: c.path,
+          })),
+        })
+
         if (candidate) {
-          if (triggerNeedsMockPayload(candidate)) {
+          const needsMockPayload = triggerNeedsMockPayload(candidate)
+          logger.info('Trigger mock payload check', {
+            needsMockPayload,
+            path: candidate.path,
+            isExternalTrigger: candidate.path === StartBlockPath.EXTERNAL_TRIGGER,
+            blockType: candidate.block.type,
+          })
+
+          if (needsMockPayload) {
             workflowInput = extractTriggerMockPayload(candidate)
             logger.info('Extracted mock payload for trigger block', { blockId, workflowInput })
           } else if (
@@ -1498,6 +1520,32 @@ export function useWorkflowExecution() {
                 workflowInput = testInput
                 logger.info('Extracted test input for trigger block', { blockId, workflowInput })
               }
+            }
+          }
+        } else {
+          // Fallback for trigger blocks not found in candidates
+          // This can happen when the block is a trigger by position (no incoming edges)
+          // but wasn't classified as a start candidate (e.g., triggerMode not set)
+          const block = mergedStates[blockId]
+          if (block) {
+            const blockConfig = getBlock(block.type)
+            const hasTriggers = blockConfig?.triggers?.available?.length
+
+            if (hasTriggers || block.triggerMode) {
+              // Block has trigger capability - extract mock payload
+              const syntheticCandidate = {
+                blockId,
+                block,
+                path: StartBlockPath.EXTERNAL_TRIGGER,
+              }
+              workflowInput = extractTriggerMockPayload(syntheticCandidate)
+              logger.info('Extracted mock payload for trigger block (fallback)', {
+                blockId,
+                blockType: block.type,
+                hasTriggers,
+                triggerMode: block.triggerMode,
+                workflowInput,
+              })
             }
           }
         }

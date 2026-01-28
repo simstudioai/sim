@@ -107,7 +107,8 @@ export class DAGExecutor {
     startBlockId: string,
     sourceSnapshot: SerializableExecutionState
   ): Promise<ExecutionResult> {
-    const dag = this.dagBuilder.build(this.workflow)
+    // Pass startBlockId as trigger so DAG includes it and all downstream blocks
+    const dag = this.dagBuilder.build(this.workflow, startBlockId)
 
     const executedBlocks = new Set(sourceSnapshot.executedBlocks)
     const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)
@@ -297,7 +298,10 @@ export class DAGExecutor {
         skipStarterBlockInit: true,
       })
     } else if (overrides?.runFromBlockContext) {
-      logger.info('Run-from-block mode: skipping starter block initialization', {
+      // In run-from-block mode, still initialize the start block with workflow input
+      // This ensures trigger blocks get their mock payload
+      this.initializeStarterBlock(context, state, overrides.runFromBlockContext.startBlockId)
+      logger.info('Run-from-block mode: initialized start block', {
         startBlockId: overrides.runFromBlockContext.startBlockId,
       })
     } else {
