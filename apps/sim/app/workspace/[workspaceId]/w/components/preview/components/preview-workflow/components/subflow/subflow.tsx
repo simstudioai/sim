@@ -5,6 +5,9 @@ import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 
+/** Execution status for subflows in preview mode */
+type ExecutionStatus = 'success' | 'error' | 'not-executed'
+
 interface WorkflowPreviewSubflowData {
   name: string
   width?: number
@@ -12,6 +15,10 @@ interface WorkflowPreviewSubflowData {
   kind: 'loop' | 'parallel'
   /** Whether this subflow is selected in preview mode */
   isPreviewSelected?: boolean
+  /** Execution status for highlighting the subflow container */
+  executionStatus?: ExecutionStatus
+  /** Skips expensive computations for thumbnails/template previews (unused in subflow, for consistency) */
+  lightweight?: boolean
 }
 
 /**
@@ -20,7 +27,7 @@ interface WorkflowPreviewSubflowData {
  * or interactive features.
  */
 function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowData>) {
-  const { name, width = 500, height = 300, kind, isPreviewSelected = false } = data
+  const { name, width = 500, height = 300, kind, isPreviewSelected = false, executionStatus } = data
 
   const isLoop = kind === 'loop'
   const BlockIcon = isLoop ? RepeatIcon : SplitIcon
@@ -35,6 +42,9 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
   const rightHandleClass =
     '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none'
 
+  const hasError = executionStatus === 'error'
+  const hasSuccess = executionStatus === 'success'
+
   return (
     <div
       className='relative select-none rounded-[8px] border border-[var(--border-1)]'
@@ -43,9 +53,17 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
         height,
       }}
     >
-      {/* Selection ring overlay */}
+      {/* Selection ring overlay (takes priority over execution rings) */}
       {isPreviewSelected && (
         <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--brand-secondary)]' />
+      )}
+      {/* Success ring overlay (only shown if not selected) */}
+      {!isPreviewSelected && hasSuccess && (
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--brand-tertiary-2)]' />
+      )}
+      {/* Error ring overlay (only shown if not selected) */}
+      {!isPreviewSelected && hasError && (
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--text-error)]' />
       )}
 
       {/* Target handle on left (input to the subflow) */}
@@ -110,4 +128,4 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
   )
 }
 
-export const WorkflowPreviewSubflow = memo(WorkflowPreviewSubflowInner)
+export const PreviewSubflow = memo(WorkflowPreviewSubflowInner)

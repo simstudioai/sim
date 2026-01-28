@@ -1,4 +1,5 @@
-import { normalizeName } from '@/executor/constants'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { isTriggerBehavior, normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { OutputSchema } from '@/executor/utils/block-reference'
 import type { SerializedBlock } from '@/serializer/types'
@@ -11,25 +12,73 @@ export interface BlockDataCollection {
   blockOutputSchemas: Record<string, OutputSchema>
 }
 
+/**
+ * Block types where inputFormat fields should be merged into outputs schema.
+ * These are blocks where users define custom fields via inputFormat that become
+ * valid output paths (e.g., <start.myField>, <webhook1.customField>, <hitl1.resumeField>).
+ *
+ * Note: This includes non-trigger blocks like 'starter' and 'human_in_the_loop' which
+ * have category 'blocks' but still need their inputFormat exposed as outputs.
+ */
+const BLOCKS_WITH_INPUT_FORMAT_OUTPUTS = [
+  'start_trigger',
+  'starter',
+  'api_trigger',
+  'input_trigger',
+  'generic_webhook',
+  'human_in_the_loop',
+] as const
+
+function getInputFormatFields(block: SerializedBlock): OutputSchema {
+  const inputFormat = normalizeInputFormatValue(block.config?.params?.inputFormat)
+  if (inputFormat.length === 0) {
+    return {}
+  }
+
+  const schema: OutputSchema = {}
+  for (const field of inputFormat) {
+    if (!field.name) continue
+    schema[field.name] = {
+      type: (field.type || 'any') as 'string' | 'number' | 'boolean' | 'object' | 'array' | 'any',
+    }
+  }
+
+  return schema
+}
+
 export function getBlockSchema(
   block: SerializedBlock,
   toolConfig?: ToolConfig
 ): OutputSchema | undefined {
-  const isTrigger =
-    block.metadata?.category === 'triggers' ||
-    (block.config?.params as Record<string, unknown> | undefined)?.triggerMode === true
+  const blockType = block.metadata?.id
 
-  // Triggers use saved outputs (defines the trigger payload schema)
+  // For blocks that expose inputFormat as outputs, always merge them
+  // This includes both triggers (start_trigger, generic_webhook) and
+  // non-triggers (starter, human_in_the_loop) that have inputFormat
+  if (
+    blockType &&
+    BLOCKS_WITH_INPUT_FORMAT_OUTPUTS.includes(
+      blockType as (typeof BLOCKS_WITH_INPUT_FORMAT_OUTPUTS)[number]
+    )
+  ) {
+    const baseOutputs = (block.outputs as OutputSchema) || {}
+    const inputFormatFields = getInputFormatFields(block)
+    const merged = { ...baseOutputs, ...inputFormatFields }
+    if (Object.keys(merged).length > 0) {
+      return merged
+    }
+  }
+
+  const isTrigger = isTriggerBehavior(block)
+
   if (isTrigger && block.outputs && Object.keys(block.outputs).length > 0) {
     return block.outputs as OutputSchema
   }
 
-  // When a tool is selected, tool outputs are the source of truth
   if (toolConfig?.outputs && Object.keys(toolConfig.outputs).length > 0) {
     return toolConfig.outputs as OutputSchema
   }
 
-  // Fallback to saved outputs for blocks without tools
   if (block.outputs && Object.keys(block.outputs).length > 0) {
     return block.outputs as OutputSchema
   }

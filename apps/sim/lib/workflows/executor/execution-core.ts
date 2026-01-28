@@ -14,6 +14,7 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
+import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
@@ -27,7 +28,6 @@ import type {
 import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
 const logger = createLogger('ExecutionCore')
 
@@ -181,8 +181,7 @@ export async function executeWorkflowCore(
       logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
     }
 
-    // Merge block states
-    const mergedStates = mergeSubblockState(blocks)
+    const mergedStates = mergeSubblockStateWithValues(blocks)
 
     const personalEnvUserId =
       metadata.isClientSession && metadata.sessionUserId

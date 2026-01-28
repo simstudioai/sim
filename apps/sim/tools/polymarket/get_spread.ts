@@ -1,6 +1,6 @@
+import type { PolymarketSpread } from '@/tools/polymarket/types'
+import { buildClobUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketSpread } from './types'
-import { buildClobUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetSpreadParams {
   tokenId: string // The token ID (CLOB token ID from market)
@@ -53,7 +53,9 @@ export const polymarketGetSpreadTool: ToolConfig<
     return {
       success: true,
       output: {
-        spread: data,
+        spread: {
+          spread: data.spread ?? '',
+        },
       },
     }
   },
@@ -61,7 +63,10 @@ export const polymarketGetSpreadTool: ToolConfig<
   outputs: {
     spread: {
       type: 'object',
-      description: 'Bid-ask spread with bid and ask prices',
+      description: 'Spread value between bid and ask',
+      properties: {
+        spread: { type: 'string', description: 'The spread value' },
+      },
     },
   },
 }

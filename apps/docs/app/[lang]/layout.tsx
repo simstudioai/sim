@@ -3,13 +3,13 @@ import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
-import Image from 'next/image'
 import {
   SidebarFolder,
   SidebarItem,
   SidebarSeparator,
 } from '@/components/docs-layout/sidebar-components'
 import { Navbar } from '@/components/navbar/navbar'
+import { SimLogoFull } from '@/components/ui/sim-logo'
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
 import '../global.css'
@@ -102,16 +102,7 @@ export default async function Layout({ children, params }: LayoutProps) {
           <DocsLayout
             tree={source.pageTree[lang]}
             nav={{
-              title: (
-                <Image
-                  src='/static/logo.png'
-                  alt='Sim'
-                  width={72}
-                  height={28}
-                  className='h-7 w-auto'
-                  priority
-                />
-              ),
+              title: <SimLogoFull className='h-7 w-auto' />,
             }}
             sidebar={{
               defaultOpenLevel: 0,

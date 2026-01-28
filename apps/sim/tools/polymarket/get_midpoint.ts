@@ -1,5 +1,5 @@
+import { buildClobUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildClobUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetMidpointParams {
   tokenId: string // The token ID (CLOB token ID from market)

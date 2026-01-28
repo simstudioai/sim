@@ -1,5 +1,5 @@
+import { buildClobUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildClobUrl, handlePolymarketError } from './types'
 
 export interface PolymarketGetLastTradePriceParams {
   tokenId: string // The token ID (CLOB token ID from market)
@@ -9,6 +9,7 @@ export interface PolymarketGetLastTradePriceResponse {
   success: boolean
   output: {
     price: string
+    side: string
   }
 }
 
@@ -52,7 +53,8 @@ export const polymarketGetLastTradePriceTool: ToolConfig<
     return {
       success: true,
       output: {
-        price: typeof data === 'string' ? data : data.price || '',
+        price: data.price ?? '',
+        side: data.side ?? '',
       },
     }
   },
@@ -61,6 +63,10 @@ export const polymarketGetLastTradePriceTool: ToolConfig<
     price: {
       type: 'string',
       description: 'Last trade price',
+    },
+    side: {
+      type: 'string',
+      description: 'Side of the last trade (BUY or SELL)',
     },
   },
 }

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildIntercomUrl, handleIntercomError } from './types'
 
 const logger = createLogger('IntercomListContacts')
 
@@ -28,7 +28,7 @@ const listContactsBase = {
     accessToken: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Intercom API access token',
     },
     per_page: {

@@ -28,6 +28,7 @@ import type {
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { validateBlockType } from '@/executor/utils/permission-check'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
@@ -147,14 +148,16 @@ export class BlockExecutor {
         blockLog.endedAt = new Date().toISOString()
         blockLog.durationMs = duration
         blockLog.success = true
-        blockLog.output = this.filterOutputForLog(block, normalizedOutput)
+        blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
       }
 
       this.state.setBlockOutput(node.id, normalizedOutput, duration)
 
       if (!isSentinel) {
-        const filteredOutput = this.filterOutputForLog(block, normalizedOutput)
-        this.callOnBlockComplete(ctx, node, block, resolvedInputs, filteredOutput, duration)
+        const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
+          block,
+        })
+        this.callOnBlockComplete(ctx, node, block, resolvedInputs, displayOutput, duration)
       }
 
       return normalizedOutput
@@ -231,7 +234,7 @@ export class BlockExecutor {
       blockLog.success = false
       blockLog.error = errorMessage
       blockLog.input = input
-      blockLog.output = this.filterOutputForLog(block, errorOutput)
+      blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
     }
 
     logger.error(
@@ -244,7 +247,8 @@ export class BlockExecutor {
     )
 
     if (!isSentinel) {
-      this.callOnBlockComplete(ctx, node, block, input, errorOutput, duration)
+      const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
+      this.callOnBlockComplete(ctx, node, block, input, displayOutput, duration)
     }
 
     const hasErrorPort = this.hasErrorPortEdge(node)
@@ -330,38 +334,6 @@ export class BlockExecutor {
     }
 
     return { result: output }
-  }
-
-  private filterOutputForLog(
-    block: SerializedBlock,
-    output: NormalizedBlockOutput
-  ): NormalizedBlockOutput {
-    if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
-      const filtered: NormalizedBlockOutput = {}
-      for (const [key, value] of Object.entries(output)) {
-        if (key.startsWith('_')) continue
-        if (key === 'response') continue
-        filtered[key] = value
-      }
-      return filtered
-    }
-
-    const isTrigger =
-      block.metadata?.category === 'triggers' ||
-      block.config?.params?.triggerMode === true ||
-      block.metadata?.id === BlockType.STARTER
-
-    if (isTrigger) {
-      const filtered: NormalizedBlockOutput = {}
-      const internalKeys = ['webhook', 'workflowId']
-      for (const [key, value] of Object.entries(output)) {
-        if (internalKeys.includes(key)) continue
-        filtered[key] = value
-      }
-      return filtered
-    }
-
-    return output
   }
 
   private callOnBlockStart(ctx: ExecutionContext, node: DAGNode, block: SerializedBlock): void {

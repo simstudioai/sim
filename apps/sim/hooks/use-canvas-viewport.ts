@@ -57,31 +57,16 @@ function getVisibleCanvasBounds(): VisibleBounds {
  * Gets the center of the visible canvas in screen coordinates.
  */
 function getVisibleCanvasCenter(): { x: number; y: number } {
-  const style = getComputedStyle(document.documentElement)
-  const sidebarWidth = Number.parseInt(style.getPropertyValue('--sidebar-width') || '0', 10)
-  const panelWidth = Number.parseInt(style.getPropertyValue('--panel-width') || '0', 10)
-  const terminalHeight = Number.parseInt(style.getPropertyValue('--terminal-height') || '0', 10)
+  const bounds = getVisibleCanvasBounds()
 
   const flowContainer = document.querySelector('.react-flow')
-  if (!flowContainer) {
-    const visibleWidth = window.innerWidth - sidebarWidth - panelWidth
-    const visibleHeight = window.innerHeight - terminalHeight
-    return {
-      x: sidebarWidth + visibleWidth / 2,
-      y: visibleHeight / 2,
-    }
-  }
-
-  const rect = flowContainer.getBoundingClientRect()
-
-  // Calculate actual visible area in screen coordinates
-  const visibleLeft = Math.max(rect.left, sidebarWidth)
-  const visibleRight = Math.min(rect.right, window.innerWidth - panelWidth)
-  const visibleBottom = Math.min(rect.bottom, window.innerHeight - terminalHeight)
+  const rect = flowContainer?.getBoundingClientRect()
+  const containerLeft = rect?.left ?? 0
+  const containerTop = rect?.top ?? 0
 
   return {
-    x: (visibleLeft + visibleRight) / 2,
-    y: (rect.top + visibleBottom) / 2,
+    x: containerLeft + bounds.offsetLeft + bounds.width / 2,
+    y: containerTop + bounds.height / 2,
   }
 }
 

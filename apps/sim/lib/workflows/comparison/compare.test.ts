@@ -557,7 +557,8 @@ describe('hasWorkflowChanged', () => {
   })
 
   describe('InputFormat SubBlock Special Handling', () => {
-    it.concurrent('should ignore value and collapsed fields in inputFormat', () => {
+    it.concurrent('should ignore collapsed field but detect value changes in inputFormat', () => {
+      // Only collapsed changes - should NOT detect as change
       const state1 = createWorkflowState({
         blocks: {
           block1: createBlock('block1', {
@@ -578,8 +579,8 @@ describe('hasWorkflowChanged', () => {
             subBlocks: {
               inputFormat: {
                 value: [
-                  { id: 'input1', name: 'Name', value: 'Jane', collapsed: false },
-                  { id: 'input2', name: 'Age', value: 30, collapsed: true },
+                  { id: 'input1', name: 'Name', value: 'John', collapsed: false },
+                  { id: 'input2', name: 'Age', value: 25, collapsed: true },
                 ],
               },
             },
@@ -587,6 +588,32 @@ describe('hasWorkflowChanged', () => {
         },
       })
       expect(hasWorkflowChanged(state1, state2)).toBe(false)
+    })
+
+    it.concurrent('should detect value changes in inputFormat', () => {
+      const state1 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              inputFormat: {
+                value: [{ id: 'input1', name: 'Name', value: 'John' }],
+              },
+            },
+          }),
+        },
+      })
+      const state2 = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              inputFormat: {
+                value: [{ id: 'input1', name: 'Name', value: 'Jane' }],
+              },
+            },
+          }),
+        },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(true)
     })
 
     it.concurrent('should detect actual inputFormat changes', () => {
@@ -1712,15 +1739,15 @@ describe('hasWorkflowChanged', () => {
   })
 
   describe('Input Format Field Scenarios', () => {
-    it.concurrent('should not detect change when inputFormat value is typed and cleared', () => {
-      // The "value" field in inputFormat is UI-only and should be ignored
+    it.concurrent('should not detect change when only inputFormat collapsed changes', () => {
+      // The "collapsed" field in inputFormat is UI-only and should be ignored
       const deployedState = createWorkflowState({
         blocks: {
           block1: createBlock('block1', {
             subBlocks: {
               inputFormat: {
                 value: [
-                  { id: 'field1', name: 'Name', type: 'string', value: '', collapsed: false },
+                  { id: 'field1', name: 'Name', type: 'string', value: 'test', collapsed: false },
                 ],
               },
             },
@@ -1738,7 +1765,7 @@ describe('hasWorkflowChanged', () => {
                     id: 'field1',
                     name: 'Name',
                     type: 'string',
-                    value: 'typed then cleared',
+                    value: 'test',
                     collapsed: true,
                   },
                 ],
@@ -1748,8 +1775,38 @@ describe('hasWorkflowChanged', () => {
         },
       })
 
-      // value and collapsed are UI-only fields - should NOT detect as change
+      // collapsed is UI-only field - should NOT detect as change
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
+    })
+
+    it.concurrent('should detect change when inputFormat value changes', () => {
+      // The "value" field in inputFormat is meaningful and should trigger change detection
+      const deployedState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              inputFormat: {
+                value: [{ id: 'field1', name: 'Name', type: 'string', value: '' }],
+              },
+            },
+          }),
+        },
+      })
+
+      const currentState = createWorkflowState({
+        blocks: {
+          block1: createBlock('block1', {
+            subBlocks: {
+              inputFormat: {
+                value: [{ id: 'field1', name: 'Name', type: 'string', value: 'new value' }],
+              },
+            },
+          }),
+        },
+      })
+
+      // value changes should be detected
+      expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
     })
 
     it.concurrent('should detect change when inputFormat field name changes', () => {

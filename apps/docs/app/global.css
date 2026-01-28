@@ -9,9 +9,18 @@ body {
 }
 
 @theme {
-  --color-fd-primary: #802fff; /* Purple from control-bar component */
+  --color-fd-primary: #33c482; /* Green from Sim logo */
   --font-geist-sans: var(--font-geist-sans);
   --font-geist-mono: var(--font-geist-mono);
+}
+
+/* Ensure primary color is set in both light and dark modes */
+:root {
+  --color-fd-primary: #33c482;
+}
+
+.dark {
+  --color-fd-primary: #33c482;
 }
 
 /* Font family utilities */
@@ -34,7 +43,7 @@ body {
 :root {
   --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
-  --fd-nav-height: 64px; /* Custom navbar height (h-16 = 4rem = 64px) */
+  --fd-nav-height: 65px; /* Custom navbar height (h-16 = 64px + 1px border) */
   /* Content container width used to center main content */
   --spacing-fd-container: 1400px;
   /* Edge gutter = leftover space on each side of centered container */
@@ -136,11 +145,11 @@ aside#nd-sidebar {
 /* On mobile, let fumadocs handle the layout natively */
 @media (min-width: 1024px) {
   :root {
-    --fd-banner-height: 64px !important;
+    --fd-banner-height: 65px !important; /* 64px navbar + 1px border */
   }
 
   #nd-docs-layout {
-    --fd-docs-height: calc(100dvh - 64px) !important;
+    --fd-docs-height: calc(100dvh - 65px) !important; /* 64px navbar + 1px border */
     --fd-sidebar-width: 300px !important;
     margin-left: var(--sidebar-offset) !important;
     margin-right: var(--toc-offset) !important;
@@ -227,19 +236,19 @@ html:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*
   letter-spacing: 0.05em !important;
 }
 
-/* Override active state (NO PURPLE) */
+/* Override active state */
 #nd-sidebar a[data-active="true"],
 #nd-sidebar button[data-active="true"],
 #nd-sidebar a.bg-fd-primary\/10,
 #nd-sidebar a.text-fd-primary,
 #nd-sidebar a[class*="bg-fd-primary"],
 #nd-sidebar a[class*="text-fd-primary"],
-/* Override custom sidebar purple classes */
+/* Override custom sidebar green classes */
   #nd-sidebar
-  a.bg-purple-50\/80,
-#nd-sidebar a.text-purple-600,
-#nd-sidebar a[class*="bg-purple"],
-#nd-sidebar a[class*="text-purple"] {
+  a.bg-emerald-50\/80,
+#nd-sidebar a.text-emerald-600,
+#nd-sidebar a[class*="bg-emerald"],
+#nd-sidebar a[class*="text-emerald"] {
   background-image: none !important;
 }
 
@@ -250,10 +259,10 @@ html.dark #nd-sidebar a.bg-fd-primary\/10,
 html.dark #nd-sidebar a.text-fd-primary,
 html.dark #nd-sidebar a[class*="bg-fd-primary"],
 html.dark #nd-sidebar a[class*="text-fd-primary"],
-html.dark #nd-sidebar a.bg-purple-50\/80,
-html.dark #nd-sidebar a.text-purple-600,
-html.dark #nd-sidebar a[class*="bg-purple"],
-html.dark #nd-sidebar a[class*="text-purple"] {
+html.dark #nd-sidebar a.bg-emerald-50\/80,
+html.dark #nd-sidebar a.text-emerald-600,
+html.dark #nd-sidebar a[class*="bg-emerald"],
+html.dark #nd-sidebar a[class*="text-emerald"] {
   background-color: rgba(255, 255, 255, 0.15) !important;
   color: rgba(255, 255, 255, 1) !important;
 }
@@ -265,10 +274,10 @@ html:not(.dark) #nd-sidebar a.bg-fd-primary\/10,
 html:not(.dark) #nd-sidebar a.text-fd-primary,
 html:not(.dark) #nd-sidebar a[class*="bg-fd-primary"],
 html:not(.dark) #nd-sidebar a[class*="text-fd-primary"],
-html:not(.dark) #nd-sidebar a.bg-purple-50\/80,
-html:not(.dark) #nd-sidebar a.text-purple-600,
-html:not(.dark) #nd-sidebar a[class*="bg-purple"],
-html:not(.dark) #nd-sidebar a[class*="text-purple"] {
+html:not(.dark) #nd-sidebar a.bg-emerald-50\/80,
+html:not(.dark) #nd-sidebar a.text-emerald-600,
+html:not(.dark) #nd-sidebar a[class*="bg-emerald"],
+html:not(.dark) #nd-sidebar a[class*="text-emerald"] {
   background-color: rgba(0, 0, 0, 0.07) !important;
   color: rgba(0, 0, 0, 0.9) !important;
 }
@@ -286,8 +295,8 @@ html:not(.dark) #nd-sidebar button:hover:not([data-active="true"]) {
 }
 
 /* Dark mode - ensure active/selected items don't change on hover */
-html.dark #nd-sidebar a.bg-purple-50\/80:hover,
-html.dark #nd-sidebar a[class*="bg-purple"]:hover,
+html.dark #nd-sidebar a.bg-emerald-50\/80:hover,
+html.dark #nd-sidebar a[class*="bg-emerald"]:hover,
 html.dark #nd-sidebar a[data-active="true"]:hover,
 html.dark #nd-sidebar button[data-active="true"]:hover {
   background-color: rgba(255, 255, 255, 0.15) !important;
@@ -295,8 +304,8 @@ html.dark #nd-sidebar button[data-active="true"]:hover {
 }
 
 /* Light mode - ensure active/selected items don't change on hover */
-html:not(.dark) #nd-sidebar a.bg-purple-50\/80:hover,
-html:not(.dark) #nd-sidebar a[class*="bg-purple"]:hover,
+html:not(.dark) #nd-sidebar a.bg-emerald-50\/80:hover,
+html:not(.dark) #nd-sidebar a[class*="bg-emerald"]:hover,
 html:not(.dark) #nd-sidebar a[data-active="true"]:hover,
 html:not(.dark) #nd-sidebar button[data-active="true"]:hover {
   background-color: rgba(0, 0, 0, 0.07) !important;
@@ -368,16 +377,24 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   button[aria-label="Toggle Sidebar"],
   button[aria-label="Collapse Sidebar"],
   /* Hide nav title/logo in sidebar on desktop - target all possible locations */
+    /* Lower specificity selectors first (attribute selectors) */
+    [data-sidebar-header],
+  [data-sidebar] [data-title],
   aside[data-sidebar] a[href="/"],
   aside[data-sidebar] a[href="/"] img,
   aside[data-sidebar] > a:first-child,
   aside[data-sidebar] > div > a:first-child,
   aside[data-sidebar] img[alt="Sim"],
-  [data-sidebar-header],
-  [data-sidebar] [data-title],
+  aside[data-sidebar] svg[aria-label="Sim"],
+  /* Higher specificity selectors (ID selectors) */
+    #nd-sidebar
+    a[href="/"],
+  #nd-sidebar a[href="/"] img,
+  #nd-sidebar a[href="/"] svg,
   #nd-sidebar > a:first-child,
   #nd-sidebar > div:first-child > a:first-child,
   #nd-sidebar img[alt="Sim"],
+  #nd-sidebar svg[aria-label="Sim"],
   /* Hide theme toggle at bottom of sidebar on desktop */
     #nd-sidebar
     > footer,
@@ -513,6 +530,15 @@ pre code .line {
 /* Override marker color for highlighted lists */
 .highlight-markers li::marker {
   color: var(--color-fd-primary);
+}
+
+/* ============================================
+   TOC (Table of Contents) Styling
+   ============================================ */
+
+/* Remove the thin border-left on nested TOC items (keeps main indicator only) */
+#nd-toc a[style*="padding-inline-start"] {
+  border-left: none !important;
 }
 
 /* Add bottom spacing to prevent abrupt page endings */

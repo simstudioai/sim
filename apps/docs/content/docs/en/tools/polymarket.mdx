@@ -29,7 +29,7 @@ By using these documented API endpoints, you can seamlessly integrate Polymarket
 
 ## Usage Instructions
 
-Integrate Polymarket prediction markets into the workflow. Can get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, and search.
+Integrate Polymarket prediction markets into the workflow. Can get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, activity, leaderboard, holders, and search.
 
 
 
@@ -43,7 +43,7 @@ Retrieve a list of prediction markets from Polymarket with optional filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `closed` | string | No | Filter by closed status \(true/false\). Use false for active markets only. |
+| `closed` | string | No | Filter by closed status \(true/false\). Use false for open markets only. |
 | `order` | string | No | Sort field \(e.g., volumeNum, liquidityNum, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
 | `tagId` | string | No | Filter by tag ID |
@@ -55,6 +55,21 @@ Retrieve a list of prediction markets from Polymarket with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `markets` | array | Array of market objects |
+|   ↳ `id` | string | Market ID |
+|   ↳ `question` | string | Market question |
+|   ↳ `conditionId` | string | Condition ID |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `endDate` | string | End date |
+|   ↳ `image` | string | Market image URL |
+|   ↳ `outcomes` | string | Outcomes JSON string |
+|   ↳ `outcomePrices` | string | Outcome prices JSON string |
+|   ↳ `volume` | string | Total volume |
+|   ↳ `liquidity` | string | Total liquidity |
+|   ↳ `active` | boolean | Whether market is active |
+|   ↳ `closed` | boolean | Whether market is closed |
+|   ↳ `volumeNum` | number | Volume as number |
+|   ↳ `liquidityNum` | number | Liquidity as number |
+|   ↳ `clobTokenIds` | array | CLOB token IDs |
 
 ### `polymarket_get_market`
 
@@ -72,6 +87,28 @@ Retrieve details of a specific prediction market by ID or slug
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `market` | object | Market object with details |
+| ↳ `id` | string | Market ID |
+| ↳ `question` | string | Market question |
+| ↳ `conditionId` | string | Condition ID |
+| ↳ `slug` | string | Market slug |
+| ↳ `resolutionSource` | string | Resolution source |
+| ↳ `endDate` | string | End date |
+| ↳ `startDate` | string | Start date |
+| ↳ `image` | string | Market image URL |
+| ↳ `icon` | string | Market icon URL |
+| ↳ `description` | string | Market description |
+| ↳ `outcomes` | string | Outcomes JSON string |
+| ↳ `outcomePrices` | string | Outcome prices JSON string |
+| ↳ `volume` | string | Total volume |
+| ↳ `liquidity` | string | Total liquidity |
+| ↳ `active` | boolean | Whether market is active |
+| ↳ `closed` | boolean | Whether market is closed |
+| ↳ `archived` | boolean | Whether market is archived |
+| ↳ `volumeNum` | number | Volume as number |
+| ↳ `liquidityNum` | number | Liquidity as number |
+| ↳ `clobTokenIds` | array | CLOB token IDs |
+| ↳ `acceptingOrders` | boolean | Whether accepting orders |
+| ↳ `negRisk` | boolean | Whether negative risk |
 
 ### `polymarket_get_events`
 
@@ -81,7 +118,7 @@ Retrieve a list of events from Polymarket with optional filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `closed` | string | No | Filter by closed status \(true/false\). Use false for active events only. |
+| `closed` | string | No | Filter by closed status \(true/false\). Use false for open events only. |
 | `order` | string | No | Sort field \(e.g., volume, liquidity, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
 | `tagId` | string | No | Filter by tag ID |
@@ -93,6 +130,21 @@ Retrieve a list of events from Polymarket with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `events` | array | Array of event objects |
+|   ↳ `id` | string | Event ID |
+|   ↳ `ticker` | string | Event ticker |
+|   ↳ `slug` | string | Event slug |
+|   ↳ `title` | string | Event title |
+|   ↳ `description` | string | Event description |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `endDate` | string | End date |
+|   ↳ `image` | string | Event image URL |
+|   ↳ `icon` | string | Event icon URL |
+|   ↳ `active` | boolean | Whether event is active |
+|   ↳ `closed` | boolean | Whether event is closed |
+|   ↳ `archived` | boolean | Whether event is archived |
+|   ↳ `liquidity` | number | Total liquidity |
+|   ↳ `volume` | number | Total volume |
+|   ↳ `markets` | array | Array of markets in this event |
 
 ### `polymarket_get_event`
 
@@ -110,6 +162,24 @@ Retrieve details of a specific event by ID or slug
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `event` | object | Event object with details |
+| ↳ `id` | string | Event ID |
+| ↳ `ticker` | string | Event ticker |
+| ↳ `slug` | string | Event slug |
+| ↳ `title` | string | Event title |
+| ↳ `description` | string | Event description |
+| ↳ `startDate` | string | Start date |
+| ↳ `creationDate` | string | Creation date |
+| ↳ `endDate` | string | End date |
+| ↳ `image` | string | Event image URL |
+| ↳ `icon` | string | Event icon URL |
+| ↳ `active` | boolean | Whether event is active |
+| ↳ `closed` | boolean | Whether event is closed |
+| ↳ `archived` | boolean | Whether event is archived |
+| ↳ `liquidity` | number | Total liquidity |
+| ↳ `volume` | number | Total volume |
+| ↳ `openInterest` | number | Open interest |
+| ↳ `commentCount` | number | Comment count |
+| ↳ `markets` | array | Array of markets in this event |
 
 ### `polymarket_get_tags`
 
@@ -126,7 +196,12 @@ Retrieve available tags for filtering markets from Polymarket
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tags` | array | Array of tag objects with id, label, and slug |
+| `tags` | array | Array of tag objects |
+|   ↳ `id` | string | Tag ID |
+|   ↳ `label` | string | Tag label |
+|   ↳ `slug` | string | Tag slug |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
 
 ### `polymarket_search`
 
@@ -138,13 +213,28 @@ Search for markets, events, and profiles on Polymarket
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query term |
 | `limit` | string | No | Number of results per page \(max 50\) |
-| `offset` | string | No | Pagination offset |
+| `page` | string | No | Page number for pagination \(1-indexed\) |
+| `cache` | string | No | Enable caching \(true/false\) |
+| `eventsStatus` | string | No | Filter events by status |
+| `limitPerType` | string | No | Limit results per type \(markets, events, profiles\) |
+| `eventsTag` | string | No | Filter by event tags \(comma-separated\) |
+| `sort` | string | No | Sort field |
+| `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
+| `searchTags` | string | No | Include tags in search results \(true/false\) |
+| `searchProfiles` | string | No | Include profiles in search results \(true/false\) |
+| `recurrence` | string | No | Filter by recurrence type |
+| `excludeTagId` | string | No | Exclude events with these tag IDs \(comma-separated\) |
+| `keepClosedMarkets` | string | No | Include closed markets in results \(0 or 1\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | object | Search results containing markets, events, and profiles arrays |
+| `results` | object | Search results containing markets, events, tags, and profiles arrays |
+| ↳ `markets` | array | Array of matching market objects |
+| ↳ `events` | array | Array of matching event objects |
+| ↳ `tags` | array | Array of matching tag objects |
+| ↳ `profiles` | array | Array of matching profile objects |
 
 ### `polymarket_get_series`
 
@@ -162,6 +252,21 @@ Retrieve series (related market groups) from Polymarket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `series` | array | Array of series objects |
+|   ↳ `id` | string | Series ID |
+|   ↳ `ticker` | string | Series ticker |
+|   ↳ `slug` | string | Series slug |
+|   ↳ `title` | string | Series title |
+|   ↳ `seriesType` | string | Series type |
+|   ↳ `recurrence` | string | Recurrence pattern |
+|   ↳ `image` | string | Series image URL |
+|   ↳ `icon` | string | Series icon URL |
+|   ↳ `active` | boolean | Whether series is active |
+|   ↳ `closed` | boolean | Whether series is closed |
+|   ↳ `archived` | boolean | Whether series is archived |
+|   ↳ `featured` | boolean | Whether series is featured |
+|   ↳ `volume` | number | Total volume |
+|   ↳ `liquidity` | number | Total liquidity |
+|   ↳ `eventCount` | number | Number of events in series |
 
 ### `polymarket_get_series_by_id`
 
@@ -178,6 +283,23 @@ Retrieve a specific series (related market group) by ID from Polymarket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `series` | object | Series object with details |
+| ↳ `id` | string | Series ID |
+| ↳ `ticker` | string | Series ticker |
+| ↳ `slug` | string | Series slug |
+| ↳ `title` | string | Series title |
+| ↳ `seriesType` | string | Series type |
+| ↳ `recurrence` | string | Recurrence pattern |
+| ↳ `image` | string | Series image URL |
+| ↳ `icon` | string | Series icon URL |
+| ↳ `active` | boolean | Whether series is active |
+| ↳ `closed` | boolean | Whether series is closed |
+| ↳ `archived` | boolean | Whether series is archived |
+| ↳ `featured` | boolean | Whether series is featured |
+| ↳ `volume` | number | Total volume |
+| ↳ `liquidity` | number | Total liquidity |
+| ↳ `commentCount` | number | Comment count |
+| ↳ `eventCount` | number | Number of events in series |
+| ↳ `events` | array | Array of events in this series |
 
 ### `polymarket_get_orderbook`
 
@@ -194,6 +316,19 @@ Retrieve the order book summary for a specific token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orderbook` | object | Order book with bids and asks arrays |
+| ↳ `market` | string | Market identifier |
+| ↳ `asset_id` | string | Asset token ID |
+| ↳ `hash` | string | Order book hash |
+| ↳ `timestamp` | string | Timestamp |
+| ↳ `bids` | array | Bid orders |
+|   ↳ `price` | string | Bid price |
+|   ↳ `size` | string | Bid size |
+| ↳ `asks` | array | Ask orders |
+|   ↳ `price` | string | Ask price |
+|   ↳ `size` | string | Ask size |
+| ↳ `min_order_size` | string | Minimum order size |
+| ↳ `tick_size` | string | Tick size |
+| ↳ `neg_risk` | boolean | Whether negative risk |
 
 ### `polymarket_get_price`
 
@@ -246,7 +381,9 @@ Retrieve historical price data for a specific market token
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `history` | array | Array of price history entries with timestamp \(t\) and price \(p\) |
+| `history` | array | Array of price history entries |
+|   ↳ `t` | number | Unix timestamp |
+|   ↳ `p` | number | Price at timestamp |
 
 ### `polymarket_get_last_trade_price`
 
@@ -263,6 +400,7 @@ Retrieve the last trade price for a specific token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `price` | string | Last trade price |
+| `side` | string | Side of the last trade \(BUY or SELL\) |
 
 ### `polymarket_get_spread`
 
@@ -278,7 +416,8 @@ Retrieve the bid-ask spread for a specific token
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `spread` | object | Bid-ask spread with bid and ask prices |
+| `spread` | object | Spread value between bid and ask |
+| ↳ `spread` | string | The spread value |
 
 ### `polymarket_get_tick_size`
 
@@ -305,13 +444,47 @@ Retrieve user positions from Polymarket
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `user` | string | Yes | User wallet address |
-| `market` | string | No | Optional market ID to filter positions |
+| `market` | string | No | Condition IDs to filter positions \(comma-separated, mutually exclusive with eventId\) |
+| `eventId` | string | No | Event ID to filter positions \(mutually exclusive with market\) |
+| `sizeThreshold` | string | No | Minimum position size threshold \(default: 1\) |
+| `redeemable` | string | No | Filter for redeemable positions only \(true/false\) |
+| `mergeable` | string | No | Filter for mergeable positions only \(true/false\) |
+| `sortBy` | string | No | Sort field \(TOKENS, CURRENT, INITIAL, CASHPNL, PERCENTPNL, TITLE, RESOLVING, PRICE, AVGPRICE\) |
+| `sortDirection` | string | No | Sort direction \(ASC or DESC\) |
+| `title` | string | No | Search filter by title |
+| `limit` | string | No | Number of results per page |
+| `offset` | string | No | Pagination offset |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `positions` | array | Array of position objects |
+|   ↳ `proxyWallet` | string | Proxy wallet address |
+|   ↳ `asset` | string | Asset token ID |
+|   ↳ `conditionId` | string | Condition ID |
+|   ↳ `size` | number | Position size |
+|   ↳ `avgPrice` | number | Average price |
+|   ↳ `initialValue` | number | Initial value |
+|   ↳ `currentValue` | number | Current value |
+|   ↳ `cashPnl` | number | Cash profit/loss |
+|   ↳ `percentPnl` | number | Percent profit/loss |
+|   ↳ `totalBought` | number | Total bought |
+|   ↳ `realizedPnl` | number | Realized profit/loss |
+|   ↳ `percentRealizedPnl` | number | Percent realized profit/loss |
+|   ↳ `curPrice` | number | Current price |
+|   ↳ `redeemable` | boolean | Whether position is redeemable |
+|   ↳ `mergeable` | boolean | Whether position is mergeable |
+|   ↳ `title` | string | Market title |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `icon` | string | Market icon URL |
+|   ↳ `eventSlug` | string | Event slug |
+|   ↳ `outcome` | string | Outcome name |
+|   ↳ `outcomeIndex` | number | Outcome index |
+|   ↳ `oppositeOutcome` | string | Opposite outcome name |
+|   ↳ `oppositeAsset` | string | Opposite asset token ID |
+|   ↳ `endDate` | string | End date |
+|   ↳ `negativeRisk` | boolean | Whether negative risk |
 
 ### `polymarket_get_trades`
 
@@ -322,8 +495,13 @@ Retrieve trade history from Polymarket
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `user` | string | No | User wallet address to filter trades |
-| `market` | string | No | Market ID to filter trades |
-| `limit` | string | No | Number of results per page \(max 50\) |
+| `market` | string | No | Market/condition ID to filter trades \(mutually exclusive with eventId\) |
+| `eventId` | string | No | Event ID to filter trades \(mutually exclusive with market\) |
+| `side` | string | No | Trade direction filter \(BUY or SELL\) |
+| `takerOnly` | string | No | Filter for taker trades only \(true/false, default: true\) |
+| `filterType` | string | No | Filter type \(CASH or TOKENS\) - requires filterAmount |
+| `filterAmount` | string | No | Filter amount threshold - requires filterType |
+| `limit` | string | No | Number of results per page \(default: 100, max: 10000\) |
 | `offset` | string | No | Pagination offset \(skip this many results\) |
 
 #### Output
@@ -331,5 +509,131 @@ Retrieve trade history from Polymarket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `trades` | array | Array of trade objects |
+|   ↳ `proxyWallet` | string | Proxy wallet address |
+|   ↳ `side` | string | Trade side \(BUY or SELL\) |
+|   ↳ `asset` | string | Asset token ID |
+|   ↳ `conditionId` | string | Condition ID |
+|   ↳ `size` | number | Trade size |
+|   ↳ `price` | number | Trade price |
+|   ↳ `timestamp` | number | Unix timestamp |
+|   ↳ `title` | string | Market title |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `icon` | string | Market icon URL |
+|   ↳ `eventSlug` | string | Event slug |
+|   ↳ `outcome` | string | Outcome name |
+|   ↳ `outcomeIndex` | number | Outcome index |
+|   ↳ `name` | string | Trader name |
+|   ↳ `pseudonym` | string | Trader pseudonym |
+|   ↳ `bio` | string | Trader bio |
+|   ↳ `profileImage` | string | Profile image URL |
+|   ↳ `profileImageOptimized` | string | Optimized profile image URL |
+|   ↳ `transactionHash` | string | Transaction hash |
+
+### `polymarket_get_activity`
+
+Retrieve on-chain activity for a user including trades, splits, merges, redemptions, rewards, and conversions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | Yes | User wallet address \(0x-prefixed\) |
+| `limit` | string | No | Maximum results \(default: 100, max: 500\) |
+| `offset` | string | No | Pagination offset \(default: 0, max: 10000\) |
+| `market` | string | No | Comma-separated condition IDs \(mutually exclusive with eventId\) |
+| `eventId` | string | No | Comma-separated event IDs \(mutually exclusive with market\) |
+| `type` | string | No | Activity type filter: TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION, MAKER_REBATE |
+| `start` | number | No | Start timestamp \(Unix seconds\) |
+| `end` | number | No | End timestamp \(Unix seconds\) |
+| `sortBy` | string | No | Sort field: TIMESTAMP, TOKENS, or CASH \(default: TIMESTAMP\) |
+| `sortDirection` | string | No | Sort direction: ASC or DESC \(default: DESC\) |
+| `side` | string | No | Trade side filter: BUY or SELL \(only applies to trades\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activity` | array | Array of activity entries |
+|   ↳ `proxyWallet` | string | User proxy wallet address |
+|   ↳ `timestamp` | number | Unix timestamp of activity |
+|   ↳ `conditionId` | string | Market condition ID |
+|   ↳ `type` | string | Activity type \(TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION\) |
+|   ↳ `size` | number | Size in tokens |
+|   ↳ `usdcSize` | number | Size in USDC |
+|   ↳ `transactionHash` | string | Blockchain transaction hash |
+|   ↳ `price` | number | Price \(for trades\) |
+|   ↳ `asset` | string | Asset/token ID |
+|   ↳ `side` | string | Trade side \(BUY/SELL\) |
+|   ↳ `outcomeIndex` | number | Outcome index |
+|   ↳ `title` | string | Market title |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `icon` | string | Market icon URL |
+|   ↳ `eventSlug` | string | Event slug |
+|   ↳ `outcome` | string | Outcome name |
+|   ↳ `name` | string | User display name |
+|   ↳ `pseudonym` | string | User pseudonym |
+|   ↳ `bio` | string | User bio |
+|   ↳ `profileImage` | string | User profile image URL |
+|   ↳ `profileImageOptimized` | string | Optimized profile image URL |
+
+### `polymarket_get_leaderboard`
+
+Retrieve trader leaderboard rankings by profit/loss or volume
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `category` | string | No | Category filter: OVERALL, POLITICS, SPORTS, CRYPTO, CULTURE, MENTIONS, WEATHER, ECONOMICS, TECH, FINANCE \(default: OVERALL\) |
+| `timePeriod` | string | No | Time period: DAY, WEEK, MONTH, ALL \(default: DAY\) |
+| `orderBy` | string | No | Order by: PNL or VOL \(default: PNL\) |
+| `limit` | string | No | Number of results \(1-50, default: 25\) |
+| `offset` | string | No | Pagination offset \(0-1000, default: 0\) |
+| `user` | string | No | Filter by specific user wallet address |
+| `userName` | string | No | Filter by username |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leaderboard` | array | Array of leaderboard entries |
+|   ↳ `rank` | string | Leaderboard rank position |
+|   ↳ `proxyWallet` | string | User proxy wallet address |
+|   ↳ `userName` | string | User display name |
+|   ↳ `vol` | number | Trading volume |
+|   ↳ `pnl` | number | Profit and loss |
+|   ↳ `profileImage` | string | User profile image URL |
+|   ↳ `xUsername` | string | Twitter/X username |
+|   ↳ `verifiedBadge` | boolean | Whether user has verified badge |
+
+### `polymarket_get_holders`
+
+Retrieve top holders of a specific market token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `market` | string | Yes | Comma-separated list of condition IDs |
+| `limit` | string | No | Number of holders to return \(0-20, default: 20\) |
+| `minBalance` | string | No | Minimum balance threshold \(default: 1\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `holders` | array | Array of market holder groups by token |
+|   ↳ `token` | string | Token/asset ID |
+|   ↳ `holders` | array | Array of holders for this token |
+|   ↳ `proxyWallet` | string | Holder wallet address |
+|   ↳ `bio` | string | Holder bio |
+|   ↳ `asset` | string | Asset ID |
+|   ↳ `pseudonym` | string | Holder pseudonym |
+|   ↳ `amount` | number | Amount held |
+|   ↳ `displayUsernamePublic` | boolean | Whether username is publicly displayed |
+|   ↳ `outcomeIndex` | number | Outcome index |
+|   ↳ `name` | string | Holder display name |
+|   ↳ `profileImage` | string | Profile image URL |
+|   ↳ `profileImageOptimized` | string | Optimized profile image URL |
 
 

@@ -6,12 +6,24 @@ import {
   ArrowUp,
   ChevronDown as ChevronDownIcon,
   ChevronUp,
+  ExternalLink,
+  Maximize2,
   RepeatIcon,
   SplitIcon,
   X,
 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
-import { Badge, Button, ChevronDown, Code, Combobox, Input, Label } from '@/components/emcn'
+import {
+  Badge,
+  Button,
+  ChevronDown,
+  Code,
+  Combobox,
+  Input,
+  Label,
+  Tooltip,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
@@ -22,15 +34,42 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
-import { SnapshotContextMenu } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/components'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
+import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
+import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
+import { useWorkflowState } from '@/hooks/queries/workflows'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
-import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
+import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+
+/**
+ * CSS override to show full opacity and prevent interaction in readonly preview mode.
+ * Extracted to avoid duplicating the style block in multiple places.
+ */
+const READONLY_PREVIEW_STYLES = `
+  .readonly-preview,
+  .readonly-preview * {
+    cursor: default !important;
+  }
+  .readonly-preview [disabled],
+  .readonly-preview [data-disabled],
+  .readonly-preview input,
+  .readonly-preview textarea,
+  .readonly-preview [role="combobox"],
+  .readonly-preview [role="slider"],
+  .readonly-preview [role="switch"],
+  .readonly-preview [role="checkbox"] {
+    opacity: 1 !important;
+    pointer-events: none;
+  }
+  .readonly-preview .opacity-50 {
+    opacity: 1 !important;
+  }
+`
 
 /**
  * Format a value for display as JSON string
@@ -123,44 +162,31 @@ function formatInlineValue(value: unknown): string {
   return String(value)
 }
 
-interface ExecutionDataSectionProps {
+interface CollapsibleSectionProps {
   title: string
-  data: unknown
+  defaultExpanded?: boolean
+  children: React.ReactNode
+  isEmpty?: boolean
+  emptyMessage?: string
+  /** Whether this section represents an error state (styles title red) */
   isError?: boolean
-  wrapText?: boolean
-  searchQuery?: string
-  currentMatchIndex?: number
-  onMatchCountChange?: (count: number) => void
-  contentRef?: React.RefObject<HTMLDivElement | null>
-  onContextMenu?: (e: React.MouseEvent) => void
 }
 
 /**
- * Collapsible section for execution data (input/output)
- * Uses Code.Viewer for proper syntax highlighting matching the logs UI
+ * Collapsible section wrapper for organizing preview editor content
  */
-function ExecutionDataSection({
+function CollapsibleSection({
   title,
-  data,
+  defaultExpanded = false,
+  children,
+  isEmpty = false,
+  emptyMessage = 'No data',
   isError = false,
-  wrapText = true,
-  searchQuery,
-  currentMatchIndex = 0,
-  onMatchCountChange,
-  contentRef,
-  onContextMenu,
-}: ExecutionDataSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
-
-  const jsonString = useMemo(() => {
-    if (!data) return ''
-    return formatValueAsJson(data)
-  }, [data])
-
-  const isEmpty = jsonString === '—' || jsonString === ''
+}: CollapsibleSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   return (
-    <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden'>
+    <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
       <div
         className='group flex cursor-pointer items-center justify-between'
         onClick={() => setIsExpanded(!isExpanded)}
@@ -199,20 +225,10 @@ function ExecutionDataSection({
         <>
           {isEmpty ? (
             <div className='rounded-[6px] bg-[var(--surface-3)] px-[10px] py-[8px]'>
-              <span className='text-[12px] text-[var(--text-tertiary)]'>No data</span>
+              <span className='text-[12px] text-[var(--text-tertiary)]'>{emptyMessage}</span>
             </div>
           ) : (
-            <div onContextMenu={onContextMenu} ref={contentRef}>
-              <Code.Viewer
-                code={jsonString}
-                language='json'
-                className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
-                wrapText={wrapText}
-                searchQuery={searchQuery}
-                currentMatchIndex={currentMatchIndex}
-                onMatchCountChange={onMatchCountChange}
-              />
-            </div>
+            children
           )}
         </>
       )}
@@ -261,9 +277,12 @@ function ConnectionsSection({
   const [expandedVariables, setExpandedVariables] = useState(true)
   const [expandedEnvVars, setExpandedEnvVars] = useState(true)
 
+  /** Stable string of connection IDs to prevent effect from running on every render */
+  const connectionIds = useMemo(() => connections.map((c) => c.blockId).join(','), [connections])
+
   useEffect(() => {
-    setExpandedBlocks(new Set(connections.map((c) => c.blockId)))
-  }, [connections])
+    setExpandedBlocks(new Set(connectionIds.split(',').filter(Boolean)))
+  }, [connectionIds])
 
   const hasContent = connections.length > 0 || workflowVars.length > 0 || envVars.length > 0
 
@@ -549,27 +568,22 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
   const isLoop = block.type === 'loop'
   const config = isLoop ? SUBFLOW_CONFIG.loop : SUBFLOW_CONFIG.parallel
 
-  // Determine current type
   const currentType = isLoop
     ? loop?.loopType || (block.data?.loopType as string) || 'for'
     : parallel?.parallelType || (block.data?.parallelType as string) || 'count'
 
-  // Build type options for combobox - matches SubflowEditor
   const typeOptions = Object.entries(config.typeLabels).map(([value, label]) => ({
     value,
     label,
   }))
 
-  // Determine mode
   const isCountMode = currentType === 'for' || currentType === 'count'
   const isConditionMode = currentType === 'while' || currentType === 'doWhile'
 
-  // Get iterations value
   const iterations = isLoop
     ? (loop?.iterations ?? (block.data?.count as number) ?? 5)
     : (parallel?.count ?? (block.data?.count as number) ?? 1)
 
-  // Get collection/condition value
   const getEditorValue = (): string => {
     if (isConditionMode && isLoop) {
       if (currentType === 'while') {
@@ -589,7 +603,6 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
 
   const editorValue = getEditorValue()
 
-  // Get label for configuration field - matches SubflowEditor exactly
   const getConfigLabel = (): string => {
     if (isCountMode) {
       return `${isLoop ? 'Loop' : 'Parallel'} Iterations`
@@ -601,7 +614,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
   }
 
   return (
-    <div className='flex-1 overflow-y-auto overflow-x-hidden pt-[5px] pb-[8px]'>
+    <div className='flex-1 overflow-y-auto overflow-x-hidden pt-[8px] pb-[8px]'>
       {/* Type Selection - matches SubflowEditor */}
       <div>
         <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
@@ -703,6 +716,8 @@ interface PreviewEditorProps {
   isExecutionMode?: boolean
   /** Optional close handler - if not provided, no close button is shown */
   onClose?: () => void
+  /** Callback to drill down into a nested workflow block */
+  onDrillDown?: (blockId: string, childWorkflowState: WorkflowState) => void
 }
 
 /** Minimum height for the connections section (header only) */
@@ -725,8 +740,8 @@ function PreviewEditorContent({
   parallels,
   isExecutionMode = false,
   onClose,
+  onDrillDown,
 }: PreviewEditorProps) {
-  // Convert Record<string, Variable> to Array<Variable> for iteration
   const normalizedWorkflowVariables = useMemo(() => {
     if (!workflowVariables) return []
     return Object.values(workflowVariables)
@@ -735,10 +750,39 @@ function PreviewEditorContent({
   const blockConfig = getBlock(block.type) as BlockConfig | undefined
   const subBlockValues = block.subBlocks || {}
 
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
+  const isWorkflowBlock = block.type === 'workflow' || block.type === 'workflow_input'
+
+  /** Extracts child workflow ID from subblock values for workflow blocks */
+  const childWorkflowId = useMemo(() => {
+    if (!isWorkflowBlock) return null
+    const workflowIdValue = subBlockValues?.workflowId
+    if (workflowIdValue && typeof workflowIdValue === 'object' && 'value' in workflowIdValue) {
+      return (workflowIdValue as { value: unknown }).value as string | null
+    }
+    return workflowIdValue as string | null
+  }, [isWorkflowBlock, subBlockValues?.workflowId])
+
+  const { data: childWorkflowState, isLoading: isLoadingChildWorkflow } = useWorkflowState(
+    childWorkflowId ?? undefined
+  )
+
+  /** Drills down into the child workflow or opens it in a new tab */
+  const handleExpandChildWorkflow = useCallback(() => {
+    if (!childWorkflowId || !childWorkflowState) return
+
+    if (isExecutionMode && onDrillDown) {
+      onDrillDown(block.id, childWorkflowState)
+    } else if (workspaceId) {
+      window.open(`/workspace/${workspaceId}/w/${childWorkflowId}`, '_blank', 'noopener,noreferrer')
+    }
+  }, [childWorkflowId, childWorkflowState, isExecutionMode, onDrillDown, block.id, workspaceId])
+
   const contentRef = useRef<HTMLDivElement>(null)
   const subBlocksRef = useRef<HTMLDivElement>(null)
 
-  // Connections resize state
   const [connectionsHeight, setConnectionsHeight] = useState(DEFAULT_CONNECTIONS_HEIGHT)
   const [isResizing, setIsResizing] = useState(false)
   const startYRef = useRef<number>(0)
@@ -846,10 +890,8 @@ function PreviewEditorContent({
     if (!isResizing) return
 
     const handleMouseMove = (e: MouseEvent) => {
-      const deltaY = startYRef.current - e.clientY // Inverted because we're resizing from bottom up
+      const deltaY = startYRef.current - e.clientY
       let newHeight = startHeightRef.current + deltaY
-
-      // Clamp height between fixed min and max for stable behavior
       newHeight = Math.max(MIN_CONNECTIONS_HEIGHT, Math.min(MAX_CONNECTIONS_HEIGHT, newHeight))
       setConnectionsHeight(newHeight)
     }
@@ -871,7 +913,6 @@ function PreviewEditorContent({
     }
   }, [isResizing])
 
-  // Determine if connections are at minimum height (collapsed state)
   const isConnectionsAtMinHeight = connectionsHeight <= MIN_CONNECTIONS_HEIGHT + 5
 
   const blockNameToId = useMemo(() => {
@@ -891,7 +932,7 @@ function PreviewEditorContent({
       if (!allBlockExecutions || !workflowBlocks) return undefined
       if (!reference.startsWith('<') || !reference.endsWith('>')) return undefined
 
-      const inner = reference.slice(1, -1) // Remove < and >
+      const inner = reference.slice(1, -1)
       const parts = inner.split('.')
       if (parts.length < 1) return undefined
 
@@ -1007,12 +1048,10 @@ function PreviewEditorContent({
     [blockConfig?.subBlocks]
   )
 
-  // Check if this is a subflow block (loop or parallel)
   const isSubflow = block.type === 'loop' || block.type === 'parallel'
   const loopConfig = block.type === 'loop' ? loops?.[block.id] : undefined
   const parallelConfig = block.type === 'parallel' ? parallels?.[block.id] : undefined
 
-  // Handle subflow blocks
   if (isSubflow) {
     const isLoop = block.type === 'loop'
     const SubflowIcon = isLoop ? RepeatIcon : SplitIcon
@@ -1043,27 +1082,7 @@ function PreviewEditorContent({
         <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
           <div className='flex-1 overflow-y-auto overflow-x-hidden'>
             <div className='readonly-preview px-[8px]'>
-              {/* CSS override to show full opacity and prevent interaction instead of dimmed disabled state */}
-              <style>{`
-                .readonly-preview,
-                .readonly-preview * {
-                  cursor: default !important;
-                }
-                .readonly-preview [disabled],
-                .readonly-preview [data-disabled],
-                .readonly-preview input,
-                .readonly-preview textarea,
-                .readonly-preview [role="combobox"],
-                .readonly-preview [role="slider"],
-                .readonly-preview [role="switch"],
-                .readonly-preview [role="checkbox"] {
-                  opacity: 1 !important;
-                  pointer-events: none;
-                }
-                .readonly-preview .opacity-50 {
-                  opacity: 1 !important;
-                }
-              `}</style>
+              <style>{READONLY_PREVIEW_STYLES}</style>
               <SubflowConfigDisplay block={block} loop={loopConfig} parallel={parallelConfig} />
             </div>
           </div>
@@ -1095,8 +1114,6 @@ function PreviewEditorContent({
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
-    // Only filter out trigger-mode subblocks for non-trigger blocks
-    // Trigger-only blocks (category 'triggers') should display their trigger subblocks
     if (subBlock.mode === 'trigger' && blockConfig.category !== 'triggers') return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
     if (
@@ -1145,7 +1162,7 @@ function PreviewEditorContent({
 
       {/* Content area */}
       <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
-        {/* Subblocks Section */}
+        {/* Main content sections */}
         <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
           <div className='flex-1 overflow-y-auto overflow-x-hidden'>
             {/* Not Executed Banner - shown when in execution mode but block wasn't executed */}
@@ -1159,91 +1176,154 @@ function PreviewEditorContent({
               </div>
             )}
 
-            {/* Execution Input/Output (if provided) */}
-            {executionData &&
-            (executionData.input !== undefined || executionData.output !== undefined) ? (
-              <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
-                {/* Execution Status & Duration Header */}
-                {(executionData.status || executionData.durationMs !== undefined) && (
-                  <div className='flex items-center justify-between'>
-                    {executionData.status && (
-                      <Badge variant={statusVariant} size='sm' dot>
-                        <span className='capitalize'>{executionData.status}</span>
-                      </Badge>
-                    )}
-                    {executionData.durationMs !== undefined && (
-                      <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
-                        {formatDuration(executionData.durationMs, { precision: 2 })}
-                      </span>
-                    )}
-                  </div>
+            {/* Execution Status & Duration Header */}
+            {executionData && (executionData.status || executionData.durationMs !== undefined) && (
+              <div className='flex min-w-0 items-center justify-between overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
+                {executionData.status && (
+                  <Badge variant={statusVariant} size='sm' dot>
+                    <span className='capitalize'>{executionData.status}</span>
+                  </Badge>
                 )}
-
-                {/* Divider between Status/Duration and Input/Output */}
-                {(executionData.status || executionData.durationMs !== undefined) &&
-                  (executionData.input !== undefined || executionData.output !== undefined) && (
-                    <div className='border-[var(--border)] border-t border-dashed' />
-                  )}
-
-                {/* Input Section */}
-                {executionData.input !== undefined && (
-                  <ExecutionDataSection
-                    title='Input'
-                    data={executionData.input}
-                    wrapText={wrapText}
-                    searchQuery={isSearchActive ? searchQuery : undefined}
-                    currentMatchIndex={currentMatchIndex}
-                    onMatchCountChange={handleMatchCountChange}
-                    contentRef={contentRef}
-                    onContextMenu={handleExecutionContextMenu}
-                  />
-                )}
-
-                {/* Divider between Input and Output */}
-                {executionData.input !== undefined && executionData.output !== undefined && (
-                  <div className='border-[var(--border)] border-t border-dashed' />
-                )}
-
-                {/* Output Section */}
-                {executionData.output !== undefined && (
-                  <ExecutionDataSection
-                    title={executionData.status === 'error' ? 'Error' : 'Output'}
-                    data={executionData.output}
-                    isError={executionData.status === 'error'}
-                    wrapText={wrapText}
-                    searchQuery={isSearchActive ? searchQuery : undefined}
-                    currentMatchIndex={currentMatchIndex}
-                    onMatchCountChange={handleMatchCountChange}
-                    contentRef={contentRef}
-                    onContextMenu={handleExecutionContextMenu}
-                  />
+                {executionData.durationMs !== undefined && (
+                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                    {formatDuration(executionData.durationMs, { precision: 2 })}
+                  </span>
                 )}
               </div>
-            ) : null}
+            )}
+
+            {/* Input Section - Collapsible */}
+            {executionData?.input !== undefined && (
+              <CollapsibleSection
+                title='Input'
+                defaultExpanded={false}
+                isEmpty={
+                  formatValueAsJson(executionData.input) === '—' ||
+                  formatValueAsJson(executionData.input) === ''
+                }
+                emptyMessage='No input data'
+              >
+                <div onContextMenu={handleExecutionContextMenu} ref={contentRef}>
+                  <Code.Viewer
+                    code={formatValueAsJson(executionData.input)}
+                    language='json'
+                    className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
+                    wrapText={wrapText}
+                    searchQuery={isSearchActive ? searchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                  />
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* Output Section - Collapsible, expanded by default */}
+            {executionData?.output !== undefined && (
+              <CollapsibleSection
+                title={executionData.status === 'error' ? 'Error' : 'Output'}
+                defaultExpanded={true}
+                isEmpty={
+                  formatValueAsJson(executionData.output) === '—' ||
+                  formatValueAsJson(executionData.output) === ''
+                }
+                emptyMessage='No output data'
+                isError={executionData.status === 'error'}
+              >
+                <div onContextMenu={handleExecutionContextMenu}>
+                  <Code.Viewer
+                    code={formatValueAsJson(executionData.output)}
+                    language='json'
+                    className={cn(
+                      '!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]',
+                      executionData.status === 'error' && 'text-[var(--text-error)]'
+                    )}
+                    wrapText={wrapText}
+                    searchQuery={isSearchActive ? searchQuery : undefined}
+                    currentMatchIndex={currentMatchIndex}
+                    onMatchCountChange={handleMatchCountChange}
+                  />
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* Workflow Preview - only for workflow blocks with a selected child workflow */}
+            {isWorkflowBlock && childWorkflowId && (
+              <div className='px-[8px] pt-[12px]'>
+                <div className='subblock-content flex flex-col gap-[9.5px]'>
+                  <div className='pl-[2px] font-medium text-[13px] text-[var(--text-primary)] leading-none'>
+                    Workflow Preview
+                  </div>
+                  <div className='relative h-[160px] overflow-hidden rounded-[4px] border border-[var(--border)]'>
+                    {isLoadingChildWorkflow ? (
+                      <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
+                        <div
+                          className='h-[18px] w-[18px] animate-spin rounded-full'
+                          style={{
+                            background:
+                              'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+                            mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+                            WebkitMask:
+                              'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+                          }}
+                        />
+                      </div>
+                    ) : childWorkflowState ? (
+                      <>
+                        <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
+                          <PreviewWorkflow
+                            workflowState={childWorkflowState}
+                            height={160}
+                            width='100%'
+                            isPannable={true}
+                            defaultZoom={0.6}
+                            fitPadding={0.15}
+                            cursorStyle='grab'
+                          />
+                        </div>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              onClick={handleExpandChildWorkflow}
+                              className='absolute right-[6px] bottom-[6px] z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover:bg-[var(--surface-4)]'
+                            >
+                              {isExecutionMode && onDrillDown ? (
+                                <Maximize2 className='h-[12px] w-[12px]' />
+                              ) : (
+                                <ExternalLink className='h-[12px] w-[12px]' />
+                              )}
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content side='top'>
+                            {isExecutionMode && onDrillDown ? 'Expand workflow' : 'Open in new tab'}
+                          </Tooltip.Content>
+                        </Tooltip.Root>
+                      </>
+                    ) : (
+                      <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
+                        <span className='text-[13px] text-[var(--text-tertiary)]'>
+                          Unable to load preview
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
+                  <div
+                    className='h-[1.25px]'
+                    style={{
+                      backgroundImage:
+                        'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Subblock Values - Using SubBlock components in preview mode */}
-            <div className='readonly-preview px-[8px] py-[8px]'>
-              {/* CSS override to show full opacity and prevent interaction instead of dimmed disabled state */}
-              <style>{`
-            .readonly-preview,
-            .readonly-preview * {
-              cursor: default !important;
-            }
-            .readonly-preview [disabled],
-            .readonly-preview [data-disabled],
-            .readonly-preview input,
-            .readonly-preview textarea,
-            .readonly-preview [role="combobox"],
-            .readonly-preview [role="slider"],
-            .readonly-preview [role="switch"],
-            .readonly-preview [role="checkbox"] {
-              opacity: 1 !important;
-              pointer-events: none;
-            }
-            .readonly-preview .opacity-50 {
-              opacity: 1 !important;
-            }
-          `}</style>
+            <div className='readonly-preview px-[8px] pt-[12px] pb-[8px]'>
+              <style>{READONLY_PREVIEW_STYLES}</style>
               {visibleSubBlocks.length > 0 ? (
                 <div className='flex flex-col'>
                   {visibleSubBlocks.map((subBlockConfig, index) => (
@@ -1349,7 +1429,7 @@ function PreviewEditorContent({
       )}
 
       {/* Context Menu */}
-      <SnapshotContextMenu
+      <PreviewContextMenu
         isOpen={isContextMenuOpen}
         position={contextMenuPosition}
         menuRef={contextMenuRef}

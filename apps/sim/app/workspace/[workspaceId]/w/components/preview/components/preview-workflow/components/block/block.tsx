@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo } from 'react'
+import { type CSSProperties, memo, useMemo } from 'react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
@@ -23,6 +23,27 @@ interface SubBlockValueEntry {
   value: unknown
 }
 
+/**
+ * Handle style constants for preview blocks.
+ * Extracted to avoid recreating style objects on each render.
+ */
+const HANDLE_STYLES = {
+  horizontal: '!border-none !bg-[var(--surface-7)] !h-5 !w-[7px] !rounded-[2px]',
+  vertical: '!border-none !bg-[var(--surface-7)] !h-[7px] !w-5 !rounded-[2px]',
+  right:
+    '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none',
+  error:
+    '!z-[10] !border-none !bg-[var(--text-error)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none',
+} as const
+
+/** Reusable style object for error handles positioned at bottom-right */
+const ERROR_HANDLE_STYLE: CSSProperties = {
+  right: '-7px',
+  top: 'auto',
+  bottom: `${HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET}px`,
+  transform: 'translateY(50%)',
+}
+
 interface WorkflowPreviewBlockData {
   type: string
   name: string
@@ -35,6 +56,8 @@ interface WorkflowPreviewBlockData {
   executionStatus?: ExecutionStatus
   /** Subblock values from the workflow state */
   subBlockValues?: Record<string, SubBlockValueEntry | unknown>
+  /** Skips expensive subblock computations for thumbnails/template previews */
+  lightweight?: boolean
 }
 
 /**
@@ -157,21 +180,17 @@ function resolveToolsDisplay(
       if (!tool || typeof tool !== 'object') return null
       const t = tool as Record<string, unknown>
 
-      // Priority 1: Use tool.title if already populated
       if (t.title && typeof t.title === 'string') return t.title
 
-      // Priority 2: Extract from inline schema (legacy format)
       const schema = t.schema as Record<string, unknown> | undefined
       if (schema?.function && typeof schema.function === 'object') {
         const fn = schema.function as Record<string, unknown>
         if (fn.name && typeof fn.name === 'string') return fn.name
       }
 
-      // Priority 3: Extract from OpenAI function format
       const fn = t.function as Record<string, unknown> | undefined
       if (fn?.name && typeof fn.name === 'string') return fn.name
 
-      // Priority 4: Resolve built-in tool blocks from registry
       if (
         typeof t.type === 'string' &&
         t.type !== 'custom-tool' &&
@@ -204,21 +223,16 @@ function resolveToolsDisplay(
  * - Shows '-' for other selector types that need hydration
  */
 function SubBlockRow({ title, value, subBlock, rawValue }: SubBlockRowProps) {
-  // Mask password fields
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
 
-  // Resolve various display names (synchronous access, matching WorkflowBlock priority)
   const dropdownLabel = resolveDropdownLabel(subBlock, rawValue)
   const variablesDisplay = resolveVariablesDisplay(subBlock, rawValue)
   const toolsDisplay = resolveToolsDisplay(subBlock, rawValue)
   const workflowName = resolveWorkflowName(subBlock, rawValue)
 
-  // Check if this is a selector type that needs hydration (show '-' for raw IDs)
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
 
-  // Compute final display value matching WorkflowBlock logic
-  // Priority order matches WorkflowBlock: masked > hydrated names > selector fallback > raw value
   const hydratedName = dropdownLabel || variablesDisplay || toolsDisplay || workflowName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
@@ -258,6 +272,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     isPreviewSelected = false,
     executionStatus,
     subBlockValues,
+    lightweight = false,
   } = data
 
   const blockConfig = getBlock(type)
@@ -268,43 +283,67 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   )
 
   const rawValues = useMemo(() => {
-    if (!subBlockValues) return {}
+    if (lightweight || !subBlockValues) return {}
     return Object.entries(subBlockValues).reduce<Record<string, unknown>>((acc, [key, entry]) => {
       acc[key] = extractValue(entry)
       return acc
     }, {})
-  }, [subBlockValues])
+  }, [subBlockValues, lightweight])
 
   const visibleSubBlocks = useMemo(() => {
     if (!blockConfig?.subBlocks) return []
 
-    const isStarterOrTrigger =
-      blockConfig.category === 'triggers' || type === 'starter' || isTrigger
+    const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
+    const effectiveTrigger = isTrigger || type === 'starter'
 
     return blockConfig.subBlocks.filter((subBlock) => {
       if (subBlock.hidden) return false
       if (subBlock.hideFromPreview) return false
       if (!isSubBlockFeatureEnabled(subBlock)) return false
 
-      // Handle trigger mode visibility
-      if (subBlock.mode === 'trigger' && !isStarterOrTrigger) return false
+      if (effectiveTrigger) {
+        const isValidTriggerSubblock = isPureTriggerBlock
+          ? subBlock.mode === 'trigger' || !subBlock.mode
+          : subBlock.mode === 'trigger'
+        if (!isValidTriggerSubblock) return false
+      } else {
+        if (subBlock.mode === 'trigger') return false
+      }
 
-      // Check advanced mode visibility
+      /** Skip value-dependent visibility checks in lightweight mode */
+      if (lightweight) return !subBlock.condition
+
       if (!isSubBlockVisibleForMode(subBlock, false, canonicalIndex, rawValues, undefined)) {
         return false
       }
-
-      // Check condition visibility
       if (!subBlock.condition) return true
       return evaluateSubBlockCondition(subBlock.condition, rawValues)
     })
-  }, [blockConfig?.subBlocks, blockConfig?.category, type, isTrigger, canonicalIndex, rawValues])
+  }, [
+    lightweight,
+    blockConfig?.subBlocks,
+    blockConfig?.triggers?.enabled,
+    blockConfig?.category,
+    type,
+    isTrigger,
+    canonicalIndex,
+    rawValues,
+  ])
 
   /**
-   * Compute condition rows for condition blocks
+   * Compute condition rows for condition blocks.
+   * In lightweight mode, returns default structure without parsing values.
    */
   const conditionRows = useMemo(() => {
     if (type !== 'condition') return []
+
+    /** Default structure for lightweight mode or when no values */
+    const defaultRows = [
+      { id: 'if', title: 'if', value: '' },
+      { id: 'else', title: 'else', value: '' },
+    ]
+
+    if (lightweight) return defaultRows
 
     const conditionsValue = rawValues.conditions
     const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
@@ -325,20 +364,23 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         }
       }
     } catch {
-      // Failed to parse, use fallback
+      /* empty */
     }
 
-    return [
-      { id: 'if', title: 'if', value: '' },
-      { id: 'else', title: 'else', value: '' },
-    ]
-  }, [type, rawValues])
+    return defaultRows
+  }, [type, rawValues, lightweight])
 
   /**
-   * Compute router rows for router_v2 blocks
+   * Compute router rows for router_v2 blocks.
+   * In lightweight mode, returns default structure without parsing values.
    */
   const routerRows = useMemo(() => {
     if (type !== 'router_v2') return []
+
+    /** Default structure for lightweight mode or when no values */
+    const defaultRows = [{ id: 'route1', value: '' }]
+
+    if (lightweight) return defaultRows
 
     const routesValue = rawValues.routes
     const raw = typeof routesValue === 'string' ? routesValue : undefined
@@ -357,11 +399,11 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         }
       }
     } catch {
-      // Failed to parse, use fallback
+      /* empty */
     }
 
-    return [{ id: 'route1', value: '' }]
-  }, [type, rawValues])
+    return defaultRows
+  }, [type, rawValues, lightweight])
 
   if (!blockConfig) {
     return null
@@ -378,9 +420,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       : type === 'router_v2'
         ? routerRows.length > 0 || shouldShowDefaultHandles
         : hasSubBlocks || shouldShowDefaultHandles
-
-  const horizontalHandleClass = '!border-none !bg-[var(--surface-7)] !h-5 !w-[7px] !rounded-[2px]'
-  const verticalHandleClass = '!border-none !bg-[var(--surface-7)] !h-[7px] !w-5 !rounded-[2px]'
 
   const hasError = executionStatus === 'error'
   const hasSuccess = executionStatus === 'success'
@@ -406,7 +445,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
           type='target'
           position={horizontalHandles ? Position.Left : Position.Top}
           id='target'
-          className={horizontalHandles ? horizontalHandleClass : verticalHandleClass}
+          className={horizontalHandles ? HANDLE_STYLES.horizontal : HANDLE_STYLES.vertical}
           style={
             horizontalHandles
               ? { left: '-7px', top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px` }
@@ -439,36 +478,37 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       {hasContentBelowHeader && (
         <div className='flex flex-col gap-[8px] p-[8px]'>
           {type === 'condition' ? (
-            // Condition block: render condition rows
             conditionRows.map((cond) => (
-              <SubBlockRow key={cond.id} title={cond.title} value={getDisplayValue(cond.value)} />
+              <SubBlockRow
+                key={cond.id}
+                title={cond.title}
+                value={lightweight ? undefined : getDisplayValue(cond.value)}
+              />
             ))
           ) : type === 'router_v2' ? (
-            // Router block: render context + route rows
             <>
               <SubBlockRow
                 key='context'
                 title='Context'
-                value={getDisplayValue(rawValues.context)}
+                value={lightweight ? undefined : getDisplayValue(rawValues.context)}
               />
               {routerRows.map((route, index) => (
                 <SubBlockRow
                   key={route.id}
                   title={`Route ${index + 1}`}
-                  value={getDisplayValue(route.value)}
+                  value={lightweight ? undefined : getDisplayValue(route.value)}
                 />
               ))}
             </>
           ) : (
-            // Standard blocks: render visible subblocks
             visibleSubBlocks.map((subBlock) => {
-              const rawValue = rawValues[subBlock.id]
+              const rawValue = lightweight ? undefined : rawValues[subBlock.id]
               return (
                 <SubBlockRow
                   key={subBlock.id}
                   title={subBlock.title ?? subBlock.id}
-                  value={getDisplayValue(rawValue)}
-                  subBlock={subBlock}
+                  value={lightweight ? undefined : getDisplayValue(rawValue)}
+                  subBlock={lightweight ? undefined : subBlock}
                   rawValue={rawValue}
                 />
               )
@@ -479,27 +519,101 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         </div>
       )}
 
-      {/* Source handle */}
-      <Handle
-        type='source'
-        position={horizontalHandles ? Position.Right : Position.Bottom}
-        id='source'
-        className={horizontalHandles ? horizontalHandleClass : verticalHandleClass}
-        style={
-          horizontalHandles
-            ? { right: '-7px', top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px` }
-            : { bottom: '-7px', left: '50%', transform: 'translateX(-50%)' }
-        }
-      />
+      {/* Condition block handles */}
+      {type === 'condition' && (
+        <>
+          {conditionRows.map((cond, condIndex) => {
+            const topOffset =
+              HANDLE_POSITIONS.CONDITION_START_Y + condIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+            return (
+              <Handle
+                key={`handle-${cond.id}`}
+                type='source'
+                position={Position.Right}
+                id={`condition-${cond.id}`}
+                className={HANDLE_STYLES.right}
+                style={{ top: `${topOffset}px`, right: '-7px', transform: 'translateY(-50%)' }}
+              />
+            )
+          })}
+          <Handle
+            type='source'
+            position={Position.Right}
+            id='error'
+            className={HANDLE_STYLES.error}
+            style={ERROR_HANDLE_STYLE}
+          />
+        </>
+      )}
+
+      {/* Router block handles */}
+      {type === 'router_v2' && (
+        <>
+          {routerRows.map((route, routeIndex) => {
+            const topOffset =
+              HANDLE_POSITIONS.CONDITION_START_Y +
+              (routeIndex + 1) * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
+            return (
+              <Handle
+                key={`handle-${route.id}`}
+                type='source'
+                position={Position.Right}
+                id={`router-${route.id}`}
+                className={HANDLE_STYLES.right}
+                style={{ top: `${topOffset}px`, right: '-7px', transform: 'translateY(-50%)' }}
+              />
+            )
+          })}
+          <Handle
+            type='source'
+            position={Position.Right}
+            id='error'
+            className={HANDLE_STYLES.error}
+            style={ERROR_HANDLE_STYLE}
+          />
+        </>
+      )}
+
+      {/* Source and error handles for non-condition/router blocks */}
+      {type !== 'condition' && type !== 'router_v2' && type !== 'response' && (
+        <>
+          <Handle
+            type='source'
+            position={horizontalHandles ? Position.Right : Position.Bottom}
+            id='source'
+            className={horizontalHandles ? HANDLE_STYLES.right : HANDLE_STYLES.vertical}
+            style={
+              horizontalHandles
+                ? { right: '-7px', top: `${HANDLE_POSITIONS.DEFAULT_Y_OFFSET}px` }
+                : { bottom: '-7px', left: '50%', transform: 'translateX(-50%)' }
+            }
+          />
+          {shouldShowDefaultHandles && (
+            <Handle
+              type='source'
+              position={Position.Right}
+              id='error'
+              className={HANDLE_STYLES.error}
+              style={ERROR_HANDLE_STYLE}
+            />
+          )}
+        </>
+      )}
     </div>
   )
 }
 
+/**
+ * Custom comparison function for React.memo optimization.
+ * Uses fast-path primitive comparison before shallow comparing subBlockValues.
+ * @param prevProps - Previous render props
+ * @param nextProps - Next render props
+ * @returns True if render should be skipped (props are equal)
+ */
 function shouldSkipPreviewBlockRender(
   prevProps: NodeProps<WorkflowPreviewBlockData>,
   nextProps: NodeProps<WorkflowPreviewBlockData>
 ): boolean {
-  // Check primitive props first (fast path)
   if (
     prevProps.id !== nextProps.id ||
     prevProps.data.type !== nextProps.data.type ||
@@ -508,38 +622,41 @@ function shouldSkipPreviewBlockRender(
     prevProps.data.horizontalHandles !== nextProps.data.horizontalHandles ||
     prevProps.data.enabled !== nextProps.data.enabled ||
     prevProps.data.isPreviewSelected !== nextProps.data.isPreviewSelected ||
-    prevProps.data.executionStatus !== nextProps.data.executionStatus
+    prevProps.data.executionStatus !== nextProps.data.executionStatus ||
+    prevProps.data.lightweight !== nextProps.data.lightweight
   ) {
     return false
   }
 
-  // Compare subBlockValues by reference first
+  /** Skip subBlockValues comparison in lightweight mode */
+  if (nextProps.data.lightweight) return true
+
   const prevValues = prevProps.data.subBlockValues
   const nextValues = nextProps.data.subBlockValues
 
-  if (prevValues === nextValues) {
-    return true
-  }
+  if (prevValues === nextValues) return true
+  if (!prevValues || !nextValues) return false
 
-  if (!prevValues || !nextValues) {
-    return false
-  }
-
-  // Shallow compare keys and values
   const prevKeys = Object.keys(prevValues)
   const nextKeys = Object.keys(nextValues)
 
-  if (prevKeys.length !== nextKeys.length) {
-    return false
-  }
+  if (prevKeys.length !== nextKeys.length) return false
 
   for (const key of prevKeys) {
-    if (prevValues[key] !== nextValues[key]) {
-      return false
-    }
+    if (prevValues[key] !== nextValues[key]) return false
   }
 
   return true
 }
 
-export const WorkflowPreviewBlock = memo(WorkflowPreviewBlockInner, shouldSkipPreviewBlockRender)
+/**
+ * Preview block component for workflow visualization in readonly contexts.
+ * Optimized for rendering without hooks or store subscriptions.
+ *
+ * @remarks
+ * - Renders block header, subblock values, and connection handles
+ * - Supports condition, router, and standard block types
+ * - Shows error handles for non-trigger blocks
+ * - Displays execution status via colored ring overlays
+ */
+export const PreviewBlock = memo(WorkflowPreviewBlockInner, shouldSkipPreviewBlockRender)

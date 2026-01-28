@@ -8,6 +8,7 @@ import {
   getComputerUseModels,
   getEmbeddingModelPricing,
   getHostedModels as getHostedModelsFromDefinitions,
+  getMaxOutputTokensForModel as getMaxOutputTokensForModelFromDefinitions,
   getMaxTemperature as getMaxTempFromDefinitions,
   getModelPricing as getModelPricingFromDefinitions,
   getModelsWithReasoningEffort,
@@ -990,6 +991,18 @@ export function getVerbosityValuesForModel(model: string): string[] | null {
  */
 export function getThinkingLevelsForModel(model: string): string[] | null {
   return getThinkingLevelsForModelFromDefinitions(model)
+}
+
+/**
+ * Get max output tokens for a specific model
+ * Returns the model's maxOutputTokens capability for streaming requests,
+ * or a conservative default (8192) for non-streaming requests to avoid timeout issues.
+ *
+ * @param model - The model ID
+ * @param streaming - Whether the request is streaming (default: false)
+ */
+export function getMaxOutputTokensForModel(model: string, streaming = false): number {
+  return getMaxOutputTokensForModelFromDefinitions(model, streaming)
 }
 
 /**
