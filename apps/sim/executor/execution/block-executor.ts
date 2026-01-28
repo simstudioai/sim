@@ -152,9 +152,6 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
-
-        // Extract childTraceSpans for nested workflow execution
-        // Store separately to keep output clean for display while preserving for trace processing
         if (normalizedOutput.childTraceSpans && Array.isArray(normalizedOutput.childTraceSpans)) {
           blockLog.childTraceSpans = normalizedOutput.childTraceSpans
         }

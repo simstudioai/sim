@@ -5,6 +5,39 @@ import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('TraceSpans')
 
+/**
+ * Keys that should be recursively filtered from output display.
+ * These are internal fields used for execution tracking that shouldn't be shown to users.
+ */
+const HIDDEN_OUTPUT_KEYS = new Set(['childTraceSpans'])
+
+/**
+ * Recursively filters hidden keys from nested objects for cleaner display.
+ * Used by both executor (for log output) and UI (for display).
+ */
+export function filterHiddenOutputKeys(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => filterHiddenOutputKeys(item))
+  }
+
+  if (typeof value === 'object') {
+    const filtered: Record<string, unknown> = {}
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      if (HIDDEN_OUTPUT_KEYS.has(key)) {
+        continue
+      }
+      filtered[key] = filterHiddenOutputKeys(val)
+    }
+    return filtered
+  }
+
+  return value
+}
+
 function isSyntheticWorkflowWrapper(span: TraceSpan | undefined): boolean {
   if (!span || span.type !== 'workflow') return false
   return !span.blockId
@@ -21,41 +54,15 @@ function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
       return
     }
 
-    const processedSpan = ensureNestedWorkflowsProcessed(span)
+    // Recursively process children - spans are already clean from buildTraceSpans
+    const processedSpan: TraceSpan = {
+      ...span,
+      children: Array.isArray(span.children) ? flattenWorkflowChildren(span.children) : undefined,
+    }
     flattened.push(processedSpan)
   })
 
   return flattened
-}
-
-function getTraceSpanKey(span: TraceSpan): string {
-  if (span.id) {
-    return span.id
-  }
-
-  const name = span.name || 'span'
-  const start = span.startTime || 'unknown-start'
-  const end = span.endTime || 'unknown-end'
-
-  return `${name}|${start}|${end}`
-}
-
-function mergeTraceSpanChildren(...childGroups: TraceSpan[][]): TraceSpan[] {
-  const merged: TraceSpan[] = []
-  const seen = new Set<string>()
-
-  childGroups.forEach((group) => {
-    group.forEach((child) => {
-      const key = getTraceSpanKey(child)
-      if (seen.has(key)) {
-        return
-      }
-      seen.add(key)
-      merged.push(child)
-    })
-  })
-
-  return merged
 }
 
 export function buildTraceSpans(result: ExecutionResult): {
@@ -332,7 +339,7 @@ export function buildTraceSpans(result: ExecutionResult): {
 
       if (childTraceSpans) {
         const flattenedChildren = flattenWorkflowChildren(childTraceSpans)
-        span.children = mergeTraceSpanChildren(span.children || [], flattenedChildren)
+        span.children = flattenedChildren
 
         // Clean childTraceSpans from output if present
         if (span.output && typeof span.output === 'object' && 'childTraceSpans' in span.output) {
@@ -740,48 +747,4 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
   result.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
 
   return result
-}
-
-function ensureNestedWorkflowsProcessed(span: TraceSpan): TraceSpan {
-  const processedSpan: TraceSpan = { ...span }
-
-  if (processedSpan.output && typeof processedSpan.output === 'object') {
-    processedSpan.output = { ...processedSpan.output }
-  }
-
-  const normalizedChildren = Array.isArray(span.children)
-    ? span.children.map((child) => ensureNestedWorkflowsProcessed(child))
-    : []
-
-  const outputChildSpans = (() => {
-    if (!processedSpan.output || typeof processedSpan.output !== 'object') {
-      return [] as TraceSpan[]
-    }
-
-    const maybeChildSpans = (processedSpan.output as { childTraceSpans?: TraceSpan[] })
-      .childTraceSpans
-    if (!Array.isArray(maybeChildSpans) || maybeChildSpans.length === 0) {
-      return [] as TraceSpan[]
-    }
-
-    return flattenWorkflowChildren(maybeChildSpans)
-  })()
-
-  const mergedChildren = mergeTraceSpanChildren(normalizedChildren, outputChildSpans)
-
-  if (
-    processedSpan.output &&
-    typeof processedSpan.output === 'object' &&
-    processedSpan.output !== null &&
-    'childTraceSpans' in processedSpan.output
-  ) {
-    const { childTraceSpans, ...cleanOutput } = processedSpan.output as {
-      childTraceSpans?: TraceSpan[]
-    } & Record<string, unknown>
-    processedSpan.output = cleanOutput
-  }
-
-  processedSpan.children = mergedChildren.length > 0 ? mergedChildren : undefined
-
-  return processedSpan
 }
