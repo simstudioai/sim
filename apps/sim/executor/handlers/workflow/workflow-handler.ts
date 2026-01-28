@@ -52,6 +52,11 @@ export class WorkflowBlockHandler implements BlockHandler {
       throw new Error('No workflow selected for execution')
     }
 
+    // Initialize with registry name, will be updated with loaded workflow name
+    const { workflows } = useWorkflowRegistry.getState()
+    const workflowMetadata = workflows[workflowId]
+    let childWorkflowName = workflowMetadata?.name || workflowId
+
     try {
       const currentDepth = (ctx.workflowId?.split('_sub_').length || 1) - 1
       if (currentDepth >= DEFAULTS.MAX_WORKFLOW_DEPTH) {
@@ -75,9 +80,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Child workflow ${workflowId} not found`)
       }
 
-      const { workflows } = useWorkflowRegistry.getState()
-      const workflowMetadata = workflows[workflowId]
-      const childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
+      // Update with loaded workflow name (more reliable than registry)
+      childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
 
       logger.info(
         `Executing child workflow: ${childWorkflowName} (${workflowId}) at depth ${currentDepth}`
@@ -142,11 +146,6 @@ export class WorkflowBlockHandler implements BlockHandler {
     } catch (error: unknown) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
-      const { workflows } = useWorkflowRegistry.getState()
-      const workflowMetadata = workflows[workflowId]
-      const childWorkflowName = workflowMetadata?.name || workflowId
-
-      const originalError = error instanceof Error ? error.message : 'Unknown error'
       let childTraceSpans: WorkflowTraceSpan[] = []
       let executionResult: ExecutionResult | undefined
 
@@ -165,14 +164,83 @@ export class WorkflowBlockHandler implements BlockHandler {
         childTraceSpans = error.childTraceSpans
       }
 
+      // Build a cleaner error message for nested workflow errors
+      const errorMessage = this.buildNestedWorkflowErrorMessage(childWorkflowName, error)
+
       throw new ChildWorkflowError({
-        message: `Error in child workflow "${childWorkflowName}": ${originalError}`,
+        message: errorMessage,
         childWorkflowName,
         childTraceSpans,
         executionResult,
         cause: error instanceof Error ? error : undefined,
       })
     }
+  }
+
+  /**
+   * Builds a cleaner error message for nested workflow errors.
+   * Parses nested error messages to extract workflow chain and root error.
+   */
+  private buildNestedWorkflowErrorMessage(childWorkflowName: string, error: unknown): string {
+    const originalError = error instanceof Error ? error.message : 'Unknown error'
+
+    // Extract any nested workflow names from the error message
+    const { chain, rootError } = this.parseNestedWorkflowError(originalError)
+
+    // Add current workflow to the beginning of the chain
+    chain.unshift(childWorkflowName)
+
+    // If we have a chain (nested workflows), format nicely
+    if (chain.length > 1) {
+      return `Workflow chain: ${chain.join(' → ')} | ${rootError}`
+    }
+
+    // Single workflow failure
+    return `"${childWorkflowName}" failed: ${rootError}`
+  }
+
+  /**
+   * Parses a potentially nested workflow error message to extract:
+   * - The chain of workflow names
+   * - The actual root error message (preserving the block prefix for the failing block)
+   *
+   * Handles formats like:
+   * - "workflow-name" failed: error
+   * - [block_type] Block Name: "workflow-name" failed: error
+   * - Workflow chain: A → B | error
+   */
+  private parseNestedWorkflowError(message: string): { chain: string[]; rootError: string } {
+    const chain: string[] = []
+    const remaining = message
+
+    // First, check if it's already in chain format
+    const chainMatch = remaining.match(/^Workflow chain: (.+?) \| (.+)$/)
+    if (chainMatch) {
+      const chainPart = chainMatch[1]
+      const errorPart = chainMatch[2]
+      chain.push(...chainPart.split(' → ').map((s) => s.trim()))
+      return { chain, rootError: errorPart }
+    }
+
+    // Extract workflow names from patterns like:
+    // - "workflow-name" failed:
+    // - [block_type] Block Name: "workflow-name" failed:
+    const workflowPattern = /(?:\[[^\]]+\]\s*[^:]+:\s*)?"([^"]+)"\s*failed:\s*/g
+    let match: RegExpExecArray | null
+    let lastIndex = 0
+
+    match = workflowPattern.exec(remaining)
+    while (match !== null) {
+      chain.push(match[1])
+      lastIndex = match.index + match[0].length
+      match = workflowPattern.exec(remaining)
+    }
+
+    // The root error is everything after the last match
+    // Keep the block prefix (e.g., [function] Function 1:) so we know which block failed
+    const rootError = lastIndex > 0 ? remaining.slice(lastIndex) : remaining
+
+    return { chain, rootError: rootError.trim() || 'Unknown error' }
   }
 
   private async loadChildWorkflow(workflowId: string) {
@@ -444,7 +512,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     if (!success) {
       logger.warn(`Child workflow ${childWorkflowName} failed`)
       throw new ChildWorkflowError({
-        message: `Error in child workflow "${childWorkflowName}": ${childResult.error || 'Child workflow execution failed'}`,
+        message: `"${childWorkflowName}" failed: ${childResult.error || 'Child workflow execution failed'}`,
         childWorkflowName,
         childTraceSpans: childTraceSpans || [],
       })

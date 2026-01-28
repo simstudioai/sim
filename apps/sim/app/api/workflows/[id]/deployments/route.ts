@@ -26,6 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         id: workflowDeploymentVersion.id,
         version: workflowDeploymentVersion.version,
         name: workflowDeploymentVersion.name,
+        description: workflowDeploymentVersion.description,
         isActive: workflowDeploymentVersion.isActive,
         createdAt: workflowDeploymentVersion.createdAt,
         createdBy: workflowDeploymentVersion.createdBy,

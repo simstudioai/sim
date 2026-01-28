@@ -411,8 +411,9 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
   const IconComponent = blockConfig.icon
   const isStarterOrTrigger = blockConfig.category === 'triggers' || type === 'starter' || isTrigger
+  const isNoteBlock = type === 'note'
 
-  const shouldShowDefaultHandles = !isStarterOrTrigger
+  const shouldShowDefaultHandles = !isStarterOrTrigger && !isNoteBlock
   const hasSubBlocks = visibleSubBlocks.length > 0
   const hasContentBelowHeader =
     type === 'condition'
@@ -574,8 +575,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         </>
       )}
 
-      {/* Source and error handles for non-condition/router blocks */}
-      {type !== 'condition' && type !== 'router_v2' && type !== 'response' && (
+      {/* Source and error handles for non-condition/router/note blocks */}
+      {type !== 'condition' && type !== 'router_v2' && type !== 'response' && !isNoteBlock && (
         <>
           <Handle
             type='source'

@@ -18,6 +18,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
+import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   ExecutionSnapshot,
   FileCards,
@@ -274,16 +275,13 @@ export const LogDetails = memo(function LogDetails({
     return isWorkflowExecutionLog && log?.cost
   }, [log, isWorkflowExecutionLog])
 
-  // Extract and clean the workflow final output (remove childTraceSpans for cleaner display)
+  // Extract and clean the workflow final output (recursively remove hidden keys for cleaner display)
   const workflowOutput = useMemo(() => {
     const executionData = log?.executionData as
       | { finalOutput?: Record<string, unknown> }
       | undefined
     if (!executionData?.finalOutput) return null
-    const { childTraceSpans, ...cleanOutput } = executionData.finalOutput as {
-      childTraceSpans?: unknown
-    } & Record<string, unknown>
-    return cleanOutput
+    return filterHiddenOutputKeys(executionData.finalOutput) as Record<string, unknown>
   }, [log?.executionData])
 
   useEffect(() => {

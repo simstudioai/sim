@@ -1,4 +1,9 @@
-export { hasWorkflowChanged } from './compare'
+export type { FieldChange, WorkflowDiffSummary } from './compare'
+export {
+  formatDiffSummaryForDescription,
+  generateWorkflowDiffSummary,
+  hasWorkflowChanged,
+} from './compare'
 export type { NormalizedWorkflowState } from './normalize'
 export {
   normalizedStringify,

@@ -114,6 +114,12 @@ export interface BlockLog {
   loopId?: string
   parallelId?: string
   iterationIndex?: number
+  /**
+   * Child workflow trace spans for nested workflow execution.
+   * Stored separately from output to keep output clean for display
+   * while preserving data for trace-spans processing.
+   */
+  childTraceSpans?: TraceSpan[]
 }
 
 export interface ExecutionMetadata {
