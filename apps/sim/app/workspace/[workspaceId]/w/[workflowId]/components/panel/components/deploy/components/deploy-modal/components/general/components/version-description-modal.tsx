@@ -43,12 +43,15 @@ export function VersionDescriptionModal({
   const isGenerating = generateMutation.isPending
 
   const handleCloseAttempt = useCallback(() => {
-    if (hasChanges && !updateMutation.isPending) {
+    if (updateMutation.isPending || isGenerating) {
+      return
+    }
+    if (hasChanges) {
       setShowUnsavedChangesAlert(true)
     } else {
       onOpenChange(false)
     }
-  }, [hasChanges, updateMutation.isPending, onOpenChange])
+  }, [hasChanges, updateMutation.isPending, isGenerating, onOpenChange])
 
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
@@ -66,7 +69,7 @@ export function VersionDescriptionModal({
     })
   }, [workflowId, version, generateMutation])
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!workflowId) return
 
     updateMutation.mutate(
