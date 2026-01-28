@@ -123,10 +123,12 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     }
   }
 
-  // Get timeout from params (if specified)
-  const timeout = params.timeout as number | undefined
+  // Get timeout from params (if specified) and ensure it's a number
+  // The short-input subBlock returns a string, so we need to convert it
+  const rawTimeout = params.timeout
+  const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
 
-  return { url, method, headers, body, timeout }
+  return { url, method, headers, body, timeout: Number.isNaN(timeout) ? undefined : timeout }
 }
 
 /**
