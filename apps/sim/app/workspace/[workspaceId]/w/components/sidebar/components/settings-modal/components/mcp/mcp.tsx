@@ -176,7 +176,7 @@ function FormattedInput({
   onChange,
   onScroll,
 }: FormattedInputProps) {
-  const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
+  const handleScroll = (e: { currentTarget: HTMLInputElement }) => {
     onScroll(e.currentTarget.scrollLeft)
   }
 
