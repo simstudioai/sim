@@ -107,13 +107,8 @@ export class DAGExecutor {
     startBlockId: string,
     sourceSnapshot: SerializableExecutionState
   ): Promise<ExecutionResult> {
-    // Check if startBlockId is a regular block in the workflow
-    // Parallel/loop containers are not in workflow.blocks, so we need to handle them differently
-    const isRegularBlock = this.workflow.blocks.some((b) => b.id === startBlockId)
-
-    // For regular blocks, pass startBlockId so DAG includes it and all downstream blocks
-    // For containers (parallel/loop), build DAG normally and let it find the trigger
-    const dag = this.dagBuilder.build(this.workflow, isRegularBlock ? startBlockId : undefined)
+    // Build full DAG to compute upstream set for snapshot filtering
+    const dag = this.dagBuilder.build(this.workflow)
 
     const executedBlocks = new Set(sourceSnapshot.executedBlocks)
     const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)
