@@ -68,7 +68,7 @@ export function WorkflowsList({
               const isDeletedWorkflow = workflow.workflowName === DELETED_WORKFLOW_LABEL
               const workflowColor = isDeletedWorkflow
                 ? DELETED_WORKFLOW_COLOR
-                : workflows[workflow.workflowId]?.color
+                : workflows[workflow.workflowId]?.color || '#64748b'
               const canToggle = !isDeletedWorkflow
 
               return (
