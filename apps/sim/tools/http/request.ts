@@ -48,6 +48,11 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       visibility: 'user-or-llm',
       description: 'Form data to send (will set appropriate Content-Type)',
     },
+    timeout: {
+      type: 'number',
+      visibility: 'user-only',
+      description: 'Request timeout in milliseconds (default: 300000 = 5 minutes)',
+    },
   },
 
   request: {
