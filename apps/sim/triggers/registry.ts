@@ -1,5 +1,10 @@
 import { airtableWebhookTrigger } from '@/triggers/airtable'
 import {
+  calcomBookingCancelledTrigger,
+  calcomBookingCreatedTrigger,
+  calcomBookingRescheduledTrigger,
+} from '@/triggers/calcom'
+import {
   calendlyInviteeCanceledTrigger,
   calendlyInviteeCreatedTrigger,
   calendlyRoutingFormSubmittedTrigger,
@@ -120,6 +125,9 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   calendly_invitee_created: calendlyInviteeCreatedTrigger,
   calendly_invitee_canceled: calendlyInviteeCanceledTrigger,
   calendly_routing_form_submitted: calendlyRoutingFormSubmittedTrigger,
+  calcom_booking_created: calcomBookingCreatedTrigger,
+  calcom_booking_cancelled: calcomBookingCancelledTrigger,
+  calcom_booking_rescheduled: calcomBookingRescheduledTrigger,
   generic_webhook: genericWebhookTrigger,
   github_webhook: githubWebhookTrigger,
   github_issue_opened: githubIssueOpenedTrigger,

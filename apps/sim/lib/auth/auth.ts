@@ -452,6 +452,7 @@ export const auth = betterAuth({
         'linear',
         'shopify',
         'trello',
+        'calcom',
         ...SSO_TRUSTED_PROVIDERS,
       ],
     },
@@ -2537,6 +2538,56 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in WordPress.com getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        // Cal.com provider
+        {
+          providerId: 'calcom',
+          clientId: env.CALCOM_CLIENT_ID as string,
+          clientSecret: env.CALCOM_CLIENT_SECRET as string,
+          authorizationUrl: 'https://app.cal.com/auth/oauth2/authorize',
+          tokenUrl: 'https://app.cal.com/api/auth/oauth/token',
+          scopes: [],
+          responseType: 'code',
+          pkce: true,
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/calcom`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching Cal.com user profile')
+
+              const response = await fetch('https://api.cal.com/v2/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  'cal-api-version': '2024-08-13',
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Failed to fetch Cal.com user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const data = await response.json()
+              const profile = data.data || data
+
+              return {
+                id: `${profile.id?.toString()}-${crypto.randomUUID()}`,
+                name: profile.name || 'Cal.com User',
+                email: profile.email || `${profile.id}@cal.com`,
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in Cal.com getUserInfo:', { error })
               return null
             }
           },

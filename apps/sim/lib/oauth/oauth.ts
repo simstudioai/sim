@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import {
   AirtableIcon,
   AsanaIcon,
+  CalComIcon,
   ConfluenceIcon,
   DropboxIcon,
   GithubIcon,
@@ -613,6 +614,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'asana',
   },
+  calcom: {
+    name: 'Cal.com',
+    icon: CalComIcon,
+    services: {
+      calcom: {
+        name: 'Cal.com',
+        description: 'Manage Cal.com bookings, event types, and schedules.',
+        providerId: 'calcom',
+        icon: CalComIcon,
+        baseProviderIcon: CalComIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'calcom',
+  },
   pipedrive: {
     name: 'Pipedrive',
     icon: PipedriveIcon,
@@ -858,6 +874,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'calcom': {
+      const { clientId, clientSecret } = getCredentials(
+        env.CALCOM_CLIENT_ID,
+        env.CALCOM_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://app.cal.com/api/auth/oauth/refreshToken',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
         supportsRefreshTokenRotation: true,
       }
     }

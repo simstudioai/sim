@@ -1,0 +1,313 @@
+import type { SubBlockConfig } from '@/blocks/types'
+import type { TriggerOutput } from '@/triggers/types'
+
+/**
+ * Shared output property definitions for Cal.com trigger payloads.
+ */
+
+/**
+ * Organizer output definition with destructured properties
+ */
+const ORGANIZER_OUTPUT: TriggerOutput = {
+  type: 'object',
+  description: 'Organizer details',
+  properties: {
+    id: { type: 'number', description: 'Organizer user ID' },
+    name: { type: 'string', description: 'Organizer name' },
+    email: { type: 'string', description: 'Organizer email' },
+    username: { type: 'string', description: 'Organizer username' },
+    timeZone: { type: 'string', description: 'Organizer timezone' },
+  },
+}
+
+/**
+ * Attendees array output definition with destructured items
+ */
+const ATTENDEES_TRIGGER_OUTPUT: TriggerOutput = {
+  type: 'array',
+  description: 'List of attendees',
+  items: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Attendee name' },
+      email: { type: 'string', description: 'Attendee email' },
+      timeZone: { type: 'string', description: 'Attendee timezone' },
+      language: { type: 'string', description: 'Attendee language preference' },
+    },
+  },
+}
+
+export const calcomTriggerOptions = [
+  { label: 'Booking Created', id: 'calcom_booking_created' },
+  { label: 'Booking Cancelled', id: 'calcom_booking_cancelled' },
+  { label: 'Booking Rescheduled', id: 'calcom_booking_rescheduled' },
+]
+
+/**
+ * Creates the webhook secret field subBlock for a CalCom trigger
+ */
+export function calcomWebhookSecretField(triggerId: string): SubBlockConfig {
+  return {
+    id: 'webhookSecret',
+    title: 'Webhook Secret',
+    type: 'short-input',
+    placeholder: 'Enter the same secret you configured in Cal.com',
+    description: 'Used to verify webhook requests via X-Cal-Signature-256 header.',
+    password: true,
+    required: false,
+    mode: 'trigger',
+    condition: {
+      field: 'selectedTriggerId',
+      value: triggerId,
+    },
+  }
+}
+
+/**
+ * Generates setup instructions HTML for CalCom triggers
+ */
+export function calcomSetupInstructions(
+  eventType: 'created' | 'cancelled' | 'rescheduled'
+): string {
+  const eventDescriptions = {
+    created: 'This webhook triggers when a new booking is created.',
+    cancelled: 'This webhook triggers when a booking is cancelled.',
+    rescheduled: 'This webhook triggers when a booking is rescheduled.',
+  }
+
+  const eventNames = {
+    created: 'BOOKING_CREATED',
+    cancelled: 'BOOKING_CANCELLED',
+    rescheduled: 'BOOKING_RESCHEDULED',
+  }
+
+  return [
+    'Copy the webhook URL above.',
+    'Go to your Cal.com account Settings > Developer > Webhooks.',
+    'Click "New Webhook" and paste the URL.',
+    `Select the <strong>${eventNames[eventType]}</strong> event trigger.`,
+    eventDescriptions[eventType],
+    'If you add a secret key in Cal.com, enter the same secret in the <strong>Webhook Secret</strong> field above to verify webhook authenticity.',
+  ]
+    .map(
+      (instruction, index) =>
+        `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+    )
+    .join('')
+}
+
+/**
+ * Builds common booking outputs for CalCom triggers
+ */
+export function buildBookingOutputs(): Record<string, TriggerOutput> {
+  return {
+    triggerEvent: {
+      type: 'string',
+      description: 'The webhook event type',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'When the webhook event was created (ISO 8601)',
+    },
+    payload: {
+      title: {
+        type: 'string',
+        description: 'Booking title',
+      },
+      description: {
+        type: 'string',
+        description: 'Booking description',
+      },
+      eventTypeId: {
+        type: 'number',
+        description: 'Event type ID',
+      },
+      startTime: {
+        type: 'string',
+        description: 'Booking start time (ISO 8601)',
+      },
+      endTime: {
+        type: 'string',
+        description: 'Booking end time (ISO 8601)',
+      },
+      uid: {
+        type: 'string',
+        description: 'Unique booking identifier',
+      },
+      bookingId: {
+        type: 'number',
+        description: 'Numeric booking ID',
+      },
+      status: {
+        type: 'string',
+        description: 'Booking status',
+      },
+      location: {
+        type: 'string',
+        description: 'Meeting location or URL',
+      },
+      organizer: ORGANIZER_OUTPUT,
+      attendees: ATTENDEES_TRIGGER_OUTPUT,
+      responses: {
+        type: 'object',
+        description: 'Form responses from booking',
+      },
+      metadata: {
+        type: 'object',
+        description: 'Custom metadata',
+      },
+      videoCallData: {
+        type: 'object',
+        description: 'Video call details if applicable',
+      },
+    },
+  } as any
+}
+
+/**
+ * Builds outputs specific to cancelled bookings
+ */
+export function buildCancelledOutputs(): Record<string, TriggerOutput> {
+  return {
+    triggerEvent: {
+      type: 'string',
+      description: 'The webhook event type',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'When the webhook event was created (ISO 8601)',
+    },
+    payload: {
+      title: {
+        type: 'string',
+        description: 'Booking title',
+      },
+      description: {
+        type: 'string',
+        description: 'Booking description',
+      },
+      eventTypeId: {
+        type: 'number',
+        description: 'Event type ID',
+      },
+      startTime: {
+        type: 'string',
+        description: 'Booking start time (ISO 8601)',
+      },
+      endTime: {
+        type: 'string',
+        description: 'Booking end time (ISO 8601)',
+      },
+      uid: {
+        type: 'string',
+        description: 'Unique booking identifier',
+      },
+      bookingId: {
+        type: 'number',
+        description: 'Numeric booking ID',
+      },
+      status: {
+        type: 'string',
+        description: 'Booking status',
+      },
+      location: {
+        type: 'string',
+        description: 'Meeting location or URL',
+      },
+      cancellationReason: {
+        type: 'string',
+        description: 'Reason for cancellation',
+      },
+      organizer: ORGANIZER_OUTPUT,
+      attendees: ATTENDEES_TRIGGER_OUTPUT,
+      responses: {
+        type: 'object',
+        description: 'Form responses from booking',
+      },
+      metadata: {
+        type: 'object',
+        description: 'Custom metadata',
+      },
+    },
+  } as any
+}
+
+/**
+ * Builds outputs specific to rescheduled bookings
+ */
+export function buildRescheduledOutputs(): Record<string, TriggerOutput> {
+  return {
+    triggerEvent: {
+      type: 'string',
+      description: 'The webhook event type',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'When the webhook event was created (ISO 8601)',
+    },
+    payload: {
+      title: {
+        type: 'string',
+        description: 'Booking title',
+      },
+      description: {
+        type: 'string',
+        description: 'Booking description',
+      },
+      eventTypeId: {
+        type: 'number',
+        description: 'Event type ID',
+      },
+      startTime: {
+        type: 'string',
+        description: 'New booking start time (ISO 8601)',
+      },
+      endTime: {
+        type: 'string',
+        description: 'New booking end time (ISO 8601)',
+      },
+      uid: {
+        type: 'string',
+        description: 'Unique booking identifier',
+      },
+      bookingId: {
+        type: 'number',
+        description: 'Numeric booking ID',
+      },
+      status: {
+        type: 'string',
+        description: 'Booking status',
+      },
+      location: {
+        type: 'string',
+        description: 'Meeting location or URL',
+      },
+      rescheduleId: {
+        type: 'number',
+        description: 'Previous booking ID',
+      },
+      rescheduleUid: {
+        type: 'string',
+        description: 'Previous booking UID',
+      },
+      rescheduleStartTime: {
+        type: 'string',
+        description: 'Original start time (ISO 8601)',
+      },
+      rescheduleEndTime: {
+        type: 'string',
+        description: 'Original end time (ISO 8601)',
+      },
+      organizer: ORGANIZER_OUTPUT,
+      attendees: ATTENDEES_TRIGGER_OUTPUT,
+      responses: {
+        type: 'object',
+        description: 'Form responses from booking',
+      },
+      metadata: {
+        type: 'object',
+        description: 'Custom metadata',
+      },
+    },
+  } as any
+}

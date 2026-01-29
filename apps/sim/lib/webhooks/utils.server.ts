@@ -2537,3 +2537,49 @@ export function convertSquareBracketsToTwiML(twiml: string | undefined): string 
   // Replace [Tag] with <Tag> and [/Tag] with </Tag>
   return twiml.replace(/\[(\/?[^\]]+)\]/g, '<$1>')
 }
+
+/**
+ * Validates a Cal.com webhook request signature using HMAC SHA-256
+ * @param secret - Cal.com webhook secret (plain text)
+ * @param signature - X-Cal-Signature-256 header value (hex-encoded HMAC SHA-256 signature)
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateCalcomSignature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Cal.com signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
+      return false
+    }
+
+    const crypto = require('crypto')
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+
+    logger.debug('Cal.com signature comparison', {
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${signature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: signature.length,
+      match: computedHash === signature,
+    })
+
+    if (computedHash.length !== signature.length) {
+      return false
+    }
+
+    // Constant-time comparison to prevent timing attacks
+    let result = 0
+    for (let i = 0; i < computedHash.length; i++) {
+      result |= computedHash.charCodeAt(i) ^ signature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    logger.error('Error validating Cal.com signature:', error)
+    return false
+  }
+}
