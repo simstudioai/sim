@@ -10,7 +10,7 @@ import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
-} from '@/lib/permission-groups/types'
+} from '@/ee/access-control/lib/types'
 
 const logger = createLogger('PermissionGroups')
 

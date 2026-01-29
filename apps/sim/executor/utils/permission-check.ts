@@ -7,7 +7,7 @@ import { isAccessControlEnabled, isHosted } from '@/lib/core/config/feature-flag
 import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
-} from '@/lib/permission-groups/types'
+} from '@/ee/access-control/lib/types'
 import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 
