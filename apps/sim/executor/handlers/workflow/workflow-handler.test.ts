@@ -198,6 +198,7 @@ describe('WorkflowBlockHandler', () => {
 
       expect(result).toEqual({
         success: true,
+        childWorkflowId: 'child-id',
         childWorkflowName: 'Child Workflow',
         result: { data: 'test result' },
         childTraceSpans: [],
@@ -235,6 +236,7 @@ describe('WorkflowBlockHandler', () => {
 
       expect(result).toEqual({
         success: true,
+        childWorkflowId: 'child-id',
         childWorkflowName: 'Child Workflow',
         result: { nested: 'data' },
         childTraceSpans: [],

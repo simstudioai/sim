@@ -536,6 +536,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         message: `"${childWorkflowName}" failed: ${childResult.error || 'Child workflow execution failed'}`,
         childWorkflowName,
         childTraceSpans: childTraceSpans || [],
+        childWorkflowSnapshotId,
       })
     }
 
@@ -543,7 +544,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       success: true,
       childWorkflowName,
       childWorkflowId,
-      childWorkflowSnapshotId,
+      ...(childWorkflowSnapshotId ? { childWorkflowSnapshotId } : {}),
       result,
       childTraceSpans: childTraceSpans || [],
     } as Record<string, any>
