@@ -243,8 +243,6 @@ export class EdgeManager {
     }
 
     for (const [, outgoingEdge] of targetNode.outgoingEdges) {
-      // Only skip backwards edges (loop_continue) - we need to propagate through
-      // loop_exit and parallel_exit to deactivate nodes after the loop/parallel
       if (!this.isBackwardsEdge(outgoingEdge.sourceHandle)) {
         this.deactivateEdgeAndDescendants(
           targetId,
