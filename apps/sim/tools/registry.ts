@@ -1642,12 +1642,15 @@ import {
 import { workflowExecutorTool } from '@/tools/workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from '@/tools/x'
 import {
+  youtubeCaptionsTool,
   youtubeChannelInfoTool,
   youtubeChannelPlaylistsTool,
   youtubeChannelVideosTool,
   youtubeCommentsTool,
   youtubePlaylistItemsTool,
   youtubeSearchTool,
+  youtubeTrendingTool,
+  youtubeVideoCategoriesTool,
   youtubeVideoDetailsTool,
 } from '@/tools/youtube'
 import {
@@ -1982,13 +1985,16 @@ export const tools: Record<string, ToolConfig> = {
   typeform_create_form: typeformCreateFormTool,
   typeform_update_form: typeformUpdateFormTool,
   typeform_delete_form: typeformDeleteFormTool,
-  youtube_search: youtubeSearchTool,
-  youtube_video_details: youtubeVideoDetailsTool,
+  youtube_captions: youtubeCaptionsTool,
   youtube_channel_info: youtubeChannelInfoTool,
-  youtube_playlist_items: youtubePlaylistItemsTool,
-  youtube_comments: youtubeCommentsTool,
-  youtube_channel_videos: youtubeChannelVideosTool,
   youtube_channel_playlists: youtubeChannelPlaylistsTool,
+  youtube_channel_videos: youtubeChannelVideosTool,
+  youtube_comments: youtubeCommentsTool,
+  youtube_playlist_items: youtubePlaylistItemsTool,
+  youtube_search: youtubeSearchTool,
+  youtube_trending: youtubeTrendingTool,
+  youtube_video_categories: youtubeVideoCategoriesTool,
+  youtube_video_details: youtubeVideoDetailsTool,
   notion_read: notionReadTool,
   notion_read_database: notionReadDatabaseTool,
   notion_write: notionWriteTool,

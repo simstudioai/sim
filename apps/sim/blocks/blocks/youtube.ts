@@ -9,7 +9,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
   description: 'Interact with YouTube videos, channels, and playlists',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate YouTube into the workflow. Can search for videos, get video details, get channel information, get all videos from a channel, get channel playlists, get playlist items, find related videos, and get video comments.',
+    'Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video captions, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.',
   docsLink: 'https://docs.sim.ai/tools/youtube',
   category: 'tools',
   bgColor: '#FF0000',
@@ -21,7 +21,10 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Search Videos', id: 'youtube_search' },
+        { label: 'Get Trending Videos', id: 'youtube_trending' },
         { label: 'Get Video Details', id: 'youtube_video_details' },
+        { label: 'Get Video Captions', id: 'youtube_captions' },
+        { label: 'Get Video Categories', id: 'youtube_video_categories' },
         { label: 'Get Channel Info', id: 'youtube_channel_info' },
         { label: 'Get Channel Videos', id: 'youtube_channel_videos' },
         { label: 'Get Channel Playlists', id: 'youtube_channel_playlists' },
@@ -50,10 +53,30 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
       condition: { field: 'operation', value: 'youtube_search' },
     },
     {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token for pagination (from nextPageToken)',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
       id: 'channelId',
       title: 'Filter by Channel ID',
       type: 'short-input',
       placeholder: 'Filter results to a specific channel',
+      condition: { field: 'operation', value: 'youtube_search' },
+    },
+    {
+      id: 'eventType',
+      title: 'Live Stream Filter',
+      type: 'dropdown',
+      options: [
+        { label: 'All Videos', id: '' },
+        { label: 'Currently Live', id: 'live' },
+        { label: 'Upcoming Streams', id: 'upcoming' },
+        { label: 'Past Streams', id: 'completed' },
+      ],
+      value: () => '',
       condition: { field: 'operation', value: 'youtube_search' },
     },
     {
@@ -131,7 +154,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'videoCategoryId',
       title: 'Category ID',
       type: 'short-input',
-      placeholder: '10 for Music, 20 for Gaming',
+      placeholder: 'Use Get Video Categories to find IDs',
       condition: { field: 'operation', value: 'youtube_search' },
     },
     {
@@ -163,7 +186,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Region Code',
       type: 'short-input',
       placeholder: 'US, GB, JP',
-      condition: { field: 'operation', value: 'youtube_search' },
+      condition: {
+        field: 'operation',
+        value: ['youtube_search', 'youtube_trending', 'youtube_video_categories'],
+      },
     },
     {
       id: 'relevanceLanguage',
@@ -184,6 +210,31 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       value: () => 'moderate',
       condition: { field: 'operation', value: 'youtube_search' },
     },
+    // Get Trending Videos operation inputs
+    {
+      id: 'maxResults',
+      title: 'Max Results',
+      type: 'slider',
+      min: 1,
+      max: 50,
+      step: 1,
+      integer: true,
+      condition: { field: 'operation', value: 'youtube_trending' },
+    },
+    {
+      id: 'videoCategoryId',
+      title: 'Category ID',
+      type: 'short-input',
+      placeholder: 'Use Get Video Categories to find IDs',
+      condition: { field: 'operation', value: 'youtube_trending' },
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token for pagination (from nextPageToken)',
+      condition: { field: 'operation', value: 'youtube_trending' },
+    },
     // Get Video Details operation inputs
     {
       id: 'videoId',
@@ -192,6 +243,23 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Enter YouTube video ID',
       required: true,
       condition: { field: 'operation', value: 'youtube_video_details' },
+    },
+    // Get Video Captions operation inputs
+    {
+      id: 'videoId',
+      title: 'Video ID',
+      type: 'short-input',
+      placeholder: 'Enter YouTube video ID',
+      required: true,
+      condition: { field: 'operation', value: 'youtube_captions' },
+    },
+    // Get Video Categories operation inputs
+    {
+      id: 'hl',
+      title: 'Language',
+      type: 'short-input',
+      placeholder: 'en, es, fr (for category names)',
+      condition: { field: 'operation', value: 'youtube_video_categories' },
     },
     // Get Channel Info operation inputs
     {
@@ -241,6 +309,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       value: () => 'date',
       condition: { field: 'operation', value: 'youtube_channel_videos' },
     },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token for pagination (from nextPageToken)',
+      condition: { field: 'operation', value: 'youtube_channel_videos' },
+    },
     // Get Channel Playlists operation inputs
     {
       id: 'channelId',
@@ -260,6 +335,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       integer: true,
       condition: { field: 'operation', value: 'youtube_channel_playlists' },
     },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token for pagination (from nextPageToken)',
+      condition: { field: 'operation', value: 'youtube_channel_playlists' },
+    },
     // Get Playlist Items operation inputs
     {
       id: 'playlistId',
@@ -277,6 +359,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       max: 50,
       step: 1,
       integer: true,
+      condition: { field: 'operation', value: 'youtube_playlist_items' },
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token for pagination (from nextPageToken)',
       condition: { field: 'operation', value: 'youtube_playlist_items' },
     },
     // Get Video Comments operation inputs
@@ -309,6 +398,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       value: () => 'relevance',
       condition: { field: 'operation', value: 'youtube_comments' },
     },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token for pagination (from nextPageToken)',
+      condition: { field: 'operation', value: 'youtube_comments' },
+    },
     // API Key (common to all operations)
     {
       id: 'apiKey',
@@ -321,13 +417,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   ],
   tools: {
     access: [
-      'youtube_search',
-      'youtube_video_details',
+      'youtube_captions',
       'youtube_channel_info',
-      'youtube_channel_videos',
       'youtube_channel_playlists',
-      'youtube_playlist_items',
+      'youtube_channel_videos',
       'youtube_comments',
+      'youtube_playlist_items',
+      'youtube_search',
+      'youtube_trending',
+      'youtube_video_categories',
+      'youtube_video_details',
     ],
     config: {
       tool: (params) => {
@@ -339,8 +438,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         switch (params.operation) {
           case 'youtube_search':
             return 'youtube_search'
+          case 'youtube_trending':
+            return 'youtube_trending'
           case 'youtube_video_details':
             return 'youtube_video_details'
+          case 'youtube_captions':
+            return 'youtube_captions'
+          case 'youtube_video_categories':
+            return 'youtube_video_categories'
           case 'youtube_channel_info':
             return 'youtube_channel_info'
           case 'youtube_channel_videos':
@@ -363,6 +468,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     // Search Videos
     query: { type: 'string', description: 'Search query' },
     maxResults: { type: 'number', description: 'Maximum number of results' },
+    pageToken: { type: 'string', description: 'Page token for pagination' },
     // Search Filters
     publishedAfter: { type: 'string', description: 'Published after date (RFC 3339)' },
     publishedBefore: { type: 'string', description: 'Published before date (RFC 3339)' },
@@ -370,10 +476,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     videoCategoryId: { type: 'string', description: 'YouTube category ID' },
     videoDefinition: { type: 'string', description: 'Video quality filter' },
     videoCaption: { type: 'string', description: 'Caption availability filter' },
+    eventType: { type: 'string', description: 'Live stream filter (live/upcoming/completed)' },
     regionCode: { type: 'string', description: 'Region code (ISO 3166-1)' },
     relevanceLanguage: { type: 'string', description: 'Language code (ISO 639-1)' },
     safeSearch: { type: 'string', description: 'Safe search level' },
-    // Video Details & Comments
+    hl: { type: 'string', description: 'Language for category names' },
+    // Video Details, Comments & Captions
     videoId: { type: 'string', description: 'YouTube video ID' },
     // Channel Info
     channelId: { type: 'string', description: 'YouTube channel ID' },
@@ -384,7 +492,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     order: { type: 'string', description: 'Sort order' },
   },
   outputs: {
-    // Search Videos & Playlist Items
+    // Search Videos, Trending, Playlist Items, Captions, Categories
     items: { type: 'json', description: 'List of items returned' },
     totalResults: { type: 'number', description: 'Total number of results' },
     nextPageToken: { type: 'string', description: 'Token for next page' },
@@ -399,11 +507,33 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     viewCount: { type: 'number', description: 'View count' },
     likeCount: { type: 'number', description: 'Like count' },
     commentCount: { type: 'number', description: 'Comment count' },
+    favoriteCount: { type: 'number', description: 'Favorite count' },
     thumbnail: { type: 'string', description: 'Thumbnail URL' },
     tags: { type: 'json', description: 'Video tags' },
+    categoryId: { type: 'string', description: 'Video category ID' },
+    definition: { type: 'string', description: 'Video definition (hd/sd)' },
+    caption: { type: 'string', description: 'Has captions (true/false)' },
+    licensedContent: { type: 'boolean', description: 'Is licensed content' },
+    privacyStatus: { type: 'string', description: 'Privacy status' },
+    liveBroadcastContent: { type: 'string', description: 'Live broadcast status' },
+    defaultLanguage: { type: 'string', description: 'Default language' },
+    defaultAudioLanguage: { type: 'string', description: 'Default audio language' },
+    // Live Streaming Details
+    isLiveContent: { type: 'boolean', description: 'Whether video is/was a live stream' },
+    scheduledStartTime: { type: 'string', description: 'Scheduled start time for live streams' },
+    actualStartTime: { type: 'string', description: 'Actual start time of live stream' },
+    actualEndTime: { type: 'string', description: 'End time of live stream' },
+    concurrentViewers: { type: 'number', description: 'Current viewers (live only)' },
+    activeLiveChatId: { type: 'string', description: 'Live chat ID' },
     // Channel Info
     subscriberCount: { type: 'number', description: 'Subscriber count' },
     videoCount: { type: 'number', description: 'Total video count' },
     customUrl: { type: 'string', description: 'Channel custom URL' },
+    country: { type: 'string', description: 'Channel country' },
+    uploadsPlaylistId: { type: 'string', description: 'Uploads playlist ID' },
+    bannerImageUrl: { type: 'string', description: 'Channel banner URL' },
+    hiddenSubscriberCount: { type: 'boolean', description: 'Is subscriber count hidden' },
+    // Video Categories
+    assignable: { type: 'boolean', description: 'Whether category can be assigned' },
   },
 }
