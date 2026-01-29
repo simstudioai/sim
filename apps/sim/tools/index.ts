@@ -627,9 +627,8 @@ async function executeToolRequest(
     if (isInternalRoute) {
       // Set up AbortController for timeout support on internal routes
       const controller = new AbortController()
-      const timeoutId = requestParams.timeout
-        ? setTimeout(() => controller.abort(), requestParams.timeout)
-        : undefined
+      const timeout = requestParams.timeout || 300000
+      const timeoutId = setTimeout(() => controller.abort(), timeout)
 
       try {
         response = await fetch(fullUrl, {
@@ -641,11 +640,11 @@ async function executeToolRequest(
       } catch (error) {
         // Convert AbortError to a timeout error message
         if (error instanceof Error && error.name === 'AbortError') {
-          throw new Error(`Request timed out after ${requestParams.timeout}ms`)
+          throw new Error(`Request timed out after ${timeout}ms`)
         }
         throw error
       } finally {
-        if (timeoutId) clearTimeout(timeoutId)
+        clearTimeout(timeoutId)
       }
     } else {
       const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl')

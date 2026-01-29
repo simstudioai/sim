@@ -123,12 +123,11 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     }
   }
 
-  // Get timeout from params (if specified) and ensure it's a valid positive number
-  // The short-input subBlock returns a string, so we need to convert it
+  // Get timeout from params (if specified)
   const rawTimeout = params.timeout
   const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
   const validTimeout =
-    timeout != null && !Number.isNaN(timeout) && timeout > 0 ? timeout : undefined
+    timeout != null && Number.isFinite(timeout) && timeout > 0 ? timeout : undefined
 
   return { url, method, headers, body, timeout: validTimeout }
 }
