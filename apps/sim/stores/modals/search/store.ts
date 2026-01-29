@@ -53,7 +53,6 @@ export const useSearchModalStore = create<SearchModalState>()(
           const searchItem: SearchBlockItem = {
             id: block.type,
             name: block.name,
-            description: block.description || '',
             icon: block.icon,
             bgColor: block.bgColor || '#6B7280',
             type: block.type,
@@ -79,7 +78,6 @@ export const useSearchModalStore = create<SearchModalState>()(
           {
             id: 'loop',
             name: 'Loop',
-            description: 'Create a Loop',
             icon: RepeatIcon,
             bgColor: '#2FB3FF',
             type: 'loop',
@@ -87,7 +85,6 @@ export const useSearchModalStore = create<SearchModalState>()(
           {
             id: 'parallel',
             name: 'Parallel',
-            description: 'Parallel Execution',
             icon: SplitIcon,
             bgColor: '#FEE12B',
             type: 'parallel',
@@ -116,7 +113,6 @@ export const useSearchModalStore = create<SearchModalState>()(
           (block): SearchBlockItem => ({
             id: block.type,
             name: block.name,
-            description: block.description || '',
             icon: block.icon,
             bgColor: block.bgColor || '#6B7280',
             type: block.type,
@@ -127,15 +123,19 @@ export const useSearchModalStore = create<SearchModalState>()(
         const allowedBlockTypes = new Set(tools.map((t) => t.type))
         const toolOperations: SearchToolOperationItem[] = getToolOperationsIndex()
           .filter((op) => allowedBlockTypes.has(op.blockType))
-          .map((op) => ({
-            id: op.id,
-            name: op.operationName,
-            searchValue: `${op.serviceName} ${op.operationName}`,
-            icon: op.icon,
-            bgColor: op.bgColor,
-            blockType: op.blockType,
-            operationId: op.operationId,
-          }))
+          .map((op) => {
+            // Include aliases in searchValue so synonym search works (e.g., "post" finds "Send Message")
+            const aliasesStr = op.aliases?.length ? ` ${op.aliases.join(' ')}` : ''
+            return {
+              id: op.id,
+              name: op.operationName,
+              searchValue: `${op.serviceName} ${op.operationName}${aliasesStr}`,
+              icon: op.icon,
+              bgColor: op.bgColor,
+              blockType: op.blockType,
+              operationId: op.operationId,
+            }
+          })
 
         set({
           data: {

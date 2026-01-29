@@ -7,7 +7,6 @@ import type { BlockConfig } from '@/blocks/types'
 export interface SearchBlockItem {
   id: string
   name: string
-  description: string
   icon: ComponentType<{ className?: string }>
   bgColor: string
   type: string

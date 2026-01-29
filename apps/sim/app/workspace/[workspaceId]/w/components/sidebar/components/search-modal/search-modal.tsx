@@ -6,10 +6,10 @@ import { Database, HelpCircle, Layout, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Library } from '@/components/emcn'
-import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/core/utils/cn'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type {
   SearchBlockItem,
@@ -65,6 +65,7 @@ interface PageItem {
   href?: string
   onClick?: () => void
   shortcut?: string
+  hidden?: boolean
 }
 
 export function SearchModal({
@@ -77,10 +78,10 @@ export function SearchModal({
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
-  const brand = useBrandConfig()
   const inputRef = useRef<HTMLInputElement>(null)
   const [mounted, setMounted] = useState(false)
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { config: permissionConfig } = usePermissionConfig()
 
   useEffect(() => {
     setMounted(true)
@@ -95,40 +96,49 @@ export function SearchModal({
   }, [])
 
   const pages = useMemo(
-    (): PageItem[] => [
-      {
-        id: 'logs',
-        name: 'Logs',
-        icon: Library,
-        href: `/workspace/${workspaceId}/logs`,
-        shortcut: '⌘⇧L',
-      },
-      {
-        id: 'templates',
-        name: 'Templates',
-        icon: Layout,
-        href: `/workspace/${workspaceId}/templates`,
-      },
-      {
-        id: 'knowledge-base',
-        name: 'Knowledge Base',
-        icon: Database,
-        href: `/workspace/${workspaceId}/knowledge`,
-      },
-      {
-        id: 'help',
-        name: 'Help',
-        icon: HelpCircle,
-        onClick: openHelpModal,
-      },
-      {
-        id: 'settings',
-        name: 'Settings',
-        icon: Settings,
-        onClick: openSettingsModal,
-      },
-    ],
-    [workspaceId, openHelpModal, openSettingsModal]
+    (): PageItem[] =>
+      [
+        {
+          id: 'logs',
+          name: 'Logs',
+          icon: Library,
+          href: `/workspace/${workspaceId}/logs`,
+          shortcut: '⌘⇧L',
+        },
+        {
+          id: 'templates',
+          name: 'Templates',
+          icon: Layout,
+          href: `/workspace/${workspaceId}/templates`,
+          hidden: permissionConfig.hideTemplates,
+        },
+        {
+          id: 'knowledge-base',
+          name: 'Knowledge Base',
+          icon: Database,
+          href: `/workspace/${workspaceId}/knowledge`,
+          hidden: permissionConfig.hideKnowledgeBaseTab,
+        },
+        {
+          id: 'help',
+          name: 'Help',
+          icon: HelpCircle,
+          onClick: openHelpModal,
+        },
+        {
+          id: 'settings',
+          name: 'Settings',
+          icon: Settings,
+          onClick: openSettingsModal,
+        },
+      ].filter((page) => !page.hidden),
+    [
+      workspaceId,
+      openHelpModal,
+      openSettingsModal,
+      permissionConfig.hideTemplates,
+      permissionConfig.hideKnowledgeBaseTab,
+    ]
   )
 
   useEffect(() => {
