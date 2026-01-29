@@ -511,6 +511,7 @@ Return ONLY valid JSON - no explanations.`,
           metadata,
           availability,
           eventTypeIdParam,
+          eventTypeId,
           bookingStatus,
           eventLength,
           scheduleName,
@@ -520,7 +521,10 @@ Return ONLY valid JSON - no explanations.`,
 
         const result: Record<string, unknown> = { ...rest }
 
-        // Build attendee object for create booking
+        if (eventTypeId) {
+          result.eventTypeId = Number(eventTypeId)
+        }
+
         if (operation === 'calcom_create_booking') {
           result.attendee = {
             name: attendeeName,
@@ -533,13 +537,11 @@ Return ONLY valid JSON - no explanations.`,
           result.attendeeTimeZone = undefined
           result.attendeePhone = undefined
 
-          // Parse guests as array
           if (guests) {
             result.guests = guests.split(',').map((g: string) => g.trim())
           }
         }
 
-        // Parse JSON fields
         if (metadata) {
           try {
             result.metadata = typeof metadata === 'string' ? JSON.parse(metadata) : metadata
@@ -557,9 +559,8 @@ Return ONLY valid JSON - no explanations.`,
           }
         }
 
-        // Map renamed fields
         if (eventTypeIdParam) {
-          result.id = eventTypeIdParam
+          result.eventTypeId = Number(eventTypeIdParam)
         }
 
         if (bookingStatus) {
@@ -585,7 +586,6 @@ Return ONLY valid JSON - no explanations.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Cal.com OAuth credential' },
-    // Booking inputs
     eventTypeId: { type: 'number', description: 'Event type ID' },
     start: { type: 'string', description: 'Start time (ISO 8601)' },
     end: { type: 'string', description: 'End time (ISO 8601)' },
@@ -600,7 +600,6 @@ Return ONLY valid JSON - no explanations.`,
     cancellationReason: { type: 'string', description: 'Reason for cancellation' },
     reschedulingReason: { type: 'string', description: 'Reason for rescheduling' },
     bookingStatus: { type: 'string', description: 'Filter by booking status' },
-    // Event type inputs
     eventTypeIdParam: { type: 'number', description: 'Event type ID for get/update/delete' },
     title: { type: 'string', description: 'Event type title' },
     slug: { type: 'string', description: 'URL-friendly slug' },
@@ -613,20 +612,17 @@ Return ONLY valid JSON - no explanations.`,
     eventTypeScheduleId: { type: 'number', description: 'Schedule ID for event type' },
     disableGuests: { type: 'boolean', description: 'Disable guest additions' },
     sortCreatedAt: { type: 'string', description: 'Sort order for event types' },
-    // Schedule inputs
     scheduleId: { type: 'number', description: 'Schedule ID' },
     scheduleName: { type: 'string', description: 'Schedule name' },
     timeZone: { type: 'string', description: 'Time zone' },
     isDefault: { type: 'boolean', description: 'Set as default schedule' },
     availability: { type: 'json', description: 'Availability configuration' },
-    // Slots inputs
     eventTypeSlug: { type: 'string', description: 'Event type slug' },
     username: { type: 'string', description: 'Cal.com username' },
     duration: { type: 'number', description: 'Slot duration in minutes' },
   },
   outputs: {
     success: { type: 'boolean', description: 'Whether operation succeeded' },
-    // Booking outputs
     bookingUid: { type: 'string', description: 'Booking unique identifier' },
     bookingId: { type: 'number', description: 'Booking ID' },
     status: { type: 'string', description: 'Booking or event status' },
@@ -637,25 +633,20 @@ Return ONLY valid JSON - no explanations.`,
     hosts: { type: 'json', description: 'List of hosts' },
     location: { type: 'string', description: 'Meeting location' },
     meetingUrl: { type: 'string', description: 'Video meeting URL' },
-    // List outputs
     bookings: { type: 'json', description: 'List of bookings' },
     eventTypes: { type: 'json', description: 'List of event types' },
     schedules: { type: 'json', description: 'List of schedules' },
     slots: { type: 'json', description: 'Available time slots' },
-    // Event type outputs
     id: { type: 'number', description: 'Event type or schedule ID' },
     slug: { type: 'string', description: 'Event type slug' },
     lengthInMinutes: { type: 'number', description: 'Event duration' },
     description: { type: 'string', description: 'Event type description' },
-    // Schedule outputs
     name: { type: 'string', description: 'Schedule name' },
     timeZone: { type: 'string', description: 'Schedule time zone' },
     isDefault: { type: 'boolean', description: 'Whether schedule is default' },
     availability: { type: 'json', description: 'Availability configuration' },
-    // Delete output
     deleted: { type: 'boolean', description: 'Whether deletion succeeded' },
     message: { type: 'string', description: 'Status or error message' },
-    // Trigger outputs
     triggerEvent: { type: 'string', description: 'Webhook event type' },
     createdAt: { type: 'string', description: 'Webhook event timestamp' },
     payload: { type: 'json', description: 'Complete webhook payload data' },
