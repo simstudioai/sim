@@ -182,10 +182,12 @@ export async function handleToolCallEvent(
   }
 
   // Check if this tool should be executed server-side
-  if (!isServerExecutedTool(event.name)) {
+  // Pass source to handle headless-only tools (e.g., edit_workflow in UI mode is client-handled)
+  if (!isServerExecutedTool(event.name, context.source)) {
     logger.debug('Tool not server-executed, client will handle', {
       toolCallId: event.id,
       toolName: event.name,
+      source: context.source,
     })
     return false
   }

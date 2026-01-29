@@ -2631,7 +2631,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
   name: 'edit_workflow',
   async execute(
     params: EditWorkflowParams,
-    context?: { userId: string; workflowId?: string }
+    context?: { userId: string; workflowId?: string; workspaceId?: string; source?: 'ui' | 'headless' }
   ): Promise<any> {
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, currentUserWorkflow } = params
@@ -2753,67 +2753,82 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PERSIST THE CHANGES TO THE DATABASE
-    // This is critical for headless mode and ensures changes are saved
+    // PERSIST THE CHANGES TO THE DATABASE (headless mode only)
+    // In UI mode, we return the proposed state for client-side diff review.
+    // The client will persist after user accepts the changes.
+    // In headless mode, we save directly since there's no UI to review.
     // ─────────────────────────────────────────────────────────────────────────
-    const workflowStateForPersistence = {
-      blocks: finalWorkflowState.blocks,
-      edges: finalWorkflowState.edges,
-      loops: finalWorkflowState.loops || {},
-      parallels: finalWorkflowState.parallels || {},
-      lastSaved: Date.now(),
-    }
+    const isHeadlessMode = context?.source !== 'ui'
 
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowStateForPersistence)
+    if (isHeadlessMode) {
+      const workflowStateForPersistence = {
+        blocks: finalWorkflowState.blocks,
+        edges: finalWorkflowState.edges,
+        loops: finalWorkflowState.loops || {},
+        parallels: finalWorkflowState.parallels || {},
+        lastSaved: Date.now(),
+      }
 
-    if (!saveResult.success) {
-      logger.error('Failed to persist workflow changes to database', {
-        workflowId,
-        error: saveResult.error,
+      const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowStateForPersistence)
+
+      if (!saveResult.success) {
+        logger.error('Failed to persist workflow changes to database', {
+          workflowId,
+          error: saveResult.error,
+        })
+        throw new Error(`Failed to save workflow: ${saveResult.error}`)
+      }
+
+      // Update workflow's lastSynced timestamp
+      await db
+        .update(workflowTable)
+        .set({
+          lastSynced: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(workflowTable.id, workflowId))
+
+      // Notify socket server so connected clients can refresh
+      // This uses the copilot-specific endpoint to trigger UI refresh
+      try {
+        const socketUrl = process.env.SOCKET_SERVER_URL || 'http://localhost:3002'
+        const operationsSummary = operations
+          .map((op: any) => `${op.operation_type} ${op.block_id || 'block'}`)
+          .slice(0, 3)
+          .join(', ')
+        const description = `Applied ${operations.length} operation(s): ${operationsSummary}${operations.length > 3 ? '...' : ''}`
+
+        await fetch(`${socketUrl}/api/copilot-workflow-edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workflowId, description }),
+        }).catch((err) => {
+          logger.warn('Failed to notify socket server about copilot edit', { error: err.message })
+        })
+      } catch (notifyError) {
+        // Non-fatal - log and continue
+        logger.warn('Error notifying socket server', { error: notifyError })
+      }
+
+      logger.info('edit_workflow successfully applied and persisted operations (headless mode)', {
+        operationCount: operations.length,
+        blocksCount: Object.keys(finalWorkflowState.blocks).length,
+        edgesCount: finalWorkflowState.edges.length,
+        inputValidationErrors: validationErrors.length,
+        skippedItemsCount: skippedItems.length,
+        schemaValidationErrors: validation.errors.length,
+        validationWarnings: validation.warnings.length,
       })
-      throw new Error(`Failed to save workflow: ${saveResult.error}`)
-    }
-
-    // Update workflow's lastSynced timestamp
-    await db
-      .update(workflowTable)
-      .set({
-        lastSynced: new Date(),
-        updatedAt: new Date(),
+    } else {
+      // UI mode - don't persist, let client handle after user accepts
+      logger.info('edit_workflow returning proposed state for UI review (not persisted)', {
+        operationCount: operations.length,
+        blocksCount: Object.keys(finalWorkflowState.blocks).length,
+        edgesCount: finalWorkflowState.edges.length,
+        inputValidationErrors: validationErrors.length,
+        skippedItemsCount: skippedItems.length,
       })
-      .where(eq(workflowTable.id, workflowId))
-
-    // Notify socket server so connected clients can refresh
-    // This uses the copilot-specific endpoint to trigger UI refresh
-    try {
-      const socketUrl = process.env.SOCKET_SERVER_URL || 'http://localhost:3002'
-      const operationsSummary = operations
-        .map((op: any) => `${op.operation_type} ${op.block_id || 'block'}`)
-        .slice(0, 3)
-        .join(', ')
-      const description = `Applied ${operations.length} operation(s): ${operationsSummary}${operations.length > 3 ? '...' : ''}`
-
-      await fetch(`${socketUrl}/api/copilot-workflow-edit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflowId, description }),
-      }).catch((err) => {
-        logger.warn('Failed to notify socket server about copilot edit', { error: err.message })
-      })
-    } catch (notifyError) {
-      // Non-fatal - log and continue
-      logger.warn('Error notifying socket server', { error: notifyError })
     }
-
-    logger.info('edit_workflow successfully applied and persisted operations', {
-      operationCount: operations.length,
-      blocksCount: Object.keys(finalWorkflowState.blocks).length,
-      edgesCount: finalWorkflowState.edges.length,
-      inputValidationErrors: validationErrors.length,
-      skippedItemsCount: skippedItems.length,
-      schemaValidationErrors: validation.errors.length,
-      validationWarnings: validation.warnings.length,
-    })
 
     // Format validation errors for LLM feedback
     const inputErrors =

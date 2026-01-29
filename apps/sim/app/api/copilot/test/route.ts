@@ -44,10 +44,12 @@ export async function POST(req: NextRequest) {
     logger.info('Test copilot request', { query, userId, workflowId, workspaceId, stream })
 
     // Build execution context
+    // Source is 'headless' since this is a test/API endpoint without UI
     const executionContext = {
       userId,
       workflowId,
       workspaceId,
+      source: 'headless' as const,
     }
 
     // Build request payload for Go copilot
@@ -119,6 +121,7 @@ export async function POST(req: NextRequest) {
                         workflowId: event.data.executionContext?.workflowId || workflowId,
                         workspaceId: event.data.executionContext?.workspaceId || workspaceId,
                         chatId: undefined,
+                        source: 'headless' as const,
                       }
 
                       handleToolCallEvent(

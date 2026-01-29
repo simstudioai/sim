@@ -158,10 +158,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Build execution context that will be passed to Go and used for tool execution
+    // Source is 'ui' since this route is called from the browser UI
     const executionContext = {
       userId: authenticatedUserId,
       workflowId: resolvedWorkflowId,
       workspaceId: resolvedWorkspaceId,
+      source: 'ui' as const,
     }
 
     logger.debug(`[${tracker.requestId}] Resolved execution context`, executionContext)
@@ -686,6 +688,7 @@ export async function POST(req: NextRequest) {
                               workspaceId:
                                 event.data.executionContext?.workspaceId || resolvedWorkspaceId,
                               chatId: actualChatId,
+                              source: 'ui' as const,
                             }
                             handleToolCallEvent(
                               {

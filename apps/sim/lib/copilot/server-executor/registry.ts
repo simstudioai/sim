@@ -364,16 +364,37 @@ const TOOL_REGISTRY: Record<string, ToolRegistration> = {
 }
 
 /**
+ * Tools that should only be auto-intercepted in headless mode.
+ * In UI mode, the client tool handles these (e.g., to show diff review).
+ */
+const HEADLESS_ONLY_TOOLS = new Set(['edit_workflow'])
+
+/**
  * List of all server-executed tool names.
  * Export this so clients know which tools NOT to execute locally.
+ * Note: edit_workflow is excluded because it needs client-side diff review in UI mode.
  */
-export const SERVER_EXECUTED_TOOLS = Object.keys(TOOL_REGISTRY)
+export const SERVER_EXECUTED_TOOLS = Object.keys(TOOL_REGISTRY).filter(
+  (name) => !HEADLESS_ONLY_TOOLS.has(name)
+)
 
 /**
  * Check if a tool is registered for server execution.
+ * @param toolName - The tool name to check
+ * @param source - Optional execution source. If 'ui', headless-only tools return false.
  */
-export function isServerExecutedTool(toolName: string): boolean {
-  return toolName in TOOL_REGISTRY
+export function isServerExecutedTool(
+  toolName: string,
+  source?: 'ui' | 'headless'
+): boolean {
+  if (!(toolName in TOOL_REGISTRY)) {
+    return false
+  }
+  // In UI mode, headless-only tools are NOT server-executed (client handles them)
+  if (source === 'ui' && HEADLESS_ONLY_TOOLS.has(toolName)) {
+    return false
+  }
+  return true
 }
 
 /**

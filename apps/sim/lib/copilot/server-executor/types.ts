@@ -22,6 +22,11 @@ export interface ToolResult<T = unknown> {
 }
 
 /**
+ * Execution source - whether the request came from UI or headless API.
+ */
+export type ExecutionSource = 'ui' | 'headless'
+
+/**
  * Context passed to tool executors.
  *
  * This context is passed from Go copilot to SIM on each tool_call event.
@@ -33,6 +38,8 @@ export interface ExecutionContext {
   workflowId?: string
   workspaceId?: string
   chatId?: string
+  /** Whether request came from UI (with diff review) or headless API (direct save) */
+  source?: ExecutionSource
 }
 
 /**
