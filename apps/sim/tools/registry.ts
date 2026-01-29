@@ -1343,6 +1343,13 @@ import {
   shopifyUpdateProductTool,
 } from '@/tools/shopify'
 import {
+  similarwebBounceRateTool,
+  similarwebPagesPerVisitTool,
+  similarwebTrafficVisitsTool,
+  similarwebVisitDurationTool,
+  similarwebWebsiteOverviewTool,
+} from '@/tools/similarweb'
+import {
   slackAddReactionTool,
   slackCanvasTool,
   slackDeleteMessageTool,
@@ -1936,6 +1943,11 @@ export const tools: Record<string, ToolConfig> = {
   github_latest_commit: githubLatestCommitTool,
   github_latest_commit_v2: githubLatestCommitV2Tool,
   serper_search: serperSearchTool,
+  similarweb_website_overview: similarwebWebsiteOverviewTool,
+  similarweb_traffic_visits: similarwebTrafficVisitsTool,
+  similarweb_bounce_rate: similarwebBounceRateTool,
+  similarweb_pages_per_visit: similarwebPagesPerVisitTool,
+  similarweb_visit_duration: similarwebVisitDurationTool,
   servicenow_create_record: servicenowCreateRecordTool,
   servicenow_read_record: servicenowReadRecordTool,
   servicenow_update_record: servicenowUpdateRecordTool,

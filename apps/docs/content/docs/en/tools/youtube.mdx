@@ -26,37 +26,11 @@ In Sim, the YouTube integration enables your agents to programmatically search a
 
 ## Usage Instructions
 
-Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video captions, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.
+Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.
 
 
 
 ## Tools
-
-### `youtube_captions`
-
-List available caption tracks (subtitles/transcripts) for a YouTube video. Returns information about each caption including language, type, and whether it is auto-generated.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `videoId` | string | Yes | YouTube video ID to get captions for |
-| `apiKey` | string | Yes | YouTube API Key |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `items` | array | Array of available caption tracks for the video |
-|   ↳ `captionId` | string | Caption track ID |
-|   ↳ `language` | string | Language code of the caption \(e.g.,  |
-|   ↳ `name` | string | Name/label of the caption track |
-|   ↳ `trackKind` | string | Type of caption track:  |
-|   ↳ `lastUpdated` | string | When the caption was last updated |
-|   ↳ `isCC` | boolean | Whether this is a closed caption track |
-|   ↳ `isAutoSynced` | boolean | Whether the caption timing was automatically synced |
-|   ↳ `audioTrackType` | string | Type of audio track this caption is for |
-| `totalResults` | number | Total number of caption tracks available |
 
 ### `youtube_channel_info`
 
