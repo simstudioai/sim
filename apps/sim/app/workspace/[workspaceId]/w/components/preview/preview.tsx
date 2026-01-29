@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
-import { Button, Tooltip } from '@/components/emcn'
+import { Badge, Button, Tooltip } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { cn } from '@/lib/core/utils/cn'
 import { PreviewEditor } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor'
@@ -35,6 +35,8 @@ interface WorkflowStackEntry {
   workflowState: WorkflowState
   traceSpans: TraceSpan[]
   blockExecutions: Record<string, BlockExecutionData>
+  /** Name of the workflow at this level for display in the breadcrumb */
+  workflowName: string
 }
 
 /**
@@ -191,12 +193,16 @@ export function Preview({
       const childTraceSpans = extractChildTraceSpans(blockExecution)
       const childBlockExecutions = buildBlockExecutions(childTraceSpans)
 
+      /** Extract workflow name from metadata or use a fallback */
+      const workflowName = childWorkflowState.metadata?.name || 'Nested Workflow'
+
       setWorkflowStack((prev) => [
         ...prev,
         {
           workflowState: childWorkflowState,
           traceSpans: childTraceSpans,
           blockExecutions: childBlockExecutions,
+          workflowName,
         },
       ])
 
@@ -232,6 +238,9 @@ export function Preview({
 
   const isNested = workflowStack.length > 0
 
+  /** Current workflow name from the top of the stack */
+  const currentWorkflowName = isNested ? workflowStack[workflowStack.length - 1].workflowName : null
+
   return (
     <div
       style={{ height, width }}
@@ -242,7 +251,7 @@ export function Preview({
       )}
     >
       {isNested && (
-        <div className='absolute top-[12px] left-[12px] z-20'>
+        <div className='absolute top-[12px] left-[12px] z-20 flex items-center gap-[8px]'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -256,6 +265,14 @@ export function Preview({
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
           </Tooltip.Root>
+          {currentWorkflowName && (
+            <Badge
+              variant='default'
+              className='max-w-[200px] cursor-default truncate bg-[var(--surface-2)] text-[12px] hover:border-[var(--border)] hover:bg-[var(--surface-2)]'
+            >
+              {currentWorkflowName}
+            </Badge>
+          )}
         </div>
       )}
 
