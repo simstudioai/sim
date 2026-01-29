@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   ChevronDown as ChevronDownIcon,
   ChevronUp,
+  Clipboard,
   ExternalLink,
   Maximize2,
   RepeatIcon,
+  Search,
   SplitIcon,
   X,
 } from 'lucide-react'
@@ -813,6 +816,13 @@ function PreviewEditorContent({
   } = useContextMenu()
 
   const [contextMenuData, setContextMenuData] = useState({ content: '', copyOnly: false })
+  const [copiedSection, setCopiedSection] = useState<'input' | 'output' | null>(null)
+
+  const handleCopySection = useCallback((content: string, section: 'input' | 'output') => {
+    navigator.clipboard.writeText(content)
+    setCopiedSection(section)
+    setTimeout(() => setCopiedSection(null), 1500)
+  }, [])
 
   const openContextMenu = useCallback(
     (e: React.MouseEvent, content: string, copyOnly: boolean) => {
@@ -862,9 +872,6 @@ function PreviewEditorContent({
     }
   }, [contextMenuData.content])
 
-  /**
-   * Handles mouse down event on the resize handle to initiate resizing
-   */
   const handleConnectionsResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
       setIsResizing(true)
@@ -874,18 +881,12 @@ function PreviewEditorContent({
     [connectionsHeight]
   )
 
-  /**
-   * Toggle connections collapsed state
-   */
   const toggleConnectionsCollapsed = useCallback(() => {
     setConnectionsHeight((prev) =>
       prev <= MIN_CONNECTIONS_HEIGHT ? DEFAULT_CONNECTIONS_HEIGHT : MIN_CONNECTIONS_HEIGHT
     )
   }, [])
 
-  /**
-   * Sets up resize event listeners during resize operations
-   */
   useEffect(() => {
     if (!isResizing) return
 
@@ -1205,7 +1206,11 @@ function PreviewEditorContent({
                 }
                 emptyMessage='No input data'
               >
-                <div onContextMenu={handleExecutionContextMenu} ref={contentRef}>
+                <div
+                  onContextMenu={handleExecutionContextMenu}
+                  ref={contentRef}
+                  className='relative'
+                >
                   <Code.Viewer
                     code={formatValueAsJson(executionData.input)}
                     language='json'
@@ -1215,6 +1220,49 @@ function PreviewEditorContent({
                     currentMatchIndex={currentMatchIndex}
                     onMatchCountChange={handleMatchCountChange}
                   />
+                  {/* Action buttons overlay */}
+                  {!isSearchActive && (
+                    <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCopySection(formatValueAsJson(executionData.input), 'input')
+                            }}
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                          >
+                            {copiedSection === 'input' ? (
+                              <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                            ) : (
+                              <Clipboard className='h-[10px] w-[10px]' />
+                            )}
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>
+                          {copiedSection === 'input' ? 'Copied' : 'Copy'}
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              activateSearch()
+                            }}
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                          >
+                            <Search className='h-[10px] w-[10px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>Search</Tooltip.Content>
+                      </Tooltip.Root>
+                    </div>
+                  )}
                 </div>
               </CollapsibleSection>
             )}
@@ -1231,7 +1279,7 @@ function PreviewEditorContent({
                 emptyMessage='No output data'
                 isError={executionData.status === 'error'}
               >
-                <div onContextMenu={handleExecutionContextMenu}>
+                <div onContextMenu={handleExecutionContextMenu} className='relative'>
                   <Code.Viewer
                     code={formatValueAsJson(executionData.output)}
                     language='json'
@@ -1244,6 +1292,49 @@ function PreviewEditorContent({
                     currentMatchIndex={currentMatchIndex}
                     onMatchCountChange={handleMatchCountChange}
                   />
+                  {/* Action buttons overlay */}
+                  {!isSearchActive && (
+                    <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCopySection(formatValueAsJson(executionData.output), 'output')
+                            }}
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                          >
+                            {copiedSection === 'output' ? (
+                              <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                            ) : (
+                              <Clipboard className='h-[10px] w-[10px]' />
+                            )}
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>
+                          {copiedSection === 'output' ? 'Copied' : 'Copy'}
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              activateSearch()
+                            }}
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                          >
+                            <Search className='h-[10px] w-[10px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>Search</Tooltip.Content>
+                      </Tooltip.Root>
+                    </div>
+                  )}
                 </div>
               </CollapsibleSection>
             )}
