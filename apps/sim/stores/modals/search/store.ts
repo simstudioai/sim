@@ -23,7 +23,7 @@ const initialData: SearchData = {
 
 export const useSearchModalStore = create<SearchModalState>()(
   devtools(
-    (set, get) => ({
+    (set, _) => ({
       isOpen: false,
       data: initialData,
 
@@ -124,7 +124,6 @@ export const useSearchModalStore = create<SearchModalState>()(
         const toolOperations: SearchToolOperationItem[] = getToolOperationsIndex()
           .filter((op) => allowedBlockTypes.has(op.blockType))
           .map((op) => {
-            // Include aliases in searchValue so synonym search works (e.g., "post" finds "Send Message")
             const aliasesStr = op.aliases?.length ? ` ${op.aliases.join(' ')}` : ''
             return {
               id: op.id,
