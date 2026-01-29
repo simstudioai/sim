@@ -1701,10 +1701,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return list
   }, [variableTags, nestedBlockTagGroups])
 
-  /**
-   * Map from tag string to its index in flatTagList for O(1) lookups.
-   * Replaces O(n) findIndex calls throughout the component.
-   */
   const flatTagIndexMap = useMemo(() => {
     const map = new Map<string, number>()
     flatTagList.forEach((item, index) => {
@@ -1911,28 +1907,20 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     }
   }, [visible, onClose])
 
-  /**
-   * Memoized caret position and side calculation.
-   * getCaretViewportPosition does DOM manipulation, so we avoid calling it on every render.
-   */
-  const { caretViewport, side } = useMemo(() => {
-    const inputElement = inputRef?.current
-    if (!inputElement) {
-      return { caretViewport: { left: 0, top: 0 }, side: 'bottom' as const }
-    }
-
-    const viewport = getCaretViewportPosition(inputElement, cursorPosition, inputValue)
-    const margin = 8
-    const spaceAbove = viewport.top - margin
-    const spaceBelow = window.innerHeight - viewport.top - margin
-    const computedSide: 'top' | 'bottom' = spaceBelow >= spaceAbove ? 'bottom' : 'top'
-
-    return { caretViewport: viewport, side: computedSide }
-  }, [cursorPosition, inputValue, inputRef])
-
   if (!visible || tags.length === 0 || flatTagList.length === 0) return null
 
   const inputElement = inputRef?.current
+  let caretViewport = { left: 0, top: 0 }
+  let side: 'top' | 'bottom' = 'bottom'
+
+  if (inputElement) {
+    caretViewport = getCaretViewportPosition(inputElement, cursorPosition, inputValue)
+
+    const margin = 8
+    const spaceAbove = caretViewport.top - margin
+    const spaceBelow = window.innerHeight - caretViewport.top - margin
+    side = spaceBelow >= spaceAbove ? 'bottom' : 'top'
+  }
 
   return (
     <NestedNavigationContext.Provider value={nestedNavigationValue}>

@@ -1,3 +1,8 @@
+import {
+  COMMIT_DATA_OUTPUT,
+  COMMIT_FILE_OUTPUT_PROPERTIES,
+  USER_FULL_OUTPUT,
+} from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface CompareCommitsParams {
@@ -259,17 +264,9 @@ export const compareCommitsV2Tool: ToolConfig<CompareCommitsParams, any> = {
       properties: {
         sha: { type: 'string', description: 'Commit SHA' },
         html_url: { type: 'string', description: 'Web URL' },
-        commit: {
-          type: 'object',
-          description: 'Commit data',
-          properties: {
-            message: { type: 'string', description: 'Commit message' },
-            author: { type: 'object', description: 'Git author (name, email, date)' },
-            committer: { type: 'object', description: 'Git committer (name, email, date)' },
-          },
-        },
-        author: { type: 'object', description: 'GitHub user (author)', optional: true },
-        committer: { type: 'object', description: 'GitHub user (committer)', optional: true },
+        commit: COMMIT_DATA_OUTPUT,
+        author: USER_FULL_OUTPUT,
+        committer: USER_FULL_OUTPUT,
       },
     },
     merge_base_commit: {
@@ -288,17 +285,9 @@ export const compareCommitsV2Tool: ToolConfig<CompareCommitsParams, any> = {
         properties: {
           sha: { type: 'string', description: 'Commit SHA' },
           html_url: { type: 'string', description: 'Web URL' },
-          commit: {
-            type: 'object',
-            description: 'Commit data',
-            properties: {
-              message: { type: 'string', description: 'Commit message' },
-              author: { type: 'object', description: 'Git author (name, email, date)' },
-              committer: { type: 'object', description: 'Git committer (name, email, date)' },
-            },
-          },
-          author: { type: 'object', description: 'GitHub user', optional: true },
-          committer: { type: 'object', description: 'GitHub user', optional: true },
+          commit: COMMIT_DATA_OUTPUT,
+          author: USER_FULL_OUTPUT,
+          committer: USER_FULL_OUTPUT,
         },
       },
     },
@@ -307,27 +296,7 @@ export const compareCommitsV2Tool: ToolConfig<CompareCommitsParams, any> = {
       description: 'Changed files (diff entries)',
       items: {
         type: 'object',
-        properties: {
-          sha: { type: 'string', description: 'Blob SHA', optional: true },
-          filename: { type: 'string', description: 'File path' },
-          status: {
-            type: 'string',
-            description:
-              'Change status (added, removed, modified, renamed, copied, changed, unchanged)',
-          },
-          additions: { type: 'number', description: 'Lines added' },
-          deletions: { type: 'number', description: 'Lines deleted' },
-          changes: { type: 'number', description: 'Total changes' },
-          blob_url: { type: 'string', description: 'Blob URL' },
-          raw_url: { type: 'string', description: 'Raw file URL' },
-          contents_url: { type: 'string', description: 'Contents API URL' },
-          patch: { type: 'string', description: 'Diff patch', optional: true },
-          previous_filename: {
-            type: 'string',
-            description: 'Previous filename (for renames)',
-            optional: true,
-          },
-        },
+        properties: COMMIT_FILE_OUTPUT_PROPERTIES,
       },
     },
   },

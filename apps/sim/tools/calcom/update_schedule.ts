@@ -3,6 +3,7 @@ import type {
   CalcomUpdateScheduleParams,
   CalcomUpdateScheduleResponse,
 } from '@/tools/calcom/types'
+import { SCHEDULE_DATA_OUTPUT_PROPERTIES } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateScheduleTool: ToolConfig<
@@ -131,45 +132,7 @@ export const updateScheduleTool: ToolConfig<
     data: {
       type: 'object',
       description: 'Updated schedule data',
-      properties: {
-        id: {
-          type: 'number',
-          description: 'Unique identifier for the schedule',
-        },
-        name: {
-          type: 'string',
-          description: 'Name of the schedule',
-        },
-        timeZone: {
-          type: 'string',
-          description: 'Timezone of the schedule',
-        },
-        isDefault: {
-          type: 'boolean',
-          description: 'Whether this is the default schedule',
-        },
-        availability: {
-          type: 'array',
-          description: 'Availability intervals',
-          items: {
-            type: 'object',
-            properties: {
-              days: {
-                type: 'array',
-                description: 'Days of the week',
-              },
-              startTime: {
-                type: 'string',
-                description: 'Start time in HH:MM format',
-              },
-              endTime: {
-                type: 'string',
-                description: 'End time in HH:MM format',
-              },
-            },
-          },
-        },
-      },
+      properties: SCHEDULE_DATA_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -516,13 +516,20 @@ Return ONLY valid JSON - no explanations.`,
           eventLength,
           scheduleName,
           eventTypeScheduleId,
+          duration,
           ...rest
         } = params
 
         const result: Record<string, unknown> = { ...rest }
 
+        // Convert eventTypeId to number (used by create_booking and get_slots)
         if (eventTypeId) {
           result.eventTypeId = Number(eventTypeId)
+        }
+
+        // Convert duration to number (used by get_slots)
+        if (duration) {
+          result.duration = Number(duration)
         }
 
         if (operation === 'calcom_create_booking') {

@@ -14,14 +14,20 @@ export interface CalcomGetSlotsParams {
 export interface CalcomGetSlotsResponse extends ToolResponse {
   output: {
     status: string
-    data: {
-      slots: Record<
-        string,
-        Array<{
-          time: string
-        }>
-      >
-    }
+    /** Slots grouped by date (YYYY-MM-DD format) */
+    data: Record<
+      string,
+      Array<{
+        /** ISO 8601 timestamp of slot start time */
+        start: string
+        /** ISO 8601 timestamp of slot end time (only when format=range) */
+        end?: string
+        /** Number of attendees already booked (for seated events) */
+        attendeesCount?: number
+        /** Booking UID (for seated events) */
+        bookingUid?: string
+      }>
+    >
   }
 }
 
@@ -140,29 +146,9 @@ export const getSlotsTool: ToolConfig<CalcomGetSlotsParams, CalcomGetSlotsRespon
       description: 'Response status',
     },
     data: {
-      type: 'object',
-      description: 'Slots data container',
-      properties: {
-        slots: {
-          type: 'object',
-          description: 'Available time slots grouped by date (YYYY-MM-DD keys)',
-          properties: {
-            '[date]': {
-              type: 'array',
-              description: 'Array of available slots for this date',
-              items: {
-                type: 'object',
-                properties: {
-                  time: {
-                    type: 'string',
-                    description: 'ISO 8601 timestamp of the available slot',
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      type: 'json',
+      description:
+        'Available time slots grouped by date (YYYY-MM-DD keys). Each date maps to an array of slot objects with start time, optional end time, and seated event info.',
     },
   },
 }

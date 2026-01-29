@@ -9,6 +9,7 @@ import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar
 import {
   useContextMenu,
   useDragDrop,
+  useFolderSelection,
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useFolders } from '@/hooks/queries/folders'
@@ -157,9 +158,30 @@ export function WorkflowList({
     return ids
   }, [folderTree, workflowsByFolder])
 
+  const orderedFolderIds = useMemo(() => {
+    const ids: string[] = []
+
+    const collectFolderIds = (folder: FolderTreeNode) => {
+      ids.push(folder.id)
+      for (const childFolder of folder.children) {
+        collectFolderIds(childFolder)
+      }
+    }
+
+    for (const folder of folderTree) {
+      collectFolderIds(folder)
+    }
+
+    return ids
+  }, [folderTree])
+
   const { handleWorkflowClick } = useWorkflowSelection({
     workflowIds: orderedWorkflowIds,
     activeWorkflowId: workflowId,
+  })
+
+  const { handleFolderClick } = useFolderSelection({
+    folderIds: orderedFolderIds,
   })
 
   const isWorkflowActive = useCallback(
@@ -281,6 +303,7 @@ export function WorkflowList({
               folder={folder}
               level={level}
               dragDisabled={dragDisabled}
+              onFolderClick={handleFolderClick}
               onDragStart={() => handleDragStart('folder', parentFolderId)}
               onDragEnd={handleDragEnd}
             />
@@ -319,6 +342,7 @@ export function WorkflowList({
       createFolderContentDropZone,
       handleDragStart,
       handleDragEnd,
+      handleFolderClick,
       renderWorkflowItem,
     ]
   )
@@ -361,7 +385,8 @@ export function WorkflowList({
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target !== e.currentTarget) return
-      const { selectOnly, clearSelection } = useFolderStore.getState()
+      const { selectOnly, clearSelection, clearFolderSelection } = useFolderStore.getState()
+      clearFolderSelection()
       workflowId ? selectOnly(workflowId) : clearSelection()
     },
     [workflowId]

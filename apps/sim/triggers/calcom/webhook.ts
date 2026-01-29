@@ -34,7 +34,7 @@ export const calcomWebhookTrigger: TriggerConfig = {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Cal-Signature-256': 'sha256=...',
+      'X-Cal-Signature-256': '<hmac-sha256-hex>',
     },
   },
 }

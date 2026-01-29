@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
@@ -19,12 +19,16 @@ import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components
 import {
   useCanDelete,
   useDeleteFolder,
+  useDeleteSelection,
   useDuplicateFolder,
   useExportFolder,
+  useExportSelection,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
+import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('FolderItem')
@@ -37,23 +41,17 @@ interface FolderItemProps {
     onDragEnter?: (e: React.DragEvent<HTMLElement>) => void
     onDragLeave?: (e: React.DragEvent<HTMLElement>) => void
   }
+  onFolderClick?: (folderId: string, shiftKey: boolean, metaKey: boolean) => void
   onDragStart?: () => void
   onDragEnd?: () => void
 }
 
-/**
- * FolderItem component displaying a single folder with drag and expand/collapse support.
- * Uses item drag and folder expand hooks for unified behavior.
- * Supports hover-to-expand during drag operations via hoverHandlers.
- *
- * @param props - Component props
- * @returns Folder item with drag and expand support
- */
 export function FolderItem({
   folder,
   level,
   dragDisabled = false,
   hoverHandlers,
+  onFolderClick,
   onDragStart: onDragStartProp,
   onDragEnd: onDragEndProp,
 }: FolderItemProps) {
@@ -64,26 +62,58 @@ export function FolderItem({
   const createWorkflowMutation = useCreateWorkflow()
   const createFolderMutation = useCreateFolder()
   const userPermissions = useUserPermissionsContext()
+  const selectedFolders = useFolderStore((state) => state.selectedFolders)
+  const isSelected = selectedFolders.has(folder.id)
 
-  const { canDeleteFolder } = useCanDelete({ workspaceId })
+  const { canDeleteFolder, canDeleteWorkflows } = useCanDelete({ workspaceId })
   const canDelete = useMemo(() => canDeleteFolder(folder.id), [canDeleteFolder, folder.id])
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deleteItemType, setDeleteItemType] = useState<'folder' | 'mixed'>('folder')
+  const [deleteItemNames, setDeleteItemNames] = useState<string | string[]>(folder.name)
 
-  const { isDeleting, handleDeleteFolder } = useDeleteFolder({
+  const capturedSelectionRef = useRef<{
+    workflowIds: string[]
+    folderIds: string[]
+    isMixed: boolean
+    names: string[]
+  } | null>(null)
+
+  const [canDeleteCaptured, setCanDeleteCaptured] = useState(true)
+
+  const { isDeleting: isDeletingSingle, handleDeleteFolder: handleDeleteSingleFolder } =
+    useDeleteFolder({
+      workspaceId,
+      folderIds: folder.id,
+      onSuccess: () => setIsDeleteModalOpen(false),
+    })
+
+  const { isDeleting: isDeletingMixed, handleDeleteSelection } = useDeleteSelection({
     workspaceId,
-    folderIds: folder.id,
+    workflowIds: capturedSelectionRef.current?.workflowIds || [],
+    folderIds: capturedSelectionRef.current?.folderIds || [],
+    isActiveWorkflow: (id) => id === params.workflowId,
     onSuccess: () => setIsDeleteModalOpen(false),
   })
+
+  const isDeleting = isDeletingSingle || isDeletingMixed
 
   const { handleDuplicateFolder } = useDuplicateFolder({
     workspaceId,
     folderIds: folder.id,
   })
 
-  const { isExporting, hasWorkflows, handleExportFolder } = useExportFolder({
+  const {
+    isExporting: isExportingSingle,
+    hasWorkflows,
+    handleExportFolder,
+  } = useExportFolder({
     folderId: folder.id,
   })
+
+  const { isExporting: isExportingMixed, handleExportSelection } = useExportSelection()
+
+  const isExporting = isExportingSingle || isExportingMixed
 
   const {
     isExpanded,
@@ -94,11 +124,8 @@ export function FolderItem({
     folderId: folder.id,
   })
 
-  /**
-   * Handle create workflow in folder using React Query mutation.
-   * Generates name and color upfront for optimistic UI updates.
-   * The UI disables the trigger when isPending, so no guard needed here.
-   */
+  const isEditingRef = useRef(false)
+
   const handleCreateWorkflowInFolder = useCallback(async () => {
     try {
       const name = generateCreativeWorkflowName()
@@ -123,10 +150,6 @@ export function FolderItem({
     }
   }, [createWorkflowMutation, workspaceId, folder.id, router, expandFolder])
 
-  /**
-   * Handle create sub-folder using React Query mutation.
-   * Creates a new folder inside the current folder.
-   */
   const handleCreateFolderInFolder = useCallback(async () => {
     try {
       const result = await createFolderMutation.mutateAsync({
@@ -147,7 +170,7 @@ export function FolderItem({
 
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
-      if (isEditing) {
+      if (isEditingRef.current) {
         e.preventDefault()
         return
       }
@@ -177,10 +200,58 @@ export function FolderItem({
     isOpen: isContextMenuOpen,
     position,
     menuRef,
-    handleContextMenu,
+    handleContextMenu: handleContextMenuBase,
     closeMenu,
     preventDismiss,
   } = useContextMenu()
+
+  const captureSelectionState = useCallback(() => {
+    const store = useFolderStore.getState()
+    const isFolderSelected = store.selectedFolders.has(folder.id)
+
+    if (!isFolderSelected) {
+      store.selectFolder(folder.id)
+    }
+
+    const finalFolderSelection = useFolderStore.getState().selectedFolders
+    const finalWorkflowSelection = useFolderStore.getState().selectedWorkflows
+
+    const folderIds = Array.from(finalFolderSelection)
+    const workflowIds = Array.from(finalWorkflowSelection)
+    const isMixed = folderIds.length > 0 && workflowIds.length > 0
+
+    const { folders } = useFolderStore.getState()
+    const { workflows } = useWorkflowRegistry.getState()
+
+    const names: string[] = []
+    for (const id of folderIds) {
+      const f = folders[id]
+      if (f) names.push(f.name)
+    }
+    for (const id of workflowIds) {
+      const w = workflows[id]
+      if (w) names.push(w.name)
+    }
+
+    capturedSelectionRef.current = {
+      workflowIds,
+      folderIds,
+      isMixed,
+      names,
+    }
+
+    const canDeleteAllFolders = folderIds.every((id) => canDeleteFolder(id))
+    const canDeleteAllWorkflows = workflowIds.length === 0 || canDeleteWorkflows(workflowIds)
+    setCanDeleteCaptured(canDeleteAllFolders && canDeleteAllWorkflows)
+  }, [folder.id, canDeleteFolder, canDeleteWorkflows])
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      captureSelectionState()
+      handleContextMenuBase(e)
+    },
+    [captureSelectionState, handleContextMenuBase]
+  )
 
   const {
     isEditing,
@@ -204,9 +275,8 @@ export function FolderItem({
     itemId: folder.id,
   })
 
-  /**
-   * Handle double-click on folder name to enter rename mode
-   */
+  isEditingRef.current = isEditing
+
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
@@ -216,11 +286,6 @@ export function FolderItem({
     [handleStartEdit]
   )
 
-  /**
-   * Handle click - toggles folder expansion
-   *
-   * @param e - React mouse event
-   */
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       e.stopPropagation()
@@ -229,14 +294,20 @@ export function FolderItem({
         e.preventDefault()
         return
       }
+
+      const isModifierClick = e.shiftKey || e.metaKey || e.ctrlKey
+
+      if (isModifierClick && onFolderClick) {
+        e.preventDefault()
+        onFolderClick(folder.id, e.shiftKey, e.metaKey || e.ctrlKey)
+        return
+      }
+
       handleToggleExpanded()
     },
-    [handleToggleExpanded, shouldPreventClickRef, isEditing]
+    [handleToggleExpanded, shouldPreventClickRef, isEditing, onFolderClick, folder.id]
   )
 
-  /**
-   * Combined keyboard handler for both expand and rename
-   */
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (isEditing) {
@@ -248,18 +319,12 @@ export function FolderItem({
     [isEditing, handleRenameKeyDown, handleExpandKeyDown]
   )
 
-  /**
-   * Handle more button pointerdown - prevents click-outside dismissal when toggling
-   */
   const handleMorePointerDown = useCallback(() => {
     if (isContextMenuOpen) {
       preventDismiss()
     }
   }, [isContextMenuOpen, preventDismiss])
 
-  /**
-   * Handle more button click - toggles context menu at button position
-   */
   const handleMoreClick = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
       e.preventDefault()
@@ -270,16 +335,70 @@ export function FolderItem({
         return
       }
 
+      captureSelectionState()
       const rect = e.currentTarget.getBoundingClientRect()
-      handleContextMenu({
+      handleContextMenuBase({
         preventDefault: () => {},
         stopPropagation: () => {},
         clientX: rect.right,
         clientY: rect.top,
       } as React.MouseEvent)
     },
-    [isContextMenuOpen, closeMenu, handleContextMenu]
+    [isContextMenuOpen, closeMenu, captureSelectionState, handleContextMenuBase]
   )
+
+  const handleOpenDeleteModal = useCallback(() => {
+    if (!capturedSelectionRef.current) return
+
+    const { isMixed, names, folderIds } = capturedSelectionRef.current
+
+    if (isMixed) {
+      setDeleteItemType('mixed')
+      setDeleteItemNames(names)
+    } else if (folderIds.length > 1) {
+      setDeleteItemType('folder')
+      setDeleteItemNames(names)
+    } else {
+      setDeleteItemType('folder')
+      setDeleteItemNames(folder.name)
+    }
+
+    setIsDeleteModalOpen(true)
+  }, [folder.name])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!capturedSelectionRef.current) return
+
+    const { isMixed, folderIds } = capturedSelectionRef.current
+
+    if (isMixed || folderIds.length > 1) {
+      await handleDeleteSelection()
+    } else {
+      await handleDeleteSingleFolder()
+    }
+  }, [handleDeleteSelection, handleDeleteSingleFolder])
+
+  const handleExport = useCallback(async () => {
+    if (!capturedSelectionRef.current) return
+
+    const { isMixed, workflowIds, folderIds } = capturedSelectionRef.current
+
+    if (isMixed) {
+      await handleExportSelection(workflowIds, folderIds)
+    } else {
+      await handleExportFolder()
+    }
+  }, [handleExportSelection, handleExportFolder])
+
+  const isMixedSelection = useMemo(() => {
+    return capturedSelectionRef.current?.isMixed ?? false
+  }, [isContextMenuOpen])
+
+  const hasExportableContent = useMemo(() => {
+    if (!capturedSelectionRef.current) return hasWorkflows
+    const { workflowIds } = capturedSelectionRef.current
+    return workflowIds.length > 0 || hasWorkflows
+  }, [isContextMenuOpen, hasWorkflows])
 
   return (
     <>
@@ -291,6 +410,7 @@ export function FolderItem({
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={clsx(
           'group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+          isSelected ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]' : '',
           isDragging ? 'opacity-50' : ''
         )}
         onClick={handleClick}
@@ -361,7 +481,6 @@ export function FolderItem({
         )}
       </div>
 
-      {/* Context Menu */}
       <ContextMenu
         isOpen={isContextMenuOpen}
         position={position}
@@ -371,27 +490,28 @@ export function FolderItem({
         onCreate={handleCreateWorkflowInFolder}
         onCreateFolder={handleCreateFolderInFolder}
         onDuplicate={handleDuplicateFolder}
-        onExport={handleExportFolder}
-        onDelete={() => setIsDeleteModalOpen(true)}
-        showCreate={true}
-        showCreateFolder={true}
+        onExport={handleExport}
+        onDelete={handleOpenDeleteModal}
+        showCreate={!isMixedSelection}
+        showCreateFolder={!isMixedSelection}
+        showRename={!isMixedSelection && selectedFolders.size <= 1}
+        showDuplicate={!isMixedSelection}
         showExport={true}
         disableRename={!userPermissions.canEdit}
         disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
         disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
         disableDuplicate={!userPermissions.canEdit || !hasWorkflows}
-        disableExport={!userPermissions.canEdit || isExporting || !hasWorkflows}
-        disableDelete={!userPermissions.canEdit || !canDelete}
+        disableExport={!userPermissions.canEdit || isExporting || !hasExportableContent}
+        disableDelete={!userPermissions.canEdit || !canDeleteCaptured}
       />
 
-      {/* Delete Modal */}
       <DeleteModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleDeleteFolder}
+        onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
-        itemType='folder'
-        itemName={folder.name}
+        itemType={deleteItemType}
+        itemName={deleteItemNames}
       />
     </>
   )

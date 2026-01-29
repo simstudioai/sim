@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
@@ -16,8 +16,10 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   useCanDelete,
+  useDeleteSelection,
   useDeleteWorkflow,
   useDuplicateWorkflow,
+  useExportSelection,
   useExportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderStore } from '@/stores/folders/store'
@@ -57,39 +59,77 @@ export function WorkflowItem({
   const userPermissions = useUserPermissionsContext()
   const isSelected = selectedWorkflows.has(workflow.id)
 
-  const { canDeleteWorkflows } = useCanDelete({ workspaceId })
+  const { canDeleteWorkflows, canDeleteFolder } = useCanDelete({ workspaceId })
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [workflowIdsToDelete, setWorkflowIdsToDelete] = useState<string[]>([])
+  const [deleteItemType, setDeleteItemType] = useState<'workflow' | 'mixed'>('workflow')
   const [deleteModalNames, setDeleteModalNames] = useState<string | string[]>('')
   const [canDeleteCaptured, setCanDeleteCaptured] = useState(true)
 
   const capturedSelectionRef = useRef<{
     workflowIds: string[]
-    workflowNames: string | string[]
+    folderIds: string[]
+    isMixed: boolean
+    names: string[]
   } | null>(null)
 
   /**
    * Handle opening the delete modal - uses pre-captured selection state
    */
   const handleOpenDeleteModal = useCallback(() => {
-    if (capturedSelectionRef.current) {
-      setWorkflowIdsToDelete(capturedSelectionRef.current.workflowIds)
-      setDeleteModalNames(capturedSelectionRef.current.workflowNames)
-      setIsDeleteModalOpen(true)
+    if (!capturedSelectionRef.current) return
+
+    const { isMixed, names } = capturedSelectionRef.current
+
+    if (isMixed) {
+      setDeleteItemType('mixed')
+    } else {
+      setDeleteItemType('workflow')
     }
+
+    setDeleteModalNames(names.length > 1 ? names : names[0] || '')
+    setIsDeleteModalOpen(true)
   }, [])
 
-  const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
+  // Single/multi workflow delete hook (for non-mixed selection)
+  const { isDeleting: isDeletingSingle, handleDeleteWorkflow } = useDeleteWorkflow({
     workspaceId,
-    workflowIds: workflowIdsToDelete,
+    workflowIds: capturedSelectionRef.current?.workflowIds || [],
     isActive: (workflowIds) => workflowIds.includes(params.workflowId as string),
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
+  // Mixed selection delete hook
+  const { isDeleting: isDeletingMixed, handleDeleteSelection } = useDeleteSelection({
+    workspaceId,
+    workflowIds: capturedSelectionRef.current?.workflowIds || [],
+    folderIds: capturedSelectionRef.current?.folderIds || [],
+    isActiveWorkflow: (id) => id === params.workflowId,
+    onSuccess: () => setIsDeleteModalOpen(false),
+  })
+
+  const isDeleting = isDeletingSingle || isDeletingMixed
+
+  /**
+   * Handle delete confirmation - uses appropriate hook based on selection
+   */
+  const handleConfirmDelete = useCallback(async () => {
+    if (!capturedSelectionRef.current) return
+
+    const { isMixed } = capturedSelectionRef.current
+
+    if (isMixed) {
+      await handleDeleteSelection()
+    } else {
+      await handleDeleteWorkflow()
+    }
+  }, [handleDeleteSelection, handleDeleteWorkflow])
+
   const { handleDuplicateWorkflow: duplicateWorkflow } = useDuplicateWorkflow({ workspaceId })
 
-  const { handleExportWorkflow: exportWorkflow } = useExportWorkflow()
+  const { handleExportWorkflow: exportWorkflowSingle } = useExportWorkflow()
+  const { handleExportSelection } = useExportSelection()
+
   const handleDuplicateWorkflow = useCallback(() => {
     const workflowIds = capturedSelectionRef.current?.workflowIds || []
     if (workflowIds.length === 0) return
@@ -97,10 +137,17 @@ export function WorkflowItem({
   }, [duplicateWorkflow])
 
   const handleExportWorkflow = useCallback(() => {
-    const workflowIds = capturedSelectionRef.current?.workflowIds || []
-    if (workflowIds.length === 0) return
-    exportWorkflow(workflowIds)
-  }, [exportWorkflow])
+    if (!capturedSelectionRef.current) return
+
+    const { isMixed, workflowIds, folderIds } = capturedSelectionRef.current
+
+    if (isMixed) {
+      handleExportSelection(workflowIds, folderIds)
+    } else {
+      if (workflowIds.length === 0) return
+      exportWorkflowSingle(workflowIds)
+    }
+  }, [exportWorkflowSingle, handleExportSelection])
 
   const handleOpenInNewTab = useCallback(() => {
     window.open(`/workspace/${workspaceId}/w/${workflow.id}`, '_blank')
@@ -124,41 +171,51 @@ export function WorkflowItem({
     preventDismiss,
   } = useContextMenu()
 
-  /**
-   * Captures selection state for context menu operations
-   */
+  const isMixedSelection = useMemo(() => {
+    return capturedSelectionRef.current?.isMixed ?? false
+  }, [isContextMenuOpen])
+
   const captureSelectionState = useCallback(() => {
-    const { selectedWorkflows: currentSelection, selectOnly } = useFolderStore.getState()
-    const isCurrentlySelected = currentSelection.has(workflow.id)
+    const store = useFolderStore.getState()
+    const isCurrentlySelected = store.selectedWorkflows.has(workflow.id)
 
     if (!isCurrentlySelected) {
-      selectOnly(workflow.id)
+      store.selectWorkflow(workflow.id)
     }
 
-    const finalSelection = useFolderStore.getState().selectedWorkflows
-    const finalIsSelected = finalSelection.has(workflow.id)
+    const finalWorkflowSelection = useFolderStore.getState().selectedWorkflows
+    const finalFolderSelection = useFolderStore.getState().selectedFolders
 
-    const workflowIds =
-      finalIsSelected && finalSelection.size > 1 ? Array.from(finalSelection) : [workflow.id]
+    const workflowIds = Array.from(finalWorkflowSelection)
+    const folderIds = Array.from(finalFolderSelection)
+    const isMixed = workflowIds.length > 0 && folderIds.length > 0
 
     const { workflows } = useWorkflowRegistry.getState()
-    const workflowNames = workflowIds
-      .map((id) => workflows[id]?.name)
-      .filter((name): name is string => !!name)
+    const { folders } = useFolderStore.getState()
+
+    const names: string[] = []
+    for (const id of workflowIds) {
+      const w = workflows[id]
+      if (w) names.push(w.name)
+    }
+    for (const id of folderIds) {
+      const f = folders[id]
+      if (f) names.push(f.name)
+    }
 
     capturedSelectionRef.current = {
       workflowIds,
-      workflowNames: workflowNames.length > 1 ? workflowNames : workflowNames[0],
+      folderIds,
+      isMixed,
+      names,
     }
 
-    setCanDeleteCaptured(canDeleteWorkflows(workflowIds))
-  }, [workflow.id, canDeleteWorkflows])
+    const canDeleteAllWorkflows = canDeleteWorkflows(workflowIds)
+    const canDeleteAllFolders =
+      folderIds.length === 0 || folderIds.every((id) => canDeleteFolder(id))
+    setCanDeleteCaptured(canDeleteAllWorkflows && canDeleteAllFolders)
+  }, [workflow.id, canDeleteWorkflows, canDeleteFolder])
 
-  /**
-   * Handle right-click - ensure proper selection behavior and capture selection state
-   * If right-clicking on an unselected workflow, select only that workflow
-   * If right-clicking on a selected workflow with multiple selections, keep all selections
-   */
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       captureSelectionState()
@@ -167,18 +224,12 @@ export function WorkflowItem({
     [captureSelectionState, handleContextMenuBase]
   )
 
-  /**
-   * Handle more button pointerdown - prevents click-outside dismissal when toggling
-   */
   const handleMorePointerDown = useCallback(() => {
     if (isContextMenuOpen) {
       preventDismiss()
     }
   }, [isContextMenuOpen, preventDismiss])
 
-  /**
-   * Handle more button click - toggles context menu at button position
-   */
   const handleMoreClick = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
       e.preventDefault()
@@ -256,9 +307,6 @@ export function WorkflowItem({
     onDragEndProp?.()
   }, [handleDragEndBase, onDragEndProp])
 
-  /**
-   * Handle double-click on workflow name to enter rename mode
-   */
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
@@ -268,11 +316,6 @@ export function WorkflowItem({
     [handleStartEdit]
   )
 
-  /**
-   * Handle click - manages workflow selection with shift-key and cmd/ctrl-key support
-   *
-   * @param e - React mouse event
-   */
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLAnchorElement>) => {
       e.stopPropagation()
@@ -374,7 +417,6 @@ export function WorkflowItem({
         )}
       </Link>
 
-      {/* Context Menu */}
       <ContextMenu
         isOpen={isContextMenuOpen}
         position={position}
@@ -387,11 +429,11 @@ export function WorkflowItem({
         onDelete={handleOpenDeleteModal}
         onColorChange={handleColorChange}
         currentColor={workflow.color}
-        showOpenInNewTab={selectedWorkflows.size <= 1}
-        showRename={selectedWorkflows.size <= 1}
-        showDuplicate={true}
+        showOpenInNewTab={!isMixedSelection && selectedWorkflows.size <= 1}
+        showRename={!isMixedSelection && selectedWorkflows.size <= 1}
+        showDuplicate={!isMixedSelection}
         showExport={true}
-        showColorChange={selectedWorkflows.size <= 1}
+        showColorChange={!isMixedSelection && selectedWorkflows.size <= 1}
         disableRename={!userPermissions.canEdit}
         disableDuplicate={!userPermissions.canEdit}
         disableExport={!userPermissions.canEdit}
@@ -399,13 +441,12 @@ export function WorkflowItem({
         disableDelete={!userPermissions.canEdit || !canDeleteCaptured}
       />
 
-      {/* Delete Confirmation Modal */}
       <DeleteModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleDeleteWorkflow}
+        onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
-        itemType='workflow'
+        itemType={deleteItemType}
         itemName={deleteModalNames}
       />
     </>

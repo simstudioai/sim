@@ -1,4 +1,569 @@
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
+
+/**
+ * Shared output property definitions for GitHub API responses.
+ * These are reusable across all GitHub tools to ensure consistency.
+ */
+
+/**
+ * Output definition for GitHub user objects
+ */
+export const USER_OUTPUT_PROPERTIES = {
+  login: { type: 'string', description: 'GitHub username' },
+  id: { type: 'number', description: 'User ID' },
+  avatar_url: { type: 'string', description: 'Avatar image URL' },
+  html_url: { type: 'string', description: 'Profile URL' },
+  type: { type: 'string', description: 'Account type (User or Organization)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete user object output definition
+ */
+export const USER_OUTPUT = {
+  type: 'object',
+  description: 'GitHub user object',
+  properties: USER_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Extended user output properties for V2 tools (includes additional API fields)
+ */
+export const USER_FULL_OUTPUT_PROPERTIES = {
+  login: { type: 'string', description: 'GitHub username' },
+  id: { type: 'number', description: 'User ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  avatar_url: { type: 'string', description: 'Avatar image URL' },
+  url: { type: 'string', description: 'API URL' },
+  html_url: { type: 'string', description: 'Profile page URL' },
+  type: { type: 'string', description: 'User or Organization' },
+  site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete user object output definition for V2 tools
+ */
+export const USER_FULL_OUTPUT = {
+  type: 'object',
+  description: 'GitHub user object',
+  optional: true,
+  properties: USER_FULL_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for Git author/committer objects (name, email, date)
+ */
+export const GIT_ACTOR_OUTPUT_PROPERTIES = {
+  name: { type: 'string', description: 'Name' },
+  email: { type: 'string', description: 'Email address' },
+  date: { type: 'string', description: 'Timestamp (ISO 8601)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete Git actor output definition
+ */
+export const GIT_ACTOR_OUTPUT = {
+  type: 'object',
+  description: 'Git actor (author/committer)',
+  properties: GIT_ACTOR_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for commit tree objects
+ */
+export const COMMIT_TREE_OUTPUT_PROPERTIES = {
+  sha: { type: 'string', description: 'Tree SHA' },
+  url: { type: 'string', description: 'Tree API URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete commit tree output definition
+ */
+export const COMMIT_TREE_OUTPUT = {
+  type: 'object',
+  description: 'Tree object',
+  properties: COMMIT_TREE_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for commit verification objects
+ */
+export const COMMIT_VERIFICATION_OUTPUT_PROPERTIES = {
+  verified: { type: 'boolean', description: 'Whether signature is verified' },
+  reason: { type: 'string', description: 'Verification reason' },
+  signature: { type: 'string', description: 'GPG signature', optional: true },
+  payload: { type: 'string', description: 'Signed payload', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete commit verification output definition
+ */
+export const COMMIT_VERIFICATION_OUTPUT = {
+  type: 'object',
+  description: 'Signature verification',
+  properties: COMMIT_VERIFICATION_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for core commit data (the 'commit' field in GitHub API responses)
+ */
+export const COMMIT_DATA_OUTPUT_PROPERTIES = {
+  url: { type: 'string', description: 'Commit API URL' },
+  message: { type: 'string', description: 'Commit message' },
+  comment_count: { type: 'number', description: 'Number of comments' },
+  author: GIT_ACTOR_OUTPUT,
+  committer: GIT_ACTOR_OUTPUT,
+  tree: COMMIT_TREE_OUTPUT,
+  verification: COMMIT_VERIFICATION_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete commit data output definition
+ */
+export const COMMIT_DATA_OUTPUT = {
+  type: 'object',
+  description: 'Core commit data',
+  properties: COMMIT_DATA_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for commit stats objects
+ */
+export const COMMIT_STATS_OUTPUT_PROPERTIES = {
+  additions: { type: 'number', description: 'Lines added' },
+  deletions: { type: 'number', description: 'Lines deleted' },
+  total: { type: 'number', description: 'Total changes' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete commit stats output definition
+ */
+export const COMMIT_STATS_OUTPUT = {
+  type: 'object',
+  description: 'Change statistics',
+  optional: true,
+  properties: COMMIT_STATS_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for commit file/diff entry objects
+ */
+export const COMMIT_FILE_OUTPUT_PROPERTIES = {
+  sha: { type: 'string', description: 'Blob SHA', optional: true },
+  filename: { type: 'string', description: 'File path' },
+  status: {
+    type: 'string',
+    description: 'Change status (added, removed, modified, renamed, copied, changed, unchanged)',
+  },
+  additions: { type: 'number', description: 'Lines added' },
+  deletions: { type: 'number', description: 'Lines deleted' },
+  changes: { type: 'number', description: 'Total changes' },
+  blob_url: { type: 'string', description: 'Blob URL' },
+  raw_url: { type: 'string', description: 'Raw file URL' },
+  contents_url: { type: 'string', description: 'Contents API URL' },
+  patch: { type: 'string', description: 'Diff patch', optional: true },
+  previous_filename: {
+    type: 'string',
+    description: 'Previous filename (for renames)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete commit file output definition
+ */
+export const COMMIT_FILE_OUTPUT = {
+  type: 'object',
+  description: 'Changed file (diff entry)',
+  properties: COMMIT_FILE_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for parent commit references
+ */
+export const COMMIT_PARENT_OUTPUT_PROPERTIES = {
+  sha: { type: 'string', description: 'Parent SHA' },
+  url: { type: 'string', description: 'Parent API URL' },
+  html_url: { type: 'string', description: 'Parent web URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete parent commit output definition
+ */
+export const COMMIT_PARENT_OUTPUT = {
+  type: 'object',
+  description: 'Parent commit reference',
+  properties: COMMIT_PARENT_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for commit summary properties (common across list/search responses)
+ */
+export const COMMIT_SUMMARY_OUTPUT_PROPERTIES = {
+  sha: { type: 'string', description: 'Commit SHA' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  url: { type: 'string', description: 'API URL' },
+  comments_url: { type: 'string', description: 'Comments API URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for repository objects in search results
+ */
+export const SEARCH_REPO_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Repository ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  name: { type: 'string', description: 'Repository name' },
+  full_name: { type: 'string', description: 'Full name (owner/repo)' },
+  private: { type: 'boolean', description: 'Whether repository is private' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  description: { type: 'string', description: 'Repository description', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete search repository output definition
+ */
+export const SEARCH_REPO_OUTPUT = {
+  type: 'object',
+  description: 'Repository containing the commit',
+  properties: SEARCH_REPO_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Extended repository output properties for V2 tools (full API response)
+ */
+export const REPO_FULL_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Repository ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  name: { type: 'string', description: 'Repository name' },
+  full_name: { type: 'string', description: 'Full name (owner/repo)' },
+  private: { type: 'boolean', description: 'Whether repository is private' },
+  description: { type: 'string', description: 'Repository description', optional: true },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  url: { type: 'string', description: 'API URL' },
+  fork: { type: 'boolean', description: 'Whether this is a fork' },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+  pushed_at: { type: 'string', description: 'Last push timestamp', optional: true },
+  size: { type: 'number', description: 'Repository size in KB' },
+  stargazers_count: { type: 'number', description: 'Number of stars' },
+  watchers_count: { type: 'number', description: 'Number of watchers' },
+  forks_count: { type: 'number', description: 'Number of forks' },
+  open_issues_count: { type: 'number', description: 'Number of open issues' },
+  language: { type: 'string', description: 'Primary programming language', optional: true },
+  default_branch: { type: 'string', description: 'Default branch name' },
+  visibility: { type: 'string', description: 'Repository visibility' },
+  archived: { type: 'boolean', description: 'Whether repository is archived' },
+  disabled: { type: 'boolean', description: 'Whether repository is disabled' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * License output properties
+ */
+export const LICENSE_OUTPUT_PROPERTIES = {
+  key: { type: 'string', description: 'License key (e.g., mit)' },
+  name: { type: 'string', description: 'License name' },
+  spdx_id: { type: 'string', description: 'SPDX identifier' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete license object output definition
+ */
+export const LICENSE_OUTPUT = {
+  type: 'object',
+  description: 'License information',
+  optional: true,
+  properties: LICENSE_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Parent repository output properties for fork responses
+ */
+export const PARENT_REPO_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Repository ID' },
+  full_name: { type: 'string', description: 'Full name' },
+  html_url: { type: 'string', description: 'Web URL' },
+  description: { type: 'string', description: 'Description', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Minimal parent owner output properties
+ */
+export const PARENT_OWNER_OUTPUT_PROPERTIES = {
+  login: { type: 'string', description: 'Username' },
+  id: { type: 'number', description: 'User ID' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Source repository output properties (minimal)
+ */
+export const SOURCE_REPO_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Repository ID' },
+  full_name: { type: 'string', description: 'Full name' },
+  html_url: { type: 'string', description: 'Web URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for branch reference objects (head/base in PRs)
+ */
+export const BRANCH_REF_OUTPUT_PROPERTIES = {
+  label: { type: 'string', description: 'Branch label (owner:branch)' },
+  ref: { type: 'string', description: 'Branch name' },
+  sha: { type: 'string', description: 'Commit SHA' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete branch reference output definition
+ */
+export const BRANCH_REF_OUTPUT = {
+  type: 'object',
+  description: 'Branch reference info',
+  properties: BRANCH_REF_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for commit reference in branches (sha and url)
+ */
+export const COMMIT_REF_OUTPUT_PROPERTIES = {
+  sha: { type: 'string', description: 'Commit SHA' },
+  url: { type: 'string', description: 'Commit API URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete commit reference output definition
+ */
+export const COMMIT_REF_OUTPUT = {
+  type: 'object',
+  description: 'Commit reference info',
+  properties: COMMIT_REF_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for branch objects
+ */
+export const BRANCH_OUTPUT_PROPERTIES = {
+  name: { type: 'string', description: 'Branch name' },
+  commit: COMMIT_REF_OUTPUT,
+  protected: { type: 'boolean', description: 'Whether branch is protected' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete branch output definition
+ */
+export const BRANCH_OUTPUT = {
+  type: 'object',
+  description: 'Branch object',
+  properties: BRANCH_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for git reference objects (created branches)
+ */
+export const GIT_REF_OUTPUT_PROPERTIES = {
+  ref: { type: 'string', description: 'Full reference name (refs/heads/branch)' },
+  node_id: { type: 'string', description: 'Git ref node ID' },
+  url: { type: 'string', description: 'API URL for the reference' },
+  object: { type: 'json', description: 'Git object with type and sha' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete git reference output definition
+ */
+export const GIT_REF_OUTPUT = {
+  type: 'object',
+  description: 'Git reference object',
+  properties: GIT_REF_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for branch protection settings
+ */
+export const BRANCH_PROTECTION_OUTPUT_PROPERTIES = {
+  url: { type: 'string', description: 'Protection settings URL' },
+  required_status_checks: {
+    type: 'json',
+    description: 'Status check requirements',
+    optional: true,
+  },
+  enforce_admins: { type: 'json', description: 'Admin enforcement settings' },
+  required_pull_request_reviews: {
+    type: 'json',
+    description: 'PR review requirements',
+    optional: true,
+  },
+  restrictions: { type: 'json', description: 'Push restrictions', optional: true },
+  required_linear_history: {
+    type: 'json',
+    description: 'Linear history requirement',
+    optional: true,
+  },
+  allow_force_pushes: { type: 'json', description: 'Force push settings', optional: true },
+  allow_deletions: { type: 'json', description: 'Deletion settings', optional: true },
+  block_creations: { type: 'json', description: 'Creation blocking settings', optional: true },
+  required_conversation_resolution: {
+    type: 'json',
+    description: 'Conversation resolution requirement',
+    optional: true,
+  },
+  required_signatures: { type: 'json', description: 'Signature requirements', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete branch protection output definition
+ */
+export const BRANCH_PROTECTION_OUTPUT = {
+  type: 'object',
+  description: 'Branch protection configuration',
+  properties: BRANCH_PROTECTION_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for delete branch response
+ */
+export const DELETE_BRANCH_OUTPUT_PROPERTIES = {
+  deleted: { type: 'boolean', description: 'Whether the branch was deleted' },
+  branch: { type: 'string', description: 'Name of the deleted branch' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Extended output definition for milestone creator user objects (V2 tools)
+ */
+export const MILESTONE_CREATOR_OUTPUT_PROPERTIES = {
+  login: { type: 'string', description: 'Username' },
+  id: { type: 'number', description: 'User ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  avatar_url: { type: 'string', description: 'Avatar image URL' },
+  url: { type: 'string', description: 'API URL' },
+  html_url: { type: 'string', description: 'Profile page URL' },
+  type: { type: 'string', description: 'User or Organization' },
+  site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete milestone creator output definition (V2 tools)
+ */
+export const MILESTONE_CREATOR_OUTPUT = {
+  type: 'object',
+  description: 'Milestone creator',
+  optional: true,
+  properties: MILESTONE_CREATOR_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Extended output definition for V2 milestone objects (full API response)
+ */
+export const MILESTONE_V2_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Milestone ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  number: { type: 'number', description: 'Milestone number' },
+  title: { type: 'string', description: 'Milestone title' },
+  description: { type: 'string', description: 'Milestone description', optional: true },
+  state: { type: 'string', description: 'State (open or closed)' },
+  url: { type: 'string', description: 'API URL' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  labels_url: { type: 'string', description: 'Labels API URL' },
+  due_on: { type: 'string', description: 'Due date (ISO 8601)', optional: true },
+  open_issues: { type: 'number', description: 'Number of open issues' },
+  closed_issues: { type: 'number', description: 'Number of closed issues' },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+  closed_at: { type: 'string', description: 'Close timestamp', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for GitHub Project V2 objects
+ */
+export const PROJECT_V2_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Project node ID' },
+  title: { type: 'string', description: 'Project title' },
+  number: { type: 'number', description: 'Project number' },
+  url: { type: 'string', description: 'Project URL' },
+  closed: { type: 'boolean', description: 'Whether project is closed' },
+  public: { type: 'boolean', description: 'Whether project is public' },
+  shortDescription: { type: 'string', description: 'Short description', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Extended output definition for V2 project objects (full API response)
+ */
+export const PROJECT_V2_FULL_OUTPUT_PROPERTIES = {
+  ...PROJECT_V2_OUTPUT_PROPERTIES,
+  readme: { type: 'string', description: 'Project readme', optional: true },
+  createdAt: { type: 'string', description: 'Creation timestamp' },
+  updatedAt: { type: 'string', description: 'Last update timestamp' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for gist file objects
+ */
+export const GIST_FILE_OUTPUT_PROPERTIES = {
+  filename: { type: 'string', description: 'File name' },
+  type: { type: 'string', description: 'MIME type' },
+  language: { type: 'string', description: 'Programming language', optional: true },
+  raw_url: { type: 'string', description: 'Raw file URL' },
+  size: { type: 'number', description: 'File size in bytes' },
+  truncated: { type: 'boolean', description: 'Whether content is truncated' },
+  content: { type: 'string', description: 'File content' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for gist owner objects (extended user info)
+ */
+export const GIST_OWNER_OUTPUT_PROPERTIES = {
+  login: { type: 'string', description: 'Username' },
+  id: { type: 'number', description: 'User ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  avatar_url: { type: 'string', description: 'Avatar image URL' },
+  url: { type: 'string', description: 'API URL' },
+  html_url: { type: 'string', description: 'Profile page URL' },
+  type: { type: 'string', description: 'User or Organization' },
+  site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete gist owner object output definition
+ */
+export const GIST_OWNER_OUTPUT = {
+  type: 'object',
+  description: 'Gist owner',
+  optional: true,
+  properties: GIST_OWNER_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for gist objects (core properties)
+ */
+export const GIST_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Gist ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  url: { type: 'string', description: 'API URL' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  forks_url: { type: 'string', description: 'Forks API URL' },
+  commits_url: { type: 'string', description: 'Commits API URL' },
+  git_pull_url: { type: 'string', description: 'Git clone URL' },
+  git_push_url: { type: 'string', description: 'Git push URL' },
+  description: { type: 'string', description: 'Gist description', optional: true },
+  public: { type: 'boolean', description: 'Whether gist is public' },
+  truncated: { type: 'boolean', description: 'Whether content is truncated' },
+  comments: { type: 'number', description: 'Number of comments' },
+  comments_url: { type: 'string', description: 'Comments API URL' },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete gist files object output definition
+ */
+export const GIST_FILES_OUTPUT = {
+  type: 'object',
+  description: 'Files in the gist (keyed by filename)',
+  properties: {
+    '[filename]': {
+      type: 'object',
+      description: 'File object',
+      properties: GIST_FILE_OUTPUT_PROPERTIES,
+    },
+  },
+} as const satisfies OutputProperty
 
 // Base parameters shared by all GitHub operations
 export interface BaseGitHubParams {

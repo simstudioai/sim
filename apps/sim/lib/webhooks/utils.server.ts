@@ -2479,17 +2479,27 @@ export function validateCalcomSignature(secret: string, signature: string, body:
       return false
     }
 
+    // Cal.com sends signature in format: sha256=<hex>
+    // We need to strip the prefix before comparing
+    let providedSignature: string
+    if (signature.startsWith('sha256=')) {
+      providedSignature = signature.substring(7)
+    } else {
+      // If no prefix, use as-is (for backwards compatibility)
+      providedSignature = signature
+    }
+
     const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
 
     logger.debug('Cal.com signature comparison', {
       computedSignature: `${computedHash.substring(0, 10)}...`,
-      providedSignature: `${signature.substring(0, 10)}...`,
+      providedSignature: `${providedSignature.substring(0, 10)}...`,
       computedLength: computedHash.length,
-      providedLength: signature.length,
-      match: computedHash === signature,
+      providedLength: providedSignature.length,
+      match: computedHash === providedSignature,
     })
 
-    return safeCompare(computedHash, signature)
+    return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Cal.com signature:', error)
     return false

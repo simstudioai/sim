@@ -35,6 +35,24 @@ Fetch PR details including diff and files changed
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `user` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
+| `head` | object | Branch reference info |
+| ↳ `label` | string | Branch label \(owner:branch\) |
+| ↳ `ref` | string | Branch name |
+| ↳ `sha` | string | Commit SHA |
+| `base` | object | Branch reference info |
+| ↳ `label` | string | Branch label \(owner:branch\) |
+| ↳ `ref` | string | Branch name |
+| ↳ `sha` | string | Commit SHA |
+| `merged_by` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 | `id` | number | Pull request ID |
 | `number` | number | Pull request number |
 | `title` | string | PR title |
@@ -42,12 +60,8 @@ Fetch PR details including diff and files changed
 | `html_url` | string | GitHub web URL |
 | `diff_url` | string | Raw diff URL |
 | `body` | string | PR description |
-| `user` | json | User who created the PR |
-| `head` | json | Head branch info |
-| `base` | json | Base branch info |
 | `merged` | boolean | Whether PR is merged |
 | `mergeable` | boolean | Whether PR is mergeable |
-| `merged_by` | json | User who merged the PR |
 | `comments` | number | Number of comments |
 | `review_comments` | number | Number of review comments |
 | `commits` | number | Number of commits |
@@ -84,16 +98,15 @@ Create comments on GitHub PRs
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Comment ID |
-| `body` | string | Comment body |
-| `html_url` | string | GitHub web URL |
-| `user` | json | User who created the comment |
+| `user` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 | `path` | string | File path \(if file comment\) |
 | `line` | number | Line number |
 | `side` | string | Diff side |
 | `commit_id` | string | Commit ID |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
 
 ### `github_repo_info`
 
@@ -132,8 +145,6 @@ Retrieve comprehensive GitHub repository metadata including stars, forks, issues
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 | `pushed_at` | string | Last push timestamp |
-| `owner` | json | Repository owner object |
-| `license` | json | License information |
 
 ### `github_latest_commit`
 
@@ -152,11 +163,44 @@ Retrieve the latest commit from a GitHub repository
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `commit` | object | Core commit data |
+| ↳ `url` | string | Commit API URL |
+| ↳ `message` | string | Commit message |
+| ↳ `comment_count` | number | Number of comments |
+| ↳ `author` | object | Git actor \(author/committer\) |
+|   ↳ `name` | string | Name |
+|   ↳ `email` | string | Email address |
+|   ↳ `date` | string | Timestamp \(ISO 8601\) |
+| ↳ `committer` | object | Git actor \(author/committer\) |
+|   ↳ `name` | string | Name |
+|   ↳ `email` | string | Email address |
+|   ↳ `date` | string | Timestamp \(ISO 8601\) |
+| ↳ `tree` | object | Tree object |
+|   ↳ `sha` | string | Tree SHA |
+|   ↳ `url` | string | Tree API URL |
+| ↳ `verification` | object | Signature verification |
+|   ↳ `verified` | boolean | Whether signature is verified |
+|   ↳ `reason` | string | Verification reason |
+|   ↳ `signature` | string | GPG signature |
+|   ↳ `payload` | string | Signed payload |
+| `author` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `node_id` | string | GraphQL node ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `url` | string | API URL |
+| ↳ `html_url` | string | Profile page URL |
+| ↳ `site_admin` | boolean | GitHub staff indicator |
+| `committer` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `node_id` | string | GraphQL node ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `url` | string | API URL |
+| ↳ `html_url` | string | Profile page URL |
+| ↳ `site_admin` | boolean | GitHub staff indicator |
 | `sha` | string | Commit SHA |
 | `html_url` | string | GitHub web URL |
-| `commit` | json | Commit info with message, author, committer |
-| `author` | json | Author user object |
-| `committer` | json | Committer user object |
 
 ### `github_issue_comment`
 
@@ -176,12 +220,11 @@ Create a comment on a GitHub issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Comment ID |
-| `body` | string | Comment body |
-| `html_url` | string | GitHub web URL |
-| `user` | json | User who created the comment |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
+| `user` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 
 ### `github_list_issue_comments`
 
@@ -204,12 +247,11 @@ List all comments on a GitHub issue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of comment objects |
-|   ↳ `id` | number | Comment ID |
-|   ↳ `body` | string | Comment body |
-|   ↳ `user` | object | User who created the comment |
-|   ↳ `html_url` | string | GitHub web URL |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `user` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 | `count` | number | Number of comments returned |
 
 ### `github_update_comment`
@@ -230,12 +272,11 @@ Update an existing comment on a GitHub issue or pull request
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Comment ID |
-| `body` | string | Comment body |
-| `html_url` | string | GitHub web URL |
-| `user` | json | User who updated the comment |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
+| `user` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 
 ### `github_delete_comment`
 
@@ -280,15 +321,11 @@ List all review comments on a GitHub pull request
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of review comment objects |
-|   ↳ `id` | number | Comment ID |
-|   ↳ `body` | string | Comment body |
-|   ↳ `path` | string | File path |
-|   ↳ `line` | number | Line number |
-|   ↳ `user` | object | User who created the comment |
-|   ↳ `html_url` | string | GitHub web URL |
-|   ↳ `diff_hunk` | string | Diff context |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `user` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 | `count` | number | Number of comments returned |
 
 ### `github_create_pr`
@@ -410,16 +447,19 @@ List pull requests in a GitHub repository
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of pull request objects |
-|   ↳ `id` | number | PR ID |
-|   ↳ `number` | number | PR number |
-|   ↳ `title` | string | PR title |
-|   ↳ `state` | string | PR state |
-|   ↳ `html_url` | string | GitHub web URL |
-|   ↳ `user` | object | Author object |
-|   ↳ `head` | object | Head branch info |
-|   ↳ `base` | object | Base branch info |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `user` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `head` | object | Branch reference info |
+|   ↳ `label` | string | Branch label \(owner:branch\) |
+|   ↳ `ref` | string | Branch name |
+|   ↳ `sha` | string | Commit SHA |
+|   ↳ `base` | object | Branch reference info |
+|   ↳ `label` | string | Branch label \(owner:branch\) |
+|   ↳ `ref` | string | Branch name |
+|   ↳ `sha` | string | Commit SHA |
 | `count` | number | Number of PRs returned |
 
 ### `github_get_pr_files`
@@ -442,16 +482,6 @@ Get the list of files changed in a pull request
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of changed file objects |
-|   ↳ `filename` | string | File path |
-|   ↳ `status` | string | Change status \(added/modified/deleted/renamed\) |
-|   ↳ `additions` | number | Lines added |
-|   ↳ `deletions` | number | Lines deleted |
-|   ↳ `changes` | number | Total changes |
-|   ↳ `patch` | string | File diff patch |
-|   ↳ `sha` | string | File SHA |
-|   ↳ `blob_url` | string | GitHub blob URL |
-|   ↳ `raw_url` | string | Raw file URL |
-|   ↳ `previous_filename` | string | Previous filename \(for renamed files\) |
 | `count` | number | Total number of files |
 
 ### `github_close_pr`
@@ -664,7 +694,9 @@ List all branches in a GitHub repository. Optionally filter by protected status 
 | --------- | ---- | ----------- |
 | `items` | array | Array of branch objects |
 |   ↳ `name` | string | Branch name |
-|   ↳ `commit` | object | Commit info with sha and url |
+|   ↳ `commit` | object | Commit reference info |
+|   ↳ `sha` | string | Commit SHA |
+|   ↳ `url` | string | Commit API URL |
 |   ↳ `protected` | boolean | Whether branch is protected |
 | `count` | number | Number of branches returned |
 
@@ -685,9 +717,6 @@ Get detailed information about a specific branch in a GitHub repository, includi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `name` | string | Branch name |
-| `commit` | json | Commit object with sha, url, etc. |
-| `protected` | boolean | Whether branch is protected |
 | `protection` | json | Protection settings object |
 | `protection_url` | string | URL to protection settings |
 
@@ -709,10 +738,24 @@ Create a new branch in a GitHub repository by creating a git reference pointing 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ref` | string | Full reference name \(refs/heads/branch\) |
-| `node_id` | string | Git ref node ID |
-| `url` | string | API URL for the reference |
-| `object` | json | Git object with type and sha |
+| `data` | json | Operation result data \(API-aligned\) |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_delete_branch`
 
@@ -731,8 +774,24 @@ Delete a branch from a GitHub repository by removing its git reference. Protecte
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Whether the branch was deleted |
-| `branch` | string | Name of the deleted branch |
+| `data` | json | Operation result data \(API-aligned\) |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_get_branch_protection`
 
@@ -751,17 +810,24 @@ Get the branch protection rules for a specific branch, including status checks, 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `url` | string | Protection settings URL |
-| `required_status_checks` | json | Status check requirements |
-| `enforce_admins` | json | Admin enforcement settings |
-| `required_pull_request_reviews` | json | PR review requirements |
-| `restrictions` | json | Push restrictions |
-| `required_linear_history` | json | Linear history requirement |
-| `allow_force_pushes` | json | Force push settings |
-| `allow_deletions` | json | Deletion settings |
-| `block_creations` | json | Creation blocking settings |
-| `required_conversation_resolution` | json | Conversation resolution requirement |
-| `required_signatures` | json | Signature requirements |
+| `data` | json | Operation result data \(API-aligned\) |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_update_branch_protection`
 
@@ -784,14 +850,24 @@ Update branch protection rules for a specific branch, including status checks, r
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `url` | string | Protection URL |
-| `required_status_checks` | json | Status check requirements |
-| `enforce_admins` | json | Admin enforcement settings |
-| `required_pull_request_reviews` | json | PR review requirements |
-| `restrictions` | json | Push restrictions |
-| `required_linear_history` | json | Linear history requirement |
-| `allow_force_pushes` | json | Force push settings |
-| `allow_deletions` | json | Deletion settings |
+| `data` | json | Operation result data \(API-aligned\) |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_create_issue`
 
@@ -814,19 +890,17 @@ Create a new issue in a GitHub repository
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Issue ID |
-| `number` | number | Issue number |
-| `title` | string | Issue title |
-| `state` | string | Issue state \(open/closed\) |
-| `html_url` | string | GitHub web URL |
-| `body` | string | Issue body/description |
-| `user` | json | User who created the issue |
+| `user` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 | `labels` | array | Array of label objects |
 | `assignees` | array | Array of assignee objects |
-| `milestone` | json | Milestone object |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
-| `closed_at` | string | Close timestamp |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 
 ### `github_update_issue`
 
@@ -850,19 +924,17 @@ Update an existing issue in a GitHub repository
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Issue ID |
-| `number` | number | Issue number |
-| `title` | string | Issue title |
-| `state` | string | Issue state |
-| `html_url` | string | GitHub web URL |
-| `body` | string | Issue body |
-| `user` | json | User who created the issue |
+| `user` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 | `labels` | array | Array of label objects |
 | `assignees` | array | Array of assignee objects |
-| `milestone` | json | Milestone object |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
-| `closed_at` | string | Close timestamp |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 
 ### `github_list_issues`
 
@@ -889,19 +961,6 @@ List issues in a GitHub repository. Note: This includes pull requests as PRs are
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of issue objects from GitHub API |
-|   ↳ `id` | number | Issue ID |
-|   ↳ `number` | number | Issue number |
-|   ↳ `title` | string | Issue title |
-|   ↳ `state` | string | Issue state \(open/closed\) |
-|   ↳ `html_url` | string | GitHub web URL |
-|   ↳ `body` | string | Issue body |
-|   ↳ `user` | object | User who created the issue |
-|   ↳ `labels` | array | Array of label objects |
-|   ↳ `assignees` | array | Array of assignee objects |
-|   ↳ `milestone` | object | Milestone object |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `closed_at` | string | Close timestamp |
 | `count` | number | Number of issues returned |
 
 ### `github_get_issue`
@@ -921,21 +980,17 @@ Get detailed information about a specific issue in a GitHub repository
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Issue ID |
-| `number` | number | Issue number |
-| `title` | string | Issue title |
-| `state` | string | Issue state \(open/closed\) |
-| `html_url` | string | GitHub web URL |
-| `body` | string | Issue body/description |
-| `user` | json | User who created the issue |
+| `user` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 | `labels` | array | Array of label objects |
 | `assignees` | array | Array of assignee objects |
-| `milestone` | json | Milestone object |
-| `comments` | number | Number of comments |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
-| `closed_at` | string | Close timestamp |
-| `closed_by` | json | User who closed the issue |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 
 ### `github_close_issue`
 
@@ -955,19 +1010,18 @@ Close an issue in a GitHub repository
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Issue ID |
-| `number` | number | Issue number |
-| `title` | string | Issue title |
-| `state` | string | Issue state \(closed\) |
+| `user` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 | `state_reason` | string | Reason for closing |
-| `html_url` | string | GitHub web URL |
-| `body` | string | Issue body |
-| `user` | json | User who created the issue |
 | `labels` | array | Array of label objects |
 | `assignees` | array | Array of assignee objects |
-| `closed_at` | string | Close timestamp |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 
 ### `github_add_labels`
 
@@ -1071,19 +1125,17 @@ Create a new release for a GitHub repository. Specify tag name, target commit, t
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Release ID |
-| `tag_name` | string | Git tag name |
-| `name` | string | Release name |
-| `body` | string | Release description |
-| `html_url` | string | GitHub web URL |
-| `tarball_url` | string | Tarball download URL |
-| `zipball_url` | string | Zipball download URL |
-| `draft` | boolean | Whether this is a draft |
-| `prerelease` | boolean | Whether this is a prerelease |
-| `author` | json | Release author |
+| `author` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 | `assets` | array | Release assets |
-| `created_at` | string | Creation timestamp |
-| `published_at` | string | Publication timestamp |
+|   ↳ `uploader` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 
 ### `github_update_release`
 
@@ -1108,17 +1160,17 @@ Update an existing GitHub release. Modify tag name, target commit, title, descri
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Release ID |
-| `tag_name` | string | Git tag name |
-| `name` | string | Release name |
-| `body` | string | Release description |
-| `html_url` | string | GitHub web URL |
-| `tarball_url` | string | Tarball download URL |
-| `zipball_url` | string | Zipball download URL |
-| `draft` | boolean | Whether this is a draft |
-| `prerelease` | boolean | Whether this is a prerelease |
-| `created_at` | string | Creation timestamp |
-| `published_at` | string | Publication timestamp |
+| `author` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
+| `assets` | array | Release assets |
+|   ↳ `uploader` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 
 ### `github_list_releases`
 
@@ -1139,19 +1191,17 @@ List all releases for a GitHub repository. Returns release information including
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of release objects |
-|   ↳ `id` | number | Release ID |
-|   ↳ `tag_name` | string | Git tag name |
-|   ↳ `name` | string | Release name |
-|   ↳ `body` | string | Release description |
-|   ↳ `html_url` | string | GitHub web URL |
-|   ↳ `tarball_url` | string | Tarball download URL |
-|   ↳ `zipball_url` | string | Zipball download URL |
-|   ↳ `draft` | boolean | Whether this is a draft |
-|   ↳ `prerelease` | boolean | Whether this is a prerelease |
-|   ↳ `author` | object | Release author |
+|   ↳ `author` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 |   ↳ `assets` | array | Release assets |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `published_at` | string | Publication timestamp |
+|   ↳ `uploader` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 | `count` | number | Number of releases returned |
 
 ### `github_get_release`
@@ -1171,20 +1221,17 @@ Get detailed information about a specific GitHub release by ID. Returns release 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Release ID |
-| `tag_name` | string | Git tag name |
-| `name` | string | Release name |
-| `body` | string | Release description |
-| `html_url` | string | GitHub web URL |
-| `tarball_url` | string | Tarball download URL |
-| `zipball_url` | string | Zipball download URL |
-| `draft` | boolean | Whether this is a draft |
-| `prerelease` | boolean | Whether this is a prerelease |
-| `author` | json | Release author object |
-| `assets` | array | Array of release asset objects |
-| `created_at` | string | Creation timestamp |
-| `published_at` | string | Publication timestamp |
-| `target_commitish` | string | Target commit/branch |
+| `author` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
+| `assets` | array | Release assets |
+|   ↳ `uploader` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `html_url` | string | Profile URL |
 
 ### `github_delete_release`
 
@@ -1226,16 +1273,6 @@ List all workflows in a GitHub repository. Returns workflow details including ID
 | --------- | ---- | ----------- |
 | `total_count` | number | Total number of workflows |
 | `items` | array | Array of workflow objects |
-|   ↳ `id` | number | Workflow ID |
-|   ↳ `node_id` | string | Workflow node ID |
-|   ↳ `name` | string | Workflow name |
-|   ↳ `path` | string | Path to workflow file |
-|   ↳ `state` | string | Workflow state |
-|   ↳ `html_url` | string | GitHub web URL |
-|   ↳ `badge_url` | string | Badge URL |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `deleted_at` | string | Deletion timestamp |
 
 ### `github_get_workflow`
 
@@ -1254,17 +1291,24 @@ Get details of a specific GitHub Actions workflow by ID or filename. Returns wor
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Workflow ID |
-| `node_id` | string | Workflow node ID |
-| `name` | string | Workflow name |
-| `path` | string | Path to workflow file |
-| `state` | string | Workflow state \(active/disabled\) |
-| `html_url` | string | GitHub web URL |
-| `badge_url` | string | Badge URL |
-| `url` | string | API URL |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
-| `deleted_at` | string | Deletion timestamp |
+| `data` | json | Operation result data \(API-aligned\) |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_trigger_workflow`
 
@@ -1313,22 +1357,6 @@ List workflow runs for a repository. Supports filtering by actor, branch, event,
 | --------- | ---- | ----------- |
 | `total_count` | number | Total number of workflow runs |
 | `items` | array | Array of workflow run objects |
-|   ↳ `id` | number | Workflow run ID |
-|   ↳ `name` | string | Workflow name |
-|   ↳ `head_branch` | string | Branch name |
-|   ↳ `head_sha` | string | Commit SHA |
-|   ↳ `run_number` | number | Run number |
-|   ↳ `event` | string | Trigger event |
-|   ↳ `status` | string | Run status |
-|   ↳ `conclusion` | string | Run conclusion |
-|   ↳ `html_url` | string | GitHub web URL |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `triggering_actor` | json | User who triggered the run |
-|   ↳ `pull_requests` | array | Associated pull requests |
-|   ↳ `referenced_workflows` | array | Referenced workflows |
-|   ↳ `head_commit` | json | Head commit information |
-|   ↳ `run_started_at` | string | Run start timestamp |
 
 ### `github_get_workflow_run`
 
@@ -1347,27 +1375,13 @@ Get detailed information about a specific workflow run by ID. Returns status, co
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Workflow run ID |
-| `name` | string | Workflow name |
-| `head_branch` | string | Branch name |
-| `head_sha` | string | Commit SHA |
-| `run_number` | number | Run number |
-| `run_attempt` | number | Run attempt number |
-| `event` | string | Trigger event type |
-| `status` | string | Run status |
-| `conclusion` | string | Run conclusion |
-| `workflow_id` | number | Workflow ID |
-| `html_url` | string | GitHub web URL |
-| `logs_url` | string | Logs download URL |
-| `jobs_url` | string | Jobs API URL |
-| `artifacts_url` | string | Artifacts API URL |
-| `triggering_actor` | json | User who triggered the run |
+| `triggering_actor` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
+| ↳ `id` | number | User ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `html_url` | string | Profile URL |
 | `pull_requests` | array | Associated pull requests |
 | `referenced_workflows` | array | Referenced workflows |
-| `head_commit` | json | Head commit information |
-| `run_started_at` | string | Run start timestamp |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
 
 ### `github_cancel_workflow_run`
 
@@ -1785,40 +1799,9 @@ Search for repositories across GitHub. Use qualifiers like language:python, star
 | `total_count` | number | Total matching results |
 | `incomplete_results` | boolean | Whether results are incomplete |
 | `items` | array | Array of repository objects from GitHub API |
-|   ↳ `id` | number | Repository ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `name` | string | Repository name |
-|   ↳ `full_name` | string | Full name \(owner/repo\) |
-|   ↳ `private` | boolean | Whether repository is private |
-|   ↳ `description` | string | Repository description |
-|   ↳ `html_url` | string | GitHub web URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `fork` | boolean | Whether this is a fork |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `pushed_at` | string | Last push timestamp |
-|   ↳ `size` | number | Repository size in KB |
-|   ↳ `stargazers_count` | number | Number of stars |
-|   ↳ `watchers_count` | number | Number of watchers |
-|   ↳ `forks_count` | number | Number of forks |
-|   ↳ `open_issues_count` | number | Number of open issues |
-|   ↳ `language` | string | Primary programming language |
-|   ↳ `default_branch` | string | Default branch name |
-|   ↳ `score` | number | Search relevance score |
-|   ↳ `topics` | array | Repository topics |
-|   ↳ `license` | object | License information |
 |   ↳ `key` | string | License key \(e.g., mit\) |
 |   ↳ `name` | string | License name |
 |   ↳ `spdx_id` | string | SPDX identifier |
-|   ↳ `owner` | object | Repository owner |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
 
 ### `github_search_users`
 
@@ -1884,50 +1867,6 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of commit objects from GitHub API |
-|   ↳ `sha` | string | Commit SHA |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `html_url` | string | Web URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `comments_url` | string | Comments API URL |
-|   ↳ `commit` | object | Core commit data |
-|   ↳ `url` | string | Commit API URL |
-|   ↳ `message` | string | Commit message |
-|   ↳ `comment_count` | number | Number of comments |
-|   ↳ `author` | object | Git author |
-|   ↳ `name` | string | Author name |
-|   ↳ `email` | string | Author email |
-|   ↳ `date` | string | Author date \(ISO 8601\) |
-|   ↳ `committer` | object | Git committer |
-|   ↳ `name` | string | Committer name |
-|   ↳ `email` | string | Committer email |
-|   ↳ `date` | string | Commit date \(ISO 8601\) |
-|   ↳ `tree` | object | Tree object |
-|   ↳ `sha` | string | Tree SHA |
-|   ↳ `url` | string | Tree API URL |
-|   ↳ `verification` | object | Signature verification |
-|   ↳ `verified` | boolean | Whether signature is verified |
-|   ↳ `reason` | string | Verification reason |
-|   ↳ `signature` | string | GPG signature |
-|   ↳ `payload` | string | Signed payload |
-|   ↳ `author` | object | GitHub user \(author\) |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `avatar_url` | string | Avatar URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `html_url` | string | Profile URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `committer` | object | GitHub user \(committer\) |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `avatar_url` | string | Avatar URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `html_url` | string | Profile URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
-|   ↳ `parents` | array | Parent commits |
 |   ↳ `sha` | string | Parent SHA |
 |   ↳ `url` | string | Parent API URL |
 |   ↳ `html_url` | string | Parent web URL |
@@ -1950,23 +1889,18 @@ Get detailed information about a specific commit including files changed and sta
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sha` | string | Commit SHA |
-| `node_id` | string | GraphQL node ID |
-| `html_url` | string | GitHub web URL |
-| `url` | string | API URL |
-| `comments_url` | string | Comments API URL |
 | `commit` | object | Core commit data |
 | ↳ `url` | string | Commit API URL |
 | ↳ `message` | string | Commit message |
 | ↳ `comment_count` | number | Number of comments |
-| ↳ `author` | object | Git author |
-|   ↳ `name` | string | Author name |
-|   ↳ `email` | string | Author email |
-|   ↳ `date` | string | Author date \(ISO 8601\) |
-| ↳ `committer` | object | Git committer |
-|   ↳ `name` | string | Committer name |
-|   ↳ `email` | string | Committer email |
-|   ↳ `date` | string | Commit date \(ISO 8601\) |
+| ↳ `author` | object | Git actor \(author/committer\) |
+|   ↳ `name` | string | Name |
+|   ↳ `email` | string | Email address |
+|   ↳ `date` | string | Timestamp \(ISO 8601\) |
+| ↳ `committer` | object | Git actor \(author/committer\) |
+|   ↳ `name` | string | Name |
+|   ↳ `email` | string | Email address |
+|   ↳ `date` | string | Timestamp \(ISO 8601\) |
 | ↳ `tree` | object | Tree object |
 |   ↳ `sha` | string | Tree SHA |
 |   ↳ `url` | string | Tree API URL |
@@ -1975,18 +1909,22 @@ Get detailed information about a specific commit including files changed and sta
 |   ↳ `reason` | string | Verification reason |
 |   ↳ `signature` | string | GPG signature |
 |   ↳ `payload` | string | Signed payload |
-| `author` | object | GitHub user \(author\) |
-| ↳ `login` | string | Username |
+| `author` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
 | ↳ `id` | number | User ID |
-| ↳ `avatar_url` | string | Avatar URL |
-| ↳ `html_url` | string | Profile URL |
-| ↳ `type` | string | User or Organization |
-| `committer` | object | GitHub user \(committer\) |
-| ↳ `login` | string | Username |
+| ↳ `node_id` | string | GraphQL node ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `url` | string | API URL |
+| ↳ `html_url` | string | Profile page URL |
+| ↳ `site_admin` | boolean | GitHub staff indicator |
+| `committer` | object | GitHub user object |
+| ↳ `login` | string | GitHub username |
 | ↳ `id` | number | User ID |
-| ↳ `avatar_url` | string | Avatar URL |
-| ↳ `html_url` | string | Profile URL |
-| ↳ `type` | string | User or Organization |
+| ↳ `node_id` | string | GraphQL node ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `url` | string | API URL |
+| ↳ `html_url` | string | Profile page URL |
+| ↳ `site_admin` | boolean | GitHub staff indicator |
 | `stats` | object | Change statistics |
 | ↳ `additions` | number | Lines added |
 | ↳ `deletions` | number | Lines deleted |
@@ -2038,26 +1976,86 @@ Compare two commits or branches to see the diff, commits between them, and chang
 | `behind_by` | number | Commits head is behind base |
 | `total_commits` | number | Total commits in comparison |
 | `base_commit` | object | Base commit object |
+| ↳ `commit` | object | Core commit data |
+|   ↳ `url` | string | Commit API URL |
+|   ↳ `message` | string | Commit message |
+|   ↳ `comment_count` | number | Number of comments |
+|   ↳ `author` | object | Git actor \(author/committer\) |
+|   ↳ `name` | string | Name |
+|   ↳ `email` | string | Email address |
+|   ↳ `date` | string | Timestamp \(ISO 8601\) |
+|   ↳ `committer` | object | Git actor \(author/committer\) |
+|   ↳ `name` | string | Name |
+|   ↳ `email` | string | Email address |
+|   ↳ `date` | string | Timestamp \(ISO 8601\) |
+|   ↳ `tree` | object | Tree object |
+|   ↳ `sha` | string | Tree SHA |
+|   ↳ `url` | string | Tree API URL |
+|   ↳ `verification` | object | Signature verification |
+|   ↳ `verified` | boolean | Whether signature is verified |
+|   ↳ `reason` | string | Verification reason |
+|   ↳ `signature` | string | GPG signature |
+|   ↳ `payload` | string | Signed payload |
+| ↳ `author` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | GraphQL node ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `site_admin` | boolean | GitHub staff indicator |
+| ↳ `committer` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | GraphQL node ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `site_admin` | boolean | GitHub staff indicator |
 | ↳ `sha` | string | Commit SHA |
 | ↳ `html_url` | string | Web URL |
-| ↳ `commit` | object | Commit data |
-|   ↳ `message` | string | Commit message |
-|   ↳ `author` | object | Git author \(name, email, date\) |
-|   ↳ `committer` | object | Git committer \(name, email, date\) |
-| ↳ `author` | object | GitHub user \(author\) |
-| ↳ `committer` | object | GitHub user \(committer\) |
 | `merge_base_commit` | object | Merge base commit object |
 | ↳ `sha` | string | Commit SHA |
 | ↳ `html_url` | string | Web URL |
 | `commits` | array | Commits between base and head |
+|   ↳ `commit` | object | Core commit data |
+|   ↳ `url` | string | Commit API URL |
+|   ↳ `message` | string | Commit message |
+|   ↳ `comment_count` | number | Number of comments |
+|   ↳ `author` | object | Git actor \(author/committer\) |
+|   ↳ `name` | string | Name |
+|   ↳ `email` | string | Email address |
+|   ↳ `date` | string | Timestamp \(ISO 8601\) |
+|   ↳ `committer` | object | Git actor \(author/committer\) |
+|   ↳ `name` | string | Name |
+|   ↳ `email` | string | Email address |
+|   ↳ `date` | string | Timestamp \(ISO 8601\) |
+|   ↳ `tree` | object | Tree object |
+|   ↳ `sha` | string | Tree SHA |
+|   ↳ `url` | string | Tree API URL |
+|   ↳ `verification` | object | Signature verification |
+|   ↳ `verified` | boolean | Whether signature is verified |
+|   ↳ `reason` | string | Verification reason |
+|   ↳ `signature` | string | GPG signature |
+|   ↳ `payload` | string | Signed payload |
+|   ↳ `author` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | GraphQL node ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `site_admin` | boolean | GitHub staff indicator |
+|   ↳ `committer` | object | GitHub user object |
+|   ↳ `login` | string | GitHub username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | GraphQL node ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `site_admin` | boolean | GitHub staff indicator |
 |   ↳ `sha` | string | Commit SHA |
 |   ↳ `html_url` | string | Web URL |
-|   ↳ `commit` | object | Commit data |
-|   ↳ `message` | string | Commit message |
-|   ↳ `author` | object | Git author \(name, email, date\) |
-|   ↳ `committer` | object | Git committer \(name, email, date\) |
-|   ↳ `author` | object | GitHub user |
-|   ↳ `committer` | object | GitHub user |
 | `files` | array | Changed files \(diff entries\) |
 |   ↳ `sha` | string | Blob SHA |
 |   ↳ `filename` | string | File path |
@@ -2130,22 +2128,13 @@ Get a gist by ID including its file contents
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Gist ID |
-| `node_id` | string | GraphQL node ID |
-| `html_url` | string | GitHub web URL |
-| `url` | string | API URL |
-| `forks_url` | string | Forks API URL |
-| `commits_url` | string | Commits API URL |
-| `git_pull_url` | string | Git clone URL |
-| `git_push_url` | string | Git push URL |
-| `description` | string | Gist description |
-| `public` | boolean | Whether gist is public |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
-| `comments` | number | Number of comments |
-| `comments_url` | string | Comments API URL |
-| `truncated` | boolean | Whether content is truncated |
 | `files` | object | Files in the gist \(keyed by filename\) |
+| ↳ `filename` | string | File name |
+| ↳ `language` | string | Programming language |
+| ↳ `raw_url` | string | Raw file URL |
+| ↳ `size` | number | File size in bytes |
+| ↳ `truncated` | boolean | Whether content is truncated |
+| ↳ `content` | string | File content |
 | `owner` | object | Gist owner |
 | ↳ `login` | string | Username |
 | ↳ `id` | number | User ID |
@@ -2153,7 +2142,6 @@ Get a gist by ID including its file contents
 | ↳ `avatar_url` | string | Avatar image URL |
 | ↳ `url` | string | API URL |
 | ↳ `html_url` | string | Profile page URL |
-| ↳ `type` | string | User or Organization |
 | ↳ `site_admin` | boolean | GitHub staff indicator |
 
 ### `github_list_gists`
@@ -2175,22 +2163,13 @@ List gists for a user or the authenticated user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of gist objects from GitHub API |
-|   ↳ `id` | string | Gist ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `url` | string | API URL |
-|   ↳ `html_url` | string | Web URL |
-|   ↳ `forks_url` | string | Forks API URL |
-|   ↳ `commits_url` | string | Commits API URL |
-|   ↳ `git_pull_url` | string | Git pull URL |
-|   ↳ `git_push_url` | string | Git push URL |
-|   ↳ `description` | string | Gist description |
-|   ↳ `public` | boolean | Whether gist is public |
-|   ↳ `truncated` | boolean | Whether files are truncated |
-|   ↳ `comments` | number | Number of comments |
-|   ↳ `comments_url` | string | Comments API URL |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `files` | object | Files in the gist \(object with filenames as keys, each containing filename, type, language, raw_url, size\) |
+|   ↳ `files` | object | Files in the gist \(keyed by filename\) |
+|   ↳ `filename` | string | File name |
+|   ↳ `language` | string | Programming language |
+|   ↳ `raw_url` | string | Raw file URL |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `truncated` | boolean | Whether content is truncated |
+|   ↳ `content` | string | File content |
 |   ↳ `owner` | object | Gist owner |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
@@ -2198,8 +2177,22 @@ List gists for a user or the authenticated user
 |   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
+|   ↳ `id` | string | Gist ID |
+|   ↳ `node_id` | string | GraphQL node ID |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | GitHub web URL |
+|   ↳ `forks_url` | string | Forks API URL |
+|   ↳ `commits_url` | string | Commits API URL |
+|   ↳ `git_pull_url` | string | Git clone URL |
+|   ↳ `git_push_url` | string | Git push URL |
+|   ↳ `description` | string | Gist description |
+|   ↳ `public` | boolean | Whether gist is public |
+|   ↳ `truncated` | boolean | Whether content is truncated |
+|   ↳ `comments` | number | Number of comments |
+|   ↳ `comments_url` | string | Comments API URL |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
 | `count` | number | Number of gists returned |
 
 ### `github_update_gist`
@@ -2358,22 +2351,16 @@ Fork a repository to your account or an organization
 | `updated_at` | string | Last update timestamp |
 | `pushed_at` | string | Last push timestamp |
 | `owner` | object | Fork owner |
-| ↳ `login` | string | Username |
+| ↳ `login` | string | GitHub username |
 | ↳ `id` | number | User ID |
 | ↳ `node_id` | string | GraphQL node ID |
 | ↳ `avatar_url` | string | Avatar image URL |
 | ↳ `url` | string | API URL |
 | ↳ `html_url` | string | Profile page URL |
-| ↳ `type` | string | User or Organization |
 | ↳ `site_admin` | boolean | GitHub staff indicator |
 | `parent` | object | Parent repository \(source of the fork\) |
-| ↳ `id` | number | Repository ID |
-| ↳ `full_name` | string | Full name |
-| ↳ `html_url` | string | Web URL |
-| ↳ `description` | string | Description |
-| ↳ `owner` | object | Parent owner |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
+| ↳ `login` | string | Username |
+| ↳ `id` | number | User ID |
 | `source` | object | Source repository \(ultimate origin\) |
 | ↳ `id` | number | Repository ID |
 | ↳ `full_name` | string | Full name |
@@ -2399,36 +2386,12 @@ List forks of a repository
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of fork repository objects from GitHub API |
-|   ↳ `id` | number | Repository ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `name` | string | Repository name |
-|   ↳ `full_name` | string | Full name \(owner/repo\) |
-|   ↳ `private` | boolean | Whether repository is private |
-|   ↳ `description` | string | Repository description |
-|   ↳ `html_url` | string | GitHub web URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `fork` | boolean | Whether this is a fork |
-|   ↳ `created_at` | string | Creation timestamp |
-|   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `pushed_at` | string | Last push timestamp |
-|   ↳ `size` | number | Repository size in KB |
-|   ↳ `stargazers_count` | number | Number of stars |
-|   ↳ `watchers_count` | number | Number of watchers |
-|   ↳ `forks_count` | number | Number of forks |
-|   ↳ `open_issues_count` | number | Number of open issues |
-|   ↳ `language` | string | Primary programming language |
-|   ↳ `default_branch` | string | Default branch name |
-|   ↳ `visibility` | string | Repository visibility |
-|   ↳ `archived` | boolean | Whether repository is archived |
-|   ↳ `disabled` | boolean | Whether repository is disabled |
-|   ↳ `owner` | object | Fork owner |
-|   ↳ `login` | string | Username |
+|   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | GraphQL node ID |
 |   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 | `count` | number | Number of forks returned |
 
@@ -2452,15 +2415,14 @@ Create a milestone in a repository
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `number` | number | Milestone number |
-| `title` | string | Title |
-| `description` | string | Description |
-| `state` | string | State |
-| `html_url` | string | Web URL |
-| `due_on` | string | Due date |
-| `open_issues` | number | Open issues |
-| `closed_issues` | number | Closed issues |
-| `creator` | object | Creator |
+| `creator` | object | Milestone creator |
+| ↳ `login` | string | Username |
+| ↳ `id` | number | User ID |
+| ↳ `node_id` | string | GraphQL node ID |
+| ↳ `avatar_url` | string | Avatar image URL |
+| ↳ `url` | string | API URL |
+| ↳ `html_url` | string | Profile page URL |
+| ↳ `site_admin` | boolean | GitHub staff indicator |
 
 ### `github_get_milestone`
 
@@ -2479,21 +2441,6 @@ Get a specific milestone by number
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Milestone ID |
-| `node_id` | string | GraphQL node ID |
-| `number` | number | Milestone number |
-| `title` | string | Milestone title |
-| `description` | string | Milestone description |
-| `state` | string | State \(open or closed\) |
-| `url` | string | API URL |
-| `html_url` | string | GitHub web URL |
-| `labels_url` | string | Labels API URL |
-| `due_on` | string | Due date \(ISO 8601\) |
-| `open_issues` | number | Number of open issues |
-| `closed_issues` | number | Number of closed issues |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
-| `closed_at` | string | Close timestamp |
 | `creator` | object | Milestone creator |
 | ↳ `login` | string | Username |
 | ↳ `id` | number | User ID |
@@ -2501,7 +2448,6 @@ Get a specific milestone by number
 | ↳ `avatar_url` | string | Avatar image URL |
 | ↳ `url` | string | API URL |
 | ↳ `html_url` | string | Profile page URL |
-| ↳ `type` | string | User or Organization |
 | ↳ `site_admin` | boolean | GitHub staff indicator |
 
 ### `github_list_milestones`
@@ -2526,6 +2472,14 @@ List milestones in a repository
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of milestone objects from GitHub API |
+|   ↳ `creator` | object | Milestone creator |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | GraphQL node ID |
+|   ↳ `avatar_url` | string | Avatar image URL |
+|   ↳ `url` | string | API URL |
+|   ↳ `html_url` | string | Profile page URL |
+|   ↳ `site_admin` | boolean | GitHub staff indicator |
 |   ↳ `id` | number | Milestone ID |
 |   ↳ `node_id` | string | GraphQL node ID |
 |   ↳ `number` | number | Milestone number |
@@ -2541,15 +2495,6 @@ List milestones in a repository
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `closed_at` | string | Close timestamp |
-|   ↳ `creator` | object | Milestone creator |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `url` | string | API URL |
-|   ↳ `html_url` | string | Profile page URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
 | `count` | number | Number of milestones returned |
 
 ### `github_update_milestone`
@@ -2636,19 +2581,24 @@ Add a reaction to an issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Reaction ID |
-| `node_id` | string | GraphQL node ID |
-| `content` | string | Reaction type \(+1, -1, laugh, confused, heart, hooray, rocket, eyes\) |
-| `created_at` | string | Creation timestamp |
-| `user` | object | User who reacted |
-| ↳ `login` | string | Username |
-| ↳ `id` | number | User ID |
-| ↳ `node_id` | string | GraphQL node ID |
-| ↳ `avatar_url` | string | Avatar image URL |
-| ↳ `url` | string | API URL |
-| ↳ `html_url` | string | Profile page URL |
-| ↳ `type` | string | User or Organization |
-| ↳ `site_admin` | boolean | GitHub staff indicator |
+| `data` | json | Operation result data \(API-aligned\) |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_delete_issue_reaction`
 
@@ -2689,19 +2639,24 @@ Add a reaction to an issue comment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Reaction ID |
-| `node_id` | string | GraphQL node ID |
-| `content` | string | Reaction type \(+1, -1, laugh, confused, heart, hooray, rocket, eyes\) |
-| `created_at` | string | Creation timestamp |
-| `user` | object | User who reacted |
-| ↳ `login` | string | Username |
-| ↳ `id` | number | User ID |
-| ↳ `node_id` | string | GraphQL node ID |
-| ↳ `avatar_url` | string | Avatar image URL |
-| ↳ `url` | string | API URL |
-| ↳ `html_url` | string | Profile page URL |
-| ↳ `type` | string | User or Organization |
-| ↳ `site_admin` | boolean | GitHub staff indicator |
+| `data` | json | Operation result data \(API-aligned\) |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_delete_comment_reaction`
 
@@ -2803,20 +2758,19 @@ List users who have starred a repository
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of user objects from GitHub API |
-|   ↳ `login` | string | Username |
+|   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | GraphQL node ID |
 |   ↳ `avatar_url` | string | Avatar image URL |
-|   ↳ `gravatar_id` | string | Gravatar ID |
 |   ↳ `url` | string | API URL |
 |   ↳ `html_url` | string | Profile page URL |
+|   ↳ `site_admin` | boolean | GitHub staff indicator |
+|   ↳ `gravatar_id` | string | Gravatar ID |
 |   ↳ `followers_url` | string | Followers API URL |
 |   ↳ `following_url` | string | Following API URL |
 |   ↳ `gists_url` | string | Gists API URL |
 |   ↳ `starred_url` | string | Starred API URL |
 |   ↳ `repos_url` | string | Repos API URL |
-|   ↳ `type` | string | User or Organization |
-|   ↳ `site_admin` | boolean | GitHub staff indicator |
 | `count` | number | Number of stargazers returned |
 
 

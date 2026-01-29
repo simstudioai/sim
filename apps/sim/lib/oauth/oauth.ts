@@ -805,6 +805,11 @@ interface ProviderAuthConfig {
   useBasicAuth: boolean
   additionalHeaders?: Record<string, string>
   supportsRefreshTokenRotation?: boolean
+  /**
+   * If true, the refresh token is sent in the Authorization header as Bearer token
+   * instead of in the request body. Used by Cal.com.
+   */
+  refreshTokenInAuthHeader?: boolean
 }
 
 /**
@@ -888,6 +893,8 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret: '',
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
+        // Cal.com requires refresh token in Authorization header, not body
+        refreshTokenInAuthHeader: true,
       }
     }
     case 'airtable': {
@@ -1147,7 +1154,15 @@ function buildAuthRequest(
 
   const bodyParams: Record<string, string> = {
     grant_type: 'refresh_token',
-    refresh_token: refreshToken,
+  }
+
+  // Handle refresh token placement
+  if (config.refreshTokenInAuthHeader) {
+    // Cal.com style: refresh token in Authorization header as Bearer token
+    headers.Authorization = `Bearer ${refreshToken}`
+  } else {
+    // Standard OAuth: refresh token in request body
+    bodyParams.refresh_token = refreshToken
   }
 
   if (config.useBasicAuth) {
@@ -1157,7 +1172,9 @@ function buildAuthRequest(
   } else {
     // Use body credentials - include client credentials in request body
     bodyParams.client_id = config.clientId
-    bodyParams.client_secret = config.clientSecret
+    if (config.clientSecret) {
+      bodyParams.client_secret = config.clientSecret
+    }
   }
 
   return { headers, bodyParams }
