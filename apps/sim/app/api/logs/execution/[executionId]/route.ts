@@ -10,6 +10,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 
 const logger = createLogger('LogsByExecutionIdAPI')
 
@@ -79,11 +80,10 @@ export async function GET(
       return NextResponse.json({ error: 'Workflow state snapshot not found' }, { status: 404 })
     }
 
-    const traceSpans =
-      (workflowLog.executionData as { traceSpans?: Array<{ [key: string]: unknown }> })
-        ?.traceSpans || []
+    const executionData = workflowLog.executionData as WorkflowExecutionLog['executionData']
+    const traceSpans = (executionData?.traceSpans as TraceSpan[]) || []
     const childSnapshotIds = new Set<string>()
-    const collectSnapshotIds = (spans: Array<{ [key: string]: unknown }>) => {
+    const collectSnapshotIds = (spans: TraceSpan[]) => {
       spans.forEach((span) => {
         const snapshotId = span.childWorkflowSnapshotId
         if (typeof snapshotId === 'string') {
@@ -91,7 +91,7 @@ export async function GET(
         }
         const children = span.children
         if (Array.isArray(children)) {
-          collectSnapshotIds(children as Array<{ [key: string]: unknown }>)
+          collectSnapshotIds(children)
         }
       })
     }
