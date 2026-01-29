@@ -2547,7 +2547,6 @@ export const auth = betterAuth({
         {
           providerId: 'calcom',
           clientId: env.CALCOM_CLIENT_ID as string,
-          clientSecret: env.CALCOM_CLIENT_SECRET as string,
           authorizationUrl: 'https://app.cal.com/auth/oauth2/authorize',
           tokenUrl: 'https://app.cal.com/api/auth/oauth/token',
           scopes: [],

@@ -878,14 +878,14 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
       }
     }
     case 'calcom': {
-      const { clientId, clientSecret } = getCredentials(
-        env.CALCOM_CLIENT_ID,
-        env.CALCOM_CLIENT_SECRET
-      )
+      const clientId = env.CALCOM_CLIENT_ID
+      if (!clientId) {
+        throw new Error('Missing CALCOM_CLIENT_ID')
+      }
       return {
         tokenEndpoint: 'https://app.cal.com/api/auth/oauth/refreshToken',
         clientId,
-        clientSecret,
+        clientSecret: '',
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
       }

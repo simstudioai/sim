@@ -41,6 +41,12 @@ export const calcomTriggerOptions = [
   { label: 'Booking Created', id: 'calcom_booking_created' },
   { label: 'Booking Cancelled', id: 'calcom_booking_cancelled' },
   { label: 'Booking Rescheduled', id: 'calcom_booking_rescheduled' },
+  { label: 'Booking Requested', id: 'calcom_booking_requested' },
+  { label: 'Booking Rejected', id: 'calcom_booking_rejected' },
+  { label: 'Booking Paid', id: 'calcom_booking_paid' },
+  { label: 'Meeting Ended', id: 'calcom_meeting_ended' },
+  { label: 'Recording Ready', id: 'calcom_recording_ready' },
+  { label: 'Generic Webhook (All Events)', id: 'calcom_webhook' },
 ]
 
 /**
@@ -64,21 +70,46 @@ export function calcomWebhookSecretField(triggerId: string): SubBlockConfig {
 }
 
 /**
+ * Event type configuration for setup instructions
+ */
+type CalcomEventType =
+  | 'created'
+  | 'cancelled'
+  | 'rescheduled'
+  | 'requested'
+  | 'rejected'
+  | 'paid'
+  | 'meeting_ended'
+  | 'recording_ready'
+  | 'generic'
+
+/**
  * Generates setup instructions HTML for CalCom triggers
  */
-export function calcomSetupInstructions(
-  eventType: 'created' | 'cancelled' | 'rescheduled'
-): string {
-  const eventDescriptions = {
+export function calcomSetupInstructions(eventType: CalcomEventType): string {
+  const eventDescriptions: Record<CalcomEventType, string> = {
     created: 'This webhook triggers when a new booking is created.',
     cancelled: 'This webhook triggers when a booking is cancelled.',
     rescheduled: 'This webhook triggers when a booking is rescheduled.',
+    requested:
+      'This webhook triggers when a booking request is submitted (for event types requiring confirmation).',
+    rejected: 'This webhook triggers when a booking request is rejected by the host.',
+    paid: 'This webhook triggers when payment is completed for a paid booking.',
+    meeting_ended: 'This webhook triggers when a meeting ends.',
+    recording_ready: 'This webhook triggers when a meeting recording is ready for download.',
+    generic: 'This webhook can receive any Cal.com event type you configure.',
   }
 
-  const eventNames = {
+  const eventNames: Record<CalcomEventType, string> = {
     created: 'BOOKING_CREATED',
     cancelled: 'BOOKING_CANCELLED',
     rescheduled: 'BOOKING_RESCHEDULED',
+    requested: 'BOOKING_REQUESTED',
+    rejected: 'BOOKING_REJECTED',
+    paid: 'BOOKING_PAID',
+    meeting_ended: 'MEETING_ENDED',
+    recording_ready: 'RECORDING_READY',
+    generic: 'your desired event type(s)',
   }
 
   return [
@@ -310,4 +341,322 @@ export function buildRescheduledOutputs(): Record<string, TriggerOutput> {
       },
     },
   } as any
+}
+
+/**
+ * Builds outputs for booking requested events (pending confirmation)
+ */
+export function buildRequestedOutputs(): Record<string, TriggerOutput> {
+  return {
+    triggerEvent: {
+      type: 'string',
+      description: 'The webhook event type (BOOKING_REQUESTED)',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'When the webhook event was created (ISO 8601)',
+    },
+    payload: {
+      title: {
+        type: 'string',
+        description: 'Booking title',
+      },
+      description: {
+        type: 'string',
+        description: 'Booking description',
+      },
+      eventTypeId: {
+        type: 'number',
+        description: 'Event type ID',
+      },
+      startTime: {
+        type: 'string',
+        description: 'Requested start time (ISO 8601)',
+      },
+      endTime: {
+        type: 'string',
+        description: 'Requested end time (ISO 8601)',
+      },
+      uid: {
+        type: 'string',
+        description: 'Unique booking identifier',
+      },
+      bookingId: {
+        type: 'number',
+        description: 'Numeric booking ID',
+      },
+      status: {
+        type: 'string',
+        description: 'Booking status (pending)',
+      },
+      location: {
+        type: 'string',
+        description: 'Meeting location or URL',
+      },
+      organizer: ORGANIZER_OUTPUT,
+      attendees: ATTENDEES_TRIGGER_OUTPUT,
+      responses: {
+        type: 'object',
+        description: 'Form responses from booking request',
+      },
+      metadata: {
+        type: 'object',
+        description: 'Custom metadata',
+      },
+    },
+  } as any
+}
+
+/**
+ * Builds outputs for booking rejected events
+ */
+export function buildRejectedOutputs(): Record<string, TriggerOutput> {
+  return {
+    triggerEvent: {
+      type: 'string',
+      description: 'The webhook event type (BOOKING_REJECTED)',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'When the webhook event was created (ISO 8601)',
+    },
+    payload: {
+      title: {
+        type: 'string',
+        description: 'Booking title',
+      },
+      description: {
+        type: 'string',
+        description: 'Booking description',
+      },
+      eventTypeId: {
+        type: 'number',
+        description: 'Event type ID',
+      },
+      startTime: {
+        type: 'string',
+        description: 'Requested start time (ISO 8601)',
+      },
+      endTime: {
+        type: 'string',
+        description: 'Requested end time (ISO 8601)',
+      },
+      uid: {
+        type: 'string',
+        description: 'Unique booking identifier',
+      },
+      bookingId: {
+        type: 'number',
+        description: 'Numeric booking ID',
+      },
+      status: {
+        type: 'string',
+        description: 'Booking status (rejected)',
+      },
+      rejectionReason: {
+        type: 'string',
+        description: 'Reason for rejection provided by host',
+      },
+      organizer: ORGANIZER_OUTPUT,
+      attendees: ATTENDEES_TRIGGER_OUTPUT,
+      metadata: {
+        type: 'object',
+        description: 'Custom metadata',
+      },
+    },
+  } as any
+}
+
+/**
+ * Builds outputs for booking paid events
+ */
+export function buildPaidOutputs(): Record<string, TriggerOutput> {
+  return {
+    triggerEvent: {
+      type: 'string',
+      description: 'The webhook event type (BOOKING_PAID)',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'When the webhook event was created (ISO 8601)',
+    },
+    payload: {
+      title: {
+        type: 'string',
+        description: 'Booking title',
+      },
+      description: {
+        type: 'string',
+        description: 'Booking description',
+      },
+      eventTypeId: {
+        type: 'number',
+        description: 'Event type ID',
+      },
+      startTime: {
+        type: 'string',
+        description: 'Booking start time (ISO 8601)',
+      },
+      endTime: {
+        type: 'string',
+        description: 'Booking end time (ISO 8601)',
+      },
+      uid: {
+        type: 'string',
+        description: 'Unique booking identifier',
+      },
+      bookingId: {
+        type: 'number',
+        description: 'Numeric booking ID',
+      },
+      status: {
+        type: 'string',
+        description: 'Booking status',
+      },
+      location: {
+        type: 'string',
+        description: 'Meeting location or URL',
+      },
+      payment: {
+        type: 'object',
+        description: 'Payment details',
+        properties: {
+          id: { type: 'string', description: 'Payment ID' },
+          amount: { type: 'number', description: 'Payment amount' },
+          currency: { type: 'string', description: 'Payment currency' },
+          success: { type: 'boolean', description: 'Whether payment succeeded' },
+        },
+      },
+      organizer: ORGANIZER_OUTPUT,
+      attendees: ATTENDEES_TRIGGER_OUTPUT,
+      metadata: {
+        type: 'object',
+        description: 'Custom metadata',
+      },
+    },
+  } as any
+}
+
+/**
+ * Builds outputs for meeting ended events
+ */
+export function buildMeetingEndedOutputs(): Record<string, TriggerOutput> {
+  return {
+    triggerEvent: {
+      type: 'string',
+      description: 'The webhook event type (MEETING_ENDED)',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'When the webhook event was created (ISO 8601)',
+    },
+    payload: {
+      title: {
+        type: 'string',
+        description: 'Meeting title',
+      },
+      eventTypeId: {
+        type: 'number',
+        description: 'Event type ID',
+      },
+      startTime: {
+        type: 'string',
+        description: 'Meeting start time (ISO 8601)',
+      },
+      endTime: {
+        type: 'string',
+        description: 'Meeting end time (ISO 8601)',
+      },
+      uid: {
+        type: 'string',
+        description: 'Unique booking identifier',
+      },
+      bookingId: {
+        type: 'number',
+        description: 'Numeric booking ID',
+      },
+      duration: {
+        type: 'number',
+        description: 'Actual meeting duration in minutes',
+      },
+      organizer: ORGANIZER_OUTPUT,
+      attendees: ATTENDEES_TRIGGER_OUTPUT,
+      videoCallData: {
+        type: 'object',
+        description: 'Video call details',
+      },
+    },
+  } as any
+}
+
+/**
+ * Builds outputs for recording ready events
+ */
+export function buildRecordingReadyOutputs(): Record<string, TriggerOutput> {
+  return {
+    triggerEvent: {
+      type: 'string',
+      description: 'The webhook event type (RECORDING_READY)',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'When the webhook event was created (ISO 8601)',
+    },
+    payload: {
+      title: {
+        type: 'string',
+        description: 'Meeting title',
+      },
+      eventTypeId: {
+        type: 'number',
+        description: 'Event type ID',
+      },
+      startTime: {
+        type: 'string',
+        description: 'Meeting start time (ISO 8601)',
+      },
+      endTime: {
+        type: 'string',
+        description: 'Meeting end time (ISO 8601)',
+      },
+      uid: {
+        type: 'string',
+        description: 'Unique booking identifier',
+      },
+      bookingId: {
+        type: 'number',
+        description: 'Numeric booking ID',
+      },
+      recordingUrl: {
+        type: 'string',
+        description: 'URL to download the recording',
+      },
+      transcription: {
+        type: 'string',
+        description: 'Meeting transcription text (if available)',
+      },
+      organizer: ORGANIZER_OUTPUT,
+      attendees: ATTENDEES_TRIGGER_OUTPUT,
+    },
+  } as any
+}
+
+/**
+ * Builds outputs for generic webhook (any event type)
+ */
+export function buildGenericOutputs(): Record<string, TriggerOutput> {
+  return {
+    triggerEvent: {
+      type: 'string',
+      description: 'The webhook event type (e.g., BOOKING_CREATED, MEETING_ENDED)',
+    },
+    createdAt: {
+      type: 'string',
+      description: 'When the webhook event was created (ISO 8601)',
+    },
+    payload: {
+      type: 'json',
+      description: 'Complete webhook payload (structure varies by event type)',
+    },
+  }
 }

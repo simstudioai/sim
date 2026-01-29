@@ -2,7 +2,13 @@ import { airtableWebhookTrigger } from '@/triggers/airtable'
 import {
   calcomBookingCancelledTrigger,
   calcomBookingCreatedTrigger,
+  calcomBookingPaidTrigger,
+  calcomBookingRejectedTrigger,
+  calcomBookingRequestedTrigger,
   calcomBookingRescheduledTrigger,
+  calcomMeetingEndedTrigger,
+  calcomRecordingReadyTrigger,
+  calcomWebhookTrigger,
 } from '@/triggers/calcom'
 import {
   calendlyInviteeCanceledTrigger,
@@ -128,6 +134,12 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   calcom_booking_created: calcomBookingCreatedTrigger,
   calcom_booking_cancelled: calcomBookingCancelledTrigger,
   calcom_booking_rescheduled: calcomBookingRescheduledTrigger,
+  calcom_booking_requested: calcomBookingRequestedTrigger,
+  calcom_booking_rejected: calcomBookingRejectedTrigger,
+  calcom_booking_paid: calcomBookingPaidTrigger,
+  calcom_meeting_ended: calcomMeetingEndedTrigger,
+  calcom_recording_ready: calcomRecordingReadyTrigger,
+  calcom_webhook: calcomWebhookTrigger,
   generic_webhook: genericWebhookTrigger,
   github_webhook: githubWebhookTrigger,
   github_issue_opened: githubIssueOpenedTrigger,
