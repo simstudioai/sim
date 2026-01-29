@@ -1011,7 +1011,7 @@ export async function secureFetchWithPinnedIP(
 
     req.on('timeout', () => {
       req.destroy()
-      reject(new Error('Request timeout'))
+      reject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
     })
 
     if (options.body) {
