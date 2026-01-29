@@ -1,5 +1,9 @@
 import { memo } from 'react'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  DELETED_WORKFLOW_COLOR,
+  DELETED_WORKFLOW_LABEL,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { StatusBar, type StatusBarSegment } from '..'
 
@@ -61,22 +65,32 @@ export function WorkflowsList({
           <div>
             {filteredExecutions.map((workflow, idx) => {
               const isSelected = expandedWorkflowId === workflow.workflowId
+              const isDeletedWorkflow = workflow.workflowName === DELETED_WORKFLOW_LABEL
+              const workflowColor = isDeletedWorkflow
+                ? DELETED_WORKFLOW_COLOR
+                : workflows[workflow.workflowId]?.color || '#64748b'
+              const canToggle = !isDeletedWorkflow
 
               return (
                 <div
                   key={workflow.workflowId}
                   className={cn(
-                    'flex h-[44px] cursor-pointer items-center gap-[16px] px-[24px] hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]',
+                    'flex h-[44px] items-center gap-[16px] px-[24px] hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]',
+                    canToggle ? 'cursor-pointer' : 'cursor-default',
                     isSelected && 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
                   )}
-                  onClick={() => onToggleWorkflow(workflow.workflowId)}
+                  onClick={() => {
+                    if (canToggle) {
+                      onToggleWorkflow(workflow.workflowId)
+                    }
+                  }}
                 >
                   {/* Workflow name with color */}
                   <div className='flex w-[160px] flex-shrink-0 items-center gap-[8px] pr-[8px]'>
                     <div
                       className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
                       style={{
-                        backgroundColor: workflows[workflow.workflowId]?.color || '#64748b',
+                        backgroundColor: workflowColor,
                       }}
                     />
                     <span className='min-w-0 truncate font-medium text-[12px] text-[var(--text-primary)]'>

@@ -80,6 +80,9 @@ export function ExecutionSnapshot({
   }, [executionId, closeMenu])
 
   const workflowState = data?.workflowState as WorkflowState | undefined
+  const childWorkflowSnapshots = data?.childWorkflowSnapshots as
+    | Record<string, WorkflowState>
+    | undefined
 
   const renderContent = () => {
     if (isLoading) {
@@ -148,6 +151,7 @@ export function ExecutionSnapshot({
         key={executionId}
         workflowState={workflowState}
         traceSpans={traceSpans}
+        childWorkflowSnapshots={childWorkflowSnapshots}
         className={className}
         height={height}
         width={width}

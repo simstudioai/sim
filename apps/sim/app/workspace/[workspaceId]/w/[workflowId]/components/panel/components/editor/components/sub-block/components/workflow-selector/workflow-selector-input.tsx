@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
@@ -40,6 +41,7 @@ export function WorkflowSelectorInput({
       isPreview={isPreview}
       previewValue={previewValue}
       placeholder={subBlock.placeholder || 'Select workflow...'}
+      missingOptionLabel={DELETED_WORKFLOW_LABEL}
     />
   )
 }

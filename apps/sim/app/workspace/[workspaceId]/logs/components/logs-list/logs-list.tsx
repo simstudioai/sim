@@ -7,6 +7,8 @@ import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, buttonVariants } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
+  DELETED_WORKFLOW_COLOR,
+  DELETED_WORKFLOW_LABEL,
   formatDate,
   formatDuration,
   getDisplayStatus,
@@ -33,6 +35,11 @@ interface LogRowProps {
 const LogRow = memo(
   function LogRow({ log, isSelected, onClick, onContextMenu, selectedRowRef }: LogRowProps) {
     const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
+    const isDeletedWorkflow = !log.workflow?.id && !log.workflowId
+    const workflowName = isDeletedWorkflow
+      ? DELETED_WORKFLOW_LABEL
+      : log.workflow?.name || 'Unknown'
+    const workflowColor = isDeletedWorkflow ? DELETED_WORKFLOW_COLOR : log.workflow?.color
 
     const handleClick = useCallback(() => onClick(log), [onClick, log])
 
@@ -78,10 +85,15 @@ const LogRow = memo(
           >
             <div
               className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
-              style={{ backgroundColor: log.workflow?.color }}
+              style={{ backgroundColor: workflowColor }}
             />
-            <span className='min-w-0 truncate font-medium text-[12px] text-[var(--text-primary)]'>
-              {log.workflow?.name || 'Unknown'}
+            <span
+              className={cn(
+                'min-w-0 truncate font-medium text-[12px]',
+                isDeletedWorkflow ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]'
+              )}
+            >
+              {workflowName}
             </span>
           </div>
 

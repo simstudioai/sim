@@ -50,6 +50,8 @@ function prepareLogData(
 
 export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog): Promise<void> {
   try {
+    if (!log.workflowId) return
+
     const workflowData = await db
       .select({ workspaceId: workflow.workspaceId })
       .from(workflow)

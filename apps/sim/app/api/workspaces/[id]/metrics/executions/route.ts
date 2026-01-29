@@ -215,6 +215,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     for (const log of logs) {
+      if (!log.workflowId) continue // Skip logs for deleted workflows
       const idx = Math.min(
         segments - 1,
         Math.max(0, Math.floor((log.startedAt.getTime() - start.getTime()) / segmentMs))

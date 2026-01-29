@@ -1,8 +1,8 @@
 import { createHash } from 'crypto'
 import { db } from '@sim/db'
-import { workflowExecutionSnapshots } from '@sim/db/schema'
+import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, lt } from 'drizzle-orm'
+import { and, eq, lt, notExists } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   SnapshotService as ISnapshotService,
@@ -121,7 +121,17 @@ export class SnapshotService implements ISnapshotService {
 
     const deletedSnapshots = await db
       .delete(workflowExecutionSnapshots)
-      .where(lt(workflowExecutionSnapshots.createdAt, cutoffDate))
+      .where(
+        and(
+          lt(workflowExecutionSnapshots.createdAt, cutoffDate),
+          notExists(
+            db
+              .select({ id: workflowExecutionLogs.id })
+              .from(workflowExecutionLogs)
+              .where(eq(workflowExecutionLogs.stateSnapshotId, workflowExecutionSnapshots.id))
+          )
+        )
+      )
       .returning({ id: workflowExecutionSnapshots.id })
 
     const deletedCount = deletedSnapshots.length

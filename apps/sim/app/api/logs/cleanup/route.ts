@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { subscription, user, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { subscription, user, workflowExecutionLogs, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -40,17 +40,17 @@ export async function GET(request: NextRequest) {
 
     const freeUserIds = freeUsers.map((u) => u.userId)
 
-    const workflowsQuery = await db
-      .select({ id: workflow.id })
-      .from(workflow)
-      .where(inArray(workflow.userId, freeUserIds))
+    const workspacesQuery = await db
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(inArray(workspace.billedAccountUserId, freeUserIds))
 
-    if (workflowsQuery.length === 0) {
-      logger.info('No workflows found for free users')
-      return NextResponse.json({ message: 'No workflows found for cleanup' })
+    if (workspacesQuery.length === 0) {
+      logger.info('No workspaces found for free users')
+      return NextResponse.json({ message: 'No workspaces found for cleanup' })
     }
 
-    const workflowIds = workflowsQuery.map((w) => w.id)
+    const workspaceIds = workspacesQuery.map((w) => w.id)
 
     const results = {
       enhancedLogs: {
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     let batchesProcessed = 0
     let hasMoreLogs = true
 
-    logger.info(`Starting enhanced logs cleanup for ${workflowIds.length} workflows`)
+    logger.info(`Starting enhanced logs cleanup for ${workspaceIds.length} workspaces`)
 
     while (hasMoreLogs && batchesProcessed < MAX_BATCHES) {
       const oldEnhancedLogs = await db
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
         .from(workflowExecutionLogs)
         .where(
           and(
-            inArray(workflowExecutionLogs.workflowId, workflowIds),
+            inArray(workflowExecutionLogs.workspaceId, workspaceIds),
             lt(workflowExecutionLogs.createdAt, retentionDate)
           )
         )
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
             customKey: enhancedLogKey,
             metadata: {
               logId: String(log.id),
-              workflowId: String(log.workflowId),
+              workflowId: String(log.workflowId ?? ''),
               executionId: String(log.executionId),
               logType: 'enhanced',
               archivedAt: new Date().toISOString(),
