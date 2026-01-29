@@ -776,22 +776,26 @@ function PreviewEditorContent({
   const childWorkflowSnapshotState = childWorkflowSnapshotId
     ? childWorkflowSnapshots?.[childWorkflowSnapshotId]
     : undefined
+  const resolvedChildWorkflowState = isExecutionMode
+    ? childWorkflowSnapshotState
+    : childWorkflowState
+  const resolvedIsLoadingChildWorkflow = isExecutionMode ? false : isLoadingChildWorkflow
+  const isMissingChildWorkflow =
+    Boolean(childWorkflowId) && !resolvedIsLoadingChildWorkflow && !resolvedChildWorkflowState
 
   /** Drills down into the child workflow or opens it in a new tab */
   const handleExpandChildWorkflow = useCallback(() => {
     if (!childWorkflowId) return
 
     if (isExecutionMode && onDrillDown) {
-      const resolvedChildState = childWorkflowSnapshotState ?? childWorkflowState
-      if (!resolvedChildState) return
-      onDrillDown(block.id, resolvedChildState)
+      if (!childWorkflowSnapshotState) return
+      onDrillDown(block.id, childWorkflowSnapshotState)
     } else if (workspaceId) {
       window.open(`/workspace/${workspaceId}/w/${childWorkflowId}`, '_blank', 'noopener,noreferrer')
     }
   }, [
     childWorkflowId,
     childWorkflowSnapshotState,
-    childWorkflowState,
     isExecutionMode,
     onDrillDown,
     block.id,
@@ -1274,7 +1278,7 @@ function PreviewEditorContent({
                     Workflow Preview
                   </div>
                   <div className='relative h-[160px] overflow-hidden rounded-[4px] border border-[var(--border)]'>
-                    {isLoadingChildWorkflow ? (
+                    {resolvedIsLoadingChildWorkflow ? (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <div
                           className='h-[18px] w-[18px] animate-spin rounded-full'
@@ -1287,11 +1291,11 @@ function PreviewEditorContent({
                           }}
                         />
                       </div>
-                    ) : childWorkflowState ? (
+                    ) : resolvedChildWorkflowState ? (
                       <>
                         <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
                           <PreviewWorkflow
-                            workflowState={childWorkflowState}
+                            workflowState={resolvedChildWorkflowState}
                             height={160}
                             width='100%'
                             isPannable={true}
@@ -1323,7 +1327,7 @@ function PreviewEditorContent({
                     ) : (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <span className='text-[13px] text-[var(--text-tertiary)]'>
-                          Unable to load preview
+                          {isMissingChildWorkflow ? 'Deleted Workflow' : 'Unable to load preview'}
                         </span>
                       </div>
                     )}

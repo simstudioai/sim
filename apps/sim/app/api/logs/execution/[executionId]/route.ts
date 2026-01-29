@@ -52,12 +52,12 @@ export async function GET(
         executionData: workflowExecutionLogs.executionData,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
       .innerJoin(
         permissions,
         and(
           eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workflow.workspaceId),
+          eq(permissions.entityId, workflowExecutionLogs.workspaceId),
           eq(permissions.userId, authenticatedUserId)
         )
       )
@@ -89,9 +89,8 @@ export async function GET(
         if (typeof snapshotId === 'string') {
           childSnapshotIds.add(snapshotId)
         }
-        const children = span.children
-        if (Array.isArray(children)) {
-          collectSnapshotIds(children)
+        if (span.children?.length) {
+          collectSnapshotIds(span.children)
         }
       })
     }

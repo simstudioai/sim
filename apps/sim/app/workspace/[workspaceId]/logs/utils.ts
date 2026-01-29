@@ -27,6 +27,9 @@ export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
   'duration',
 ] as const
 
+export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
+export const DELETED_WORKFLOW_COLOR = 'var(--text-tertiary)'
+
 export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'
 
 /**

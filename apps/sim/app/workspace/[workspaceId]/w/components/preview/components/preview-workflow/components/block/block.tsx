@@ -112,7 +112,7 @@ function resolveWorkflowName(
   if (!rawValue || typeof rawValue !== 'string') return null
 
   const workflowMap = useWorkflowRegistry.getState().workflows
-  return workflowMap[rawValue]?.name ?? null
+  return workflowMap[rawValue]?.name ?? 'Deleted Workflow'
 }
 
 /**

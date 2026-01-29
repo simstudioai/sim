@@ -102,7 +102,7 @@ export interface TraceSpan {
 
 export interface WorkflowLog {
   id: string
-  workflowId: string
+  workflowId: string | null
   executionId?: string | null
   deploymentVersion?: number | null
   deploymentVersionName?: string | null
