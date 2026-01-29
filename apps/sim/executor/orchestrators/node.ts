@@ -31,7 +31,18 @@ export class NodeExecutionOrchestrator {
       throw new Error(`Node not found in DAG: ${nodeId}`)
     }
 
-    if (this.state.hasExecuted(nodeId)) {
+    if (ctx.runFromBlockContext && !ctx.runFromBlockContext.dirtySet.has(nodeId)) {
+      const cachedOutput = this.state.getBlockOutput(nodeId) || {}
+      logger.debug('Skipping non-dirty block in run-from-block mode', { nodeId })
+      return {
+        nodeId,
+        output: cachedOutput,
+        isFinalOutput: false,
+      }
+    }
+
+    const isDirtyBlock = ctx.runFromBlockContext?.dirtySet.has(nodeId) ?? false
+    if (!isDirtyBlock && this.state.hasExecuted(nodeId)) {
       const output = this.state.getBlockOutput(nodeId) || {}
       return {
         nodeId,
@@ -97,7 +108,7 @@ export class NodeExecutionOrchestrator {
         if (loopId) {
           const shouldExecute = await this.loopOrchestrator.evaluateInitialCondition(ctx, loopId)
           if (!shouldExecute) {
-            logger.info('While loop initial condition false, skipping loop body', { loopId })
+            logger.info('Loop initial condition false, skipping loop body', { loopId })
             return {
               sentinelStart: true,
               shouldExit: true,
@@ -158,6 +169,17 @@ export class NodeExecutionOrchestrator {
           this.parallelOrchestrator.initializeParallelScope(ctx, parallelId, nodesInParallel)
         }
       }
+
+      const scope = this.parallelOrchestrator.getParallelScope(ctx, parallelId)
+      if (scope?.isEmpty) {
+        logger.info('Parallel has empty distribution, skipping parallel body', { parallelId })
+        return {
+          sentinelStart: true,
+          shouldExit: true,
+          selectedRoute: EDGE.PARALLEL_EXIT,
+        }
+      }
+
       return { sentinelStart: true }
     }
 

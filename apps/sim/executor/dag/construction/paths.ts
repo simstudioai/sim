@@ -6,7 +6,16 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 const logger = createLogger('PathConstructor')
 
 export class PathConstructor {
-  execute(workflow: SerializedWorkflow, triggerBlockId?: string): Set<string> {
+  execute(
+    workflow: SerializedWorkflow,
+    triggerBlockId?: string,
+    includeAllBlocks?: boolean
+  ): Set<string> {
+    // For run-from-block mode, include all enabled blocks regardless of trigger reachability
+    if (includeAllBlocks) {
+      return this.getAllEnabledBlocks(workflow)
+    }
+
     const resolvedTriggerId = this.findTriggerBlock(workflow, triggerBlockId)
 
     if (!resolvedTriggerId) {

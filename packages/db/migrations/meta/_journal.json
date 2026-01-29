@@ -1030,6 +1030,20 @@
       "when": 1769134350805,
       "tag": "0147_rare_firebrand",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1769626313827,
+      "tag": "0148_aberrant_venom",
+      "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1769656977701,
+      "tag": "0149_next_cerise",
+      "breakpoints": true
     }
   ]
 }

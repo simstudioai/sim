@@ -5,8 +5,8 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
   id: 'youtube_search',
   name: 'YouTube Search',
   description:
-    'Search for videos on YouTube using the YouTube Data API. Supports advanced filtering by channel, date range, duration, category, quality, captions, and more.',
-  version: '1.0.0',
+    'Search for videos on YouTube using the YouTube Data API. Supports advanced filtering by channel, date range, duration, category, quality, captions, live streams, and more.',
+  version: '1.2.0',
   params: {
     query: {
       type: 'string',
@@ -21,13 +21,18 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       default: 5,
       description: 'Maximum number of videos to return (1-50)',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Page token for pagination (use nextPageToken from previous response)',
+    },
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
       description: 'YouTube API Key',
     },
-    // Priority 1: Essential filters
     channelId: {
       type: 'string',
       required: false,
@@ -66,9 +71,9 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by YouTube category ID (e.g., "10" for Music, "20" for Gaming)',
+      description:
+        'Filter by YouTube category ID (e.g., "10" for Music, "20" for Gaming). Use video_categories to list IDs.',
     },
-    // Priority 2: Very useful filters
     videoDefinition: {
       type: 'string',
       required: false,
@@ -81,6 +86,13 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       visibility: 'user-or-llm',
       description:
         'Filter by caption availability: "closedCaption" (has captions), "none" (no captions), "any"',
+    },
+    eventType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Filter by live broadcast status: "live" (currently live), "upcoming" (scheduled), "completed" (past streams)',
     },
     regionCode: {
       type: 'string',
@@ -110,7 +122,9 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       )}`
       url += `&maxResults=${Number(params.maxResults || 5)}`
 
-      // Add Priority 1 filters if provided
+      if (params.pageToken) {
+        url += `&pageToken=${encodeURIComponent(params.pageToken)}`
+      }
       if (params.channelId) {
         url += `&channelId=${encodeURIComponent(params.channelId)}`
       }
@@ -129,13 +143,14 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       if (params.videoCategoryId) {
         url += `&videoCategoryId=${params.videoCategoryId}`
       }
-
-      // Add Priority 2 filters if provided
       if (params.videoDefinition) {
         url += `&videoDefinition=${params.videoDefinition}`
       }
       if (params.videoCaption) {
         url += `&videoCaption=${params.videoCaption}`
+      }
+      if (params.eventType) {
+        url += `&eventType=${params.eventType}`
       }
       if (params.regionCode) {
         url += `&regionCode=${params.regionCode}`
@@ -157,22 +172,39 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
 
   transformResponse: async (response: Response): Promise<YouTubeSearchResponse> => {
     const data = await response.json()
+
+    if (data.error) {
+      return {
+        success: false,
+        output: {
+          items: [],
+          totalResults: 0,
+          nextPageToken: null,
+        },
+        error: data.error.message || 'Search failed',
+      }
+    }
+
     const items = (data.items || []).map((item: any) => ({
-      videoId: item.id?.videoId,
-      title: item.snippet?.title,
-      description: item.snippet?.description,
+      videoId: item.id?.videoId ?? '',
+      title: item.snippet?.title ?? '',
+      description: item.snippet?.description ?? '',
       thumbnail:
         item.snippet?.thumbnails?.default?.url ||
         item.snippet?.thumbnails?.medium?.url ||
         item.snippet?.thumbnails?.high?.url ||
         '',
+      channelId: item.snippet?.channelId ?? '',
+      channelTitle: item.snippet?.channelTitle ?? '',
+      publishedAt: item.snippet?.publishedAt ?? '',
+      liveBroadcastContent: item.snippet?.liveBroadcastContent ?? 'none',
     }))
     return {
       success: true,
       output: {
         items,
         totalResults: data.pageInfo?.totalResults || 0,
-        nextPageToken: data.nextPageToken,
+        nextPageToken: data.nextPageToken ?? null,
       },
     }
   },
@@ -188,6 +220,13 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
           title: { type: 'string', description: 'Video title' },
           description: { type: 'string', description: 'Video description' },
           thumbnail: { type: 'string', description: 'Video thumbnail URL' },
+          channelId: { type: 'string', description: 'Channel ID that uploaded the video' },
+          channelTitle: { type: 'string', description: 'Channel name' },
+          publishedAt: { type: 'string', description: 'Video publish date' },
+          liveBroadcastContent: {
+            type: 'string',
+            description: 'Live broadcast status: "none", "live", or "upcoming"',
+          },
         },
       },
     },

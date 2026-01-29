@@ -181,20 +181,6 @@ function resolveCustomToolFromReference(
 }
 
 /**
- * Checks if a stored custom tool uses the reference-only format.
- *
- * @remarks
- * Reference-only format means the tool has a customToolId but no inline code/schema,
- * requiring resolution from the database at runtime.
- *
- * @param storedTool - The stored tool to check
- * @returns `true` if the tool is a reference-only custom tool, `false` otherwise
- */
-function isCustomToolReference(storedTool: StoredTool): boolean {
-  return storedTool.type === 'custom-tool' && !!storedTool.customToolId && !storedTool.code
-}
-
-/**
  * Generic sync wrapper that synchronizes store values with local component state.
  *
  * @remarks
@@ -1154,21 +1140,6 @@ export const ToolInput = memo(function ToolInput({
     )
     return filterBlocks(allToolBlocks)
   }, [filterBlocks])
-
-  const customFilter = useCallback((value: string, search: string) => {
-    if (!search.trim()) return 1
-
-    const normalizedValue = value.toLowerCase()
-    const normalizedSearch = search.toLowerCase()
-
-    if (normalizedValue === normalizedSearch) return 1
-
-    if (normalizedValue.startsWith(normalizedSearch)) return 0.8
-
-    if (normalizedValue.includes(normalizedSearch)) return 0.6
-
-    return 0
-  }, [])
 
   const hasBackfilledRef = useRef(false)
   useEffect(() => {

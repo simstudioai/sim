@@ -164,7 +164,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           ...prev,
           {
             email: normalized,
-            permissionType: 'read',
+            permissionType: 'admin',
           },
         ])
       }

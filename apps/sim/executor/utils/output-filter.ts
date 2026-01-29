@@ -1,3 +1,4 @@
+import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { getBlock } from '@/blocks'
 import { isHiddenFromDisplay } from '@/blocks/types'
 import { isTriggerBehavior, isTriggerInternalKey } from '@/executor/constants'
@@ -7,6 +8,7 @@ import type { SerializedBlock } from '@/serializer/types'
 /**
  * Filters block output for logging/display purposes.
  * Removes internal fields and fields marked with hiddenFromDisplay.
+ * Also recursively filters globally hidden keys from nested objects.
  *
  * @param blockType - The block type string (e.g., 'human_in_the_loop', 'workflow')
  * @param output - The raw block output to filter
@@ -44,7 +46,8 @@ export function filterOutputForLog(
       continue
     }
 
-    filtered[key] = value
+    // Recursively filter globally hidden keys from nested objects
+    filtered[key] = filterHiddenOutputKeys(value)
   }
 
   return filtered

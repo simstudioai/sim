@@ -15,13 +15,16 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
+import { getBlock } from '@/blocks'
+import type { SerializableExecutionState } from '@/executor/execution/types'
+import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution'
+import { useNotificationStore } from '@/stores/notifications'
 import { useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
 import { type ConsoleEntry, useTerminalConsoleStore } from '@/stores/terminal'
@@ -81,7 +84,8 @@ export function useWorkflowExecution() {
   const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const { toggleConsole, addConsole } = useTerminalConsoleStore()
+  const { toggleConsole, addConsole, updateConsole, cancelRunningEntries } =
+    useTerminalConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
@@ -98,11 +102,15 @@ export function useWorkflowExecution() {
     setActiveBlocks,
     setBlockRunStatus,
     setEdgeRunStatus,
+    setLastExecutionSnapshot,
+    getLastExecutionSnapshot,
+    clearLastExecutionSnapshot,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
   const currentChatExecutionIdRef = useRef<string | null>(null)
   const isViewingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
+  const addNotification = useNotificationStore((state) => state.addNotification)
 
   /**
    * Validates debug state before performing debug operations
@@ -668,7 +676,8 @@ export function useWorkflowExecution() {
     onStream?: (se: StreamingExecution) => Promise<void>,
     executionId?: string,
     onBlockComplete?: (blockId: string, output: any) => Promise<void>,
-    overrideTriggerType?: 'chat' | 'manual' | 'api'
+    overrideTriggerType?: 'chat' | 'manual' | 'api',
+    stopAfterBlockId?: string
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use diff workflow for execution when available, regardless of canvas view state
     const executionWorkflowState = null as {
@@ -867,6 +876,8 @@ export function useWorkflowExecution() {
     if (activeWorkflowId) {
       logger.info('Using server-side executor')
 
+      const executionId = uuidv4()
+
       let executionResult: ExecutionResult = {
         success: false,
         output: {},
@@ -876,6 +887,8 @@ export function useWorkflowExecution() {
       const activeBlocksSet = new Set<string>()
       const streamedContent = new Map<string, string>()
       const accumulatedBlockLogs: BlockLog[] = []
+      const accumulatedBlockStates = new Map<string, BlockState>()
+      const executedBlockIds = new Set<string>()
 
       // Execute the workflow
       try {
@@ -887,6 +900,7 @@ export function useWorkflowExecution() {
           triggerType: overrideTriggerType || 'manual',
           useDraftState: true,
           isClientSession: true,
+          stopAfterBlockId,
           workflowStateOverride: executionWorkflowState
             ? {
                 blocks: executionWorkflowState.blocks,
@@ -910,24 +924,49 @@ export function useWorkflowExecution() {
               incomingEdges.forEach((edge) => {
                 setEdgeRunStatus(edge.id, 'success')
               })
+
+              // Add entry to terminal immediately with isRunning=true
+              const startedAt = new Date().toISOString()
+              addConsole({
+                input: {},
+                output: undefined,
+                success: undefined,
+                durationMs: undefined,
+                startedAt,
+                endedAt: undefined,
+                workflowId: activeWorkflowId,
+                blockId: data.blockId,
+                executionId,
+                blockName: data.blockName || 'Unknown Block',
+                blockType: data.blockType || 'unknown',
+                isRunning: true,
+                // Pass through iteration context for subflow grouping
+                iterationCurrent: data.iterationCurrent,
+                iterationTotal: data.iterationTotal,
+                iterationType: data.iterationType,
+              })
             },
 
             onBlockCompleted: (data) => {
               logger.info('onBlockCompleted received:', { data })
 
               activeBlocksSet.delete(data.blockId)
-              // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
-
-              // Track successful block execution in run path
               setBlockRunStatus(data.blockId, 'success')
 
-              // Edges already tracked in onBlockStarted, no need to track again
+              executedBlockIds.add(data.blockId)
+              accumulatedBlockStates.set(data.blockId, {
+                output: data.output,
+                executed: true,
+                executionTime: data.durationMs,
+              })
+
+              const isContainerBlock = data.blockType === 'loop' || data.blockType === 'parallel'
+              if (isContainerBlock) return
 
               const startedAt = new Date(Date.now() - data.durationMs).toISOString()
               const endedAt = new Date().toISOString()
 
-              // Accumulate block log for the execution result
               accumulatedBlockLogs.push({
                 blockId: data.blockId,
                 blockName: data.blockName || 'Unknown Block',
@@ -940,24 +979,23 @@ export function useWorkflowExecution() {
                 endedAt,
               })
 
-              // Add to console
-              addConsole({
-                input: data.input || {},
-                output: data.output,
-                success: true,
-                durationMs: data.durationMs,
-                startedAt,
-                endedAt,
-                workflowId: activeWorkflowId,
-                blockId: data.blockId,
-                executionId: executionId || uuidv4(),
-                blockName: data.blockName || 'Unknown Block',
-                blockType: data.blockType || 'unknown',
-                // Pass through iteration context for console pills
-                iterationCurrent: data.iterationCurrent,
-                iterationTotal: data.iterationTotal,
-                iterationType: data.iterationType,
-              })
+              // Update existing console entry (created in onBlockStarted) with completion data
+              updateConsole(
+                data.blockId,
+                {
+                  input: data.input || {},
+                  replaceOutput: data.output,
+                  success: true,
+                  durationMs: data.durationMs,
+                  endedAt,
+                  isRunning: false,
+                  // Pass through iteration context for subflow grouping
+                  iterationCurrent: data.iterationCurrent,
+                  iterationTotal: data.iterationTotal,
+                  iterationType: data.iterationType,
+                },
+                executionId
+              )
 
               // Call onBlockComplete callback if provided
               if (onBlockComplete) {
@@ -992,25 +1030,24 @@ export function useWorkflowExecution() {
                 endedAt,
               })
 
-              // Add error to console
-              addConsole({
-                input: data.input || {},
-                output: {},
-                success: false,
-                error: data.error,
-                durationMs: data.durationMs,
-                startedAt,
-                endedAt,
-                workflowId: activeWorkflowId,
-                blockId: data.blockId,
-                executionId: executionId || uuidv4(),
-                blockName: data.blockName,
-                blockType: data.blockType,
-                // Pass through iteration context for console pills
-                iterationCurrent: data.iterationCurrent,
-                iterationTotal: data.iterationTotal,
-                iterationType: data.iterationType,
-              })
+              // Update existing console entry (created in onBlockStarted) with error data
+              updateConsole(
+                data.blockId,
+                {
+                  input: data.input || {},
+                  replaceOutput: {},
+                  success: false,
+                  error: data.error,
+                  durationMs: data.durationMs,
+                  endedAt,
+                  isRunning: false,
+                  // Pass through iteration context for subflow grouping
+                  iterationCurrent: data.iterationCurrent,
+                  iterationTotal: data.iterationTotal,
+                  iterationType: data.iterationType,
+                },
+                executionId
+              )
             },
 
             onStreamChunk: (data) => {
@@ -1056,6 +1093,53 @@ export function useWorkflowExecution() {
                 },
                 logs: accumulatedBlockLogs,
               }
+
+              // Add trigger block to executed blocks so downstream blocks can use run-from-block
+              if (data.success && startBlockId) {
+                executedBlockIds.add(startBlockId)
+              }
+
+              if (data.success && activeWorkflowId) {
+                if (stopAfterBlockId) {
+                  const existingSnapshot = getLastExecutionSnapshot(activeWorkflowId)
+                  const mergedBlockStates = {
+                    ...(existingSnapshot?.blockStates || {}),
+                    ...Object.fromEntries(accumulatedBlockStates),
+                  }
+                  const mergedExecutedBlocks = new Set([
+                    ...(existingSnapshot?.executedBlocks || []),
+                    ...executedBlockIds,
+                  ])
+                  const snapshot: SerializableExecutionState = {
+                    blockStates: mergedBlockStates,
+                    executedBlocks: Array.from(mergedExecutedBlocks),
+                    blockLogs: [...(existingSnapshot?.blockLogs || []), ...accumulatedBlockLogs],
+                    decisions: existingSnapshot?.decisions || { router: {}, condition: {} },
+                    completedLoops: existingSnapshot?.completedLoops || [],
+                    activeExecutionPath: Array.from(mergedExecutedBlocks),
+                  }
+                  setLastExecutionSnapshot(activeWorkflowId, snapshot)
+                  logger.info('Merged execution snapshot after run-until-block', {
+                    workflowId: activeWorkflowId,
+                    newBlocksExecuted: executedBlockIds.size,
+                    totalExecutedBlocks: mergedExecutedBlocks.size,
+                  })
+                } else {
+                  const snapshot: SerializableExecutionState = {
+                    blockStates: Object.fromEntries(accumulatedBlockStates),
+                    executedBlocks: Array.from(executedBlockIds),
+                    blockLogs: accumulatedBlockLogs,
+                    decisions: { router: {}, condition: {} },
+                    completedLoops: [],
+                    activeExecutionPath: Array.from(executedBlockIds),
+                  }
+                  setLastExecutionSnapshot(activeWorkflowId, snapshot)
+                  logger.info('Stored execution snapshot for run-from-block', {
+                    workflowId: activeWorkflowId,
+                    executedBlocksCount: executedBlockIds.size,
+                  })
+                }
+              }
             },
 
             onExecutionError: (data) => {
@@ -1089,7 +1173,7 @@ export function useWorkflowExecution() {
                   endedAt: new Date().toISOString(),
                   workflowId: activeWorkflowId,
                   blockId: 'validation',
-                  executionId: executionId || uuidv4(),
+                  executionId,
                   blockName: 'Workflow Validation',
                   blockType: 'validation',
                 })
@@ -1358,6 +1442,11 @@ export function useWorkflowExecution() {
     // Mark current chat execution as superseded so its cleanup won't affect new executions
     currentChatExecutionIdRef.current = null
 
+    // Mark all running entries as canceled in the terminal
+    if (activeWorkflowId) {
+      cancelRunningEntries(activeWorkflowId)
+    }
+
     // Reset execution state - this triggers chat stream cleanup via useEffect in chat.tsx
     setIsExecuting(false)
     setIsDebugging(false)
@@ -1374,7 +1463,333 @@ export function useWorkflowExecution() {
     setIsExecuting,
     setIsDebugging,
     setActiveBlocks,
+    activeWorkflowId,
+    cancelRunningEntries,
   ])
+
+  /**
+   * Handles running workflow from a specific block using cached outputs
+   */
+  const handleRunFromBlock = useCallback(
+    async (blockId: string, workflowId: string) => {
+      const snapshot = getLastExecutionSnapshot(workflowId)
+      const workflowEdges = useWorkflowStore.getState().edges
+      const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
+      const isTriggerBlock = incomingEdges.length === 0
+
+      // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
+      const isSourceSatisfied = (sourceId: string) => {
+        if (snapshot?.executedBlocks.includes(sourceId)) return true
+        // Check if source is a trigger (has no incoming edges itself)
+        const sourceIncomingEdges = workflowEdges.filter((edge) => edge.target === sourceId)
+        return sourceIncomingEdges.length === 0
+      }
+
+      // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
+      if (!snapshot && !isTriggerBlock) {
+        logger.error('No execution snapshot available for run-from-block', { workflowId, blockId })
+        return
+      }
+
+      const dependenciesSatisfied =
+        isTriggerBlock || incomingEdges.every((edge) => isSourceSatisfied(edge.source))
+
+      if (!dependenciesSatisfied) {
+        logger.error('Upstream dependencies not satisfied for run-from-block', {
+          workflowId,
+          blockId,
+        })
+        return
+      }
+
+      // For trigger blocks, always use empty snapshot to prevent stale data from different
+      // execution paths from being resolved. For non-trigger blocks, use the existing snapshot.
+      const emptySnapshot: SerializableExecutionState = {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: { router: {}, condition: {} },
+        completedLoops: [],
+        activeExecutionPath: [],
+      }
+      const effectiveSnapshot: SerializableExecutionState = isTriggerBlock
+        ? emptySnapshot
+        : snapshot || emptySnapshot
+
+      // Extract mock payload for trigger blocks
+      let workflowInput: any
+      if (isTriggerBlock) {
+        const workflowBlocks = useWorkflowStore.getState().blocks
+        const mergedStates = mergeSubblockState(workflowBlocks, workflowId)
+        const candidates = resolveStartCandidates(mergedStates, { execution: 'manual' })
+        const candidate = candidates.find((c) => c.blockId === blockId)
+
+        if (candidate) {
+          if (triggerNeedsMockPayload(candidate)) {
+            workflowInput = extractTriggerMockPayload(candidate)
+          } else if (
+            candidate.path === StartBlockPath.SPLIT_API ||
+            candidate.path === StartBlockPath.SPLIT_INPUT ||
+            candidate.path === StartBlockPath.UNIFIED
+          ) {
+            const inputFormatValue = candidate.block.subBlocks?.inputFormat?.value
+            if (Array.isArray(inputFormatValue)) {
+              const testInput: Record<string, any> = {}
+              inputFormatValue.forEach((field: any) => {
+                if (field && typeof field === 'object' && field.name && field.value !== undefined) {
+                  testInput[field.name] = coerceValue(field.type, field.value)
+                }
+              })
+              if (Object.keys(testInput).length > 0) {
+                workflowInput = testInput
+              }
+            }
+          }
+        } else {
+          // Fallback: block is trigger by position but not classified as start candidate
+          const block = mergedStates[blockId]
+          if (block) {
+            const blockConfig = getBlock(block.type)
+            const hasTriggers = blockConfig?.triggers?.available?.length
+
+            if (hasTriggers || block.triggerMode) {
+              workflowInput = extractTriggerMockPayload({
+                blockId,
+                block,
+                path: StartBlockPath.EXTERNAL_TRIGGER,
+              })
+            }
+          }
+        }
+      }
+
+      setIsExecuting(true)
+      const executionId = uuidv4()
+      const accumulatedBlockLogs: BlockLog[] = []
+      const accumulatedBlockStates = new Map<string, BlockState>()
+      const executedBlockIds = new Set<string>()
+      const activeBlocksSet = new Set<string>()
+
+      try {
+        await executionStream.executeFromBlock({
+          workflowId,
+          startBlockId: blockId,
+          sourceSnapshot: effectiveSnapshot,
+          input: workflowInput,
+          callbacks: {
+            onBlockStarted: (data) => {
+              activeBlocksSet.add(data.blockId)
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              const incomingEdges = workflowEdges.filter((edge) => edge.target === data.blockId)
+              incomingEdges.forEach((edge) => {
+                setEdgeRunStatus(edge.id, 'success')
+              })
+            },
+
+            onBlockCompleted: (data) => {
+              activeBlocksSet.delete(data.blockId)
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              setBlockRunStatus(data.blockId, 'success')
+
+              executedBlockIds.add(data.blockId)
+              accumulatedBlockStates.set(data.blockId, {
+                output: data.output,
+                executed: true,
+                executionTime: data.durationMs,
+              })
+
+              const isContainerBlock = data.blockType === 'loop' || data.blockType === 'parallel'
+              if (isContainerBlock) return
+
+              const startedAt = new Date(Date.now() - data.durationMs).toISOString()
+              const endedAt = new Date().toISOString()
+
+              accumulatedBlockLogs.push({
+                blockId: data.blockId,
+                blockName: data.blockName || 'Unknown Block',
+                blockType: data.blockType || 'unknown',
+                input: data.input || {},
+                output: data.output,
+                success: true,
+                durationMs: data.durationMs,
+                startedAt,
+                endedAt,
+              })
+
+              addConsole({
+                input: data.input || {},
+                output: data.output,
+                success: true,
+                durationMs: data.durationMs,
+                startedAt,
+                endedAt,
+                workflowId,
+                blockId: data.blockId,
+                executionId,
+                blockName: data.blockName || 'Unknown Block',
+                blockType: data.blockType || 'unknown',
+                iterationCurrent: data.iterationCurrent,
+                iterationTotal: data.iterationTotal,
+                iterationType: data.iterationType,
+              })
+            },
+
+            onBlockError: (data) => {
+              activeBlocksSet.delete(data.blockId)
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              setBlockRunStatus(data.blockId, 'error')
+
+              const startedAt = new Date(Date.now() - data.durationMs).toISOString()
+              const endedAt = new Date().toISOString()
+
+              accumulatedBlockLogs.push({
+                blockId: data.blockId,
+                blockName: data.blockName || 'Unknown Block',
+                blockType: data.blockType || 'unknown',
+                input: data.input || {},
+                output: {},
+                success: false,
+                error: data.error,
+                durationMs: data.durationMs,
+                startedAt,
+                endedAt,
+              })
+
+              addConsole({
+                input: data.input || {},
+                output: {},
+                success: false,
+                error: data.error,
+                durationMs: data.durationMs,
+                startedAt,
+                endedAt,
+                workflowId,
+                blockId: data.blockId,
+                executionId,
+                blockName: data.blockName,
+                blockType: data.blockType,
+                iterationCurrent: data.iterationCurrent,
+                iterationTotal: data.iterationTotal,
+                iterationType: data.iterationType,
+              })
+            },
+
+            onExecutionCompleted: (data) => {
+              if (data.success) {
+                // Add the start block (trigger) to executed blocks
+                executedBlockIds.add(blockId)
+
+                const mergedBlockStates: Record<string, BlockState> = {
+                  ...effectiveSnapshot.blockStates,
+                }
+                for (const [bId, state] of accumulatedBlockStates) {
+                  mergedBlockStates[bId] = state
+                }
+
+                const mergedExecutedBlocks = new Set([
+                  ...effectiveSnapshot.executedBlocks,
+                  ...executedBlockIds,
+                ])
+
+                const updatedSnapshot: SerializableExecutionState = {
+                  ...effectiveSnapshot,
+                  blockStates: mergedBlockStates,
+                  executedBlocks: Array.from(mergedExecutedBlocks),
+                  blockLogs: [...effectiveSnapshot.blockLogs, ...accumulatedBlockLogs],
+                  activeExecutionPath: Array.from(mergedExecutedBlocks),
+                }
+                setLastExecutionSnapshot(workflowId, updatedSnapshot)
+              }
+            },
+
+            onExecutionError: (data) => {
+              const isWorkflowModified =
+                data.error?.includes('Block not found in workflow') ||
+                data.error?.includes('Upstream dependency not executed')
+
+              if (isWorkflowModified) {
+                clearLastExecutionSnapshot(workflowId)
+                addNotification({
+                  level: 'error',
+                  message:
+                    'Workflow was modified. Run the workflow again to enable running from block.',
+                  workflowId,
+                })
+              } else {
+                addNotification({
+                  level: 'error',
+                  message: data.error || 'Run from block failed',
+                  workflowId,
+                })
+              }
+            },
+          },
+        })
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') {
+          logger.error('Run-from-block failed:', error)
+        }
+      } finally {
+        setIsExecuting(false)
+        setActiveBlocks(new Set())
+      }
+    },
+    [
+      getLastExecutionSnapshot,
+      setLastExecutionSnapshot,
+      clearLastExecutionSnapshot,
+      setIsExecuting,
+      setActiveBlocks,
+      setBlockRunStatus,
+      setEdgeRunStatus,
+      addNotification,
+      addConsole,
+      executionStream,
+    ]
+  )
+
+  /**
+   * Handles running workflow until a specific block (stops after that block completes)
+   */
+  const handleRunUntilBlock = useCallback(
+    async (blockId: string, workflowId: string) => {
+      if (!workflowId || workflowId !== activeWorkflowId) {
+        logger.error('Invalid workflow ID for run-until-block', { workflowId, activeWorkflowId })
+        return
+      }
+
+      logger.info('Starting run-until-block execution', { workflowId, stopAfterBlockId: blockId })
+
+      setExecutionResult(null)
+      setIsExecuting(true)
+
+      const executionId = uuidv4()
+      try {
+        const result = await executeWorkflow(
+          undefined,
+          undefined,
+          executionId,
+          undefined,
+          'manual',
+          blockId
+        )
+        if (result && 'success' in result) {
+          setExecutionResult(result)
+        }
+      } catch (error) {
+        const errorResult = handleExecutionError(error, { executionId })
+        return errorResult
+      } finally {
+        setIsExecuting(false)
+        setIsDebugging(false)
+        setActiveBlocks(new Set())
+      }
+    },
+    [activeWorkflowId, setExecutionResult, setIsExecuting, setIsDebugging, setActiveBlocks]
+  )
 
   return {
     isExecuting,
@@ -1386,5 +1801,7 @@ export function useWorkflowExecution() {
     handleResumeDebug,
     handleCancelDebug,
     handleCancelExecution,
+    handleRunFromBlock,
+    handleRunUntilBlock,
   }
 }

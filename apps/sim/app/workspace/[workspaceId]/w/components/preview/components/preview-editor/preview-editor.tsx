@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   ChevronDown as ChevronDownIcon,
   ChevronUp,
+  Clipboard,
   ExternalLink,
   Maximize2,
   RepeatIcon,
+  Search,
   SplitIcon,
   X,
 } from 'lucide-react'
@@ -34,6 +37,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
+import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
@@ -690,6 +694,7 @@ interface ExecutionData {
   output?: unknown
   status?: string
   durationMs?: number
+  childWorkflowSnapshotId?: string
 }
 
 interface WorkflowVariable {
@@ -714,6 +719,8 @@ interface PreviewEditorProps {
   parallels?: Record<string, Parallel>
   /** When true, shows "Not Executed" badge if no executionData is provided */
   isExecutionMode?: boolean
+  /** Child workflow snapshots keyed by snapshot ID (execution mode only) */
+  childWorkflowSnapshots?: Record<string, WorkflowState>
   /** Optional close handler - if not provided, no close button is shown */
   onClose?: () => void
   /** Callback to drill down into a nested workflow block */
@@ -739,6 +746,7 @@ function PreviewEditorContent({
   loops,
   parallels,
   isExecutionMode = false,
+  childWorkflowSnapshots,
   onClose,
   onDrillDown,
 }: PreviewEditorProps) {
@@ -768,17 +776,35 @@ function PreviewEditorContent({
   const { data: childWorkflowState, isLoading: isLoadingChildWorkflow } = useWorkflowState(
     childWorkflowId ?? undefined
   )
+  const childWorkflowSnapshotId = executionData?.childWorkflowSnapshotId
+  const childWorkflowSnapshotState = childWorkflowSnapshotId
+    ? childWorkflowSnapshots?.[childWorkflowSnapshotId]
+    : undefined
+  const resolvedChildWorkflowState = isExecutionMode
+    ? childWorkflowSnapshotState
+    : childWorkflowState
+  const resolvedIsLoadingChildWorkflow = isExecutionMode ? false : isLoadingChildWorkflow
+  const isMissingChildWorkflow =
+    Boolean(childWorkflowId) && !resolvedIsLoadingChildWorkflow && !resolvedChildWorkflowState
 
   /** Drills down into the child workflow or opens it in a new tab */
   const handleExpandChildWorkflow = useCallback(() => {
-    if (!childWorkflowId || !childWorkflowState) return
+    if (!childWorkflowId) return
 
     if (isExecutionMode && onDrillDown) {
-      onDrillDown(block.id, childWorkflowState)
+      if (!childWorkflowSnapshotState) return
+      onDrillDown(block.id, childWorkflowSnapshotState)
     } else if (workspaceId) {
       window.open(`/workspace/${workspaceId}/w/${childWorkflowId}`, '_blank', 'noopener,noreferrer')
     }
-  }, [childWorkflowId, childWorkflowState, isExecutionMode, onDrillDown, block.id, workspaceId])
+  }, [
+    childWorkflowId,
+    childWorkflowSnapshotState,
+    isExecutionMode,
+    onDrillDown,
+    block.id,
+    workspaceId,
+  ])
 
   const contentRef = useRef<HTMLDivElement>(null)
   const subBlocksRef = useRef<HTMLDivElement>(null)
@@ -813,6 +839,13 @@ function PreviewEditorContent({
   } = useContextMenu()
 
   const [contextMenuData, setContextMenuData] = useState({ content: '', copyOnly: false })
+  const [copiedSection, setCopiedSection] = useState<'input' | 'output' | null>(null)
+
+  const handleCopySection = useCallback((content: string, section: 'input' | 'output') => {
+    navigator.clipboard.writeText(content)
+    setCopiedSection(section)
+    setTimeout(() => setCopiedSection(null), 1500)
+  }, [])
 
   const openContextMenu = useCallback(
     (e: React.MouseEvent, content: string, copyOnly: boolean) => {
@@ -862,9 +895,6 @@ function PreviewEditorContent({
     }
   }, [contextMenuData.content])
 
-  /**
-   * Handles mouse down event on the resize handle to initiate resizing
-   */
   const handleConnectionsResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
       setIsResizing(true)
@@ -874,18 +904,12 @@ function PreviewEditorContent({
     [connectionsHeight]
   )
 
-  /**
-   * Toggle connections collapsed state
-   */
   const toggleConnectionsCollapsed = useCallback(() => {
     setConnectionsHeight((prev) =>
       prev <= MIN_CONNECTIONS_HEIGHT ? DEFAULT_CONNECTIONS_HEIGHT : MIN_CONNECTIONS_HEIGHT
     )
   }, [])
 
-  /**
-   * Sets up resize event listeners during resize operations
-   */
   useEffect(() => {
     if (!isResizing) return
 
@@ -1141,15 +1165,17 @@ function PreviewEditorContent({
     <div className='relative flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-[8px] rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-[12px] py-[6px]'>
-        <div
-          className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
-          style={{ backgroundColor: blockConfig.bgColor }}
-        >
-          <IconComponent
-            icon={blockConfig.icon}
-            className='h-[12px] w-[12px] text-[var(--white)]'
-          />
-        </div>
+        {block.type !== 'note' && (
+          <div
+            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            style={{ backgroundColor: blockConfig.bgColor }}
+          >
+            <IconComponent
+              icon={blockConfig.icon}
+              className='h-[12px] w-[12px] text-[var(--white)]'
+            />
+          </div>
+        )}
         <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
           {block.name || blockConfig.name}
         </span>
@@ -1203,7 +1229,11 @@ function PreviewEditorContent({
                 }
                 emptyMessage='No input data'
               >
-                <div onContextMenu={handleExecutionContextMenu} ref={contentRef}>
+                <div
+                  onContextMenu={handleExecutionContextMenu}
+                  ref={contentRef}
+                  className='relative'
+                >
                   <Code.Viewer
                     code={formatValueAsJson(executionData.input)}
                     language='json'
@@ -1213,6 +1243,49 @@ function PreviewEditorContent({
                     currentMatchIndex={currentMatchIndex}
                     onMatchCountChange={handleMatchCountChange}
                   />
+                  {/* Action buttons overlay */}
+                  {!isSearchActive && (
+                    <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCopySection(formatValueAsJson(executionData.input), 'input')
+                            }}
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                          >
+                            {copiedSection === 'input' ? (
+                              <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                            ) : (
+                              <Clipboard className='h-[10px] w-[10px]' />
+                            )}
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>
+                          {copiedSection === 'input' ? 'Copied' : 'Copy'}
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              activateSearch()
+                            }}
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                          >
+                            <Search className='h-[10px] w-[10px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>Search</Tooltip.Content>
+                      </Tooltip.Root>
+                    </div>
+                  )}
                 </div>
               </CollapsibleSection>
             )}
@@ -1229,7 +1302,7 @@ function PreviewEditorContent({
                 emptyMessage='No output data'
                 isError={executionData.status === 'error'}
               >
-                <div onContextMenu={handleExecutionContextMenu}>
+                <div onContextMenu={handleExecutionContextMenu} className='relative'>
                   <Code.Viewer
                     code={formatValueAsJson(executionData.output)}
                     language='json'
@@ -1242,6 +1315,49 @@ function PreviewEditorContent({
                     currentMatchIndex={currentMatchIndex}
                     onMatchCountChange={handleMatchCountChange}
                   />
+                  {/* Action buttons overlay */}
+                  {!isSearchActive && (
+                    <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCopySection(formatValueAsJson(executionData.output), 'output')
+                            }}
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                          >
+                            {copiedSection === 'output' ? (
+                              <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                            ) : (
+                              <Clipboard className='h-[10px] w-[10px]' />
+                            )}
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>
+                          {copiedSection === 'output' ? 'Copied' : 'Copy'}
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              activateSearch()
+                            }}
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                          >
+                            <Search className='h-[10px] w-[10px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>Search</Tooltip.Content>
+                      </Tooltip.Root>
+                    </div>
+                  )}
                 </div>
               </CollapsibleSection>
             )}
@@ -1254,7 +1370,7 @@ function PreviewEditorContent({
                     Workflow Preview
                   </div>
                   <div className='relative h-[160px] overflow-hidden rounded-[4px] border border-[var(--border)]'>
-                    {isLoadingChildWorkflow ? (
+                    {resolvedIsLoadingChildWorkflow ? (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <div
                           className='h-[18px] w-[18px] animate-spin rounded-full'
@@ -1267,11 +1383,11 @@ function PreviewEditorContent({
                           }}
                         />
                       </div>
-                    ) : childWorkflowState ? (
+                    ) : resolvedChildWorkflowState ? (
                       <>
                         <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
                           <PreviewWorkflow
-                            workflowState={childWorkflowState}
+                            workflowState={resolvedChildWorkflowState}
                             height={160}
                             width='100%'
                             isPannable={true}
@@ -1303,7 +1419,9 @@ function PreviewEditorContent({
                     ) : (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <span className='text-[13px] text-[var(--text-tertiary)]'>
-                          Unable to load preview
+                          {isMissingChildWorkflow
+                            ? DELETED_WORKFLOW_LABEL
+                            : 'Unable to load preview'}
                         </span>
                       </div>
                     )}

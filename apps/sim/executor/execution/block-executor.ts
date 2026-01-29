@@ -4,6 +4,7 @@ import {
   containsUserFileWithMetadata,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
+import { sanitizeInputFormat, sanitizeTools } from '@/lib/workflows/comparison/normalize'
 import {
   BlockType,
   buildResumeApiUrl,
@@ -34,6 +35,7 @@ import { validateBlockType } from '@/executor/utils/permission-check'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
+import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('BlockExecutor')
 
@@ -87,7 +89,7 @@ export class BlockExecutor {
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
 
       if (blockLog) {
-        blockLog.input = this.parseJsonInputs(resolvedInputs)
+        blockLog.input = this.sanitizeInputsForLog(resolvedInputs)
       }
     } catch (error) {
       cleanupSelfReference?.()
@@ -150,6 +152,9 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
+        if (normalizedOutput.childTraceSpans && Array.isArray(normalizedOutput.childTraceSpans)) {
+          blockLog.childTraceSpans = normalizedOutput.childTraceSpans
+        }
       }
 
       this.state.setBlockOutput(node.id, normalizedOutput, duration)
@@ -162,7 +167,7 @@ export class BlockExecutor {
           ctx,
           node,
           block,
-          this.parseJsonInputs(resolvedInputs),
+          this.sanitizeInputsForLog(resolvedInputs),
           displayOutput,
           duration
         )
@@ -232,6 +237,9 @@ export class BlockExecutor {
     if (ChildWorkflowError.isChildWorkflowError(error)) {
       errorOutput.childTraceSpans = error.childTraceSpans
       errorOutput.childWorkflowName = error.childWorkflowName
+      if (error.childWorkflowSnapshotId) {
+        errorOutput.childWorkflowSnapshotId = error.childWorkflowSnapshotId
+      }
     }
 
     this.state.setBlockOutput(node.id, errorOutput, duration)
@@ -241,8 +249,12 @@ export class BlockExecutor {
       blockLog.durationMs = duration
       blockLog.success = false
       blockLog.error = errorMessage
-      blockLog.input = this.parseJsonInputs(input)
+      blockLog.input = this.sanitizeInputsForLog(input)
       blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
+
+      if (errorOutput.childTraceSpans && Array.isArray(errorOutput.childTraceSpans)) {
+        blockLog.childTraceSpans = errorOutput.childTraceSpans
+      }
     }
 
     logger.error(
@@ -260,7 +272,7 @@ export class BlockExecutor {
         ctx,
         node,
         block,
-        this.parseJsonInputs(input),
+        this.sanitizeInputsForLog(input),
         displayOutput,
         duration
       )
@@ -352,29 +364,41 @@ export class BlockExecutor {
   }
 
   /**
-   * Parse JSON string inputs to objects for log display only.
-   * Attempts to parse any string that looks like JSON.
+   * Sanitizes inputs for log display.
+   * - Filters out system fields (UI-only, readonly, internal flags)
+   * - Removes UI state from inputFormat items (e.g., collapsed)
+   * - Parses JSON strings to objects for readability
    * Returns a new object - does not mutate the original inputs.
    */
-  private parseJsonInputs(inputs: Record<string, any>): Record<string, any> {
-    let result = inputs
-    let hasChanges = false
+  private sanitizeInputsForLog(inputs: Record<string, any>): Record<string, any> {
+    const result: Record<string, any> = {}
 
     for (const [key, value] of Object.entries(inputs)) {
-      // isJSONString is a quick heuristic (checks for { or [), not a validator.
-      // Invalid JSON is safely caught below - this just avoids JSON.parse on every string.
-      if (typeof value !== 'string' || !isJSONString(value)) {
+      if (SYSTEM_SUBBLOCK_IDS.includes(key) || key === 'triggerMode') {
         continue
       }
 
-      try {
-        if (!hasChanges) {
-          result = { ...inputs }
-          hasChanges = true
+      if (key === 'inputFormat' && Array.isArray(value)) {
+        result[key] = sanitizeInputFormat(value)
+        continue
+      }
+
+      if (key === 'tools' && Array.isArray(value)) {
+        result[key] = sanitizeTools(value)
+        continue
+      }
+
+      // isJSONString is a quick heuristic (checks for { or [), not a validator.
+      // Invalid JSON is safely caught below - this just avoids JSON.parse on every string.
+      if (typeof value === 'string' && isJSONString(value)) {
+        try {
+          result[key] = JSON.parse(value.trim())
+        } catch {
+          // Not valid JSON, keep original string
+          result[key] = value
         }
-        result[key] = JSON.parse(value.trim())
-      } catch {
-        // Not valid JSON, keep original string
+      } else {
+        result[key] = value
       }
     }
 

@@ -23,9 +23,11 @@ import type {
   ContextExtensions,
   ExecutionCallbacks,
   IterationContext,
+  SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import { buildParallelSentinelEndId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
 import { Serializer } from '@/serializer'
 
 const logger = createLogger('ExecutionCore')
@@ -40,6 +42,12 @@ export interface ExecuteWorkflowCoreOptions {
   abortSignal?: AbortSignal
   includeFileBase64?: boolean
   base64MaxBytes?: number
+  stopAfterBlockId?: string
+  /** Run-from-block mode: execute starting from a specific block using cached upstream outputs */
+  runFromBlock?: {
+    startBlockId: string
+    sourceSnapshot: SerializableExecutionState
+  }
 }
 
 function parseVariableValueByType(value: unknown, type: string): unknown {
@@ -114,6 +122,8 @@ export async function executeWorkflowCore(
     abortSignal,
     includeFileBase64,
     base64MaxBytes,
+    stopAfterBlockId,
+    runFromBlock,
   } = options
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
@@ -246,6 +256,16 @@ export async function executeWorkflowCore(
 
     processedInput = input || {}
 
+    // Resolve stopAfterBlockId for loop/parallel containers to their sentinel-end IDs
+    let resolvedStopAfterBlockId = stopAfterBlockId
+    if (stopAfterBlockId) {
+      if (serializedWorkflow.loops?.[stopAfterBlockId]) {
+        resolvedStopAfterBlockId = buildSentinelEndId(stopAfterBlockId)
+      } else if (serializedWorkflow.parallels?.[stopAfterBlockId]) {
+        resolvedStopAfterBlockId = buildParallelSentinelEndId(stopAfterBlockId)
+      }
+    }
+
     // Create and execute workflow with callbacks
     if (resumeFromSnapshot) {
       logger.info(`[${requestId}] Resume execution detected`, {
@@ -296,6 +316,7 @@ export async function executeWorkflowCore(
       abortSignal,
       includeFileBase64,
       base64MaxBytes,
+      stopAfterBlockId: resolvedStopAfterBlockId,
     }
 
     const executorInstance = new Executor({
@@ -318,10 +339,13 @@ export async function executeWorkflowCore(
       }
     }
 
-    const result = (await executorInstance.execute(
-      workflowId,
-      resolvedTriggerBlockId
-    )) as ExecutionResult
+    const result = runFromBlock
+      ? ((await executorInstance.executeFromBlock(
+          workflowId,
+          runFromBlock.startBlockId,
+          runFromBlock.sourceSnapshot
+        )) as ExecutionResult)
+      : ((await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult)
 
     // Build trace spans for logging from the full execution result
     const { traceSpans, totalDuration } = buildTraceSpans(result)

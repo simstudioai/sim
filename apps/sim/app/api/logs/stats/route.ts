@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
           maxTime: sql<string>`MAX(${workflowExecutionLogs.startedAt})`,
         })
         .from(workflowExecutionLogs)
-        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
         .innerJoin(
           permissions,
           and(
@@ -103,8 +103,8 @@ export async function GET(request: NextRequest) {
 
       const statsQuery = await db
         .select({
-          workflowId: workflowExecutionLogs.workflowId,
-          workflowName: workflow.name,
+          workflowId: sql<string>`COALESCE(${workflowExecutionLogs.workflowId}, 'deleted')`,
+          workflowName: sql<string>`COALESCE(${workflow.name}, 'Deleted Workflow')`,
           segmentIndex:
             sql<number>`FLOOR(EXTRACT(EPOCH FROM (${workflowExecutionLogs.startedAt} - ${startTimeIso}::timestamp)) * 1000 / ${segmentMs})`.as(
               'segment_index'
@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
             ),
         })
         .from(workflowExecutionLogs)
-        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
         .innerJoin(
           permissions,
           and(
@@ -130,7 +130,11 @@ export async function GET(request: NextRequest) {
           )
         )
         .where(whereCondition)
-        .groupBy(workflowExecutionLogs.workflowId, workflow.name, sql`segment_index`)
+        .groupBy(
+          sql`COALESCE(${workflowExecutionLogs.workflowId}, 'deleted')`,
+          sql`COALESCE(${workflow.name}, 'Deleted Workflow')`,
+          sql`segment_index`
+        )
 
       const workflowMap = new Map<
         string,

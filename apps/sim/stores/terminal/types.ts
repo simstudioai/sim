@@ -19,6 +19,8 @@ export interface TerminalState {
   setOpenOnRun: (open: boolean) => void
   wrapText: boolean
   setWrapText: (wrap: boolean) => void
+  structuredView: boolean
+  setStructuredView: (structured: boolean) => void
   /**
    * Indicates whether the terminal is currently being resized via mouse drag.
    *

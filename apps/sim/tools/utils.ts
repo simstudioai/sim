@@ -75,6 +75,7 @@ interface RequestParams {
   method: string
   headers: Record<string, string>
   body?: string
+  timeout?: number
 }
 
 /**
@@ -122,7 +123,17 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     }
   }
 
-  return { url, method, headers, body }
+  // Get timeout from params (if specified) and validate
+  // Must be a finite positive number, max 600000ms (10 minutes) as documented
+  const MAX_TIMEOUT_MS = 600000
+  const rawTimeout = params.timeout
+  const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
+  const validTimeout =
+    timeout != null && Number.isFinite(timeout) && timeout > 0
+      ? Math.min(timeout, MAX_TIMEOUT_MS)
+      : undefined
+
+  return { url, method, headers, body, timeout: validTimeout }
 }
 
 /**

@@ -268,9 +268,7 @@ export const workflowExecutionSnapshots = pgTable(
   'workflow_execution_snapshots',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     stateHash: text('state_hash').notNull(),
     stateData: jsonb('state_data').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -290,9 +288,7 @@ export const workflowExecutionLogs = pgTable(
   'workflow_execution_logs',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
@@ -1634,6 +1630,7 @@ export const workflowDeploymentVersion = pgTable(
       .references(() => workflow.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
     name: text('name'),
+    description: text('description'),
     state: json('state').notNull(),
     isActive: boolean('is_active').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),

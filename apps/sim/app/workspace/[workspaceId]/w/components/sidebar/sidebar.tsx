@@ -73,7 +73,12 @@ export const Sidebar = memo(function Sidebar() {
 
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { canEdit } = useUserPermissionsContext()
-  const { config: permissionConfig } = usePermissionConfig()
+  const { config: permissionConfig, filterBlocks } = usePermissionConfig()
+  const initializeSearchData = useSearchModalStore((state) => state.initializeData)
+
+  useEffect(() => {
+    initializeSearchData(filterBlocks)
+  }, [initializeSearchData, filterBlocks])
 
   /**
    * Sidebar state from store with hydration tracking to prevent SSR mismatch.

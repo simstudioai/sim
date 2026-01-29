@@ -69,6 +69,15 @@ export const useTerminalStore = create<TerminalState>()(
       setWrapText: (wrap) => {
         set({ wrapText: wrap })
       },
+      structuredView: true,
+      /**
+       * Enables or disables structured view mode in the output panel.
+       *
+       * @param structured - Whether output should be displayed as nested blocks.
+       */
+      setStructuredView: (structured) => {
+        set({ structuredView: structured })
+      },
       /**
        * Indicates whether the terminal store has finished client-side hydration.
        */
