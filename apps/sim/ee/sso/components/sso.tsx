@@ -11,8 +11,8 @@ import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useOrganizations } from '@/hooks/queries/organization'
-import { useConfigureSSO, useSSOProviders } from '@/hooks/queries/sso'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('SSO')

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/ee/access-control/lib/types'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
 export interface PermissionGroup {

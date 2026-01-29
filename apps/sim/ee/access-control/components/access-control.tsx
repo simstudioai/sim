@@ -25,11 +25,9 @@ import {
 import { Input as BaseInput, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
 import { getAllBlocks } from '@/blocks'
-import { useOrganization, useOrganizations } from '@/hooks/queries/organization'
 import {
   type PermissionGroup,
   useBulkAddPermissionGroupMembers,
@@ -39,7 +37,9 @@ import {
   usePermissionGroups,
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
-} from '@/hooks/queries/permission-groups'
+} from '@/ee/access-control/hooks/permission-groups'
+import type { PermissionGroupConfig } from '@/ee/access-control/lib/types'
+import { useOrganization, useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { getAllProviderIds } from '@/providers/utils'

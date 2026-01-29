@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isAccessControlEnabled, isHosted } from '@/lib/core/config/feature-flags'
+import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
-} from '@/lib/permission-groups/types'
+} from '@/ee/access-control/lib/types'
 import { useOrganizations } from '@/hooks/queries/organization'
-import { useUserPermissionConfig } from '@/hooks/queries/permission-groups'
 
 export interface PermissionConfigResult {
   config: PermissionGroupConfig

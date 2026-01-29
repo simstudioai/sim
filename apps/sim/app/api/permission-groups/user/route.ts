@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { parsePermissionGroupConfig } from '@/lib/permission-groups/types'
+import { parsePermissionGroupConfig } from '@/ee/access-control/lib/types'
 
 export async function GET(req: Request) {
   const session = await getSession()
