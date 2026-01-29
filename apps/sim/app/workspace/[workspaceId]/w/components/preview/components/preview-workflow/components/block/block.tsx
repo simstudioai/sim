@@ -9,6 +9,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
+import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
@@ -112,7 +113,7 @@ function resolveWorkflowName(
   if (!rawValue || typeof rawValue !== 'string') return null
 
   const workflowMap = useWorkflowRegistry.getState().workflows
-  return workflowMap[rawValue]?.name ?? 'Deleted Workflow'
+  return workflowMap[rawValue]?.name ?? DELETED_WORKFLOW_LABEL
 }
 
 /**

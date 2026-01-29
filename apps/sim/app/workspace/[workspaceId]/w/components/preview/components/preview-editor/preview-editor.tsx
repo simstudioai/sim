@@ -34,6 +34,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
+import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
@@ -1327,7 +1328,9 @@ function PreviewEditorContent({
                     ) : (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <span className='text-[13px] text-[var(--text-tertiary)]'>
-                          {isMissingChildWorkflow ? 'Deleted Workflow' : 'Unable to load preview'}
+                          {isMissingChildWorkflow
+                            ? DELETED_WORKFLOW_LABEL
+                            : 'Unable to load preview'}
                         </span>
                       </div>
                     )}
