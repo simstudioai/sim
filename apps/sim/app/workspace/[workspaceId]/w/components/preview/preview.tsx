@@ -35,6 +35,7 @@ interface WorkflowStackEntry {
   workflowState: WorkflowState
   traceSpans: TraceSpan[]
   blockExecutions: Record<string, BlockExecutionData>
+  workflowName: string
 }
 
 /**
@@ -144,7 +145,6 @@ export function Preview({
   initialSelectedBlockId,
   autoSelectLeftmost = true,
 }: PreviewProps) {
-  /** Initialize pinnedBlockId synchronously to ensure sidebar is present from first render */
   const [pinnedBlockId, setPinnedBlockId] = useState<string | null>(() => {
     if (initialSelectedBlockId) return initialSelectedBlockId
     if (autoSelectLeftmost) {
@@ -153,17 +153,14 @@ export function Preview({
     return null
   })
 
-  /** Stack for nested workflow navigation. Empty means we're at the root level. */
   const [workflowStack, setWorkflowStack] = useState<WorkflowStackEntry[]>([])
 
-  /** Block executions for the root level */
   const rootBlockExecutions = useMemo(() => {
     if (providedBlockExecutions) return providedBlockExecutions
     if (!rootTraceSpans || !Array.isArray(rootTraceSpans)) return {}
     return buildBlockExecutions(rootTraceSpans)
   }, [providedBlockExecutions, rootTraceSpans])
 
-  /** Current block executions - either from stack or root */
   const blockExecutions = useMemo(() => {
     if (workflowStack.length > 0) {
       return workflowStack[workflowStack.length - 1].blockExecutions
@@ -171,7 +168,6 @@ export function Preview({
     return rootBlockExecutions
   }, [workflowStack, rootBlockExecutions])
 
-  /** Current workflow state - either from stack or root */
   const workflowState = useMemo(() => {
     if (workflowStack.length > 0) {
       return workflowStack[workflowStack.length - 1].workflowState
@@ -179,17 +175,17 @@ export function Preview({
     return rootWorkflowState
   }, [workflowStack, rootWorkflowState])
 
-  /** Whether we're in execution mode (have trace spans/block executions) */
   const isExecutionMode = useMemo(() => {
     return Object.keys(blockExecutions).length > 0
   }, [blockExecutions])
 
-  /** Handler to drill down into a nested workflow block */
   const handleDrillDown = useCallback(
     (blockId: string, childWorkflowState: WorkflowState) => {
       const blockExecution = blockExecutions[blockId]
       const childTraceSpans = extractChildTraceSpans(blockExecution)
       const childBlockExecutions = buildBlockExecutions(childTraceSpans)
+
+      const workflowName = childWorkflowState.metadata?.name || 'Nested Workflow'
 
       setWorkflowStack((prev) => [
         ...prev,
@@ -197,23 +193,21 @@ export function Preview({
           workflowState: childWorkflowState,
           traceSpans: childTraceSpans,
           blockExecutions: childBlockExecutions,
+          workflowName,
         },
       ])
 
-      /** Set pinned block synchronously to avoid double fitView from sidebar resize */
       const leftmostId = getLeftmostBlockId(childWorkflowState)
       setPinnedBlockId(leftmostId)
     },
     [blockExecutions]
   )
 
-  /** Handler to go back up the stack */
   const handleGoBack = useCallback(() => {
     setWorkflowStack((prev) => prev.slice(0, -1))
     setPinnedBlockId(null)
   }, [])
 
-  /** Handlers for node interactions - memoized to prevent unnecessary re-renders */
   const handleNodeClick = useCallback((blockId: string) => {
     setPinnedBlockId(blockId)
   }, [])
@@ -232,6 +226,8 @@ export function Preview({
 
   const isNested = workflowStack.length > 0
 
+  const currentWorkflowName = isNested ? workflowStack[workflowStack.length - 1].workflowName : null
+
   return (
     <div
       style={{ height, width }}
@@ -242,20 +238,27 @@ export function Preview({
       )}
     >
       {isNested && (
-        <div className='absolute top-[12px] left-[12px] z-20'>
+        <div className='absolute top-[12px] left-[12px] z-20 flex items-center gap-[6px]'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
                 onClick={handleGoBack}
-                className='flex h-[30px] items-center gap-[5px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] hover:bg-[var(--surface-4)]'
+                className='flex h-[28px] items-center gap-[5px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] text-[var(--text-secondary)] shadow-sm hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
               >
-                <ArrowLeft className='h-[13px] w-[13px]' />
-                <span className='font-medium text-[13px]'>Back</span>
+                <ArrowLeft className='h-[12px] w-[12px]' />
+                <span className='font-medium text-[12px]'>Back</span>
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
           </Tooltip.Root>
+          {currentWorkflowName && (
+            <div className='flex h-[28px] max-w-[200px] items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] shadow-sm'>
+              <span className='truncate font-medium text-[12px] text-[var(--text-secondary)]'>
+                {currentWorkflowName}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
