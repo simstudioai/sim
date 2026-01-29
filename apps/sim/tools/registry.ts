@@ -1642,7 +1642,6 @@ import {
 import { workflowExecutorTool } from '@/tools/workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from '@/tools/x'
 import {
-  youtubeCaptionsTool,
   youtubeChannelInfoTool,
   youtubeChannelPlaylistsTool,
   youtubeChannelVideosTool,
@@ -1985,7 +1984,6 @@ export const tools: Record<string, ToolConfig> = {
   typeform_create_form: typeformCreateFormTool,
   typeform_update_form: typeformUpdateFormTool,
   typeform_delete_form: typeformDeleteFormTool,
-  youtube_captions: youtubeCaptionsTool,
   youtube_channel_info: youtubeChannelInfoTool,
   youtube_channel_playlists: youtubeChannelPlaylistsTool,
   youtube_channel_videos: youtubeChannelVideosTool,

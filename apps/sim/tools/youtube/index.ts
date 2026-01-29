@@ -1,4 +1,3 @@
-import { youtubeCaptionsTool } from '@/tools/youtube/captions'
 import { youtubeChannelInfoTool } from '@/tools/youtube/channel_info'
 import { youtubeChannelPlaylistsTool } from '@/tools/youtube/channel_playlists'
 import { youtubeChannelVideosTool } from '@/tools/youtube/channel_videos'
@@ -16,6 +15,5 @@ export { youtubePlaylistItemsTool }
 export { youtubeCommentsTool }
 export { youtubeChannelVideosTool }
 export { youtubeChannelPlaylistsTool }
-export { youtubeCaptionsTool }
 export { youtubeTrendingTool }
 export { youtubeVideoCategoriesTool }

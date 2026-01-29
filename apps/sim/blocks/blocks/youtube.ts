@@ -9,7 +9,7 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
   description: 'Interact with YouTube videos, channels, and playlists',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video captions, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.',
+    'Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.',
   docsLink: 'https://docs.sim.ai/tools/youtube',
   category: 'tools',
   bgColor: '#FF0000',
@@ -23,7 +23,6 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
         { label: 'Search Videos', id: 'youtube_search' },
         { label: 'Get Trending Videos', id: 'youtube_trending' },
         { label: 'Get Video Details', id: 'youtube_video_details' },
-        { label: 'Get Video Captions', id: 'youtube_captions' },
         { label: 'Get Video Categories', id: 'youtube_video_categories' },
         { label: 'Get Channel Info', id: 'youtube_channel_info' },
         { label: 'Get Channel Videos', id: 'youtube_channel_videos' },
@@ -244,15 +243,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       required: true,
       condition: { field: 'operation', value: 'youtube_video_details' },
     },
-    // Get Video Captions operation inputs
-    {
-      id: 'videoId',
-      title: 'Video ID',
-      type: 'short-input',
-      placeholder: 'Enter YouTube video ID',
-      required: true,
-      condition: { field: 'operation', value: 'youtube_captions' },
-    },
     // Get Video Categories operation inputs
     {
       id: 'hl',
@@ -417,7 +407,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   ],
   tools: {
     access: [
-      'youtube_captions',
       'youtube_channel_info',
       'youtube_channel_playlists',
       'youtube_channel_videos',
@@ -442,8 +431,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'youtube_trending'
           case 'youtube_video_details':
             return 'youtube_video_details'
-          case 'youtube_captions':
-            return 'youtube_captions'
           case 'youtube_video_categories':
             return 'youtube_video_categories'
           case 'youtube_channel_info':
@@ -481,7 +468,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     relevanceLanguage: { type: 'string', description: 'Language code (ISO 639-1)' },
     safeSearch: { type: 'string', description: 'Safe search level' },
     hl: { type: 'string', description: 'Language for category names' },
-    // Video Details, Comments & Captions
+    // Video Details & Comments
     videoId: { type: 'string', description: 'YouTube video ID' },
     // Channel Info
     channelId: { type: 'string', description: 'YouTube channel ID' },

@@ -52,7 +52,7 @@ export const youtubeTrendingTool: ToolConfig<YouTubeTrendingParams, YouTubeTrend
         url += `&videoCategoryId=${params.videoCategoryId}`
       }
       if (params.pageToken) {
-        url += `&pageToken=${params.pageToken}`
+        url += `&pageToken=${encodeURIComponent(params.pageToken)}`
       }
       return url
     },

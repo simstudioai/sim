@@ -196,27 +196,6 @@ export interface YouTubeChannelPlaylistsResponse extends ToolResponse {
   }
 }
 
-export interface YouTubeCaptionsParams {
-  apiKey: string
-  videoId: string
-}
-
-export interface YouTubeCaptionsResponse extends ToolResponse {
-  output: {
-    items: Array<{
-      captionId: string
-      language: string
-      name: string
-      trackKind: string
-      lastUpdated: string
-      isCC: boolean
-      isAutoSynced: boolean
-      audioTrackType: string | null
-    }>
-    totalResults: number
-  }
-}
-
 export interface YouTubeTrendingParams {
   apiKey: string
   regionCode?: string
@@ -270,6 +249,5 @@ export type YouTubeResponse =
   | YouTubeCommentsResponse
   | YouTubeChannelVideosResponse
   | YouTubeChannelPlaylistsResponse
-  | YouTubeCaptionsResponse
   | YouTubeTrendingResponse
   | YouTubeVideoCategoriesResponse
