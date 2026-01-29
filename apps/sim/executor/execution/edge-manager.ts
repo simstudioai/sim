@@ -243,7 +243,7 @@ export class EdgeManager {
     }
 
     for (const [, outgoingEdge] of targetNode.outgoingEdges) {
-      if (!this.isControlEdge(outgoingEdge.sourceHandle)) {
+      if (!this.isBackwardsEdge(outgoingEdge.sourceHandle)) {
         this.deactivateEdgeAndDescendants(
           targetId,
           outgoingEdge.target,
