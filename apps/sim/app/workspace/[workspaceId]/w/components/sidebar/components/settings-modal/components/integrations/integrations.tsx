@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { createElement, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Check, ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -339,9 +339,7 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
                     >
                       <div className='flex items-center gap-[12px]'>
                         <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-[var(--surface-5)]'>
-                          {typeof service.icon === 'function'
-                            ? service.icon({ className: 'h-4 w-4' })
-                            : service.icon}
+                          {createElement(service.icon, { className: 'h-4 w-4' })}
                         </div>
                         <div className='flex flex-col justify-center gap-[1px]'>
                           <span className='font-medium text-[14px]'>{service.name}</span>
