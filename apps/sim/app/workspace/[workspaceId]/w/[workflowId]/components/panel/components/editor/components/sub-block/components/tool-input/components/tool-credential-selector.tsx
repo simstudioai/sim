@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { Button, Combobox } from '@/components/emcn/components'
 import {
@@ -22,7 +22,7 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   if (!baseProviderConfig) {
     return <ExternalLink className='h-3 w-3' />
   }
-  return baseProviderConfig.icon({ className: 'h-3 w-3' })
+  return createElement(baseProviderConfig.icon, { className: 'h-3 w-3' })
 }
 
 const getProviderName = (providerName: OAuthProvider) => {

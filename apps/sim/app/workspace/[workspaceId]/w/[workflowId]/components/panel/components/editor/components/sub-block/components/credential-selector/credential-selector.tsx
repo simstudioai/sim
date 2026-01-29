@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ExternalLink, Users } from 'lucide-react'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -203,7 +203,7 @@ export function CredentialSelector({
     if (!baseProviderConfig) {
       return <ExternalLink className='h-3 w-3' />
     }
-    return baseProviderConfig.icon({ className: 'h-3 w-3' })
+    return createElement(baseProviderConfig.icon, { className: 'h-3 w-3' })
   }, [])
 
   const getProviderName = useCallback((providerName: OAuthProvider) => {
