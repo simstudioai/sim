@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockOutput } from '@/blocks/types'
@@ -57,6 +58,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     const workflowMetadata = workflows[workflowId]
     let childWorkflowName = workflowMetadata?.name || workflowId
 
+    let childWorkflowSnapshotId: string | undefined
     try {
       const currentDepth = (ctx.workflowId?.split('_sub_').length || 1) - 1
       if (currentDepth >= DEFAULTS.MAX_WORKFLOW_DEPTH) {
@@ -107,6 +109,12 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowInput = inputs.input
       }
 
+      const childSnapshotResult = await snapshotService.createSnapshotWithDeduplication(
+        workflowId,
+        childWorkflow.workflowState
+      )
+      childWorkflowSnapshotId = childSnapshotResult.snapshot.id
+
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
         workflowInput: childWorkflowInput,
@@ -139,7 +147,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowId,
         childWorkflowName,
         duration,
-        childTraceSpans
+        childTraceSpans,
+        childWorkflowSnapshotId
       )
 
       return mappedResult
@@ -172,6 +181,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowName,
         childTraceSpans,
         executionResult,
+        childWorkflowSnapshotId,
         cause: error instanceof Error ? error : undefined,
       })
     }
@@ -279,6 +289,10 @@ export class WorkflowBlockHandler implements BlockHandler {
     )
 
     const workflowVariables = (workflowData.variables as Record<string, any>) || {}
+    const workflowStateWithVariables = {
+      ...workflowState,
+      variables: workflowVariables,
+    }
 
     if (Object.keys(workflowVariables).length > 0) {
       logger.info(
@@ -290,6 +304,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       name: workflowData.name,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
+      workflowState: workflowStateWithVariables,
       rawBlocks: workflowState.blocks,
     }
   }
@@ -358,11 +373,16 @@ export class WorkflowBlockHandler implements BlockHandler {
     )
 
     const workflowVariables = (wfData?.variables as Record<string, any>) || {}
+    const workflowStateWithVariables = {
+      ...deployedState,
+      variables: workflowVariables,
+    }
 
     return {
       name: wfData?.name || DEFAULTS.WORKFLOW_NAME,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
+      workflowState: workflowStateWithVariables,
       rawBlocks: deployedState.blocks,
     }
   }
@@ -504,7 +524,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     childWorkflowId: string,
     childWorkflowName: string,
     duration: number,
-    childTraceSpans?: WorkflowTraceSpan[]
+    childTraceSpans?: WorkflowTraceSpan[],
+    childWorkflowSnapshotId?: string
   ): BlockOutput {
     const success = childResult.success !== false
     const result = childResult.output || {}
@@ -521,6 +542,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     return {
       success: true,
       childWorkflowName,
+      childWorkflowId,
+      childWorkflowSnapshotId,
       result,
       childTraceSpans: childTraceSpans || [],
     } as Record<string, any>

@@ -210,6 +210,7 @@ export interface ExecutionSnapshotData {
   executionId: string
   workflowId: string
   workflowState: Record<string, unknown>
+  childWorkflowSnapshots?: Record<string, Record<string, unknown>>
   executionMetadata: {
     trigger: string
     startedAt: string

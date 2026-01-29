@@ -19,6 +19,8 @@ interface TraceSpan {
   status?: string
   duration?: number
   children?: TraceSpan[]
+  childWorkflowSnapshotId?: string
+  childWorkflowId?: string
 }
 
 interface BlockExecutionData {
@@ -28,6 +30,7 @@ interface BlockExecutionData {
   durationMs: number
   /** Child trace spans for nested workflow blocks */
   children?: TraceSpan[]
+  childWorkflowSnapshotId?: string
 }
 
 /** Represents a level in the workflow navigation stack */
@@ -89,6 +92,7 @@ export function buildBlockExecutions(spans: TraceSpan[]): Record<string, BlockEx
         status: span.status || 'unknown',
         durationMs: span.duration || 0,
         children: span.children,
+        childWorkflowSnapshotId: span.childWorkflowSnapshotId,
       }
     }
   }
@@ -103,6 +107,8 @@ interface PreviewProps {
   traceSpans?: TraceSpan[]
   /** Pre-computed block executions (optional - will be built from traceSpans if not provided) */
   blockExecutions?: Record<string, BlockExecutionData>
+  /** Child workflow snapshots keyed by snapshot ID (execution mode only) */
+  childWorkflowSnapshots?: Record<string, WorkflowState>
   /** Additional CSS class names */
   className?: string
   /** Height of the component */
@@ -135,6 +141,7 @@ export function Preview({
   workflowState: rootWorkflowState,
   traceSpans: rootTraceSpans,
   blockExecutions: providedBlockExecutions,
+  childWorkflowSnapshots,
   className,
   height = '100%',
   width = '100%',
@@ -284,6 +291,7 @@ export function Preview({
           loops={workflowState.loops}
           parallels={workflowState.parallels}
           isExecutionMode={isExecutionMode}
+          childWorkflowSnapshots={childWorkflowSnapshots}
           onClose={handleEditorClose}
           onDrillDown={handleDrillDown}
         />

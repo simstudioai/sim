@@ -178,6 +178,8 @@ export interface TraceSpan {
   blockId?: string
   input?: Record<string, unknown>
   output?: Record<string, unknown>
+  childWorkflowSnapshotId?: string
+  childWorkflowId?: string
   model?: string
   cost?: {
     input?: number

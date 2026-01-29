@@ -690,6 +690,7 @@ interface ExecutionData {
   output?: unknown
   status?: string
   durationMs?: number
+  childWorkflowSnapshotId?: string
 }
 
 interface WorkflowVariable {
@@ -714,6 +715,8 @@ interface PreviewEditorProps {
   parallels?: Record<string, Parallel>
   /** When true, shows "Not Executed" badge if no executionData is provided */
   isExecutionMode?: boolean
+  /** Child workflow snapshots keyed by snapshot ID (execution mode only) */
+  childWorkflowSnapshots?: Record<string, WorkflowState>
   /** Optional close handler - if not provided, no close button is shown */
   onClose?: () => void
   /** Callback to drill down into a nested workflow block */
@@ -739,6 +742,7 @@ function PreviewEditorContent({
   loops,
   parallels,
   isExecutionMode = false,
+  childWorkflowSnapshots,
   onClose,
   onDrillDown,
 }: PreviewEditorProps) {
@@ -768,17 +772,31 @@ function PreviewEditorContent({
   const { data: childWorkflowState, isLoading: isLoadingChildWorkflow } = useWorkflowState(
     childWorkflowId ?? undefined
   )
+  const childWorkflowSnapshotId = executionData?.childWorkflowSnapshotId
+  const childWorkflowSnapshotState = childWorkflowSnapshotId
+    ? childWorkflowSnapshots?.[childWorkflowSnapshotId]
+    : undefined
 
   /** Drills down into the child workflow or opens it in a new tab */
   const handleExpandChildWorkflow = useCallback(() => {
-    if (!childWorkflowId || !childWorkflowState) return
+    if (!childWorkflowId) return
 
     if (isExecutionMode && onDrillDown) {
-      onDrillDown(block.id, childWorkflowState)
+      const resolvedChildState = childWorkflowSnapshotState ?? childWorkflowState
+      if (!resolvedChildState) return
+      onDrillDown(block.id, resolvedChildState)
     } else if (workspaceId) {
       window.open(`/workspace/${workspaceId}/w/${childWorkflowId}`, '_blank', 'noopener,noreferrer')
     }
-  }, [childWorkflowId, childWorkflowState, isExecutionMode, onDrillDown, block.id, workspaceId])
+  }, [
+    childWorkflowId,
+    childWorkflowSnapshotState,
+    childWorkflowState,
+    isExecutionMode,
+    onDrillDown,
+    block.id,
+    workspaceId,
+  ])
 
   const contentRef = useRef<HTMLDivElement>(null)
   const subBlocksRef = useRef<HTMLDivElement>(null)

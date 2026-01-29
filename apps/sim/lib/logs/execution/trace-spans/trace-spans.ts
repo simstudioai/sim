@@ -112,6 +112,26 @@ export function buildTraceSpans(result: ExecutionResult): {
     const duration = log.durationMs || 0
 
     let output = log.output || {}
+    let childWorkflowSnapshotId: string | undefined
+    let childWorkflowId: string | undefined
+
+    if (output && typeof output === 'object') {
+      const outputRecord = output as Record<string, unknown>
+      childWorkflowSnapshotId =
+        typeof outputRecord.childWorkflowSnapshotId === 'string'
+          ? outputRecord.childWorkflowSnapshotId
+          : undefined
+      childWorkflowId =
+        typeof outputRecord.childWorkflowId === 'string' ? outputRecord.childWorkflowId : undefined
+      if (childWorkflowSnapshotId || childWorkflowId) {
+        const {
+          childWorkflowSnapshotId: _childSnapshotId,
+          childWorkflowId: _childWorkflowId,
+          ...outputRest
+        } = outputRecord
+        output = outputRest
+      }
+    }
 
     if (log.error) {
       output = {
@@ -134,6 +154,8 @@ export function buildTraceSpans(result: ExecutionResult): {
       blockId: log.blockId,
       input: log.input || {},
       output: output,
+      ...(childWorkflowSnapshotId ? { childWorkflowSnapshotId } : {}),
+      ...(childWorkflowId ? { childWorkflowId } : {}),
       ...(log.loopId && { loopId: log.loopId }),
       ...(log.parallelId && { parallelId: log.parallelId }),
       ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),
