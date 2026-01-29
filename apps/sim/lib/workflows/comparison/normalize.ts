@@ -46,9 +46,6 @@ export const EXCLUDED_BLOCK_DATA_FIELDS: readonly string[] = [
   // Parallel fields - duplicated in parallels state and/or subBlocks
   'parallelType', // Duplicated in parallels state
   'distribution', // Parallel distribution (derived during execution)
-
-  // UI state fields
-  'canonicalModes', // UI state for basic/advanced mode selection per canonical param
 ] as const
 
 /**
