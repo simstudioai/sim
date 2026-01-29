@@ -67,6 +67,22 @@ import {
   SetGlobalWorkflowVariablesInput,
   setGlobalWorkflowVariablesServerTool,
 } from '../tools/server/workflow/set-global-workflow-variables'
+import {
+  GetBlockUpstreamReferencesInput,
+  getBlockUpstreamReferencesServerTool,
+} from '../tools/server/workflow/get-block-upstream-references'
+import {
+  GetWorkflowDataInput,
+  getWorkflowDataServerTool,
+} from '../tools/server/workflow/get-workflow-data'
+import {
+  ManageCustomToolInput,
+  manageCustomToolServerTool,
+} from '../tools/server/workflow/manage-custom-tool'
+import {
+  ManageMcpToolInput,
+  manageMcpToolServerTool,
+} from '../tools/server/workflow/manage-mcp-tool'
 // Import schemas
 import {
   EditWorkflowInput,
@@ -241,6 +257,26 @@ const TOOL_REGISTRY: Record<string, ToolRegistration> = {
     inputSchema: GetBlockOutputsInput,
     requiresAuth: true,
     execute: createExecutor(getBlockOutputsServerTool),
+  },
+  get_block_upstream_references: {
+    inputSchema: GetBlockUpstreamReferencesInput,
+    requiresAuth: true,
+    execute: createExecutor(getBlockUpstreamReferencesServerTool),
+  },
+  get_workflow_data: {
+    inputSchema: GetWorkflowDataInput,
+    requiresAuth: true,
+    execute: createExecutor(getWorkflowDataServerTool),
+  },
+  manage_custom_tool: {
+    inputSchema: ManageCustomToolInput,
+    requiresAuth: true,
+    execute: createExecutor(manageCustomToolServerTool),
+  },
+  manage_mcp_tool: {
+    inputSchema: ManageMcpToolInput,
+    requiresAuth: true,
+    execute: createExecutor(manageMcpToolServerTool),
   },
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -1,14 +1,10 @@
-import { createLogger } from '@sim/logger'
 import { Database, Loader2, MinusCircle, PlusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import {
-  ExecuteResponseSuccessSchema,
-  type KnowledgeBaseArgs,
-} from '@/lib/copilot/tools/shared/schemas'
+import type { KnowledgeBaseArgs } from '@/lib/copilot/tools/shared/schemas'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 
 /**
@@ -89,42 +85,6 @@ export class KnowledgeBaseClientTool extends BaseClientTool {
     },
   }
 
-  async handleReject(): Promise<void> {
-    await super.handleReject()
-    this.setState(ClientToolCallState.rejected)
-  }
-
-  async handleAccept(args?: KnowledgeBaseArgs): Promise<void> {
-    await this.execute(args)
-  }
-
-  async execute(args?: KnowledgeBaseArgs): Promise<void> {
-    const logger = createLogger('KnowledgeBaseClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-      const payload: KnowledgeBaseArgs = { ...(args || { operation: 'list' }) }
-
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'knowledge_base', payload }),
-      })
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(txt || `Server error (${res.status})`)
-      }
-
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-
-      this.setState(ClientToolCallState.success)
-      await this.markToolComplete(200, 'Knowledge base operation completed', parsed.result)
-      this.setState(ClientToolCallState.success)
-    } catch (e: any) {
-      logger.error('execute failed', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to access knowledge base')
-    }
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only
 }

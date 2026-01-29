@@ -1,20 +1,10 @@
-import { createLogger } from '@sim/logger'
 import { ListFilter, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import {
-  ExecuteResponseSuccessSchema,
-  GetBlockOptionsInput,
-  GetBlockOptionsResult,
-} from '@/lib/copilot/tools/shared/schemas'
 import { getLatestBlock } from '@/blocks/registry'
-
-interface GetBlockOptionsArgs {
-  blockId: string
-}
 
 export class GetBlockOptionsClientTool extends BaseClientTool {
   static readonly id = 'get_block_options'
@@ -65,46 +55,6 @@ export class GetBlockOptionsClientTool extends BaseClientTool {
     },
   }
 
-  async execute(args?: GetBlockOptionsArgs): Promise<void> {
-    const logger = createLogger('GetBlockOptionsClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-
-      // Handle both camelCase and snake_case parameter names, plus blockType as an alias
-      const normalizedArgs = args
-        ? {
-            blockId:
-              args.blockId ||
-              (args as any).block_id ||
-              (args as any).blockType ||
-              (args as any).block_type,
-          }
-        : {}
-
-      logger.info('execute called', { originalArgs: args, normalizedArgs })
-
-      const { blockId } = GetBlockOptionsInput.parse(normalizedArgs)
-
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'get_block_options', payload: { blockId } }),
-      })
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => '')
-        throw new Error(errorText || `Server error (${res.status})`)
-      }
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-      const result = GetBlockOptionsResult.parse(parsed.result)
-
-      await this.markToolComplete(200, { operations: result.operations.length }, result)
-      this.setState(ClientToolCallState.success)
-    } catch (error: any) {
-      const message = error instanceof Error ? error.message : String(error)
-      logger.error('Execute failed', { message })
-      await this.markToolComplete(500, message)
-      this.setState(ClientToolCallState.error)
-    }
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only
 }

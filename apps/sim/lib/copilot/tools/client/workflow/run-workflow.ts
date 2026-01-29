@@ -1,22 +1,11 @@
-import { createLogger } from '@sim/logger'
 import { Loader2, MinusCircle, Play, XCircle } from 'lucide-react'
-import { v4 as uuidv4 } from 'uuid'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
-  WORKFLOW_EXECUTION_TIMEOUT_MS,
 } from '@/lib/copilot/tools/client/base-tool'
 import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
-import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { useExecutionStore } from '@/stores/execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-
-interface RunWorkflowArgs {
-  workflowId?: string
-  description?: string
-  workflow_input?: Record<string, any>
-}
 
 export class RunWorkflowClientTool extends BaseClientTool {
   static readonly id = 'run_workflow'
@@ -112,119 +101,9 @@ export class RunWorkflowClientTool extends BaseClientTool {
     },
   }
 
-  async handleReject(): Promise<void> {
-    await super.handleReject()
-    this.setState(ClientToolCallState.rejected)
-  }
-
-  async handleAccept(args?: RunWorkflowArgs): Promise<void> {
-    const logger = createLogger('RunWorkflowClientTool')
-
-    // Use longer timeout for workflow execution (10 minutes)
-    await this.executeWithTimeout(async () => {
-      const params = args || {}
-      logger.debug('handleAccept() called', {
-        toolCallId: this.toolCallId,
-        state: this.getState(),
-        hasArgs: !!args,
-        argKeys: args ? Object.keys(args) : [],
-      })
-
-      // prevent concurrent execution
-      const { isExecuting, setIsExecuting } = useExecutionStore.getState()
-      if (isExecuting) {
-        logger.debug('Execution prevented: already executing')
-        this.setState(ClientToolCallState.error)
-        await this.markToolComplete(
-          409,
-          'The workflow is already in the middle of an execution. Try again later'
-        )
-        return
-      }
-
-      const { activeWorkflowId } = useWorkflowRegistry.getState()
-      if (!activeWorkflowId) {
-        logger.debug('Execution prevented: no active workflow')
-        this.setState(ClientToolCallState.error)
-        await this.markToolComplete(400, 'No active workflow found')
-        return
-      }
-      logger.debug('Using active workflow', { activeWorkflowId })
-
-      const workflowInput = params.workflow_input || undefined
-      if (workflowInput) {
-        logger.debug('Workflow input provided', {
-          inputFields: Object.keys(workflowInput),
-          inputPreview: JSON.stringify(workflowInput).slice(0, 120),
-        })
-      }
-
-      setIsExecuting(true)
-      logger.debug('Set isExecuting(true) and switching state to executing')
-      this.setState(ClientToolCallState.executing)
-
-      const executionId = uuidv4()
-      const executionStartTime = new Date().toISOString()
-      logger.debug('Starting workflow execution', {
-        executionStartTime,
-        executionId,
-        toolCallId: this.toolCallId,
-      })
-
-      try {
-        const result = await executeWorkflowWithFullLogging({
-          workflowInput,
-          executionId,
-        })
-
-        // Determine success for both non-streaming and streaming executions
-        let succeeded = true
-        let errorMessage: string | undefined
-        try {
-          if (result && typeof result === 'object' && 'success' in (result as any)) {
-            succeeded = Boolean((result as any).success)
-            if (!succeeded) {
-              errorMessage = (result as any)?.error || (result as any)?.output?.error
-            }
-          } else if (
-            result &&
-            typeof result === 'object' &&
-            'execution' in (result as any) &&
-            (result as any).execution &&
-            typeof (result as any).execution === 'object'
-          ) {
-            succeeded = Boolean((result as any).execution.success)
-            if (!succeeded) {
-              errorMessage =
-                (result as any).execution?.error || (result as any).execution?.output?.error
-            }
-          }
-        } catch {}
-
-        if (succeeded) {
-          logger.debug('Workflow execution finished with success')
-          this.setState(ClientToolCallState.success)
-          await this.markToolComplete(
-            200,
-            `Workflow execution completed. Started at: ${executionStartTime}`
-          )
-        } else {
-          const msg = errorMessage || 'Workflow execution failed'
-          logger.error('Workflow execution finished with failure', { message: msg })
-          this.setState(ClientToolCallState.error)
-          await this.markToolComplete(500, msg)
-        }
-      } finally {
-        // Always clean up execution state
-        setIsExecuting(false)
-      }
-    }, WORKFLOW_EXECUTION_TIMEOUT_MS)
-  }
-
-  async execute(args?: RunWorkflowArgs): Promise<void> {
-    // For compatibility if execute() is explicitly invoked, route to handleAccept
-    await this.handleAccept(args)
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only for rendering tool call cards
+  // Workflow execution happens entirely on the server
 }
 
 // Register UI config at module load

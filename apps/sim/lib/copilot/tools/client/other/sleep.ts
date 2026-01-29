@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { Loader2, MinusCircle, Moon, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -6,16 +5,6 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
-
-/** Maximum sleep duration in seconds (3 minutes) */
-const MAX_SLEEP_SECONDS = 180
-
-/** Track sleep start times for calculating elapsed time on wake */
-const sleepStartTimes: Record<string, number> = {}
-
-interface SleepArgs {
-  seconds?: number
-}
 
 /**
  * Format seconds into a human-readable duration string
@@ -87,70 +76,8 @@ export class SleepClientTool extends BaseClientTool {
     },
   }
 
-  /**
-   * Get elapsed seconds since sleep started
-   */
-  getElapsedSeconds(): number {
-    const startTime = sleepStartTimes[this.toolCallId]
-    if (!startTime) return 0
-    return (Date.now() - startTime) / 1000
-  }
-
-  async handleReject(): Promise<void> {
-    await super.handleReject()
-    this.setState(ClientToolCallState.rejected)
-  }
-
-  async handleAccept(args?: SleepArgs): Promise<void> {
-    const logger = createLogger('SleepClientTool')
-
-    // Use a timeout slightly longer than max sleep (3 minutes + buffer)
-    const timeoutMs = (MAX_SLEEP_SECONDS + 30) * 1000
-
-    await this.executeWithTimeout(async () => {
-      const params = args || {}
-      logger.debug('handleAccept() called', {
-        toolCallId: this.toolCallId,
-        state: this.getState(),
-        hasArgs: !!args,
-        seconds: params.seconds,
-      })
-
-      // Validate and clamp seconds
-      let seconds = typeof params.seconds === 'number' ? params.seconds : 0
-      if (seconds < 0) seconds = 0
-      if (seconds > MAX_SLEEP_SECONDS) seconds = MAX_SLEEP_SECONDS
-
-      logger.debug('Starting sleep', { seconds })
-
-      // Track start time for elapsed calculation
-      sleepStartTimes[this.toolCallId] = Date.now()
-
-      this.setState(ClientToolCallState.executing)
-
-      try {
-        // Sleep for the specified duration
-        await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
-
-        logger.debug('Sleep completed successfully')
-        this.setState(ClientToolCallState.success)
-        await this.markToolComplete(200, `Slept for ${seconds} seconds`)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        logger.error('Sleep failed', { error: message })
-        this.setState(ClientToolCallState.error)
-        await this.markToolComplete(500, message)
-      } finally {
-        // Clean up start time tracking
-        delete sleepStartTimes[this.toolCallId]
-      }
-    }, timeoutMs)
-  }
-
-  async execute(args?: SleepArgs): Promise<void> {
-    // Auto-execute without confirmation - go straight to executing
-    await this.handleAccept(args)
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only
 }
 
 // Register UI config at module load

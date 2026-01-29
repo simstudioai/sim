@@ -46,7 +46,6 @@ export class SearchOnlineClientTool extends BaseClientTool {
     },
   }
 
-  async execute(): Promise<void> {
-    return
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only
 }

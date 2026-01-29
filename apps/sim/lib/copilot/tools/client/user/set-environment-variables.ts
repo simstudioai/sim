@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { Loader2, Settings2, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -6,14 +5,6 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
-import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
-import { useEnvironmentStore } from '@/stores/settings/environment'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-
-interface SetEnvArgs {
-  variables: Record<string, string>
-  workflowId?: string
-}
 
 export class SetEnvironmentVariablesClientTool extends BaseClientTool {
   static readonly id = 'set_environment_variables'
@@ -102,52 +93,8 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
     },
   }
 
-  async handleReject(): Promise<void> {
-    await super.handleReject()
-    this.setState(ClientToolCallState.rejected)
-  }
-
-  async handleAccept(args?: SetEnvArgs): Promise<void> {
-    const logger = createLogger('SetEnvironmentVariablesClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-      const payload: SetEnvArgs = { ...(args || { variables: {} }) }
-      if (!payload.workflowId) {
-        const { activeWorkflowId } = useWorkflowRegistry.getState()
-        if (activeWorkflowId) payload.workflowId = activeWorkflowId
-      }
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'set_environment_variables', payload }),
-      })
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(txt || `Server error (${res.status})`)
-      }
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-      this.setState(ClientToolCallState.success)
-      await this.markToolComplete(200, 'Environment variables updated', parsed.result)
-      this.setState(ClientToolCallState.success)
-
-      // Refresh the environment store so the UI reflects the new variables
-      try {
-        await useEnvironmentStore.getState().loadEnvironmentVariables()
-        logger.info('Environment store refreshed after setting variables')
-      } catch (error) {
-        logger.warn('Failed to refresh environment store:', error)
-      }
-    } catch (e: any) {
-      logger.error('execute failed', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to set environment variables')
-    }
-  }
-
-  async execute(args?: SetEnvArgs): Promise<void> {
-    await this.handleAccept(args)
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only
 }
 
 // Register UI config at module load

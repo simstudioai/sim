@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { Loader2, Plus, Server, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -6,7 +5,6 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export interface CreateWorkspaceMcpServerArgs {
   /** Name of the MCP server */
@@ -79,77 +77,6 @@ export class CreateWorkspaceMcpServerClientTool extends BaseClientTool {
     },
   }
 
-  async handleReject(): Promise<void> {
-    await super.handleReject()
-    this.setState(ClientToolCallState.rejected)
-  }
-
-  async handleAccept(args?: CreateWorkspaceMcpServerArgs): Promise<void> {
-    const logger = createLogger('CreateWorkspaceMcpServerClientTool')
-    try {
-      if (!args?.name) {
-        throw new Error('Server name is required')
-      }
-
-      // Get workspace ID from active workflow if not provided
-      const { activeWorkflowId, workflows } = useWorkflowRegistry.getState()
-      let workspaceId = args?.workspaceId
-
-      if (!workspaceId && activeWorkflowId) {
-        workspaceId = workflows[activeWorkflowId]?.workspaceId
-      }
-
-      if (!workspaceId) {
-        throw new Error('No workspace ID available')
-      }
-
-      this.setState(ClientToolCallState.executing)
-
-      const res = await fetch('/api/mcp/workflow-servers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId,
-          name: args.name.trim(),
-          description: args.description?.trim() || null,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || `Failed to create MCP server (${res.status})`)
-      }
-
-      const server = data.data?.server
-      if (!server) {
-        throw new Error('Server creation response missing server data')
-      }
-
-      this.setState(ClientToolCallState.success)
-      await this.markToolComplete(
-        200,
-        `MCP server "${args.name}" created successfully. You can now deploy workflows to it using deploy_mcp.`,
-        {
-          success: true,
-          serverId: server.id,
-          serverName: server.name,
-          description: server.description,
-        }
-      )
-
-      logger.info(`Created MCP server: ${server.name} (${server.id})`)
-    } catch (e: any) {
-      logger.error('Failed to create MCP server', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to create MCP server', {
-        success: false,
-        error: e?.message,
-      })
-    }
-  }
-
-  async execute(args?: CreateWorkspaceMcpServerArgs): Promise<void> {
-    await this.handleAccept(args)
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only
 }

@@ -1,12 +1,9 @@
-import { createLogger } from '@sim/logger'
 import { ListChecks, Loader2, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-
-const logger = createLogger('ListUserWorkflowsClientTool')
 
 export class ListUserWorkflowsClientTool extends BaseClientTool {
   static readonly id = 'list_user_workflows'
@@ -27,34 +24,6 @@ export class ListUserWorkflowsClientTool extends BaseClientTool {
     },
   }
 
-  async execute(): Promise<void> {
-    try {
-      this.setState(ClientToolCallState.executing)
-
-      const res = await fetch('/api/workflows', { method: 'GET' })
-      if (!res.ok) {
-        const text = await res.text().catch(() => '')
-        await this.markToolComplete(res.status, text || 'Failed to fetch workflows')
-        this.setState(ClientToolCallState.error)
-        return
-      }
-
-      const json = await res.json()
-      const workflows = Array.isArray(json?.data) ? json.data : []
-      const names = workflows
-        .map((w: any) => (typeof w?.name === 'string' ? w.name : null))
-        .filter((n: string | null) => !!n)
-
-      logger.info('Found workflows', { count: names.length })
-
-      await this.markToolComplete(200, `Found ${names.length} workflow(s)`, {
-        workflow_names: names,
-      })
-      this.setState(ClientToolCallState.success)
-    } catch (error: any) {
-      const message = error instanceof Error ? error.message : String(error)
-      await this.markToolComplete(500, message || 'Failed to list workflows')
-      this.setState(ClientToolCallState.error)
-    }
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only
 }

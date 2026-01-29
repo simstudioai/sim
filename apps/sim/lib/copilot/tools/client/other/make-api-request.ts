@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { Globe2, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -6,15 +5,6 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
-import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
-
-interface MakeApiRequestArgs {
-  url: string
-  method: 'GET' | 'POST' | 'PUT'
-  queryParams?: Record<string, string | number | boolean>
-  headers?: Record<string, string>
-  body?: any
-}
 
 export class MakeApiRequestClientTool extends BaseClientTool {
   static readonly id = 'make_api_request'
@@ -88,39 +78,8 @@ export class MakeApiRequestClientTool extends BaseClientTool {
     },
   }
 
-  async handleReject(): Promise<void> {
-    await super.handleReject()
-    this.setState(ClientToolCallState.rejected)
-  }
-
-  async handleAccept(args?: MakeApiRequestArgs): Promise<void> {
-    const logger = createLogger('MakeApiRequestClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'make_api_request', payload: args || {} }),
-      })
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(txt || `Server error (${res.status})`)
-      }
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-      this.setState(ClientToolCallState.success)
-      await this.markToolComplete(200, 'API request executed', parsed.result)
-      this.setState(ClientToolCallState.success)
-    } catch (e: any) {
-      logger.error('execute failed', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'API request failed')
-    }
-  }
-
-  async execute(args?: MakeApiRequestArgs): Promise<void> {
-    await this.handleAccept(args)
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only
 }
 
 // Register UI config at module load

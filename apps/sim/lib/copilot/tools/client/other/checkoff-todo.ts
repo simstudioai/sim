@@ -1,15 +1,9 @@
-import { createLogger } from '@sim/logger'
 import { Check, Loader2, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-
-interface CheckoffTodoArgs {
-  id?: string
-  todoId?: string
-}
 
 export class CheckoffTodoClientTool extends BaseClientTool {
   static readonly id = 'checkoff_todo'
@@ -27,35 +21,6 @@ export class CheckoffTodoClientTool extends BaseClientTool {
     },
   }
 
-  async execute(args?: CheckoffTodoArgs): Promise<void> {
-    const logger = createLogger('CheckoffTodoClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-
-      const todoId = args?.id || args?.todoId
-      if (!todoId) {
-        this.setState(ClientToolCallState.error)
-        await this.markToolComplete(400, 'Missing todo id')
-        return
-      }
-
-      try {
-        const { useCopilotStore } = await import('@/stores/panel/copilot/store')
-        const store = useCopilotStore.getState()
-        if (store.updatePlanTodoStatus) {
-          store.updatePlanTodoStatus(todoId, 'completed')
-        }
-      } catch (e) {
-        logger.warn('Failed to update todo status in store', { message: (e as any)?.message })
-      }
-
-      this.setState(ClientToolCallState.success)
-      await this.markToolComplete(200, 'Todo checked off', { todoId })
-      this.setState(ClientToolCallState.success)
-    } catch (e: any) {
-      logger.error('execute failed', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to check off todo')
-    }
-  }
+  // Executed server-side via handleToolCallEvent in stream-handler.ts
+  // Client tool provides UI metadata only
 }
