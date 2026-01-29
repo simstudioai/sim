@@ -111,9 +111,25 @@ export interface ProviderToolConfig {
   usageControl?: ToolUsageControl
 }
 
+/**
+ * Media content for multimodal messages
+ */
+export interface MediaContent {
+  /** Mode: basic (file upload) or advanced (URL/base64 text input) */
+  mode: 'basic' | 'advanced'
+  /** The URL or base64 data */
+  data: string
+  /** MIME type (e.g., 'image/png', 'application/pdf', 'audio/mp3') */
+  mimeType?: string
+  /** Optional filename for file uploads */
+  fileName?: string
+}
+
 export interface Message {
-  role: 'system' | 'user' | 'assistant' | 'function' | 'tool'
+  role: 'system' | 'user' | 'assistant' | 'function' | 'tool' | 'media'
   content: string | null
+  /** Media content for 'media' role messages */
+  media?: MediaContent
   name?: string
   function_call?: {
     name: string

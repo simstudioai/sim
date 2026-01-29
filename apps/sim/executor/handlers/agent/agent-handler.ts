@@ -58,7 +58,12 @@ export class AgentBlockHandler implements BlockHandler {
     const providerId = getProviderFromModel(model)
     const formattedTools = await this.formatTools(ctx, filteredInputs.tools || [])
     const streamingConfig = this.getStreamingConfig(ctx, block)
-    const messages = await this.buildMessages(ctx, filteredInputs)
+    const rawMessages = await this.buildMessages(ctx, filteredInputs)
+
+    // Transform media messages to provider-specific format
+    const messages = rawMessages
+      ? this.transformMediaMessages(rawMessages, providerId)
+      : undefined
 
     const providerRequest = this.buildProviderRequest({
       ctx,
@@ -815,8 +820,246 @@ export class AgentBlockHandler implements BlockHandler {
         typeof msg === 'object' &&
         'role' in msg &&
         'content' in msg &&
-        ['system', 'user', 'assistant'].includes(msg.role)
+        ['system', 'user', 'assistant', 'media'].includes(msg.role)
     )
+  }
+
+  /**
+   * Transforms messages with 'media' role into provider-compatible format.
+   * Media messages are merged with the preceding or following user message,
+   * or converted to a user message with multimodal content.
+   */
+  private transformMediaMessages(messages: Message[], providerId: string): Message[] {
+    const result: Message[] = []
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i]
+
+      if (msg.role !== 'media') {
+        result.push(msg)
+        continue
+      }
+
+      // Media message - transform based on provider
+      const mediaContent = this.createProviderMediaContent(msg, providerId)
+      if (!mediaContent) {
+        logger.warn('Could not create media content for message', { msg })
+        continue
+      }
+
+      // Check if we should merge with the previous user message
+      const lastMessage = result[result.length - 1]
+      if (lastMessage && lastMessage.role === 'user') {
+        // Merge media into the previous user message's content array
+        const existingContent = this.ensureContentArray(lastMessage, providerId)
+        existingContent.push(mediaContent)
+        lastMessage.content = existingContent as any
+      } else {
+        // Create a new user message with the media content
+        result.push({
+          role: 'user',
+          content: [mediaContent] as any,
+        })
+      }
+    }
+
+    // Post-process: ensure all user messages have consistent content format
+    return result.map((msg) => {
+      if (msg.role === 'user' && typeof msg.content === 'string') {
+        // Convert string content to provider-specific text format
+        return {
+          ...msg,
+          content: this.createTextContent(msg.content, providerId) as any,
+        }
+      }
+      return msg
+    })
+  }
+
+  /**
+   * Ensures a user message has content as an array for multimodal support
+   */
+  private ensureContentArray(msg: Message, providerId: string): any[] {
+    if (Array.isArray(msg.content)) {
+      return msg.content
+    }
+    if (typeof msg.content === 'string' && msg.content) {
+      return [this.createTextContent(msg.content, providerId)]
+    }
+    return []
+  }
+
+  /**
+   * Creates provider-specific text content block
+   */
+  private createTextContent(text: string, providerId: string): any {
+    switch (providerId) {
+      case 'google':
+      case 'vertex':
+        return { text }
+      case 'anthropic':
+        return { type: 'text', text }
+      default:
+        // OpenAI format (used by most providers)
+        return { type: 'text', text }
+    }
+  }
+
+  /**
+   * Creates provider-specific media content from a media message
+   */
+  private createProviderMediaContent(msg: Message, providerId: string): any {
+    const media = msg.media
+    if (!media) return null
+
+    const { sourceType, data, mimeType } = media
+
+    switch (providerId) {
+      case 'anthropic':
+        return this.createAnthropicMediaContent(sourceType, data, mimeType)
+
+      case 'google':
+      case 'vertex':
+        return this.createGeminiMediaContent(sourceType, data, mimeType)
+
+      default:
+        // OpenAI format (used by OpenAI, Azure, xAI, Mistral, etc.)
+        return this.createOpenAIMediaContent(sourceType, data, mimeType)
+    }
+  }
+
+  /**
+   * Creates OpenAI-compatible media content
+   */
+  private createOpenAIMediaContent(
+    sourceType: string,
+    data: string,
+    mimeType?: string
+  ): any {
+    const isImage = mimeType?.startsWith('image/')
+    const isAudio = mimeType?.startsWith('audio/')
+
+    if (isImage) {
+      if (sourceType === 'url') {
+        return {
+          type: 'image_url',
+          image_url: { url: data, detail: 'auto' },
+        }
+      }
+      // base64 or file (already converted to base64)
+      return {
+        type: 'image_url',
+        image_url: { url: data, detail: 'auto' },
+      }
+    }
+
+    if (isAudio) {
+      const base64Data = data.includes(',') ? data.split(',')[1] : data
+      return {
+        type: 'input_audio',
+        input_audio: {
+          data: base64Data,
+          format: mimeType === 'audio/wav' ? 'wav' : 'mp3',
+        },
+      }
+    }
+
+    // For documents/files, include as URL
+    if (sourceType === 'url') {
+      return {
+        type: 'file',
+        file: { url: data },
+      }
+    }
+
+    // Base64 file - some providers may not support this directly
+    logger.warn('Base64 file content may not be supported by this provider')
+    return {
+      type: 'text',
+      text: `[File: ${mimeType || 'unknown type'}]`,
+    }
+  }
+
+  /**
+   * Creates Anthropic-compatible media content
+   */
+  private createAnthropicMediaContent(
+    sourceType: string,
+    data: string,
+    mimeType?: string
+  ): any {
+    const isImage = mimeType?.startsWith('image/')
+    const isPdf = mimeType === 'application/pdf'
+
+    if (isImage) {
+      if (sourceType === 'url') {
+        return {
+          type: 'image',
+          source: { type: 'url', url: data },
+        }
+      }
+      // base64
+      const base64Data = data.includes(',') ? data.split(',')[1] : data
+      return {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: mimeType || 'image/png',
+          data: base64Data,
+        },
+      }
+    }
+
+    if (isPdf) {
+      if (sourceType === 'url') {
+        return {
+          type: 'document',
+          source: { type: 'url', url: data },
+        }
+      }
+      const base64Data = data.includes(',') ? data.split(',')[1] : data
+      return {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'application/pdf',
+          data: base64Data,
+        },
+      }
+    }
+
+    // Fallback for other types
+    return {
+      type: 'text',
+      text: `[File: ${mimeType || 'unknown type'}]`,
+    }
+  }
+
+  /**
+   * Creates Google Gemini-compatible media content
+   */
+  private createGeminiMediaContent(
+    sourceType: string,
+    data: string,
+    mimeType?: string
+  ): any {
+    if (sourceType === 'url') {
+      return {
+        fileData: {
+          mimeType: mimeType || 'application/octet-stream',
+          fileUri: data,
+        },
+      }
+    }
+
+    // base64
+    const base64Data = data.includes(',') ? data.split(',')[1] : data
+    return {
+      inlineData: {
+        mimeType: mimeType || 'application/octet-stream',
+        data: base64Data,
+      },
+    }
   }
 
   private processMemories(memories: any): Message[] {

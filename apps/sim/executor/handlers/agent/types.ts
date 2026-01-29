@@ -42,9 +42,25 @@ export interface ToolInput {
   customToolId?: string
 }
 
+/**
+ * Media content for multimodal messages
+ */
+export interface MediaContent {
+  /** Mode: basic (file upload) or advanced (URL/base64 text input) */
+  mode: 'basic' | 'advanced'
+  /** The URL or base64 data */
+  data: string
+  /** MIME type (e.g., 'image/png', 'application/pdf', 'audio/mp3') */
+  mimeType?: string
+  /** Optional filename for file uploads */
+  fileName?: string
+}
+
 export interface Message {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'media'
   content: string
+  /** Media content for 'media' role messages */
+  media?: MediaContent
   executionId?: string
   function_call?: any
   tool_calls?: any[]
