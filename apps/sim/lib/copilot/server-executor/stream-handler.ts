@@ -36,6 +36,7 @@ interface ToolExecutionState {
   status: 'pending' | 'executing' | 'completed' | 'failed'
   userId: string
   workflowId?: string
+  workspaceId?: string
   chatId?: string
   startedAt: number
   completedAt?: number
@@ -223,6 +224,7 @@ export async function handleToolCallEvent(
     status: 'pending',
     userId: context.userId,
     workflowId: context.workflowId,
+    workspaceId: context.workspaceId,
     chatId: context.chatId,
     startedAt: Date.now(),
   })
@@ -256,6 +258,7 @@ async function executeToolServerSide(
     status: 'executing',
     userId: context.userId,
     workflowId: context.workflowId,
+    workspaceId: context.workspaceId,
     chatId: context.chatId,
     startedAt: startTime,
   })
@@ -276,6 +279,7 @@ async function executeToolServerSide(
         status: 'failed',
         userId: context.userId,
         workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
         chatId: context.chatId,
         startedAt: startTime,
         completedAt: Date.now(),
@@ -301,6 +305,7 @@ async function executeToolServerSide(
         status: 'completed',
         userId: context.userId,
         workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
         chatId: context.chatId,
         startedAt: startTime,
         completedAt: Date.now(),
@@ -329,6 +334,7 @@ async function executeToolServerSide(
         status: 'failed',
         userId: context.userId,
         workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
         chatId: context.chatId,
         startedAt: startTime,
         completedAt: Date.now(),
@@ -361,6 +367,7 @@ async function executeToolServerSide(
       status: 'failed',
       userId: context.userId,
       workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
       chatId: context.chatId,
       startedAt: startTime,
       completedAt: Date.now(),

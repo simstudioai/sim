@@ -23,10 +23,15 @@ export interface ToolResult<T = unknown> {
 
 /**
  * Context passed to tool executors.
+ *
+ * This context is passed from Go copilot to SIM on each tool_call event.
+ * In client mode, workflowId/workspaceId come from the initial request.
+ * In headless mode, they can be set dynamically via the set_context tool.
  */
 export interface ExecutionContext {
   userId: string
   workflowId?: string
+  workspaceId?: string
   chatId?: string
 }
 

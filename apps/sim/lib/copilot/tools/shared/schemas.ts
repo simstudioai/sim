@@ -329,8 +329,9 @@ export type MakeApiRequestResultType = z.infer<typeof MakeApiRequestResult>
 // ============================================================================
 
 // edit_workflow - input is complex, using passthrough for flexibility
+// workflowId is optional - if not provided, uses the active workflow from context
 export const EditWorkflowInput = z.object({
-  workflowId: z.string(),
+  workflowId: z.string().optional(),
   operations: z.array(z.record(z.unknown())),
   currentUserWorkflow: z.unknown().optional(),
 })
@@ -443,3 +444,21 @@ export const SetEnvironmentVariablesResult = z.object({
   savedCount: z.number().optional(),
   variables: z.array(z.string()).optional(),
 })
+
+// set_context - for headless mode to dynamically set the workflow context
+export const SetContextInput = z.object({
+  /** The workflow ID to set as the current context */
+  workflowId: z.string().min(1, 'workflowId is required'),
+})
+export const SetContextResult = z.object({
+  success: z.boolean(),
+  /** The resolved execution context - Go should store this and include in tool_call events */
+  executionContext: z.object({
+    workflowId: z.string(),
+    workspaceId: z.string().optional(),
+    userId: z.string(),
+  }),
+  message: z.string(),
+})
+export type SetContextInputType = z.infer<typeof SetContextInput>
+export type SetContextResultType = z.infer<typeof SetContextResult>

@@ -9,8 +9,9 @@ import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 
 const logger = createLogger('GetUserWorkflowServerTool')
 
+// workflowId is optional - if not provided, we use the one from execution context
 export const GetUserWorkflowInput = z.object({
-  workflowId: z.string().min(1),
+  workflowId: z.string().optional(),
 })
 
 export const GetUserWorkflowResult = z.object({
@@ -27,15 +28,22 @@ export const getUserWorkflowServerTool: BaseServerTool<
   GetUserWorkflowResultType
 > = {
   name: 'get_user_workflow',
-  async execute(args: unknown, context?: { userId: string }) {
+  async execute(args: unknown, context?: { userId: string; workflowId?: string }) {
     const parsed = GetUserWorkflowInput.parse(args)
-    const { workflowId } = parsed
+    // Use workflowId from args if provided, otherwise fall back to context
+    const workflowId = parsed.workflowId || context?.workflowId
 
     if (!context?.userId) {
       throw new Error('User authentication required')
     }
 
-    logger.debug('Getting user workflow', { workflowId })
+    if (!workflowId) {
+      throw new Error(
+        'No workflow specified. Please provide a workflowId or ensure you have an active workflow open.'
+      )
+    }
+
+    logger.debug('Getting user workflow', { workflowId, fromContext: !parsed.workflowId })
 
     // Get workflow metadata
     const [wf] = await db

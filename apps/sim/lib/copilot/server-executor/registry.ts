@@ -29,6 +29,7 @@ import {
 } from '../tools/server/other/mark-todo-in-progress'
 import { searchOnlineServerTool } from '../tools/server/other/search-online'
 import { SleepInput, sleepServerTool } from '../tools/server/other/sleep'
+import { setContextServerTool } from '../tools/server/context/set-context'
 import { getCredentialsServerTool } from '../tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '../tools/server/user/set-environment-variables'
 import {
@@ -98,6 +99,7 @@ import {
   MakeApiRequestInput,
   SearchDocumentationInput,
   SearchOnlineInput,
+  SetContextInput,
   SetEnvironmentVariablesInput,
 } from '../tools/shared/schemas'
 import type { ExecutionContext, ToolResult } from './types'
@@ -107,8 +109,15 @@ const logger = createLogger('ToolRegistry')
 
 /**
  * Context type for server tools.
+ * This is the full execution context passed to tools that need workflow/workspace info.
  */
-type ServerToolContext = { userId: string } | undefined
+type ServerToolContext =
+  | {
+      userId: string
+      workflowId?: string
+      workspaceId?: string
+    }
+  | undefined
 
 /**
  * Helper to create a typed executor wrapper.
@@ -322,6 +331,15 @@ const TOOL_REGISTRY: Record<string, ToolRegistration> = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Context Tools (for headless mode)
+  // ─────────────────────────────────────────────────────────────────────────
+  set_context: {
+    inputSchema: SetContextInput,
+    requiresAuth: true,
+    execute: createExecutor(setContextServerTool),
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Todo Tools
   // ─────────────────────────────────────────────────────────────────────────
   checkoff_todo: {
@@ -404,10 +422,15 @@ export async function executeRegisteredTool(
 
   // Execute the tool
   try {
-    const result = await registration.execute(
-      validatedArgs,
-      context.userId ? { userId: context.userId } : undefined
-    )
+    // Pass the full execution context so tools can access workflowId/workspaceId
+    const toolContext = context.userId
+      ? {
+          userId: context.userId,
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+        }
+      : undefined
+    const result = await registration.execute(validatedArgs, toolContext)
     return successResult(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -40,11 +40,24 @@ const FileAttachmentSchema = z.object({
   size: z.number(),
 })
 
+/**
+ * Session context for headless mode.
+ * In headless mode, workflowId may not be known at start.
+ * The set_context tool can be used to establish context mid-conversation.
+ */
+const SessionContextSchema = z.object({
+  workflowId: z.string().optional(),
+  workspaceId: z.string().optional(),
+})
+
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
-  workflowId: z.string().min(1, 'Workflow ID is required'),
+  // workflowId is optional for headless mode - can be set via set_context tool
+  workflowId: z.string().optional(),
+  // Session context for headless mode - provides initial context that can be updated via set_context
+  sessionContext: SessionContextSchema.optional(),
   model: z.enum(COPILOT_MODEL_IDS).optional().default('claude-4.5-opus'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
@@ -105,6 +118,7 @@ export async function POST(req: NextRequest) {
       userMessageId,
       chatId,
       workflowId,
+      sessionContext,
       model,
       mode,
       prefetch,
@@ -117,6 +131,41 @@ export async function POST(req: NextRequest) {
       contexts,
       commands,
     } = ChatMessageSchema.parse(body)
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Resolve execution context (workflowId, workspaceId)
+    // In client mode: workflowId comes from request, we look up workspaceId
+    // In headless mode: may start without workflowId, set via set_context tool
+    // ─────────────────────────────────────────────────────────────────────────
+    const resolvedWorkflowId = workflowId || sessionContext?.workflowId
+    let resolvedWorkspaceId = sessionContext?.workspaceId
+
+    // If we have a workflowId but no workspaceId, look it up once
+    if (resolvedWorkflowId && !resolvedWorkspaceId) {
+      try {
+        const [wf] = await db
+          .select({ workspaceId: workflow.workspaceId })
+          .from(workflow)
+          .where(eq(workflow.id, resolvedWorkflowId))
+          .limit(1)
+        resolvedWorkspaceId = wf?.workspaceId ?? undefined
+      } catch (error) {
+        logger.warn(`[${tracker.requestId}] Failed to lookup workspaceId for workflow`, {
+          workflowId: resolvedWorkflowId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+    // Build execution context that will be passed to Go and used for tool execution
+    const executionContext = {
+      userId: authenticatedUserId,
+      workflowId: resolvedWorkflowId,
+      workspaceId: resolvedWorkspaceId,
+    }
+
+    logger.debug(`[${tracker.requestId}] Resolved execution context`, executionContext)
+
     // Ensure we have a consistent user message ID for this request
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
     try {
@@ -431,7 +480,7 @@ export async function POST(req: NextRequest) {
 
     const requestPayload = {
       message: message, // Just send the current user message text
-      workflowId,
+      workflowId: resolvedWorkflowId,
       userId: authenticatedUserId,
       stream: stream,
       streamToolCalls: true,
@@ -439,6 +488,9 @@ export async function POST(req: NextRequest) {
       mode: transportMode,
       messageId: userMessageIdToUse,
       version: SIM_AGENT_VERSION,
+      // Execution context for Go to maintain and echo back in tool_call events
+      // This enables headless mode where context can be set dynamically via set_context tool
+      executionContext,
       ...(providerConfig ? { provider: providerConfig } : {}),
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof prefetch === 'boolean' ? { prefetch: prefetch } : {}),
@@ -625,6 +677,16 @@ export async function POST(req: NextRequest) {
 
                             // Execute server-side tools automatically
                             // This runs async and calls mark-complete when done
+                            // Use context from Go's event.data.executionContext if provided,
+                            // falling back to the initial resolved context
+                            const toolContext = {
+                              userId: authenticatedUserId,
+                              workflowId:
+                                event.data.executionContext?.workflowId || resolvedWorkflowId,
+                              workspaceId:
+                                event.data.executionContext?.workspaceId || resolvedWorkspaceId,
+                              chatId: actualChatId,
+                            }
                             handleToolCallEvent(
                               {
                                 id: event.data.id,
@@ -632,11 +694,7 @@ export async function POST(req: NextRequest) {
                                 arguments: event.data.arguments || {},
                                 partial: false,
                               },
-                              {
-                                userId: authenticatedUserId,
-                                workflowId,
-                                chatId: actualChatId,
-                              }
+                              toolContext
                             ).then((handledServerSide) => {
                               if (handledServerSide) {
                                 registerServerHandledTool(event.data.id, event.data.name)

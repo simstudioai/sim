@@ -8,7 +8,10 @@ import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
@@ -2626,13 +2629,22 @@ async function getCurrentWorkflowStateFromDb(
 
 export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
   name: 'edit_workflow',
-  async execute(params: EditWorkflowParams, context?: { userId: string }): Promise<any> {
+  async execute(
+    params: EditWorkflowParams,
+    context?: { userId: string; workflowId?: string }
+  ): Promise<any> {
     const logger = createLogger('EditWorkflowServerTool')
-    const { operations, workflowId, currentUserWorkflow } = params
+    const { operations, currentUserWorkflow } = params
+    // Use workflowId from params if provided, otherwise fall back to context
+    const workflowId = params.workflowId || context?.workflowId
     if (!Array.isArray(operations) || operations.length === 0) {
       throw new Error('operations are required and must be an array')
     }
-    if (!workflowId) throw new Error('workflowId is required')
+    if (!workflowId) {
+      throw new Error(
+        'No workflow specified. Please provide a workflowId or ensure you have an active workflow open.'
+      )
+    }
 
     logger.info('Executing edit_workflow', {
       operationCount: operations.length,
@@ -2737,10 +2749,66 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
       logger.warn('No userId in context - skipping custom tools persistence', { workflowId })
     }
 
-    logger.info('edit_workflow successfully applied operations', {
+    // Prepare the final workflow state for persistence
+    const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PERSIST THE CHANGES TO THE DATABASE
+    // This is critical for headless mode and ensures changes are saved
+    // ─────────────────────────────────────────────────────────────────────────
+    const workflowStateForPersistence = {
+      blocks: finalWorkflowState.blocks,
+      edges: finalWorkflowState.edges,
+      loops: finalWorkflowState.loops || {},
+      parallels: finalWorkflowState.parallels || {},
+      lastSaved: Date.now(),
+    }
+
+    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowStateForPersistence)
+
+    if (!saveResult.success) {
+      logger.error('Failed to persist workflow changes to database', {
+        workflowId,
+        error: saveResult.error,
+      })
+      throw new Error(`Failed to save workflow: ${saveResult.error}`)
+    }
+
+    // Update workflow's lastSynced timestamp
+    await db
+      .update(workflowTable)
+      .set({
+        lastSynced: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(workflowTable.id, workflowId))
+
+    // Notify socket server so connected clients can refresh
+    // This uses the copilot-specific endpoint to trigger UI refresh
+    try {
+      const socketUrl = process.env.SOCKET_SERVER_URL || 'http://localhost:3002'
+      const operationsSummary = operations
+        .map((op: any) => `${op.operation_type} ${op.block_id || 'block'}`)
+        .slice(0, 3)
+        .join(', ')
+      const description = `Applied ${operations.length} operation(s): ${operationsSummary}${operations.length > 3 ? '...' : ''}`
+
+      await fetch(`${socketUrl}/api/copilot-workflow-edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflowId, description }),
+      }).catch((err) => {
+        logger.warn('Failed to notify socket server about copilot edit', { error: err.message })
+      })
+    } catch (notifyError) {
+      // Non-fatal - log and continue
+      logger.warn('Error notifying socket server', { error: notifyError })
+    }
+
+    logger.info('edit_workflow successfully applied and persisted operations', {
       operationCount: operations.length,
-      blocksCount: Object.keys(modifiedWorkflowState.blocks).length,
-      edgesCount: modifiedWorkflowState.edges.length,
+      blocksCount: Object.keys(finalWorkflowState.blocks).length,
+      edgesCount: finalWorkflowState.edges.length,
       inputValidationErrors: validationErrors.length,
       skippedItemsCount: skippedItems.length,
       schemaValidationErrors: validation.errors.length,
@@ -2760,7 +2828,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     // Return the modified workflow state for the client to convert to YAML if needed
     return {
       success: true,
-      workflowState: validation.sanitizedState || modifiedWorkflowState,
+      workflowState: finalWorkflowState,
       // Include input validation errors so the LLM can see what was rejected
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
