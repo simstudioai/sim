@@ -616,7 +616,7 @@ export const bedrockProvider: ProviderConfig = {
           modelId: bedrockModelId,
           messages: currentMessages,
           system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
-          inferenceConfig: inferenceConfig,
+          inferenceConfig,
           toolConfig: bedrockTools?.length
             ? { tools: bedrockTools, toolChoice: nextToolChoice }
             : undefined,
@@ -683,7 +683,7 @@ export const bedrockProvider: ProviderConfig = {
           modelId: bedrockModelId,
           messages: currentMessages,
           system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
-          inferenceConfig: inferenceConfig,
+          inferenceConfig,
           toolConfig: {
             tools: [structuredOutputTool],
             toolChoice: { tool: { name: structuredOutputToolName } },
