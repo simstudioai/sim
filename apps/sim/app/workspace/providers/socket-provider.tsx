@@ -368,11 +368,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           eventHandlers.current.workflowReverted?.(data)
         })
 
-        const rehydrateWorkflowStores = async (
-          workflowId: string,
-          workflowState: any,
-          source: 'copilot' | 'workflow-state'
-        ) => {
+        const rehydrateWorkflowStores = async (workflowId: string, workflowState: any) => {
           const [
             { useOperationQueueStore },
             { useWorkflowRegistry },
@@ -397,7 +393,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             .getState()
             .operations.some((op: any) => op.workflowId === workflowId && op.status !== 'confirmed')
           if (hasPending) {
-            logger.info(`Skipping ${source} rehydration due to pending operations in queue`)
+            logger.info('Skipping rehydration due to pending operations in queue')
             return false
           }
 
@@ -426,7 +422,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             },
           }))
 
-          logger.info(`Successfully rehydrated stores from ${source}`)
+          logger.info('Successfully rehydrated workflow stores')
           return true
         }
 
@@ -500,7 +496,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
           if (workflowData?.state) {
             try {
-              await rehydrateWorkflowStores(workflowData.id, workflowData.state, 'workflow-state')
+              await rehydrateWorkflowStores(workflowData.id, workflowData.state)
             } catch (error) {
               logger.error('Error rehydrating workflow state:', error)
             }
