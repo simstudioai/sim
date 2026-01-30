@@ -3,6 +3,7 @@ import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
+import Script from 'next/script'
 import {
   SidebarFolder,
   SidebarItem,
@@ -17,11 +18,13 @@ import '../global.css'
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-geist-sans',
+  display: 'swap',
 })
 
 const geistMono = Geist_Mono({
   subsets: ['latin'],
   variable: '--font-geist-mono',
+  display: 'swap',
 })
 
 const { provider } = defineI18nUI(i18n, {
@@ -93,10 +96,9 @@ export default async function Layout({ children, params }: LayoutProps) {
           type='application/ld+json'
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
-        {/* OneDollarStats Analytics - CDN script handles everything automatically */}
-        <script defer src='https://assets.onedollarstats.com/stonks.js' />
       </head>
       <body className='flex min-h-screen flex-col font-sans'>
+        <Script src='https://assets.onedollarstats.com/stonks.js' strategy='lazyOnload' />
         <RootProvider i18n={provider(lang)}>
           <Navbar />
           <DocsLayout
