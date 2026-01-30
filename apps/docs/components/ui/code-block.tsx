@@ -17,23 +17,16 @@ export function CodeBlock(props: React.ComponentProps<typeof FumadocsCodeBlock>)
   return (
     <FumadocsCodeBlock
       {...props}
-      Actions={({ children, className }) => (
+      Actions={({ className }) => (
         <div className={cn('empty:hidden', className)}>
-          {/* Custom copy button */}
           <button
             type='button'
             aria-label={copied ? 'Copied Text' : 'Copy Text'}
             onClick={(e) => {
-              const pre = (e.currentTarget as HTMLElement)
-                .closest('.nd-codeblock')
-                ?.querySelector('pre')
+              const pre = (e.currentTarget as HTMLElement).closest('figure')?.querySelector('pre')
               if (pre) handleCopy(pre.textContent || '')
             }}
-            className={cn(
-              'cursor-pointer rounded-md p-2 transition-all',
-              'border border-border bg-background/80 hover:bg-muted',
-              'backdrop-blur-sm'
-            )}
+            className='cursor-pointer rounded-md p-2 text-muted-foreground transition-colors hover:text-foreground'
           >
             <span className='flex items-center justify-center'>
               {copied ? (

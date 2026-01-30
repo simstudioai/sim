@@ -8,13 +8,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 export function Navbar() {
   return (
-    <nav
-      className='sticky top-0 z-50 border-border/50 border-b'
-      style={{
-        backdropFilter: 'blur(25px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(25px) saturate(180%)',
-      }}
-    >
+    <nav className='sticky top-0 z-50 border-border/50 border-b bg-background/80 backdrop-blur-md backdrop-saturate-150'>
       {/* Desktop: Single row layout */}
       <div className='hidden h-16 w-full items-center lg:flex'>
         <div
