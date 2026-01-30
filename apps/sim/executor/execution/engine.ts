@@ -101,7 +101,7 @@ export class ExecutionEngine {
   }
 
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
-    const startTime = Date.now()
+    const startTime = performance.now()
     try {
       this.initializeQueue(triggerBlockId)
 
@@ -125,8 +125,8 @@ export class ExecutionEngine {
         return this.buildPausedResult(startTime)
       }
 
-      const endTime = Date.now()
-      this.context.metadata.endTime = new Date(endTime).toISOString()
+      const endTime = performance.now()
+      this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
 
       if (this.cancelledFlag) {
@@ -146,8 +146,8 @@ export class ExecutionEngine {
         metadata: this.context.metadata,
       }
     } catch (error) {
-      const endTime = Date.now()
-      this.context.metadata.endTime = new Date(endTime).toISOString()
+      const endTime = performance.now()
+      this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
 
       if (this.cancelledFlag) {
@@ -433,8 +433,8 @@ export class ExecutionEngine {
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {
-    const endTime = Date.now()
-    this.context.metadata.endTime = new Date(endTime).toISOString()
+    const endTime = performance.now()
+    this.context.metadata.endTime = new Date().toISOString()
     this.context.metadata.duration = endTime - startTime
     this.context.metadata.status = 'paused'
 

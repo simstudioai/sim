@@ -71,7 +71,7 @@ export class BlockExecutor {
       this.callOnBlockStart(ctx, node, block)
     }
 
-    const startTime = Date.now()
+    const startTime = performance.now()
     let resolvedInputs: Record<string, any> = {}
 
     const nodeMetadata = this.buildNodeMetadata(node)
@@ -145,7 +145,7 @@ export class BlockExecutor {
         })) as NormalizedBlockOutput
       }
 
-      const duration = Date.now() - startTime
+      const duration = performance.now() - startTime
 
       if (blockLog) {
         blockLog.endedAt = new Date().toISOString()
@@ -221,7 +221,7 @@ export class BlockExecutor {
     isSentinel: boolean,
     phase: 'input_resolution' | 'execution'
   ): NormalizedBlockOutput {
-    const duration = Date.now() - startTime
+    const duration = performance.now() - startTime
     const errorMessage = normalizeError(error)
     const hasResolvedInputs =
       resolvedInputs && typeof resolvedInputs === 'object' && Object.keys(resolvedInputs).length > 0
