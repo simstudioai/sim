@@ -407,28 +407,4 @@ export class RedisRoomManager implements IRoomManager {
     const userCount = await this.getUniqueUserCount(workflowId)
     logger.info(`Notified ${userCount} users about workflow update: ${workflowId}`)
   }
-
-  async handleCopilotWorkflowEdit(workflowId: string, description?: string): Promise<void> {
-    logger.info(`Handling copilot workflow edit notification for ${workflowId}`)
-
-    const hasRoom = await this.hasWorkflowRoom(workflowId)
-    if (!hasRoom) {
-      logger.debug(`No active room found for copilot workflow edit ${workflowId}`)
-      return
-    }
-
-    const timestamp = Date.now()
-
-    this._io.to(workflowId).emit('copilot-workflow-edit', {
-      workflowId,
-      description,
-      message: 'Copilot has edited the workflow - rehydrating from database',
-      timestamp,
-    })
-
-    await this.updateRoomLastModified(workflowId)
-
-    const userCount = await this.getUniqueUserCount(workflowId)
-    logger.info(`Notified ${userCount} users about copilot workflow edit: ${workflowId}`)
-  }
 }

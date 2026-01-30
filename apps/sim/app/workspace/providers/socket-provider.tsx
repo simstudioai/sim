@@ -430,28 +430,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           return true
         }
 
-        socketInstance.on('copilot-workflow-edit', async (data) => {
-          logger.info(
-            `Copilot edited workflow ${data.workflowId} - rehydrating stores from database`
-          )
-
-          try {
-            const response = await fetch(`/api/workflows/${data.workflowId}`)
-            if (response.ok) {
-              const responseData = await response.json()
-              const workflowData = responseData.data
-
-              if (workflowData?.state) {
-                await rehydrateWorkflowStores(data.workflowId, workflowData.state, 'copilot')
-              }
-            } else {
-              logger.error('Failed to fetch fresh workflow state:', response.statusText)
-            }
-          } catch (error) {
-            logger.error('Failed to rehydrate stores after copilot edit:', error)
-          }
-        })
-
         socketInstance.on('operation-confirmed', (data) => {
           logger.debug('Operation confirmed', { operationId: data.operationId })
           eventHandlers.current.operationConfirmed?.(data)
