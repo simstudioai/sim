@@ -341,45 +341,22 @@ function expandFileTypeProperties(path: string): string[] {
   return USER_FILE_ACCESSIBLE_PROPERTIES.map((prop) => `${path}.${prop}`)
 }
 
-function collectOutputPaths(
-  obj: OutputDefinition,
-  blockType: string,
-  subBlocks: Record<string, SubBlockWithValue> | undefined,
-  prefix = ''
-): string[] {
-  const paths: string[] = []
-
-  for (const [key, value] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${key}` : key
-
-    if (shouldFilterReservedField(blockType, key, prefix, subBlocks)) {
-      continue
-    }
-
-    if (value && typeof value === 'object' && 'type' in value) {
-      const typedValue = value as { type: unknown }
-      if (typedValue.type === 'files' || typedValue.type === 'file[]') {
-        paths.push(...expandFileTypeProperties(path))
-      } else {
-        paths.push(path)
-      }
-    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      paths.push(...collectOutputPaths(value as OutputDefinition, blockType, subBlocks, path))
-    } else {
-      paths.push(path)
-    }
-  }
-
-  return paths
-}
-
 export function getBlockOutputPaths(
   blockType: string,
   subBlocks?: Record<string, SubBlockWithValue>,
   triggerMode?: boolean
 ): string[] {
   const outputs = getBlockOutputs(blockType, subBlocks, triggerMode)
-  return collectOutputPaths(outputs, blockType, subBlocks)
+  const paths = generateOutputPaths(outputs)
+
+  if (blockType === TRIGGER_TYPES.START) {
+    return paths.filter((path) => {
+      const key = path.split('.')[0]
+      return !shouldFilterReservedField(blockType, key, '', subBlocks)
+    })
+  }
+
+  return paths
 }
 
 function getFilePropertyType(outputs: OutputDefinition, pathParts: string[]): string | null {
@@ -416,7 +393,45 @@ function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unk
     if (!current || typeof current !== 'object') {
       return null
     }
-    current = (current as Record<string, unknown>)[part]
+
+    const currentObj = current as Record<string, unknown>
+
+    if (part in currentObj) {
+      current = currentObj[part]
+    } else if (
+      'type' in currentObj &&
+      currentObj.type === 'object' &&
+      'properties' in currentObj &&
+      currentObj.properties &&
+      typeof currentObj.properties === 'object'
+    ) {
+      const props = currentObj.properties as Record<string, unknown>
+      if (part in props) {
+        current = props[part]
+      } else {
+        return null
+      }
+    } else if (
+      'type' in currentObj &&
+      currentObj.type === 'array' &&
+      'items' in currentObj &&
+      currentObj.items &&
+      typeof currentObj.items === 'object'
+    ) {
+      const items = currentObj.items as Record<string, unknown>
+      if ('properties' in items && items.properties && typeof items.properties === 'object') {
+        const itemProps = items.properties as Record<string, unknown>
+        if (part in itemProps) {
+          current = itemProps[part]
+        } else {
+          return null
+        }
+      } else {
+        return null
+      }
+    } else {
+      return null
+    }
   }
 
   return current

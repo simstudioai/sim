@@ -16,7 +16,7 @@ export const calendlyTriggerOptions = [
 export function calendlySetupInstructions(eventType: string, additionalNotes?: string): string {
   const instructions = [
     '<strong>Note:</strong> Webhooks require a paid Calendly subscription (Professional, Teams, or Enterprise plan).',
-    '<strong>Important:</strong> Calendly does not provide a UI for creating webhooks. You must create them programmatically using the API.',
+    '<strong>Important:</strong> Calendly does not provide a UI for creating webhooks. You must create them programmatically using the API. See the <a href="https://developer.calendly.com/api-docs" target="_blank" rel="noopener noreferrer">Calendly Developer documentation</a> for details.',
     'Get your Calendly <strong>Personal Access Token</strong> from the Calendly dashboard under <strong>Integrations > API & Webhooks</strong>.',
     'In your workflow, add a Calendly block and select the <strong>"Create Webhook"</strong> operation.',
     'Enter your Personal Access Token in the Calendly block.',

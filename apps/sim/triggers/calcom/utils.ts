@@ -114,7 +114,7 @@ export function calcomSetupInstructions(eventType: CalcomEventType): string {
 
   return [
     'Copy the webhook URL above.',
-    'Go to your Cal.com account Settings > Developer > Webhooks.',
+    'Go to your <a href="https://app.cal.com/settings/developer/webhooks" target="_blank" rel="noopener noreferrer">Cal.com Webhook Settings</a>.',
     'Click "New Webhook" and paste the URL.',
     `Select the <strong>${eventNames[eventType]}</strong> event trigger.`,
     eventDescriptions[eventType],
@@ -180,16 +180,18 @@ export function buildBookingOutputs(): Record<string, TriggerOutput> {
       organizer: ORGANIZER_OUTPUT,
       attendees: ATTENDEES_TRIGGER_OUTPUT,
       responses: {
-        type: 'object',
-        description: 'Form responses from booking',
+        type: 'json',
+        description:
+          'Booking form responses (dynamic - fields depend on your event type configuration)',
       },
       metadata: {
-        type: 'object',
-        description: 'Custom metadata',
+        type: 'json',
+        description:
+          'Custom metadata attached to the booking (dynamic - user-defined key-value pairs)',
       },
       videoCallData: {
-        type: 'object',
-        description: 'Video call details if applicable',
+        type: 'json',
+        description: 'Video call details (structure varies by provider)',
       },
     },
   } as any
@@ -252,12 +254,12 @@ export function buildCancelledOutputs(): Record<string, TriggerOutput> {
       organizer: ORGANIZER_OUTPUT,
       attendees: ATTENDEES_TRIGGER_OUTPUT,
       responses: {
-        type: 'object',
-        description: 'Form responses from booking',
+        type: 'json',
+        description: 'Booking form responses',
       },
       metadata: {
-        type: 'object',
-        description: 'Custom metadata',
+        type: 'json',
+        description: 'Custom metadata attached to the booking',
       },
     },
   } as any
@@ -332,12 +334,12 @@ export function buildRescheduledOutputs(): Record<string, TriggerOutput> {
       organizer: ORGANIZER_OUTPUT,
       attendees: ATTENDEES_TRIGGER_OUTPUT,
       responses: {
-        type: 'object',
-        description: 'Form responses from booking',
+        type: 'json',
+        description: 'Booking form responses',
       },
       metadata: {
-        type: 'object',
-        description: 'Custom metadata',
+        type: 'json',
+        description: 'Custom metadata attached to the booking',
       },
     },
   } as any
@@ -396,12 +398,12 @@ export function buildRequestedOutputs(): Record<string, TriggerOutput> {
       organizer: ORGANIZER_OUTPUT,
       attendees: ATTENDEES_TRIGGER_OUTPUT,
       responses: {
-        type: 'object',
-        description: 'Form responses from booking request',
+        type: 'json',
+        description: 'Booking form responses',
       },
       metadata: {
-        type: 'object',
-        description: 'Custom metadata',
+        type: 'json',
+        description: 'Custom metadata attached to the booking',
       },
     },
   } as any
@@ -460,8 +462,8 @@ export function buildRejectedOutputs(): Record<string, TriggerOutput> {
       organizer: ORGANIZER_OUTPUT,
       attendees: ATTENDEES_TRIGGER_OUTPUT,
       metadata: {
-        type: 'object',
-        description: 'Custom metadata',
+        type: 'json',
+        description: 'Custom metadata attached to the booking',
       },
     },
   } as any
@@ -530,8 +532,8 @@ export function buildPaidOutputs(): Record<string, TriggerOutput> {
       organizer: ORGANIZER_OUTPUT,
       attendees: ATTENDEES_TRIGGER_OUTPUT,
       metadata: {
-        type: 'object',
-        description: 'Custom metadata',
+        type: 'json',
+        description: 'Custom metadata attached to the booking',
       },
     },
   } as any
@@ -582,7 +584,7 @@ export function buildMeetingEndedOutputs(): Record<string, TriggerOutput> {
       organizer: ORGANIZER_OUTPUT,
       attendees: ATTENDEES_TRIGGER_OUTPUT,
       videoCallData: {
-        type: 'object',
+        type: 'json',
         description: 'Video call details',
       },
     },

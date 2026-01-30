@@ -22,6 +22,7 @@ import {
   useDeleteFolder,
   useDeleteSelection,
   useDuplicateFolder,
+  useDuplicateSelection,
   useExportFolder,
   useExportSelection,
 } from '@/app/workspace/[workspaceId]/w/hooks'
@@ -99,10 +100,16 @@ export function FolderItem({
 
   const isDeleting = isDeletingThisFolder || isDeletingSelection
 
-  const { handleDuplicateFolder } = useDuplicateFolder({
+  const { handleDuplicateFolder: handleDuplicateThisFolder } = useDuplicateFolder({
     workspaceId,
     folderIds: folder.id,
   })
+
+  const { isDuplicating: isDuplicatingSelection, handleDuplicateSelection } = useDuplicateSelection(
+    {
+      workspaceId,
+    }
+  )
 
   const {
     isExporting: isExportingThisFolder,
@@ -317,6 +324,7 @@ export function FolderItem({
         return
       }
 
+      useFolderStore.getState().clearFolderSelection()
       handleToggleExpanded()
     },
     [handleToggleExpanded, shouldPreventClickRef, isEditing, onFolderClick, folder.id]
@@ -403,6 +411,18 @@ export function FolderItem({
       await handleExportThisFolder()
     }
   }, [handleExportSelection, handleExportThisFolder])
+
+  const handleDuplicate = useCallback(async () => {
+    if (!capturedSelectionRef.current) return
+
+    const { isMixed, workflowIds, folderIds } = capturedSelectionRef.current
+
+    if (isMixed || folderIds.length > 1) {
+      await handleDuplicateSelection(workflowIds, folderIds)
+    } else {
+      await handleDuplicateThisFolder()
+    }
+  }, [handleDuplicateSelection, handleDuplicateThisFolder])
 
   const isMixedSelection = useMemo(() => {
     return capturedSelectionRef.current?.isMixed ?? false
@@ -517,18 +537,20 @@ export function FolderItem({
         onRename={handleStartEdit}
         onCreate={handleCreateWorkflowInFolder}
         onCreateFolder={handleCreateFolderInFolder}
-        onDuplicate={handleDuplicateFolder}
+        onDuplicate={handleDuplicate}
         onExport={handleExport}
         onDelete={handleOpenDeleteModal}
         showCreate={!isMixedSelection}
         showCreateFolder={!isMixedSelection}
         showRename={!isMixedSelection && selectedFolders.size <= 1}
-        showDuplicate={!isMixedSelection}
+        showDuplicate={true}
         showExport={true}
         disableRename={!userPermissions.canEdit}
         disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
         disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
-        disableDuplicate={!userPermissions.canEdit || !hasWorkflows}
+        disableDuplicate={
+          !userPermissions.canEdit || isDuplicatingSelection || !hasExportableContent
+        }
         disableExport={!userPermissions.canEdit || isExporting || !hasExportableContent}
         disableDelete={!userPermissions.canEdit || !canDeleteSelection}
       />

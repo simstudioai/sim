@@ -49,17 +49,22 @@ interface WorkflowListProps {
 const DropIndicatorLine = memo(function DropIndicatorLine({
   show,
   level = 0,
+  position = 'before',
 }: {
   show: boolean
   level?: number
+  position?: 'before' | 'after'
 }) {
   if (!show) return null
+
+  const positionStyle = position === 'before' ? { top: '-2px' } : { bottom: '-2px' }
+
   return (
     <div
-      className='pointer-events-none absolute right-0 left-0 z-20 flex items-center'
-      style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
+      className='pointer-events-none absolute right-0 left-0 z-20'
+      style={{ ...positionStyle, paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
     >
-      <div className='h-[2px] flex-1 rounded-full bg-[#33b4ff]/70' />
+      <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
     </div>
   )
 })
@@ -101,11 +106,11 @@ export function WorkflowList({
     createEmptyFolderDropZone,
     createFolderContentDropZone,
     createRootDropZone,
+    createEdgeDropZone,
     handleDragStart,
     handleDragEnd,
   } = useDragDrop({ disabled: !canReorder })
 
-  // Create context value with drag state for visual styling
   const dragContextValue = useSidebarDragContextValue(isDragging)
 
   useEffect(() => {
@@ -217,7 +222,7 @@ export function WorkflowList({
 
       return (
         <div key={workflow.id} className='relative'>
-          <DropIndicatorLine show={showBefore} level={level} />
+          <DropIndicatorLine show={showBefore} level={level} position='before' />
           <div
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
             {...createWorkflowDragHandlers(workflow.id, folderId)}
@@ -228,11 +233,11 @@ export function WorkflowList({
               level={level}
               dragDisabled={dragDisabled}
               onWorkflowClick={handleWorkflowClick}
-              onDragStart={() => handleDragStart('workflow', folderId)}
+              onDragStart={() => handleDragStart(folderId)}
               onDragEnd={handleDragEnd}
             />
           </div>
-          <DropIndicatorLine show={showAfter} level={level} />
+          <DropIndicatorLine show={showAfter} level={level} position='after' />
         </div>
       )
     },
@@ -292,12 +297,11 @@ export function WorkflowList({
 
       return (
         <div key={folder.id} className='relative'>
-          <DropIndicatorLine show={showBefore} level={level} />
-          {/* Drop target highlight overlay - covers entire folder section */}
+          <DropIndicatorLine show={showBefore} level={level} position='before' />
           <div
             className={clsx(
-              'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
-              showInside && isDragging ? 'bg-[#33b4ff1a] opacity-100' : 'opacity-0'
+              'pointer-events-none absolute inset-0 z-10 rounded-[4px]',
+              showInside && isDragging ? 'bg-[#33b4ff1a]' : 'hidden'
             )}
           />
           <div
@@ -309,11 +313,11 @@ export function WorkflowList({
               level={level}
               dragDisabled={dragDisabled}
               onFolderClick={handleFolderClick}
-              onDragStart={() => handleDragStart('folder', parentFolderId)}
+              onDragStart={() => handleDragStart(parentFolderId)}
               onDragEnd={handleDragEnd}
             />
           </div>
-          <DropIndicatorLine show={showAfter} level={level} />
+          <DropIndicatorLine show={showAfter} level={level} position='after' />
 
           {isExpanded && (hasChildren || isDragging) && (
             <div className='relative' {...createFolderContentDropZone(folder.id)}>
@@ -385,7 +389,13 @@ export function WorkflowList({
   }, [folderTree, rootWorkflows])
 
   const hasRootItems = rootItems.length > 0
+  const firstItemId = rootItems[0]?.id ?? null
+  const lastItemId = rootItems[rootItems.length - 1]?.id ?? null
   const showRootInside = dropIndicator?.targetId === 'root' && dropIndicator?.position === 'inside'
+  const showTopIndicator =
+    firstItemId && dropIndicator?.targetId === firstItemId && dropIndicator?.position === 'before'
+  const showBottomIndicator =
+    lastItemId && dropIndicator?.targetId === lastItemId && dropIndicator?.position === 'after'
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -424,13 +434,23 @@ export function WorkflowList({
           {...rootDropZoneHandlers}
           data-empty-area
         >
-          {/* Root drop target highlight overlay */}
           <div
             className={clsx(
-              'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
-              showRootInside && isDragging ? 'bg-[#33b4ff1a] opacity-100' : 'opacity-0'
+              'pointer-events-none absolute inset-0 z-10 rounded-[4px]',
+              showRootInside && isDragging ? 'bg-[#33b4ff1a]' : 'hidden'
             )}
           />
+          {isDragging && hasRootItems && (
+            <div
+              className='absolute top-0 right-0 left-0 z-30 h-[12px]'
+              {...createEdgeDropZone(firstItemId, 'before')}
+            />
+          )}
+          {showTopIndicator && (
+            <div className='pointer-events-none absolute top-0 right-0 left-0 z-20'>
+              <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
+            </div>
+          )}
           <div className='space-y-[2px]' data-empty-area>
             {rootItems.map((item) =>
               item.type === 'folder'
@@ -438,6 +458,17 @@ export function WorkflowList({
                 : renderWorkflowItem(item.data as WorkflowMetadata, 0, null)
             )}
           </div>
+          {isDragging && hasRootItems && (
+            <div
+              className='absolute right-0 bottom-0 left-0 z-30 h-[12px]'
+              {...createEdgeDropZone(lastItemId, 'after')}
+            />
+          )}
+          {showBottomIndicator && (
+            <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-20'>
+              <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
+            </div>
+          )}
         </div>
 
         <input

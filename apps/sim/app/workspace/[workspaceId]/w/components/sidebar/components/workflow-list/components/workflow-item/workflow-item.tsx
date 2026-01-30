@@ -19,6 +19,7 @@ import {
   useCanDelete,
   useDeleteSelection,
   useDeleteWorkflow,
+  useDuplicateSelection,
   useDuplicateWorkflow,
   useExportSelection,
   useExportWorkflow,
@@ -123,16 +124,26 @@ export function WorkflowItem({
     }
   }, [handleDeleteSelection, handleDeleteWorkflows])
 
-  const { handleDuplicateWorkflow: duplicateWorkflow } = useDuplicateWorkflow({ workspaceId })
+  const { handleDuplicateWorkflow: duplicateWorkflows } = useDuplicateWorkflow({ workspaceId })
+  const { isDuplicating: isDuplicatingSelection, handleDuplicateSelection } = useDuplicateSelection(
+    { workspaceId }
+  )
 
   const { handleExportWorkflow: handleExportWorkflows } = useExportWorkflow()
   const { handleExportSelection } = useExportSelection()
 
-  const handleDuplicateWorkflow = useCallback(() => {
-    const workflowIds = capturedSelectionRef.current?.workflowIds || []
-    if (workflowIds.length === 0) return
-    duplicateWorkflow(workflowIds)
-  }, [duplicateWorkflow])
+  const handleDuplicate = useCallback(() => {
+    if (!capturedSelectionRef.current) return
+
+    const { isMixed, workflowIds, folderIds } = capturedSelectionRef.current
+
+    if (isMixed) {
+      handleDuplicateSelection(workflowIds, folderIds)
+    } else {
+      if (workflowIds.length === 0) return
+      duplicateWorkflows(workflowIds)
+    }
+  }, [duplicateWorkflows, handleDuplicateSelection])
 
   const handleExport = useCallback(() => {
     if (!capturedSelectionRef.current) return
@@ -432,18 +443,18 @@ export function WorkflowItem({
         onClose={closeMenu}
         onOpenInNewTab={handleOpenInNewTab}
         onRename={handleStartEdit}
-        onDuplicate={handleDuplicateWorkflow}
+        onDuplicate={handleDuplicate}
         onExport={handleExport}
         onDelete={handleOpenDeleteModal}
         onColorChange={handleColorChange}
         currentColor={workflow.color}
         showOpenInNewTab={!isMixedSelection && selectedWorkflows.size <= 1}
         showRename={!isMixedSelection && selectedWorkflows.size <= 1}
-        showDuplicate={!isMixedSelection}
+        showDuplicate={true}
         showExport={true}
         showColorChange={!isMixedSelection && selectedWorkflows.size <= 1}
         disableRename={!userPermissions.canEdit}
-        disableDuplicate={!userPermissions.canEdit}
+        disableDuplicate={!userPermissions.canEdit || isDuplicatingSelection}
         disableExport={!userPermissions.canEdit}
         disableColorChange={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit || !canDeleteSelection}

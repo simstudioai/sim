@@ -219,8 +219,46 @@ export const stripeWebhookTrigger: TriggerConfig = {
       description: 'Unix timestamp when the event was created',
     },
     data: {
-      type: 'json',
+      type: 'object',
       description: 'Event data containing the affected Stripe object',
+      properties: {
+        object: {
+          type: 'object',
+          description: 'The Stripe object affected by this event (structure varies by event type)',
+          properties: {
+            id: { type: 'string', description: 'Unique identifier for the object' },
+            object: {
+              type: 'string',
+              description: 'Object type (e.g., payment_intent, customer, invoice)',
+            },
+            amount: {
+              type: 'number',
+              description: 'Amount in smallest currency unit (for payment objects)',
+            },
+            amount_received: {
+              type: 'number',
+              description: 'Amount received (for payment_intent)',
+            },
+            currency: { type: 'string', description: 'Three-letter ISO currency code' },
+            status: { type: 'string', description: 'Status of the object' },
+            client_secret: {
+              type: 'string',
+              description: 'Client secret for client-side confirmation',
+            },
+            customer: { type: 'string', description: 'Customer ID' },
+            metadata: {
+              type: 'json',
+              description: 'Custom metadata key-value pairs (user-defined)',
+            },
+            created: { type: 'number', description: 'Created timestamp (Unix)' },
+          },
+        },
+        previous_attributes: {
+          type: 'json',
+          description:
+            'Previous values of changed attributes (dynamic - only present for update events)',
+        },
+      },
     },
     livemode: {
       type: 'boolean',
@@ -231,8 +269,12 @@ export const stripeWebhookTrigger: TriggerConfig = {
       description: 'Number of webhooks yet to be delivered for this event',
     },
     request: {
-      type: 'json',
+      type: 'object',
       description: 'Information about the request that triggered this event',
+      properties: {
+        id: { type: 'string', description: 'Request ID' },
+        idempotency_key: { type: 'string', description: 'Idempotency key of the request' },
+      },
     },
   },
 
