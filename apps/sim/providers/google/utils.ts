@@ -73,6 +73,75 @@ export function cleanSchemaForGemini(schema: SchemaUnion): SchemaUnion {
 }
 
 /**
+ * Converts an array of content items to Gemini-compatible Part array.
+ * Handles various formats from the attachment transformer.
+ */
+function convertContentArrayToGeminiParts(contentArray: any[]): Part[] {
+  const parts: Part[] = []
+
+  for (const item of contentArray) {
+    if (!item) continue
+
+    // Gemini-native text format: { text: "..." }
+    if (typeof item.text === 'string') {
+      parts.push({ text: item.text })
+      continue
+    }
+
+    // OpenAI-style text: { type: 'text', text: '...' }
+    if (item.type === 'text' && typeof item.text === 'string') {
+      parts.push({ text: item.text })
+      continue
+    }
+
+    // Gemini-native inlineData format (from attachment transformer)
+    if (item.inlineData) {
+      parts.push({ inlineData: item.inlineData })
+      continue
+    }
+
+    // Gemini-native fileData format (from attachment transformer)
+    if (item.fileData) {
+      parts.push({ fileData: item.fileData })
+      continue
+    }
+
+    // OpenAI-style image_url - convert to Gemini format
+    if (item.type === 'image_url' && item.image_url) {
+      const url = typeof item.image_url === 'string' ? item.image_url : item.image_url?.url
+      if (url) {
+        // Check if it's a data URL (base64)
+        if (url.startsWith('data:')) {
+          const match = url.match(/^data:([^;]+);base64,(.+)$/)
+          if (match) {
+            parts.push({
+              inlineData: {
+                mimeType: match[1],
+                data: match[2],
+              },
+            })
+          }
+        } else {
+          // External URL
+          parts.push({
+            fileData: {
+              mimeType: 'image/jpeg', // Default, Gemini will detect actual type
+              fileUri: url,
+            },
+          })
+        }
+      }
+      continue
+    }
+
+    // Unknown type - log warning
+    logger.warn('Unknown content item type in Gemini conversion:', { type: item.type })
+  }
+
+  return parts
+}
+
+/**
  * Extracts text content from a Gemini response candidate.
  * Filters out thought parts (model reasoning) from the output.
  */
@@ -180,7 +249,13 @@ export function convertToGeminiFormat(request: ProviderRequest): {
       } else if (message.role === 'user' || message.role === 'assistant') {
         const geminiRole = message.role === 'user' ? 'user' : 'model'
 
-        if (message.content) {
+        // Handle multimodal content (arrays with text/image/file parts)
+        if (Array.isArray(message.content)) {
+          const parts: Part[] = convertContentArrayToGeminiParts(message.content)
+          if (parts.length > 0) {
+            contents.push({ role: geminiRole, parts })
+          }
+        } else if (message.content) {
           contents.push({ role: geminiRole, parts: [{ text: message.content }] })
         }
 

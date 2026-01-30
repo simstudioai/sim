@@ -109,7 +109,7 @@ export const anthropicProvider: ProviderConfig = {
             ],
           })
         } else {
-          // Handle content that's already in array format (from transformMediaMessages)
+          // Handle content that's already in array format (from transformAttachmentMessages)
           const content = Array.isArray(msg.content)
             ? msg.content
             : msg.content

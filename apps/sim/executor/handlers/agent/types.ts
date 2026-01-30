@@ -43,9 +43,9 @@ export interface ToolInput {
 }
 
 /**
- * Media content for multimodal messages
+ * Attachment content (files, images, documents)
  */
-export interface MediaContent {
+export interface AttachmentContent {
   /** Source type: how the data was provided */
   sourceType: 'url' | 'base64' | 'file'
   /** The URL or base64 data */
@@ -57,10 +57,10 @@ export interface MediaContent {
 }
 
 export interface Message {
-  role: 'system' | 'user' | 'assistant' | 'media'
+  role: 'system' | 'user' | 'assistant' | 'attachment'
   content: string
-  /** Media content for 'media' role messages */
-  media?: MediaContent
+  /** Attachment content for 'attachment' role messages */
+  attachment?: AttachmentContent
   executionId?: string
   function_call?: any
   tool_calls?: any[]

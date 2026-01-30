@@ -32,6 +32,7 @@ import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workf
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
+import { supportsVision } from '@/providers/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
@@ -50,13 +51,13 @@ const MAX_TEXTAREA_HEIGHT_PX = 320
 
 /** Pattern to match complete message objects in JSON */
 const COMPLETE_MESSAGE_PATTERN =
-  /"role"\s*:\s*"(system|user|assistant|media)"[^}]*"content"\s*:\s*"((?:[^"\\]|\\.)*)"/g
+  /"role"\s*:\s*"(system|user|assistant|attachment)"[^}]*"content"\s*:\s*"((?:[^"\\]|\\.)*)"/g
 
 /** Pattern to match incomplete content at end of buffer */
 const INCOMPLETE_CONTENT_PATTERN = /"content"\s*:\s*"((?:[^"\\]|\\.)*)$/
 
 /** Pattern to match role before content */
-const ROLE_BEFORE_CONTENT_PATTERN = /"role"\s*:\s*"(system|user|assistant|media)"[^{]*$/
+const ROLE_BEFORE_CONTENT_PATTERN = /"role"\s*:\s*"(system|user|assistant|attachment)"[^{]*$/
 
 /**
  * Unescapes JSON string content
@@ -65,9 +66,9 @@ const unescapeContent = (str: string): string =>
   str.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
 
 /**
- * Media content for multimodal messages
+ * Attachment content (files, images, documents)
  */
-interface MediaContent {
+interface AttachmentContent {
   /** Source type: how the data was provided */
   sourceType: 'url' | 'base64' | 'file'
   /** The URL or base64 data */
@@ -84,9 +85,9 @@ interface MediaContent {
  * Interface for individual message in the messages array
  */
 interface Message {
-  role: 'system' | 'user' | 'assistant' | 'media'
+  role: 'system' | 'user' | 'assistant' | 'attachment'
   content: string
-  media?: MediaContent
+  attachment?: AttachmentContent
 }
 
 /**
@@ -122,8 +123,8 @@ export function MessagesInput({
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null)
   const { activeWorkflowId } = useWorkflowRegistry()
 
-  // Local media mode state - basic = FileUpload, advanced = URL/base64 textarea
-  const [mediaMode, setMediaMode] = useState<'basic' | 'advanced'>('basic')
+  // Local attachment mode state - basic = FileUpload, advanced = URL/base64 textarea
+  const [attachmentMode, setAttachmentMode] = useState<'basic' | 'advanced'>('basic')
 
   // Workspace files for wand context
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFile[]>([])
@@ -166,22 +167,49 @@ export function MessagesInput({
       .join('\n')
 
     if (!filesList) {
-      return 'No media files in workspace. The user can upload files manually after generation.'
+      return 'No files in workspace. The user can upload files manually after generation.'
     }
 
-    return `AVAILABLE WORKSPACE FILES (optional - you don't have to select one):\n${filesList}\n\nTo use a file, include "fileId": "<id>" in the media object. If not selecting a file, omit the fileId field.`
+    return `AVAILABLE WORKSPACE FILES (optional - you don't have to select one):\n${filesList}\n\nTo use a file, include "fileId": "<id>" in the attachment object. If not selecting a file, omit the fileId field.`
   }, [workspaceFiles])
 
-  // Get indices of media messages for subscription
-  const mediaIndices = useMemo(
+  // Get indices of attachment messages for subscription
+  const attachmentIndices = useMemo(
     () =>
       localMessages
-        .map((msg, index) => (msg.role === 'media' ? index : -1))
+        .map((msg, index) => (msg.role === 'attachment' ? index : -1))
         .filter((i) => i !== -1),
     [localMessages]
   )
 
-  // Subscribe to file upload values for all media messages
+  // Subscribe to model value to check vision capability
+  const modelSupportsVision = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (!activeWorkflowId) return true // Default to allowing attachments
+        const blockValues = state.workflowValues[activeWorkflowId]?.[blockId] ?? {}
+        const modelValue = blockValues.model as string | undefined
+        if (!modelValue) return true // No model selected, allow attachments
+        return supportsVision(modelValue)
+      },
+      [activeWorkflowId, blockId]
+    )
+  )
+
+  // Determine available roles based on model capabilities
+  const availableRoles = useMemo(() => {
+    const baseRoles: Array<'system' | 'user' | 'assistant' | 'attachment'> = [
+      'system',
+      'user',
+      'assistant',
+    ]
+    if (modelSupportsVision) {
+      baseRoles.push('attachment')
+    }
+    return baseRoles
+  }, [modelSupportsVision])
+
+  // Subscribe to file upload values for all attachment messages
   const fileUploadValues = useSubBlockStore(
     useCallback(
       (state) => {
@@ -189,8 +217,8 @@ export function MessagesInput({
         const blockValues = state.workflowValues[activeWorkflowId]?.[blockId] ?? {}
         const result: Record<number, { name: string; path: string; type: string; size: number }> =
           {}
-        for (const index of mediaIndices) {
-          const fileUploadKey = `${subBlockId}-media-${index}`
+        for (const index of attachmentIndices) {
+          const fileUploadKey = `${subBlockId}-attachment-${index}`
           const fileValue = blockValues[fileUploadKey]
           if (fileValue && typeof fileValue === 'object' && 'path' in fileValue) {
             result[index] = fileValue as { name: string; path: string; type: string; size: number }
@@ -198,21 +226,21 @@ export function MessagesInput({
         }
         return result
       },
-      [activeWorkflowId, blockId, subBlockId, mediaIndices]
+      [activeWorkflowId, blockId, subBlockId, attachmentIndices]
     )
   )
 
-  // Effect to sync FileUpload values to message media objects
+  // Effect to sync FileUpload values to message attachment objects
   useEffect(() => {
     if (!activeWorkflowId || isPreview) return
 
     let hasChanges = false
     const updatedMessages = localMessages.map((msg, index) => {
-      if (msg.role !== 'media') return msg
+      if (msg.role !== 'attachment') return msg
 
       const uploadedFile = fileUploadValues[index]
       if (uploadedFile) {
-        const newMedia: MediaContent = {
+        const newAttachment: AttachmentContent = {
           sourceType: 'file',
           data: uploadedFile.path,
           mimeType: uploadedFile.type,
@@ -221,16 +249,16 @@ export function MessagesInput({
 
         // Only update if different
         if (
-          msg.media?.data !== newMedia.data ||
-          msg.media?.sourceType !== newMedia.sourceType ||
-          msg.media?.mimeType !== newMedia.mimeType ||
-          msg.media?.fileName !== newMedia.fileName
+          msg.attachment?.data !== newAttachment.data ||
+          msg.attachment?.sourceType !== newAttachment.sourceType ||
+          msg.attachment?.mimeType !== newAttachment.mimeType ||
+          msg.attachment?.fileName !== newAttachment.fileName
         ) {
           hasChanges = true
           return {
             ...msg,
             content: uploadedFile.name || msg.content,
-            media: newMedia,
+            attachment: newAttachment,
           }
         }
       }
@@ -267,20 +295,22 @@ export function MessagesInput({
       if (Array.isArray(parsed)) {
         const validMessages: Message[] = parsed
           .filter(
-            (m): m is { role: string; content: string; media?: MediaContent } =>
+            (m): m is { role: string; content: string; attachment?: AttachmentContent } =>
               typeof m === 'object' &&
               m !== null &&
               typeof m.role === 'string' &&
               typeof m.content === 'string'
           )
           .map((m) => {
-            const role = ['system', 'user', 'assistant', 'media'].includes(m.role) ? m.role : 'user'
+            const role = ['system', 'user', 'assistant', 'attachment'].includes(m.role)
+              ? m.role
+              : 'user'
             const message: Message = {
               role: role as Message['role'],
               content: m.content,
             }
-            if (m.media) {
-              message.media = m.media
+            if (m.attachment) {
+              message.attachment = m.attachment
             }
             return message
           })
@@ -344,14 +374,14 @@ export function MessagesInput({
     onGeneratedContent: (content) => {
       const validMessages = parseMessages(content)
       if (validMessages) {
-        // Process media messages - only allow fileId to set files, sanitize other attempts
+        // Process attachment messages - only allow fileId to set files, sanitize other attempts
         validMessages.forEach((msg, index) => {
-          if (msg.role === 'media') {
+          if (msg.role === 'attachment') {
             // Check if this is an existing file with valid data (preserve it)
             const hasExistingFile =
-              msg.media?.sourceType === 'file' &&
-              msg.media?.data?.startsWith('/api/') &&
-              msg.media?.fileName
+              msg.attachment?.sourceType === 'file' &&
+              msg.attachment?.data?.startsWith('/api/') &&
+              msg.attachment?.fileName
 
             if (hasExistingFile) {
               // Preserve existing file data as-is
@@ -359,11 +389,11 @@ export function MessagesInput({
             }
 
             // Check if wand provided a fileId to select a workspace file
-            if (msg.media?.fileId) {
-              const file = workspaceFiles.find((f) => f.id === msg.media?.fileId)
+            if (msg.attachment?.fileId) {
+              const file = workspaceFiles.find((f) => f.id === msg.attachment?.fileId)
               if (file) {
                 // Set the file value in SubBlockStore so FileUpload picks it up
-                const fileUploadKey = `${subBlockId}-media-${index}`
+                const fileUploadKey = `${subBlockId}-attachment-${index}`
                 const uploadedFile = {
                   name: file.name,
                   path: file.path,
@@ -372,16 +402,16 @@ export function MessagesInput({
                 }
                 useSubBlockStore.getState().setValue(blockId, fileUploadKey, uploadedFile)
 
-                // Clear the media object - the FileUpload will sync the file data via useEffect
-                // DON'T set media.data here as it would appear in the ShortInput (advanced mode)
-                msg.media = undefined
+                // Clear the attachment object - the FileUpload will sync the file data via useEffect
+                // DON'T set attachment.data here as it would appear in the ShortInput (advanced mode)
+                msg.attachment = undefined
                 return
               }
             }
 
-            // Sanitize: clear any media object that isn't a valid existing file or fileId match
+            // Sanitize: clear any attachment object that isn't a valid existing file or fileId match
             // This prevents the LLM from setting arbitrary data/variable references
-            msg.media = undefined
+            msg.attachment = undefined
           }
         })
 
@@ -458,22 +488,22 @@ export function MessagesInput({
   )
 
   const updateMessageRole = useCallback(
-    (index: number, role: 'system' | 'user' | 'assistant' | 'media') => {
+    (index: number, role: 'system' | 'user' | 'assistant' | 'attachment') => {
       if (isPreview || disabled) return
 
       const updatedMessages = [...localMessages]
-      if (role === 'media') {
+      if (role === 'attachment') {
         updatedMessages[index] = {
           ...updatedMessages[index],
           role,
           content: updatedMessages[index].content || '',
-          media: updatedMessages[index].media || {
+          attachment: updatedMessages[index].attachment || {
             sourceType: 'file',
             data: '',
           },
         }
       } else {
-        const { media: _, ...rest } = updatedMessages[index]
+        const { attachment: _, ...rest } = updatedMessages[index]
         updatedMessages[index] = {
           ...rest,
           role,
@@ -761,7 +791,7 @@ export function MessagesInput({
                       </PopoverTrigger>
                       <PopoverContent minWidth={140} align='start'>
                         <div className='flex flex-col gap-[2px]'>
-                          {(['system', 'user', 'assistant', 'media'] as const).map((role) => (
+                          {availableRoles.map((role) => (
                             <PopoverItem
                               key={role}
                               active={message.role === role}
@@ -820,20 +850,20 @@ export function MessagesInput({
                           </Button>
                         </>
                       )}
-                      {/* Mode toggle for media messages */}
-                      {message.role === 'media' && (
+                      {/* Mode toggle for attachment messages */}
+                      {message.role === 'attachment' && (
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
                               onClick={(e: React.MouseEvent) => {
                                 e.stopPropagation()
-                                setMediaMode((m) => (m === 'basic' ? 'advanced' : 'basic'))
+                                setAttachmentMode((m) => (m === 'basic' ? 'advanced' : 'basic'))
                               }}
                               disabled={disabled}
                               className='-my-1 -mr-1 h-6 w-6 p-0'
                               aria-label={
-                                mediaMode === 'advanced'
+                                attachmentMode === 'advanced'
                                   ? 'Switch to file upload'
                                   : 'Switch to URL/text input'
                               }
@@ -841,7 +871,7 @@ export function MessagesInput({
                               <ArrowLeftRight
                                 className={cn(
                                   'h-3 w-3',
-                                  mediaMode === 'advanced'
+                                  attachmentMode === 'advanced'
                                     ? 'text-[var(--text-primary)]'
                                     : 'text-[var(--text-secondary)]'
                                 )}
@@ -850,7 +880,7 @@ export function MessagesInput({
                           </Tooltip.Trigger>
                           <Tooltip.Content side='top'>
                             <p>
-                              {mediaMode === 'advanced'
+                              {attachmentMode === 'advanced'
                                 ? 'Switch to file upload'
                                 : 'Switch to URL/text input'}
                             </p>
@@ -873,13 +903,13 @@ export function MessagesInput({
                   )}
                 </div>
 
-                {/* Content Input - different for media vs text messages */}
-                {message.role === 'media' ? (
+                {/* Content Input - different for attachment vs text messages */}
+                {message.role === 'attachment' ? (
                   <div className='relative w-full px-[8px] py-[8px]'>
-                    {mediaMode === 'basic' ? (
+                    {attachmentMode === 'basic' ? (
                       <FileUpload
                         blockId={blockId}
-                        subBlockId={`${subBlockId}-media-${index}`}
+                        subBlockId={`${subBlockId}-attachment-${index}`}
                         acceptedTypes='image/*,audio/*,video/*,application/pdf,.doc,.docx,.txt'
                         multiple={false}
                         isPreview={isPreview}
@@ -888,19 +918,21 @@ export function MessagesInput({
                     ) : (
                       <ShortInput
                         blockId={blockId}
-                        subBlockId={`${subBlockId}-media-ref-${index}`}
+                        subBlockId={`${subBlockId}-attachment-ref-${index}`}
                         placeholder='Reference file from previous block...'
                         config={{
-                          id: `${subBlockId}-media-ref-${index}`,
+                          id: `${subBlockId}-attachment-ref-${index}`,
                           type: 'short-input',
                         }}
                         value={
                           // Only show value for variable references, not file uploads
-                          message.media?.sourceType === 'file' ? '' : message.media?.data || ''
+                          message.attachment?.sourceType === 'file'
+                            ? ''
+                            : message.attachment?.data || ''
                         }
                         onChange={(newValue: string) => {
                           const updatedMessages = [...localMessages]
-                          if (updatedMessages[index].role === 'media') {
+                          if (updatedMessages[index].role === 'attachment') {
                             // Determine sourceType based on content
                             let sourceType: 'url' | 'base64' = 'url'
                             if (newValue.startsWith('data:') || newValue.includes(';base64,')) {
@@ -909,8 +941,8 @@ export function MessagesInput({
                             updatedMessages[index] = {
                               ...updatedMessages[index],
                               content: newValue.substring(0, 50),
-                              media: {
-                                ...updatedMessages[index].media,
+                              attachment: {
+                                ...updatedMessages[index].attachment,
                                 sourceType,
                                 data: newValue,
                               },

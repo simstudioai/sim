@@ -100,7 +100,7 @@ Current messages: {context}
 RULES:
 1. Generate ONLY a valid JSON array - no markdown, no explanations
 2. Each message object must have "role" and "content" properties
-3. Valid roles are: "system", "user", "assistant", "media"
+3. Valid roles are: "system", "user", "assistant", "attachment"
 4. Content can be as long as necessary - don't truncate
 5. If editing existing messages, preserve structure unless asked to change it
 6. For new agents, create DETAILED, PROFESSIONAL system prompts that include:
@@ -110,15 +110,15 @@ RULES:
    - Critical thinking or quality guidelines
    - How to handle edge cases and uncertainty
 
-MEDIA MESSAGES:
-- Use role "media" to include images, audio, video, or documents in a multimodal conversation
-- IMPORTANT: If a media message in the current context has a "media" object with file data, ALWAYS preserve that entire "media" object exactly as-is
-- When creating NEW media messages, you can either:
-  1. Just set role to "media" with descriptive content - user will upload the file manually
-  2. Select a file from the available workspace files by including "fileId" in the media object (optional)
+ATTACHMENTS:
+- Use role "attachment" to include images, audio, video, or documents in a multimodal conversation
+- IMPORTANT: If an attachment message in the current context has an "attachment" object with file data, ALWAYS preserve that entire "attachment" object exactly as-is
+- When creating NEW attachment messages, you can either:
+  1. Just set role to "attachment" with descriptive content - user will upload the file manually
+  2. Select a file from the available workspace files by including "fileId" in the attachment object (optional)
 - You do NOT have to select a file - it's completely optional
-- Example without file: {"role": "media", "content": "Analyze this image for text and objects"}
-- Example with file selection: {"role": "media", "content": "Analyze this image", "media": {"fileId": "abc123"}}
+- Example without file: {"role": "attachment", "content": "Analyze this image for text and objects"}
+- Example with file selection: {"role": "attachment", "content": "Analyze this image", "attachment": {"fileId": "abc123"}}
 
 EXAMPLES:
 
@@ -129,7 +129,7 @@ Code reviewer:
 [{"role": "system", "content": "You are a Senior Code Reviewer with expertise in software architecture, security, and best practices. Your role is to provide thorough, constructive code reviews that improve code quality and help developers grow.\\n\\n## Review Methodology\\n\\n1. **Security First**: Check for vulnerabilities including injection attacks, authentication flaws, data exposure, and insecure dependencies.\\n\\n2. **Code Quality**: Evaluate readability, maintainability, adherence to DRY/SOLID principles, and appropriate abstraction levels.\\n\\n3. **Performance**: Identify potential bottlenecks, unnecessary computations, memory leaks, and optimization opportunities.\\n\\n4. **Testing**: Assess test coverage, edge case handling, and testability of the code structure.\\n\\n## Output Format\\n\\n### Summary\\nBrief overview of the code's purpose and overall assessment.\\n\\n### Critical Issues\\nSecurity vulnerabilities or bugs that must be fixed before merging.\\n\\n### Improvements\\nSuggested enhancements with clear explanations of why and how.\\n\\n### Positive Aspects\\nHighlight well-written code to reinforce good practices.\\n\\nBe specific with line references. Provide code examples for suggested changes. Balance critique with encouragement."}, {"role": "user", "content": "<start.input>"}]
 
 Image analysis agent:
-[{"role": "system", "content": "You are an expert image analyst. Describe images in detail, identify objects, text, and patterns. Provide structured analysis."}, {"role": "media", "content": "Analyze this image"}]
+[{"role": "system", "content": "You are an expert image analyst. Describe images in detail, identify objects, text, and patterns. Provide structured analysis."}, {"role": "attachment", "content": "Analyze this image"}]
 
 Return ONLY the JSON array.`,
         placeholder: 'Describe what you want to create or change...',
