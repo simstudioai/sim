@@ -48,13 +48,17 @@ return workflowId
 /**
  * Lua script for atomic user activity update.
  * Performs read-modify-write atomically to prevent lost updates.
+ * Also refreshes TTL on socket keys to prevent expiry during long sessions.
  */
 const UPDATE_ACTIVITY_SCRIPT = `
 local workflowUsersKey = KEYS[1]
+local socketWorkflowKey = KEYS[2]
+local socketSessionKey = KEYS[3]
 local socketId = ARGV[1]
 local cursorJson = ARGV[2]
 local selectionJson = ARGV[3]
 local lastActivity = ARGV[4]
+local ttl = tonumber(ARGV[5])
 
 local existingJson = redis.call('HGET', workflowUsersKey, socketId)
 if not existingJson then
@@ -72,6 +76,8 @@ end
 existing.lastActivity = tonumber(lastActivity)
 
 redis.call('HSET', workflowUsersKey, socketId, cjson.encode(existing))
+redis.call('EXPIRE', socketWorkflowKey, ttl)
+redis.call('EXPIRE', socketSessionKey, ttl)
 return 1
 `
 
@@ -269,12 +275,17 @@ export class RedisRoomManager implements IRoomManager {
 
     try {
       await this.redis.evalSha(this.updateActivityScriptSha, {
-        keys: [KEYS.workflowUsers(workflowId)],
+        keys: [
+          KEYS.workflowUsers(workflowId),
+          KEYS.socketWorkflow(socketId),
+          KEYS.socketSession(socketId),
+        ],
         arguments: [
           socketId,
           updates.cursor ? JSON.stringify(updates.cursor) : '',
           updates.selection ? JSON.stringify(updates.selection) : '',
           (updates.lastActivity ?? Date.now()).toString(),
+          SOCKET_KEY_TTL.toString(),
         ],
       })
     } catch (error) {

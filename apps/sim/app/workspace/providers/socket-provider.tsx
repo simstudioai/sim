@@ -127,6 +127,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
   const [authFailed, setAuthFailed] = useState(false)
   const initializedRef = useRef(false)
+  const socketRef = useRef<Socket | null>(null)
 
   const params = useParams()
   const urlWorkflowId = params?.workflowId as string | undefined
@@ -146,6 +147,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   }>({})
 
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
+  const isRejoiningRef = useRef<boolean>(false)
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
 
   const generateSocketToken = async (): Promise<string> => {
@@ -315,11 +317,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         // Handle join workflow success - confirms room membership with presence list
         socketInstance.on('join-workflow-success', ({ workflowId, presenceUsers }) => {
+          isRejoiningRef.current = false
           setCurrentWorkflowId(workflowId)
           setPresenceUsers(presenceUsers || [])
           logger.info(`Successfully joined workflow room: ${workflowId}`, {
             presenceCount: presenceUsers?.length || 0,
           })
+        })
+
+        socketInstance.on('join-workflow-error', ({ error }) => {
+          isRejoiningRef.current = false
+          logger.error('Failed to join workflow:', error)
         })
 
         socketInstance.on('workflow-operation', (data) => {
@@ -485,6 +493,19 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('operation-forbidden', (error) => {
           logger.warn('Operation forbidden:', error)
+
+          if (error?.type === 'SESSION_ERROR') {
+            const workflowId = urlWorkflowIdRef.current
+
+            if (workflowId && !isRejoiningRef.current) {
+              isRejoiningRef.current = true
+              logger.info(`Session expired, rejoining workflow: ${workflowId}`)
+              socketInstance.emit('join-workflow', {
+                workflowId,
+                tabSessionId: getTabSessionId(),
+              })
+            }
+          }
         })
 
         socketInstance.on('workflow-state', async (workflowData) => {
@@ -495,11 +516,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           }
         })
 
+        socketRef.current = socketInstance
         setSocket(socketInstance)
-
-        return () => {
-          socketInstance.close()
-        }
       } catch (error) {
         logger.error('Failed to initialize socket with token:', error)
         setIsConnecting(false)
@@ -514,6 +532,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       })
       positionUpdateTimeouts.current.clear()
       pendingPositionUpdates.current.clear()
+
+      // Close socket on unmount
+      if (socketRef.current) {
+        logger.info('Closing socket connection on unmount')
+        socketRef.current.close()
+        socketRef.current = null
+      }
     }
   }, [user?.id, authFailed])
 

@@ -36,32 +36,36 @@ export function cleanupPendingSubblocksForSocket(socketId: string): void {
 
 export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('subblock-update', async (data) => {
-    const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
-    const session = await roomManager.getUserSession(socket.id)
-
-    if (!workflowId || !session) {
-      logger.debug(`Ignoring subblock update: socket not connected to any workflow room`, {
-        socketId: socket.id,
-        hasWorkflowId: !!workflowId,
-        hasSession: !!session,
-      })
-      return
-    }
-
     const { blockId, subblockId, value, timestamp, operationId } = data
 
-    const hasRoom = await roomManager.hasWorkflowRoom(workflowId)
-    if (!hasRoom) {
-      logger.debug(`Ignoring subblock update: workflow room not found`, {
-        socketId: socket.id,
-        workflowId,
-        blockId,
-        subblockId,
-      })
-      return
-    }
-
     try {
+      const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      const session = await roomManager.getUserSession(socket.id)
+
+      if (!workflowId || !session) {
+        logger.debug(`Ignoring subblock update: socket not connected to any workflow room`, {
+          socketId: socket.id,
+          hasWorkflowId: !!workflowId,
+          hasSession: !!session,
+        })
+        socket.emit('operation-forbidden', {
+          type: 'SESSION_ERROR',
+          message: 'Session expired, please rejoin workflow',
+        })
+        return
+      }
+
+      const hasRoom = await roomManager.hasWorkflowRoom(workflowId)
+      if (!hasRoom) {
+        logger.debug(`Ignoring subblock update: workflow room not found`, {
+          socketId: socket.id,
+          workflowId,
+          blockId,
+          subblockId,
+        })
+        return
+      }
+
       // Update user activity
       await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
 

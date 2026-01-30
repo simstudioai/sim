@@ -32,32 +32,36 @@ export function cleanupPendingVariablesForSocket(socketId: string): void {
 
 export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('variable-update', async (data) => {
-    const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
-    const session = await roomManager.getUserSession(socket.id)
-
-    if (!workflowId || !session) {
-      logger.debug(`Ignoring variable update: socket not connected to any workflow room`, {
-        socketId: socket.id,
-        hasWorkflowId: !!workflowId,
-        hasSession: !!session,
-      })
-      return
-    }
-
     const { variableId, field, value, timestamp, operationId } = data
 
-    const hasRoom = await roomManager.hasWorkflowRoom(workflowId)
-    if (!hasRoom) {
-      logger.debug(`Ignoring variable update: workflow room not found`, {
-        socketId: socket.id,
-        workflowId,
-        variableId,
-        field,
-      })
-      return
-    }
-
     try {
+      const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      const session = await roomManager.getUserSession(socket.id)
+
+      if (!workflowId || !session) {
+        logger.debug(`Ignoring variable update: socket not connected to any workflow room`, {
+          socketId: socket.id,
+          hasWorkflowId: !!workflowId,
+          hasSession: !!session,
+        })
+        socket.emit('operation-forbidden', {
+          type: 'SESSION_ERROR',
+          message: 'Session expired, please rejoin workflow',
+        })
+        return
+      }
+
+      const hasRoom = await roomManager.hasWorkflowRoom(workflowId)
+      if (!hasRoom) {
+        logger.debug(`Ignoring variable update: workflow room not found`, {
+          socketId: socket.id,
+          workflowId,
+          variableId,
+          field,
+        })
+        return
+      }
+
       // Update user activity
       await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
 
