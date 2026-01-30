@@ -123,6 +123,7 @@ Get a single contact by ID from Intercom. Returns API-aligned fields only.
 | --------- | ---- | ----------- |
 | `contact` | object | Contact object |
 |   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `type` | string | Object type \(contact\) |
 |   ↳ `role` | string | Role of the contact \(user or lead\) |
 |   ↳ `email` | string | Email address of the contact |
 |   ↳ `email_domain` | string | Email domain of the contact |
@@ -150,27 +151,32 @@ Get a single contact by ID from Intercom. Returns API-aligned fields only.
 |   ↳ `language_override` | string | Language override setting |
 |   ↳ `custom_attributes` | object | Custom attributes set on the contact |
 |   ↳ `tags` | object | Tags associated with the contact \(up to 10 displayed\) |
+|     ↳ `type` | string | List type identifier |
 |     ↳ `url` | string | URL to fetch full list |
 |     ↳ `data` | array | Array of objects \(up to 10\) |
 |     ↳ `has_more` | boolean | Whether there are more items beyond this list |
 |     ↳ `total_count` | number | Total number of items |
 |   ↳ `notes` | object | Notes associated with the contact \(up to 10 displayed\) |
+|     ↳ `type` | string | List type identifier |
 |     ↳ `url` | string | URL to fetch full list |
 |     ↳ `data` | array | Array of objects \(up to 10\) |
 |     ↳ `has_more` | boolean | Whether there are more items beyond this list |
 |     ↳ `total_count` | number | Total number of items |
 |   ↳ `companies` | object | Companies associated with the contact \(up to 10 displayed\) |
+|     ↳ `type` | string | List type identifier |
 |     ↳ `url` | string | URL to fetch full list |
 |     ↳ `data` | array | Array of objects \(up to 10\) |
 |     ↳ `has_more` | boolean | Whether there are more items beyond this list |
 |     ↳ `total_count` | number | Total number of items |
 |   ↳ `location` | object | Location information for the contact |
+|     ↳ `type` | string | Object type \(location\) |
 |     ↳ `city` | string | City name |
 |     ↳ `region` | string | Region or state name |
 |     ↳ `country` | string | Country name |
 |     ↳ `country_code` | string | ISO country code |
 |     ↳ `continent_code` | string | Continent code |
 |   ↳ `social_profiles` | object | Social profiles of the contact |
+|     ↳ `type` | string | Social network type \(e.g., twitter, facebook\) |
 |     ↳ `name` | string | Social network name |
 |     ↳ `url` | string | Profile URL |
 |     ↳ `username` | string | Username on the social network |

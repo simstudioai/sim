@@ -74,6 +74,7 @@ Create a new Zoom meeting
 |   ↳ `host_id` | string | Host user ID |
 |   ↳ `host_email` | string | Host email address |
 |   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
 |   ↳ `status` | string | Meeting status \(e.g., waiting, started\) |
 |   ↳ `start_time` | string | Start time in ISO 8601 format |
 |   ↳ `duration` | number | Duration in minutes |
@@ -98,6 +99,7 @@ Create a new Zoom meeting
 |     ↳ `meeting_authentication` | boolean | Require meeting authentication |
 |     ↳ `approval_type` | number | Approval type: 0=auto, 1=manual, 2=none |
 |   ↳ `recurrence` | object | Recurrence settings for recurring meetings |
+|     ↳ `type` | number | Recurrence type: 1=daily, 2=weekly, 3=monthly |
 |     ↳ `repeat_interval` | number | Interval between recurring meetings |
 |     ↳ `weekly_days` | string | Days of week for weekly recurrence \(1-7, comma-separated\) |
 |     ↳ `monthly_day` | number | Day of month for monthly recurrence |
@@ -133,6 +135,7 @@ List all meetings for a Zoom user
 |   ↳ `uuid` | string | Meeting UUID |
 |   ↳ `host_id` | string | Host user ID |
 |   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type |
 |   ↳ `start_time` | string | Start time in ISO 8601 format |
 |   ↳ `duration` | number | Duration in minutes |
 |   ↳ `timezone` | string | Timezone |
@@ -168,6 +171,7 @@ Get details of a specific Zoom meeting
 |   ↳ `host_id` | string | Host user ID |
 |   ↳ `host_email` | string | Host email address |
 |   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
 |   ↳ `status` | string | Meeting status \(e.g., waiting, started\) |
 |   ↳ `start_time` | string | Start time in ISO 8601 format |
 |   ↳ `duration` | number | Duration in minutes |
@@ -192,6 +196,7 @@ Get details of a specific Zoom meeting
 |     ↳ `meeting_authentication` | boolean | Require meeting authentication |
 |     ↳ `approval_type` | number | Approval type: 0=auto, 1=manual, 2=none |
 |   ↳ `recurrence` | object | Recurrence settings for recurring meetings |
+|     ↳ `type` | number | Recurrence type: 1=daily, 2=weekly, 3=monthly |
 |     ↳ `repeat_interval` | number | Interval between recurring meetings |
 |     ↳ `weekly_days` | string | Days of week for weekly recurrence \(1-7, comma-separated\) |
 |     ↳ `monthly_day` | number | Day of month for monthly recurrence |
@@ -294,6 +299,7 @@ List all cloud recordings for a Zoom user
 |   ↳ `account_id` | string | Account ID |
 |   ↳ `host_id` | string | Host user ID |
 |   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type |
 |   ↳ `start_time` | string | Meeting start time |
 |   ↳ `duration` | number | Meeting duration in minutes |
 |   ↳ `total_size` | number | Total size of all recordings in bytes |
@@ -340,6 +346,7 @@ Get all recordings for a specific Zoom meeting
 |   ↳ `account_id` | string | Account ID |
 |   ↳ `host_id` | string | Host user ID |
 |   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type |
 |   ↳ `start_time` | string | Meeting start time |
 |   ↳ `duration` | number | Meeting duration in minutes |
 |   ↳ `total_size` | number | Total size of all recordings in bytes |

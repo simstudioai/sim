@@ -97,6 +97,7 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | object | Complete message object with all properties returned by Slack |
+|   ↳ `type` | string | Message type \(usually "message"\) |
 |   ↳ `ts` | string | Message timestamp \(unique identifier\) |
 |   ↳ `text` | string | Message text content |
 |   ↳ `user` | string | User ID who sent the message |
@@ -145,6 +146,7 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 |     ↳ `footer_icon` | string | Footer icon URL |
 |     ↳ `ts` | string | Timestamp shown in footer |
 |   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
 |     ↳ `block_id` | string | Unique block identifier |
 |   ↳ `edited` | object | Edit information if message was edited |
 |     ↳ `user` | string | User ID who edited the message |
@@ -198,6 +200,7 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `messages` | array | Array of message objects from the channel |
+|   ↳ `type` | string | Message type \(usually "message"\) |
 |   ↳ `ts` | string | Message timestamp \(unique identifier\) |
 |   ↳ `text` | string | Message text content |
 |   ↳ `user` | string | User ID who sent the message |
@@ -246,6 +249,7 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 |     ↳ `footer_icon` | string | Footer icon URL |
 |     ↳ `ts` | string | Timestamp shown in footer |
 |   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
 |     ↳ `block_id` | string | Unique block identifier |
 |   ↳ `edited` | object | Edit information if message was edited |
 |     ↳ `user` | string | User ID who edited the message |
@@ -269,6 +273,7 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | object | The retrieved message object |
+|   ↳ `type` | string | Message type \(usually "message"\) |
 |   ↳ `ts` | string | Message timestamp \(unique identifier\) |
 |   ↳ `text` | string | Message text content |
 |   ↳ `user` | string | User ID who sent the message |
@@ -317,6 +322,7 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 |     ↳ `footer_icon` | string | Footer icon URL |
 |     ↳ `ts` | string | Timestamp shown in footer |
 |   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
 |     ↳ `block_id` | string | Unique block identifier |
 |   ↳ `edited` | object | Edit information if message was edited |
 |     ↳ `user` | string | User ID who edited the message |
@@ -341,6 +347,7 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `parentMessage` | object | The thread parent message |
+|   ↳ `type` | string | Message type \(usually "message"\) |
 |   ↳ `ts` | string | Message timestamp \(unique identifier\) |
 |   ↳ `text` | string | Message text content |
 |   ↳ `user` | string | User ID who sent the message |
@@ -389,11 +396,13 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 |     ↳ `footer_icon` | string | Footer icon URL |
 |     ↳ `ts` | string | Timestamp shown in footer |
 |   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
 |     ↳ `block_id` | string | Unique block identifier |
 |   ↳ `edited` | object | Edit information if message was edited |
 |     ↳ `user` | string | User ID who edited the message |
 |     ↳ `ts` | string | Timestamp of the edit |
 | `replies` | array | Array of reply messages in the thread \(excluding the parent\) |
+|   ↳ `type` | string | Message type \(usually "message"\) |
 |   ↳ `ts` | string | Message timestamp \(unique identifier\) |
 |   ↳ `text` | string | Message text content |
 |   ↳ `user` | string | User ID who sent the message |
@@ -442,11 +451,13 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 |     ↳ `footer_icon` | string | Footer icon URL |
 |     ↳ `ts` | string | Timestamp shown in footer |
 |   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
 |     ↳ `block_id` | string | Unique block identifier |
 |   ↳ `edited` | object | Edit information if message was edited |
 |     ↳ `user` | string | User ID who edited the message |
 |     ↳ `ts` | string | Timestamp of the edit |
 | `messages` | array | All messages in the thread \(parent + replies\) in chronological order |
+|   ↳ `type` | string | Message type \(usually "message"\) |
 |   ↳ `ts` | string | Message timestamp \(unique identifier\) |
 |   ↳ `text` | string | Message text content |
 |   ↳ `user` | string | User ID who sent the message |
@@ -495,6 +506,7 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 |     ↳ `footer_icon` | string | Footer icon URL |
 |     ↳ `ts` | string | Timestamp shown in footer |
 |   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
 |     ↳ `block_id` | string | Unique block identifier |
 |   ↳ `edited` | object | Edit information if message was edited |
 |     ↳ `user` | string | User ID who edited the message |
@@ -685,6 +697,7 @@ Update a message previously sent by the bot in Slack
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | object | Complete updated message object with all properties returned by Slack |
+|   ↳ `type` | string | Message type \(usually "message"\) |
 |   ↳ `ts` | string | Message timestamp \(unique identifier\) |
 |   ↳ `text` | string | Message text content |
 |   ↳ `user` | string | User ID who sent the message |
@@ -733,6 +746,7 @@ Update a message previously sent by the bot in Slack
 |     ↳ `footer_icon` | string | Footer icon URL |
 |     ↳ `ts` | string | Timestamp shown in footer |
 |   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
 |     ↳ `block_id` | string | Unique block identifier |
 |   ↳ `edited` | object | Edit information if message was edited |
 |     ↳ `user` | string | User ID who edited the message |

@@ -83,6 +83,7 @@ Run an autonomous web agent to complete tasks and extract structured data
 |   ↳ `completed` | boolean | Whether the agent finished executing \(may be false if max steps reached\) |
 |   ↳ `message` | string | Final status message or result summary from the agent |
 |   ↳ `actions` | array | List of all actions performed by the agent during task execution |
+|     ↳ `type` | string | Type of action performed \(e.g., "act", "observe", "ariaTree", "close", "wait", "navigate"\) |
 |     ↳ `reasoning` | string | AI reasoning for why this action was taken |
 |     ↳ `taskCompleted` | boolean | Whether the task was completed after this action |
 |     ↳ `action` | string | Description of the action taken \(e.g., "click the submit button"\) |

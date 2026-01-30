@@ -92,6 +92,7 @@ Retrieve a list of tickets from Zendesk with optional filtering
 |       ↳ `rel` | string | Relationship type |
 |   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
+|   ↳ `type` | string | Ticket type \(problem, incident, question, task\) |
 |   ↳ `subject` | string | Subject of the ticket |
 |   ↳ `raw_subject` | string | Subject of the ticket as entered by the requester |
 |   ↳ `description` | string | Read-only first comment on the ticket |
@@ -169,6 +170,7 @@ Get a single ticket by ID from Zendesk
 |       ↳ `rel` | string | Relationship type |
 |   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
+|   ↳ `type` | string | Ticket type \(problem, incident, question, task\) |
 |   ↳ `subject` | string | Subject of the ticket |
 |   ↳ `raw_subject` | string | Subject of the ticket as entered by the requester |
 |   ↳ `description` | string | Read-only first comment on the ticket |
@@ -249,6 +251,7 @@ Create a new ticket in Zendesk with support for custom fields
 |       ↳ `rel` | string | Relationship type |
 |   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
+|   ↳ `type` | string | Ticket type \(problem, incident, question, task\) |
 |   ↳ `subject` | string | Subject of the ticket |
 |   ↳ `raw_subject` | string | Subject of the ticket as entered by the requester |
 |   ↳ `description` | string | Read-only first comment on the ticket |
@@ -363,6 +366,7 @@ Update an existing ticket in Zendesk with support for custom fields
 |       ↳ `rel` | string | Relationship type |
 |   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
+|   ↳ `type` | string | Ticket type \(problem, incident, question, task\) |
 |   ↳ `subject` | string | Subject of the ticket |
 |   ↳ `raw_subject` | string | Subject of the ticket as entered by the requester |
 |   ↳ `description` | string | Read-only first comment on the ticket |

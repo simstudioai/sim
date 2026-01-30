@@ -131,6 +131,7 @@ Query and filter Notion database entries with advanced filtering
 |   ↳ `url` | string | Notion page URL |
 |   ↳ `public_url` | string | Public web URL if shared, null otherwise |
 |   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
 |     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
 |     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
 |     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
@@ -140,6 +141,7 @@ Query and filter Notion database entries with advanced filtering
 |     ↳ `url` | string | Authenticated URL valid for one hour |
 |     ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
 |   ↳ `cover` | object | Page/database cover image |
+|     ↳ `type` | string | File type: "file", "file_upload", or "external" |
 |     ↳ `file` | object | Notion-hosted file object \(when type is "file"\) |
 |       ↳ `url` | string | Authenticated URL valid for one hour |
 |       ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
@@ -184,6 +186,7 @@ Search across all pages and databases in Notion workspace
 |   ↳ `url` | string | Object URL |
 |   ↳ `public_url` | string | Public web URL if shared |
 |   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
 |     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
 |     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
 |     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |

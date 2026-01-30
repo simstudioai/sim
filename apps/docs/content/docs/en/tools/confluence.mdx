@@ -143,6 +143,7 @@ Search for content across Confluence pages, blog posts, and other content.
 | `results` | array | Array of search results |
 |   ↳ `id` | string | Unique content identifier |
 |   ↳ `title` | string | Content title |
+|   ↳ `type` | string | Content type \(e.g., page, blogpost, attachment, comment\) |
 |   ↳ `status` | string | Content status \(e.g., current\) |
 |   ↳ `url` | string | URL to view the content in Confluence |
 |   ↳ `excerpt` | string | Text excerpt matching the search query |
@@ -403,6 +404,7 @@ List all Confluence spaces accessible to the user.
 |   ↳ `id` | string | Unique space identifier |
 |   ↳ `key` | string | Space key \(short identifier used in URLs\) |
 |   ↳ `name` | string | Space name |
+|   ↳ `type` | string | Space type \(e.g., global, personal\) |
 |   ↳ `status` | string | Space status \(e.g., current, archived\) |
 |   ↳ `authorId` | string | Account ID of the space creator |
 |   ↳ `createdAt` | string | ISO 8601 timestamp when the space was created |

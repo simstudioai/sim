@@ -854,8 +854,8 @@ function parseConstProperties(
     const propName = match[1]
     const constRef = match[2]
 
-    // Skip keywords, but allow 'properties' if it's an actual output field (has type: inside)
-    if (propName === 'items' || propName === 'type') {
+    // Skip 'items' keyword (always a nested structure, never a field name)
+    if (propName === 'items') {
       continue
     }
 
@@ -867,8 +867,9 @@ function parseConstProperties(
       continue // Skip - this is a nested property
     }
 
-    // For 'properties', check if it's an output field definition vs nested properties block
-    if (propName === 'properties' && !constRef) {
+    // For 'properties' or 'type', check if it's an output field definition vs a keyword
+    // Output field definitions have 'type:' inside (e.g., { type: 'string', description: '...' })
+    if ((propName === 'properties' || propName === 'type') && !constRef) {
       // Peek at what's inside the braces
       const startPos = match.index + match[0].length - 1
       let braceCount = 1
@@ -887,7 +888,7 @@ function parseConstProperties(
             properties[propName] = parsedProp
           }
         }
-        // Otherwise, it's a nested properties block - skip it
+        // Otherwise, it's a keyword usage (nested properties block or type specifier) - skip it
       }
       continue
     }
@@ -1555,6 +1556,23 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
 function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
   const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
   const description = extractDescription(fieldContent)
+
+  // Check for spread operator at the start of field content (e.g., ...SUBSCRIPTION_OUTPUT)
+  // This pattern is used when a field spreads a complete output definition and optionally overrides properties
+  const spreadMatch = fieldContent.match(/^\s*\.\.\.([A-Z][A-Z_0-9]+)\s*,/)
+  if (spreadMatch && toolPrefix && !typeMatch) {
+    const constName = spreadMatch[1]
+    const resolvedConst = resolveConstReference(constName, toolPrefix)
+    if (resolvedConst && typeof resolvedConst === 'object') {
+      // Start with the resolved const and override with inline properties
+      const result: any = { ...resolvedConst }
+      // Override description if provided inline
+      if (description) {
+        result.description = description
+      }
+      return result
+    }
+  }
 
   if (!typeMatch) return null
 

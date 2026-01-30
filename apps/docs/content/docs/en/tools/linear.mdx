@@ -75,6 +75,7 @@ Fetch and filter issues from Linear
 |   ↳ `state` | object | Workflow state/status |
 |     ↳ `id` | string | State ID |
 |     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
 |   ↳ `assignee` | object | User object |
 |     ↳ `id` | string | User ID |
 |     ↳ `name` | string | User name |
@@ -121,6 +122,7 @@ Get a single issue by ID from Linear with full details
 |   ↳ `state` | object | Workflow state/status |
 |     ↳ `id` | string | State ID |
 |     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
 |   ↳ `assignee` | object | User object |
 |     ↳ `id` | string | User ID |
 |     ↳ `name` | string | User name |
@@ -175,6 +177,7 @@ Create a new issue in Linear
 |   ↳ `state` | object | Workflow state/status |
 |     ↳ `id` | string | State ID |
 |     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
 |   ↳ `assignee` | object | User object |
 |     ↳ `id` | string | User ID |
 |     ↳ `name` | string | User name |
@@ -236,6 +239,7 @@ Update an existing issue in Linear
 |   ↳ `state` | object | Workflow state/status |
 |     ↳ `id` | string | State ID |
 |     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
 |   ↳ `assignee` | object | User object |
 |     ↳ `id` | string | User ID |
 |     ↳ `name` | string | User name |
@@ -340,6 +344,7 @@ Search for issues in Linear using full-text search
 |   ↳ `state` | object | Workflow state/status |
 |     ↳ `id` | string | State ID |
 |     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
 |   ↳ `assignee` | object | User object |
 |     ↳ `id` | string | User ID |
 |     ↳ `name` | string | User name |
@@ -844,6 +849,7 @@ List all workflow states (statuses) in Linear
 | `states` | array | Array of workflow states |
 |   ↳ `id` | string | State ID |
 |   ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|   ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
 |   ↳ `color` | string | State color \(hex\) |
 |   ↳ `position` | number | State position in workflow |
 |   ↳ `team` | object | Team object |
