@@ -119,8 +119,6 @@ export function useCollaborativeWorkflow() {
     onWorkflowOperation,
     onSubblockUpdate,
     onVariableUpdate,
-    onUserJoined,
-    onUserLeft,
     onWorkflowDeleted,
     onWorkflowReverted,
     onOperationConfirmed,
@@ -484,14 +482,6 @@ export function useCollaborativeWorkflow() {
       }
     }
 
-    const handleUserJoined = (data: any) => {
-      logger.info(`User joined: ${data.userName}`)
-    }
-
-    const handleUserLeft = (data: any) => {
-      logger.info(`User left: ${data.userId}`)
-    }
-
     const handleWorkflowDeleted = (data: any) => {
       const { workflowId } = data
       logger.warn(`Workflow ${workflowId} has been deleted`)
@@ -600,26 +590,17 @@ export function useCollaborativeWorkflow() {
       failOperation(operationId, retryable)
     }
 
-    // Register event handlers
     onWorkflowOperation(handleWorkflowOperation)
     onSubblockUpdate(handleSubblockUpdate)
     onVariableUpdate(handleVariableUpdate)
-    onUserJoined(handleUserJoined)
-    onUserLeft(handleUserLeft)
     onWorkflowDeleted(handleWorkflowDeleted)
     onWorkflowReverted(handleWorkflowReverted)
     onOperationConfirmed(handleOperationConfirmed)
     onOperationFailed(handleOperationFailed)
-
-    return () => {
-      // Cleanup handled by socket context
-    }
   }, [
     onWorkflowOperation,
     onSubblockUpdate,
     onVariableUpdate,
-    onUserJoined,
-    onUserLeft,
     onWorkflowDeleted,
     onWorkflowReverted,
     onOperationConfirmed,

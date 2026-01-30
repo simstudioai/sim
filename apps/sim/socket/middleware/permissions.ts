@@ -73,7 +73,7 @@ export function checkRolePermission(
   return { allowed: true }
 }
 
-export async function verifyWorkspaceMembership(
+async function verifyWorkspaceMembership(
   userId: string,
   workspaceId: string
 ): Promise<string | null> {
