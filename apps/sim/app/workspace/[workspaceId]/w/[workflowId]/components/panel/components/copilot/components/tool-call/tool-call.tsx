@@ -1,5 +1,6 @@
 'use client'
 
+import { createLogger } from '@sim/logger'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp, LayoutList } from 'lucide-react'
@@ -26,6 +27,7 @@ import { getBlock } from '@/blocks/registry'
 import type { CopilotToolCall } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 import { CLASS_TOOL_METADATA } from '@/stores/panel/copilot/store'
+import { COPILOT_SERVER_ORCHESTRATED } from '@/lib/copilot/orchestrator/config'
 import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -1257,12 +1259,36 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   return false
 }
 
+const toolCallLogger = createLogger('CopilotToolCall')
+
+async function sendToolDecision(toolCallId: string, status: 'accepted' | 'rejected') {
+  try {
+    await fetch('/api/copilot/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolCallId, status }),
+    })
+  } catch (error) {
+    toolCallLogger.warn('Failed to send tool decision', {
+      toolCallId,
+      status,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
 async function handleRun(
   toolCall: CopilotToolCall,
   setToolCallState: any,
   onStateChange?: any,
   editedParams?: any
 ) {
+  if (COPILOT_SERVER_ORCHESTRATED) {
+    setToolCallState(toolCall, 'executing')
+    onStateChange?.('executing')
+    await sendToolDecision(toolCall.id, 'accepted')
+    return
+  }
   const instance = getClientTool(toolCall.id)
 
   if (!instance && isIntegrationTool(toolCall.name)) {
@@ -1307,6 +1333,12 @@ async function handleRun(
 }
 
 async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onStateChange?: any) {
+  if (COPILOT_SERVER_ORCHESTRATED) {
+    setToolCallState(toolCall, 'rejected')
+    onStateChange?.('rejected')
+    await sendToolDecision(toolCall.id, 'rejected')
+    return
+  }
   const instance = getClientTool(toolCall.id)
 
   if (!instance && isIntegrationTool(toolCall.name)) {
