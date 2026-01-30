@@ -616,6 +616,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   input: callbackData.input,
                   error: callbackData.output.error,
                   durationMs: callbackData.executionTime || 0,
+                  startedAt: callbackData.startedAt,
+                  endedAt: callbackData.endedAt,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,
                     iterationTotal: iterationContext.iterationTotal,
@@ -641,6 +643,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   input: callbackData.input,
                   output: callbackData.output,
                   durationMs: callbackData.executionTime || 0,
+                  startedAt: callbackData.startedAt,
+                  endedAt: callbackData.endedAt,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,
                     iterationTotal: iterationContext.iterationTotal,
