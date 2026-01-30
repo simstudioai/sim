@@ -169,7 +169,9 @@ export class BlockExecutor {
           block,
           this.sanitizeInputsForLog(resolvedInputs),
           displayOutput,
-          duration
+          duration,
+          blockLog!.startedAt,
+          blockLog!.endedAt
         )
       }
 
@@ -274,7 +276,9 @@ export class BlockExecutor {
         block,
         this.sanitizeInputsForLog(input),
         displayOutput,
-        duration
+        duration,
+        blockLog!.startedAt,
+        blockLog!.endedAt
       )
     }
 
@@ -423,7 +427,9 @@ export class BlockExecutor {
     block: SerializedBlock,
     input: Record<string, any>,
     output: NormalizedBlockOutput,
-    duration: number
+    duration: number,
+    startedAt: string,
+    endedAt: string
   ): void {
     const blockId = node.id
     const blockName = block.metadata?.name ?? blockId
@@ -440,6 +446,8 @@ export class BlockExecutor {
           input,
           output,
           executionTime: duration,
+          startedAt,
+          endedAt,
         },
         iterationContext
       )

@@ -1,8 +1,18 @@
 import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
+import type {
+  BlockCompletedData,
+  BlockErrorData,
+  BlockStartedData,
+  ExecutionCancelledData,
+  ExecutionCompletedData,
+  ExecutionErrorData,
+  ExecutionEvent,
+  ExecutionStartedData,
+  StreamChunkData,
+  StreamDoneData,
+} from '@/lib/workflows/executor/execution-events'
 import type { SerializableExecutionState } from '@/executor/execution/types'
-import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('useExecutionStream')
 
@@ -81,48 +91,15 @@ async function processSSEStream(
 }
 
 export interface ExecutionStreamCallbacks {
-  onExecutionStarted?: (data: { startTime: string }) => void
-  onExecutionCompleted?: (data: {
-    success: boolean
-    output: any
-    duration: number
-    startTime: string
-    endTime: string
-  }) => void
-  onExecutionError?: (data: { error: string; duration: number }) => void
-  onExecutionCancelled?: (data: { duration: number }) => void
-  onBlockStarted?: (data: {
-    blockId: string
-    blockName: string
-    blockType: string
-    iterationCurrent?: number
-    iterationTotal?: number
-    iterationType?: SubflowType
-  }) => void
-  onBlockCompleted?: (data: {
-    blockId: string
-    blockName: string
-    blockType: string
-    input?: any
-    output: any
-    durationMs: number
-    iterationCurrent?: number
-    iterationTotal?: number
-    iterationType?: SubflowType
-  }) => void
-  onBlockError?: (data: {
-    blockId: string
-    blockName: string
-    blockType: string
-    input?: any
-    error: string
-    durationMs: number
-    iterationCurrent?: number
-    iterationTotal?: number
-    iterationType?: SubflowType
-  }) => void
-  onStreamChunk?: (data: { blockId: string; chunk: string }) => void
-  onStreamDone?: (data: { blockId: string }) => void
+  onExecutionStarted?: (data: ExecutionStartedData) => void
+  onExecutionCompleted?: (data: ExecutionCompletedData) => void
+  onExecutionError?: (data: ExecutionErrorData) => void
+  onExecutionCancelled?: (data: ExecutionCancelledData) => void
+  onBlockStarted?: (data: BlockStartedData) => void
+  onBlockCompleted?: (data: BlockCompletedData) => void
+  onBlockError?: (data: BlockErrorData) => void
+  onStreamChunk?: (data: StreamChunkData) => void
+  onStreamDone?: (data: StreamDoneData) => void
 }
 
 export interface ExecuteStreamOptions {

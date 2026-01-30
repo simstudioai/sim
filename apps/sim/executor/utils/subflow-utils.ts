@@ -232,6 +232,8 @@ export function addSubflowErrorLog(
       input: inputData,
       output: { error: errorMessage },
       executionTime: 0,
+      startedAt: now,
+      endedAt: now,
     })
   }
 }
