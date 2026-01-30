@@ -155,8 +155,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       headers: { 'cache-control': 'no-store' },
     })
     if (!res.ok) {
-      // 401/403 indicates session expiry - don't keep retrying
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         throw new Error('Authentication required')
       }
       throw new Error('Failed to generate socket token')
