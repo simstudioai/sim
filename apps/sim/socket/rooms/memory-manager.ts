@@ -234,27 +234,4 @@ export class MemoryRoomManager implements IRoomManager {
 
     logger.info(`Notified ${room.users.size} users about workflow update: ${workflowId}`)
   }
-
-  async handleCopilotWorkflowEdit(workflowId: string, description?: string): Promise<void> {
-    logger.info(`Handling copilot workflow edit notification for ${workflowId}`)
-
-    const room = this.workflowRooms.get(workflowId)
-    if (!room) {
-      logger.debug(`No active room found for copilot workflow edit ${workflowId}`)
-      return
-    }
-
-    const timestamp = Date.now()
-
-    this._io.to(workflowId).emit('copilot-workflow-edit', {
-      workflowId,
-      description,
-      message: 'Copilot has edited the workflow - rehydrating from database',
-      timestamp,
-    })
-
-    room.lastModified = timestamp
-
-    logger.info(`Notified ${room.users.size} users about copilot workflow edit: ${workflowId}`)
-  }
 }

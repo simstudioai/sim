@@ -115,20 +115,6 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
-    // Handle copilot workflow edit notifications from the main API
-    if (req.method === 'POST' && req.url === '/api/copilot-workflow-edit') {
-      try {
-        const body = await readRequestBody(req)
-        const { workflowId, description } = JSON.parse(body)
-        await roomManager.handleCopilotWorkflowEdit(workflowId, description)
-        sendSuccess(res)
-      } catch (error) {
-        logger.error('Error handling copilot workflow edit notification:', error)
-        sendError(res, 'Failed to process copilot edit notification')
-      }
-      return
-    }
-
     // Handle workflow revert notifications from the main API
     if (req.method === 'POST' && req.url === '/api/workflow-reverted') {
       try {

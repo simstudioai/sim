@@ -132,9 +132,4 @@ export interface IRoomManager {
    * Handle workflow update - notify users
    */
   handleWorkflowUpdate(workflowId: string): Promise<void>
-
-  /**
-   * Handle copilot workflow edit - notify users to rehydrate
-   */
-  handleCopilotWorkflowEdit(workflowId: string, description?: string): Promise<void>
 }
