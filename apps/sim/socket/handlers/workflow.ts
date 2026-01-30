@@ -125,8 +125,9 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       )
     } catch (error) {
       logger.error('Error joining workflow:', error)
-      // Undo socket.join if addUserToRoom or subsequent operations failed
+      // Undo socket.join and room manager entry if any operation failed
       socket.leave(workflowId)
+      await roomManager.removeUserFromRoom(socket.id)
       socket.emit('join-workflow-error', { error: 'Failed to join workflow' })
     }
   })
