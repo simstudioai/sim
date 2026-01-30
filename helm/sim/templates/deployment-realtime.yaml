@@ -44,6 +44,10 @@ spec:
           env:
             - name: DATABASE_URL
               value: {{ include "sim.databaseUrl" . | quote }}
+            {{- if .Values.app.env.REDIS_URL }}
+            - name: REDIS_URL
+              value: {{ .Values.app.env.REDIS_URL | quote }}
+            {{- end }}
             {{- range $key, $value := .Values.realtime.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}

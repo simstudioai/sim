@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http'
-import type { RoomManager } from '@/socket/rooms/manager'
+import type { IRoomManager } from '@/socket/rooms'
 
 interface Logger {
   info: (message: string, ...args: any[]) => void
@@ -14,15 +14,16 @@ interface Logger {
  * @param logger - Logger instance for logging requests and errors
  * @returns HTTP request handler function
  */
-export function createHttpHandler(roomManager: RoomManager, logger: Logger) {
-  return (req: IncomingMessage, res: ServerResponse) => {
+export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
+  return async (req: IncomingMessage, res: ServerResponse) => {
     if (req.method === 'GET' && req.url === '/health') {
+      const connections = await roomManager.getTotalActiveConnections()
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
           status: 'ok',
           timestamp: new Date().toISOString(),
-          connections: roomManager.getTotalActiveConnections(),
+          connections,
         })
       )
       return
@@ -34,10 +35,10 @@ export function createHttpHandler(roomManager: RoomManager, logger: Logger) {
       req.on('data', (chunk) => {
         body += chunk.toString()
       })
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const { workflowId } = JSON.parse(body)
-          roomManager.handleWorkflowDeletion(workflowId)
+          await roomManager.handleWorkflowDeletion(workflowId)
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: true }))
         } catch (error) {
@@ -55,10 +56,10 @@ export function createHttpHandler(roomManager: RoomManager, logger: Logger) {
       req.on('data', (chunk) => {
         body += chunk.toString()
       })
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const { workflowId } = JSON.parse(body)
-          roomManager.handleWorkflowUpdate(workflowId)
+          await roomManager.handleWorkflowUpdate(workflowId)
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: true }))
         } catch (error) {
@@ -76,10 +77,10 @@ export function createHttpHandler(roomManager: RoomManager, logger: Logger) {
       req.on('data', (chunk) => {
         body += chunk.toString()
       })
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const { workflowId, description } = JSON.parse(body)
-          roomManager.handleCopilotWorkflowEdit(workflowId, description)
+          await roomManager.handleCopilotWorkflowEdit(workflowId, description)
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: true }))
         } catch (error) {
@@ -97,10 +98,10 @@ export function createHttpHandler(roomManager: RoomManager, logger: Logger) {
       req.on('data', (chunk) => {
         body += chunk.toString()
       })
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const { workflowId, timestamp } = JSON.parse(body)
-          roomManager.handleWorkflowRevert(workflowId, timestamp)
+          await roomManager.handleWorkflowRevert(workflowId, timestamp)
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: true }))
         } catch (error) {

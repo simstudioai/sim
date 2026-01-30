@@ -2,9 +2,8 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type { HandlerDependencies } from '@/socket/handlers/workflow'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
-import type { RoomManager } from '@/socket/rooms/manager'
+import type { IRoomManager } from '@/socket/rooms'
 
 const logger = createLogger('VariablesHandlers')
 
@@ -17,16 +16,24 @@ type PendingVariable = {
 // Keyed by `${workflowId}:${variableId}:${field}`
 const pendingVariableUpdates = new Map<string, PendingVariable>()
 
-export function setupVariablesHandlers(
-  socket: AuthenticatedSocket,
-  deps: HandlerDependencies | RoomManager
-) {
-  const roomManager =
-    deps instanceof Object && 'roomManager' in deps ? deps.roomManager : (deps as RoomManager)
+/**
+ * Cleans up pending updates for a disconnected socket.
+ * Removes the socket's operationIds from pending updates to prevent memory leaks.
+ */
+export function cleanupPendingVariablesForSocket(socketId: string): void {
+  for (const [key, pending] of pendingVariableUpdates.entries()) {
+    for (const [opId, sid] of pending.opToSocket.entries()) {
+      if (sid === socketId) {
+        pending.opToSocket.delete(opId)
+      }
+    }
+  }
+}
 
+export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('variable-update', async (data) => {
-    const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
-    const session = roomManager.getUserSession(socket.id)
+    const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+    const session = await roomManager.getUserSession(socket.id)
 
     if (!workflowId || !session) {
       logger.debug(`Ignoring variable update: socket not connected to any workflow room`, {
@@ -38,9 +45,9 @@ export function setupVariablesHandlers(
     }
 
     const { variableId, field, value, timestamp, operationId } = data
-    const room = roomManager.getWorkflowRoom(workflowId)
 
-    if (!room) {
+    const hasRoom = await roomManager.hasWorkflowRoom(workflowId)
+    if (!hasRoom) {
       logger.debug(`Ignoring variable update: workflow room not found`, {
         socketId: socket.id,
         workflowId,
@@ -51,10 +58,8 @@ export function setupVariablesHandlers(
     }
 
     try {
-      const userPresence = room.users.get(socket.id)
-      if (userPresence) {
-        userPresence.lastActivity = Date.now()
-      }
+      // Update user activity
+      await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
 
       const debouncedKey = `${workflowId}:${variableId}:${field}`
       const existing = pendingVariableUpdates.get(debouncedKey)
@@ -108,9 +113,11 @@ export function setupVariablesHandlers(
 async function flushVariableUpdate(
   workflowId: string,
   pending: PendingVariable,
-  roomManager: RoomManager
+  roomManager: IRoomManager
 ) {
   const { variableId, field, value, timestamp } = pending.latest
+  const io = roomManager.io
+
   try {
     const workflowExists = await db
       .select({ id: workflow.id })
@@ -120,7 +127,7 @@ async function flushVariableUpdate(
 
     if (workflowExists.length === 0) {
       pending.opToSocket.forEach((socketId, opId) => {
-        const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+        const sock = io.sockets.sockets.get(socketId)
         if (sock) {
           sock.emit('operation-failed', {
             operationId: opId,
@@ -163,30 +170,40 @@ async function flushVariableUpdate(
     })
 
     if (updateSuccessful) {
-      // Broadcast to other clients (exclude senders to avoid overwriting their local state)
-      const senderSocketIds = new Set(pending.opToSocket.values())
-      const io = (roomManager as any).io
-      if (io) {
-        const roomSockets = io.sockets.adapter.rooms.get(workflowId)
-        if (roomSockets) {
-          roomSockets.forEach((socketId: string) => {
-            if (!senderSocketIds.has(socketId)) {
-              const sock = io.sockets.sockets.get(socketId)
-              if (sock) {
-                sock.emit('variable-update', {
-                  variableId,
-                  field,
-                  value,
-                  timestamp,
-                })
-              }
-            }
-          })
-        }
+      // Collect all sender socket IDs to exclude from broadcast
+      const senderSocketIds = [...pending.opToSocket.values()]
+      const firstSenderSocket =
+        senderSocketIds.length > 0 ? io.sockets.sockets.get(senderSocketIds[0]) : null
+
+      if (firstSenderSocket) {
+        // socket.to(room).emit() excludes sender and broadcasts across all pods via Redis adapter
+        firstSenderSocket.to(workflowId).emit('variable-update', {
+          variableId,
+          field,
+          value,
+          timestamp,
+        })
+      } else if (senderSocketIds.length > 0) {
+        // Senders disconnected but we should still exclude them in case they reconnected
+        // Use io.except() to exclude all sender socket IDs
+        io.to(workflowId).except(senderSocketIds).emit('variable-update', {
+          variableId,
+          field,
+          value,
+          timestamp,
+        })
+      } else {
+        // No senders tracked (edge case) - broadcast to all
+        roomManager.emitToWorkflow(workflowId, 'variable-update', {
+          variableId,
+          field,
+          value,
+          timestamp,
+        })
       }
 
       pending.opToSocket.forEach((socketId, opId) => {
-        const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+        const sock = io.sockets.sockets.get(socketId)
         if (sock) {
           sock.emit('operation-confirmed', { operationId: opId, serverTimestamp: Date.now() })
         }
@@ -195,7 +212,7 @@ async function flushVariableUpdate(
       logger.debug(`Flushed variable update ${workflowId}: ${variableId}.${field}`)
     } else {
       pending.opToSocket.forEach((socketId, opId) => {
-        const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+        const sock = io.sockets.sockets.get(socketId)
         if (sock) {
           sock.emit('operation-failed', {
             operationId: opId,
@@ -208,7 +225,7 @@ async function flushVariableUpdate(
   } catch (error) {
     logger.error('Error flushing variable update:', error)
     pending.opToSocket.forEach((socketId, opId) => {
-      const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+      const sock = io.sockets.sockets.get(socketId)
       if (sock) {
         sock.emit('operation-failed', {
           operationId: opId,

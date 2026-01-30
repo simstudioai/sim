@@ -2,9 +2,8 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import type { HandlerDependencies } from '@/socket/handlers/workflow'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
-import type { RoomManager } from '@/socket/rooms/manager'
+import type { IRoomManager } from '@/socket/rooms'
 
 const logger = createLogger('SubblocksHandlers')
 
@@ -18,15 +17,27 @@ type PendingSubblock = {
 // Keyed by `${workflowId}:${blockId}:${subblockId}`
 const pendingSubblockUpdates = new Map<string, PendingSubblock>()
 
-export function setupSubblocksHandlers(
-  socket: AuthenticatedSocket,
-  deps: HandlerDependencies | RoomManager
-) {
-  const roomManager =
-    deps instanceof Object && 'roomManager' in deps ? deps.roomManager : (deps as RoomManager)
+/**
+ * Cleans up pending updates for a disconnected socket.
+ * Removes the socket's operationIds from pending updates to prevent memory leaks.
+ */
+export function cleanupPendingSubblocksForSocket(socketId: string): void {
+  for (const [key, pending] of pendingSubblockUpdates.entries()) {
+    // Remove this socket's operation entries
+    for (const [opId, sid] of pending.opToSocket.entries()) {
+      if (sid === socketId) {
+        pending.opToSocket.delete(opId)
+      }
+    }
+    // If no more operations are waiting, the timeout will still fire and flush
+    // This is fine - the update will still persist, just no confirmation to send
+  }
+}
+
+export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('subblock-update', async (data) => {
-    const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
-    const session = roomManager.getUserSession(socket.id)
+    const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+    const session = await roomManager.getUserSession(socket.id)
 
     if (!workflowId || !session) {
       logger.debug(`Ignoring subblock update: socket not connected to any workflow room`, {
@@ -38,9 +49,9 @@ export function setupSubblocksHandlers(
     }
 
     const { blockId, subblockId, value, timestamp, operationId } = data
-    const room = roomManager.getWorkflowRoom(workflowId)
 
-    if (!room) {
+    const hasRoom = await roomManager.hasWorkflowRoom(workflowId)
+    if (!hasRoom) {
       logger.debug(`Ignoring subblock update: workflow room not found`, {
         socketId: socket.id,
         workflowId,
@@ -51,10 +62,8 @@ export function setupSubblocksHandlers(
     }
 
     try {
-      const userPresence = room.users.get(socket.id)
-      if (userPresence) {
-        userPresence.lastActivity = Date.now()
-      }
+      // Update user activity
+      await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
 
       // Server-side debounce/coalesce by workflowId+blockId+subblockId
       const debouncedKey = `${workflowId}:${blockId}:${subblockId}`
@@ -88,7 +97,6 @@ export function setupSubblocksHandlers(
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
-      // Best-effort failure for the single operation if provided
       if (operationId) {
         socket.emit('operation-failed', {
           operationId,
@@ -97,7 +105,6 @@ export function setupSubblocksHandlers(
         })
       }
 
-      // Also emit legacy operation-error for backward compatibility
       socket.emit('operation-error', {
         type: 'SUBBLOCK_UPDATE_FAILED',
         message: `Failed to update subblock ${blockId}.${subblockId}: ${errorMessage}`,
@@ -111,9 +118,11 @@ export function setupSubblocksHandlers(
 async function flushSubblockUpdate(
   workflowId: string,
   pending: PendingSubblock,
-  roomManager: RoomManager
+  roomManager: IRoomManager
 ) {
   const { blockId, subblockId, value, timestamp } = pending.latest
+  const io = roomManager.io
+
   try {
     // Verify workflow still exists
     const workflowExists = await db
@@ -124,7 +133,7 @@ async function flushSubblockUpdate(
 
     if (workflowExists.length === 0) {
       pending.opToSocket.forEach((socketId, opId) => {
-        const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+        const sock = io.sockets.sockets.get(socketId)
         if (sock) {
           sock.emit('operation-failed', {
             operationId: opId,
@@ -164,40 +173,48 @@ async function flushSubblockUpdate(
     })
 
     if (updateSuccessful) {
-      // Broadcast to other clients (exclude senders to avoid overwriting their local state)
-      const senderSocketIds = new Set(pending.opToSocket.values())
-      const io = (roomManager as any).io
-      if (io) {
-        // Get all sockets in the room
-        const roomSockets = io.sockets.adapter.rooms.get(workflowId)
-        if (roomSockets) {
-          roomSockets.forEach((socketId: string) => {
-            // Only emit to sockets that didn't send any of the coalesced ops
-            if (!senderSocketIds.has(socketId)) {
-              const sock = io.sockets.sockets.get(socketId)
-              if (sock) {
-                sock.emit('subblock-update', {
-                  blockId,
-                  subblockId,
-                  value,
-                  timestamp,
-                })
-              }
-            }
-          })
-        }
+      // Collect all sender socket IDs to exclude from broadcast
+      const senderSocketIds = [...pending.opToSocket.values()]
+      const firstSenderSocket =
+        senderSocketIds.length > 0 ? io.sockets.sockets.get(senderSocketIds[0]) : null
+
+      if (firstSenderSocket) {
+        // socket.to(room).emit() excludes sender and broadcasts across all pods via Redis adapter
+        firstSenderSocket.to(workflowId).emit('subblock-update', {
+          blockId,
+          subblockId,
+          value,
+          timestamp,
+        })
+      } else if (senderSocketIds.length > 0) {
+        // Senders disconnected but we should still exclude them in case they reconnected
+        // Use io.except() to exclude all sender socket IDs
+        io.to(workflowId).except(senderSocketIds).emit('subblock-update', {
+          blockId,
+          subblockId,
+          value,
+          timestamp,
+        })
+      } else {
+        // No senders tracked (edge case) - broadcast to all
+        roomManager.emitToWorkflow(workflowId, 'subblock-update', {
+          blockId,
+          subblockId,
+          value,
+          timestamp,
+        })
       }
 
-      // Confirm all coalesced operationIds
+      // Confirm all coalesced operationIds (only to sockets still connected on this pod)
       pending.opToSocket.forEach((socketId, opId) => {
-        const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+        const sock = io.sockets.sockets.get(socketId)
         if (sock) {
           sock.emit('operation-confirmed', { operationId: opId, serverTimestamp: Date.now() })
         }
       })
     } else {
       pending.opToSocket.forEach((socketId, opId) => {
-        const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+        const sock = io.sockets.sockets.get(socketId)
         if (sock) {
           sock.emit('operation-failed', {
             operationId: opId,
@@ -210,7 +227,7 @@ async function flushSubblockUpdate(
   } catch (error) {
     logger.error('Error flushing subblock update:', error)
     pending.opToSocket.forEach((socketId, opId) => {
-      const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+      const sock = io.sockets.sockets.get(socketId)
       if (sock) {
         sock.emit('operation-failed', {
           operationId: opId,

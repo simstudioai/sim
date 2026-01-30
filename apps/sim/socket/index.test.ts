@@ -7,7 +7,7 @@ import { createServer, request as httpRequest } from 'http'
 import { createMockLogger, databaseMock } from '@sim/testing'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSocketIOServer } from '@/socket/config/socket'
-import { RoomManager } from '@/socket/rooms/manager'
+import { MemoryRoomManager } from '@/socket/rooms'
 import { createHttpHandler } from '@/socket/routes/http'
 
 vi.mock('@/lib/auth', () => ({
@@ -19,6 +19,30 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 vi.mock('@sim/db', () => databaseMock)
+
+// Mock redis package to prevent actual Redis connections
+vi.mock('redis', () => ({
+  createClient: vi.fn(() => ({
+    on: vi.fn(),
+    connect: vi.fn().mockResolvedValue(undefined),
+    quit: vi.fn().mockResolvedValue(undefined),
+    duplicate: vi.fn().mockReturnThis(),
+  })),
+}))
+
+// Mock env to not have REDIS_URL (use importOriginal to get helper functions)
+vi.mock('@/lib/core/config/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/core/config/env')>()
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      DATABASE_URL: 'postgres://localhost/test',
+      NODE_ENV: 'test',
+      REDIS_URL: undefined,
+    },
+  }
+})
 
 vi.mock('@/socket/middleware/auth', () => ({
   authenticateSocket: vi.fn((socket, next) => {
@@ -51,7 +75,7 @@ vi.mock('@/socket/database/operations', () => ({
 describe('Socket Server Index Integration', () => {
   let httpServer: any
   let io: any
-  let roomManager: RoomManager
+  let roomManager: MemoryRoomManager
   let logger: ReturnType<typeof createMockLogger>
   let PORT: number
 
@@ -64,9 +88,10 @@ describe('Socket Server Index Integration', () => {
 
     httpServer = createServer()
 
-    io = createSocketIOServer(httpServer)
+    io = await createSocketIOServer(httpServer)
 
-    roomManager = new RoomManager(io)
+    roomManager = new MemoryRoomManager(io)
+    await roomManager.initialize()
 
     const httpHandler = createHttpHandler(roomManager, logger)
     httpServer.on('request', httpHandler)
@@ -98,6 +123,9 @@ describe('Socket Server Index Integration', () => {
   }, 20000)
 
   afterEach(async () => {
+    if (roomManager) {
+      await roomManager.shutdown()
+    }
     if (io) {
       await new Promise<void>((resolve) => {
         io.close(() => resolve())
@@ -177,43 +205,60 @@ describe('Socket Server Index Integration', () => {
   })
 
   describe('Room Manager Integration', () => {
-    it('should create room manager successfully', () => {
+    it('should create room manager successfully', async () => {
       expect(roomManager).toBeDefined()
-      expect(roomManager.getTotalActiveConnections()).toBe(0)
+      expect(await roomManager.getTotalActiveConnections()).toBe(0)
     })
 
-    it('should create workflow rooms', () => {
+    it('should add and get users from workflow rooms', async () => {
       const workflowId = 'test-workflow-123'
-      const room = roomManager.createWorkflowRoom(workflowId)
-      roomManager.setWorkflowRoom(workflowId, room)
+      const socketId = 'test-socket-123'
 
-      expect(roomManager.hasWorkflowRoom(workflowId)).toBe(true)
-      const retrievedRoom = roomManager.getWorkflowRoom(workflowId)
-      expect(retrievedRoom).toBeDefined()
-      expect(retrievedRoom?.workflowId).toBe(workflowId)
+      const presence = {
+        userId: 'user-123',
+        workflowId,
+        userName: 'Test User',
+        socketId,
+        joinedAt: Date.now(),
+        lastActivity: Date.now(),
+        role: 'admin',
+      }
+
+      await roomManager.addUserToRoom(workflowId, socketId, presence)
+
+      expect(await roomManager.hasWorkflowRoom(workflowId)).toBe(true)
+      const users = await roomManager.getWorkflowUsers(workflowId)
+      expect(users).toHaveLength(1)
+      expect(users[0].socketId).toBe(socketId)
     })
 
-    it('should manage user sessions', () => {
+    it('should manage user sessions', async () => {
       const socketId = 'test-socket-123'
       const workflowId = 'test-workflow-456'
-      const session = { userId: 'user-123', userName: 'Test User' }
 
-      roomManager.setWorkflowForSocket(socketId, workflowId)
-      roomManager.setUserSession(socketId, session)
+      const presence = {
+        userId: 'user-123',
+        workflowId,
+        userName: 'Test User',
+        socketId,
+        joinedAt: Date.now(),
+        lastActivity: Date.now(),
+        role: 'admin',
+      }
 
-      expect(roomManager.getWorkflowIdForSocket(socketId)).toBe(workflowId)
-      expect(roomManager.getUserSession(socketId)).toEqual(session)
+      await roomManager.addUserToRoom(workflowId, socketId, presence)
+
+      expect(await roomManager.getWorkflowIdForSocket(socketId)).toBe(workflowId)
+      const session = await roomManager.getUserSession(socketId)
+      expect(session).toBeDefined()
+      expect(session?.userId).toBe('user-123')
     })
 
-    it('should clean up rooms properly', () => {
+    it('should clean up rooms properly', async () => {
       const workflowId = 'test-workflow-789'
       const socketId = 'test-socket-789'
 
-      const room = roomManager.createWorkflowRoom(workflowId)
-      roomManager.setWorkflowRoom(workflowId, room)
-
-      // Add user to room
-      room.users.set(socketId, {
+      const presence = {
         userId: 'user-789',
         workflowId,
         userName: 'Test User',
@@ -221,16 +266,18 @@ describe('Socket Server Index Integration', () => {
         joinedAt: Date.now(),
         lastActivity: Date.now(),
         role: 'admin',
-      })
-      room.activeConnections = 1
+      }
 
-      roomManager.setWorkflowForSocket(socketId, workflowId)
+      await roomManager.addUserToRoom(workflowId, socketId, presence)
 
-      // Clean up user
-      roomManager.cleanupUserFromRoom(socketId, workflowId)
+      expect(await roomManager.hasWorkflowRoom(workflowId)).toBe(true)
 
-      expect(roomManager.hasWorkflowRoom(workflowId)).toBe(false)
-      expect(roomManager.getWorkflowIdForSocket(socketId)).toBeUndefined()
+      // Remove user
+      await roomManager.removeUserFromRoom(socketId)
+
+      // Room should be cleaned up since it's now empty
+      expect(await roomManager.hasWorkflowRoom(workflowId)).toBe(false)
+      expect(await roomManager.getWorkflowIdForSocket(socketId)).toBeNull()
     })
   })
 
@@ -238,7 +285,7 @@ describe('Socket Server Index Integration', () => {
     it.concurrent('should properly import all extracted modules', async () => {
       const { createSocketIOServer } = await import('@/socket/config/socket')
       const { createHttpHandler } = await import('@/socket/routes/http')
-      const { RoomManager } = await import('@/socket/rooms/manager')
+      const { MemoryRoomManager, RedisRoomManager } = await import('@/socket/rooms')
       const { authenticateSocket } = await import('@/socket/middleware/auth')
       const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
       const { getWorkflowState } = await import('@/socket/database/operations')
@@ -246,22 +293,23 @@ describe('Socket Server Index Integration', () => {
 
       expect(createSocketIOServer).toBeTypeOf('function')
       expect(createHttpHandler).toBeTypeOf('function')
-      expect(RoomManager).toBeTypeOf('function')
+      expect(MemoryRoomManager).toBeTypeOf('function')
+      expect(RedisRoomManager).toBeTypeOf('function')
       expect(authenticateSocket).toBeTypeOf('function')
       expect(verifyWorkflowAccess).toBeTypeOf('function')
       expect(getWorkflowState).toBeTypeOf('function')
       expect(WorkflowOperationSchema).toBeDefined()
     })
 
-    it.concurrent('should maintain all original functionality after refactoring', () => {
+    it.concurrent('should maintain all original functionality after refactoring', async () => {
       expect(httpServer).toBeDefined()
       expect(io).toBeDefined()
       expect(roomManager).toBeDefined()
 
-      expect(typeof roomManager.createWorkflowRoom).toBe('function')
-      expect(typeof roomManager.cleanupUserFromRoom).toBe('function')
+      expect(typeof roomManager.addUserToRoom).toBe('function')
+      expect(typeof roomManager.removeUserFromRoom).toBe('function')
       expect(typeof roomManager.handleWorkflowDeletion).toBe('function')
-      expect(typeof roomManager.validateWorkflowConsistency).toBe('function')
+      expect(typeof roomManager.broadcastPresenceUpdate).toBe('function')
     })
   })
 
@@ -286,6 +334,7 @@ describe('Socket Server Index Integration', () => {
     it('should have shutdown capability', () => {
       expect(typeof httpServer.close).toBe('function')
       expect(typeof io.close).toBe('function')
+      expect(typeof roomManager.shutdown).toBe('function')
     })
   })
 

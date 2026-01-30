@@ -1,112 +1,132 @@
 import { createServer } from 'http'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { createSocketIOServer } from '@/socket/config/socket'
+import { createSocketIOServer, shutdownSocketIOAdapter } from '@/socket/config/socket'
 import { setupAllHandlers } from '@/socket/handlers'
 import { type AuthenticatedSocket, authenticateSocket } from '@/socket/middleware/auth'
-import { RoomManager } from '@/socket/rooms/manager'
+import { type IRoomManager, MemoryRoomManager, RedisRoomManager } from '@/socket/rooms'
 import { createHttpHandler } from '@/socket/routes/http'
 
 const logger = createLogger('CollaborativeSocketServer')
 
-// Enhanced server configuration - HTTP server will be configured with handler after all dependencies are set up
-const httpServer = createServer()
+/**
+ * Create the appropriate RoomManager based on configuration
+ * If REDIS_URL is set, uses Redis for multi-pod support
+ * Otherwise, uses in-memory for single-pod mode
+ *
+ * IMPORTANT: If Redis is configured, we ONLY use Redis - no fallback
+ * This prevents split-brain scenarios
+ */
+async function createRoomManager(io: ReturnType<typeof createServer>): Promise<IRoomManager> {
+  // Type assertion needed because io parameter comes from socket.io Server
+  const socketIo = io as unknown as import('socket.io').Server
 
-const io = createSocketIOServer(httpServer)
+  if (env.REDIS_URL) {
+    logger.info('Initializing Redis-backed RoomManager for multi-pod support')
+    const manager = new RedisRoomManager(socketIo, env.REDIS_URL)
+    await manager.initialize()
+    return manager
+  }
 
-// Initialize room manager after io is created
-const roomManager = new RoomManager(io)
+  logger.warn('No REDIS_URL configured - using in-memory RoomManager (single-pod only)')
+  const manager = new MemoryRoomManager(socketIo)
+  await manager.initialize()
+  return manager
+}
 
-io.use(authenticateSocket)
+async function main() {
+  const httpServer = createServer()
+  const PORT = Number(env.PORT || env.SOCKET_PORT || 3002)
 
-const httpHandler = createHttpHandler(roomManager, logger)
-httpServer.on('request', httpHandler)
-
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception:', error)
-  // Don't exit in production, just log
-})
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
-})
-
-httpServer.on('error', (error) => {
-  logger.error('HTTP server error:', error)
-})
-
-io.engine.on('connection_error', (err) => {
-  logger.error('Socket.IO connection error:', {
-    req: err.req?.url,
-    code: err.code,
-    message: err.message,
-    context: err.context,
+  logger.info('Starting Socket.IO server...', {
+    port: PORT,
+    nodeEnv: env.NODE_ENV,
+    hasDatabase: !!env.DATABASE_URL,
+    hasAuth: !!env.BETTER_AUTH_SECRET,
+    hasRedis: !!env.REDIS_URL,
   })
-})
 
-io.on('connection', (socket: AuthenticatedSocket) => {
-  logger.info(`New socket connection: ${socket.id}`)
+  // Create Socket.IO server with Redis adapter if configured
+  const io = await createSocketIOServer(httpServer)
 
-  setupAllHandlers(socket, roomManager)
-})
+  // Initialize room manager (Redis or in-memory based on config)
+  const roomManager = await createRoomManager(io as unknown as ReturnType<typeof createServer>)
 
-httpServer.on('request', (req, res) => {
-  logger.info(`🌐 HTTP Request: ${req.method} ${req.url}`, {
-    method: req.method,
-    url: req.url,
-    userAgent: req.headers['user-agent'],
-    origin: req.headers.origin,
-    host: req.headers.host,
-    timestamp: new Date().toISOString(),
+  // Set up authentication middleware
+  io.use(authenticateSocket)
+
+  // Set up HTTP handler for health checks and internal APIs
+  const httpHandler = createHttpHandler(roomManager, logger)
+  httpServer.on('request', httpHandler)
+
+  // Global error handlers
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', error)
   })
-})
 
-io.engine.on('connection_error', (err) => {
-  logger.error('❌ Engine.IO Connection error:', {
-    code: err.code,
-    message: err.message,
-    context: err.context,
-    req: err.req
-      ? {
-          url: err.req.url,
-          method: err.req.method,
-          headers: err.req.headers,
-        }
-      : 'No request object',
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
   })
-})
 
-const PORT = Number(env.PORT || env.SOCKET_PORT || 3002)
+  httpServer.on('error', (error: NodeJS.ErrnoException) => {
+    logger.error('HTTP server error:', error)
+    if (error.code === 'EADDRINUSE' || error.code === 'EACCES') {
+      process.exit(1)
+    }
+  })
 
-logger.info('Starting Socket.IO server...', {
-  port: PORT,
-  nodeEnv: env.NODE_ENV,
-  hasDatabase: !!env.DATABASE_URL,
-  hasAuth: !!env.BETTER_AUTH_SECRET,
-})
+  io.engine.on('connection_error', (err) => {
+    logger.error('Socket.IO connection error:', {
+      req: err.req?.url,
+      code: err.code,
+      message: err.message,
+      context: err.context,
+    })
+  })
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  logger.info(`Socket.IO server running on port ${PORT}`)
-  logger.info(`🏥 Health check available at: http://localhost:${PORT}/health`)
-})
+  io.on('connection', (socket: AuthenticatedSocket) => {
+    logger.info(`New socket connection: ${socket.id}`)
+    setupAllHandlers(socket, roomManager)
+  })
 
-httpServer.on('error', (error) => {
-  logger.error('❌ Server failed to start:', error)
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    logger.info(`Socket.IO server running on port ${PORT}`)
+    logger.info(`Health check available at: http://localhost:${PORT}/health`)
+  })
+
+  const shutdown = async () => {
+    logger.info('Shutting down Socket.IO server...')
+
+    try {
+      await roomManager.shutdown()
+      logger.info('RoomManager shutdown complete')
+    } catch (error) {
+      logger.error('Error during RoomManager shutdown:', error)
+    }
+
+    try {
+      await shutdownSocketIOAdapter()
+    } catch (error) {
+      logger.error('Error during Socket.IO adapter shutdown:', error)
+    }
+
+    httpServer.close(() => {
+      logger.info('Socket.IO server closed')
+      process.exit(0)
+    })
+
+    setTimeout(() => {
+      logger.error('Forced shutdown after timeout')
+      process.exit(1)
+    }, 10000)
+  }
+
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
+}
+
+// Start the server
+main().catch((error) => {
+  logger.error('Failed to start server:', error)
   process.exit(1)
-})
-
-process.on('SIGINT', () => {
-  logger.info('Shutting down Socket.IO server...')
-  httpServer.close(() => {
-    logger.info('Socket.IO server closed')
-    process.exit(0)
-  })
-})
-
-process.on('SIGTERM', () => {
-  logger.info('Shutting down Socket.IO server...')
-  httpServer.close(() => {
-    logger.info('Socket.IO server closed')
-    process.exit(0)
-  })
 })

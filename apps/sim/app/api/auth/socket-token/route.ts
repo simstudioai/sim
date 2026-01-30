@@ -14,12 +14,22 @@ export async function POST() {
       headers: hdrs,
     })
 
-    if (!response) {
-      return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 })
+    if (!response?.token) {
+      // No token usually means invalid/expired session
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     return NextResponse.json({ token: response.token })
   } catch (error) {
+    // Check if it's an auth-related error
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    if (
+      errorMessage.includes('session') ||
+      errorMessage.includes('unauthorized') ||
+      errorMessage.includes('unauthenticated')
+    ) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
     return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 })
   }
 }
