@@ -1276,21 +1276,36 @@ function extractToolInfo(
     const toolPrefix = getToolPrefixFromName(toolName)
 
     let outputs: Record<string, any> = {}
-    // Use word boundary to avoid matching 'run_outputs' or similar param names
-    const outputsStart = toolContent.search(/(?<![a-zA-Z_])outputs\s*:\s*{/)
-    if (outputsStart !== -1) {
-      const openBracePos = toolContent.indexOf('{', outputsStart)
-      if (openBracePos !== -1) {
-        let braceCount = 1
-        let pos = openBracePos + 1
-        while (pos < toolContent.length && braceCount > 0) {
-          if (toolContent[pos] === '{') braceCount++
-          else if (toolContent[pos] === '}') braceCount--
-          pos++
-        }
-        if (braceCount === 0) {
-          const outputsContent = toolContent.substring(openBracePos + 1, pos - 1).trim()
-          outputs = parseToolOutputsField(outputsContent, toolPrefix)
+
+    // Pattern 1: outputs directly assigned to a const (e.g., "outputs: GIT_REF_OUTPUT_PROPERTIES,")
+    const directConstMatch = toolContent.match(
+      /(?<![a-zA-Z_])outputs\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|\}|$)/
+    )
+    if (directConstMatch) {
+      const constName = directConstMatch[1]
+      const resolvedConst = resolveConstReference(constName, toolPrefix)
+      if (resolvedConst && typeof resolvedConst === 'object') {
+        outputs = resolvedConst
+      }
+    }
+
+    // Pattern 2: outputs is an object with properties (e.g., "outputs: { ... }")
+    if (Object.keys(outputs).length === 0) {
+      const outputsStart = toolContent.search(/(?<![a-zA-Z_])outputs\s*:\s*{/)
+      if (outputsStart !== -1) {
+        const openBracePos = toolContent.indexOf('{', outputsStart)
+        if (openBracePos !== -1) {
+          let braceCount = 1
+          let pos = openBracePos + 1
+          while (pos < toolContent.length && braceCount > 0) {
+            if (toolContent[pos] === '{') braceCount++
+            else if (toolContent[pos] === '}') braceCount--
+            pos++
+          }
+          if (braceCount === 0) {
+            const outputsContent = toolContent.substring(openBracePos + 1, pos - 1).trim()
+            outputs = parseToolOutputsField(outputsContent, toolPrefix)
+          }
         }
       }
     }

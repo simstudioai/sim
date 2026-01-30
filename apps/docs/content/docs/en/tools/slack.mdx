@@ -172,32 +172,9 @@ Create and share Slack canvases in channels. Canvases are collaborative document
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | json | Complete message object with all properties: ts, text, user, channel, reactions, threads, files, attachments, blocks, stars, pins, and edit history |
-| `ts` | string | Message timestamp returned by Slack API |
-| `channel` | string | Channel identifier where message was sent |
-| `fileCount` | number | Number of files uploaded \(when files are attached\) |
-| `canvas_id` | string | Canvas identifier for created canvases |
+| `canvas_id` | string | Unique canvas identifier |
+| `channel` | string | Channel where canvas was created |
 | `title` | string | Canvas title |
-| `messages` | json | Array of message objects with comprehensive properties: text, user, timestamp, reactions, threads, files, attachments, blocks, stars, pins, and edit history |
-| `parentMessage` | json | The thread parent message with all properties |
-| `replies` | json | Array of reply messages in the thread \(excluding the parent\) |
-| `replyCount` | number | Number of replies returned in this response |
-| `hasMore` | boolean | Whether there are more messages in the thread |
-| `channels` | json | Array of channel objects with properties: id, name, is_private, is_archived, is_member, num_members, topic, purpose, created, creator |
-| `count` | number | Total number of items returned \(channels, members, or users\) |
-| `members` | json | Array of user IDs who are members of the channel |
-| `users` | json | Array of user objects with properties: id, name, real_name, display_name, is_bot, is_admin, deleted, timezone, avatar, status_text, status_emoji |
-| `user` | json | Detailed user object with properties: id, name, real_name, display_name, first_name, last_name, title, is_bot, is_admin, deleted, timezone, avatars, status |
-| `file` | json | Downloaded file stored in execution files |
-| `content` | string | Success message for update operation |
-| `metadata` | json | Updated message metadata \(legacy, use message object instead\) |
-| `event_type` | string | Type of Slack event that triggered the workflow |
-| `channel_name` | string | Human-readable channel name |
-| `user_name` | string | Username who triggered the event |
-| `timestamp` | string | Message timestamp from the triggering event |
-| `thread_ts` | string | Parent thread timestamp \(if message is in a thread\) |
-| `team_id` | string | Slack workspace/team ID |
-| `event_id` | string | Unique event identifier for the trigger |
 
 ### `slack_message_reader`
 
