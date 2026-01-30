@@ -109,9 +109,15 @@ export const anthropicProvider: ProviderConfig = {
             ],
           })
         } else {
+          // Handle content that's already in array format (from transformMediaMessages)
+          const content = Array.isArray(msg.content)
+            ? msg.content
+            : msg.content
+              ? [{ type: 'text', text: msg.content }]
+              : []
           messages.push({
             role: msg.role === 'assistant' ? 'assistant' : 'user',
-            content: msg.content ? [{ type: 'text', text: msg.content }] : [],
+            content,
           })
         }
       })

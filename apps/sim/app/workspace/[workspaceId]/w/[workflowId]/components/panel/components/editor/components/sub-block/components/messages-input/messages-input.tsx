@@ -172,24 +172,46 @@ export function MessagesInput({
     return `AVAILABLE WORKSPACE FILES (optional - you don't have to select one):\n${filesList}\n\nTo use a file, include "fileId": "<id>" in the media object. If not selecting a file, omit the fileId field.`
   }, [workspaceFiles])
 
+  // Get indices of media messages for subscription
+  const mediaIndices = useMemo(
+    () =>
+      localMessages
+        .map((msg, index) => (msg.role === 'media' ? index : -1))
+        .filter((i) => i !== -1),
+    [localMessages]
+  )
+
+  // Subscribe to file upload values for all media messages
+  const fileUploadValues = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (!activeWorkflowId) return {}
+        const blockValues = state.workflowValues[activeWorkflowId]?.[blockId] ?? {}
+        const result: Record<number, { name: string; path: string; type: string; size: number }> =
+          {}
+        for (const index of mediaIndices) {
+          const fileUploadKey = `${subBlockId}-media-${index}`
+          const fileValue = blockValues[fileUploadKey]
+          if (fileValue && typeof fileValue === 'object' && 'path' in fileValue) {
+            result[index] = fileValue as { name: string; path: string; type: string; size: number }
+          }
+        }
+        return result
+      },
+      [activeWorkflowId, blockId, subBlockId, mediaIndices]
+    )
+  )
+
   // Effect to sync FileUpload values to message media objects
   useEffect(() => {
     if (!activeWorkflowId || isPreview) return
-
-    // Get all subblock values for this workflow
-    const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-    if (!workflowValues?.[blockId]) return
 
     let hasChanges = false
     const updatedMessages = localMessages.map((msg, index) => {
       if (msg.role !== 'media') return msg
 
-      // Check if there's a FileUpload value for this media message
-      const fileUploadKey = `${subBlockId}-media-${index}`
-      const fileValue = workflowValues[blockId][fileUploadKey]
-
-      if (fileValue && typeof fileValue === 'object' && 'path' in fileValue) {
-        const uploadedFile = fileValue as { name: string; path: string; type: string; size: number }
+      const uploadedFile = fileUploadValues[index]
+      if (uploadedFile) {
         const newMedia: MediaContent = {
           sourceType: 'file',
           data: uploadedFile.path,
@@ -220,7 +242,7 @@ export function MessagesInput({
       setLocalMessages(updatedMessages)
       setMessages(updatedMessages)
     }
-  }, [activeWorkflowId, blockId, subBlockId, localMessages, isPreview, setMessages])
+  }, [activeWorkflowId, localMessages, isPreview, setMessages, fileUploadValues])
 
   const subBlockInput = useSubBlockInput({
     blockId,

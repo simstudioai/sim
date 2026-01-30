@@ -3,6 +3,8 @@ import { account, mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { bufferToBase64 } from '@/lib/uploads/utils/file-utils'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
@@ -60,8 +62,10 @@ export class AgentBlockHandler implements BlockHandler {
     const streamingConfig = this.getStreamingConfig(ctx, block)
     const rawMessages = await this.buildMessages(ctx, filteredInputs)
 
-    // Transform media messages to provider-specific format
-    const messages = rawMessages ? this.transformMediaMessages(rawMessages, providerId) : undefined
+    // Transform media messages to provider-specific format (async for file fetching)
+    const messages = rawMessages
+      ? await this.transformMediaMessages(rawMessages, providerId, ctx)
+      : undefined
 
     const providerRequest = this.buildProviderRequest({
       ctx,
@@ -854,7 +858,11 @@ export class AgentBlockHandler implements BlockHandler {
    * Media messages are merged with the preceding or following user message,
    * or converted to a user message with multimodal content.
    */
-  private transformMediaMessages(messages: Message[], providerId: string): Message[] {
+  private async transformMediaMessages(
+    messages: Message[],
+    providerId: string,
+    ctx: ExecutionContext
+  ): Promise<Message[]> {
     const result: Message[] = []
 
     for (let i = 0; i < messages.length; i++) {
@@ -865,8 +873,8 @@ export class AgentBlockHandler implements BlockHandler {
         continue
       }
 
-      // Media message - transform based on provider
-      const mediaContent = this.createProviderMediaContent(msg, providerId)
+      // Media message - transform based on provider (async for file fetching)
+      const mediaContent = await this.createProviderMediaContent(msg, providerId, ctx)
       if (!mediaContent) {
         logger.warn('Could not create media content for message', { msg })
         continue
@@ -891,10 +899,10 @@ export class AgentBlockHandler implements BlockHandler {
     // Post-process: ensure all user messages have consistent content format
     return result.map((msg) => {
       if (msg.role === 'user' && typeof msg.content === 'string') {
-        // Convert string content to provider-specific text format
+        // Convert string content to provider-specific text format (wrapped in array for multimodal)
         return {
           ...msg,
-          content: this.createTextContent(msg.content, providerId) as any,
+          content: [this.createTextContent(msg.content, providerId)] as any,
         }
       }
       return msg
@@ -933,7 +941,11 @@ export class AgentBlockHandler implements BlockHandler {
   /**
    * Creates provider-specific media content from a media message
    */
-  private createProviderMediaContent(msg: Message, providerId: string): any {
+  private async createProviderMediaContent(
+    msg: Message,
+    providerId: string,
+    ctx: ExecutionContext
+  ): Promise<any> {
     const media = msg.media
     if (!media) return null
 
@@ -977,7 +989,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     switch (providerId) {
       case 'anthropic':
-        return this.createAnthropicMediaContent(sourceType, data, mimeType)
+        return this.createAnthropicMediaContent(sourceType, data, mimeType, ctx)
 
       case 'google':
       case 'vertex':
@@ -1040,51 +1052,107 @@ export class AgentBlockHandler implements BlockHandler {
 
   /**
    * Creates Anthropic-compatible media content
+   * Anthropic requires base64 for internal/relative URLs since they can't fetch them
    */
-  private createAnthropicMediaContent(sourceType: string, data: string, mimeType?: string): any {
+  private async createAnthropicMediaContent(
+    sourceType: string,
+    data: string,
+    mimeType?: string,
+    ctx?: ExecutionContext
+  ): Promise<any> {
     const isImage = mimeType?.startsWith('image/')
     const isPdf = mimeType === 'application/pdf'
-    // Treat 'file' as 'url' since workspace files are served via URL
-    const isUrl = sourceType === 'url' || sourceType === 'file'
+    const isInternalUrl = data.startsWith('/')
+    const isExternalHttps = data.startsWith('https://')
 
-    if (isImage) {
-      if (isUrl) {
+    // For internal URLs (workspace files), fetch and convert to base64
+    // Anthropic only supports external HTTPS URLs, not relative paths
+    if ((sourceType === 'url' || sourceType === 'file') && isInternalUrl) {
+      try {
+        logger.info('Fetching internal file for Anthropic base64 conversion', {
+          path: data.substring(0, 50),
+        })
+        const buffer = await downloadFileFromUrl(data)
+        const base64Data = bufferToBase64(buffer)
+
+        if (isImage) {
+          return {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mimeType || 'image/png',
+              data: base64Data,
+            },
+          }
+        }
+
+        if (isPdf) {
+          return {
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: base64Data,
+            },
+          }
+        }
+
+        // Other file types - return as text fallback
+        return {
+          type: 'text',
+          text: `[File: ${mimeType || 'unknown type'}]`,
+        }
+      } catch (error) {
+        logger.error('Failed to fetch file for Anthropic', { error, path: data.substring(0, 50) })
+        return {
+          type: 'text',
+          text: `[Failed to load file: ${mimeType || 'unknown type'}]`,
+        }
+      }
+    }
+
+    // For external HTTPS URLs, Anthropic can fetch them directly
+    if ((sourceType === 'url' || sourceType === 'file') && isExternalHttps) {
+      if (isImage) {
         return {
           type: 'image',
           source: { type: 'url', url: data },
         }
       }
-      // base64
-      const base64Data = data.includes(',') ? data.split(',')[1] : data
-      return {
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: mimeType || 'image/png',
-          data: base64Data,
-        },
-      }
-    }
-
-    if (isPdf) {
-      if (isUrl) {
+      if (isPdf) {
         return {
           type: 'document',
           source: { type: 'url', url: data },
         }
       }
+    }
+
+    // Already base64 encoded
+    if (sourceType === 'base64') {
       const base64Data = data.includes(',') ? data.split(',')[1] : data
-      return {
-        type: 'document',
-        source: {
-          type: 'base64',
-          media_type: 'application/pdf',
-          data: base64Data,
-        },
+      if (isImage) {
+        return {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: mimeType || 'image/png',
+            data: base64Data,
+          },
+        }
+      }
+      if (isPdf) {
+        return {
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: 'application/pdf',
+            data: base64Data,
+          },
+        }
       }
     }
 
-    // Fallback for other types
+    // Fallback for unsupported types
     return {
       type: 'text',
       text: `[File: ${mimeType || 'unknown type'}]`,
