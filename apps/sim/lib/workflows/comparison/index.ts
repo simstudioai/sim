@@ -1,6 +1,7 @@
 export type { FieldChange, WorkflowDiffSummary } from './compare'
 export {
   formatDiffSummaryForDescription,
+  formatDiffSummaryForDescriptionAsync,
   generateWorkflowDiffSummary,
   hasWorkflowChanged,
 } from './compare'

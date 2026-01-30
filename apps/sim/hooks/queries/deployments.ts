@@ -421,28 +421,27 @@ interface GenerateVersionDescriptionVariables {
   onStreamChunk?: (accumulated: string) => void
 }
 
-const VERSION_DESCRIPTION_SYSTEM_PROMPT = `You are a technical writer generating concise deployment version descriptions.
+const VERSION_DESCRIPTION_SYSTEM_PROMPT = `You are writing deployment version descriptions for a workflow automation platform.
 
-Given a diff of changes between two workflow versions, write a brief, factual description (1-2 sentences, under 300 characters) that states ONLY what changed.
+Write a brief, factual description (1-3 sentences, under 400 characters) that states what changed between versions.
 
-RULES:
-- State specific values when provided (e.g. "model changed from X to Y")
-- Do NOT wrap your response in quotes
-- Do NOT add filler phrases like "streamlining the workflow", "for improved efficiency"
-- Do NOT use markdown formatting
-- Do NOT include version numbers
-- Do NOT start with "This version" or similar phrases
+Guidelines:
+- Use the specific values provided (credential names, channel names, model names)
+- Be precise: "Changes Slack channel from #general to #alerts" not "Updates channel configuration"
+- Combine related changes: "Updates Agent model to claude-sonnet-4-5 and increases temperature to 0.8"
+- For added/removed blocks, mention their purpose if clear from the type
 
-Good examples:
-- Changes model in Agent 1 from gpt-4o to claude-sonnet-4-20250514.
-- Adds Slack notification block. Updates webhook URL to production endpoint.
-- Removes Function block and its connection to Router.
+Format rules:
+- Plain text only, no quotes around the response
+- No markdown formatting
+- No filler phrases ("for improved efficiency", "streamlining the workflow")
+- No version numbers or "This version" prefixes
 
-Bad examples:
-- "Changes model..." (NO - don't wrap in quotes)
-- Changes model, streamlining the workflow. (NO - don't add filler)
-
-Respond with ONLY the plain text description.`
+Examples:
+- Switches Agent model from gpt-4o to claude-sonnet-4-5. Changes Slack credential to Production OAuth.
+- Adds Gmail notification block for sending alerts. Removes unused Function block. Updates Router conditions.
+- Updates system prompt for more concise responses. Reduces temperature from 0.7 to 0.3.
+- Connects Slack block to Router. Adds 2 new workflow connections. Configures error handling path.`
 
 /**
  * Hook for generating a version description using AI based on workflow diff
@@ -454,7 +453,7 @@ export function useGenerateVersionDescription() {
       version,
       onStreamChunk,
     }: GenerateVersionDescriptionVariables): Promise<string> => {
-      const { generateWorkflowDiffSummary, formatDiffSummaryForDescription } = await import(
+      const { generateWorkflowDiffSummary, formatDiffSummaryForDescriptionAsync } = await import(
         '@/lib/workflows/comparison/compare'
       )
 
@@ -470,7 +469,11 @@ export function useGenerateVersionDescription() {
       }
 
       const diffSummary = generateWorkflowDiffSummary(currentState, previousState)
-      const diffText = formatDiffSummaryForDescription(diffSummary)
+      const diffText = await formatDiffSummaryForDescriptionAsync(
+        diffSummary,
+        currentState,
+        workflowId
+      )
 
       const wandResponse = await fetch('/api/wand', {
         method: 'POST',
