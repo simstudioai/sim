@@ -811,17 +811,41 @@ export class AgentBlockHandler implements BlockHandler {
     return messages.length > 0 ? messages : undefined
   }
 
-  private extractValidMessages(messages?: Message[]): Message[] {
-    if (!messages || !Array.isArray(messages)) return []
+  private extractValidMessages(messages?: Message[] | string): Message[] {
+    if (!messages) return []
 
-    return messages.filter(
-      (msg): msg is Message =>
-        msg &&
-        typeof msg === 'object' &&
-        'role' in msg &&
-        'content' in msg &&
-        ['system', 'user', 'assistant', 'media'].includes(msg.role)
-    )
+    // Handle raw JSON string input (from advanced mode)
+    let messageArray: unknown[]
+    if (typeof messages === 'string') {
+      const trimmed = messages.trim()
+      if (!trimmed) return []
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (!Array.isArray(parsed)) {
+          logger.warn('Parsed messages JSON is not an array', { parsed })
+          return []
+        }
+        messageArray = parsed
+      } catch (error) {
+        logger.warn('Failed to parse messages JSON string', { error, messages: trimmed.substring(0, 100) })
+        return []
+      }
+    } else if (Array.isArray(messages)) {
+      messageArray = messages
+    } else {
+      return []
+    }
+
+    return messageArray.filter((msg): msg is Message => {
+      if (!msg || typeof msg !== 'object') return false
+      const m = msg as Record<string, unknown>
+      return (
+        'role' in m &&
+        'content' in m &&
+        typeof m.role === 'string' &&
+        ['system', 'user', 'assistant', 'media'].includes(m.role)
+      )
+    })
   }
 
   /**
@@ -914,6 +938,35 @@ export class AgentBlockHandler implements BlockHandler {
 
     const { sourceType, data, mimeType } = media
 
+    // Validate data is not empty
+    if (!data || !data.trim()) {
+      logger.warn('Empty media data, skipping media content')
+      return null
+    }
+
+    // Validate URL format if sourceType is URL
+    if (sourceType === 'url' || sourceType === 'file') {
+      const trimmedData = data.trim()
+      // Must start with http://, https://, or / (relative path for workspace files)
+      if (!trimmedData.startsWith('http://') && 
+          !trimmedData.startsWith('https://') && 
+          !trimmedData.startsWith('/')) {
+        logger.warn('Invalid URL format for media content', { data: trimmedData.substring(0, 50) })
+        // Try to salvage by treating as text
+        return { type: 'text', text: `[Invalid media URL: ${trimmedData.substring(0, 30)}...]` }
+      }
+    }
+
+    // Validate base64 format
+    if (sourceType === 'base64') {
+      const trimmedData = data.trim()
+      // Should be a data URL or raw base64
+      if (!trimmedData.startsWith('data:') && !/^[A-Za-z0-9+/]+=*$/.test(trimmedData.replace(/\s/g, ''))) {
+        logger.warn('Invalid base64 format for media content', { data: trimmedData.substring(0, 50) })
+        return { type: 'text', text: `[Invalid base64 data]` }
+      }
+    }
+
     switch (providerId) {
       case 'anthropic':
         return this.createAnthropicMediaContent(sourceType, data, mimeType)
@@ -922,8 +975,14 @@ export class AgentBlockHandler implements BlockHandler {
       case 'vertex':
         return this.createGeminiMediaContent(sourceType, data, mimeType)
 
+      case 'mistral':
+        return this.createMistralMediaContent(sourceType, data, mimeType)
+
+      case 'bedrock':
+        return this.createBedrockMediaContent(sourceType, data, mimeType)
+
       default:
-        // OpenAI format (used by OpenAI, Azure, xAI, Mistral, etc.)
+        // OpenAI format (used by OpenAI, Azure, xAI, Groq, etc.)
         return this.createOpenAIMediaContent(sourceType, data, mimeType)
     }
   }
@@ -938,15 +997,10 @@ export class AgentBlockHandler implements BlockHandler {
   ): any {
     const isImage = mimeType?.startsWith('image/')
     const isAudio = mimeType?.startsWith('audio/')
+    // Treat 'file' as 'url' since workspace files are served via URL
+    const isUrl = sourceType === 'url' || sourceType === 'file'
 
     if (isImage) {
-      if (sourceType === 'url') {
-        return {
-          type: 'image_url',
-          image_url: { url: data, detail: 'auto' },
-        }
-      }
-      // base64 or file (already converted to base64)
       return {
         type: 'image_url',
         image_url: { url: data, detail: 'auto' },
@@ -990,9 +1044,11 @@ export class AgentBlockHandler implements BlockHandler {
   ): any {
     const isImage = mimeType?.startsWith('image/')
     const isPdf = mimeType === 'application/pdf'
+    // Treat 'file' as 'url' since workspace files are served via URL
+    const isUrl = sourceType === 'url' || sourceType === 'file'
 
     if (isImage) {
-      if (sourceType === 'url') {
+      if (isUrl) {
         return {
           type: 'image',
           source: { type: 'url', url: data },
@@ -1011,7 +1067,7 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     if (isPdf) {
-      if (sourceType === 'url') {
+      if (isUrl) {
         return {
           type: 'document',
           source: { type: 'url', url: data },
@@ -1043,7 +1099,10 @@ export class AgentBlockHandler implements BlockHandler {
     data: string,
     mimeType?: string
   ): any {
-    if (sourceType === 'url') {
+    // Treat 'file' as 'url' since workspace files are served via URL
+    const isUrl = sourceType === 'url' || sourceType === 'file'
+
+    if (isUrl) {
       return {
         fileData: {
           mimeType: mimeType || 'application/octet-stream',
@@ -1059,6 +1118,114 @@ export class AgentBlockHandler implements BlockHandler {
         mimeType: mimeType || 'application/octet-stream',
         data: base64Data,
       },
+    }
+  }
+
+  /**
+   * Creates Mistral-compatible media content
+   * Note: Mistral uses a simplified format where image_url is a direct string,
+   * NOT a nested object like OpenAI
+   */
+  private createMistralMediaContent(
+    sourceType: string,
+    data: string,
+    mimeType?: string
+  ): any {
+    const isImage = mimeType?.startsWith('image/')
+    // Treat 'file' as 'url' since workspace files are served via URL
+    const isUrl = sourceType === 'url' || sourceType === 'file'
+
+    if (isImage) {
+      if (isUrl) {
+        // Mistral uses direct string for image_url, not nested object
+        return {
+          type: 'image_url',
+          image_url: data,
+        }
+      }
+      // Base64 - Mistral accepts data URLs directly
+      const base64Data = data.includes(',') ? data : `data:${mimeType || 'image/png'};base64,${data}`
+      return {
+        type: 'image_url',
+        image_url: base64Data,
+      }
+    }
+
+    // Fallback for non-image types
+    return {
+      type: 'text',
+      text: `[File: ${mimeType || 'unknown type'}]`,
+    }
+  }
+
+  /**
+   * Creates AWS Bedrock Converse API-compatible media content
+   * Bedrock uses a different structure: { image: { format, source: { bytes } } }
+   * Note: The actual bytes conversion happens in the provider layer
+   */
+  private createBedrockMediaContent(
+    sourceType: string,
+    data: string,
+    mimeType?: string
+  ): any {
+    const isImage = mimeType?.startsWith('image/')
+    // Treat 'file' as 'url' since workspace files are served via URL
+    const isUrl = sourceType === 'url' || sourceType === 'file'
+
+    // Determine format from mimeType
+    const getFormat = (mime?: string): string => {
+      if (!mime) return 'png'
+      if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpeg'
+      if (mime.includes('png')) return 'png'
+      if (mime.includes('gif')) return 'gif'
+      if (mime.includes('webp')) return 'webp'
+      return 'png'
+    }
+
+    if (isImage) {
+      if (isUrl) {
+        // For URLs, Bedrock needs S3 URIs or we need to fetch and convert
+        // Mark this for the provider layer to handle
+        return {
+          type: 'bedrock_image',
+          format: getFormat(mimeType),
+          sourceType: 'url',
+          url: data,
+        }
+      }
+      // Base64 - extract raw base64 data
+      const base64Data = data.includes(',') ? data.split(',')[1] : data
+      return {
+        type: 'bedrock_image',
+        format: getFormat(mimeType),
+        sourceType: 'base64',
+        data: base64Data,
+      }
+    }
+
+    // Documents (PDFs) - Bedrock supports document content type
+    if (mimeType === 'application/pdf') {
+      if (isUrl) {
+        return {
+          type: 'bedrock_document',
+          format: 'pdf',
+          sourceType: 'url',
+          url: data,
+        }
+      }
+      const base64Data = data.includes(',') ? data.split(',')[1] : data
+      return {
+        type: 'bedrock_document',
+        format: 'pdf',
+        sourceType: 'base64',
+        data: base64Data,
+      }
+    }
+
+    // Fallback for unsupported types
+    return {
+      type: 'text',
+      text: `[File: ${mimeType || 'unknown type'}]`,
     }
   }
 

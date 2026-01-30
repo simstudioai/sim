@@ -1,8 +1,194 @@
-import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
+import type { ContentBlock, ConverseStreamOutput, ImageFormat } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('BedrockUtils')
+
+/**
+ * Converts message content (string or array) to Bedrock ContentBlock array.
+ * Handles multimodal content including images and documents.
+ */
+export function convertToBedrockContentBlocks(content: string | any[]): ContentBlock[] {
+  // Simple string content
+  if (typeof content === 'string') {
+    return [{ text: content || '' }]
+  }
+
+  // Array content - could be multimodal
+  if (!Array.isArray(content)) {
+    return [{ text: String(content) || '' }]
+  }
+
+  const blocks: ContentBlock[] = []
+
+  for (const item of content) {
+    if (!item) continue
+
+    // Text content
+    if (item.type === 'text' && item.text) {
+      blocks.push({ text: item.text })
+      continue
+    }
+
+    // Gemini-style text (just { text: "..." })
+    if (typeof item.text === 'string' && !item.type) {
+      blocks.push({ text: item.text })
+      continue
+    }
+
+    // Bedrock image content (from agent handler)
+    if (item.type === 'bedrock_image') {
+      const imageBlock = createBedrockImageBlock(item)
+      if (imageBlock) {
+        blocks.push(imageBlock)
+      }
+      continue
+    }
+
+    // Bedrock document content (from agent handler)
+    if (item.type === 'bedrock_document') {
+      const docBlock = createBedrockDocumentBlock(item)
+      if (docBlock) {
+        blocks.push(docBlock)
+      }
+      continue
+    }
+
+    // OpenAI-style image_url (fallback for direct OpenAI format)
+    if (item.type === 'image_url' && item.image_url) {
+      const url = typeof item.image_url === 'string' ? item.image_url : item.image_url?.url
+      if (url) {
+        const imageBlock = createBedrockImageBlockFromUrl(url)
+        if (imageBlock) {
+          blocks.push(imageBlock)
+        }
+      }
+      continue
+    }
+
+    // Unknown type - log warning and skip
+    logger.warn('Unknown content block type in Bedrock conversion:', { type: item.type })
+  }
+
+  // Ensure at least one text block
+  if (blocks.length === 0) {
+    blocks.push({ text: '' })
+  }
+
+  return blocks
+}
+
+/**
+ * Creates a Bedrock image ContentBlock from a bedrock_image item
+ */
+function createBedrockImageBlock(item: {
+  format: string
+  sourceType: string
+  data?: string
+  url?: string
+}): ContentBlock | null {
+  const format = (item.format || 'png') as ImageFormat
+
+  if (item.sourceType === 'base64' && item.data) {
+    // Convert base64 to Uint8Array
+    const bytes = base64ToUint8Array(item.data)
+    return {
+      image: {
+        format,
+        source: { bytes },
+      },
+    }
+  }
+
+  if (item.sourceType === 'url' && item.url) {
+    // For URLs, we need to fetch the image and convert to bytes
+    // This is a limitation - Bedrock doesn't support URL sources directly
+    // The provider layer should handle this, or we log a warning
+    logger.warn('Bedrock does not support image URLs directly. Image will be skipped.', {
+      url: item.url,
+    })
+    // Return a text placeholder
+    return { text: `[Image from URL: ${item.url}]` }
+  }
+
+  return null
+}
+
+/**
+ * Creates a Bedrock document ContentBlock from a bedrock_document item
+ */
+function createBedrockDocumentBlock(item: {
+  format: string
+  sourceType: string
+  data?: string
+  url?: string
+}): ContentBlock | null {
+  if (item.sourceType === 'base64' && item.data) {
+    const bytes = base64ToUint8Array(item.data)
+    return {
+      document: {
+        format: 'pdf',
+        name: 'document',
+        source: { bytes },
+      },
+    }
+  }
+
+  if (item.sourceType === 'url' && item.url) {
+    logger.warn('Bedrock does not support document URLs directly. Document will be skipped.', {
+      url: item.url,
+    })
+    return { text: `[Document from URL: ${item.url}]` }
+  }
+
+  return null
+}
+
+/**
+ * Creates a Bedrock image ContentBlock from a data URL or regular URL
+ */
+function createBedrockImageBlockFromUrl(url: string): ContentBlock | null {
+  // Check if it's a data URL (base64)
+  if (url.startsWith('data:')) {
+    const match = url.match(/^data:image\/(\w+);base64,(.+)$/)
+    if (match) {
+      let format: ImageFormat = match[1] as ImageFormat
+      // Normalize jpg to jpeg
+      if (format === ('jpg' as ImageFormat)) {
+        format = 'jpeg'
+      }
+      const base64Data = match[2]
+      const bytes = base64ToUint8Array(base64Data)
+      return {
+        image: {
+          format,
+          source: { bytes },
+        },
+      }
+    }
+  }
+
+  // Regular URL - Bedrock doesn't support this directly
+  logger.warn('Bedrock does not support image URLs directly. Image will be skipped.', { url })
+  return { text: `[Image from URL: ${url}]` }
+}
+
+/**
+ * Converts a base64 string to Uint8Array
+ */
+function base64ToUint8Array(base64: string): Uint8Array {
+  // Handle browser and Node.js environments
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(base64, 'base64')
+  }
+  // Browser fallback
+  const binaryString = atob(base64)
+  const bytes = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  return bytes
+}
 
 export interface BedrockStreamUsage {
   inputTokens: number

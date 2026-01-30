@@ -6,8 +6,8 @@ export interface AgentInputs {
   systemPrompt?: string
   userPrompt?: string | object
   memories?: any // Legacy memory block output
-  // New message array input (from messages-input subblock)
-  messages?: Message[]
+  // New message array input (from messages-input subblock or raw JSON from advanced mode)
+  messages?: Message[] | string
   // Memory configuration
   memoryType?: 'none' | 'conversation' | 'sliding_window' | 'sliding_window_tokens'
   conversationId?: string // Required for all non-none memory types
@@ -46,8 +46,8 @@ export interface ToolInput {
  * Media content for multimodal messages
  */
 export interface MediaContent {
-  /** Mode: basic (file upload) or advanced (URL/base64 text input) */
-  mode: 'basic' | 'advanced'
+  /** Source type: how the data was provided */
+  sourceType: 'url' | 'base64' | 'file'
   /** The URL or base64 data */
   data: string
   /** MIME type (e.g., 'image/png', 'application/pdf', 'audio/mp3') */

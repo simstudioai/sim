@@ -9,6 +9,8 @@ import {
 } from 'react'
 import { isEqual } from 'lodash'
 import { ArrowLeftRight, ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { createLogger } from '@sim/logger'
 import {
   Button,
   Popover,
@@ -22,15 +24,28 @@ import { cn } from '@/lib/core/utils/cn'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { FileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 
+const logger = createLogger('MessagesInput')
+
 const MIN_TEXTAREA_HEIGHT_PX = 80
+
+/** Workspace file record from API */
+interface WorkspaceFile {
+  id: string
+  name: string
+  path: string
+  type: string
+}
 const MAX_TEXTAREA_HEIGHT_PX = 320
 
 /** Pattern to match complete message objects in JSON */
@@ -49,14 +64,20 @@ const ROLE_BEFORE_CONTENT_PATTERN = /"role"\s*:\s*"(system|user|assistant|media)
 const unescapeContent = (str: string): string =>
   str.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
 
-
 /**
  * Media content for multimodal messages
  */
 interface MediaContent {
+  /** Source type: how the data was provided */
+  sourceType: 'url' | 'base64' | 'file'
+  /** The URL or base64 data */
   data: string
+  /** MIME type (e.g., 'image/png', 'application/pdf', 'audio/mp3') */
   mimeType?: string
+  /** Optional filename for file uploads */
   fileName?: string
+  /** Optional workspace file ID (used by wand to select existing files) */
+  fileId?: string
 }
 
 /**
@@ -93,13 +114,108 @@ export function MessagesInput({
   disabled = false,
   wandControlRef,
 }: MessagesInputProps) {
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string
   const [messages, setMessages] = useSubBlockValue<Message[]>(blockId, subBlockId, false)
   const [localMessages, setLocalMessages] = useState<Message[]>([{ role: 'user', content: '' }])
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null)
+  const { activeWorkflowId } = useWorkflowRegistry()
 
   // Local media mode state - basic = FileUpload, advanced = URL/base64 textarea
   const [mediaMode, setMediaMode] = useState<'basic' | 'advanced'>('basic')
+
+  // Workspace files for wand context
+  const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFile[]>([])
+
+  // Fetch workspace files for wand context
+  const loadWorkspaceFiles = useCallback(async () => {
+    if (!workspaceId || isPreview) return
+
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/files`)
+      const data = await response.json()
+      if (data.success) {
+        setWorkspaceFiles(data.files || [])
+      }
+    } catch (error) {
+      logger.error('Error loading workspace files:', error)
+    }
+  }, [workspaceId, isPreview])
+
+  // Load workspace files on mount
+  useEffect(() => {
+    void loadWorkspaceFiles()
+  }, [loadWorkspaceFiles])
+
+  // Build sources string for wand - available workspace files
+  const sourcesInfo = useMemo(() => {
+    if (workspaceFiles.length === 0) {
+      return 'No workspace files available. The user can upload files manually after generation.'
+    }
+
+    const filesList = workspaceFiles
+      .filter((f) => f.type.startsWith('image/') || f.type.startsWith('audio/') || f.type.startsWith('video/') || f.type === 'application/pdf')
+      .map((f) => `  - id: "${f.id}", name: "${f.name}", type: "${f.type}"`)
+      .join('\n')
+
+    if (!filesList) {
+      return 'No media files in workspace. The user can upload files manually after generation.'
+    }
+
+    return `AVAILABLE WORKSPACE FILES (optional - you don't have to select one):\n${filesList}\n\nTo use a file, include "fileId": "<id>" in the media object. If not selecting a file, omit the fileId field.`
+  }, [workspaceFiles])
+
+
+  // Effect to sync FileUpload values to message media objects
+  useEffect(() => {
+    if (!activeWorkflowId || isPreview) return
+
+    // Get all subblock values for this workflow
+    const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
+    if (!workflowValues?.[blockId]) return
+
+    let hasChanges = false
+    const updatedMessages = localMessages.map((msg, index) => {
+      if (msg.role !== 'media') return msg
+
+      // Check if there's a FileUpload value for this media message
+      const fileUploadKey = `${subBlockId}-media-${index}`
+      const fileValue = workflowValues[blockId][fileUploadKey]
+
+      if (fileValue && typeof fileValue === 'object' && 'path' in fileValue) {
+        const uploadedFile = fileValue as { name: string; path: string; type: string; size: number }
+        const newMedia: MediaContent = {
+          sourceType: 'file',
+          data: uploadedFile.path,
+          mimeType: uploadedFile.type,
+          fileName: uploadedFile.name,
+        }
+
+        // Only update if different
+        if (
+          msg.media?.data !== newMedia.data ||
+          msg.media?.sourceType !== newMedia.sourceType ||
+          msg.media?.mimeType !== newMedia.mimeType ||
+          msg.media?.fileName !== newMedia.fileName
+        ) {
+          hasChanges = true
+          return {
+            ...msg,
+            content: uploadedFile.name || msg.content,
+            media: newMedia,
+          }
+        }
+      }
+
+      return msg
+    })
+
+    if (hasChanges) {
+      setLocalMessages(updatedMessages)
+      setMessages(updatedMessages)
+    }
+  }, [activeWorkflowId, blockId, subBlockId, localMessages, isPreview, setMessages])
 
   const subBlockInput = useSubBlockInput({
     blockId,
@@ -186,6 +302,7 @@ export function MessagesInput({
   const wandHook = useWand({
     wandConfig: config.wandConfig,
     currentValue: getMessagesJson(),
+    sources: sourcesInfo,
     onStreamStart: () => {
       streamBufferRef.current = ''
       setLocalMessages([{ role: 'system', content: '' }])
@@ -200,6 +317,46 @@ export function MessagesInput({
     onGeneratedContent: (content) => {
       const validMessages = parseMessages(content)
       if (validMessages) {
+        // Process media messages - only allow fileId to set files, sanitize other attempts
+        validMessages.forEach((msg, index) => {
+          if (msg.role === 'media') {
+            // Check if this is an existing file with valid data (preserve it)
+            const hasExistingFile = msg.media?.sourceType === 'file' && 
+              msg.media?.data?.startsWith('/api/') && 
+              msg.media?.fileName
+
+            if (hasExistingFile) {
+              // Preserve existing file data as-is
+              return
+            }
+
+            // Check if wand provided a fileId to select a workspace file
+            if (msg.media?.fileId) {
+              const file = workspaceFiles.find((f) => f.id === msg.media?.fileId)
+              if (file) {
+                // Set the file value in SubBlockStore so FileUpload picks it up
+                const fileUploadKey = `${subBlockId}-media-${index}`
+                const uploadedFile = {
+                  name: file.name,
+                  path: file.path,
+                  type: file.type,
+                  size: 0, // Size not available from workspace files list
+                }
+                useSubBlockStore.getState().setValue(blockId, fileUploadKey, uploadedFile)
+
+                // Clear the media object - the FileUpload will sync the file data via useEffect
+                // DON'T set media.data here as it would appear in the ShortInput (advanced mode)
+                msg.media = undefined
+                return
+              }
+            }
+
+            // Sanitize: clear any media object that isn't a valid existing file or fileId match
+            // This prevents the LLM from setting arbitrary data/variable references
+            msg.media = undefined
+          }
+        })
+
         setLocalMessages(validMessages)
         setMessages(validMessages)
       } else {
@@ -283,6 +440,7 @@ export function MessagesInput({
           role,
           content: updatedMessages[index].content || '',
           media: updatedMessages[index].media || {
+            sourceType: 'file',
             data: '',
           },
         }
@@ -700,29 +858,41 @@ export function MessagesInput({
                         disabled={disabled}
                       />
                     ) : (
-                      <textarea
-                        ref={(el) => {
-                          textareaRefs.current[fieldId] = el
+                      <ShortInput
+                        blockId={blockId}
+                        subBlockId={`${subBlockId}-media-ref-${index}`}
+                        placeholder='Reference file from previous block...'
+                        config={{
+                          id: `${subBlockId}-media-ref-${index}`,
+                          type: 'short-input',
                         }}
-                        className='relative z-[2] m-0 box-border h-auto min-h-[60px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words rounded-[4px] border border-[var(--border-1)] bg-transparent px-[8px] py-[6px] font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] outline-none transition-colors [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] hover:border-[var(--border-2)] focus:border-[var(--border-2)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
-                        placeholder='Enter URL or paste base64 data...'
-                        value={message.media?.data || ''}
-                        onChange={(e) => {
+                        value={
+                          // Only show value for variable references, not file uploads
+                          message.media?.sourceType === 'file' ? '' : (message.media?.data || '')
+                        }
+                        onChange={(newValue: string) => {
                           const updatedMessages = [...localMessages]
                           if (updatedMessages[index].role === 'media') {
+                            // Determine sourceType based on content
+                            let sourceType: 'url' | 'base64' = 'url'
+                            if (newValue.startsWith('data:') || newValue.includes(';base64,')) {
+                              sourceType = 'base64'
+                            }
                             updatedMessages[index] = {
                               ...updatedMessages[index],
-                              content: e.target.value.substring(0, 50),
+                              content: newValue.substring(0, 50),
                               media: {
                                 ...updatedMessages[index].media,
-                                data: e.target.value,
+                                sourceType,
+                                data: newValue,
                               },
                             }
+                            setLocalMessages(updatedMessages)
+                            setMessages(updatedMessages)
                           }
-                          setLocalMessages(updatedMessages)
-                          setMessages(updatedMessages)
                         }}
-                        disabled={isPreview || disabled}
+                        isPreview={isPreview}
+                        disabled={disabled}
                       />
                     )}
                   </div>

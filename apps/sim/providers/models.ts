@@ -34,6 +34,8 @@ export interface ModelCapabilities {
   toolUsageControl?: boolean
   computerUse?: boolean
   nativeStructuredOutputs?: boolean
+  /** Whether the model supports vision/multimodal inputs (images, audio, video, PDFs) */
+  vision?: boolean
   maxOutputTokens?: {
     /** Maximum tokens for streaming requests */
     max: number
@@ -120,6 +122,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -132,6 +135,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-12-11',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
           },
@@ -150,6 +154,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-11-14',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['none', 'low', 'medium', 'high'],
           },
@@ -222,6 +227,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['minimal', 'low', 'medium', 'high'],
           },
@@ -240,6 +246,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['minimal', 'low', 'medium', 'high'],
           },
@@ -258,6 +265,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['minimal', 'low', 'medium', 'high'],
           },
@@ -287,6 +295,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-06-17',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
@@ -302,6 +311,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-06-17',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
@@ -317,6 +327,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-06-17',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
@@ -333,6 +344,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          vision: true,
         },
         contextWindow: 1000000,
       },
@@ -346,6 +358,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          vision: true,
         },
         contextWindow: 1000000,
       },
@@ -359,6 +372,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          vision: true,
         },
         contextWindow: 1000000,
       },
@@ -385,6 +399,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -397,6 +412,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-12-11',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
           },
@@ -415,6 +431,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-11-14',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['none', 'low', 'medium', 'high'],
           },
@@ -433,6 +450,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-11-14',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['none', 'low', 'medium', 'high'],
           },
@@ -451,6 +469,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-11-14',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['none', 'low', 'medium', 'high'],
           },
@@ -469,6 +488,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-11-14',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['none', 'medium', 'high'],
           },
@@ -487,6 +507,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['minimal', 'low', 'medium', 'high'],
           },
@@ -505,6 +526,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['minimal', 'low', 'medium', 'high'],
           },
@@ -523,6 +545,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['minimal', 'low', 'medium', 'high'],
           },
@@ -552,6 +575,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-06-15',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
@@ -567,6 +591,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-06-15',
         },
         capabilities: {
+          vision: true,
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
@@ -581,7 +606,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 8.0,
           updatedAt: '2025-06-15',
         },
-        capabilities: {},
+        capabilities: {
+          vision: true,
+        },
         contextWindow: 1000000,
       },
       {
@@ -620,6 +647,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -635,6 +663,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -649,6 +678,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -664,6 +694,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -679,6 +710,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -693,6 +725,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -708,6 +741,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           computerUse: true,
           maxOutputTokens: { max: 8192, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -723,6 +757,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           computerUse: true,
           maxOutputTokens: { max: 8192, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -736,6 +771,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     modelPatterns: [/^gemini/],
     capabilities: {
       toolUsageControl: true,
+      vision: true,
     },
     icon: GeminiIcon,
     models: [
@@ -847,6 +883,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     icon: VertexIcon,
     capabilities: {
       toolUsageControl: true,
+      vision: true,
     },
     models: [
       {
@@ -1005,6 +1042,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     icon: xAIIcon,
     capabilities: {
       toolUsageControl: true,
+      vision: true,
     },
     models: [
       {
@@ -1277,7 +1315,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 0.34,
           updatedAt: '2026-01-27',
         },
-        capabilities: {},
+        capabilities: {
+          vision: true,
+        },
         contextWindow: 131072,
       },
       {
@@ -1287,7 +1327,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 0.6,
           updatedAt: '2026-01-27',
         },
-        capabilities: {},
+        capabilities: {
+          vision: true,
+        },
         contextWindow: 131072,
       },
       {
@@ -1369,6 +1411,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 256000,
       },
@@ -1381,6 +1424,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 256000,
       },
@@ -1453,6 +1497,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -1465,6 +1510,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -1489,6 +1535,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -1501,6 +1548,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -1549,6 +1597,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -1561,6 +1610,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -1585,6 +1635,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 256000,
       },
@@ -1597,6 +1648,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 256000,
       },
@@ -1609,6 +1661,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 256000,
       },
@@ -1621,6 +1674,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 256000,
       },
@@ -1645,6 +1699,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 256000,
       },
@@ -1657,6 +1712,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 256000,
       },
@@ -1710,6 +1766,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -1724,6 +1781,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -1738,6 +1796,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -1752,6 +1811,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          vision: true,
         },
         contextWindow: 200000,
       },
@@ -1764,6 +1824,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 1000000,
       },
@@ -1776,6 +1837,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 1000000,
       },
@@ -1788,6 +1850,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 1000000,
       },
@@ -1800,6 +1863,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 300000,
       },
@@ -1812,6 +1876,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 300000,
       },
@@ -1836,6 +1901,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 1000000,
       },
@@ -1848,6 +1914,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 3500000,
       },
@@ -1872,6 +1939,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -1884,6 +1952,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -1956,6 +2025,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -1992,6 +2062,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -2016,6 +2087,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -2028,6 +2100,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -2040,6 +2113,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          vision: true,
         },
         contextWindow: 128000,
       },
@@ -2209,6 +2283,32 @@ export function supportsTemperature(modelId: string): boolean {
 export function getMaxTemperature(modelId: string): number | undefined {
   const capabilities = getModelCapabilities(modelId)
   return capabilities?.temperature?.max
+}
+
+/**
+ * Checks if a model supports vision/multimodal inputs (images, audio, video, PDFs)
+ */
+export function supportsVision(modelId: string): boolean {
+  const capabilities = getModelCapabilities(modelId)
+  return !!capabilities?.vision
+}
+
+/**
+ * Returns a list of all vision-capable models
+ */
+export function getVisionModels(): string[] {
+  const models: string[] = []
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    // Check if the provider has vision capability at the provider level
+    const providerHasVision = provider.capabilities?.vision
+    for (const model of provider.models) {
+      // Model has vision if either the model or provider has vision capability
+      if (model.capabilities.vision || providerHasVision) {
+        models.push(model.id)
+      }
+    }
+  }
+  return models
 }
 
 export function supportsToolUsageControl(providerId: string): boolean {

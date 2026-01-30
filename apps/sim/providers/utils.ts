@@ -23,9 +23,11 @@ import {
   getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
   getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
   getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
+  getVisionModels,
   PROVIDER_DEFINITIONS,
   supportsTemperature as supportsTemperatureFromDefinitions,
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
+  supportsVision,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
@@ -1152,3 +1154,6 @@ export function checkForForcedToolUsageOpenAI(
 
   return { hasUsedForcedTool, usedForcedTools: updatedUsedForcedTools }
 }
+
+// Re-export vision capability functions
+export { supportsVision, getVisionModels }

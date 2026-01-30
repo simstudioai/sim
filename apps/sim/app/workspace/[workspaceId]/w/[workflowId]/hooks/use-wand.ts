@@ -63,6 +63,8 @@ export interface WandConfig {
 interface UseWandProps {
   wandConfig?: WandConfig
   currentValue?: string
+  /** Additional context about available sources/references for the prompt */
+  sources?: string
   onGeneratedContent: (content: string) => void
   onStreamChunk?: (chunk: string) => void
   onStreamStart?: () => void
@@ -72,6 +74,7 @@ interface UseWandProps {
 export function useWand({
   wandConfig,
   currentValue,
+  sources,
   onGeneratedContent,
   onStreamChunk,
   onStreamStart,
@@ -153,6 +156,9 @@ export function useWand({
         let systemPrompt = wandConfig?.prompt || ''
         if (systemPrompt.includes('{context}')) {
           systemPrompt = systemPrompt.replace('{context}', contextInfo)
+        }
+        if (systemPrompt.includes('{sources}')) {
+          systemPrompt = systemPrompt.replace('{sources}', sources || 'No upstream sources available')
         }
 
         const userMessage = prompt

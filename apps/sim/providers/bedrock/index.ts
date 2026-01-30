@@ -16,6 +16,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
   checkForForcedToolUsage,
+  convertToBedrockContentBlocks,
   createReadableStreamFromBedrockStream,
   generateToolUseId,
   getBedrockInferenceProfileId,
@@ -116,9 +117,11 @@ export const bedrockProvider: ProviderConfig = {
           }
         } else {
           const role: ConversationRole = msg.role === 'assistant' ? 'assistant' : 'user'
+          // Handle multimodal content arrays
+          const contentBlocks = convertToBedrockContentBlocks(msg.content || '')
           messages.push({
             role,
-            content: [{ text: msg.content || '' }],
+            content: contentBlocks,
           })
         }
       }
