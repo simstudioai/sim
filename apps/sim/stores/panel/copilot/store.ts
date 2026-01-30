@@ -54,6 +54,7 @@ import { TestClientTool } from '@/lib/copilot/tools/client/other/test'
 import { TourClientTool } from '@/lib/copilot/tools/client/other/tour'
 import { WorkflowClientTool } from '@/lib/copilot/tools/client/other/workflow'
 import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
+import { COPILOT_SERVER_ORCHESTRATED } from '@/lib/copilot/orchestrator/config'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
 import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
@@ -1198,6 +1199,18 @@ const sseHandlers: Record<string, SSEHandler> = {
             }
           } catch {}
         }
+
+        if (COPILOT_SERVER_ORCHESTRATED && current.name === 'edit_workflow') {
+          try {
+            const resultPayload =
+              data?.result || data?.data?.result || data?.data?.data || data?.data || {}
+            const workflowState = resultPayload?.workflowState
+            if (workflowState) {
+              const diffStore = useWorkflowDiffStore.getState()
+              void diffStore.setProposedChanges(workflowState)
+            }
+          } catch {}
+        }
       }
 
       // Update inline content block state
@@ -1359,6 +1372,10 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     // Do not execute on partial tool_call frames
     if (isPartial) {
+      return
+    }
+
+    if (COPILOT_SERVER_ORCHESTRATED) {
       return
     }
 
@@ -3820,6 +3837,9 @@ export const useCopilotStore = create<CopilotStore>()(
     setEnabledModels: (models) => set({ enabledModels: models }),
 
     executeIntegrationTool: async (toolCallId: string) => {
+      if (COPILOT_SERVER_ORCHESTRATED) {
+        return
+      }
       const { toolCallsById, workflowId } = get()
       const toolCall = toolCallsById[toolCallId]
       if (!toolCall || !workflowId) return
