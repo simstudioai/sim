@@ -158,7 +158,10 @@ export function useWand({
           systemPrompt = systemPrompt.replace('{context}', contextInfo)
         }
         if (systemPrompt.includes('{sources}')) {
-          systemPrompt = systemPrompt.replace('{sources}', sources || 'No upstream sources available')
+          systemPrompt = systemPrompt.replace(
+            '{sources}',
+            sources || 'No upstream sources available'
+          )
         }
 
         const userMessage = prompt

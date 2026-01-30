@@ -7,10 +7,10 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createLogger } from '@sim/logger'
 import { isEqual } from 'lodash'
 import { ArrowLeftRight, ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { createLogger } from '@sim/logger'
 import {
   Button,
   Popover,
@@ -28,12 +28,12 @@ import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/compone
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('MessagesInput')
 
@@ -155,7 +155,13 @@ export function MessagesInput({
     }
 
     const filesList = workspaceFiles
-      .filter((f) => f.type.startsWith('image/') || f.type.startsWith('audio/') || f.type.startsWith('video/') || f.type === 'application/pdf')
+      .filter(
+        (f) =>
+          f.type.startsWith('image/') ||
+          f.type.startsWith('audio/') ||
+          f.type.startsWith('video/') ||
+          f.type === 'application/pdf'
+      )
       .map((f) => `  - id: "${f.id}", name: "${f.name}", type: "${f.type}"`)
       .join('\n')
 
@@ -165,7 +171,6 @@ export function MessagesInput({
 
     return `AVAILABLE WORKSPACE FILES (optional - you don't have to select one):\n${filesList}\n\nTo use a file, include "fileId": "<id>" in the media object. If not selecting a file, omit the fileId field.`
   }, [workspaceFiles])
-
 
   // Effect to sync FileUpload values to message media objects
   useEffect(() => {
@@ -321,8 +326,9 @@ export function MessagesInput({
         validMessages.forEach((msg, index) => {
           if (msg.role === 'media') {
             // Check if this is an existing file with valid data (preserve it)
-            const hasExistingFile = msg.media?.sourceType === 'file' && 
-              msg.media?.data?.startsWith('/api/') && 
+            const hasExistingFile =
+              msg.media?.sourceType === 'file' &&
+              msg.media?.data?.startsWith('/api/') &&
               msg.media?.fileName
 
             if (hasExistingFile) {
@@ -868,7 +874,7 @@ export function MessagesInput({
                         }}
                         value={
                           // Only show value for variable references, not file uploads
-                          message.media?.sourceType === 'file' ? '' : (message.media?.data || '')
+                          message.media?.sourceType === 'file' ? '' : message.media?.data || ''
                         }
                         onChange={(newValue: string) => {
                           const updatedMessages = [...localMessages]

@@ -61,9 +61,7 @@ export class AgentBlockHandler implements BlockHandler {
     const rawMessages = await this.buildMessages(ctx, filteredInputs)
 
     // Transform media messages to provider-specific format
-    const messages = rawMessages
-      ? this.transformMediaMessages(rawMessages, providerId)
-      : undefined
+    const messages = rawMessages ? this.transformMediaMessages(rawMessages, providerId) : undefined
 
     const providerRequest = this.buildProviderRequest({
       ctx,
@@ -827,7 +825,10 @@ export class AgentBlockHandler implements BlockHandler {
         }
         messageArray = parsed
       } catch (error) {
-        logger.warn('Failed to parse messages JSON string', { error, messages: trimmed.substring(0, 100) })
+        logger.warn('Failed to parse messages JSON string', {
+          error,
+          messages: trimmed.substring(0, 100),
+        })
         return []
       }
     } else if (Array.isArray(messages)) {
@@ -948,9 +949,11 @@ export class AgentBlockHandler implements BlockHandler {
     if (sourceType === 'url' || sourceType === 'file') {
       const trimmedData = data.trim()
       // Must start with http://, https://, or / (relative path for workspace files)
-      if (!trimmedData.startsWith('http://') && 
-          !trimmedData.startsWith('https://') && 
-          !trimmedData.startsWith('/')) {
+      if (
+        !trimmedData.startsWith('http://') &&
+        !trimmedData.startsWith('https://') &&
+        !trimmedData.startsWith('/')
+      ) {
         logger.warn('Invalid URL format for media content', { data: trimmedData.substring(0, 50) })
         // Try to salvage by treating as text
         return { type: 'text', text: `[Invalid media URL: ${trimmedData.substring(0, 30)}...]` }
@@ -961,8 +964,13 @@ export class AgentBlockHandler implements BlockHandler {
     if (sourceType === 'base64') {
       const trimmedData = data.trim()
       // Should be a data URL or raw base64
-      if (!trimmedData.startsWith('data:') && !/^[A-Za-z0-9+/]+=*$/.test(trimmedData.replace(/\s/g, ''))) {
-        logger.warn('Invalid base64 format for media content', { data: trimmedData.substring(0, 50) })
+      if (
+        !trimmedData.startsWith('data:') &&
+        !/^[A-Za-z0-9+/]+=*$/.test(trimmedData.replace(/\s/g, ''))
+      ) {
+        logger.warn('Invalid base64 format for media content', {
+          data: trimmedData.substring(0, 50),
+        })
         return { type: 'text', text: `[Invalid base64 data]` }
       }
     }
@@ -990,11 +998,7 @@ export class AgentBlockHandler implements BlockHandler {
   /**
    * Creates OpenAI-compatible media content
    */
-  private createOpenAIMediaContent(
-    sourceType: string,
-    data: string,
-    mimeType?: string
-  ): any {
+  private createOpenAIMediaContent(sourceType: string, data: string, mimeType?: string): any {
     const isImage = mimeType?.startsWith('image/')
     const isAudio = mimeType?.startsWith('audio/')
     // Treat 'file' as 'url' since workspace files are served via URL
@@ -1037,11 +1041,7 @@ export class AgentBlockHandler implements BlockHandler {
   /**
    * Creates Anthropic-compatible media content
    */
-  private createAnthropicMediaContent(
-    sourceType: string,
-    data: string,
-    mimeType?: string
-  ): any {
+  private createAnthropicMediaContent(sourceType: string, data: string, mimeType?: string): any {
     const isImage = mimeType?.startsWith('image/')
     const isPdf = mimeType === 'application/pdf'
     // Treat 'file' as 'url' since workspace files are served via URL
@@ -1094,11 +1094,7 @@ export class AgentBlockHandler implements BlockHandler {
   /**
    * Creates Google Gemini-compatible media content
    */
-  private createGeminiMediaContent(
-    sourceType: string,
-    data: string,
-    mimeType?: string
-  ): any {
+  private createGeminiMediaContent(sourceType: string, data: string, mimeType?: string): any {
     // Treat 'file' as 'url' since workspace files are served via URL
     const isUrl = sourceType === 'url' || sourceType === 'file'
 
@@ -1126,11 +1122,7 @@ export class AgentBlockHandler implements BlockHandler {
    * Note: Mistral uses a simplified format where image_url is a direct string,
    * NOT a nested object like OpenAI
    */
-  private createMistralMediaContent(
-    sourceType: string,
-    data: string,
-    mimeType?: string
-  ): any {
+  private createMistralMediaContent(sourceType: string, data: string, mimeType?: string): any {
     const isImage = mimeType?.startsWith('image/')
     // Treat 'file' as 'url' since workspace files are served via URL
     const isUrl = sourceType === 'url' || sourceType === 'file'
@@ -1144,7 +1136,9 @@ export class AgentBlockHandler implements BlockHandler {
         }
       }
       // Base64 - Mistral accepts data URLs directly
-      const base64Data = data.includes(',') ? data : `data:${mimeType || 'image/png'};base64,${data}`
+      const base64Data = data.includes(',')
+        ? data
+        : `data:${mimeType || 'image/png'};base64,${data}`
       return {
         type: 'image_url',
         image_url: base64Data,
@@ -1163,11 +1157,7 @@ export class AgentBlockHandler implements BlockHandler {
    * Bedrock uses a different structure: { image: { format, source: { bytes } } }
    * Note: The actual bytes conversion happens in the provider layer
    */
-  private createBedrockMediaContent(
-    sourceType: string,
-    data: string,
-    mimeType?: string
-  ): any {
+  private createBedrockMediaContent(sourceType: string, data: string, mimeType?: string): any {
     const isImage = mimeType?.startsWith('image/')
     // Treat 'file' as 'url' since workspace files are served via URL
     const isUrl = sourceType === 'url' || sourceType === 'file'

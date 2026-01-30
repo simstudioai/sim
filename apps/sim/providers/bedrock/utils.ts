@@ -1,4 +1,8 @@
-import type { ContentBlock, ConverseStreamOutput, ImageFormat } from '@aws-sdk/client-bedrock-runtime'
+import type {
+  ContentBlock,
+  ConverseStreamOutput,
+  ImageFormat,
+} from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
 import { trackForcedToolUsage } from '@/providers/utils'
 
