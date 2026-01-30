@@ -24,6 +24,7 @@ import {
   Cursor,
   DatePicker,
   DocumentAttachment,
+  Download,
   Duplicate,
   Expand,
   Eye,
@@ -51,6 +52,7 @@ import {
   NoWrap,
   PanelLeft,
   Play,
+  PlayOutline,
   Popover,
   PopoverBackButton,
   PopoverContent,
@@ -214,6 +216,9 @@ export default function PlaygroundPage() {
             <VariantRow label='primary'>
               <Button variant='primary'>Primary</Button>
             </VariantRow>
+            <VariantRow label='destructive'>
+              <Button variant='destructive'>Destructive</Button>
+            </VariantRow>
             <VariantRow label='secondary'>
               <Button variant='secondary'>Secondary</Button>
             </VariantRow>
@@ -290,6 +295,9 @@ export default function PlaygroundPage() {
             <VariantRow label='outline'>
               <Badge variant='outline'>Outline</Badge>
             </VariantRow>
+            <VariantRow label='type'>
+              <Badge variant='type'>Type</Badge>
+            </VariantRow>
             <VariantRow label='green'>
               <Badge variant='green'>Green</Badge>
               <Badge variant='green' dot>
@@ -322,6 +330,9 @@ export default function PlaygroundPage() {
             </VariantRow>
             <VariantRow label='teal'>
               <Badge variant='teal'>Teal</Badge>
+            </VariantRow>
+            <VariantRow label='cyan'>
+              <Badge variant='cyan'>Cyan</Badge>
             </VariantRow>
             <VariantRow label='gray'>
               <Badge variant='gray'>Gray</Badge>
@@ -996,6 +1007,7 @@ export default function PlaygroundPage() {
                 { Icon: Copy, name: 'Copy' },
                 { Icon: Cursor, name: 'Cursor' },
                 { Icon: DocumentAttachment, name: 'DocumentAttachment' },
+                { Icon: Download, name: 'Download' },
                 { Icon: Duplicate, name: 'Duplicate' },
                 { Icon: Expand, name: 'Expand' },
                 { Icon: Eye, name: 'Eye' },
@@ -1011,6 +1023,7 @@ export default function PlaygroundPage() {
                 { Icon: NoWrap, name: 'NoWrap' },
                 { Icon: PanelLeft, name: 'PanelLeft' },
                 { Icon: Play, name: 'Play' },
+                { Icon: PlayOutline, name: 'PlayOutline' },
                 { Icon: Redo, name: 'Redo' },
                 { Icon: Rocket, name: 'Rocket' },
                 { Icon: Trash, name: 'Trash' },
