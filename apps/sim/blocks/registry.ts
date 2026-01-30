@@ -112,6 +112,7 @@ import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
+import { SimilarwebBlock } from '@/blocks/blocks/similarweb'
 import { SlackBlock } from '@/blocks/blocks/slack'
 import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SpotifyBlock } from '@/blocks/blocks/spotify'
@@ -282,6 +283,7 @@ export const registry: Record<string, BlockConfig> = {
   sftp: SftpBlock,
   sharepoint: SharepointBlock,
   shopify: ShopifyBlock,
+  similarweb: SimilarwebBlock,
   slack: SlackBlock,
   smtp: SmtpBlock,
   spotify: SpotifyBlock,
