@@ -60,6 +60,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
               `Cleaning up socket ${existingUser.socketId} for user ${userId} (${isSameTab ? 'same tab' : 'stale'})`
             )
             await roomManager.removeUserFromRoom(existingUser.socketId)
+            roomManager.io.in(existingUser.socketId).socketsLeave(workflowId)
           }
         }
       }
@@ -124,10 +125,9 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       )
     } catch (error) {
       logger.error('Error joining workflow:', error)
-      socket.emit('error', {
-        type: 'JOIN_ERROR',
-        message: 'Failed to join workflow',
-      })
+      // Undo socket.join if addUserToRoom or subsequent operations failed
+      socket.leave(workflowId)
+      socket.emit('join-workflow-error', { error: 'Failed to join workflow' })
     }
   })
 

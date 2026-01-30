@@ -208,7 +208,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               cb({ token: freshToken })
             } catch (error) {
               logger.error('Failed to generate fresh token for connection:', error)
-              cb({ token: null })
+              if (error instanceof Error && error.message === 'Authentication required') {
+                // True auth failure - pass null token, server will reject with "Authentication required"
+                cb({ token: null })
+              }
+              // For server errors, don't call cb - connection will timeout and Socket.IO will retry
             }
           },
         })

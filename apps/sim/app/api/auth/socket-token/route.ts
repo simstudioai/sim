@@ -20,6 +20,6 @@ export async function POST() {
 
     return NextResponse.json({ token: response.token })
   } catch {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 })
   }
 }
