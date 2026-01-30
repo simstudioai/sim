@@ -774,8 +774,7 @@ Example 3 (Array Input):
     providerTiming: {
       type: 'json',
       description: 'Provider timing information',
-      hiddenFromDisplay: true,
     },
-    cost: { type: 'number', description: 'Cost of the API call', hiddenFromDisplay: true },
+    cost: { type: 'json', description: 'Cost of the API call' },
   },
 }
