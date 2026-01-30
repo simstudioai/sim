@@ -1,5 +1,6 @@
 import { createServer } from 'http'
 import { createLogger } from '@sim/logger'
+import type { Server as SocketIOServer } from 'socket.io'
 import { env } from '@/lib/core/config/env'
 import { createSocketIOServer, shutdownSocketIOAdapter } from '@/socket/config/socket'
 import { setupAllHandlers } from '@/socket/handlers'
@@ -9,27 +10,16 @@ import { createHttpHandler } from '@/socket/routes/http'
 
 const logger = createLogger('CollaborativeSocketServer')
 
-/**
- * Create the appropriate RoomManager based on configuration
- * If REDIS_URL is set, uses Redis for multi-pod support
- * Otherwise, uses in-memory for single-pod mode
- *
- * IMPORTANT: If Redis is configured, we ONLY use Redis - no fallback
- * This prevents split-brain scenarios
- */
-async function createRoomManager(io: ReturnType<typeof createServer>): Promise<IRoomManager> {
-  // Type assertion needed because io parameter comes from socket.io Server
-  const socketIo = io as unknown as import('socket.io').Server
-
+async function createRoomManager(io: SocketIOServer): Promise<IRoomManager> {
   if (env.REDIS_URL) {
     logger.info('Initializing Redis-backed RoomManager for multi-pod support')
-    const manager = new RedisRoomManager(socketIo, env.REDIS_URL)
+    const manager = new RedisRoomManager(io, env.REDIS_URL)
     await manager.initialize()
     return manager
   }
 
   logger.warn('No REDIS_URL configured - using in-memory RoomManager (single-pod only)')
-  const manager = new MemoryRoomManager(socketIo)
+  const manager = new MemoryRoomManager(io)
   await manager.initialize()
   return manager
 }
@@ -50,7 +40,7 @@ async function main() {
   const io = await createSocketIOServer(httpServer)
 
   // Initialize room manager (Redis or in-memory based on config)
-  const roomManager = await createRoomManager(io as unknown as ReturnType<typeof createServer>)
+  const roomManager = await createRoomManager(io)
 
   // Set up authentication middleware
   io.use(authenticateSocket)
