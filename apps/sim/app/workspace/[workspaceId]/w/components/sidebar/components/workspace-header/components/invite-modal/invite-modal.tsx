@@ -118,13 +118,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     }
   }, [open, workspaceId, fetchPendingInvitations, refetchPermissions])
 
-  useEffect(() => {
-    if (open) {
-      setErrorMessage(null)
-      setSuccessMessage(null)
-    }
-  }, [open])
-
   const addEmail = useCallback(
     (email: string) => {
       if (!email.trim()) return false
@@ -601,7 +594,10 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     <Modal
       open={open}
       onOpenChange={(newOpen: boolean) => {
-        if (!newOpen) {
+        if (newOpen) {
+          setErrorMessage(null)
+          setSuccessMessage(null)
+        } else {
           resetState()
         }
         onOpenChange(newOpen)
@@ -703,7 +699,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   variant='default'
                   disabled={isSaving || isSubmitting}
                   onClick={handleRestoreChanges}
-                  className='h-[32px] gap-[8px] px-[12px] font-medium'
                 >
                   Restore Changes
                 </Button>
@@ -712,7 +707,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   variant='tertiary'
                   disabled={isSaving || isSubmitting}
                   onClick={handleSaveChanges}
-                  className='h-[32px] gap-[8px] px-[12px] font-medium'
                 >
                   {isSaving ? 'Saving...' : 'Save Changes'}
                 </Button>
