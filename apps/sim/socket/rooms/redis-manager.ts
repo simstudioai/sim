@@ -282,8 +282,8 @@ export class RedisRoomManager implements IRoomManager {
         ],
         arguments: [
           socketId,
-          updates.cursor ? JSON.stringify(updates.cursor) : '',
-          updates.selection ? JSON.stringify(updates.selection) : '',
+          updates.cursor !== undefined ? JSON.stringify(updates.cursor) : '',
+          updates.selection !== undefined ? JSON.stringify(updates.selection) : '',
           (updates.lastActivity ?? Date.now()).toString(),
           SOCKET_KEY_TTL.toString(),
         ],
