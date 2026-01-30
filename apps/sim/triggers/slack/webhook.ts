@@ -63,45 +63,49 @@ export const slackWebhookTrigger: TriggerConfig = {
 
   outputs: {
     event: {
-      event_type: {
-        type: 'string',
-        description: 'Type of Slack event (e.g., app_mention, message)',
-      },
-      channel: {
-        type: 'string',
-        description: 'Slack channel ID where the event occurred',
-      },
-      channel_name: {
-        type: 'string',
-        description: 'Human-readable channel name',
-      },
-      user: {
-        type: 'string',
-        description: 'User ID who triggered the event',
-      },
-      user_name: {
-        type: 'string',
-        description: 'Username who triggered the event',
-      },
-      text: {
-        type: 'string',
-        description: 'Message text content',
-      },
-      timestamp: {
-        type: 'string',
-        description: 'Message timestamp from the triggering event',
-      },
-      thread_ts: {
-        type: 'string',
-        description: 'Parent thread timestamp (if message is in a thread)',
-      },
-      team_id: {
-        type: 'string',
-        description: 'Slack workspace/team ID',
-      },
-      event_id: {
-        type: 'string',
-        description: 'Unique event identifier',
+      type: 'object',
+      description: 'Slack event data',
+      properties: {
+        event_type: {
+          type: 'string',
+          description: 'Type of Slack event (e.g., app_mention, message)',
+        },
+        channel: {
+          type: 'string',
+          description: 'Slack channel ID where the event occurred',
+        },
+        channel_name: {
+          type: 'string',
+          description: 'Human-readable channel name',
+        },
+        user: {
+          type: 'string',
+          description: 'User ID who triggered the event',
+        },
+        user_name: {
+          type: 'string',
+          description: 'Username who triggered the event',
+        },
+        text: {
+          type: 'string',
+          description: 'Message text content',
+        },
+        timestamp: {
+          type: 'string',
+          description: 'Message timestamp from the triggering event',
+        },
+        thread_ts: {
+          type: 'string',
+          description: 'Parent thread timestamp (if message is in a thread)',
+        },
+        team_id: {
+          type: 'string',
+          description: 'Slack workspace/team ID',
+        },
+        event_id: {
+          type: 'string',
+          description: 'Unique event identifier',
+        },
       },
     },
   },

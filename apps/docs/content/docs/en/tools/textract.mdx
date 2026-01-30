@@ -68,17 +68,17 @@ Parse documents using AWS Textract OCR and document analysis
 |   ↳ `Confidence` | number | Confidence score \(0-100\) |
 |   ↳ `Page` | number | Page number |
 |   ↳ `Geometry` | object | Location and bounding box information |
-|   ↳ `BoundingBox` | object | Height as ratio of document height |
-|   ↳ `Height` | number | Height as ratio of document height |
-|   ↳ `Left` | number | Left position as ratio of document width |
-|   ↳ `Top` | number | Top position as ratio of document height |
-|   ↳ `Width` | number | Width as ratio of document width |
-|   ↳ `Polygon` | array | Polygon coordinates |
-|   ↳ `X` | number | X coordinate |
-|   ↳ `Y` | number | Y coordinate |
+|     ↳ `BoundingBox` | object | Height as ratio of document height |
+|       ↳ `Height` | number | Height as ratio of document height |
+|       ↳ `Left` | number | Left position as ratio of document width |
+|       ↳ `Top` | number | Top position as ratio of document height |
+|       ↳ `Width` | number | Width as ratio of document width |
+|     ↳ `Polygon` | array | Polygon coordinates |
+|       ↳ `X` | number | X coordinate |
+|       ↳ `Y` | number | Y coordinate |
 |   ↳ `Relationships` | array | Relationships to other blocks |
-|   ↳ `Type` | string | Relationship type \(CHILD, VALUE, ANSWER, etc.\) |
-|   ↳ `Ids` | array | IDs of related blocks |
+|     ↳ `Type` | string | Relationship type \(CHILD, VALUE, ANSWER, etc.\) |
+|     ↳ `Ids` | array | IDs of related blocks |
 |   ↳ `EntityTypes` | array | Entity types for KEY_VALUE_SET \(KEY or VALUE\) |
 |   ↳ `SelectionStatus` | string | For checkboxes: SELECTED or NOT_SELECTED |
 |   ↳ `RowIndex` | number | Row index for table cells |
@@ -86,11 +86,11 @@ Parse documents using AWS Textract OCR and document analysis
 |   ↳ `RowSpan` | number | Row span for merged cells |
 |   ↳ `ColumnSpan` | number | Column span for merged cells |
 |   ↳ `Query` | object | Query information for QUERY blocks |
-|   ↳ `Text` | string | Query text |
-|   ↳ `Alias` | string | Query alias |
-|   ↳ `Pages` | array | Pages to search |
+|     ↳ `Text` | string | Query text |
+|     ↳ `Alias` | string | Query alias |
+|     ↳ `Pages` | array | Pages to search |
 | `documentMetadata` | object | Metadata about the analyzed document |
-| ↳ `pages` | number | Number of pages in the document |
+|   ↳ `pages` | number | Number of pages in the document |
 | `modelVersion` | string | Version of the Textract model used for processing |
 
 

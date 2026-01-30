@@ -1,4 +1,5 @@
 import type { LinearSearchIssuesParams, LinearSearchIssuesResponse } from '@/tools/linear/types'
+import { ISSUE_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearSearchIssuesTool: ToolConfig<
@@ -162,24 +163,9 @@ export const linearSearchIssuesTool: ToolConfig<
       description: 'Array of matching issues',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Issue ID' },
-          title: { type: 'string', description: 'Issue title' },
-          description: { type: 'string', description: 'Issue description' },
-          priority: { type: 'number', description: 'Issue priority' },
-          state: { type: 'object', description: 'Issue state' },
-          assignee: { type: 'object', description: 'Assigned user' },
-          labels: { type: 'array', description: 'Issue labels' },
-        },
+        properties: ISSUE_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-      properties: {
-        hasNextPage: { type: 'boolean', description: 'Whether there are more results' },
-        endCursor: { type: 'string', description: 'Cursor for next page' },
-      },
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

@@ -3,6 +3,7 @@ import type {
   HubSpotSearchContactsParams,
   HubSpotSearchContactsResponse,
 } from '@/tools/hubspot/types'
+import { CONTACTS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotSearchContacts')
@@ -161,10 +162,10 @@ export const hubspotSearchContactsTool: ToolConfig<
   },
 
   outputs: {
-    contacts: { type: 'array', description: 'Array of matching HubSpot contact objects' },
+    contacts: CONTACTS_ARRAY_OUTPUT,
     total: { type: 'number', description: 'Total number of matching contacts', optional: true },
-    paging: { type: 'object', description: 'Pagination information', optional: true },
-    metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
+    paging: PAGING_OUTPUT,
+    metadata: METADATA_OUTPUT,
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

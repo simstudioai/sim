@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { ARTIST_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetFollowedArtistsParams {
   accessToken: string
@@ -93,7 +94,11 @@ export const spotifyGetFollowedArtistsTool: ToolConfig<
   },
 
   outputs: {
-    artists: { type: 'json', description: 'List of followed artists' },
+    artists: {
+      type: 'array',
+      description: 'List of followed artists',
+      items: { type: 'object', properties: ARTIST_OUTPUT_PROPERTIES },
+    },
     total: { type: 'number', description: 'Total number of followed artists' },
     next: { type: 'string', description: 'Cursor for next page', optional: true },
   },

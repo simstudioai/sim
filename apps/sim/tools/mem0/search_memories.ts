@@ -1,7 +1,11 @@
 import type { Mem0Response } from '@/tools/mem0/types'
+import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
 import type { ToolConfig } from '@/tools/types'
 
-// Search Memories Tool
+/**
+ * Search Memories Tool
+ * @see https://docs.mem0.ai/api-reference/memory/search-memories
+ */
 export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
   id: 'mem0_search_memories',
   name: 'Search Memories',
@@ -57,7 +61,7 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response): Promise<Mem0Response> => {
     const data = await response.json()
 
     if (!data || (Array.isArray(data) && data.length === 0)) {
@@ -73,7 +77,16 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
     if (Array.isArray(data)) {
       const searchResults = data.map((item) => ({
         id: item.id,
-        data: { memory: item.memory || '' },
+        memory: item.memory || '',
+        user_id: item.user_id,
+        agent_id: item.agent_id,
+        app_id: item.app_id,
+        run_id: item.run_id,
+        hash: item.hash,
+        metadata: item.metadata,
+        categories: item.categories,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
         score: item.score || 0,
       }))
 
@@ -92,6 +105,7 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
       success: true,
       output: {
         searchResults: [],
+        ids: [],
       },
     }
   },
@@ -99,11 +113,18 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
   outputs: {
     searchResults: {
       type: 'array',
-      description: 'Array of search results with memory data, each containing id, data, and score',
+      description: 'Array of search results with memory data and similarity scores',
+      items: {
+        type: 'object',
+        properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
+      },
     },
     ids: {
       type: 'array',
       description: 'Array of memory IDs found in the search results',
+      items: {
+        type: 'string',
+      },
     },
   },
 }

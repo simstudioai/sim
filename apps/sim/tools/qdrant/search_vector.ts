@@ -1,4 +1,8 @@
 import type { QdrantResponse, QdrantSearchParams } from '@/tools/qdrant/types'
+import {
+  QDRANT_RESPONSE_OUTPUT_PROPERTIES,
+  SCORED_POINT_OUTPUT_PROPERTIES,
+} from '@/tools/qdrant/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = {
@@ -123,10 +127,11 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
     data: {
       type: 'array',
       description: 'Vector search results with ID, score, payload, and optional vector data',
+      items: {
+        type: 'object',
+        properties: SCORED_POINT_OUTPUT_PROPERTIES,
+      },
     },
-    status: {
-      type: 'string',
-      description: 'Status of the search operation',
-    },
+    status: QDRANT_RESPONSE_OUTPUT_PROPERTIES.status,
   },
 }

@@ -1,4 +1,8 @@
-import type { SupabaseStorageListParams, SupabaseStorageListResponse } from '@/tools/supabase/types'
+import {
+  STORAGE_FILE_OUTPUT_PROPERTIES,
+  type SupabaseStorageListParams,
+  type SupabaseStorageListResponse,
+} from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageListTool: ToolConfig<SupabaseStorageListParams, SupabaseStorageListResponse> = {
@@ -121,6 +125,10 @@ export const storageListTool: ToolConfig<SupabaseStorageListParams, SupabaseStor
     results: {
       type: 'array',
       description: 'Array of file objects with metadata',
+      items: {
+        type: 'object',
+        properties: STORAGE_FILE_OUTPUT_PROPERTIES,
+      },
     },
   },
 }

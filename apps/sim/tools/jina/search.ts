@@ -1,4 +1,5 @@
 import type { SearchParams, SearchResponse } from '@/tools/jina/types'
+import { JINA_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/jina/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
@@ -170,6 +171,10 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       type: 'array',
       description:
         'Array of search results, each containing title, description, url, and LLM-friendly content',
+      items: {
+        type: 'object',
+        properties: JINA_SEARCH_RESULT_OUTPUT_PROPERTIES,
+      },
     },
   },
 }

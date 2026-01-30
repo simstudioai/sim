@@ -220,7 +220,8 @@ export const stripeWebhookTrigger: TriggerConfig = {
     },
     data: {
       type: 'json',
-      description: 'Event data containing the affected Stripe object',
+      description:
+        'Event data containing the affected Stripe object. Structure varies by event type - access via data.object for the resource (PaymentIntent, Customer, Invoice, etc.)',
     },
     livemode: {
       type: 'boolean',
@@ -232,7 +233,8 @@ export const stripeWebhookTrigger: TriggerConfig = {
     },
     request: {
       type: 'json',
-      description: 'Information about the request that triggered this event',
+      description:
+        'Information about the API request that triggered this event (id, idempotency_key)',
     },
   },
 

@@ -59,67 +59,76 @@ export const telegramWebhookTrigger: TriggerConfig = {
 
   outputs: {
     message: {
-      id: {
-        type: 'number',
-        description: 'Telegram message ID',
-      },
-      text: {
-        type: 'string',
-        description: 'Message text content (if present)',
-      },
-      date: {
-        type: 'number',
-        description: 'Date the message was sent (Unix timestamp)',
-      },
-      messageType: {
-        type: 'string',
-        description:
-          'Detected content type: text, photo, document, audio, video, voice, sticker, location, contact, poll',
-      },
-      raw: {
-        message_id: {
-          type: 'number',
-          description: 'Original Telegram message_id',
-        },
-        date: {
-          type: 'number',
-          description: 'Original Telegram message date (Unix timestamp)',
-        },
-        text: {
+      type: 'object',
+      description: 'Telegram message data',
+      properties: {
+        id: { type: 'number', description: 'Telegram message ID' },
+        text: { type: 'string', description: 'Message text content (if present)' },
+        date: { type: 'number', description: 'Date the message was sent (Unix timestamp)' },
+        messageType: {
           type: 'string',
-          description: 'Original Telegram text (if present)',
+          description:
+            'Detected content type: text, photo, document, audio, video, voice, sticker, location, contact, poll',
         },
-        caption: {
-          type: 'string',
-          description: 'Original Telegram caption (if present)',
-        },
-        chat: {
-          id: { type: 'number', description: 'Chat identifier' },
-          username: { type: 'string', description: 'Chat username (if available)' },
-          first_name: { type: 'string', description: 'First name (for private chats)' },
-          last_name: { type: 'string', description: 'Last name (for private chats)' },
-        },
-        from: {
-          id: { type: 'number', description: 'Sender user ID' },
-          is_bot: { type: 'boolean', description: 'Whether the sender is a bot' },
-          first_name: { type: 'string', description: 'Sender first name' },
-          last_name: { type: 'string', description: 'Sender last name' },
-          language_code: { type: 'string', description: 'Sender language code (if available)' },
+        raw: {
+          type: 'object',
+          description: 'Raw Telegram message object',
+          properties: {
+            message_id: { type: 'number', description: 'Original Telegram message_id' },
+            date: {
+              type: 'number',
+              description: 'Original Telegram message date (Unix timestamp)',
+            },
+            text: { type: 'string', description: 'Original Telegram text (if present)' },
+            caption: { type: 'string', description: 'Original Telegram caption (if present)' },
+            chat: {
+              type: 'object',
+              description: 'Chat information',
+              properties: {
+                id: { type: 'number', description: 'Chat identifier' },
+                username: { type: 'string', description: 'Chat username (if available)' },
+                first_name: { type: 'string', description: 'First name (for private chats)' },
+                last_name: { type: 'string', description: 'Last name (for private chats)' },
+                title: { type: 'string', description: 'Chat title (for groups/channels)' },
+              },
+            },
+            from: {
+              type: 'object',
+              description: 'Sender information',
+              properties: {
+                id: { type: 'number', description: 'Sender user ID' },
+                is_bot: { type: 'boolean', description: 'Whether the sender is a bot' },
+                first_name: { type: 'string', description: 'Sender first name' },
+                last_name: { type: 'string', description: 'Sender last name' },
+                username: { type: 'string', description: 'Sender username' },
+                language_code: {
+                  type: 'string',
+                  description: 'Sender language code (if available)',
+                },
+              },
+            },
+            reply_to_message: { type: 'object', description: 'Original message being replied to' },
+            entities: {
+              type: 'array',
+              description: 'Message entities (mentions, hashtags, URLs, etc.)',
+            },
+          },
         },
       },
     },
     sender: {
-      id: { type: 'number', description: 'Sender user ID' },
-      username: { type: 'string', description: 'Sender username (if available)' },
-      firstName: { type: 'string', description: 'Sender first name' },
-      lastName: { type: 'string', description: 'Sender last name' },
-      languageCode: { type: 'string', description: 'Sender language code (if available)' },
-      isBot: { type: 'boolean', description: 'Whether the sender is a bot' },
+      type: 'object',
+      description: 'Sender information',
+      properties: {
+        id: { type: 'number', description: 'Sender user ID' },
+        username: { type: 'string', description: 'Sender username (if available)' },
+        firstName: { type: 'string', description: 'Sender first name' },
+        lastName: { type: 'string', description: 'Sender last name' },
+        languageCode: { type: 'string', description: 'Sender language code (if available)' },
+        isBot: { type: 'boolean', description: 'Whether the sender is a bot' },
+      },
     },
-    updateId: {
-      type: 'number',
-      description: 'Update ID for this webhook delivery',
-    },
+    updateId: { type: 'number', description: 'Update ID for this webhook delivery' },
     updateType: {
       type: 'string',
       description:

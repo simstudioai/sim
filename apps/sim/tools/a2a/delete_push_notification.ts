@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { A2ADeletePushNotificationParams, A2ADeletePushNotificationResponse } from './types'
+import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aDeletePushNotificationTool: ToolConfig<
   A2ADeletePushNotificationParams,
@@ -60,9 +61,6 @@ export const a2aDeletePushNotificationTool: ToolConfig<
   },
 
   outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Whether deletion was successful',
-    },
+    success: A2A_OUTPUT_PROPERTIES.success,
   },
 }

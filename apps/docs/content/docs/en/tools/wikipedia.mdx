@@ -47,12 +47,39 @@ Get a summary and metadata for a specific Wikipedia page.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `summary` | object | Wikipedia page summary and metadata |
-| ↳ `title` | string | Page title |
-| ↳ `extract` | string | Page extract/summary text |
-| ↳ `description` | string | Short page description |
-| ↳ `thumbnail` | object | Thumbnail image data |
-| ↳ `content_urls` | object | URLs to access the page |
-| ↳ `pageid` | number | Wikipedia page ID |
+|   ↳ `type` | string | Page type \(standard, disambiguation, etc.\) |
+|   ↳ `title` | string | Page title |
+|   ↳ `displaytitle` | string | Display title with formatting |
+|   ↳ `description` | string | Short page description |
+|   ↳ `extract` | string | Page extract/summary text |
+|   ↳ `extract_html` | string | Extract in HTML format |
+|   ↳ `thumbnail` | object | Thumbnail image data |
+|     ↳ `source` | string | Thumbnail image URL |
+|     ↳ `width` | number | Thumbnail width in pixels |
+|     ↳ `height` | number | Thumbnail height in pixels |
+|   ↳ `originalimage` | object | Original image data |
+|     ↳ `source` | string | Thumbnail image URL |
+|     ↳ `width` | number | Thumbnail width in pixels |
+|     ↳ `height` | number | Thumbnail height in pixels |
+|   ↳ `content_urls` | object | URLs to access the page |
+|     ↳ `desktop` | object | Desktop URLs |
+|       ↳ `page` | string | Page URL |
+|       ↳ `revisions` | string | Revisions URL |
+|       ↳ `edit` | string | Edit URL |
+|       ↳ `talk` | string | Talk page URL |
+|     ↳ `mobile` | object | Mobile URLs |
+|       ↳ `page` | string | Page URL |
+|       ↳ `revisions` | string | Revisions URL |
+|       ↳ `edit` | string | Edit URL |
+|       ↳ `talk` | string | Talk page URL |
+|   ↳ `lang` | string | Page language code |
+|   ↳ `dir` | string | Text direction \(ltr or rtl\) |
+|   ↳ `timestamp` | string | Last modification timestamp |
+|   ↳ `pageid` | number | Wikipedia page ID |
+|   ↳ `wikibase_item` | string | Wikidata item ID |
+|   ↳ `coordinates` | object | Geographic coordinates |
+|     ↳ `lat` | number | Latitude |
+|     ↳ `lon` | number | Longitude |
 
 ### `wikipedia_search`
 
@@ -70,6 +97,20 @@ Search for Wikipedia pages by title or content.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `searchResults` | array | Array of matching Wikipedia pages |
+|   ↳ `id` | number | Result index |
+|   ↳ `key` | string | URL-friendly page key |
+|   ↳ `title` | string | Page title |
+|   ↳ `excerpt` | string | Search result excerpt |
+|   ↳ `matched_title` | string | Matched title variant |
+|   ↳ `description` | string | Page description |
+|   ↳ `thumbnail` | object | Thumbnail data |
+|     ↳ `mimetype` | string | Image MIME type |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `width` | number | Width in pixels |
+|     ↳ `height` | number | Height in pixels |
+|     ↳ `duration` | number | Duration for video |
+|     ↳ `url` | string | Thumbnail URL |
+|   ↳ `url` | string | Page URL |
 | `totalHits` | number | Total number of search results found |
 | `query` | string | The search query that was executed |
 
@@ -88,11 +129,14 @@ Get the full HTML content of a Wikipedia page.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | object | Full HTML content and metadata of the Wikipedia page |
-| ↳ `title` | string | Page title |
-| ↳ `pageid` | number | Wikipedia page ID |
-| ↳ `html` | string | Full HTML content of the page |
-| ↳ `revision` | number | Page revision number |
-| ↳ `timestamp` | string | Last modified timestamp |
+|   ↳ `title` | string | Page title |
+|   ↳ `pageid` | number | Wikipedia page ID |
+|   ↳ `html` | string | Full HTML content of the page |
+|   ↳ `revision` | number | Page revision number |
+|   ↳ `tid` | string | Transaction ID \(ETag\) |
+|   ↳ `timestamp` | string | Last modified timestamp |
+|   ↳ `content_model` | string | Content model \(wikitext\) |
+|   ↳ `content_format` | string | Content format \(text/html\) |
 
 ### `wikipedia_random`
 
@@ -108,10 +152,22 @@ Get a random Wikipedia page.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `randomPage` | object | Random Wikipedia page data |
-| ↳ `title` | string | Page title |
-| ↳ `extract` | string | Page extract/summary |
-| ↳ `description` | string | Page description |
-| ↳ `thumbnail` | object | Thumbnail image data |
-| ↳ `content_urls` | object | URLs to access the page |
+|   ↳ `type` | string | Page type |
+|   ↳ `title` | string | Page title |
+|   ↳ `displaytitle` | string | Display title |
+|   ↳ `description` | string | Page description |
+|   ↳ `extract` | string | Page extract/summary |
+|   ↳ `thumbnail` | object | Thumbnail image data |
+|     ↳ `source` | string | Thumbnail image URL |
+|     ↳ `width` | number | Thumbnail width in pixels |
+|     ↳ `height` | number | Thumbnail height in pixels |
+|   ↳ `content_urls` | object | URLs to access the page |
+|     ↳ `desktop` | object | Desktop URL |
+|       ↳ `page` | string | Page URL |
+|     ↳ `mobile` | object | Mobile URL |
+|       ↳ `page` | string | Page URL |
+|   ↳ `lang` | string | Language code |
+|   ↳ `timestamp` | string | Timestamp |
+|   ↳ `pageid` | number | Page ID |
 
 

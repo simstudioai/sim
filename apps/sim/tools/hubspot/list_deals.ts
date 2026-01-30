@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotListDealsParams, HubSpotListDealsResponse } from '@/tools/hubspot/types'
+import { DEALS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotListDeals')
@@ -105,9 +106,9 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
   },
 
   outputs: {
-    deals: { type: 'array', description: 'Array of HubSpot deal objects' },
-    paging: { type: 'object', description: 'Pagination information', optional: true },
-    metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
+    deals: DEALS_ARRAY_OUTPUT,
+    paging: PAGING_OUTPUT,
+    metadata: METADATA_OUTPUT,
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

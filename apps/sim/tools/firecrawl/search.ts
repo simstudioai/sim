@@ -1,4 +1,5 @@
 import type { SearchParams, SearchResponse } from '@/tools/firecrawl/types'
+import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
@@ -64,20 +65,10 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   outputs: {
     data: {
       type: 'array',
-      description: 'Search results data',
+      description: 'Search results data with scraped content and metadata',
       items: {
         type: 'object',
-        properties: {
-          title: { type: 'string' },
-          description: { type: 'string' },
-          url: { type: 'string' },
-          markdown: { type: 'string' },
-          html: { type: 'string' },
-          rawHtml: { type: 'string' },
-          links: { type: 'array' },
-          screenshot: { type: 'string' },
-          metadata: { type: 'object' },
-        },
+        properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
       },
     },
   },

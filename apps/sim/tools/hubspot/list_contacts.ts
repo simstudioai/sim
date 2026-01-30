@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotListContactsParams, HubSpotListContactsResponse } from '@/tools/hubspot/types'
+import { CONTACTS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotListContacts')
@@ -109,9 +110,9 @@ export const hubspotListContactsTool: ToolConfig<
   },
 
   outputs: {
-    contacts: { type: 'array', description: 'Array of HubSpot contact objects' },
-    paging: { type: 'object', description: 'Pagination information', optional: true },
-    metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
+    contacts: CONTACTS_ARRAY_OUTPUT,
+    paging: PAGING_OUTPUT,
+    metadata: METADATA_OUTPUT,
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

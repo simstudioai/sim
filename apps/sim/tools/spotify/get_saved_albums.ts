@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetSavedAlbumsParams {
   accessToken: string
@@ -102,7 +103,33 @@ export const spotifyGetSavedAlbumsTool: ToolConfig<
   },
 
   outputs: {
-    albums: { type: 'json', description: 'List of saved albums' },
+    albums: {
+      type: 'array',
+      description: 'List of saved albums',
+      items: {
+        type: 'object',
+        properties: {
+          added_at: { type: 'string', description: 'When the album was saved' },
+          album: {
+            type: 'object',
+            description: 'Album information',
+            properties: {
+              id: { type: 'string', description: 'Spotify album ID' },
+              name: { type: 'string', description: 'Album name' },
+              artists: {
+                type: 'array',
+                description: 'List of artists',
+                items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+              },
+              total_tracks: { type: 'number', description: 'Total number of tracks' },
+              release_date: { type: 'string', description: 'Release date' },
+              image_url: { type: 'string', description: 'Album cover image URL', optional: true },
+              external_url: { type: 'string', description: 'Spotify URL' },
+            },
+          },
+        },
+      },
+    },
     total: { type: 'number', description: 'Total saved albums' },
     next: { type: 'string', description: 'URL for next page', optional: true },
   },

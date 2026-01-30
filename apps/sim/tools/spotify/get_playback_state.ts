@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifyGetPlaybackStateParams, SpotifyGetPlaybackStateResponse } from './types'
+import { PLAYBACK_TRACK_OUTPUT_PROPERTIES, SIMPLIFIED_DEVICE_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetPlaybackStateTool: ToolConfig<
   SpotifyGetPlaybackStateParams,
@@ -93,11 +94,21 @@ export const spotifyGetPlaybackStateTool: ToolConfig<
 
   outputs: {
     is_playing: { type: 'boolean', description: 'Whether playback is active' },
-    device: { type: 'object', description: 'Active device information', optional: true },
+    device: {
+      type: 'object',
+      description: 'Active device information',
+      optional: true,
+      properties: SIMPLIFIED_DEVICE_OUTPUT_PROPERTIES,
+    },
     progress_ms: { type: 'number', description: 'Progress in milliseconds', optional: true },
     currently_playing_type: { type: 'string', description: 'Type of content playing' },
     shuffle_state: { type: 'boolean', description: 'Whether shuffle is enabled' },
     repeat_state: { type: 'string', description: 'Repeat mode (off, track, context)' },
-    track: { type: 'object', description: 'Currently playing track', optional: true },
+    track: {
+      type: 'object',
+      description: 'Currently playing track',
+      optional: true,
+      properties: PLAYBACK_TRACK_OUTPUT_PROPERTIES,
+    },
   },
 }

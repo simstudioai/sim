@@ -3,6 +3,7 @@ import type {
   WikipediaPageSummaryParams,
   WikipediaPageSummaryResponse,
 } from '@/tools/wikipedia/types'
+import { WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES } from '@/tools/wikipedia/types'
 
 export const pageSummaryTool: ToolConfig<WikipediaPageSummaryParams, WikipediaPageSummaryResponse> =
   {
@@ -66,14 +67,7 @@ export const pageSummaryTool: ToolConfig<WikipediaPageSummaryParams, WikipediaPa
       summary: {
         type: 'object',
         description: 'Wikipedia page summary and metadata',
-        properties: {
-          title: { type: 'string', description: 'Page title' },
-          extract: { type: 'string', description: 'Page extract/summary text' },
-          description: { type: 'string', description: 'Short page description', optional: true },
-          thumbnail: { type: 'object', description: 'Thumbnail image data', optional: true },
-          content_urls: { type: 'object', description: 'URLs to access the page' },
-          pageid: { type: 'number', description: 'Wikipedia page ID' },
-        },
+        properties: WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES,
       },
     },
   }

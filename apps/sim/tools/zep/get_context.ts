@@ -1,7 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 
-// Get User Context Tool - Retrieve user context with mode (Zep v3)
 export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_context',
   name: 'Get User Context',

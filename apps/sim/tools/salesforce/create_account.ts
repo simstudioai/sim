@@ -3,6 +3,7 @@ import type {
   SalesforceCreateAccountParams,
   SalesforceCreateAccountResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceCreateAccount')
@@ -212,11 +213,7 @@ export const salesforceCreateAccountTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Created account data',
-      properties: {
-        id: { type: 'string', description: 'Created account ID' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-        created: { type: 'boolean', description: 'Whether account was created' },
-      },
+      properties: SOBJECT_CREATE_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import { buildZendeskUrl, handleZendeskError, TICKET_OUTPUT_PROPERTIES } from './types'
 
 const logger = createLogger('ZendeskGetTicket')
 
@@ -86,7 +86,11 @@ export const zendeskGetTicketTool: ToolConfig<ZendeskGetTicketParams, ZendeskGet
   },
 
   outputs: {
-    ticket: { type: 'object', description: 'Ticket object' },
+    ticket: {
+      type: 'object',
+      description: 'Ticket object',
+      properties: TICKET_OUTPUT_PROPERTIES,
+    },
     ticket_id: { type: 'number', description: 'The ticket ID' },
   },
 }

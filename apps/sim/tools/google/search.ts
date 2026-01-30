@@ -1,4 +1,8 @@
 import type { GoogleSearchParams, GoogleSearchResponse } from '@/tools/google/types'
+import {
+  GOOGLE_SEARCH_INFORMATION_OUTPUT_PROPERTIES,
+  GOOGLE_SEARCH_RESULT_OUTPUT_PROPERTIES,
+} from '@/tools/google/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = {
@@ -80,27 +84,13 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
       description: 'Array of search results from Google',
       items: {
         type: 'object',
-        properties: {
-          title: { type: 'string', description: 'Title of the search result' },
-          link: { type: 'string', description: 'URL of the search result' },
-          snippet: { type: 'string', description: 'Snippet or description of the search result' },
-          displayLink: { type: 'string', description: 'Display URL', optional: true },
-          pagemap: { type: 'object', description: 'Additional page metadata', optional: true },
-        },
+        properties: GOOGLE_SEARCH_RESULT_OUTPUT_PROPERTIES,
       },
     },
     searchInformation: {
       type: 'object',
       description: 'Information about the search query and results',
-      properties: {
-        totalResults: { type: 'string', description: 'Total number of search results available' },
-        searchTime: { type: 'number', description: 'Time taken to perform the search in seconds' },
-        formattedSearchTime: { type: 'string', description: 'Formatted search time for display' },
-        formattedTotalResults: {
-          type: 'string',
-          description: 'Formatted total results count for display',
-        },
-      },
+      properties: GOOGLE_SEARCH_INFORMATION_OUTPUT_PROPERTIES,
     },
   },
 }

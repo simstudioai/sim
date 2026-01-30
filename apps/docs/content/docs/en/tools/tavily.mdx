@@ -65,9 +65,17 @@ Perform AI-powered web searches using Tavily
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `query` | string | The search query that was executed |
-| `results` | array | Search results with titles, URLs, content snippets, and optional metadata |
+| `results` | array | Ranked search results with titles, URLs, content snippets, and optional metadata |
+|   ↳ `title` | string | Result title |
+|   ↳ `url` | string | Result URL |
+|   ↳ `content` | string | Brief description or content snippet |
+|   ↳ `score` | number | Relevance score |
+|   ↳ `raw_content` | string | Full parsed HTML content \(if requested\) |
+|   ↳ `favicon` | string | Favicon URL for the domain |
 | `answer` | string | LLM-generated answer to the query \(if requested\) |
 | `images` | array | Query-related images \(if requested\) |
+|   ↳ `url` | string | Image URL |
+|   ↳ `description` | string | Image description |
 | `auto_parameters` | object | Automatically selected parameters based on query intent \(if enabled\) |
 | `response_time` | number | Time taken for the search request in seconds |
 
@@ -90,13 +98,14 @@ Extract raw content from multiple web pages simultaneously using Tavily
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | array | The URL that was extracted |
-|   ↳ `url` | string | The URL that was extracted |
-|   ↳ `raw_content` | string | The raw text content from the webpage |
-|   ↳ `favicon` | string | Favicon URL \(if requested\) |
-| `failed_results` | array | The URL that failed extraction |
+| `results` | array | Successfully extracted content from URLs |
+|   ↳ `url` | string | The source URL |
+|   ↳ `raw_content` | string | Full extracted content from the page |
+|   ↳ `images` | array | Image URLs \(when include_images is true\) |
+|   ↳ `favicon` | string | Favicon URL for the result |
+| `failed_results` | array | URLs that failed to extract content |
 |   ↳ `url` | string | The URL that failed extraction |
-|   ↳ `error` | string | Error message for the failed extraction |
+|   ↳ `error` | string | Error message describing why extraction failed |
 | `response_time` | number | Time taken for the extraction request in seconds |
 
 ### `tavily_crawl`
@@ -128,10 +137,10 @@ Systematically crawl and extract content from websites using Tavily
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `base_url` | string | The base URL that was crawled |
-| `results` | array | The crawled page URL |
+| `results` | array | Array of crawled pages with extracted content |
 |   ↳ `url` | string | The crawled page URL |
-|   ↳ `raw_content` | string | Extracted content from the page |
-|   ↳ `favicon` | string | Favicon URL \(if requested\) |
+|   ↳ `raw_content` | string | Full extracted page content |
+|   ↳ `favicon` | string | Favicon URL for the result |
 | `response_time` | number | Time taken for the crawl request in seconds |
 | `request_id` | string | Unique identifier for support reference |
 
@@ -160,7 +169,7 @@ Discover and visualize website structure using Tavily
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `base_url` | string | The base URL that was mapped |
-| `results` | array | Discovered URL |
+| `results` | array | Array of discovered URLs during mapping |
 |   ↳ `url` | string | Discovered URL |
 | `response_time` | number | Time taken for the map request in seconds |
 | `request_id` | string | Unique identifier for support reference |

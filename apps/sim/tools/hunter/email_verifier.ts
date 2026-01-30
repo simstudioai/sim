@@ -1,4 +1,5 @@
 import type { HunterEmailVerifierParams, HunterEmailVerifierResponse } from '@/tools/hunter/types'
+import { SOURCES_OUTPUT } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmailVerifierResponse> =
@@ -69,7 +70,8 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
       },
       score: {
         type: 'number',
-        description: 'Confidence score for the verification result',
+        description:
+          'Deliverability score (0-100). Webmail and disposable emails receive an arbitrary score of 50.',
       },
       email: {
         type: 'string',
@@ -77,19 +79,19 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
       },
       regexp: {
         type: 'boolean',
-        description: 'Whether the email follows a valid regex pattern',
+        description: 'Whether the email passes regular expression validation',
       },
       gibberish: {
         type: 'boolean',
-        description: 'Whether the email appears to be gibberish',
+        description: 'Whether the email appears to be auto-generated (e.g., e65rc109q@company.com)',
       },
       disposable: {
         type: 'boolean',
-        description: 'Whether the email is from a disposable email provider',
+        description: 'Whether the email is from a disposable email service',
       },
       webmail: {
         type: 'boolean',
-        description: 'Whether the email is from a webmail provider',
+        description: 'Whether the email is from a webmail provider (e.g., Gmail)',
       },
       mx_records: {
         type: 'boolean',
@@ -97,28 +99,26 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
       },
       smtp_server: {
         type: 'boolean',
-        description: 'Whether the SMTP server is reachable',
+        description: 'Whether connection to the SMTP server was successful',
       },
       smtp_check: {
         type: 'boolean',
-        description: 'Whether the SMTP check was successful',
+        description: "Whether the email address doesn't bounce",
       },
       accept_all: {
         type: 'boolean',
-        description: 'Whether the domain accepts all email addresses',
+        description: 'Whether the server accepts all email addresses (may cause false positives)',
       },
       block: {
         type: 'boolean',
-        description: 'Whether the email is blocked',
+        description:
+          'Whether the domain is blocking verification (validity could not be determined)',
       },
       status: {
         type: 'string',
         description:
-          'Verification status: valid, invalid, accept_all, webmail, disposable, or unknown',
+          'Verification status: valid, invalid, accept_all, webmail, disposable, unknown, or blocked',
       },
-      sources: {
-        type: 'array',
-        description: 'Array of sources where the email was found',
-      },
+      sources: SOURCES_OUTPUT,
     },
   }

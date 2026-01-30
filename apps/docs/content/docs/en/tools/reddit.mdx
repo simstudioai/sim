@@ -95,13 +95,13 @@ Fetch comments from a specific Reddit post
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `post` | object | Post information including ID, title, author, content, and metadata |
-| ↳ `id` | string | Post ID |
-| ↳ `title` | string | Post title |
-| ↳ `author` | string | Post author |
-| ↳ `selftext` | string | Post text content |
-| ↳ `score` | number | Post score |
-| ↳ `created_utc` | number | Creation timestamp |
-| ↳ `permalink` | string | Reddit permalink |
+|   ↳ `id` | string | Post ID |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Post author |
+|   ↳ `selftext` | string | Post text content |
+|   ↳ `score` | number | Post score |
+|   ↳ `created_utc` | number | Creation timestamp |
+|   ↳ `permalink` | string | Reddit permalink |
 | `comments` | array | Nested comments with author, body, score, timestamps, and replies |
 |   ↳ `id` | string | Comment ID |
 |   ↳ `author` | string | Comment author |
@@ -208,6 +208,10 @@ Submit a new post to a subreddit (text or link)
 | `success` | boolean | Whether the post was submitted successfully |
 | `message` | string | Success or error message |
 | `data` | object | Post data including ID, name, URL, and permalink |
+|   ↳ `id` | string | New post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `url` | string | Post URL from API response |
+|   ↳ `permalink` | string | Full Reddit permalink |
 
 ### `reddit_vote`
 
@@ -279,6 +283,10 @@ Add a comment reply to a Reddit post or comment
 | `success` | boolean | Whether the reply was posted successfully |
 | `message` | string | Success or error message |
 | `data` | object | Comment data including ID, name, permalink, and body |
+|   ↳ `id` | string | New comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
+|   ↳ `permalink` | string | Comment permalink |
+|   ↳ `body` | string | Comment body text |
 
 ### `reddit_edit`
 
@@ -298,6 +306,9 @@ Edit the text of your own Reddit post or comment
 | `success` | boolean | Whether the edit was successful |
 | `message` | string | Success or error message |
 | `data` | object | Updated content data |
+|   ↳ `id` | string | Edited thing ID |
+|   ↳ `body` | string | Updated comment body \(for comments\) |
+|   ↳ `selftext` | string | Updated post text \(for self posts\) |
 
 ### `reddit_delete`
 

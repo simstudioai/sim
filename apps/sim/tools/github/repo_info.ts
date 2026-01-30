@@ -1,4 +1,10 @@
 import type { BaseGitHubParams, RepoInfoResponse } from '@/tools/github/types'
+import {
+  LICENSE_OUTPUT,
+  LICENSE_OUTPUT_PROPERTIES,
+  USER_FULL_OUTPUT,
+  USER_FULL_OUTPUT_PROPERTIES,
+} from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
@@ -145,7 +151,13 @@ export const repoInfoV2Tool: ToolConfig<BaseGitHubParams, any> = {
     created_at: { type: 'string', description: 'Creation timestamp' },
     updated_at: { type: 'string', description: 'Last update timestamp' },
     pushed_at: { type: 'string', description: 'Last push timestamp' },
-    owner: { type: 'json', description: 'Repository owner object' },
-    license: { type: 'json', description: 'License information', optional: true },
+    owner: {
+      ...USER_FULL_OUTPUT,
+      properties: USER_FULL_OUTPUT_PROPERTIES,
+    },
+    license: {
+      ...LICENSE_OUTPUT,
+      properties: LICENSE_OUTPUT_PROPERTIES,
+    },
   },
 }

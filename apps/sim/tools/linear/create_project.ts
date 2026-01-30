@@ -1,4 +1,5 @@
 import type { LinearCreateProjectParams, LinearCreateProjectResponse } from '@/tools/linear/types'
+import { PROJECT_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateProjectTool: ToolConfig<
@@ -173,15 +174,7 @@ export const linearCreateProjectTool: ToolConfig<
     project: {
       type: 'object',
       description: 'The created project',
-      properties: {
-        id: { type: 'string', description: 'Project ID' },
-        name: { type: 'string', description: 'Project name' },
-        description: { type: 'string', description: 'Project description' },
-        state: { type: 'string', description: 'Project state' },
-        priority: { type: 'number', description: 'Project priority' },
-        lead: { type: 'object', description: 'Project lead' },
-        teams: { type: 'array', description: 'Associated teams' },
-      },
+      properties: PROJECT_FULL_OUTPUT_PROPERTIES,
     },
   },
 }

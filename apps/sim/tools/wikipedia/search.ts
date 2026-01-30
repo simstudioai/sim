@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { WikipediaSearchParams, WikipediaSearchResponse } from '@/tools/wikipedia/types'
+import { WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/wikipedia/types'
 
 export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchResponse> = {
   id: 'wikipedia_search',
@@ -77,11 +78,7 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
       description: 'Array of matching Wikipedia pages',
       items: {
         type: 'object',
-        properties: {
-          title: { type: 'string' },
-          excerpt: { type: 'string' },
-          url: { type: 'string' },
-        },
+        properties: WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES,
       },
     },
     totalHits: {

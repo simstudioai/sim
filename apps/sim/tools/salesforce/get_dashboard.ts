@@ -3,6 +3,7 @@ import type {
   SalesforceGetDashboardParams,
   SalesforceGetDashboardResponse,
 } from '@/tools/salesforce/types'
+import { DASHBOARD_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -84,19 +85,7 @@ export const salesforceGetDashboardTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Dashboard data',
-      properties: {
-        dashboard: { type: 'object', description: 'Dashboard details' },
-        dashboardId: { type: 'string', description: 'Dashboard ID' },
-        components: { type: 'array', description: 'Dashboard component data' },
-        dashboardName: { type: 'string', description: 'Dashboard name', optional: true },
-        folderId: {
-          type: 'string',
-          description: 'Folder ID containing the dashboard',
-          optional: true,
-        },
-        runningUser: { type: 'object', description: 'Running user information', optional: true },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-      },
+      properties: DASHBOARD_OUTPUT_PROPERTIES,
     },
   },
 }

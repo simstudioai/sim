@@ -1,4 +1,5 @@
 import type { LinearUpdateCommentParams, LinearUpdateCommentResponse } from '@/tools/linear/types'
+import { COMMENT_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateCommentTool: ToolConfig<
@@ -106,12 +107,7 @@ export const linearUpdateCommentTool: ToolConfig<
     comment: {
       type: 'object',
       description: 'The updated comment',
-      properties: {
-        id: { type: 'string', description: 'Comment ID' },
-        body: { type: 'string', description: 'Comment text' },
-        updatedAt: { type: 'string', description: 'Last update timestamp' },
-        user: { type: 'object', description: 'User who created the comment' },
-      },
+      properties: COMMENT_OUTPUT_PROPERTIES,
     },
   },
 }

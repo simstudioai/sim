@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZoomListMeetingsParams, ZoomListMeetingsResponse } from '@/tools/zoom/types'
+import {
+  MEETING_LIST_ITEM_OUTPUT_PROPERTIES,
+  MEETING_PAGE_INFO_OUTPUT_PROPERTIES,
+} from '@/tools/zoom/types'
 
 export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMeetingsResponse> = {
   id: 'zoom_list_meetings',
@@ -122,17 +126,15 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
     meetings: {
       type: 'array',
       description: 'List of meetings',
+      items: {
+        type: 'object',
+        properties: MEETING_LIST_ITEM_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
-      properties: {
-        pageCount: { type: 'number', description: 'Total number of pages' },
-        pageNumber: { type: 'number', description: 'Current page number' },
-        pageSize: { type: 'number', description: 'Number of records per page' },
-        totalRecords: { type: 'number', description: 'Total number of records' },
-        nextPageToken: { type: 'string', description: 'Token for next page' },
-      },
+      properties: MEETING_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

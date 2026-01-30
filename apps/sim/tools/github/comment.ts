@@ -1,4 +1,5 @@
 import type { CreateCommentParams, CreateCommentResponse } from '@/tools/github/types'
+import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse> = {
@@ -166,15 +167,11 @@ export const commentV2Tool: ToolConfig = {
     }
   },
   outputs: {
-    id: { type: 'number', description: 'Comment ID' },
-    body: { type: 'string', description: 'Comment body' },
-    html_url: { type: 'string', description: 'GitHub web URL' },
-    user: { type: 'json', description: 'User who created the comment' },
+    ...COMMENT_OUTPUT_PROPERTIES,
+    user: USER_OUTPUT,
     path: { type: 'string', description: 'File path (if file comment)', optional: true },
     line: { type: 'number', description: 'Line number', optional: true },
     side: { type: 'string', description: 'Diff side', optional: true },
     commit_id: { type: 'string', description: 'Commit ID', optional: true },
-    created_at: { type: 'string', description: 'Creation timestamp' },
-    updated_at: { type: 'string', description: 'Last update timestamp' },
   },
 }

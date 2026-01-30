@@ -3,6 +3,7 @@ import type {
   HubSpotListCompaniesParams,
   HubSpotListCompaniesResponse,
 } from '@/tools/hubspot/types'
+import { COMPANIES_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotListCompanies')
@@ -111,9 +112,9 @@ export const hubspotListCompaniesTool: ToolConfig<
   },
 
   outputs: {
-    companies: { type: 'array', description: 'Array of HubSpot company objects' },
-    paging: { type: 'object', description: 'Pagination information', optional: true },
-    metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
+    companies: COMPANIES_ARRAY_OUTPUT,
+    paging: PAGING_OUTPUT,
+    metadata: METADATA_OUTPUT,
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

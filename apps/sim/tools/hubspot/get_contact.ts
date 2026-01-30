@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotGetContactParams, HubSpotGetContactResponse } from '@/tools/hubspot/types'
+import { CONTACT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotGetContact')
@@ -100,7 +101,7 @@ export const hubspotGetContactTool: ToolConfig<HubSpotGetContactParams, HubSpotG
     },
 
     outputs: {
-      contact: { type: 'object', description: 'HubSpot contact object with properties' },
+      contact: CONTACT_OBJECT_OUTPUT,
       contactId: { type: 'string', description: 'The retrieved contact ID' },
       success: { type: 'boolean', description: 'Operation success status' },
     },

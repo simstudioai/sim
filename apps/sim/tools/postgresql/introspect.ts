@@ -1,4 +1,5 @@
 import type { PostgresIntrospectParams, PostgresIntrospectResponse } from '@/tools/postgresql/types'
+import { POSTGRES_TABLE_OUTPUT_PROPERTIES } from '@/tools/postgresql/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const introspectTool: ToolConfig<PostgresIntrospectParams, PostgresIntrospectResponse> = {
@@ -93,7 +94,15 @@ export const introspectTool: ToolConfig<PostgresIntrospectParams, PostgresIntros
     tables: {
       type: 'array',
       description: 'Array of table schemas with columns, keys, and indexes',
+      items: {
+        type: 'object',
+        properties: POSTGRES_TABLE_OUTPUT_PROPERTIES,
+      },
     },
-    schemas: { type: 'array', description: 'List of available schemas in the database' },
+    schemas: {
+      type: 'array',
+      description: 'List of available schemas in the database',
+      items: { type: 'string', description: 'Schema name' },
+    },
   },
 }

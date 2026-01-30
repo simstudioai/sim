@@ -2,6 +2,7 @@ import type {
   SalesforceUpdateTaskParams,
   SalesforceUpdateTaskResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -111,10 +112,7 @@ export const salesforceUpdateTaskTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated task data',
-      properties: {
-        id: { type: 'string', description: 'Updated task ID' },
-        updated: { type: 'boolean', description: 'Whether task was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -1,4 +1,9 @@
 import type { CreateReleaseParams, ReleaseResponse } from '@/tools/github/types'
+import {
+  RELEASE_ASSET_OUTPUT_PROPERTIES,
+  RELEASE_OUTPUT_PROPERTIES,
+  USER_OUTPUT,
+} from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const createReleaseTool: ToolConfig<CreateReleaseParams, ReleaseResponse> = {
@@ -180,24 +185,25 @@ export const createReleaseV2Tool: ToolConfig = {
         prerelease: data.prerelease,
         author: data.author,
         assets: data.assets,
+        target_commitish: data.target_commitish,
         created_at: data.created_at,
         published_at: data.published_at ?? null,
       },
     }
   },
   outputs: {
-    id: { type: 'number', description: 'Release ID' },
-    tag_name: { type: 'string', description: 'Git tag name' },
-    name: { type: 'string', description: 'Release name' },
-    body: { type: 'string', description: 'Release description', optional: true },
-    html_url: { type: 'string', description: 'GitHub web URL' },
-    tarball_url: { type: 'string', description: 'Tarball download URL' },
-    zipball_url: { type: 'string', description: 'Zipball download URL' },
-    draft: { type: 'boolean', description: 'Whether this is a draft' },
-    prerelease: { type: 'boolean', description: 'Whether this is a prerelease' },
-    author: { type: 'json', description: 'Release author' },
-    assets: { type: 'array', description: 'Release assets' },
-    created_at: { type: 'string', description: 'Creation timestamp' },
-    published_at: { type: 'string', description: 'Publication timestamp', optional: true },
+    ...RELEASE_OUTPUT_PROPERTIES,
+    author: USER_OUTPUT,
+    assets: {
+      type: 'array',
+      description: 'Release assets',
+      items: {
+        type: 'object',
+        properties: {
+          ...RELEASE_ASSET_OUTPUT_PROPERTIES,
+          uploader: USER_OUTPUT,
+        },
+      },
+    },
   },
 }

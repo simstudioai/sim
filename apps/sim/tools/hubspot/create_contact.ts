@@ -3,6 +3,7 @@ import type {
   HubSpotCreateContactParams,
   HubSpotCreateContactResponse,
 } from '@/tools/hubspot/types'
+import { CONTACT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotCreateContact')
@@ -99,7 +100,7 @@ export const hubspotCreateContactTool: ToolConfig<
   },
 
   outputs: {
-    contact: { type: 'object', description: 'Created HubSpot contact object' },
+    contact: CONTACT_OBJECT_OUTPUT,
     contactId: { type: 'string', description: 'The created contact ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

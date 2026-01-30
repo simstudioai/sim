@@ -3,6 +3,7 @@ import type {
   SalesforceGetAccountsParams,
   SalesforceGetAccountsResponse,
 } from '@/tools/salesforce/types'
+import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceGetAccounts')
@@ -158,27 +159,8 @@ export const salesforceGetAccountsTool: ToolConfig<
       description: 'Accounts data',
       properties: {
         accounts: { type: 'array', description: 'Array of account objects' },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-          properties: {
-            nextRecordsUrl: {
-              type: 'string',
-              description: 'URL for next page of results',
-              optional: true,
-            },
-            totalSize: { type: 'number', description: 'Total number of records' },
-            done: { type: 'boolean', description: 'Whether all records returned' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Response metadata',
-          properties: {
-            totalReturned: { type: 'number', description: 'Number of accounts returned' },
-            hasMore: { type: 'boolean', description: 'Whether more records exist' },
-          },
-        },
+        paging: QUERY_PAGING_OUTPUT,
+        metadata: RESPONSE_METADATA_OUTPUT,
         success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },

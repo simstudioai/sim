@@ -1,4 +1,5 @@
 import type { SlackMessageParams, SlackMessageResponse } from '@/tools/slack/types'
+import { MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageResponse> = {
@@ -104,6 +105,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     message: {
       type: 'object',
       description: 'Complete message object with all properties returned by Slack',
+      properties: MESSAGE_OUTPUT_PROPERTIES,
     },
     // Legacy properties for backward compatibility
     ts: { type: 'string', description: 'Message timestamp' },

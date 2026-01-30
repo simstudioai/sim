@@ -282,9 +282,24 @@ Introspect Supabase database schema to get table structures, columns, and relati
 |   ↳ `name` | string | Table name |
 |   ↳ `schema` | string | Database schema name |
 |   ↳ `columns` | array | Array of column definitions |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Column data type |
+|     ↳ `nullable` | boolean | Whether the column allows null values |
+|     ↳ `default` | string | Default value for the column |
+|     ↳ `isPrimaryKey` | boolean | Whether the column is a primary key |
+|     ↳ `isForeignKey` | boolean | Whether the column is a foreign key |
+|     ↳ `references` | object | Foreign key reference details |
+|       ↳ `table` | string | Referenced table name |
+|       ↳ `column` | string | Referenced column name |
 |   ↳ `primaryKey` | array | Array of primary key column names |
 |   ↳ `foreignKeys` | array | Array of foreign key relationships |
+|     ↳ `column` | string | Local column name |
+|     ↳ `referencesTable` | string | Referenced table name |
+|     ↳ `referencesColumn` | string | Referenced column name |
 |   ↳ `indexes` | array | Array of index definitions |
+|     ↳ `name` | string | Index name |
+|     ↳ `columns` | array | Columns included in the index |
+|     ↳ `unique` | boolean | Whether the index enforces uniqueness |
 | `schemas` | array | List of schemas found in the database |
 
 ### `supabase_storage_upload`
@@ -310,6 +325,9 @@ Upload a file to a Supabase storage bucket
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | object | Upload result including file path, bucket, and public URL |
+|   ↳ `id` | string | Unique identifier for the uploaded file |
+|   ↳ `path` | string | Path to the uploaded file within the bucket |
+|   ↳ `fullPath` | string | Full path including bucket name |
 
 ### `supabase_storage_download`
 
@@ -355,6 +373,19 @@ List files in a Supabase storage bucket
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | array | Array of file objects with metadata |
+|   ↳ `id` | string | Unique file identifier |
+|   ↳ `name` | string | File name |
+|   ↳ `bucket_id` | string | Bucket identifier the file belongs to |
+|   ↳ `owner` | string | Owner identifier |
+|   ↳ `created_at` | string | File creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `last_accessed_at` | string | Last access timestamp |
+|   ↳ `metadata` | object | File metadata including size and MIME type |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `cacheControl` | string | Cache control header value |
+|     ↳ `lastModified` | string | Last modified timestamp |
+|     ↳ `eTag` | string | Entity tag for caching |
 
 ### `supabase_storage_delete`
 
@@ -375,6 +406,13 @@ Delete files from a Supabase storage bucket
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | array | Array of deleted file objects |
+|   ↳ `name` | string | Name of the deleted file |
+|   ↳ `bucket_id` | string | Bucket identifier |
+|   ↳ `owner` | string | Owner identifier |
+|   ↳ `id` | string | Unique file identifier |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `created_at` | string | File creation timestamp |
+|   ↳ `last_accessed_at` | string | Last access timestamp |
 
 ### `supabase_storage_move`
 
@@ -396,6 +434,7 @@ Move a file within a Supabase storage bucket
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | object | Move operation result |
+|   ↳ `message` | string | Operation status message |
 
 ### `supabase_storage_copy`
 
@@ -417,6 +456,7 @@ Copy a file within a Supabase storage bucket
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | object | Copy operation result |
+|   ↳ `message` | string | Operation status message |
 
 ### `supabase_storage_create_bucket`
 
@@ -439,6 +479,7 @@ Create a new storage bucket in Supabase
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | object | Created bucket information |
+|   ↳ `name` | string | Created bucket name |
 
 ### `supabase_storage_list_buckets`
 
@@ -457,6 +498,14 @@ List all storage buckets in Supabase
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | array | Array of bucket objects |
+|   ↳ `id` | string | Unique bucket identifier |
+|   ↳ `name` | string | Bucket name |
+|   ↳ `owner` | string | Owner identifier |
+|   ↳ `public` | boolean | Whether the bucket is publicly accessible |
+|   ↳ `created_at` | string | Bucket creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `file_size_limit` | number | Maximum file size allowed in bytes |
+|   ↳ `allowed_mime_types` | array | List of allowed MIME types for uploads |
 
 ### `supabase_storage_delete_bucket`
 
@@ -476,6 +525,7 @@ Delete a storage bucket in Supabase
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | object | Delete operation result |
+|   ↳ `message` | string | Operation status message |
 
 ### `supabase_storage_get_public_url`
 

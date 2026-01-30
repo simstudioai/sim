@@ -1,6 +1,7 @@
-import type {
-  SupabaseStorageListBucketsParams,
-  SupabaseStorageListBucketsResponse,
+import {
+  STORAGE_BUCKET_OUTPUT_PROPERTIES,
+  type SupabaseStorageListBucketsParams,
+  type SupabaseStorageListBucketsResponse,
 } from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -64,6 +65,10 @@ export const storageListBucketsTool: ToolConfig<
     results: {
       type: 'array',
       description: 'Array of bucket objects',
+      items: {
+        type: 'object',
+        properties: STORAGE_BUCKET_OUTPUT_PROPERTIES,
+      },
     },
   },
 }

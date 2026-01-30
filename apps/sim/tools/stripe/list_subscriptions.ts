@@ -1,4 +1,5 @@
 import type { ListSubscriptionsParams, SubscriptionListResponse } from '@/tools/stripe/types'
+import { LIST_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeListSubscriptionsTool: ToolConfig<
@@ -76,17 +77,14 @@ export const stripeListSubscriptionsTool: ToolConfig<
 
   outputs: {
     subscriptions: {
-      type: 'json',
+      type: 'array',
       description: 'Array of subscription objects',
+      items: SUBSCRIPTION_OUTPUT,
     },
     metadata: {
       type: 'json',
       description: 'List metadata',
-
-      properties: {
-        count: { type: 'number', description: 'Number of items returned' },
-        has_more: { type: 'boolean', description: 'Whether more items exist beyond this page' },
-      },
+      properties: LIST_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

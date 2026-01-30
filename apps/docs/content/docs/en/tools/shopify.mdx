@@ -53,6 +53,18 @@ Create a new product in your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `product` | object | The created product |
+|   ↳ `id` | string | Unique product identifier \(GID\) |
+|   ↳ `title` | string | Product title |
+|   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `descriptionHtml` | string | Product description in HTML format |
+|   ↳ `vendor` | string | Product vendor or manufacturer |
+|   ↳ `productType` | string | Product type classification |
+|   ↳ `tags` | array | Product tags for categorization |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `images` | object | Product images with edges/nodes structure |
 
 ### `shopify_get_product`
 
@@ -70,6 +82,18 @@ Get a single product by ID from your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `product` | object | The product details |
+|   ↳ `id` | string | Unique product identifier \(GID\) |
+|   ↳ `title` | string | Product title |
+|   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `descriptionHtml` | string | Product description in HTML format |
+|   ↳ `vendor` | string | Product vendor or manufacturer |
+|   ↳ `productType` | string | Product type classification |
+|   ↳ `tags` | array | Product tags for categorization |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `images` | object | Product images with edges/nodes structure |
 
 ### `shopify_list_products`
 
@@ -88,7 +112,21 @@ List products from your Shopify store with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `products` | array | List of products |
+|   ↳ `id` | string | Unique product identifier \(GID\) |
+|   ↳ `title` | string | Product title |
+|   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `descriptionHtml` | string | Product description in HTML format |
+|   ↳ `vendor` | string | Product vendor or manufacturer |
+|   ↳ `productType` | string | Product type classification |
+|   ↳ `tags` | array | Product tags for categorization |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `images` | object | Product images with edges/nodes structure |
 | `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
 ### `shopify_update_product`
 
@@ -112,6 +150,18 @@ Update an existing product in your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `product` | object | The updated product |
+|   ↳ `id` | string | Unique product identifier \(GID\) |
+|   ↳ `title` | string | Product title |
+|   ↳ `handle` | string | URL-friendly product identifier |
+|   ↳ `descriptionHtml` | string | Product description in HTML format |
+|   ↳ `vendor` | string | Product vendor or manufacturer |
+|   ↳ `productType` | string | Product type classification |
+|   ↳ `tags` | array | Product tags for categorization |
+|   ↳ `status` | string | Product status \(ACTIVE, DRAFT, ARCHIVED\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variants` | object | Product variants with edges/nodes structure |
+|   ↳ `images` | object | Product images with edges/nodes structure |
 
 ### `shopify_delete_product`
 
@@ -146,6 +196,27 @@ Get a single order by ID from your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `order` | object | The order details |
+|   ↳ `id` | string | Unique order identifier \(GID\) |
+|   ↳ `name` | string | Order name \(e.g., #1001\) |
+|   ↳ `email` | string | Customer email for the order |
+|   ↳ `phone` | string | Customer phone for the order |
+|   ↳ `createdAt` | string | Order creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `cancelledAt` | string | Cancellation timestamp \(ISO 8601\) |
+|   ↳ `closedAt` | string | Closure timestamp \(ISO 8601\) |
+|   ↳ `displayFinancialStatus` | string | Financial status \(PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED\) |
+|   ↳ `displayFulfillmentStatus` | string | Fulfillment status \(UNFULFILLED, PARTIALLY_FULFILLED, FULFILLED, RESTOCKED, PENDING_FULFILLMENT, OPEN, IN_PROGRESS, ON_HOLD, SCHEDULED\) |
+|   ↳ `totalPriceSet` | object | Total order price |
+|   ↳ `subtotalPriceSet` | object | Order subtotal \(before shipping and taxes\) |
+|   ↳ `totalTaxSet` | object | Total tax amount |
+|   ↳ `totalShippingPriceSet` | object | Total shipping price |
+|   ↳ `note` | string | Order note |
+|   ↳ `tags` | array | Order tags |
+|   ↳ `customer` | object | Customer who placed the order |
+|   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|   ↳ `shippingAddress` | object | Shipping address |
+|   ↳ `billingAddress` | object | Billing address |
+|   ↳ `fulfillments` | array | Order fulfillments |
 
 ### `shopify_list_orders`
 
@@ -165,7 +236,30 @@ List orders from your Shopify store with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orders` | array | List of orders |
+|   ↳ `id` | string | Unique order identifier \(GID\) |
+|   ↳ `name` | string | Order name \(e.g., #1001\) |
+|   ↳ `email` | string | Customer email for the order |
+|   ↳ `phone` | string | Customer phone for the order |
+|   ↳ `createdAt` | string | Order creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `cancelledAt` | string | Cancellation timestamp \(ISO 8601\) |
+|   ↳ `closedAt` | string | Closure timestamp \(ISO 8601\) |
+|   ↳ `displayFinancialStatus` | string | Financial status \(PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED\) |
+|   ↳ `displayFulfillmentStatus` | string | Fulfillment status \(UNFULFILLED, PARTIALLY_FULFILLED, FULFILLED, RESTOCKED, PENDING_FULFILLMENT, OPEN, IN_PROGRESS, ON_HOLD, SCHEDULED\) |
+|   ↳ `totalPriceSet` | object | Total order price |
+|   ↳ `subtotalPriceSet` | object | Order subtotal \(before shipping and taxes\) |
+|   ↳ `totalTaxSet` | object | Total tax amount |
+|   ↳ `totalShippingPriceSet` | object | Total shipping price |
+|   ↳ `note` | string | Order note |
+|   ↳ `tags` | array | Order tags |
+|   ↳ `customer` | object | Customer who placed the order |
+|   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|   ↳ `shippingAddress` | object | Shipping address |
+|   ↳ `billingAddress` | object | Billing address |
+|   ↳ `fulfillments` | array | Order fulfillments |
 | `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
 ### `shopify_update_order`
 
@@ -186,6 +280,27 @@ Update an existing order in your Shopify store (note, tags, email)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `order` | object | The updated order |
+|   ↳ `id` | string | Unique order identifier \(GID\) |
+|   ↳ `name` | string | Order name \(e.g., #1001\) |
+|   ↳ `email` | string | Customer email for the order |
+|   ↳ `phone` | string | Customer phone for the order |
+|   ↳ `createdAt` | string | Order creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `cancelledAt` | string | Cancellation timestamp \(ISO 8601\) |
+|   ↳ `closedAt` | string | Closure timestamp \(ISO 8601\) |
+|   ↳ `displayFinancialStatus` | string | Financial status \(PENDING, AUTHORIZED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, VOIDED\) |
+|   ↳ `displayFulfillmentStatus` | string | Fulfillment status \(UNFULFILLED, PARTIALLY_FULFILLED, FULFILLED, RESTOCKED, PENDING_FULFILLMENT, OPEN, IN_PROGRESS, ON_HOLD, SCHEDULED\) |
+|   ↳ `totalPriceSet` | object | Total order price |
+|   ↳ `subtotalPriceSet` | object | Order subtotal \(before shipping and taxes\) |
+|   ↳ `totalTaxSet` | object | Total tax amount |
+|   ↳ `totalShippingPriceSet` | object | Total shipping price |
+|   ↳ `note` | string | Order note |
+|   ↳ `tags` | array | Order tags |
+|   ↳ `customer` | object | Customer who placed the order |
+|   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|   ↳ `shippingAddress` | object | Shipping address |
+|   ↳ `billingAddress` | object | Billing address |
+|   ↳ `fulfillments` | array | Order fulfillments |
 
 ### `shopify_cancel_order`
 
@@ -208,6 +323,9 @@ Cancel an order in your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `order` | object | The cancellation result |
+|   ↳ `id` | string | Job identifier for the cancellation |
+|   ↳ `cancelled` | boolean | Whether the cancellation completed |
+|   ↳ `message` | string | Status message |
 
 ### `shopify_create_customer`
 
@@ -231,6 +349,18 @@ Create a new customer in your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customer` | object | The created customer |
+|   ↳ `id` | string | Unique customer identifier \(GID\) |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `firstName` | string | Customer first name |
+|   ↳ `lastName` | string | Customer last name |
+|   ↳ `phone` | string | Customer phone number |
+|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `note` | string | Internal notes about the customer |
+|   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `amountSpent` | object | Total amount spent by customer |
+|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
 
 ### `shopify_get_customer`
 
@@ -248,6 +378,18 @@ Get a single customer by ID from your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customer` | object | The customer details |
+|   ↳ `id` | string | Unique customer identifier \(GID\) |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `firstName` | string | Customer first name |
+|   ↳ `lastName` | string | Customer last name |
+|   ↳ `phone` | string | Customer phone number |
+|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `note` | string | Internal notes about the customer |
+|   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `amountSpent` | object | Total amount spent by customer |
+|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
 
 ### `shopify_list_customers`
 
@@ -266,7 +408,21 @@ List customers from your Shopify store with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customers` | array | List of customers |
+|   ↳ `id` | string | Unique customer identifier \(GID\) |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `firstName` | string | Customer first name |
+|   ↳ `lastName` | string | Customer last name |
+|   ↳ `phone` | string | Customer phone number |
+|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `note` | string | Internal notes about the customer |
+|   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `amountSpent` | object | Total amount spent by customer |
+|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
 | `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
 ### `shopify_update_customer`
 
@@ -290,6 +446,18 @@ Update an existing customer in your Shopify store
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customer` | object | The updated customer |
+|   ↳ `id` | string | Unique customer identifier \(GID\) |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `firstName` | string | Customer first name |
+|   ↳ `lastName` | string | Customer last name |
+|   ↳ `phone` | string | Customer phone number |
+|   ↳ `createdAt` | string | Account creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `note` | string | Internal notes about the customer |
+|   ↳ `tags` | array | Customer tags for categorization |
+|   ↳ `amountSpent` | object | Total amount spent by customer |
+|   ↳ `addresses` | array | Customer addresses |
+|   ↳ `defaultAddress` | object | Customer default address |
 
 ### `shopify_delete_customer`
 
@@ -325,7 +493,26 @@ List inventory items from your Shopify store. Use this to find inventory item ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `inventoryItems` | array | List of inventory items with their IDs, SKUs, and stock levels |
+|   ↳ `id` | string | Unique inventory item identifier \(GID\) |
+|   ↳ `sku` | string | Stock keeping unit |
+|   ↳ `tracked` | boolean | Whether inventory is tracked |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `variant` | object | Associated product variant |
+|     ↳ `id` | string | Variant identifier \(GID\) |
+|     ↳ `title` | string | Variant title |
+|     ↳ `product` | object | Associated product |
+|       ↳ `id` | string | Product identifier \(GID\) |
+|       ↳ `title` | string | Product title |
+|   ↳ `inventoryLevels` | array | Inventory levels at different locations |
+|     ↳ `id` | string | Inventory level identifier \(GID\) |
+|     ↳ `available` | number | Available quantity |
+|     ↳ `location` | object | Location for this inventory level |
+|       ↳ `id` | string | Location identifier \(GID\) |
+|       ↳ `name` | string | Location name |
 | `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
 ### `shopify_get_inventory_level`
 
@@ -344,6 +531,19 @@ Get inventory level for a product variant at a specific location
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `inventoryLevel` | object | The inventory level details |
+|   ↳ `id` | string | Inventory item identifier \(GID\) |
+|   ↳ `sku` | string | Stock keeping unit |
+|   ↳ `tracked` | boolean | Whether inventory is tracked |
+|   ↳ `levels` | array | Inventory levels at different locations |
+|     ↳ `id` | string | Inventory level identifier \(GID\) |
+|     ↳ `available` | number | Available quantity |
+|     ↳ `onHand` | number | On-hand quantity |
+|     ↳ `committed` | number | Committed quantity |
+|     ↳ `incoming` | number | Incoming quantity |
+|     ↳ `reserved` | number | Reserved quantity |
+|     ↳ `location` | object | Location for this inventory level |
+|       ↳ `id` | string | Location identifier \(GID\) |
+|       ↳ `name` | string | Location name |
 
 ### `shopify_adjust_inventory`
 
@@ -363,6 +563,19 @@ Adjust inventory quantity for a product variant at a specific location
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `inventoryLevel` | object | The inventory adjustment result |
+|   ↳ `adjustmentGroup` | object | Inventory adjustment group details |
+|     ↳ `createdAt` | string | Adjustment timestamp \(ISO 8601\) |
+|     ↳ `reason` | string | Adjustment reason |
+|   ↳ `changes` | array | Inventory changes applied |
+|     ↳ `name` | string | Quantity name \(e.g., available\) |
+|     ↳ `delta` | number | Quantity change amount |
+|     ↳ `quantityAfterChange` | number | Quantity after adjustment |
+|     ↳ `item` | object | Inventory item |
+|       ↳ `id` | string | Inventory item identifier \(GID\) |
+|       ↳ `sku` | string | Stock keeping unit |
+|     ↳ `location` | object | Location of the adjustment |
+|       ↳ `id` | string | Location identifier \(GID\) |
+|       ↳ `name` | string | Location name |
 
 ### `shopify_list_locations`
 
@@ -381,7 +594,14 @@ List inventory locations from your Shopify store. Use this to find location IDs 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `locations` | array | List of locations with their IDs, names, and addresses |
+|   ↳ `id` | string | Unique location identifier \(GID\) |
+|   ↳ `name` | string | Location name |
+|   ↳ `isActive` | boolean | Whether the location is active |
+|   ↳ `fulfillsOnlineOrders` | boolean | Whether the location fulfills online orders |
+|   ↳ `address` | object | Location address |
 | `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
 ### `shopify_create_fulfillment`
 
@@ -403,6 +623,16 @@ Create a fulfillment to mark order items as shipped. Requires a fulfillment orde
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `fulfillment` | object | The created fulfillment with tracking info and fulfilled items |
+|   ↳ `id` | string | Unique fulfillment identifier \(GID\) |
+|   ↳ `status` | string | Fulfillment status \(pending, open, success, cancelled, error, failure\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `trackingInfo` | array | Tracking information for shipments |
+|   ↳ `fulfillmentLineItems` | array | Fulfilled line items |
+|     ↳ `id` | string | Fulfillment line item identifier \(GID\) |
+|     ↳ `quantity` | number | Quantity fulfilled |
+|     ↳ `lineItem` | object | Associated order line item |
+|       ↳ `title` | string | Product title |
 
 ### `shopify_list_collections`
 
@@ -421,7 +651,18 @@ List product collections from your Shopify store. Filter by title, type (custom/
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `collections` | array | List of collections with their IDs, titles, and product counts |
+|   ↳ `id` | string | Unique collection identifier \(GID\) |
+|   ↳ `title` | string | Collection title |
+|   ↳ `handle` | string | URL-friendly collection identifier |
+|   ↳ `description` | string | Plain text description |
+|   ↳ `descriptionHtml` | string | HTML-formatted description |
+|   ↳ `productsCount` | number | Number of products in the collection |
+|   ↳ `sortOrder` | string | Product sort order in the collection |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `image` | object | Collection image |
 | `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
+|   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
 ### `shopify_get_collection`
 
@@ -440,5 +681,15 @@ Get a specific collection by ID, including its products. Use this to retrieve pr
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `collection` | object | The collection details including its products |
+|   ↳ `id` | string | Unique collection identifier \(GID\) |
+|   ↳ `title` | string | Collection title |
+|   ↳ `handle` | string | URL-friendly collection identifier |
+|   ↳ `description` | string | Plain text description |
+|   ↳ `descriptionHtml` | string | HTML-formatted description |
+|   ↳ `productsCount` | number | Number of products in the collection |
+|   ↳ `sortOrder` | string | Product sort order in the collection |
+|   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
+|   ↳ `image` | object | Collection image |
+|   ↳ `products` | array | Products in the collection |
 
 

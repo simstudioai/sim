@@ -1,4 +1,5 @@
 import type { LinearGetViewerParams, LinearGetViewerResponse } from '@/tools/linear/types'
+import { USER_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearGetViewerTool: ToolConfig<LinearGetViewerParams, LinearGetViewerResponse> = {
@@ -66,15 +67,7 @@ export const linearGetViewerTool: ToolConfig<LinearGetViewerParams, LinearGetVie
     user: {
       type: 'object',
       description: 'The currently authenticated user',
-      properties: {
-        id: { type: 'string', description: 'User ID' },
-        name: { type: 'string', description: 'User name' },
-        email: { type: 'string', description: 'User email' },
-        displayName: { type: 'string', description: 'Display name' },
-        active: { type: 'boolean', description: 'Whether user is active' },
-        admin: { type: 'boolean', description: 'Whether user is admin' },
-        avatarUrl: { type: 'string', description: 'Avatar URL' },
-      },
+      properties: USER_FULL_OUTPUT_PROPERTIES,
     },
   },
 }

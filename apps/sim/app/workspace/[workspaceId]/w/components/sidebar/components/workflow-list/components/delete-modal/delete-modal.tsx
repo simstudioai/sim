@@ -21,8 +21,9 @@ interface DeleteModalProps {
   isDeleting: boolean
   /**
    * Type of item being deleted
+   * - 'mixed' is used when both workflows and folders are selected
    */
-  itemType: 'workflow' | 'folder' | 'workspace'
+  itemType: 'workflow' | 'folder' | 'workspace' | 'mixed'
   /**
    * Name(s) of the item(s) being deleted (optional, for display)
    * Can be a single name or an array of names for multiple items
@@ -54,7 +55,9 @@ export function DeleteModal({
   if (itemType === 'workflow') {
     title = isMultiple ? 'Delete Workflows' : 'Delete Workflow'
   } else if (itemType === 'folder') {
-    title = 'Delete Folder'
+    title = isMultiple ? 'Delete Folders' : 'Delete Folder'
+  } else if (itemType === 'mixed') {
+    title = 'Delete Items'
   } else {
     title = 'Delete Workspace'
   }
@@ -85,6 +88,18 @@ export function DeleteModal({
     }
 
     if (itemType === 'folder') {
+      if (isMultiple) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {displayNames.join(', ')}
+            </span>
+            ? This will permanently remove all workflows, logs, and knowledge bases within these
+            folders.
+          </>
+        )
+      }
       if (isSingle && displayNames.length > 0) {
         return (
           <>
@@ -97,6 +112,23 @@ export function DeleteModal({
       return 'Are you sure you want to delete this folder? This will permanently remove all associated workflows, logs, and knowledge bases.'
     }
 
+    if (itemType === 'mixed') {
+      if (displayNames.length > 0) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {displayNames.join(', ')}
+            </span>
+            ? This will permanently remove all selected workflows and folders, including their
+            contents.
+          </>
+        )
+      }
+      return 'Are you sure you want to delete the selected items? This will permanently remove all selected workflows and folders, including their contents.'
+    }
+
+    // workspace type
     if (isSingle && displayNames.length > 0) {
       return (
         <>

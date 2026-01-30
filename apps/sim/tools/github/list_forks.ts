@@ -1,3 +1,4 @@
+import { REPO_FULL_OUTPUT_PROPERTIES, USER_FULL_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListForksParams {
@@ -187,41 +188,11 @@ export const listForksV2Tool: ToolConfig<ListForksParams, any> = {
       items: {
         type: 'object',
         properties: {
-          id: { type: 'number', description: 'Repository ID' },
-          node_id: { type: 'string', description: 'GraphQL node ID' },
-          name: { type: 'string', description: 'Repository name' },
-          full_name: { type: 'string', description: 'Full name (owner/repo)' },
-          private: { type: 'boolean', description: 'Whether repository is private' },
-          description: { type: 'string', description: 'Repository description', optional: true },
-          html_url: { type: 'string', description: 'GitHub web URL' },
-          url: { type: 'string', description: 'API URL' },
-          fork: { type: 'boolean', description: 'Whether this is a fork' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
-          pushed_at: { type: 'string', description: 'Last push timestamp', optional: true },
-          size: { type: 'number', description: 'Repository size in KB' },
-          stargazers_count: { type: 'number', description: 'Number of stars' },
-          watchers_count: { type: 'number', description: 'Number of watchers' },
-          forks_count: { type: 'number', description: 'Number of forks' },
-          open_issues_count: { type: 'number', description: 'Number of open issues' },
-          language: { type: 'string', description: 'Primary programming language', optional: true },
-          default_branch: { type: 'string', description: 'Default branch name' },
-          visibility: { type: 'string', description: 'Repository visibility' },
-          archived: { type: 'boolean', description: 'Whether repository is archived' },
-          disabled: { type: 'boolean', description: 'Whether repository is disabled' },
+          ...REPO_FULL_OUTPUT_PROPERTIES,
           owner: {
             type: 'object',
             description: 'Fork owner',
-            properties: {
-              login: { type: 'string', description: 'Username' },
-              id: { type: 'number', description: 'User ID' },
-              node_id: { type: 'string', description: 'GraphQL node ID' },
-              avatar_url: { type: 'string', description: 'Avatar image URL' },
-              url: { type: 'string', description: 'API URL' },
-              html_url: { type: 'string', description: 'Profile page URL' },
-              type: { type: 'string', description: 'User or Organization' },
-              site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
-            },
+            properties: USER_FULL_OUTPUT_PROPERTIES,
           },
         },
       },

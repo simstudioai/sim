@@ -1,4 +1,110 @@
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
+
+/**
+ * Output property definitions for Microsoft Graph Outlook API responses.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/message
+ */
+
+/**
+ * Output definition for email address objects.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/emailaddress
+ */
+export const OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES = {
+  name: { type: 'string', description: 'Display name of the person or entity', optional: true },
+  address: { type: 'string', description: 'Email address' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for message body objects.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/itembody
+ */
+export const OUTLOOK_MESSAGE_BODY_OUTPUT_PROPERTIES = {
+  contentType: { type: 'string', description: 'Body content type (text or html)', optional: true },
+  content: { type: 'string', description: 'Body content', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for cleaned message objects returned by our tools.
+ */
+export const OUTLOOK_MESSAGE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Unique message identifier' },
+  subject: { type: 'string', description: 'Email subject', optional: true },
+  bodyPreview: { type: 'string', description: 'Preview of the message body', optional: true },
+  body: {
+    type: 'object',
+    description: 'Message body',
+    optional: true,
+    properties: OUTLOOK_MESSAGE_BODY_OUTPUT_PROPERTIES,
+  },
+  sender: {
+    type: 'object',
+    description: 'Sender information',
+    optional: true,
+    properties: OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES,
+  },
+  from: {
+    type: 'object',
+    description: 'From address information',
+    optional: true,
+    properties: OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES,
+  },
+  toRecipients: {
+    type: 'array',
+    description: 'To recipients',
+    items: {
+      type: 'object',
+      properties: OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES,
+    },
+  },
+  ccRecipients: {
+    type: 'array',
+    description: 'CC recipients',
+    items: {
+      type: 'object',
+      properties: OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES,
+    },
+  },
+  receivedDateTime: {
+    type: 'string',
+    description: 'When the message was received (ISO 8601)',
+    optional: true,
+  },
+  sentDateTime: {
+    type: 'string',
+    description: 'When the message was sent (ISO 8601)',
+    optional: true,
+  },
+  hasAttachments: {
+    type: 'boolean',
+    description: 'Whether the message has attachments',
+    optional: true,
+  },
+  isRead: { type: 'boolean', description: 'Whether the message has been read', optional: true },
+  importance: {
+    type: 'string',
+    description: 'Message importance (low, normal, high)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete message output definition
+ */
+export const OUTLOOK_MESSAGE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Outlook email message',
+  properties: OUTLOOK_MESSAGE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for attachment objects.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/attachment
+ */
+export const OUTLOOK_ATTACHMENT_OUTPUT_PROPERTIES = {
+  name: { type: 'string', description: 'Attachment filename' },
+  contentType: { type: 'string', description: 'MIME type of the attachment' },
+  size: { type: 'number', description: 'Attachment size in bytes' },
+} as const satisfies Record<string, OutputProperty>
 
 export interface OutlookSendParams {
   accessToken: string

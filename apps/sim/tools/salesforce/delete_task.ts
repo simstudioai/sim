@@ -2,6 +2,7 @@ import type {
   SalesforceDeleteTaskParams,
   SalesforceDeleteTaskResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -71,10 +72,7 @@ export const salesforceDeleteTaskTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Deleted task data',
-      properties: {
-        id: { type: 'string', description: 'Deleted task ID' },
-        deleted: { type: 'boolean', description: 'Whether task was deleted' },
-      },
+      properties: SOBJECT_DELETE_OUTPUT_PROPERTIES,
     },
   },
 }

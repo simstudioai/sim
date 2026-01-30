@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifyGetPlaylistTracksParams, SpotifyGetPlaylistTracksResponse } from './types'
+import { TRACK_LIST_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetPlaylistTracksTool: ToolConfig<
   SpotifyGetPlaylistTracksParams,
@@ -103,7 +104,11 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
         properties: {
           added_at: { type: 'string', description: 'When the track was added' },
           added_by: { type: 'string', description: 'User ID who added the track' },
-          track: { type: 'object', description: 'Track information' },
+          track: {
+            type: 'object',
+            description: 'Track information',
+            properties: TRACK_LIST_OUTPUT_PROPERTIES,
+          },
         },
       },
     },

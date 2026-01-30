@@ -1,3 +1,4 @@
+import { SPACES_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceListSpacesParams {
@@ -104,7 +105,7 @@ export const confluenceListSpacesTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of retrieval' },
-    spaces: { type: 'array', description: 'List of spaces' },
+    ts: TIMESTAMP_OUTPUT,
+    spaces: SPACES_OUTPUT,
   },
 }

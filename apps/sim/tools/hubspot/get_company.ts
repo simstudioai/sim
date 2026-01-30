@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotGetCompanyParams, HubSpotGetCompanyResponse } from '@/tools/hubspot/types'
+import { COMPANY_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotGetCompany')
@@ -100,7 +101,7 @@ export const hubspotGetCompanyTool: ToolConfig<HubSpotGetCompanyParams, HubSpotG
     },
 
     outputs: {
-      company: { type: 'object', description: 'HubSpot company object with properties' },
+      company: COMPANY_OBJECT_OUTPUT,
       companyId: { type: 'string', description: 'The retrieved company ID' },
       success: { type: 'boolean', description: 'Operation success status' },
     },

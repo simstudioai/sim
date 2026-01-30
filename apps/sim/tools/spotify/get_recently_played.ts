@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifyGetRecentlyPlayedParams, SpotifyGetRecentlyPlayedResponse } from './types'
+import { CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetRecentlyPlayedTool: ToolConfig<
   SpotifyGetRecentlyPlayedParams,
@@ -93,7 +94,11 @@ export const spotifyGetRecentlyPlayedTool: ToolConfig<
         type: 'object',
         properties: {
           played_at: { type: 'string', description: 'When the track was played' },
-          track: { type: 'object', description: 'Track information' },
+          track: {
+            type: 'object',
+            description: 'Track information',
+            properties: CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES,
+          },
         },
       },
     },

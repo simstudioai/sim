@@ -1,4 +1,5 @@
 import type { LinearGetIssueParams, LinearGetIssueResponse } from '@/tools/linear/types'
+import { ISSUE_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearGetIssueTool: ToolConfig<LinearGetIssueParams, LinearGetIssueResponse> = {
@@ -123,19 +124,7 @@ export const linearGetIssueTool: ToolConfig<LinearGetIssueParams, LinearGetIssue
     issue: {
       type: 'object',
       description: 'The issue with full details',
-      properties: {
-        id: { type: 'string', description: 'Issue ID' },
-        title: { type: 'string', description: 'Issue title' },
-        description: { type: 'string', description: 'Issue description' },
-        priority: { type: 'number', description: 'Issue priority (0-4)' },
-        estimate: { type: 'number', description: 'Issue estimate in points' },
-        url: { type: 'string', description: 'Issue URL' },
-        state: { type: 'object', description: 'Issue state/status' },
-        assignee: { type: 'object', description: 'Assigned user' },
-        labels: { type: 'array', description: 'Issue labels' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
-        updatedAt: { type: 'string', description: 'Last update timestamp' },
-      },
+      properties: ISSUE_OUTPUT_PROPERTIES,
     },
   },
 }

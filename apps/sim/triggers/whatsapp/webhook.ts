@@ -66,11 +66,11 @@ export const whatsappWebhookTrigger: TriggerConfig = {
   outputs: {
     messageId: {
       type: 'string',
-      description: 'Unique message identifier',
+      description: 'Unique message identifier (wamid)',
     },
     from: {
       type: 'string',
-      description: 'Phone number of the message sender',
+      description: 'Phone number of the message sender (with country code)',
     },
     phoneNumberId: {
       type: 'string',
@@ -78,15 +78,51 @@ export const whatsappWebhookTrigger: TriggerConfig = {
     },
     text: {
       type: 'string',
-      description: 'Message text content',
+      description: 'Message text content (for text messages)',
     },
     timestamp: {
       type: 'string',
-      description: 'Message timestamp',
+      description: 'Message timestamp (Unix timestamp)',
+    },
+    messageType: {
+      type: 'string',
+      description:
+        'Type of message (text, image, audio, video, document, sticker, location, contacts)',
+    },
+    contact: {
+      type: 'object',
+      description: 'Contact information of the sender',
+      properties: {
+        wa_id: { type: 'string', description: 'WhatsApp ID (phone number with country code)' },
+        profile: {
+          type: 'object',
+          description: 'Contact profile',
+          properties: {
+            name: { type: 'string', description: 'Contact display name' },
+          },
+        },
+      },
     },
     raw: {
-      type: 'string',
-      description: 'Complete raw message object from WhatsApp as JSON string',
+      type: 'object',
+      description: 'Complete raw webhook payload from WhatsApp',
+      properties: {
+        object: { type: 'string', description: 'Always "whatsapp_business_account"' },
+        entry: {
+          type: 'array',
+          description: 'Array of entry objects',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'WhatsApp Business Account ID' },
+              changes: {
+                type: 'array',
+                description: 'Array of change objects',
+              },
+            },
+          },
+        },
+      },
     },
   },
 

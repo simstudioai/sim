@@ -1,4 +1,5 @@
 import type { LinearUpdateIssueParams, LinearUpdateIssueResponse } from '@/tools/linear/types'
+import { ISSUE_EXTENDED_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUpdateIssueResponse> =
@@ -265,24 +266,7 @@ export const linearUpdateIssueTool: ToolConfig<LinearUpdateIssueParams, LinearUp
       issue: {
         type: 'object',
         description: 'The updated issue',
-        properties: {
-          id: { type: 'string', description: 'Issue ID' },
-          title: { type: 'string', description: 'Issue title' },
-          description: { type: 'string', description: 'Issue description' },
-          priority: { type: 'number', description: 'Issue priority' },
-          estimate: { type: 'number', description: 'Issue estimate' },
-          state: { type: 'object', description: 'Issue state' },
-          assignee: { type: 'object', description: 'Assigned user' },
-          labels: { type: 'array', description: 'Issue labels' },
-          updatedAt: { type: 'string', description: 'Last update timestamp' },
-          dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
-          projectId: { type: 'string', description: 'Project ID' },
-          cycleId: { type: 'string', description: 'Cycle ID' },
-          cycleNumber: { type: 'number', description: 'Cycle number' },
-          cycleName: { type: 'string', description: 'Cycle name' },
-          parentId: { type: 'string', description: 'Parent issue ID' },
-          parentTitle: { type: 'string', description: 'Parent issue title' },
-        },
+        properties: ISSUE_EXTENDED_OUTPUT_PROPERTIES,
       },
     },
   }

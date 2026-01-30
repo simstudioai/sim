@@ -171,11 +171,26 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
     },
     data: {
       type: 'object',
-      description: 'The form submission field data (keys are field names)',
+      description:
+        'The form submission field data (keys are field names, values are submitted data)',
     },
     schema: {
-      type: 'object',
-      description: 'Form schema information',
+      type: 'array',
+      description: 'Form schema describing each field',
+      items: {
+        type: 'object',
+        properties: {
+          fieldName: { type: 'string', description: 'Name of the form field' },
+          fieldType: {
+            type: 'string',
+            description: 'Type of input (e.g., FormTextInput, FormEmail)',
+          },
+          fieldElementId: {
+            type: 'string',
+            description: 'Unique identifier for the form element (UUID)',
+          },
+        },
+      },
     },
     formElementId: {
       type: 'string',

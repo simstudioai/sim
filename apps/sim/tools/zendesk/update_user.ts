@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from './types'
 
 const logger = createLogger('ZendeskUpdateUser')
 
@@ -164,7 +164,11 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
     },
 
     outputs: {
-      user: { type: 'json', description: 'Updated user object' },
+      user: {
+        type: 'object',
+        description: 'Updated user object',
+        properties: USER_OUTPUT_PROPERTIES,
+      },
       user_id: { type: 'number', description: 'The updated user ID' },
     },
   }

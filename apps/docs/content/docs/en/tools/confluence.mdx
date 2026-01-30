@@ -140,7 +140,20 @@ Search for content across Confluence pages, blog posts, and other content.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | Timestamp of search |
-| `results` | array | Search results |
+| `results` | array | Array of search results |
+|   ↳ `id` | string | Unique content identifier |
+|   ↳ `title` | string | Content title |
+|   ↳ `type` | string | Content type \(e.g., page, blogpost, attachment, comment\) |
+|   ↳ `status` | string | Content status \(e.g., current\) |
+|   ↳ `url` | string | URL to view the content in Confluence |
+|   ↳ `excerpt` | string | Text excerpt matching the search query |
+|   ↳ `spaceKey` | string | Key of the space containing the content |
+|   ↳ `space` | object | Space information for the content |
+|     ↳ `id` | string | Space identifier |
+|     ↳ `key` | string | Space key |
+|     ↳ `name` | string | Space name |
+|   ↳ `lastModified` | string | ISO 8601 timestamp of last modification |
+|   ↳ `entityType` | string | Entity type identifier \(e.g., content, space\) |
 
 ### `confluence_create_comment`
 
@@ -180,8 +193,25 @@ List all comments on a Confluence page.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of retrieval |
-| `comments` | array | List of comments |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `comments` | array | Array of Confluence comments |
+|   ↳ `id` | string | Unique comment identifier |
+|   ↳ `status` | string | Comment status \(e.g., current\) |
+|   ↳ `title` | string | Comment title |
+|   ↳ `pageId` | string | ID of the page the comment belongs to |
+|   ↳ `blogPostId` | string | ID of the blog post the comment belongs to |
+|   ↳ `parentCommentId` | string | ID of the parent comment |
+|   ↳ `body` | object | Comment body content |
+|     ↳ `value` | string | Comment body content |
+|     ↳ `representation` | string | Content representation format \(e.g., storage, view\) |
+|   ↳ `createdAt` | string | ISO 8601 timestamp when the comment was created |
+|   ↳ `authorId` | string | Account ID of the comment author |
+|   ↳ `version` | object | Comment version information |
+|     ↳ `number` | number | Version number |
+|     ↳ `message` | string | Version message |
+|     ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|     ↳ `authorId` | string | Account ID of the version author |
+|     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 
 ### `confluence_update_comment`
 
@@ -268,8 +298,24 @@ List all attachments on a Confluence page.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of retrieval |
-| `attachments` | array | List of attachments |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `attachments` | array | Array of Confluence attachments |
+|   ↳ `id` | string | Unique attachment identifier \(prefixed with "att"\) |
+|   ↳ `title` | string | Attachment file name |
+|   ↳ `status` | string | Attachment status \(e.g., current, archived, trashed\) |
+|   ↳ `mediaType` | string | MIME type of the attachment |
+|   ↳ `fileSize` | number | File size in bytes |
+|   ↳ `downloadUrl` | string | URL to download the attachment |
+|   ↳ `webuiUrl` | string | URL to view the attachment in Confluence UI |
+|   ↳ `pageId` | string | ID of the page the attachment belongs to |
+|   ↳ `blogPostId` | string | ID of the blog post the attachment belongs to |
+|   ↳ `comment` | string | Comment/description of the attachment |
+|   ↳ `version` | object | Attachment version information |
+|     ↳ `number` | number | Version number |
+|     ↳ `message` | string | Version message |
+|     ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|     ↳ `authorId` | string | Account ID of the version author |
+|     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 
 ### `confluence_delete_attachment`
 
@@ -308,7 +354,10 @@ List all labels on a Confluence page.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | Timestamp of retrieval |
-| `labels` | array | List of labels |
+| `labels` | array | Array of labels on the page |
+|   ↳ `id` | string | Unique label identifier |
+|   ↳ `name` | string | Label name |
+|   ↳ `prefix` | string | Label prefix/type \(e.g., global, my, team\) |
 
 ### `confluence_get_space`
 
@@ -350,7 +399,18 @@ List all Confluence spaces accessible to the user.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of retrieval |
-| `spaces` | array | List of spaces |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `spaces` | array | Array of Confluence spaces |
+|   ↳ `id` | string | Unique space identifier |
+|   ↳ `key` | string | Space key \(short identifier used in URLs\) |
+|   ↳ `name` | string | Space name |
+|   ↳ `type` | string | Space type \(e.g., global, personal\) |
+|   ↳ `status` | string | Space status \(e.g., current, archived\) |
+|   ↳ `authorId` | string | Account ID of the space creator |
+|   ↳ `createdAt` | string | ISO 8601 timestamp when the space was created |
+|   ↳ `homepageId` | string | ID of the space homepage |
+|   ↳ `description` | object | Space description |
+|     ↳ `value` | string | Description text content |
+|     ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
 
 

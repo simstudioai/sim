@@ -1,4 +1,5 @@
 import type { NotionQueryDatabaseParams, NotionResponse } from '@/tools/notion/types'
+import { DATABASE_QUERY_RESULTS_OUTPUT, PAGINATION_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import { extractTitle, formatPropertyValue } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -141,23 +142,9 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
         'Query metadata including total results count, pagination info, and raw results array',
       properties: {
         totalResults: { type: 'number', description: 'Number of results returned' },
-        hasMore: { type: 'boolean', description: 'Whether more results are available' },
-        nextCursor: { type: 'string', description: 'Cursor for pagination', optional: true },
-        results: {
-          type: 'array',
-          description: 'Raw Notion page objects',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Page ID' },
-              properties: { type: 'object', description: 'Page properties' },
-              created_time: { type: 'string', description: 'Creation timestamp' },
-              last_edited_time: { type: 'string', description: 'Last edit timestamp' },
-              url: { type: 'string', description: 'Page URL' },
-              archived: { type: 'boolean', description: 'Whether page is archived' },
-            },
-          },
-        },
+        hasMore: PAGINATION_OUTPUT_PROPERTIES.has_more,
+        nextCursor: PAGINATION_OUTPUT_PROPERTIES.next_cursor,
+        results: DATABASE_QUERY_RESULTS_OUTPUT,
       },
     },
   },
@@ -202,22 +189,9 @@ export const notionQueryDatabaseV2Tool: ToolConfig<
   },
 
   outputs: {
-    results: {
-      type: 'array',
-      description: 'Array of Notion page objects from the database',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Page ID' },
-          properties: { type: 'object', description: 'Page properties' },
-          created_time: { type: 'string', description: 'Creation timestamp' },
-          last_edited_time: { type: 'string', description: 'Last edit timestamp' },
-          url: { type: 'string', description: 'Page URL' },
-        },
-      },
-    },
-    has_more: { type: 'boolean', description: 'Whether more results are available' },
-    next_cursor: { type: 'string', description: 'Cursor for pagination', optional: true },
+    results: DATABASE_QUERY_RESULTS_OUTPUT,
+    has_more: PAGINATION_OUTPUT_PROPERTIES.has_more,
+    next_cursor: PAGINATION_OUTPUT_PROPERTIES.next_cursor,
     total_results: { type: 'number', description: 'Number of results returned' },
   },
 }

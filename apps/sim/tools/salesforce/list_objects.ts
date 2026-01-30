@@ -3,6 +3,7 @@ import type {
   SalesforceListObjectsParams,
   SalesforceListObjectsResponse,
 } from '@/tools/salesforce/types'
+import { LIST_OBJECTS_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -75,13 +76,7 @@ export const salesforceListObjectsTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Objects list',
-      properties: {
-        objects: { type: 'array', description: 'Array of available Salesforce objects' },
-        encoding: { type: 'string', description: 'Encoding used', optional: true },
-        maxBatchSize: { type: 'number', description: 'Maximum batch size', optional: true },
-        totalReturned: { type: 'number', description: 'Number of objects returned' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-      },
+      properties: LIST_OBJECTS_OUTPUT_PROPERTIES,
     },
   },
 }

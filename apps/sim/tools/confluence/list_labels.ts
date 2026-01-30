@@ -1,3 +1,4 @@
+import { LABEL_ITEM_PROPERTIES } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceListLabelsParams {
@@ -95,6 +96,13 @@ export const confluenceListLabelsTool: ToolConfig<
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of retrieval' },
-    labels: { type: 'array', description: 'List of labels' },
+    labels: {
+      type: 'array',
+      description: 'Array of labels on the page',
+      items: {
+        type: 'object',
+        properties: LABEL_ITEM_PROPERTIES,
+      },
+    },
   },
 }

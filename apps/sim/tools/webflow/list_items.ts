@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
 import type { WebflowListItemsParams, WebflowListItemsResponse } from '@/tools/webflow/types'
+import {
+  WEBFLOW_ITEM_OUTPUT_PROPERTIES,
+  WEBFLOW_LIST_METADATA_OUTPUT_PROPERTIES,
+} from '@/tools/webflow/types'
 
 export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowListItemsResponse> = {
   id: 'webflow_list_items',
@@ -83,12 +87,17 @@ export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowLis
 
   outputs: {
     items: {
-      type: 'json',
+      type: 'array',
       description: 'Array of collection items',
+      items: {
+        type: 'object',
+        properties: WEBFLOW_ITEM_OUTPUT_PROPERTIES,
+      },
     },
     metadata: {
-      type: 'json',
+      type: 'object',
       description: 'Metadata about the query',
+      properties: WEBFLOW_LIST_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -1,4 +1,5 @@
 import type { CommentsListResponse, ListIssueCommentsParams } from '@/tools/github/types'
+import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, CommentsListResponse> = {
@@ -165,12 +166,8 @@ export const listIssueCommentsV2Tool: ToolConfig<ListIssueCommentsParams, any> =
       items: {
         type: 'object',
         properties: {
-          id: { type: 'number', description: 'Comment ID' },
-          body: { type: 'string', description: 'Comment body' },
-          user: { type: 'object', description: 'User who created the comment' },
-          html_url: { type: 'string', description: 'GitHub web URL' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
+          ...COMMENT_OUTPUT_PROPERTIES,
+          user: USER_OUTPUT,
         },
       },
     },

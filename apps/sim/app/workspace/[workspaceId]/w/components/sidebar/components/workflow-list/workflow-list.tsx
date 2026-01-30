@@ -7,8 +7,11 @@ import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
 import {
+  SidebarDragContext,
   useContextMenu,
   useDragDrop,
+  useFolderSelection,
+  useSidebarDragContextValue,
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useFolders } from '@/hooks/queries/folders'
@@ -46,17 +49,22 @@ interface WorkflowListProps {
 const DropIndicatorLine = memo(function DropIndicatorLine({
   show,
   level = 0,
+  position = 'before',
 }: {
   show: boolean
   level?: number
+  position?: 'before' | 'after'
 }) {
   if (!show) return null
+
+  const positionStyle = position === 'before' ? { top: '-2px' } : { bottom: '-2px' }
+
   return (
     <div
-      className='pointer-events-none absolute right-0 left-0 z-20 flex items-center'
-      style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
+      className='pointer-events-none absolute right-0 left-0 z-20'
+      style={{ ...positionStyle, paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
     >
-      <div className='h-[2px] flex-1 rounded-full bg-[#33b4ff]/70' />
+      <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
     </div>
   )
 })
@@ -98,9 +106,12 @@ export function WorkflowList({
     createEmptyFolderDropZone,
     createFolderContentDropZone,
     createRootDropZone,
+    createEdgeDropZone,
     handleDragStart,
     handleDragEnd,
   } = useDragDrop({ disabled: !canReorder })
+
+  const dragContextValue = useSidebarDragContextValue(isDragging)
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -157,9 +168,30 @@ export function WorkflowList({
     return ids
   }, [folderTree, workflowsByFolder])
 
+  const orderedFolderIds = useMemo(() => {
+    const ids: string[] = []
+
+    const collectFolderIds = (folder: FolderTreeNode) => {
+      ids.push(folder.id)
+      for (const childFolder of folder.children) {
+        collectFolderIds(childFolder)
+      }
+    }
+
+    for (const folder of folderTree) {
+      collectFolderIds(folder)
+    }
+
+    return ids
+  }, [folderTree])
+
   const { handleWorkflowClick } = useWorkflowSelection({
     workflowIds: orderedWorkflowIds,
     activeWorkflowId: workflowId,
+  })
+
+  const { handleFolderClick } = useFolderSelection({
+    folderIds: orderedFolderIds,
   })
 
   const isWorkflowActive = useCallback(
@@ -190,7 +222,7 @@ export function WorkflowList({
 
       return (
         <div key={workflow.id} className='relative'>
-          <DropIndicatorLine show={showBefore} level={level} />
+          <DropIndicatorLine show={showBefore} level={level} position='before' />
           <div
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
             {...createWorkflowDragHandlers(workflow.id, folderId)}
@@ -201,11 +233,11 @@ export function WorkflowList({
               level={level}
               dragDisabled={dragDisabled}
               onWorkflowClick={handleWorkflowClick}
-              onDragStart={() => handleDragStart('workflow', folderId)}
+              onDragStart={() => handleDragStart(folderId)}
               onDragEnd={handleDragEnd}
             />
           </div>
-          <DropIndicatorLine show={showAfter} level={level} />
+          <DropIndicatorLine show={showAfter} level={level} position='after' />
         </div>
       )
     },
@@ -265,12 +297,11 @@ export function WorkflowList({
 
       return (
         <div key={folder.id} className='relative'>
-          <DropIndicatorLine show={showBefore} level={level} />
-          {/* Drop target highlight overlay - covers entire folder section */}
+          <DropIndicatorLine show={showBefore} level={level} position='before' />
           <div
             className={clsx(
-              'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
-              showInside && isDragging ? 'bg-[#33b4ff1a] opacity-100' : 'opacity-0'
+              'pointer-events-none absolute inset-0 z-10 rounded-[4px]',
+              showInside && isDragging ? 'bg-[#33b4ff1a]' : 'hidden'
             )}
           />
           <div
@@ -281,11 +312,12 @@ export function WorkflowList({
               folder={folder}
               level={level}
               dragDisabled={dragDisabled}
-              onDragStart={() => handleDragStart('folder', parentFolderId)}
+              onFolderClick={handleFolderClick}
+              onDragStart={() => handleDragStart(parentFolderId)}
               onDragEnd={handleDragEnd}
             />
           </div>
-          <DropIndicatorLine show={showAfter} level={level} />
+          <DropIndicatorLine show={showAfter} level={level} position='after' />
 
           {isExpanded && (hasChildren || isDragging) && (
             <div className='relative' {...createFolderContentDropZone(folder.id)}>
@@ -319,6 +351,7 @@ export function WorkflowList({
       createFolderContentDropZone,
       handleDragStart,
       handleDragEnd,
+      handleFolderClick,
       renderWorkflowItem,
     ]
   )
@@ -356,12 +389,19 @@ export function WorkflowList({
   }, [folderTree, rootWorkflows])
 
   const hasRootItems = rootItems.length > 0
+  const firstItemId = rootItems[0]?.id ?? null
+  const lastItemId = rootItems[rootItems.length - 1]?.id ?? null
   const showRootInside = dropIndicator?.targetId === 'root' && dropIndicator?.position === 'inside'
+  const showTopIndicator =
+    firstItemId && dropIndicator?.targetId === firstItemId && dropIndicator?.position === 'before'
+  const showBottomIndicator =
+    lastItemId && dropIndicator?.targetId === lastItemId && dropIndicator?.position === 'after'
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target !== e.currentTarget) return
-      const { selectOnly, clearSelection } = useFolderStore.getState()
+      const { selectOnly, clearSelection, clearFolderSelection } = useFolderStore.getState()
+      clearFolderSelection()
       workflowId ? selectOnly(workflowId) : clearSelection()
     },
     [workflowId]
@@ -382,7 +422,7 @@ export function WorkflowList({
   )
 
   return (
-    <>
+    <SidebarDragContext.Provider value={dragContextValue}>
       <div
         className='flex min-h-full flex-col pb-[8px]'
         onClick={handleContainerClick}
@@ -394,13 +434,23 @@ export function WorkflowList({
           {...rootDropZoneHandlers}
           data-empty-area
         >
-          {/* Root drop target highlight overlay */}
           <div
             className={clsx(
-              'pointer-events-none absolute inset-0 z-10 rounded-[4px] transition-opacity duration-75',
-              showRootInside && isDragging ? 'bg-[#33b4ff1a] opacity-100' : 'opacity-0'
+              'pointer-events-none absolute inset-0 z-10 rounded-[4px]',
+              showRootInside && isDragging ? 'bg-[#33b4ff1a]' : 'hidden'
             )}
           />
+          {isDragging && hasRootItems && (
+            <div
+              className='absolute top-0 right-0 left-0 z-30 h-[12px]'
+              {...createEdgeDropZone(firstItemId, 'before')}
+            />
+          )}
+          {showTopIndicator && (
+            <div className='pointer-events-none absolute top-0 right-0 left-0 z-20'>
+              <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
+            </div>
+          )}
           <div className='space-y-[2px]' data-empty-area>
             {rootItems.map((item) =>
               item.type === 'folder'
@@ -408,6 +458,17 @@ export function WorkflowList({
                 : renderWorkflowItem(item.data as WorkflowMetadata, 0, null)
             )}
           </div>
+          {isDragging && hasRootItems && (
+            <div
+              className='absolute right-0 bottom-0 left-0 z-30 h-[12px]'
+              {...createEdgeDropZone(lastItemId, 'after')}
+            />
+          )}
+          {showBottomIndicator && (
+            <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-20'>
+              <div className='h-[2px] rounded-full bg-[#33b4ff]/70' />
+            </div>
+          )}
         </div>
 
         <input
@@ -432,6 +493,6 @@ export function WorkflowList({
           disableCreateFolder={disableCreate}
         />
       )}
-    </>
+    </SidebarDragContext.Provider>
   )
 }

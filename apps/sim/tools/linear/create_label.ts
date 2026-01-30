@@ -1,4 +1,5 @@
 import type { LinearCreateLabelParams, LinearCreateLabelResponse } from '@/tools/linear/types'
+import { LABEL_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateLabelTool: ToolConfig<LinearCreateLabelParams, LinearCreateLabelResponse> =
@@ -119,13 +120,7 @@ export const linearCreateLabelTool: ToolConfig<LinearCreateLabelParams, LinearCr
       label: {
         type: 'object',
         description: 'The created label',
-        properties: {
-          id: { type: 'string', description: 'Label ID' },
-          name: { type: 'string', description: 'Label name' },
-          color: { type: 'string', description: 'Label color' },
-          description: { type: 'string', description: 'Label description' },
-          team: { type: 'object', description: 'Team this label belongs to' },
-        },
+        properties: LABEL_FULL_OUTPUT_PROPERTIES,
       },
     },
   }

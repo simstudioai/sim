@@ -38,6 +38,7 @@ export type GenerationType =
   | 'neo4j-cypher'
   | 'neo4j-parameters'
   | 'timestamp'
+  | 'timezone'
 
 export type SubBlockType =
   | 'short-input' // Single line input

@@ -75,18 +75,18 @@ Get a single transcript with full details including summary, action items, and a
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `transcript` | object | The transcript with full details |
-| ↳ `id` | string | Transcript ID |
-| ↳ `title` | string | Meeting title |
-| ↳ `date` | number | Meeting timestamp |
-| ↳ `duration` | number | Meeting duration in seconds |
-| ↳ `transcript_url` | string | URL to view transcript |
-| ↳ `audio_url` | string | URL to audio recording |
-| ↳ `host_email` | string | Host email address |
-| ↳ `participants` | array | List of participant emails |
-| ↳ `speakers` | array | List of speakers |
-| ↳ `sentences` | array | Transcript sentences |
-| ↳ `summary` | object | Meeting summary and action items |
-| ↳ `analytics` | object | Meeting analytics and sentiment |
+|   ↳ `id` | string | Transcript ID |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `date` | number | Meeting timestamp |
+|   ↳ `duration` | number | Meeting duration in seconds |
+|   ↳ `transcript_url` | string | URL to view transcript |
+|   ↳ `audio_url` | string | URL to audio recording |
+|   ↳ `host_email` | string | Host email address |
+|   ↳ `participants` | array | List of participant emails |
+|   ↳ `speakers` | array | List of speakers |
+|   ↳ `sentences` | array | Transcript sentences |
+|   ↳ `summary` | object | Meeting summary and action items |
+|   ↳ `analytics` | object | Meeting analytics and sentiment |
 
 ### `fireflies_get_user`
 
@@ -104,15 +104,15 @@ Get user information from Fireflies.ai. Returns current user if no ID specified.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `user` | object | User information |
-| ↳ `user_id` | string | User ID |
-| ↳ `name` | string | User name |
-| ↳ `email` | string | User email |
-| ↳ `integrations` | array | Connected integrations |
-| ↳ `is_admin` | boolean | Whether user is admin |
-| ↳ `minutes_consumed` | number | Total minutes transcribed |
-| ↳ `num_transcripts` | number | Number of transcripts |
-| ↳ `recent_transcript` | string | Most recent transcript ID |
-| ↳ `recent_meeting` | string | Most recent meeting date |
+|   ↳ `user_id` | string | User ID |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | User email |
+|   ↳ `integrations` | array | Connected integrations |
+|   ↳ `is_admin` | boolean | Whether user is admin |
+|   ↳ `minutes_consumed` | number | Total minutes transcribed |
+|   ↳ `num_transcripts` | number | Number of transcripts |
+|   ↳ `recent_transcript` | string | Most recent transcript ID |
+|   ↳ `recent_meeting` | string | Most recent meeting date |
 
 ### `fireflies_list_users`
 
@@ -214,9 +214,9 @@ Create a soundbite/highlight from a specific time range in a transcript
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `bite` | object | Created bite details |
-| ↳ `id` | string | Bite ID |
-| ↳ `name` | string | Bite name |
-| ↳ `status` | string | Processing status |
+|   ↳ `id` | string | Bite ID |
+|   ↳ `name` | string | Bite name |
+|   ↳ `status` | string | Processing status |
 
 ### `fireflies_list_bites`
 

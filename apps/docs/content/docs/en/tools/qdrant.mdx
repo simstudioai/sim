@@ -56,8 +56,10 @@ Insert or update points in a Qdrant collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `status` | string | Status of the upsert operation |
+| `status` | string | Operation status \(ok, error\) |
 | `data` | object | Result data from the upsert operation |
+|   ↳ `operation_id` | number | Operation ID for async tracking |
+|   ↳ `status` | string | Operation status \(acknowledged, completed\) |
 
 ### `qdrant_search_vector`
 
@@ -81,8 +83,15 @@ Search for similar vectors in a Qdrant collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `status` | string | Operation status \(ok, error\) |
 | `data` | array | Vector search results with ID, score, payload, and optional vector data |
-| `status` | string | Status of the search operation |
+|   ↳ `id` | string | Point ID \(integer or UUID string\) |
+|   ↳ `version` | number | Point version number |
+|   ↳ `score` | number | Similarity score |
+|   ↳ `payload` | json | Point payload data \(key-value pairs\) |
+|   ↳ `vector` | json | Point vector\(s\) - single array or named vectors object |
+|   ↳ `shard_key` | string | Shard key for routing |
+|   ↳ `order_value` | number | Order value for sorting |
 
 ### `qdrant_fetch_points`
 
@@ -104,7 +113,12 @@ Fetch points by ID from a Qdrant collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `status` | string | Operation status \(ok, error\) |
 | `data` | array | Fetched points with ID, payload, and optional vector data |
-| `status` | string | Status of the fetch operation |
+|   ↳ `id` | string | Point ID \(integer or UUID string\) |
+|   ↳ `payload` | json | Point payload data \(key-value pairs\) |
+|   ↳ `vector` | json | Point vector\(s\) - single array or named vectors object |
+|   ↳ `shard_key` | string | Shard key for routing |
+|   ↳ `order_value` | number | Order value for sorting |
 
 
