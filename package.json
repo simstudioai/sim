@@ -42,7 +42,7 @@
     "glob": "13.0.0",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
-    "turbo": "2.7.4"
+    "turbo": "2.8.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [
