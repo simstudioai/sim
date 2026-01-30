@@ -28,7 +28,7 @@ export const deleteEventTypeTool: ToolConfig<
     eventTypeId: {
       type: 'number',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Event type ID to delete',
     },
   },
@@ -45,34 +45,37 @@ export const deleteEventTypeTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (response.status === 204 || response.status === 200) {
+    const data = await response.json()
+
+    if (!response.ok) {
       return {
-        success: true,
-        output: {
-          deleted: true,
-          message: 'Event type deleted successfully',
-        },
+        success: false,
+        output: data,
+        error:
+          data.error?.message || data.message || `Request failed with status ${response.status}`,
       }
     }
 
-    const data = await response.json()
     return {
-      success: false,
-      output: {
-        deleted: false,
-        message: data.message || 'Failed to delete event type',
-      },
+      success: true,
+      output: data,
     }
   },
 
   outputs: {
-    deleted: {
-      type: 'boolean',
-      description: 'Whether the event type was successfully deleted',
-    },
-    message: {
+    status: {
       type: 'string',
-      description: 'Status message',
+      description: 'Response status',
+    },
+    data: {
+      type: 'object',
+      description: 'Deleted event type details',
+      properties: {
+        id: { type: 'number', description: 'Event type ID' },
+        lengthInMinutes: { type: 'number', description: 'Duration in minutes' },
+        title: { type: 'string', description: 'Event type title' },
+        slug: { type: 'string', description: 'Event type slug' },
+      },
     },
   },
 }

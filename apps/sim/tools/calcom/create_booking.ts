@@ -29,26 +29,26 @@ export const createBookingTool: ToolConfig<CalcomCreateBookingParams, CalcomCrea
       eventTypeId: {
         type: 'number',
         required: true,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'The ID of the event type to book',
       },
       start: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Start time in UTC ISO 8601 format (e.g., 2024-01-15T09:00:00Z)',
       },
       attendee: {
         type: 'object',
         required: true,
-        visibility: 'user-only',
+        visibility: 'hidden',
         description:
-          'Attendee information object with name, email, timeZone, and optional phoneNumber',
+          'Attendee information object with name, email, timeZone, and optional phoneNumber (constructed from individual attendee fields)',
       },
       guests: {
         type: 'array',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Array of guest email addresses',
         items: {
           type: 'string',
@@ -58,13 +58,13 @@ export const createBookingTool: ToolConfig<CalcomCreateBookingParams, CalcomCrea
       lengthInMinutes: {
         type: 'number',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Duration of the booking in minutes (overrides event type default)',
       },
       metadata: {
         type: 'object',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Custom metadata to attach to the booking',
       },
     },
@@ -102,6 +102,15 @@ export const createBookingTool: ToolConfig<CalcomCreateBookingParams, CalcomCrea
 
     transformResponse: async (response: Response) => {
       const data = await response.json()
+
+      if (!response.ok) {
+        return {
+          success: false,
+          output: data,
+          error:
+            data.error?.message || data.message || `Request failed with status ${response.status}`,
+        }
+      }
 
       return {
         success: true,

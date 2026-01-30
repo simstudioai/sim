@@ -28,7 +28,7 @@ export const getBookingTool: ToolConfig<CalcomGetBookingParams, CalcomGetBooking
     bookingUid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unique identifier (UID) of the booking',
     },
   },

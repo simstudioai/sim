@@ -44,7 +44,7 @@ Create a new booking on Cal.com
 | --------- | ---- | -------- | ----------- |
 | `eventTypeId` | number | Yes | The ID of the event type to book |
 | `start` | string | Yes | Start time in UTC ISO 8601 format \(e.g., 2024-01-15T09:00:00Z\) |
-| `attendee` | object | Yes | Attendee information object with name, email, timeZone, and optional phoneNumber |
+| `attendee` | object | Yes | Attendee information object with name, email, timeZone, and optional phoneNumber \(constructed from individual attendee fields\) |
 | `guests` | array | No | Array of guest email addresses |
 | `items` | string | No | Guest email address |
 | `lengthInMinutes` | number | No | Duration of the booking in minutes \(overrides event type default\) |
@@ -575,8 +575,12 @@ Delete an event type from Cal.com
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Whether the event type was successfully deleted |
-| `message` | string | Status message |
+| `status` | string | Response status |
+| `data` | object | Deleted event type details |
+|   ↳ `id` | number | Event type ID |
+|   ↳ `lengthInMinutes` | number | Duration in minutes |
+|   ↳ `title` | string | Event type title |
+|   ↳ `slug` | string | Event type slug |
 
 ### `calcom_create_schedule`
 
@@ -728,12 +732,7 @@ Delete a schedule from Cal.com
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `status` | string | Response status |
-| `data` | object | Deleted schedule data |
-|   ↳ `id` | number | Unique identifier of the deleted schedule |
-|   ↳ `name` | string | Name of the deleted schedule |
-|   ↳ `timeZone` | string | Timezone of the deleted schedule |
-|   ↳ `isDefault` | boolean | Whether this was the default schedule |
+| `status` | string | Response status \(success or error\) |
 
 ### `calcom_get_default_schedule`
 

@@ -30,31 +30,31 @@ export const updateScheduleTool: ToolConfig<
     scheduleId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'ID of the schedule to update',
     },
     name: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'New name for the schedule',
     },
     timeZone: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'New timezone for the schedule (e.g., America/New_York)',
     },
     isDefault: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Whether this schedule should be the default',
     },
     availability: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'New availability intervals for the schedule',
       items: {
         type: 'object',

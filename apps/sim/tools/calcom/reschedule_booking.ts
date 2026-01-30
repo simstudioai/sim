@@ -34,19 +34,19 @@ export const rescheduleBookingTool: ToolConfig<
     bookingUid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unique identifier (UID) of the booking to reschedule',
     },
     start: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'New start time in UTC ISO 8601 format (e.g., 2024-01-15T09:00:00Z)',
     },
     reschedulingReason: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Reason for rescheduling the booking',
     },
   },

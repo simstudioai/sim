@@ -25,7 +25,7 @@ export const deleteScheduleTool: ToolConfig<
     scheduleId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'ID of the schedule to delete',
     },
   },
@@ -44,6 +44,15 @@ export const deleteScheduleTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!response.ok) {
+      return {
+        success: false,
+        output: data,
+        error:
+          data.error?.message || data.message || `Request failed with status ${response.status}`,
+      }
+    }
+
     return {
       success: true,
       output: data,
@@ -53,29 +62,7 @@ export const deleteScheduleTool: ToolConfig<
   outputs: {
     status: {
       type: 'string',
-      description: 'Response status',
-    },
-    data: {
-      type: 'object',
-      description: 'Deleted schedule data',
-      properties: {
-        id: {
-          type: 'number',
-          description: 'Unique identifier of the deleted schedule',
-        },
-        name: {
-          type: 'string',
-          description: 'Name of the deleted schedule',
-        },
-        timeZone: {
-          type: 'string',
-          description: 'Timezone of the deleted schedule',
-        },
-        isDefault: {
-          type: 'boolean',
-          description: 'Whether this was the default schedule',
-        },
-      },
+      description: 'Response status (success or error)',
     },
   },
 }

@@ -105,43 +105,71 @@ export const updateEventTypeTool: ToolConfig<
     body: (params: CalcomUpdateEventTypeParams) => {
       const body: Record<string, unknown> = {}
 
-      if (params.title !== undefined) {
+      if (params.title !== undefined && params.title !== null && params.title !== '') {
         body.title = params.title
       }
 
-      if (params.slug !== undefined) {
+      if (params.slug !== undefined && params.slug !== null && params.slug !== '') {
         body.slug = params.slug
       }
 
-      if (params.lengthInMinutes !== undefined) {
-        body.lengthInMinutes = params.lengthInMinutes
-      }
-
-      if (params.description !== undefined) {
+      if (
+        params.description !== undefined &&
+        params.description !== null &&
+        params.description !== ''
+      ) {
         body.description = params.description
       }
 
-      if (params.slotInterval !== undefined) {
+      if (
+        params.lengthInMinutes !== undefined &&
+        params.lengthInMinutes !== null &&
+        !Number.isNaN(params.lengthInMinutes)
+      ) {
+        body.lengthInMinutes = params.lengthInMinutes
+      }
+
+      if (
+        params.slotInterval !== undefined &&
+        params.slotInterval !== null &&
+        !Number.isNaN(params.slotInterval)
+      ) {
         body.slotInterval = params.slotInterval
       }
 
-      if (params.minimumBookingNotice !== undefined) {
+      if (
+        params.minimumBookingNotice !== undefined &&
+        params.minimumBookingNotice !== null &&
+        !Number.isNaN(params.minimumBookingNotice)
+      ) {
         body.minimumBookingNotice = params.minimumBookingNotice
       }
 
-      if (params.beforeEventBuffer !== undefined) {
+      if (
+        params.beforeEventBuffer !== undefined &&
+        params.beforeEventBuffer !== null &&
+        !Number.isNaN(params.beforeEventBuffer)
+      ) {
         body.beforeEventBuffer = params.beforeEventBuffer
       }
 
-      if (params.afterEventBuffer !== undefined) {
+      if (
+        params.afterEventBuffer !== undefined &&
+        params.afterEventBuffer !== null &&
+        !Number.isNaN(params.afterEventBuffer)
+      ) {
         body.afterEventBuffer = params.afterEventBuffer
       }
 
-      if (params.scheduleId !== undefined) {
+      if (
+        params.scheduleId !== undefined &&
+        params.scheduleId !== null &&
+        !Number.isNaN(params.scheduleId)
+      ) {
         body.scheduleId = params.scheduleId
       }
 
-      if (params.disableGuests !== undefined) {
+      if (params.disableGuests !== undefined && params.disableGuests !== null) {
         body.disableGuests = params.disableGuests
       }
 
@@ -151,6 +179,15 @@ export const updateEventTypeTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      return {
+        success: false,
+        output: data,
+        error:
+          data.error?.message || data.message || `Request failed with status ${response.status}`,
+      }
+    }
 
     return {
       success: true,

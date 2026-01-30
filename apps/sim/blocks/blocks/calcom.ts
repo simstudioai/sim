@@ -22,9 +22,9 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
+        { label: 'List Bookings', id: 'calcom_list_bookings' },
         { label: 'Create Booking', id: 'calcom_create_booking' },
         { label: 'Get Booking', id: 'calcom_get_booking' },
-        { label: 'List Bookings', id: 'calcom_list_bookings' },
         { label: 'Cancel Booking', id: 'calcom_cancel_booking' },
         { label: 'Reschedule Booking', id: 'calcom_reschedule_booking' },
         { label: 'Confirm Booking', id: 'calcom_confirm_booking' },
@@ -135,6 +135,24 @@ Return ONLY the timestamp string - no explanations or quotes.`,
       placeholder: 'e.g., America/New_York, Europe/London',
       condition: { field: 'operation', value: 'calcom_create_booking' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's timezone description to a valid IANA timezone identifier.
+
+Common examples:
+- "New York" or "Eastern" -> America/New_York
+- "Los Angeles" or "Pacific" -> America/Los_Angeles
+- "Chicago" or "Central" -> America/Chicago
+- "London" -> Europe/London
+- "Paris" -> Europe/Paris
+- "Tokyo" -> Asia/Tokyo
+- "Sydney" -> Australia/Sydney
+- "UTC" or "GMT" -> UTC
+
+Return ONLY the IANA timezone string - no explanations or quotes.`,
+        placeholder: 'Describe the timezone (e.g., "New York", "Pacific time")...',
+        generationType: 'timezone',
+      },
     },
     {
       id: 'attendeePhone',
@@ -142,6 +160,7 @@ Return ONLY the timestamp string - no explanations or quotes.`,
       type: 'short-input',
       placeholder: 'International format (e.g., +1234567890)',
       condition: { field: 'operation', value: 'calcom_create_booking' },
+      mode: 'advanced',
     },
     {
       id: 'guests',
@@ -149,13 +168,15 @@ Return ONLY the timestamp string - no explanations or quotes.`,
       type: 'short-input',
       placeholder: 'Comma-separated email addresses',
       condition: { field: 'operation', value: 'calcom_create_booking' },
+      mode: 'advanced',
     },
     {
       id: 'lengthInMinutes',
       title: 'Duration (minutes)',
       type: 'short-input',
-      placeholder: 'Override event duration (optional)',
+      placeholder: 'Override default event duration',
       condition: { field: 'operation', value: 'calcom_create_booking' },
+      mode: 'advanced',
     },
     {
       id: 'metadata',
@@ -164,6 +185,7 @@ Return ONLY the timestamp string - no explanations or quotes.`,
       language: 'json',
       placeholder: '{"key": "value"}',
       condition: { field: 'operation', value: 'calcom_create_booking' },
+      mode: 'advanced',
     },
 
     // === Get/Cancel/Reschedule/Confirm/Decline Booking fields ===
@@ -197,7 +219,7 @@ Return ONLY the timestamp string - no explanations or quotes.`,
       id: 'cancellationReason',
       title: 'Cancellation Reason',
       type: 'long-input',
-      placeholder: 'Reason for cancellation (optional)',
+      placeholder: 'Reason for cancellation',
       rows: 3,
       condition: { field: 'operation', value: 'calcom_cancel_booking' },
     },
@@ -205,9 +227,10 @@ Return ONLY the timestamp string - no explanations or quotes.`,
       id: 'reschedulingReason',
       title: 'Rescheduling Reason',
       type: 'long-input',
-      placeholder: 'Reason for rescheduling (optional)',
+      placeholder: 'Reason for rescheduling',
       rows: 3,
       condition: { field: 'operation', value: 'calcom_reschedule_booking' },
+      mode: 'advanced',
     },
 
     // === List Bookings filters ===
@@ -284,6 +307,7 @@ Return ONLY the timestamp string - no explanations or quotes.`,
         field: 'operation',
         value: ['calcom_create_event_type', 'calcom_update_event_type'],
       },
+      mode: 'advanced',
     },
     {
       id: 'slotInterval',
@@ -294,6 +318,7 @@ Return ONLY the timestamp string - no explanations or quotes.`,
         field: 'operation',
         value: ['calcom_create_event_type', 'calcom_update_event_type'],
       },
+      mode: 'advanced',
     },
     {
       id: 'minimumBookingNotice',
@@ -304,6 +329,7 @@ Return ONLY the timestamp string - no explanations or quotes.`,
         field: 'operation',
         value: ['calcom_create_event_type', 'calcom_update_event_type'],
       },
+      mode: 'advanced',
     },
     {
       id: 'beforeEventBuffer',
@@ -314,6 +340,7 @@ Return ONLY the timestamp string - no explanations or quotes.`,
         field: 'operation',
         value: ['calcom_create_event_type', 'calcom_update_event_type'],
       },
+      mode: 'advanced',
     },
     {
       id: 'afterEventBuffer',
@@ -324,16 +351,18 @@ Return ONLY the timestamp string - no explanations or quotes.`,
         field: 'operation',
         value: ['calcom_create_event_type', 'calcom_update_event_type'],
       },
+      mode: 'advanced',
     },
     {
       id: 'eventTypeScheduleId',
       title: 'Schedule ID',
       type: 'short-input',
-      placeholder: 'Assign to specific schedule (optional)',
+      placeholder: 'Assign to a specific schedule',
       condition: {
         field: 'operation',
         value: ['calcom_create_event_type', 'calcom_update_event_type'],
       },
+      mode: 'advanced',
     },
     {
       id: 'disableGuests',
@@ -344,6 +373,7 @@ Return ONLY the timestamp string - no explanations or quotes.`,
         field: 'operation',
         value: ['calcom_create_event_type', 'calcom_update_event_type'],
       },
+      mode: 'advanced',
     },
 
     // === Schedule fields ===
@@ -362,7 +392,7 @@ Return ONLY the timestamp string - no explanations or quotes.`,
       },
     },
     {
-      id: 'scheduleName',
+      id: 'name',
       title: 'Name',
       type: 'short-input',
       placeholder: 'Schedule name (e.g., Working Hours)',
@@ -382,6 +412,24 @@ Return ONLY the timestamp string - no explanations or quotes.`,
         value: ['calcom_create_schedule', 'calcom_update_schedule', 'calcom_get_slots'],
       },
       required: { field: 'operation', value: 'calcom_create_schedule' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's timezone description to a valid IANA timezone identifier.
+
+Common examples:
+- "New York" or "Eastern" -> America/New_York
+- "Los Angeles" or "Pacific" -> America/Los_Angeles
+- "Chicago" or "Central" -> America/Chicago
+- "London" -> Europe/London
+- "Paris" -> Europe/Paris
+- "Tokyo" -> Asia/Tokyo
+- "Sydney" -> Australia/Sydney
+- "UTC" or "GMT" -> UTC
+
+Return ONLY the IANA timezone string - no explanations or quotes.`,
+        placeholder: 'Describe the timezone (e.g., "New York", "Pacific time")...',
+        generationType: 'timezone',
+      },
     },
     {
       id: 'isDefault',
@@ -437,6 +485,7 @@ Return ONLY valid JSON - no explanations.`,
       type: 'short-input',
       placeholder: 'Event type slug (alternative to ID)',
       condition: { field: 'operation', value: 'calcom_get_slots' },
+      mode: 'advanced',
     },
     {
       id: 'username',
@@ -444,13 +493,15 @@ Return ONLY valid JSON - no explanations.`,
       type: 'short-input',
       placeholder: 'Cal.com username (required with slug)',
       condition: { field: 'operation', value: 'calcom_get_slots' },
+      mode: 'advanced',
     },
     {
       id: 'duration',
       title: 'Duration (minutes)',
       type: 'short-input',
-      placeholder: 'Slot duration (optional)',
+      placeholder: 'Slot duration in minutes',
       condition: { field: 'operation', value: 'calcom_get_slots' },
+      mode: 'advanced',
     },
 
     // === List Event Types sorting ===
@@ -464,6 +515,7 @@ Return ONLY valid JSON - no explanations.`,
         { label: 'Descending', id: 'desc' },
       ],
       condition: { field: 'operation', value: 'calcom_list_event_types' },
+      mode: 'advanced',
     },
     // Trigger SubBlocks
     ...getTrigger('calcom_booking_created').subBlocks,
@@ -503,88 +555,189 @@ Return ONLY valid JSON - no explanations.`,
       params: (params) => {
         const {
           operation,
+          credential,
           attendeeName,
           attendeeEmail,
           attendeeTimeZone,
           attendeePhone,
           guests,
-          metadata,
-          availability,
+          start,
+          end,
+          bookingUid,
+          cancellationReason,
+          reschedulingReason,
+          bookingStatus,
+          lengthInMinutes,
           eventTypeIdParam,
           eventTypeId,
-          bookingStatus,
           eventLength,
-          scheduleName,
           eventTypeScheduleId,
+          slotInterval,
+          minimumBookingNotice,
+          beforeEventBuffer,
+          afterEventBuffer,
+          disableGuests,
+          name,
+          scheduleId,
+          isDefault,
+          eventTypeSlug,
+          username,
           duration,
+          metadata,
+          availability,
           ...rest
         } = params
 
-        const result: Record<string, unknown> = { ...rest }
+        const result: Record<string, unknown> = {}
 
-        // Convert eventTypeId to number (used by create_booking and get_slots)
-        if (eventTypeId) {
-          result.eventTypeId = Number(eventTypeId)
-        }
-
-        // Convert duration to number (used by get_slots)
-        if (duration) {
-          result.duration = Number(duration)
-        }
-
-        if (operation === 'calcom_create_booking') {
-          result.attendee = {
-            name: attendeeName,
-            ...(attendeeEmail && { email: attendeeEmail }),
-            timeZone: attendeeTimeZone,
-            ...(attendeePhone && { phoneNumber: attendeePhone }),
+        const toNumber = (value: unknown): number | undefined => {
+          if (value === undefined || value === null || value === '') {
+            return undefined
           }
-          result.attendeeName = undefined
-          result.attendeeEmail = undefined
-          result.attendeeTimeZone = undefined
-          result.attendeePhone = undefined
+          const num = Number(value)
+          return Number.isNaN(num) ? undefined : num
+        }
 
-          if (guests) {
-            result.guests = guests.split(',').map((g: string) => g.trim())
+        switch (operation) {
+          case 'calcom_create_booking':
+            result.attendee = {
+              name: attendeeName,
+              ...(attendeeEmail && { email: attendeeEmail }),
+              timeZone: attendeeTimeZone,
+              ...(attendeePhone && { phoneNumber: attendeePhone }),
+            }
+            {
+              const eventTypeIdNum = toNumber(eventTypeId)
+              if (eventTypeIdNum !== undefined) result.eventTypeId = eventTypeIdNum
+            }
+            if (start) result.start = start
+            if (end) result.end = end
+            if (guests) result.guests = guests.split(',').map((g: string) => g.trim())
+            {
+              const lengthNum = toNumber(lengthInMinutes)
+              if (lengthNum !== undefined) result.lengthInMinutes = lengthNum
+            }
+            if (metadata) {
+              try {
+                result.metadata = typeof metadata === 'string' ? JSON.parse(metadata) : metadata
+              } catch {
+                throw new Error('Invalid JSON for metadata')
+              }
+            }
+            break
+
+          case 'calcom_cancel_booking':
+            if (bookingUid) result.bookingUid = bookingUid
+            if (cancellationReason) result.cancellationReason = cancellationReason
+            break
+
+          case 'calcom_reschedule_booking':
+            if (bookingUid) result.bookingUid = bookingUid
+            if (start) result.start = start
+            if (reschedulingReason) result.reschedulingReason = reschedulingReason
+            break
+
+          case 'calcom_list_bookings':
+            if (bookingStatus) result.status = bookingStatus
+            break
+
+          case 'calcom_create_event_type':
+          case 'calcom_update_event_type':
+            {
+              if (operation === 'calcom_update_event_type') {
+                const eventTypeIdNum = toNumber(eventTypeIdParam)
+                if (eventTypeIdNum !== undefined) result.eventTypeId = eventTypeIdNum
+              }
+              const lengthNum = toNumber(eventLength)
+              if (lengthNum !== undefined) result.lengthInMinutes = lengthNum
+              const scheduleIdNum = toNumber(eventTypeScheduleId)
+              if (scheduleIdNum !== undefined) result.scheduleId = scheduleIdNum
+              const slotIntervalNum = toNumber(slotInterval)
+              if (slotIntervalNum !== undefined) result.slotInterval = slotIntervalNum
+              const minNoticeNum = toNumber(minimumBookingNotice)
+              if (minNoticeNum !== undefined) result.minimumBookingNotice = minNoticeNum
+              const beforeBufferNum = toNumber(beforeEventBuffer)
+              if (beforeBufferNum !== undefined) result.beforeEventBuffer = beforeBufferNum
+              const afterBufferNum = toNumber(afterEventBuffer)
+              if (afterBufferNum !== undefined) result.afterEventBuffer = afterBufferNum
+              if (disableGuests !== undefined && disableGuests !== null) {
+                result.disableGuests = disableGuests
+              }
+            }
+            break
+
+          case 'calcom_get_event_type':
+          case 'calcom_delete_event_type':
+            {
+              const eventTypeIdNum = toNumber(eventTypeIdParam)
+              if (eventTypeIdNum !== undefined) result.eventTypeId = eventTypeIdNum
+            }
+            break
+
+          case 'calcom_create_schedule':
+            if (name) result.name = name
+            result.isDefault = isDefault === true
+            if (availability) {
+              try {
+                result.availability =
+                  typeof availability === 'string' ? JSON.parse(availability) : availability
+              } catch {
+                throw new Error('Invalid JSON for availability')
+              }
+            }
+            break
+
+          case 'calcom_get_schedule':
+          case 'calcom_update_schedule':
+          case 'calcom_delete_schedule':
+            {
+              const scheduleIdNum = toNumber(scheduleId)
+              if (scheduleIdNum !== undefined) result.scheduleId = scheduleIdNum
+            }
+            if (operation === 'calcom_update_schedule') {
+              if (name) result.name = name
+              if (isDefault !== undefined && isDefault !== null) result.isDefault = isDefault
+              if (availability) {
+                try {
+                  result.availability =
+                    typeof availability === 'string' ? JSON.parse(availability) : availability
+                } catch {
+                  throw new Error('Invalid JSON for availability')
+                }
+              }
+            }
+            break
+
+          case 'calcom_get_slots':
+            {
+              const eventTypeIdNum = toNumber(eventTypeId)
+              const hasEventTypeId = eventTypeIdNum !== undefined
+              const hasSlugAndUsername = Boolean(eventTypeSlug) && Boolean(username)
+
+              if (!hasEventTypeId && !hasSlugAndUsername) {
+                throw new Error(
+                  'Event Type ID is required. Alternatively, provide both Event Type Slug and Username in advanced mode.'
+                )
+              }
+
+              if (hasEventTypeId) result.eventTypeId = eventTypeIdNum
+            }
+            if (eventTypeSlug) result.eventTypeSlug = eventTypeSlug
+            if (username) result.username = username
+            if (start) result.start = start
+            if (end) result.end = end
+            {
+              const durationNum = toNumber(duration)
+              if (durationNum !== undefined) result.duration = durationNum
+            }
+            break
+        }
+
+        Object.entries(rest).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            result[key] = value
           }
-        }
-
-        if (metadata) {
-          try {
-            result.metadata = typeof metadata === 'string' ? JSON.parse(metadata) : metadata
-          } catch {
-            throw new Error('Invalid JSON for metadata')
-          }
-        }
-
-        if (availability) {
-          try {
-            result.availability =
-              typeof availability === 'string' ? JSON.parse(availability) : availability
-          } catch {
-            throw new Error('Invalid JSON for availability')
-          }
-        }
-
-        if (eventTypeIdParam) {
-          result.eventTypeId = Number(eventTypeIdParam)
-        }
-
-        if (bookingStatus) {
-          result.status = bookingStatus
-        }
-
-        if (eventLength) {
-          result.lengthInMinutes = Number(eventLength)
-        }
-
-        if (scheduleName) {
-          result.name = scheduleName
-        }
-
-        if (eventTypeScheduleId) {
-          result.scheduleId = Number(eventTypeScheduleId)
-        }
+        })
 
         return result
       },
@@ -620,7 +773,7 @@ Return ONLY valid JSON - no explanations.`,
     disableGuests: { type: 'boolean', description: 'Disable guest additions' },
     sortCreatedAt: { type: 'string', description: 'Sort order for event types' },
     scheduleId: { type: 'number', description: 'Schedule ID' },
-    scheduleName: { type: 'string', description: 'Schedule name' },
+    name: { type: 'string', description: 'Schedule name' },
     timeZone: { type: 'string', description: 'Time zone' },
     isDefault: { type: 'boolean', description: 'Set as default schedule' },
     availability: { type: 'json', description: 'Availability configuration' },

@@ -29,13 +29,13 @@ export const cancelBookingTool: ToolConfig<CalcomCancelBookingParams, CalcomCanc
       bookingUid: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Unique identifier (UID) of the booking to cancel',
       },
       cancellationReason: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Reason for cancelling the booking',
       },
     },

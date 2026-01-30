@@ -22,7 +22,7 @@ export const getEventTypeTool: ToolConfig<CalcomGetEventTypeParams, CalcomGetEve
     eventTypeId: {
       type: 'number',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Event type ID to retrieve',
     },
   },

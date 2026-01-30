@@ -31,7 +31,7 @@ export const confirmBookingTool: ToolConfig<
     bookingUid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unique identifier (UID) of the booking to confirm',
     },
   },

@@ -25,7 +25,7 @@ export const listEventTypesTool: ToolConfig<
     sortCreatedAt: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Sort by creation date: "asc" or "desc"',
     },
   },

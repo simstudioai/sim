@@ -30,25 +30,25 @@ export const createScheduleTool: ToolConfig<
     name: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Name of the schedule',
     },
     timeZone: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Timezone for the schedule (e.g., America/New_York)',
     },
     isDefault: {
       type: 'boolean',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Whether this schedule should be the default',
     },
     availability: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Availability intervals for the schedule',
       items: {
         type: 'object',
@@ -102,6 +102,15 @@ export const createScheduleTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      return {
+        success: false,
+        output: data,
+        error:
+          data.error?.message || data.message || `Request failed with status ${response.status}`,
+      }
+    }
 
     return {
       success: true,

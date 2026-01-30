@@ -23,7 +23,7 @@ export const getScheduleTool: ToolConfig<CalcomGetScheduleParams, CalcomGetSched
     scheduleId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'ID of the schedule to retrieve',
     },
   },

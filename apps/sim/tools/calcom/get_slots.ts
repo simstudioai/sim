@@ -52,43 +52,43 @@ export const getSlotsTool: ToolConfig<CalcomGetSlotsParams, CalcomGetSlotsRespon
     start: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Start of time range in UTC ISO 8601 format (e.g., 2024-01-15T00:00:00Z)',
     },
     end: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'End of time range in UTC ISO 8601 format (e.g., 2024-01-22T00:00:00Z)',
     },
     eventTypeId: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Event type ID for direct lookup',
     },
     eventTypeSlug: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Event type slug (requires username to be set)',
     },
     username: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Username for personal event types (required when using eventTypeSlug)',
     },
     timeZone: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Timezone for returned slots (defaults to UTC)',
     },
     duration: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Slot length in minutes',
     },
   },
@@ -101,7 +101,12 @@ export const getSlotsTool: ToolConfig<CalcomGetSlotsParams, CalcomGetSlotsRespon
       queryParams.push(`start=${encodeURIComponent(params.start)}`)
       queryParams.push(`end=${encodeURIComponent(params.end)}`)
 
-      if (params.eventTypeId !== undefined) {
+      if (
+        params.eventTypeId !== undefined &&
+        params.eventTypeId !== null &&
+        !Number.isNaN(params.eventTypeId) &&
+        String(params.eventTypeId) !== ''
+      ) {
         queryParams.push(`eventTypeId=${params.eventTypeId}`)
       }
 
@@ -117,7 +122,12 @@ export const getSlotsTool: ToolConfig<CalcomGetSlotsParams, CalcomGetSlotsRespon
         queryParams.push(`timeZone=${encodeURIComponent(params.timeZone)}`)
       }
 
-      if (params.duration !== undefined) {
+      if (
+        params.duration !== undefined &&
+        params.duration !== null &&
+        !Number.isNaN(params.duration) &&
+        String(params.duration) !== ''
+      ) {
         queryParams.push(`duration=${params.duration}`)
       }
 
@@ -133,6 +143,15 @@ export const getSlotsTool: ToolConfig<CalcomGetSlotsParams, CalcomGetSlotsRespon
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!response.ok) {
+      return {
+        success: false,
+        output: data,
+        error:
+          data.error?.message || data.message || `Request failed with status ${response.status}`,
+      }
+    }
 
     return {
       success: true,

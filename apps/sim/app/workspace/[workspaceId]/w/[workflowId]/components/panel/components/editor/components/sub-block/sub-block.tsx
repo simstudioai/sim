@@ -233,7 +233,7 @@ const renderLabel = (
             </Tooltip.Root>
           )}
       </Label>
-      <div className='flex items-center gap-[6px]'>
+      <div className='flex min-w-0 flex-1 items-center justify-end gap-[6px]'>
         {showCopy && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -266,14 +266,19 @@ const renderLabel = (
                 Generate
               </Button>
             ) : (
-              <div className='-my-1 flex items-center gap-[4px]'>
+              <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-[4px]'>
                 <Input
                   ref={wandState.searchInputRef}
                   value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     wandState.onSearchChange(e.target.value)
                   }
-                  onBlur={wandState.onSearchBlur}
+                  onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                    // Only close if clicking outside the input container (not on the submit button)
+                    const relatedTarget = e.relatedTarget as HTMLElement | null
+                    if (relatedTarget?.closest('button')) return
+                    wandState.onSearchBlur()
+                  }}
                   onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                     if (
                       e.key === 'Enter' &&
@@ -287,7 +292,7 @@ const renderLabel = (
                   }}
                   disabled={wandState.isStreaming}
                   className={cn(
-                    'h-5 max-w-[200px] flex-1 text-[11px]',
+                    'h-5 min-w-[80px] flex-1 text-[11px]',
                     wandState.isStreaming && 'text-muted-foreground'
                   )}
                   placeholder='Generate with AI...'

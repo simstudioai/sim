@@ -31,13 +31,13 @@ export const declineBookingTool: ToolConfig<
     bookingUid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unique identifier (UID) of the booking to decline',
     },
     reason: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Reason for declining the booking',
     },
   },

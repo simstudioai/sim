@@ -28,20 +28,20 @@ export const listBookingsTool: ToolConfig<CalcomListBookingsParams, CalcomListBo
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Filter bookings by status: upcoming, recurring, past, cancelled, or unconfirmed',
     },
     take: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of bookings to return (pagination limit)',
     },
     skip: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of bookings to skip (pagination offset)',
     },
   },
