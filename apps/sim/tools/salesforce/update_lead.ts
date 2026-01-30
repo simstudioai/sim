@@ -2,6 +2,7 @@ import type {
   SalesforceUpdateLeadParams,
   SalesforceUpdateLeadResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -107,10 +108,7 @@ export const salesforceUpdateLeadTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated lead data',
-      properties: {
-        id: { type: 'string', description: 'Updated lead ID' },
-        updated: { type: 'boolean', description: 'Whether lead was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

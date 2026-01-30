@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifyGetAlbumParams, SpotifyGetAlbumResponse } from './types'
+import {
+  SIMPLIFIED_ALBUM_TRACK_OUTPUT_PROPERTIES,
+  SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES,
+} from './types'
 
 export const spotifyGetAlbumTool: ToolConfig<SpotifyGetAlbumParams, SpotifyGetAlbumResponse> = {
   id: 'spotify_get_album',
@@ -73,7 +77,11 @@ export const spotifyGetAlbumTool: ToolConfig<SpotifyGetAlbumParams, SpotifyGetAl
   outputs: {
     id: { type: 'string', description: 'Spotify album ID' },
     name: { type: 'string', description: 'Album name' },
-    artists: { type: 'array', description: 'List of artists' },
+    artists: {
+      type: 'array',
+      description: 'List of artists',
+      items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+    },
     album_type: { type: 'string', description: 'Type of album (album, single, compilation)' },
     total_tracks: { type: 'number', description: 'Total number of tracks' },
     release_date: { type: 'string', description: 'Release date' },
@@ -81,7 +89,11 @@ export const spotifyGetAlbumTool: ToolConfig<SpotifyGetAlbumParams, SpotifyGetAl
     popularity: { type: 'number', description: 'Popularity score (0-100)' },
     genres: { type: 'array', description: 'List of genres' },
     image_url: { type: 'string', description: 'Album cover image URL', optional: true },
-    tracks: { type: 'array', description: 'List of tracks on the album' },
+    tracks: {
+      type: 'array',
+      description: 'List of tracks on the album',
+      items: { type: 'object', properties: SIMPLIFIED_ALBUM_TRACK_OUTPUT_PROPERTIES },
+    },
     external_url: { type: 'string', description: 'Spotify URL' },
   },
 }

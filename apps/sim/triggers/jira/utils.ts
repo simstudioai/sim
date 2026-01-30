@@ -82,7 +82,7 @@ export const jiraWebhookSubBlocks: SubBlockConfig[] = [
  */
 export function jiraSetupInstructions(eventType: string, additionalNotes?: string): string {
   const instructions = [
-    '<strong>Note:</strong> You must have admin permissions in your Jira workspace to create webhooks.',
+    '<strong>Note:</strong> You must have admin permissions in your Jira workspace to create webhooks. See the <a href="https://support.atlassian.com/jira-cloud-administration/docs/manage-webhooks/" target="_blank" rel="noopener noreferrer">Jira webhook documentation</a> for details.',
     'In Jira, navigate to <strong>Settings > System > WebHooks</strong>.',
     'Click <strong>"Create a WebHook"</strong> to add a new webhook.',
     'Paste the <strong>Webhook URL</strong> from above into the URL field.',

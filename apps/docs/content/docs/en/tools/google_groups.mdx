@@ -231,7 +231,7 @@ List all email aliases for a Google Group
 | --------- | ---- | ----------- |
 | `aliases` | array | List of email aliases for the group |
 |   ↳ `id` | string | Unique group identifier |
-|   ↳ `primaryEmail` | string | Group |
+|   ↳ `primaryEmail` | string | Group's primary email address |
 |   ↳ `alias` | string | Alias email address |
 |   ↳ `kind` | string | API resource type |
 |   ↳ `etag` | string | Resource version identifier |
@@ -252,7 +252,7 @@ Add an email alias to a Google Group
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Unique group identifier |
-| `primaryEmail` | string | Group |
+| `primaryEmail` | string | Group's primary email address |
 | `alias` | string | The alias that was added |
 | `kind` | string | API resource type |
 | `etag` | string | Resource version identifier |
@@ -288,7 +288,7 @@ Get the settings for a Google Group including access permissions, moderation, an
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `email` | string | The group |
+| `email` | string | The group's email address |
 | `name` | string | The group name \(max 75 characters\) |
 | `description` | string | The group description \(max 4096 characters\) |
 | `whoCanJoin` | string | Who can join the group \(ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN\) |
@@ -297,7 +297,7 @@ Get the settings for a Google Group including access permissions, moderation, an
 | `whoCanPostMessage` | string | Who can post messages to the group |
 | `allowExternalMembers` | string | Whether external users can be members |
 | `allowWebPosting` | string | Whether web posting is allowed |
-| `primaryLanguage` | string | The group |
+| `primaryLanguage` | string | The group's primary language |
 | `isArchived` | string | Whether messages are archived |
 | `archiveOnly` | string | Whether the group is archive-only \(inactive\) |
 | `messageModerationLevel` | string | Message moderation level |
@@ -368,7 +368,7 @@ Update the settings for a Google Group including access permissions, moderation,
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `email` | string | The group |
+| `email` | string | The group's email address |
 | `name` | string | The group name |
 | `description` | string | The group description |
 | `whoCanJoin` | string | Who can join the group |
@@ -377,7 +377,7 @@ Update the settings for a Google Group including access permissions, moderation,
 | `whoCanPostMessage` | string | Who can post messages to the group |
 | `allowExternalMembers` | string | Whether external users can be members |
 | `allowWebPosting` | string | Whether web posting is allowed |
-| `primaryLanguage` | string | The group |
+| `primaryLanguage` | string | The group's primary language |
 | `isArchived` | string | Whether messages are archived |
 | `archiveOnly` | string | Whether the group is archive-only |
 | `messageModerationLevel` | string | Message moderation level |

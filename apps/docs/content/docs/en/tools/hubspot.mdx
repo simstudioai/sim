@@ -51,6 +51,12 @@ Retrieve all users from HubSpot account
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `users` | array | Array of HubSpot user objects |
+|   ↳ `id` | string | User ID |
+|   ↳ `email` | string | User email address |
+|   ↳ `roleId` | string | User role ID |
+|   ↳ `primaryTeamId` | string | Primary team ID |
+|   ↳ `secondaryTeamIds` | array | Secondary team IDs |
+|   ↳ `superAdmin` | boolean | Whether user is a super admin |
 | `totalItems` | number | Total number of users returned |
 | `success` | boolean | Operation success status |
 
@@ -71,9 +77,33 @@ Retrieve all contacts from HubSpot account with pagination support
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `contacts` | array | Array of HubSpot contact objects |
-| `paging` | object | Pagination information |
-| `metadata` | object | Metadata with totalReturned and hasMore |
+| `contacts` | array | Array of HubSpot contact records |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `firstname` | string | Contact first name |
+|   ↳ `lastname` | string | Contact last name |
+|   ↳ `phone` | string | Contact phone number |
+|   ↳ `mobilephone` | string | Contact mobile phone number |
+|   ↳ `company` | string | Associated company name |
+|   ↳ `website` | string | Contact website URL |
+|   ↳ `jobtitle` | string | Contact job title |
+|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `address` | string | Street address |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `fax` | string | Fax number |
+|   ↳ `hs_timezone` | string | Contact timezone |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
 | `success` | boolean | Operation success status |
 
 ### `hubspot_get_contact`
@@ -93,7 +123,27 @@ Retrieve a single contact by ID or email from HubSpot
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `contact` | object | HubSpot contact object with properties |
+| `contact` | object | HubSpot contact record |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `firstname` | string | Contact first name |
+|   ↳ `lastname` | string | Contact last name |
+|   ↳ `phone` | string | Contact phone number |
+|   ↳ `mobilephone` | string | Contact mobile phone number |
+|   ↳ `company` | string | Associated company name |
+|   ↳ `website` | string | Contact website URL |
+|   ↳ `jobtitle` | string | Contact job title |
+|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `address` | string | Street address |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `fax` | string | Fax number |
+|   ↳ `hs_timezone` | string | Contact timezone |
 | `contactId` | string | The retrieved contact ID |
 | `success` | boolean | Operation success status |
 
@@ -112,7 +162,27 @@ Create a new contact in HubSpot. Requires at least one of: email, firstname, or 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `contact` | object | Created HubSpot contact object |
+| `contact` | object | HubSpot contact record |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `firstname` | string | Contact first name |
+|   ↳ `lastname` | string | Contact last name |
+|   ↳ `phone` | string | Contact phone number |
+|   ↳ `mobilephone` | string | Contact mobile phone number |
+|   ↳ `company` | string | Associated company name |
+|   ↳ `website` | string | Contact website URL |
+|   ↳ `jobtitle` | string | Contact job title |
+|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `address` | string | Street address |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `fax` | string | Fax number |
+|   ↳ `hs_timezone` | string | Contact timezone |
 | `contactId` | string | The created contact ID |
 | `success` | boolean | Operation success status |
 
@@ -132,7 +202,27 @@ Update an existing contact in HubSpot by ID or email
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `contact` | object | Updated HubSpot contact object |
+| `contact` | object | HubSpot contact record |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `firstname` | string | Contact first name |
+|   ↳ `lastname` | string | Contact last name |
+|   ↳ `phone` | string | Contact phone number |
+|   ↳ `mobilephone` | string | Contact mobile phone number |
+|   ↳ `company` | string | Associated company name |
+|   ↳ `website` | string | Contact website URL |
+|   ↳ `jobtitle` | string | Contact job title |
+|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `address` | string | Street address |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `fax` | string | Fax number |
+|   ↳ `hs_timezone` | string | Contact timezone |
 | `contactId` | string | The updated contact ID |
 | `success` | boolean | Operation success status |
 
@@ -155,10 +245,34 @@ Search for contacts in HubSpot using filters, sorting, and queries
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `contacts` | array | Array of matching HubSpot contact objects |
+| `contacts` | array | Array of HubSpot contact records |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `firstname` | string | Contact first name |
+|   ↳ `lastname` | string | Contact last name |
+|   ↳ `phone` | string | Contact phone number |
+|   ↳ `mobilephone` | string | Contact mobile phone number |
+|   ↳ `company` | string | Associated company name |
+|   ↳ `website` | string | Contact website URL |
+|   ↳ `jobtitle` | string | Contact job title |
+|   ↳ `lifecyclestage` | string | Lifecycle stage \(subscriber, lead, marketingqualifiedlead, salesqualifiedlead, opportunity, customer\) |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Contact creation date \(ISO 8601\) |
+|   ↳ `lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `address` | string | Street address |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `fax` | string | Fax number |
+|   ↳ `hs_timezone` | string | Contact timezone |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
 | `total` | number | Total number of matching contacts |
-| `paging` | object | Pagination information |
-| `metadata` | object | Metadata with totalReturned and hasMore |
 | `success` | boolean | Operation success status |
 
 ### `hubspot_list_companies`
@@ -178,9 +292,34 @@ Retrieve all companies from HubSpot account with pagination support
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `companies` | array | Array of HubSpot company objects |
-| `paging` | object | Pagination information |
-| `metadata` | object | Metadata with totalReturned and hasMore |
+| `companies` | array | Array of HubSpot company records |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Company website domain \(unique identifier\) |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|   ↳ `phone` | string | Company phone number |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `address` | string | Street address |
+|   ↳ `numberofemployees` | string | Total number of employees |
+|   ↳ `annualrevenue` | string | Annual revenue estimate |
+|   ↳ `lifecyclestage` | string | Lifecycle stage |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|   ↳ `website` | string | Company website URL |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
 | `success` | boolean | Operation success status |
 
 ### `hubspot_get_company`
@@ -200,7 +339,28 @@ Retrieve a single company by ID or domain from HubSpot
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `company` | object | HubSpot company object with properties |
+| `company` | object | HubSpot company record |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Company website domain \(unique identifier\) |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|   ↳ `phone` | string | Company phone number |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `address` | string | Street address |
+|   ↳ `numberofemployees` | string | Total number of employees |
+|   ↳ `annualrevenue` | string | Annual revenue estimate |
+|   ↳ `lifecyclestage` | string | Lifecycle stage |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|   ↳ `website` | string | Company website URL |
 | `companyId` | string | The retrieved company ID |
 | `success` | boolean | Operation success status |
 
@@ -219,7 +379,28 @@ Create a new company in HubSpot
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `company` | object | Created HubSpot company object |
+| `company` | object | HubSpot company record |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Company website domain \(unique identifier\) |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|   ↳ `phone` | string | Company phone number |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `address` | string | Street address |
+|   ↳ `numberofemployees` | string | Total number of employees |
+|   ↳ `annualrevenue` | string | Annual revenue estimate |
+|   ↳ `lifecyclestage` | string | Lifecycle stage |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|   ↳ `website` | string | Company website URL |
 | `companyId` | string | The created company ID |
 | `success` | boolean | Operation success status |
 
@@ -239,7 +420,28 @@ Update an existing company in HubSpot by ID or domain
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `company` | object | Updated HubSpot company object |
+| `company` | object | HubSpot company record |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Company website domain \(unique identifier\) |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|   ↳ `phone` | string | Company phone number |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `address` | string | Street address |
+|   ↳ `numberofemployees` | string | Total number of employees |
+|   ↳ `annualrevenue` | string | Annual revenue estimate |
+|   ↳ `lifecyclestage` | string | Lifecycle stage |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|   ↳ `website` | string | Company website URL |
 | `companyId` | string | The updated company ID |
 | `success` | boolean | Operation success status |
 
@@ -262,10 +464,35 @@ Search for companies in HubSpot using filters, sorting, and queries
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `companies` | array | Array of matching HubSpot company objects |
+| `companies` | array | Array of HubSpot company records |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Company website domain \(unique identifier\) |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Industry type \(e.g., Airlines/Aviation\) |
+|   ↳ `phone` | string | Company phone number |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State/Region |
+|   ↳ `zip` | string | Postal/ZIP code |
+|   ↳ `country` | string | Country |
+|   ↳ `address` | string | Street address |
+|   ↳ `numberofemployees` | string | Total number of employees |
+|   ↳ `annualrevenue` | string | Annual revenue estimate |
+|   ↳ `lifecyclestage` | string | Lifecycle stage |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `hs_createdate` | string | Company creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `hs_additional_domains` | string | Additional domains \(semicolon-separated\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts \(auto-updated\) |
+|   ↳ `num_associated_deals` | string | Number of associated deals \(auto-updated\) |
+|   ↳ `website` | string | Company website URL |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
 | `total` | number | Total number of matching companies |
-| `paging` | object | Pagination information |
-| `metadata` | object | Metadata with totalReturned and hasMore |
 | `success` | boolean | Operation success status |
 
 ### `hubspot_list_deals`
@@ -285,9 +512,25 @@ Retrieve all deals from HubSpot account with pagination support
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `deals` | array | Array of HubSpot deal objects |
-| `paging` | object | Pagination information |
-| `metadata` | object | Metadata with totalReturned and hasMore |
+| `deals` | array | Array of HubSpot deal records |
+|   ↳ `dealname` | string | Deal name |
+|   ↳ `amount` | string | Deal amount |
+|   ↳ `dealstage` | string | Current deal stage |
+|   ↳ `pipeline` | string | Pipeline the deal is in |
+|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|   ↳ `description` | string | Deal description |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
 | `success` | boolean | Operation success status |
 
 

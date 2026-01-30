@@ -1,4 +1,5 @@
 import type { LinearGetProjectParams, LinearGetProjectResponse } from '@/tools/linear/types'
+import { PROJECT_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearGetProjectTool: ToolConfig<LinearGetProjectParams, LinearGetProjectResponse> = {
@@ -105,17 +106,7 @@ export const linearGetProjectTool: ToolConfig<LinearGetProjectParams, LinearGetP
     project: {
       type: 'object',
       description: 'The project with full details',
-      properties: {
-        id: { type: 'string', description: 'Project ID' },
-        name: { type: 'string', description: 'Project name' },
-        description: { type: 'string', description: 'Project description' },
-        state: { type: 'string', description: 'Project state' },
-        priority: { type: 'number', description: 'Project priority' },
-        startDate: { type: 'string', description: 'Start date' },
-        targetDate: { type: 'string', description: 'Target completion date' },
-        lead: { type: 'object', description: 'Project lead' },
-        teams: { type: 'array', description: 'Associated teams' },
-      },
+      properties: PROJECT_FULL_OUTPUT_PROPERTIES,
     },
   },
 }

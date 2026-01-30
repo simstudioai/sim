@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { ARTIST_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetArtistsParams {
   accessToken: string
@@ -77,6 +78,10 @@ export const spotifyGetArtistsTool: ToolConfig<SpotifyGetArtistsParams, SpotifyG
     },
 
     outputs: {
-      artists: { type: 'json', description: 'List of artists' },
+      artists: {
+        type: 'array',
+        description: 'List of artists',
+        items: { type: 'object', properties: ARTIST_OUTPUT_PROPERTIES },
+      },
     },
   }

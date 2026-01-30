@@ -100,49 +100,73 @@ export function hubspotSetupInstructions(eventType: string, additionalNotes?: st
 function buildBaseHubSpotOutputs(): Record<string, TriggerOutput> {
   return {
     payload: {
-      type: 'json',
+      type: 'array',
       description: 'Full webhook payload array from HubSpot containing event details',
+      items: {
+        type: 'object',
+        properties: {
+          objectId: { type: 'number', description: 'HubSpot object ID' },
+          subscriptionType: { type: 'string', description: 'Type of subscription event' },
+          portalId: { type: 'number', description: 'HubSpot portal ID' },
+          occurredAt: { type: 'number', description: 'Timestamp when event occurred (ms)' },
+          attemptNumber: { type: 'number', description: 'Webhook delivery attempt number' },
+          eventId: { type: 'number', description: 'Event ID' },
+          changeSource: { type: 'string', description: 'Source of the change' },
+          propertyName: {
+            type: 'string',
+            description: 'Property name (for propertyChange events)',
+          },
+          propertyValue: {
+            type: 'string',
+            description: 'New property value (for propertyChange events)',
+          },
+        },
+      },
     },
     provider: {
       type: 'string',
       description: 'Provider name (hubspot)',
     },
     providerConfig: {
-      appId: {
-        type: 'string',
-        description: 'HubSpot App ID',
-      },
-      clientId: {
-        type: 'string',
-        description: 'HubSpot Client ID',
-      },
-      triggerId: {
-        type: 'string',
-        description: 'Trigger ID (e.g., hubspot_company_created)',
-      },
-      clientSecret: {
-        type: 'string',
-        description: 'HubSpot Client Secret',
-      },
-      developerApiKey: {
-        type: 'string',
-        description: 'HubSpot Developer API Key',
-      },
-      curlSetWebhookUrl: {
-        type: 'string',
-        description: 'curl command to set webhook URL',
-      },
-      curlCreateSubscription: {
-        type: 'string',
-        description: 'curl command to create subscription',
-      },
-      webhookUrlDisplay: {
-        type: 'string',
-        description: 'Webhook URL display value',
-      },
-      propertyName: {
-        type: 'string',
-        description: 'Optional property name filter (for property change triggers)',
+      type: 'object',
+      description: 'Provider configuration',
+      properties: {
+        appId: {
+          type: 'string',
+          description: 'HubSpot App ID',
+        },
+        clientId: {
+          type: 'string',
+          description: 'HubSpot Client ID',
+        },
+        triggerId: {
+          type: 'string',
+          description: 'Trigger ID (e.g., hubspot_company_created)',
+        },
+        clientSecret: {
+          type: 'string',
+          description: 'HubSpot Client Secret',
+        },
+        developerApiKey: {
+          type: 'string',
+          description: 'HubSpot Developer API Key',
+        },
+        curlSetWebhookUrl: {
+          type: 'string',
+          description: 'curl command to set webhook URL',
+        },
+        curlCreateSubscription: {
+          type: 'string',
+          description: 'curl command to create subscription',
+        },
+        webhookUrlDisplay: {
+          type: 'string',
+          description: 'Webhook URL display value',
+        },
+        propertyName: {
+          type: 'string',
+          description: 'Optional property name filter (for property change triggers)',
+        },
       },
     },
   } as any

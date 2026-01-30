@@ -1,4 +1,10 @@
 import type { IssueResponse, UpdateIssueParams } from '@/tools/github/types'
+import {
+  ISSUE_OUTPUT_PROPERTIES,
+  LABEL_OUTPUT,
+  MILESTONE_OUTPUT,
+  USER_OUTPUT,
+} from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
@@ -168,18 +174,18 @@ export const updateIssueV2Tool: ToolConfig = {
     }
   },
   outputs: {
-    id: { type: 'number', description: 'Issue ID' },
-    number: { type: 'number', description: 'Issue number' },
-    title: { type: 'string', description: 'Issue title' },
-    state: { type: 'string', description: 'Issue state' },
-    html_url: { type: 'string', description: 'GitHub web URL' },
-    body: { type: 'string', description: 'Issue body', optional: true },
-    user: { type: 'json', description: 'User who created the issue' },
-    labels: { type: 'array', description: 'Array of label objects' },
-    assignees: { type: 'array', description: 'Array of assignee objects' },
-    milestone: { type: 'json', description: 'Milestone object', optional: true },
-    created_at: { type: 'string', description: 'Creation timestamp' },
-    updated_at: { type: 'string', description: 'Last update timestamp' },
-    closed_at: { type: 'string', description: 'Close timestamp', optional: true },
+    ...ISSUE_OUTPUT_PROPERTIES,
+    user: USER_OUTPUT,
+    labels: {
+      type: 'array',
+      description: 'Array of label objects',
+      items: LABEL_OUTPUT,
+    },
+    assignees: {
+      type: 'array',
+      description: 'Array of assignee objects',
+      items: USER_OUTPUT,
+    },
+    milestone: { ...MILESTONE_OUTPUT, optional: true },
   },
 }

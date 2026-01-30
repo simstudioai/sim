@@ -1,4 +1,5 @@
 import type { BranchResponse, GetBranchParams } from '@/tools/github/types'
+import { BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const getBranchTool: ToolConfig<GetBranchParams, BranchResponse> = {
@@ -114,9 +115,7 @@ export const getBranchV2Tool: ToolConfig<GetBranchParams, any> = {
   },
 
   outputs: {
-    name: { type: 'string', description: 'Branch name' },
-    commit: { type: 'json', description: 'Commit object with sha, url, etc.' },
-    protected: { type: 'boolean', description: 'Whether branch is protected' },
+    ...BRANCH_OUTPUT_PROPERTIES,
     protection: { type: 'json', description: 'Protection settings object' },
     protection_url: { type: 'string', description: 'URL to protection settings' },
   },

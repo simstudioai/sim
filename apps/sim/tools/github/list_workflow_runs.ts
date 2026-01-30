@@ -1,4 +1,11 @@
 import type { ListWorkflowRunsParams, ListWorkflowRunsResponse } from '@/tools/github/types'
+import {
+  HEAD_COMMIT_OUTPUT,
+  PR_REFERENCE_OUTPUT,
+  REFERENCED_WORKFLOW_OUTPUT,
+  USER_OUTPUT,
+  WORKFLOW_RUN_OUTPUT_PROPERTIES,
+} from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkflowRunsResponse> = {
@@ -220,22 +227,19 @@ export const listWorkflowRunsV2Tool: ToolConfig<ListWorkflowRunsParams, any> = {
       items: {
         type: 'object',
         properties: {
-          id: { type: 'number', description: 'Workflow run ID' },
-          name: { type: 'string', description: 'Workflow name' },
-          head_branch: { type: 'string', description: 'Branch name' },
-          head_sha: { type: 'string', description: 'Commit SHA' },
-          run_number: { type: 'number', description: 'Run number' },
-          event: { type: 'string', description: 'Trigger event' },
-          status: { type: 'string', description: 'Run status' },
-          conclusion: { type: 'string', description: 'Run conclusion', optional: true },
-          html_url: { type: 'string', description: 'GitHub web URL' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
-          triggering_actor: { type: 'json', description: 'User who triggered the run' },
-          pull_requests: { type: 'array', description: 'Associated pull requests' },
-          referenced_workflows: { type: 'array', description: 'Referenced workflows' },
-          head_commit: { type: 'json', description: 'Head commit information' },
-          run_started_at: { type: 'string', description: 'Run start timestamp' },
+          ...WORKFLOW_RUN_OUTPUT_PROPERTIES,
+          triggering_actor: USER_OUTPUT,
+          pull_requests: {
+            type: 'array',
+            description: 'Associated pull requests',
+            items: PR_REFERENCE_OUTPUT,
+          },
+          referenced_workflows: {
+            type: 'array',
+            description: 'Referenced workflows',
+            items: REFERENCED_WORKFLOW_OUTPUT,
+          },
+          head_commit: HEAD_COMMIT_OUTPUT,
         },
       },
     },

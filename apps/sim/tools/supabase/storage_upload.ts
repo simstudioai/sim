@@ -1,6 +1,7 @@
-import type {
-  SupabaseStorageUploadParams,
-  SupabaseStorageUploadResponse,
+import {
+  STORAGE_UPLOAD_OUTPUT_PROPERTIES,
+  type SupabaseStorageUploadParams,
+  type SupabaseStorageUploadResponse,
 } from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -88,6 +89,7 @@ export const storageUploadTool: ToolConfig<
     results: {
       type: 'object',
       description: 'Upload result including file path, bucket, and public URL',
+      properties: STORAGE_UPLOAD_OUTPUT_PROPERTIES,
     },
   },
 }

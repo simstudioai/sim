@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ShopifyGetProductParams, ShopifyProductResponse } from './types'
+import { PRODUCT_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyProductResponse> = {
   id: 'shopify_get_product',
@@ -122,6 +123,7 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
     product: {
       type: 'object',
       description: 'The product details',
+      properties: PRODUCT_OUTPUT_PROPERTIES,
     },
   },
 }

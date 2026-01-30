@@ -35,7 +35,7 @@ Integrate Serper into the workflow. Can search the web.
 
 ### `serper_search`
 
-A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, and images, with each result containing relevant metadata like titles, URLs, snippets, and type-specific information.
+A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, images, videos, and shopping. Returns comprehensive results including organic results, knowledge graph, answer box, people also ask, related searches, and top stories.
 
 #### Input
 
@@ -53,5 +53,17 @@ A powerful web search tool that provides access to Google search results through
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `searchResults` | array | Search results with titles, links, snippets, and type-specific metadata \(date for news, rating for places, imageUrl for images\) |
+|   ↳ `title` | string | Result title |
+|   ↳ `link` | string | Result URL |
+|   ↳ `snippet` | string | Result description/snippet |
+|   ↳ `position` | number | Position in search results |
+|   ↳ `date` | string | Publication date \(news/videos\) |
+|   ↳ `imageUrl` | string | Image URL \(images/news/shopping\) |
+|   ↳ `source` | string | Source name \(news/videos/shopping\) |
+|   ↳ `rating` | number | Rating \(places\) |
+|   ↳ `ratingCount` | number | Number of reviews \(places\) |
+|   ↳ `address` | string | Address \(places\) |
+|   ↳ `price` | string | Price \(shopping\) |
+|   ↳ `duration` | string | Duration \(videos\) |
 
 

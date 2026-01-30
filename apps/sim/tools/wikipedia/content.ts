@@ -3,6 +3,7 @@ import type {
   WikipediaPageContentParams,
   WikipediaPageContentResponse,
 } from '@/tools/wikipedia/types'
+import { WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES } from '@/tools/wikipedia/types'
 
 export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPageContentResponse> =
   {
@@ -61,13 +62,7 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
       content: {
         type: 'object',
         description: 'Full HTML content and metadata of the Wikipedia page',
-        properties: {
-          title: { type: 'string', description: 'Page title' },
-          pageid: { type: 'number', description: 'Wikipedia page ID' },
-          html: { type: 'string', description: 'Full HTML content of the page' },
-          revision: { type: 'number', description: 'Page revision number' },
-          timestamp: { type: 'string', description: 'Last modified timestamp' },
-        },
+        properties: WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES,
       },
     },
   }

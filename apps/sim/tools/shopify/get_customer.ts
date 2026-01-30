@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ShopifyCustomerResponse, ShopifyGetCustomerParams } from './types'
+import { CUSTOMER_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, ShopifyCustomerResponse> =
   {
@@ -128,6 +129,7 @@ export const shopifyGetCustomerTool: ToolConfig<ShopifyGetCustomerParams, Shopif
       customer: {
         type: 'object',
         description: 'The customer details',
+        properties: CUSTOMER_OUTPUT_PROPERTIES,
       },
     },
   }

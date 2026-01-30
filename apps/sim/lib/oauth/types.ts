@@ -41,6 +41,7 @@ export type OAuthProvider =
   | 'zoom'
   | 'wordpress'
   | 'spotify'
+  | 'calcom'
 
 export type OAuthService =
   | 'google'
@@ -81,6 +82,7 @@ export type OAuthService =
   | 'zoom'
   | 'wordpress'
   | 'spotify'
+  | 'calcom'
 
 export interface OAuthProviderConfig {
   name: string

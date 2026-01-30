@@ -1,4 +1,5 @@
 import type { LinearListUsersParams, LinearListUsersResponse } from '@/tools/linear/types'
+import { PAGE_INFO_OUTPUT, USER_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListUsersTool: ToolConfig<LinearListUsersParams, LinearListUsersResponse> = {
@@ -103,20 +104,9 @@ export const linearListUsersTool: ToolConfig<LinearListUsersParams, LinearListUs
       description: 'Array of workspace users',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'User ID' },
-          name: { type: 'string', description: 'User name' },
-          email: { type: 'string', description: 'User email' },
-          displayName: { type: 'string', description: 'Display name' },
-          active: { type: 'boolean', description: 'Whether user is active' },
-          admin: { type: 'boolean', description: 'Whether user is admin' },
-          avatarUrl: { type: 'string', description: 'Avatar URL' },
-        },
+        properties: USER_FULL_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

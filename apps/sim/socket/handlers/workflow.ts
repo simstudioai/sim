@@ -4,38 +4,12 @@ import { eq } from 'drizzle-orm'
 import { getWorkflowState } from '@/socket/database/operations'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
 import { verifyWorkflowAccess } from '@/socket/middleware/permissions'
-import type { RoomManager, UserPresence, WorkflowRoom } from '@/socket/rooms/manager'
+import type { IRoomManager, UserPresence } from '@/socket/rooms'
 
 const logger = createLogger('WorkflowHandlers')
 
-export type { UserPresence, WorkflowRoom }
-
-export interface HandlerDependencies {
-  roomManager: RoomManager
-}
-
-export const createWorkflowRoom = (workflowId: string): WorkflowRoom => ({
-  workflowId,
-  users: new Map(),
-  lastModified: Date.now(),
-  activeConnections: 0,
-})
-
-export const cleanupUserFromRoom = (
-  socketId: string,
-  workflowId: string,
-  roomManager: RoomManager
-) => {
-  roomManager.cleanupUserFromRoom(socketId, workflowId)
-}
-
-export function setupWorkflowHandlers(
-  socket: AuthenticatedSocket,
-  deps: HandlerDependencies | RoomManager
-) {
-  const roomManager =
-    deps instanceof Object && 'roomManager' in deps ? deps.roomManager : (deps as RoomManager)
-  socket.on('join-workflow', async ({ workflowId }) => {
+export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
+  socket.on('join-workflow', async ({ workflowId, tabSessionId }) => {
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -48,6 +22,7 @@ export function setupWorkflowHandlers(
 
       logger.info(`Join workflow request from ${userId} (${userName}) for workflow ${workflowId}`)
 
+      // Verify workflow access
       let userRole: string
       try {
         const accessInfo = await verifyWorkflowAccess(userId, workflowId)
@@ -63,23 +38,37 @@ export function setupWorkflowHandlers(
         return
       }
 
-      const currentWorkflowId = roomManager.getWorkflowIdForSocket(socket.id)
+      // Leave current room if in one
+      const currentWorkflowId = await roomManager.getWorkflowIdForSocket(socket.id)
       if (currentWorkflowId) {
         socket.leave(currentWorkflowId)
-        roomManager.cleanupUserFromRoom(socket.id, currentWorkflowId)
-
-        roomManager.broadcastPresenceUpdate(currentWorkflowId)
+        await roomManager.removeUserFromRoom(socket.id)
+        await roomManager.broadcastPresenceUpdate(currentWorkflowId)
       }
 
+      const STALE_THRESHOLD_MS = 60_000
+      const now = Date.now()
+      const existingUsers = await roomManager.getWorkflowUsers(workflowId)
+      for (const existingUser of existingUsers) {
+        if (existingUser.userId === userId && existingUser.socketId !== socket.id) {
+          const isSameTab = tabSessionId && existingUser.tabSessionId === tabSessionId
+          const isStale =
+            now - (existingUser.lastActivity || existingUser.joinedAt || 0) > STALE_THRESHOLD_MS
+
+          if (isSameTab || isStale) {
+            logger.info(
+              `Cleaning up socket ${existingUser.socketId} for user ${userId} (${isSameTab ? 'same tab' : 'stale'})`
+            )
+            await roomManager.removeUserFromRoom(existingUser.socketId)
+            roomManager.io.in(existingUser.socketId).socketsLeave(workflowId)
+          }
+        }
+      }
+
+      // Join the new room
       socket.join(workflowId)
 
-      if (!roomManager.hasWorkflowRoom(workflowId)) {
-        roomManager.setWorkflowRoom(workflowId, roomManager.createWorkflowRoom(workflowId))
-      }
-
-      const room = roomManager.getWorkflowRoom(workflowId)!
-      room.activeConnections++
-
+      // Get avatar URL
       let avatarUrl = socket.userImage || null
       if (!avatarUrl) {
         try {
@@ -95,54 +84,68 @@ export function setupWorkflowHandlers(
         }
       }
 
+      // Create presence entry
       const userPresence: UserPresence = {
         userId,
         workflowId,
         userName,
         socketId: socket.id,
+        tabSessionId,
         joinedAt: Date.now(),
         lastActivity: Date.now(),
         role: userRole,
         avatarUrl,
       }
 
-      room.users.set(socket.id, userPresence)
-      roomManager.setWorkflowForSocket(socket.id, workflowId)
-      roomManager.setUserSession(socket.id, {
-        userId,
-        userName,
-        avatarUrl,
+      // Add user to room
+      await roomManager.addUserToRoom(workflowId, socket.id, userPresence)
+
+      // Get current presence list for the join acknowledgment
+      const presenceUsers = await roomManager.getWorkflowUsers(workflowId)
+
+      // Get workflow state
+      const workflowState = await getWorkflowState(workflowId)
+
+      // Send join success with presence list (client waits for this to confirm join)
+      socket.emit('join-workflow-success', {
+        workflowId,
+        socketId: socket.id,
+        presenceUsers,
       })
 
-      const workflowState = await getWorkflowState(workflowId)
+      // Send workflow state
       socket.emit('workflow-state', workflowState)
 
-      roomManager.broadcastPresenceUpdate(workflowId)
+      // Broadcast presence update to all users in the room
+      await roomManager.broadcastPresenceUpdate(workflowId)
 
-      const uniqueUserCount = roomManager.getUniqueUserCount(workflowId)
+      const uniqueUserCount = await roomManager.getUniqueUserCount(workflowId)
       logger.info(
-        `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${uniqueUserCount} unique users (${room.activeConnections} connections).`
+        `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${uniqueUserCount} unique users.`
       )
     } catch (error) {
       logger.error('Error joining workflow:', error)
-      socket.emit('error', {
-        type: 'JOIN_ERROR',
-        message: 'Failed to join workflow',
-      })
+      // Undo socket.join and room manager entry if any operation failed
+      socket.leave(workflowId)
+      await roomManager.removeUserFromRoom(socket.id)
+      socket.emit('join-workflow-error', { error: 'Failed to join workflow' })
     }
   })
 
-  socket.on('leave-workflow', () => {
-    const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
-    const session = roomManager.getUserSession(socket.id)
+  socket.on('leave-workflow', async () => {
+    try {
+      const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      const session = await roomManager.getUserSession(socket.id)
 
-    if (workflowId && session) {
-      socket.leave(workflowId)
-      roomManager.cleanupUserFromRoom(socket.id, workflowId)
+      if (workflowId && session) {
+        socket.leave(workflowId)
+        await roomManager.removeUserFromRoom(socket.id)
+        await roomManager.broadcastPresenceUpdate(workflowId)
 
-      roomManager.broadcastPresenceUpdate(workflowId)
-
-      logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
+        logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
+      }
+    } catch (error) {
+      logger.error('Error leaving workflow:', error)
     }
   })
 }

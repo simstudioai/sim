@@ -2,6 +2,7 @@ import type {
   LinearListCustomerTiersParams,
   LinearListCustomerTiersResponse,
 } from '@/tools/linear/types'
+import { CUSTOMER_TIER_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListCustomerTiersTool: ToolConfig<
@@ -75,6 +76,10 @@ export const linearListCustomerTiersTool: ToolConfig<
     customerTiers: {
       type: 'array',
       description: 'List of customer tiers',
+      items: {
+        type: 'object',
+        properties: CUSTOMER_TIER_OUTPUT_PROPERTIES,
+      },
     },
   },
 }

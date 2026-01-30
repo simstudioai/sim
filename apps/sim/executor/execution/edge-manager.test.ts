@@ -2417,4 +2417,177 @@ describe('EdgeManager', () => {
       expect(successReady).toContain(targetId)
     })
   })
+
+  describe('Condition with loop downstream - deactivation propagation', () => {
+    it('should deactivate nodes after loop when condition branch containing loop is deactivated', () => {
+      // Scenario: condition → (if) → sentinel_start → loopBody → sentinel_end → (loop_exit) → after_loop
+      //                     → (else) → other_branch
+      // When condition takes "else" path, the entire if-branch including nodes after the loop should be deactivated
+      const conditionId = 'condition'
+      const sentinelStartId = 'sentinel-start'
+      const loopBodyId = 'loop-body'
+      const sentinelEndId = 'sentinel-end'
+      const afterLoopId = 'after-loop'
+      const otherBranchId = 'other-branch'
+
+      const conditionNode = createMockNode(conditionId, [
+        { target: sentinelStartId, sourceHandle: 'condition-if' },
+        { target: otherBranchId, sourceHandle: 'condition-else' },
+      ])
+
+      const sentinelStartNode = createMockNode(
+        sentinelStartId,
+        [{ target: loopBodyId }],
+        [conditionId]
+      )
+
+      const loopBodyNode = createMockNode(
+        loopBodyId,
+        [{ target: sentinelEndId }],
+        [sentinelStartId]
+      )
+
+      const sentinelEndNode = createMockNode(
+        sentinelEndId,
+        [
+          { target: sentinelStartId, sourceHandle: 'loop_continue' },
+          { target: afterLoopId, sourceHandle: 'loop_exit' },
+        ],
+        [loopBodyId]
+      )
+
+      const afterLoopNode = createMockNode(afterLoopId, [], [sentinelEndId])
+      const otherBranchNode = createMockNode(otherBranchId, [], [conditionId])
+
+      const nodes = new Map<string, DAGNode>([
+        [conditionId, conditionNode],
+        [sentinelStartId, sentinelStartNode],
+        [loopBodyId, loopBodyNode],
+        [sentinelEndId, sentinelEndNode],
+        [afterLoopId, afterLoopNode],
+        [otherBranchId, otherBranchNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      // Condition selects "else" branch, deactivating the "if" branch (which contains the loop)
+      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'else' })
+
+      // Only otherBranch should be ready
+      expect(readyNodes).toContain(otherBranchId)
+      expect(readyNodes).not.toContain(sentinelStartId)
+
+      // afterLoop should NOT be ready - its incoming edge from sentinel_end should be deactivated
+      expect(readyNodes).not.toContain(afterLoopId)
+
+      // Verify that countActiveIncomingEdges returns 0 for afterLoop
+      // (meaning the loop_exit edge was properly deactivated)
+      // Note: isNodeReady returns true when all edges are deactivated (no pending deps),
+      // but the node won't be in readyNodes since it wasn't reached via an active path
+      expect(edgeManager.isNodeReady(afterLoopNode)).toBe(true) // All edges deactivated = no blocking deps
+    })
+
+    it('should deactivate nodes after parallel when condition branch containing parallel is deactivated', () => {
+      // Similar scenario with parallel instead of loop
+      const conditionId = 'condition'
+      const parallelStartId = 'parallel-start'
+      const parallelBodyId = 'parallel-body'
+      const parallelEndId = 'parallel-end'
+      const afterParallelId = 'after-parallel'
+      const otherBranchId = 'other-branch'
+
+      const conditionNode = createMockNode(conditionId, [
+        { target: parallelStartId, sourceHandle: 'condition-if' },
+        { target: otherBranchId, sourceHandle: 'condition-else' },
+      ])
+
+      const parallelStartNode = createMockNode(
+        parallelStartId,
+        [{ target: parallelBodyId }],
+        [conditionId]
+      )
+
+      const parallelBodyNode = createMockNode(
+        parallelBodyId,
+        [{ target: parallelEndId }],
+        [parallelStartId]
+      )
+
+      const parallelEndNode = createMockNode(
+        parallelEndId,
+        [{ target: afterParallelId, sourceHandle: 'parallel_exit' }],
+        [parallelBodyId]
+      )
+
+      const afterParallelNode = createMockNode(afterParallelId, [], [parallelEndId])
+      const otherBranchNode = createMockNode(otherBranchId, [], [conditionId])
+
+      const nodes = new Map<string, DAGNode>([
+        [conditionId, conditionNode],
+        [parallelStartId, parallelStartNode],
+        [parallelBodyId, parallelBodyNode],
+        [parallelEndId, parallelEndNode],
+        [afterParallelId, afterParallelNode],
+        [otherBranchId, otherBranchNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      // Condition selects "else" branch
+      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, { selectedOption: 'else' })
+
+      expect(readyNodes).toContain(otherBranchId)
+      expect(readyNodes).not.toContain(parallelStartId)
+      expect(readyNodes).not.toContain(afterParallelId)
+      // isNodeReady returns true when all edges are deactivated (no pending deps)
+      expect(edgeManager.isNodeReady(afterParallelNode)).toBe(true)
+    })
+
+    it('should still correctly handle normal loop exit (not deactivate when loop runs)', () => {
+      // When a loop actually executes and exits normally, after_loop should become ready
+      const sentinelStartId = 'sentinel-start'
+      const loopBodyId = 'loop-body'
+      const sentinelEndId = 'sentinel-end'
+      const afterLoopId = 'after-loop'
+
+      const sentinelStartNode = createMockNode(sentinelStartId, [{ target: loopBodyId }])
+
+      const loopBodyNode = createMockNode(
+        loopBodyId,
+        [{ target: sentinelEndId }],
+        [sentinelStartId]
+      )
+
+      const sentinelEndNode = createMockNode(
+        sentinelEndId,
+        [
+          { target: sentinelStartId, sourceHandle: 'loop_continue' },
+          { target: afterLoopId, sourceHandle: 'loop_exit' },
+        ],
+        [loopBodyId]
+      )
+
+      const afterLoopNode = createMockNode(afterLoopId, [], [sentinelEndId])
+
+      const nodes = new Map<string, DAGNode>([
+        [sentinelStartId, sentinelStartNode],
+        [loopBodyId, loopBodyNode],
+        [sentinelEndId, sentinelEndNode],
+        [afterLoopId, afterLoopNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      // Simulate sentinel_end completing with loop_exit (loop is done)
+      const readyNodes = edgeManager.processOutgoingEdges(sentinelEndNode, {
+        selectedRoute: 'loop_exit',
+      })
+
+      // afterLoop should be ready
+      expect(readyNodes).toContain(afterLoopId)
+    })
+  })
 })

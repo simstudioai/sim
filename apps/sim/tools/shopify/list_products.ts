@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ShopifyListProductsParams, ShopifyProductsResponse } from './types'
+import { PAGE_INFO_OUTPUT_PROPERTIES, PRODUCT_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyListProductsTool: ToolConfig<
   ShopifyListProductsParams,
@@ -142,10 +143,15 @@ export const shopifyListProductsTool: ToolConfig<
     products: {
       type: 'array',
       description: 'List of products',
+      items: {
+        type: 'object',
+        properties: PRODUCT_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
+      properties: PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -1,4 +1,8 @@
-import type { SupabaseStorageCopyParams, SupabaseStorageCopyResponse } from '@/tools/supabase/types'
+import {
+  STORAGE_MOVE_OUTPUT_PROPERTIES,
+  type SupabaseStorageCopyParams,
+  type SupabaseStorageCopyResponse,
+} from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageCopyTool: ToolConfig<SupabaseStorageCopyParams, SupabaseStorageCopyResponse> = {
@@ -82,6 +86,7 @@ export const storageCopyTool: ToolConfig<SupabaseStorageCopyParams, SupabaseStor
     results: {
       type: 'object',
       description: 'Copy operation result',
+      properties: STORAGE_MOVE_OUTPUT_PROPERTIES,
     },
   },
 }

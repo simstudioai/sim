@@ -1,4 +1,5 @@
 import type { SttParams, SttResponse } from '@/tools/stt/types'
+import { STT_SEGMENT_OUTPUT_PROPERTIES } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const deepgramSttTool: ToolConfig<SttParams, SttResponse> = {
@@ -117,7 +118,14 @@ export const deepgramSttTool: ToolConfig<SttParams, SttResponse> = {
 
   outputs: {
     transcript: { type: 'string', description: 'Full transcribed text' },
-    segments: { type: 'array', description: 'Timestamped segments with speaker labels' },
+    segments: {
+      type: 'array',
+      description: 'Timestamped segments with speaker labels',
+      items: {
+        type: 'object',
+        properties: STT_SEGMENT_OUTPUT_PROPERTIES,
+      },
+    },
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
     confidence: { type: 'number', description: 'Overall confidence score' },

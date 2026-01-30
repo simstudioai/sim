@@ -9,6 +9,7 @@ import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
+import { CalComBlock } from '@/blocks/blocks/calcom'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock } from '@/blocks/blocks/circleback'
@@ -111,6 +112,7 @@ import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
+import { SimilarwebBlock } from '@/blocks/blocks/similarweb'
 import { SlackBlock } from '@/blocks/blocks/slack'
 import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SpotifyBlock } from '@/blocks/blocks/spotify'
@@ -165,6 +167,7 @@ export const registry: Record<string, BlockConfig> = {
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   browser_use: BrowserUseBlock,
+  calcom: CalComBlock,
   calendly: CalendlyBlock,
   chat_trigger: ChatTriggerBlock,
   circleback: CirclebackBlock,
@@ -280,6 +283,7 @@ export const registry: Record<string, BlockConfig> = {
   sftp: SftpBlock,
   sharepoint: SharepointBlock,
   shopify: ShopifyBlock,
+  similarweb: SimilarwebBlock,
   slack: SlackBlock,
   smtp: SmtpBlock,
   spotify: SpotifyBlock,

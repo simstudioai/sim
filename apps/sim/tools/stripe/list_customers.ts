@@ -1,4 +1,5 @@
 import type { CustomerListResponse, ListCustomersParams } from '@/tools/stripe/types'
+import { CUSTOMER_OUTPUT, LIST_METADATA_OUTPUT_PROPERTIES } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeListCustomersTool: ToolConfig<ListCustomersParams, CustomerListResponse> = {
@@ -69,17 +70,14 @@ export const stripeListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
 
   outputs: {
     customers: {
-      type: 'json',
+      type: 'array',
       description: 'Array of customer objects',
+      items: CUSTOMER_OUTPUT,
     },
     metadata: {
       type: 'json',
       description: 'List metadata',
-
-      properties: {
-        count: { type: 'number', description: 'Number of items returned' },
-        has_more: { type: 'boolean', description: 'Whether more items exist beyond this page' },
-      },
+      properties: LIST_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

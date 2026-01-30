@@ -1,3 +1,4 @@
+import { SEARCH_RESULT_ITEM_PROPERTIES } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceSearchParams {
@@ -101,6 +102,13 @@ export const confluenceSearchTool: ToolConfig<ConfluenceSearchParams, Confluence
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of search' },
-    results: { type: 'array', description: 'Search results' },
+    results: {
+      type: 'array',
+      description: 'Array of search results',
+      items: {
+        type: 'object',
+        properties: SEARCH_RESULT_ITEM_PROPERTIES,
+      },
+    },
   },
 }

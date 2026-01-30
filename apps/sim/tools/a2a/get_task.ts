@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { A2AGetTaskParams, A2AGetTaskResponse } from './types'
+import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = {
   id: 'a2a_get_task',
@@ -55,25 +56,10 @@ export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = 
   },
 
   outputs: {
-    taskId: {
-      type: 'string',
-      description: 'Task ID',
-    },
-    contextId: {
-      type: 'string',
-      description: 'Context ID',
-    },
-    state: {
-      type: 'string',
-      description: 'Task state',
-    },
-    artifacts: {
-      type: 'array',
-      description: 'Output artifacts',
-    },
-    history: {
-      type: 'array',
-      description: 'Message history',
-    },
+    taskId: A2A_OUTPUT_PROPERTIES.taskId,
+    contextId: A2A_OUTPUT_PROPERTIES.contextId,
+    state: A2A_OUTPUT_PROPERTIES.state,
+    artifacts: A2A_OUTPUT_PROPERTIES.artifacts,
+    history: A2A_OUTPUT_PROPERTIES.history,
   },
 }

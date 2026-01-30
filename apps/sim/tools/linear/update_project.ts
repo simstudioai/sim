@@ -1,4 +1,5 @@
 import type { LinearUpdateProjectParams, LinearUpdateProjectResponse } from '@/tools/linear/types'
+import { PROJECT_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateProjectTool: ToolConfig<
@@ -183,17 +184,7 @@ export const linearUpdateProjectTool: ToolConfig<
     project: {
       type: 'object',
       description: 'The updated project',
-      properties: {
-        id: { type: 'string', description: 'Project ID' },
-        name: { type: 'string', description: 'Project name' },
-        description: { type: 'string', description: 'Project description' },
-        state: { type: 'string', description: 'Project state' },
-        priority: { type: 'number', description: 'Project priority' },
-        startDate: { type: 'string', description: 'Project start date' },
-        targetDate: { type: 'string', description: 'Project target date' },
-        lead: { type: 'object', description: 'Project lead' },
-        teams: { type: 'array', description: 'Associated teams' },
-      },
+      properties: PROJECT_FULL_OUTPUT_PROPERTIES,
     },
   },
 }

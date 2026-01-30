@@ -14,6 +14,8 @@ interface KeyboardNavigationHandlerProps {
   flatTagList: Array<{ tag: string; group?: BlockTagGroup }>
   nestedBlockTagGroups: NestedBlockTagGroup[]
   handleTagSelect: (tag: string, group?: BlockTagGroup) => void
+  /** Called when entering a folder from root level via keyboard navigation */
+  onFolderEnter?: () => void
 }
 
 /**
@@ -107,6 +109,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
   flatTagList,
   nestedBlockTagGroups,
   handleTagSelect,
+  onFolderEnter,
 }) => {
   const { openFolder, closeFolder, isInFolder, currentFolder, setKeyboardNav } = usePopoverContext()
   const nestedNav = useNestedNavigation()
@@ -251,7 +254,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
             } else if (currentVisibleIndex < visibleIndices.length - 1) {
               newIndex = visibleIndices[currentVisibleIndex + 1]
             } else {
-              newIndex = visibleIndices[0]
+              newIndex = selectedIndex
             }
             setSelectedIndex(newIndex)
             scrollIntoView()
@@ -269,7 +272,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
             } else if (currentVisibleIndex > 0) {
               newIndex = visibleIndices[currentVisibleIndex - 1]
             } else {
-              newIndex = visibleIndices[visibleIndices.length - 1]
+              newIndex = selectedIndex
             }
             setSelectedIndex(newIndex)
             scrollIntoView()
@@ -295,6 +298,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
                 currentFolderInfo.parentTag,
                 currentFolderInfo.group
               )
+              onFolderEnter?.()
             }
           }
           break
@@ -346,6 +350,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     handleTagSelect,
     nestedNav,
     setKeyboardNav,
+    onFolderEnter,
   ])
 
   return null

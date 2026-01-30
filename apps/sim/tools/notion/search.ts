@@ -1,4 +1,5 @@
 import type { NotionResponse, NotionSearchParams } from '@/tools/notion/types'
+import { PAGINATION_OUTPUT_PROPERTIES, SEARCH_RESULTS_OUTPUT } from '@/tools/notion/types'
 import { extractTitleFromItem } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -130,6 +131,12 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
       type: 'object',
       description:
         'Search metadata including total results count, pagination info, and raw results array',
+      properties: {
+        totalResults: { type: 'number', description: 'Number of results returned' },
+        hasMore: PAGINATION_OUTPUT_PROPERTIES.has_more,
+        nextCursor: PAGINATION_OUTPUT_PROPERTIES.next_cursor,
+        results: SEARCH_RESULTS_OUTPUT,
+      },
     },
   },
 }
@@ -170,22 +177,9 @@ export const notionSearchV2Tool: ToolConfig<NotionSearchParams, NotionSearchV2Re
   },
 
   outputs: {
-    results: {
-      type: 'array',
-      description: 'Array of search results (pages and databases)',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Object ID' },
-          object: { type: 'string', description: 'Object type (page or database)' },
-          url: { type: 'string', description: 'Object URL' },
-          created_time: { type: 'string', description: 'Creation timestamp' },
-          last_edited_time: { type: 'string', description: 'Last edit timestamp' },
-        },
-      },
-    },
-    has_more: { type: 'boolean', description: 'Whether more results are available' },
-    next_cursor: { type: 'string', description: 'Cursor for pagination', optional: true },
+    results: SEARCH_RESULTS_OUTPUT,
+    has_more: PAGINATION_OUTPUT_PROPERTIES.has_more,
+    next_cursor: PAGINATION_OUTPUT_PROPERTIES.next_cursor,
     total_results: { type: 'number', description: 'Number of results returned' },
   },
 }

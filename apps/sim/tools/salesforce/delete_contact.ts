@@ -3,6 +3,7 @@ import type {
   SalesforceDeleteContactParams,
   SalesforceDeleteContactResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -65,10 +66,7 @@ export const salesforceDeleteContactTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Deleted contact data',
-      properties: {
-        id: { type: 'string', description: 'Deleted contact ID' },
-        deleted: { type: 'boolean', description: 'Whether contact was deleted' },
-      },
+      properties: SOBJECT_DELETE_OUTPUT_PROPERTIES,
     },
   },
 }

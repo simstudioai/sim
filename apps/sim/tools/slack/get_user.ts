@@ -1,4 +1,5 @@
 import type { SlackGetUserParams, SlackGetUserResponse } from '@/tools/slack/types'
+import { USER_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackGetUserTool: ToolConfig<SlackGetUserParams, SlackGetUserResponse> = {
@@ -114,42 +115,7 @@ export const slackGetUserTool: ToolConfig<SlackGetUserParams, SlackGetUserRespon
     user: {
       type: 'object',
       description: 'Detailed user information',
-      properties: {
-        id: { type: 'string', description: 'User ID' },
-        name: { type: 'string', description: 'Username (handle)' },
-        real_name: { type: 'string', description: 'Full real name' },
-        display_name: { type: 'string', description: 'Display name shown in Slack' },
-        first_name: { type: 'string', description: 'First name' },
-        last_name: { type: 'string', description: 'Last name' },
-        title: { type: 'string', description: 'Job title' },
-        phone: { type: 'string', description: 'Phone number' },
-        skype: { type: 'string', description: 'Skype handle' },
-        is_bot: { type: 'boolean', description: 'Whether the user is a bot' },
-        is_admin: { type: 'boolean', description: 'Whether the user is a workspace admin' },
-        is_owner: { type: 'boolean', description: 'Whether the user is the workspace owner' },
-        is_primary_owner: { type: 'boolean', description: 'Whether the user is the primary owner' },
-        is_restricted: { type: 'boolean', description: 'Whether the user is a guest (restricted)' },
-        is_ultra_restricted: {
-          type: 'boolean',
-          description: 'Whether the user is a single-channel guest',
-        },
-        deleted: { type: 'boolean', description: 'Whether the user is deactivated' },
-        timezone: {
-          type: 'string',
-          description: 'Timezone identifier (e.g., America/Los_Angeles)',
-        },
-        timezone_label: { type: 'string', description: 'Human-readable timezone label' },
-        timezone_offset: { type: 'number', description: 'Timezone offset in seconds from UTC' },
-        avatar_24: { type: 'string', description: 'URL to 24px avatar' },
-        avatar_48: { type: 'string', description: 'URL to 48px avatar' },
-        avatar_72: { type: 'string', description: 'URL to 72px avatar' },
-        avatar_192: { type: 'string', description: 'URL to 192px avatar' },
-        avatar_512: { type: 'string', description: 'URL to 512px avatar' },
-        status_text: { type: 'string', description: 'Custom status text' },
-        status_emoji: { type: 'string', description: 'Custom status emoji' },
-        status_expiration: { type: 'number', description: 'Unix timestamp when status expires' },
-        updated: { type: 'number', description: 'Unix timestamp of last profile update' },
-      },
+      properties: USER_OUTPUT_PROPERTIES,
     },
   },
 }

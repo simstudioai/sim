@@ -5,7 +5,12 @@ import type {
   KalshiPaginationParams,
   KalshiPagingInfo,
 } from './types'
-import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from './types'
+import {
+  buildKalshiAuthHeaders,
+  buildKalshiUrl,
+  handleKalshiError,
+  KALSHI_FILL_OUTPUT_PROPERTIES,
+} from './types'
 
 export interface KalshiGetFillsParams extends KalshiAuthParams, KalshiPaginationParams {
   ticker?: string
@@ -124,6 +129,10 @@ export const kalshiGetFillsTool: ToolConfig<KalshiGetFillsParams, KalshiGetFills
     fills: {
       type: 'array',
       description: 'Array of fill/trade objects',
+      items: {
+        type: 'object',
+        properties: KALSHI_FILL_OUTPUT_PROPERTIES,
+      },
     },
     paging: {
       type: 'object',
@@ -299,25 +308,9 @@ export const kalshiGetFillsV2Tool: ToolConfig<KalshiGetFillsV2Params, KalshiGetF
     fills: {
       type: 'array',
       description: 'Array of fill/trade objects with all API fields',
-      properties: {
-        fill_id: { type: 'string', description: 'Fill ID' },
-        trade_id: { type: 'string', description: 'Trade ID (same as fill_id)' },
-        order_id: { type: 'string', description: 'Order ID' },
-        client_order_id: { type: 'string', description: 'Client order ID' },
-        ticker: { type: 'string', description: 'Market ticker' },
-        market_ticker: { type: 'string', description: 'Market ticker (legacy)' },
-        side: { type: 'string', description: 'Side (yes/no)' },
-        action: { type: 'string', description: 'Action (buy/sell)' },
-        count: { type: 'number', description: 'Number of contracts' },
-        count_fp: { type: 'string', description: 'Count (fixed-point)' },
-        price: { type: 'number', description: 'Price (deprecated)' },
-        yes_price: { type: 'number', description: 'Yes price in cents' },
-        no_price: { type: 'number', description: 'No price in cents' },
-        yes_price_fixed: { type: 'string', description: 'Yes price in dollars' },
-        no_price_fixed: { type: 'string', description: 'No price in dollars' },
-        is_taker: { type: 'boolean', description: 'Whether fill was taker' },
-        created_time: { type: 'string', description: 'Fill creation time' },
-        ts: { type: 'number', description: 'Unix timestamp (milliseconds)' },
+      items: {
+        type: 'object',
+        properties: KALSHI_FILL_OUTPUT_PROPERTIES,
       },
     },
     cursor: {

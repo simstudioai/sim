@@ -1,4 +1,5 @@
 import type { PROperationParams, PullRequestResponse } from '@/tools/github/types'
+import { BRANCH_REF_OUTPUT, PR_FILE_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
@@ -46,9 +47,6 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
 
   transformResponse: async (response) => {
     const pr = await response.json()
-
-    const diffResponse = await fetch(pr.diff_url)
-    const _diff = await diffResponse.text()
 
     const filesResponse = await fetch(
       `https://api.github.com/repos/${pr.base.repo.owner.login}/${pr.base.repo.name}/pulls/${pr.number}/files`
@@ -177,13 +175,13 @@ export const prV2Tool: ToolConfig<PROperationParams, any> = {
     state: { type: 'string', description: 'PR state (open/closed)' },
     html_url: { type: 'string', description: 'GitHub web URL' },
     diff_url: { type: 'string', description: 'Raw diff URL' },
-    body: { type: 'string', description: 'PR description', optional: true },
-    user: { type: 'json', description: 'User who created the PR' },
-    head: { type: 'json', description: 'Head branch info' },
-    base: { type: 'json', description: 'Base branch info' },
+    body: { type: 'string', description: 'PR description' },
+    user: USER_OUTPUT,
+    head: BRANCH_REF_OUTPUT,
+    base: BRANCH_REF_OUTPUT,
     merged: { type: 'boolean', description: 'Whether PR is merged' },
-    mergeable: { type: 'boolean', description: 'Whether PR is mergeable', optional: true },
-    merged_by: { type: 'json', description: 'User who merged the PR', optional: true },
+    mergeable: { type: 'boolean', description: 'Whether PR is mergeable' },
+    merged_by: USER_OUTPUT,
     comments: { type: 'number', description: 'Number of comments' },
     review_comments: { type: 'number', description: 'Number of review comments' },
     commits: { type: 'number', description: 'Number of commits' },
@@ -192,8 +190,15 @@ export const prV2Tool: ToolConfig<PROperationParams, any> = {
     changed_files: { type: 'number', description: 'Number of changed files' },
     created_at: { type: 'string', description: 'Creation timestamp' },
     updated_at: { type: 'string', description: 'Last update timestamp' },
-    closed_at: { type: 'string', description: 'Close timestamp', optional: true },
-    merged_at: { type: 'string', description: 'Merge timestamp', optional: true },
-    files: { type: 'array', description: 'Array of changed file objects' },
+    closed_at: { type: 'string', description: 'Close timestamp' },
+    merged_at: { type: 'string', description: 'Merge timestamp' },
+    files: {
+      type: 'array',
+      description: 'Array of changed file objects',
+      items: {
+        type: 'object',
+        properties: PR_FILE_OUTPUT_PROPERTIES,
+      },
+    },
   },
 }

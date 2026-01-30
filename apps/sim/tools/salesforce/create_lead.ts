@@ -2,6 +2,7 @@ import type {
   SalesforceCreateLeadParams,
   SalesforceCreateLeadResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -103,11 +104,7 @@ export const salesforceCreateLeadTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Created lead data',
-      properties: {
-        id: { type: 'string', description: 'Created lead ID' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-        created: { type: 'boolean', description: 'Whether lead was created' },
-      },
+      properties: SOBJECT_CREATE_OUTPUT_PROPERTIES,
     },
   },
 }

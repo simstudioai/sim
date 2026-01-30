@@ -1,4 +1,5 @@
 import type { SlackAddReactionParams, SlackAddReactionResponse } from '@/tools/slack/types'
+import { REACTION_METADATA_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackAddReactionTool: ToolConfig<SlackAddReactionParams, SlackAddReactionResponse> = {
@@ -97,11 +98,7 @@ export const slackAddReactionTool: ToolConfig<SlackAddReactionParams, SlackAddRe
     metadata: {
       type: 'object',
       description: 'Reaction metadata',
-      properties: {
-        channel: { type: 'string', description: 'Channel ID' },
-        timestamp: { type: 'string', description: 'Message timestamp' },
-        reaction: { type: 'string', description: 'Emoji reaction name' },
-      },
+      properties: REACTION_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

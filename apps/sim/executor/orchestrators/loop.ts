@@ -281,9 +281,12 @@ export class LoopOrchestrator {
 
     // Emit onBlockComplete for the loop container so the UI can track it
     if (this.contextExtensions?.onBlockComplete) {
+      const now = new Date().toISOString()
       this.contextExtensions.onBlockComplete(loopId, 'Loop', 'loop', {
         output,
         executionTime: DEFAULTS.EXECUTION_TIME,
+        startedAt: now,
+        endedAt: now,
       })
     }
 

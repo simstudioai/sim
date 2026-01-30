@@ -1,4 +1,5 @@
 import type { QdrantFetchParams, QdrantResponse } from '@/tools/qdrant/types'
+import { POINT_OUTPUT_PROPERTIES, QDRANT_RESPONSE_OUTPUT_PROPERTIES } from '@/tools/qdrant/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
@@ -108,10 +109,11 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
     data: {
       type: 'array',
       description: 'Fetched points with ID, payload, and optional vector data',
+      items: {
+        type: 'object',
+        properties: POINT_OUTPUT_PROPERTIES,
+      },
     },
-    status: {
-      type: 'string',
-      description: 'Status of the fetch operation',
-    },
+    status: QDRANT_RESPONSE_OUTPUT_PROPERTIES.status,
   },
 }

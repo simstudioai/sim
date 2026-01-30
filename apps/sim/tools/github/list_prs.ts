@@ -1,4 +1,5 @@
 import type { ListPRsParams, PRListResponse } from '@/tools/github/types'
+import { BRANCH_REF_OUTPUT, PR_SUMMARY_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const listPRsTool: ToolConfig<ListPRsParams, PRListResponse> = {
@@ -178,16 +179,10 @@ export const listPRsV2Tool: ToolConfig<ListPRsParams, any> = {
       items: {
         type: 'object',
         properties: {
-          id: { type: 'number', description: 'PR ID' },
-          number: { type: 'number', description: 'PR number' },
-          title: { type: 'string', description: 'PR title' },
-          state: { type: 'string', description: 'PR state' },
-          html_url: { type: 'string', description: 'GitHub web URL' },
-          user: { type: 'object', description: 'Author object' },
-          head: { type: 'object', description: 'Head branch info' },
-          base: { type: 'object', description: 'Base branch info' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
+          ...PR_SUMMARY_OUTPUT_PROPERTIES,
+          user: USER_OUTPUT,
+          head: BRANCH_REF_OUTPUT,
+          base: BRANCH_REF_OUTPUT,
         },
       },
     },

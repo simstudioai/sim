@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import { buildZendeskUrl, handleZendeskError, ORGANIZATION_OUTPUT_PROPERTIES } from './types'
 
 const logger = createLogger('ZendeskCreateOrganization')
 
@@ -145,7 +145,11 @@ export const zendeskCreateOrganizationTool: ToolConfig<
   },
 
   outputs: {
-    organization: { type: 'json', description: 'Created organization object' },
+    organization: {
+      type: 'object',
+      description: 'Created organization object',
+      properties: ORGANIZATION_OUTPUT_PROPERTIES,
+    },
     organization_id: { type: 'number', description: 'The created organization ID' },
   },
 }

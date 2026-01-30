@@ -179,6 +179,27 @@ Introspect PostgreSQL database schema to retrieve table structures, columns, and
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `tables` | array | Array of table schemas with columns, keys, and indexes |
+|   ↳ `name` | string | Table name |
+|   ↳ `schema` | string | Schema name \(e.g., public\) |
+|   ↳ `columns` | array | Table columns |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Data type \(e.g., integer, varchar, timestamp\) |
+|     ↳ `nullable` | boolean | Whether the column allows NULL values |
+|     ↳ `default` | string | Default value expression |
+|     ↳ `isPrimaryKey` | boolean | Whether the column is part of the primary key |
+|     ↳ `isForeignKey` | boolean | Whether the column is a foreign key |
+|     ↳ `references` | object | Foreign key reference information |
+|       ↳ `table` | string | Referenced table name |
+|       ↳ `column` | string | Referenced column name |
+|   ↳ `primaryKey` | array | Primary key column names |
+|   ↳ `foreignKeys` | array | Foreign key constraints |
+|     ↳ `column` | string | Local column name |
+|     ↳ `referencesTable` | string | Referenced table name |
+|     ↳ `referencesColumn` | string | Referenced column name |
+|   ↳ `indexes` | array | Table indexes |
+|     ↳ `name` | string | Index name |
+|     ↳ `columns` | array | Columns included in the index |
+|     ↳ `unique` | boolean | Whether the index enforces uniqueness |
 | `schemas` | array | List of available schemas in the database |
 
 

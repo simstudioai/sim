@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { A2AGetAgentCardParams, A2AGetAgentCardResponse } from './types'
+import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AGetAgentCardResponse> = {
   id: 'a2a_get_agent_card',
@@ -42,37 +43,14 @@ export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AGetAgentC
   },
 
   outputs: {
-    name: {
-      type: 'string',
-      description: 'Agent name',
-    },
-    description: {
-      type: 'string',
-      description: 'Agent description',
-    },
-    url: {
-      type: 'string',
-      description: 'Agent endpoint URL',
-    },
-    version: {
-      type: 'string',
-      description: 'Agent version',
-    },
-    capabilities: {
-      type: 'object',
-      description: 'Agent capabilities (streaming, pushNotifications, etc.)',
-    },
-    skills: {
-      type: 'array',
-      description: 'Skills the agent can perform',
-    },
-    defaultInputModes: {
-      type: 'array',
-      description: 'Default input modes (text, file, data)',
-    },
-    defaultOutputModes: {
-      type: 'array',
-      description: 'Default output modes (text, file, data)',
-    },
+    name: A2A_OUTPUT_PROPERTIES.agentName,
+    description: A2A_OUTPUT_PROPERTIES.agentDescription,
+    url: A2A_OUTPUT_PROPERTIES.agentEndpoint,
+    provider: A2A_OUTPUT_PROPERTIES.agentProvider,
+    capabilities: A2A_OUTPUT_PROPERTIES.agentCapabilities,
+    skills: A2A_OUTPUT_PROPERTIES.agentSkills,
+    version: A2A_OUTPUT_PROPERTIES.version,
+    defaultInputModes: A2A_OUTPUT_PROPERTIES.defaultInputModes,
+    defaultOutputModes: A2A_OUTPUT_PROPERTIES.defaultOutputModes,
   },
 }

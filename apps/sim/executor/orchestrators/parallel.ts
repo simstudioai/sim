@@ -265,9 +265,12 @@ export class ParallelOrchestrator {
 
     // Emit onBlockComplete for the parallel container so the UI can track it
     if (this.contextExtensions?.onBlockComplete) {
+      const now = new Date().toISOString()
       this.contextExtensions.onBlockComplete(parallelId, 'Parallel', 'parallel', {
         output,
         executionTime: 0,
+        startedAt: now,
+        endedAt: now,
       })
     }
 

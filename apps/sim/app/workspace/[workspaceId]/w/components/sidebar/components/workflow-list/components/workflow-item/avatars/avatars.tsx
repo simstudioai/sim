@@ -51,7 +51,7 @@ function UserAvatar({ user, index }: UserAvatarProps) {
       )}
       <AvatarFallback
         style={{ background: color }}
-        className='border-0 font-semibold text-[7px] text-white'
+        className='border-0 font-semibold text-[7px] text-white leading-none'
       >
         {initials}
       </AvatarFallback>
@@ -132,7 +132,7 @@ export function Avatars({ workflowId }: AvatarsProps) {
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Avatar size='xs' style={{ zIndex: 0 } as CSSProperties}>
-              <AvatarFallback className='border-0 bg-[#404040] font-semibold text-[7px] text-white'>
+              <AvatarFallback className='border-0 bg-[#404040] font-semibold text-[7px] text-white leading-none'>
                 +{overflowCount}
               </AvatarFallback>
             </Avatar>

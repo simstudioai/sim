@@ -1,6 +1,7 @@
-import type {
-  SupabaseStorageCreateBucketParams,
-  SupabaseStorageCreateBucketResponse,
+import {
+  STORAGE_CREATE_BUCKET_OUTPUT_PROPERTIES,
+  type SupabaseStorageCreateBucketParams,
+  type SupabaseStorageCreateBucketResponse,
 } from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -104,6 +105,7 @@ export const storageCreateBucketTool: ToolConfig<
     results: {
       type: 'object',
       description: 'Created bucket information',
+      properties: STORAGE_CREATE_BUCKET_OUTPUT_PROPERTIES,
     },
   },
 }

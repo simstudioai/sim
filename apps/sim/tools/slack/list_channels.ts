@@ -1,4 +1,5 @@
 import type { SlackListChannelsParams, SlackListChannelsResponse } from '@/tools/slack/types'
+import { CHANNEL_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackListChannelsResponse> =
@@ -130,30 +131,18 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
         description: 'Array of channel objects from the workspace',
         items: {
           type: 'object',
-          properties: {
-            id: { type: 'string', description: 'Channel ID (e.g., C1234567890)' },
-            name: { type: 'string', description: 'Channel name without # prefix' },
-            is_private: { type: 'boolean', description: 'Whether the channel is private' },
-            is_archived: { type: 'boolean', description: 'Whether the channel is archived' },
-            is_member: {
-              type: 'boolean',
-              description: 'Whether the bot is a member of the channel',
-            },
-            num_members: { type: 'number', description: 'Number of members in the channel' },
-            topic: { type: 'string', description: 'Channel topic' },
-            purpose: { type: 'string', description: 'Channel purpose/description' },
-            created: { type: 'number', description: 'Unix timestamp when channel was created' },
-            creator: { type: 'string', description: 'User ID of channel creator' },
-          },
+          properties: CHANNEL_OUTPUT_PROPERTIES,
         },
       },
       ids: {
         type: 'array',
         description: 'Array of channel IDs for easy access',
+        items: { type: 'string', description: 'Channel ID' },
       },
       names: {
         type: 'array',
         description: 'Array of channel names for easy access',
+        items: { type: 'string', description: 'Channel name' },
       },
       count: {
         type: 'number',

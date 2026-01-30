@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { PLAYBACK_TRACK_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetQueueParams {
   accessToken: string
@@ -79,7 +80,16 @@ export const spotifyGetQueueTool: ToolConfig<SpotifyGetQueueParams, SpotifyGetQu
   },
 
   outputs: {
-    currently_playing: { type: 'json', description: 'Currently playing track', optional: true },
-    queue: { type: 'json', description: 'Upcoming tracks in queue' },
+    currently_playing: {
+      type: 'object',
+      description: 'Currently playing track',
+      optional: true,
+      properties: PLAYBACK_TRACK_OUTPUT_PROPERTIES,
+    },
+    queue: {
+      type: 'array',
+      description: 'Upcoming tracks in queue',
+      items: { type: 'object', properties: PLAYBACK_TRACK_OUTPUT_PROPERTIES },
+    },
   },
 }

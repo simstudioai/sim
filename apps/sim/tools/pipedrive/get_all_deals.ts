@@ -3,6 +3,10 @@ import type {
   PipedriveGetAllDealsParams,
   PipedriveGetAllDealsResponse,
 } from '@/tools/pipedrive/types'
+import {
+  PIPEDRIVE_DEAL_OUTPUT_PROPERTIES,
+  PIPEDRIVE_METADATA_OUTPUT_PROPERTIES,
+} from '@/tools/pipedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetAllDeals')
@@ -117,10 +121,18 @@ export const pipedriveGetAllDealsTool: ToolConfig<
   },
 
   outputs: {
-    deals: { type: 'array', description: 'Array of deal objects from Pipedrive' },
+    deals: {
+      type: 'array',
+      description: 'Array of deal objects from Pipedrive',
+      items: {
+        type: 'object',
+        properties: PIPEDRIVE_DEAL_OUTPUT_PROPERTIES,
+      },
+    },
     metadata: {
       type: 'object',
       description: 'Pagination metadata for the response',
+      properties: PIPEDRIVE_METADATA_OUTPUT_PROPERTIES,
     },
     success: { type: 'boolean', description: 'Operation success status' },
   },

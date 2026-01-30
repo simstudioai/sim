@@ -1,4 +1,5 @@
 import type { SalesforceGetLeadsParams, SalesforceGetLeadsResponse } from '@/tools/salesforce/types'
+import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -107,27 +108,8 @@ export const salesforceGetLeadsTool: ToolConfig<
       properties: {
         lead: { type: 'object', description: 'Single lead object (when leadId provided)' },
         leads: { type: 'array', description: 'Array of lead objects (when listing)' },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-          properties: {
-            nextRecordsUrl: {
-              type: 'string',
-              description: 'URL for next page of results',
-              optional: true,
-            },
-            totalSize: { type: 'number', description: 'Total number of records' },
-            done: { type: 'boolean', description: 'Whether all records returned' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Response metadata',
-          properties: {
-            totalReturned: { type: 'number', description: 'Number of leads returned' },
-            hasMore: { type: 'boolean', description: 'Whether more records exist' },
-          },
-        },
+        paging: QUERY_PAGING_OUTPUT,
+        metadata: RESPONSE_METADATA_OUTPUT,
         singleLead: { type: 'boolean', description: 'Whether single lead was returned' },
         success: { type: 'boolean', description: 'Operation success status' },
       },

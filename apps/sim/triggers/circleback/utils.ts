@@ -14,7 +14,7 @@ export const circlebackTriggerOptions = [
  */
 export function circlebackSetupInstructions(eventType: string): string {
   const instructions = [
-    '<strong>Note:</strong> You need access to Circleback automations to set up webhooks.',
+    '<strong>Note:</strong> You need access to Circleback automations to set up webhooks. See the <a href="https://circleback.ai/docs/webhook-integration" target="_blank" rel="noopener noreferrer">Circleback webhook documentation</a> for details.',
     'In Circleback, click <strong>Automations</strong> in the sidebar.',
     'Create a new automation or edit an existing one.',
     'Add a <strong>Send webhook request</strong> step to your automation.',
@@ -72,6 +72,13 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
     attendees: {
       type: 'array',
       description: 'Array of attendee objects with name and email',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Attendee name' },
+          email: { type: 'string', description: 'Attendee email address' },
+        },
+      },
     },
     notes: {
       type: 'string',
@@ -79,20 +86,52 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
     },
     actionItems: {
       type: 'array',
-      description: 'Array of action item objects with id, title, description, assignee, status',
+      description: 'Array of action item objects',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Action item ID' },
+          title: { type: 'string', description: 'Action item title' },
+          description: { type: 'string', description: 'Action item description' },
+          assignee: {
+            type: 'object',
+            description: 'Person assigned to the action item (or null)',
+            properties: {
+              name: { type: 'string', description: 'Assignee name' },
+              email: { type: 'string', description: 'Assignee email' },
+            },
+          },
+          status: { type: 'string', description: 'Status: PENDING or DONE' },
+        },
+      },
     },
     transcript: {
       type: 'array',
-      description: 'Array of transcript segments with speaker, text, and timestamp (in seconds)',
+      description: 'Array of transcript segments',
+      items: {
+        type: 'object',
+        properties: {
+          speaker: { type: 'string', description: 'Speaker name' },
+          text: { type: 'string', description: 'Transcript text' },
+          timestamp: { type: 'number', description: 'Timestamp in seconds' },
+        },
+      },
     },
     insights: {
       type: 'object',
-      description:
-        'User-created insights keyed by insight name, each containing array of insight results',
+      description: 'User-created insights keyed by insight name',
     },
     meeting: {
       type: 'object',
       description: 'Full meeting payload object',
+      properties: {
+        id: { type: 'number', description: 'Meeting ID' },
+        name: { type: 'string', description: 'Meeting name' },
+        url: { type: 'string', description: 'Meeting URL' },
+        duration: { type: 'number', description: 'Duration in seconds' },
+        createdAt: { type: 'string', description: 'Creation timestamp' },
+        recordingUrl: { type: 'string', description: 'Recording URL' },
+      },
     },
-  } as Record<string, TriggerOutput>
+  } as any
 }

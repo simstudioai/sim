@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type { LatestCommitParams, LatestCommitResponse } from '@/tools/github/types'
+import {
+  COMMIT_DATA_OUTPUT,
+  type LatestCommitParams,
+  type LatestCommitResponse,
+  USER_FULL_OUTPUT,
+} from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GitHubLatestCommitTool')
@@ -160,8 +165,8 @@ export const latestCommitV2Tool: ToolConfig = {
   outputs: {
     sha: { type: 'string', description: 'Commit SHA' },
     html_url: { type: 'string', description: 'GitHub web URL' },
-    commit: { type: 'json', description: 'Commit info with message, author, committer' },
-    author: { type: 'json', description: 'Author user object', optional: true },
-    committer: { type: 'json', description: 'Committer user object', optional: true },
+    commit: COMMIT_DATA_OUTPUT,
+    author: USER_FULL_OUTPUT,
+    committer: USER_FULL_OUTPUT,
   },
 }

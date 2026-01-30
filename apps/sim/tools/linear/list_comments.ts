@@ -1,4 +1,5 @@
 import type { LinearListCommentsParams, LinearListCommentsResponse } from '@/tools/linear/types'
+import { COMMENT_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListCommentsTool: ToolConfig<
@@ -118,22 +119,9 @@ export const linearListCommentsTool: ToolConfig<
       description: 'Array of comments on the issue',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Comment ID' },
-          body: { type: 'string', description: 'Comment text' },
-          createdAt: { type: 'string', description: 'Creation timestamp' },
-          updatedAt: { type: 'string', description: 'Last update timestamp' },
-          user: { type: 'object', description: 'User who created the comment' },
-        },
+        properties: COMMENT_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-      properties: {
-        hasNextPage: { type: 'boolean', description: 'Whether there are more results' },
-        endCursor: { type: 'string', description: 'Cursor for next page' },
-      },
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

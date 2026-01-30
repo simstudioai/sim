@@ -2,6 +2,7 @@ import type {
   LinearCreateCustomerTierParams,
   LinearCreateCustomerTierResponse,
 } from '@/tools/linear/types'
+import { CUSTOMER_TIER_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateCustomerTierTool: ToolConfig<
@@ -136,6 +137,7 @@ export const linearCreateCustomerTierTool: ToolConfig<
     customerTier: {
       type: 'object',
       description: 'The created customer tier',
+      properties: CUSTOMER_TIER_OUTPUT_PROPERTIES,
     },
   },
 }

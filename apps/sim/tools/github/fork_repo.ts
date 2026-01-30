@@ -1,3 +1,9 @@
+import {
+  PARENT_OWNER_OUTPUT_PROPERTIES,
+  PARENT_REPO_OUTPUT_PROPERTIES,
+  SOURCE_REPO_OUTPUT_PROPERTIES,
+  USER_FULL_OUTPUT_PROPERTIES,
+} from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface ForkRepoParams {
@@ -185,33 +191,18 @@ export const forkRepoV2Tool: ToolConfig<ForkRepoParams, any> = {
     owner: {
       type: 'object',
       description: 'Fork owner',
-      properties: {
-        login: { type: 'string', description: 'Username' },
-        id: { type: 'number', description: 'User ID' },
-        node_id: { type: 'string', description: 'GraphQL node ID' },
-        avatar_url: { type: 'string', description: 'Avatar image URL' },
-        url: { type: 'string', description: 'API URL' },
-        html_url: { type: 'string', description: 'Profile page URL' },
-        type: { type: 'string', description: 'User or Organization' },
-        site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
-      },
+      properties: USER_FULL_OUTPUT_PROPERTIES,
     },
     parent: {
       type: 'object',
       description: 'Parent repository (source of the fork)',
       optional: true,
       properties: {
-        id: { type: 'number', description: 'Repository ID' },
-        full_name: { type: 'string', description: 'Full name' },
-        html_url: { type: 'string', description: 'Web URL' },
-        description: { type: 'string', description: 'Description', optional: true },
+        ...PARENT_REPO_OUTPUT_PROPERTIES,
         owner: {
           type: 'object',
           description: 'Parent owner',
-          properties: {
-            login: { type: 'string', description: 'Username' },
-            id: { type: 'number', description: 'User ID' },
-          },
+          properties: PARENT_OWNER_OUTPUT_PROPERTIES,
         },
       },
     },
@@ -219,11 +210,7 @@ export const forkRepoV2Tool: ToolConfig<ForkRepoParams, any> = {
       type: 'object',
       description: 'Source repository (ultimate origin)',
       optional: true,
-      properties: {
-        id: { type: 'number', description: 'Repository ID' },
-        full_name: { type: 'string', description: 'Full name' },
-        html_url: { type: 'string', description: 'Web URL' },
-      },
+      properties: SOURCE_REPO_OUTPUT_PROPERTIES,
     },
   },
 }

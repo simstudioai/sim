@@ -1,6 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { KalshiPaginationParams, KalshiPagingInfo, KalshiTrade } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
+import { buildKalshiUrl, handleKalshiError, KALSHI_TRADE_OUTPUT_PROPERTIES } from './types'
 
 export interface KalshiGetTradesParams extends KalshiPaginationParams {}
 
@@ -73,6 +73,10 @@ export const kalshiGetTradesTool: ToolConfig<KalshiGetTradesParams, KalshiGetTra
     trades: {
       type: 'array',
       description: 'Array of trade objects',
+      items: {
+        type: 'object',
+        properties: KALSHI_TRADE_OUTPUT_PROPERTIES,
+      },
     },
     paging: {
       type: 'object',
@@ -198,15 +202,9 @@ export const kalshiGetTradesV2Tool: ToolConfig<KalshiGetTradesV2Params, KalshiGe
       trades: {
         type: 'array',
         description: 'Array of trade objects with trade_id and count_fp',
-        properties: {
-          trade_id: { type: 'string', description: 'Trade ID' },
-          ticker: { type: 'string', description: 'Market ticker' },
-          yes_price: { type: 'number', description: 'Yes price' },
-          no_price: { type: 'number', description: 'No price' },
-          count: { type: 'number', description: 'Number of contracts' },
-          count_fp: { type: 'number', description: 'Count (fixed-point)' },
-          created_time: { type: 'string', description: 'Trade creation time' },
-          taker_side: { type: 'string', description: 'Taker side (yes/no)' },
+        items: {
+          type: 'object',
+          properties: KALSHI_TRADE_OUTPUT_PROPERTIES,
         },
       },
       cursor: {

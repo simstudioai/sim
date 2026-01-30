@@ -3,6 +3,7 @@ import type {
   PipedriveGetActivitiesParams,
   PipedriveGetActivitiesResponse,
 } from '@/tools/pipedrive/types'
+import { PIPEDRIVE_ACTIVITY_OUTPUT_PROPERTIES } from '@/tools/pipedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetActivities')
@@ -110,7 +111,14 @@ export const pipedriveGetActivitiesTool: ToolConfig<
   },
 
   outputs: {
-    activities: { type: 'array', description: 'Array of activity objects from Pipedrive' },
+    activities: {
+      type: 'array',
+      description: 'Array of activity objects from Pipedrive',
+      items: {
+        type: 'object',
+        properties: PIPEDRIVE_ACTIVITY_OUTPUT_PROPERTIES,
+      },
+    },
     total_items: { type: 'number', description: 'Total number of activities returned' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

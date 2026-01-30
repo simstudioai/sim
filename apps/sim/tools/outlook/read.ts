@@ -6,6 +6,7 @@ import type {
   OutlookReadParams,
   OutlookReadResponse,
 } from '@/tools/outlook/types'
+import { OUTLOOK_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -214,7 +215,14 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
 
   outputs: {
     message: { type: 'string', description: 'Success or status message' },
-    results: { type: 'array', description: 'Array of email message objects' },
+    results: {
+      type: 'array',
+      description: 'Array of email message objects',
+      items: {
+        type: 'object',
+        properties: OUTLOOK_MESSAGE_OUTPUT_PROPERTIES,
+      },
+    },
     attachments: { type: 'file[]', description: 'All email attachments flattened from all emails' },
   },
 }

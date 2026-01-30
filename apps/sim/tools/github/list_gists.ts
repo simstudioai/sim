@@ -1,3 +1,4 @@
+import { GIST_FILES_OUTPUT, GIST_OUTPUT_PROPERTIES, GIST_OWNER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListGistsParams {
@@ -187,41 +188,9 @@ export const listGistsV2Tool: ToolConfig<ListGistsParams, any> = {
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Gist ID' },
-          node_id: { type: 'string', description: 'GraphQL node ID' },
-          url: { type: 'string', description: 'API URL' },
-          html_url: { type: 'string', description: 'Web URL' },
-          forks_url: { type: 'string', description: 'Forks API URL' },
-          commits_url: { type: 'string', description: 'Commits API URL' },
-          git_pull_url: { type: 'string', description: 'Git pull URL' },
-          git_push_url: { type: 'string', description: 'Git push URL' },
-          description: { type: 'string', description: 'Gist description', optional: true },
-          public: { type: 'boolean', description: 'Whether gist is public' },
-          truncated: { type: 'boolean', description: 'Whether files are truncated' },
-          comments: { type: 'number', description: 'Number of comments' },
-          comments_url: { type: 'string', description: 'Comments API URL' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
-          files: {
-            type: 'object',
-            description:
-              'Files in the gist (object with filenames as keys, each containing filename, type, language, raw_url, size)',
-          },
-          owner: {
-            type: 'object',
-            description: 'Gist owner',
-            optional: true,
-            properties: {
-              login: { type: 'string', description: 'Username' },
-              id: { type: 'number', description: 'User ID' },
-              node_id: { type: 'string', description: 'GraphQL node ID' },
-              avatar_url: { type: 'string', description: 'Avatar image URL' },
-              url: { type: 'string', description: 'API URL' },
-              html_url: { type: 'string', description: 'Profile page URL' },
-              type: { type: 'string', description: 'User or Organization' },
-              site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
-            },
-          },
+          ...GIST_OUTPUT_PROPERTIES,
+          files: GIST_FILES_OUTPUT,
+          owner: GIST_OWNER_OUTPUT,
         },
       },
     },

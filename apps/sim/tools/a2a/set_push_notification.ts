@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { A2ASetPushNotificationParams, A2ASetPushNotificationResponse } from './types'
+import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aSetPushNotificationTool: ToolConfig<
   A2ASetPushNotificationParams,
@@ -84,17 +85,8 @@ export const a2aSetPushNotificationTool: ToolConfig<
   },
 
   outputs: {
-    url: {
-      type: 'string',
-      description: 'Configured webhook URL',
-    },
-    token: {
-      type: 'string',
-      description: 'Token for webhook validation',
-    },
-    success: {
-      type: 'boolean',
-      description: 'Whether configuration was successful',
-    },
+    url: A2A_OUTPUT_PROPERTIES.webhookUrl,
+    token: A2A_OUTPUT_PROPERTIES.webhookToken,
+    success: A2A_OUTPUT_PROPERTIES.success,
   },
 }

@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifyGetTopItemsParams, SpotifyGetTopTracksResponse } from './types'
+import { SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES, SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetTopTracksTool: ToolConfig<
   SpotifyGetTopItemsParams,
@@ -90,8 +91,16 @@ export const spotifyGetTopTracksTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'Spotify track ID' },
           name: { type: 'string', description: 'Track name' },
-          artists: { type: 'array', description: 'List of artists' },
-          album: { type: 'object', description: 'Album information' },
+          artists: {
+            type: 'array',
+            description: 'List of artists',
+            items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+          },
+          album: {
+            type: 'object',
+            description: 'Album information',
+            properties: SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+          },
           duration_ms: { type: 'number', description: 'Duration in milliseconds' },
           popularity: { type: 'number', description: 'Popularity score' },
           external_url: { type: 'string', description: 'Spotify URL' },

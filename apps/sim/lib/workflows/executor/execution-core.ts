@@ -283,7 +283,13 @@ export async function executeWorkflowCore(
       blockId: string,
       blockName: string,
       blockType: string,
-      output: { input?: unknown; output: NormalizedBlockOutput; executionTime: number },
+      output: {
+        input?: unknown
+        output: NormalizedBlockOutput
+        executionTime: number
+        startedAt: string
+        endedAt: string
+      },
       iterationContext?: IterationContext
     ) => {
       await loggingSession.onBlockComplete(blockId, blockName, blockType, output)

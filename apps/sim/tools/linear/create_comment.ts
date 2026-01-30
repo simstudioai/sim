@@ -1,4 +1,5 @@
 import type { LinearCreateCommentParams, LinearCreateCommentResponse } from '@/tools/linear/types'
+import { COMMENT_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateCommentTool: ToolConfig<
@@ -106,13 +107,7 @@ export const linearCreateCommentTool: ToolConfig<
     comment: {
       type: 'object',
       description: 'The created comment',
-      properties: {
-        id: { type: 'string', description: 'Comment ID' },
-        body: { type: 'string', description: 'Comment text' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
-        user: { type: 'object', description: 'User who created the comment' },
-        issue: { type: 'object', description: 'Associated issue' },
-      },
+      properties: COMMENT_OUTPUT_PROPERTIES,
     },
   },
 }

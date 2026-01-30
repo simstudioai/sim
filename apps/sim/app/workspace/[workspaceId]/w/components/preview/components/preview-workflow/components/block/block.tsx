@@ -461,12 +461,14 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         className={`flex items-center justify-between p-[8px] ${hasContentBelowHeader ? 'border-[var(--border-1)] border-b' : ''}`}
       >
         <div className='relative z-10 flex min-w-0 flex-1 items-center gap-[10px]'>
-          <div
-            className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-            style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
-          >
-            <IconComponent className='h-[16px] w-[16px] text-white' />
-          </div>
+          {!isNoteBlock && (
+            <div
+              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+              style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
+            >
+              <IconComponent className='h-[16px] w-[16px] text-white' />
+            </div>
+          )}
           <span
             className={`truncate font-medium text-[16px] ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
             title={name}

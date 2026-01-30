@@ -1,3 +1,4 @@
+import { USER_FULL_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListStargazersParams {
@@ -159,20 +160,13 @@ export const listStargazersV2Tool: ToolConfig<ListStargazersParams, any> = {
       items: {
         type: 'object',
         properties: {
-          login: { type: 'string', description: 'Username' },
-          id: { type: 'number', description: 'User ID' },
-          node_id: { type: 'string', description: 'GraphQL node ID' },
-          avatar_url: { type: 'string', description: 'Avatar image URL' },
+          ...USER_FULL_OUTPUT_PROPERTIES,
           gravatar_id: { type: 'string', description: 'Gravatar ID' },
-          url: { type: 'string', description: 'API URL' },
-          html_url: { type: 'string', description: 'Profile page URL' },
           followers_url: { type: 'string', description: 'Followers API URL' },
           following_url: { type: 'string', description: 'Following API URL' },
           gists_url: { type: 'string', description: 'Gists API URL' },
           starred_url: { type: 'string', description: 'Starred API URL' },
           repos_url: { type: 'string', description: 'Repos API URL' },
-          type: { type: 'string', description: 'User or Organization' },
-          site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
         },
       },
     },

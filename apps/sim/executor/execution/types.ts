@@ -103,7 +103,13 @@ export interface ContextExtensions {
     blockId: string,
     blockName: string,
     blockType: string,
-    output: { input?: any; output: NormalizedBlockOutput; executionTime: number },
+    output: {
+      input?: any
+      output: NormalizedBlockOutput
+      executionTime: number
+      startedAt: string
+      endedAt: string
+    },
     iterationContext?: IterationContext
   ) => Promise<void>
 

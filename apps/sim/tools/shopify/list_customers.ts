@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ShopifyCustomersResponse, ShopifyListCustomersParams } from './types'
+import { CUSTOMER_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyListCustomersTool: ToolConfig<
   ShopifyListCustomersParams,
@@ -131,10 +132,15 @@ export const shopifyListCustomersTool: ToolConfig<
     customers: {
       type: 'array',
       description: 'List of customers',
+      items: {
+        type: 'object',
+        properties: CUSTOMER_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
+      properties: PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

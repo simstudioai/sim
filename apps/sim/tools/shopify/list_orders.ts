@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ShopifyListOrdersParams, ShopifyOrdersResponse } from './types'
+import { ORDER_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyListOrdersTool: ToolConfig<ShopifyListOrdersParams, ShopifyOrdersResponse> = {
   id: 'shopify_list_orders',
@@ -177,10 +178,15 @@ export const shopifyListOrdersTool: ToolConfig<ShopifyListOrdersParams, ShopifyO
     orders: {
       type: 'array',
       description: 'List of orders',
+      items: {
+        type: 'object',
+        properties: ORDER_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
+      properties: PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

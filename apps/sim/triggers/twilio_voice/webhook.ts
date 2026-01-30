@@ -122,17 +122,20 @@ Return ONLY the TwiML with square brackets - no explanations, no markdown, no ex
       hideFromPreview: true,
       type: 'text',
       defaultValue: [
-        'Enter a TwiML Response above - this tells Twilio what to do when a call comes in (e.g., play a message, record, gather input). Note: Use square brackets [Tag] instead of angle brackets for TwiML tags',
-        'Example TwiML for recording with transcription: [Response][Say]Please leave a message.[/Say][Record transcribe="true" maxLength="120"/][/Response]',
-        'Go to your Twilio Console Phone Numbers page at https://console.twilio.com/us1/develop/phone-numbers/manage/incoming',
+        'Enter a TwiML Response above - this tells Twilio what to do when a call comes in (e.g., play a message, record, gather input). Note: Use square brackets [Tag] instead of angle brackets for TwiML tags.',
+        'Example TwiML for recording with transcription: <code>[Response][Say]Please leave a message.[/Say][Record transcribe="true" maxLength="120"/][/Response]</code>',
+        'Go to your <a href="https://console.twilio.com/us1/develop/phone-numbers/manage/incoming" target="_blank" rel="noopener noreferrer">Twilio Console Phone Numbers page</a>.',
         'Select the phone number you want to use for incoming calls.',
         'Scroll down to the "Voice Configuration" section.',
         'In the "A CALL COMES IN" field, select "Webhook" and paste the Webhook URL (from above).',
         'Ensure the HTTP method is set to POST.',
         'How it works: When a call comes in, Twilio receives your TwiML response immediately and executes those instructions. Your workflow runs in the background with access to caller information, call status, and any recorded/transcribed data.',
       ]
-        .map((instruction, index) => `${index + 1}. ${instruction}`)
-        .join('\n\n'),
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
       mode: 'trigger',
     },
   ],

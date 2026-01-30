@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifyGetNewReleasesParams, SpotifyGetNewReleasesResponse } from './types'
+import { ALBUM_WITH_ARTISTS_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetNewReleasesTool: ToolConfig<
   SpotifyGetNewReleasesParams,
@@ -81,7 +82,11 @@ export const spotifyGetNewReleasesTool: ToolConfig<
   },
 
   outputs: {
-    albums: { type: 'json', description: 'List of new releases' },
+    albums: {
+      type: 'array',
+      description: 'List of new releases',
+      items: { type: 'object', properties: ALBUM_WITH_ARTISTS_OUTPUT_PROPERTIES },
+    },
     total: { type: 'number', description: 'Total number of new releases' },
     next: { type: 'string', description: 'URL for next page', optional: true },
   },

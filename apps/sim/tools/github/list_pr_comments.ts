@@ -1,4 +1,5 @@
 import type { CommentsListResponse, ListPRCommentsParams } from '@/tools/github/types'
+import { PR_COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListResponse> = {
@@ -181,15 +182,8 @@ export const listPRCommentsV2Tool: ToolConfig<ListPRCommentsParams, any> = {
       items: {
         type: 'object',
         properties: {
-          id: { type: 'number', description: 'Comment ID' },
-          body: { type: 'string', description: 'Comment body' },
-          path: { type: 'string', description: 'File path' },
-          line: { type: 'number', description: 'Line number', optional: true },
-          user: { type: 'object', description: 'User who created the comment' },
-          html_url: { type: 'string', description: 'GitHub web URL' },
-          diff_hunk: { type: 'string', description: 'Diff context' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
+          ...PR_COMMENT_OUTPUT_PROPERTIES,
+          user: USER_OUTPUT,
         },
       },
     },

@@ -91,5 +91,11 @@ Search the web and return top 5 results with LLM-friendly content. Each result i
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Array of search results, each containing title, description, url, and LLM-friendly content |
+|   ↳ `title` | string | Page title |
+|   ↳ `description` | string | Page description or meta description |
+|   ↳ `url` | string | Page URL |
+|   ↳ `content` | string | LLM-friendly extracted content |
+|   ↳ `usage` | object | Token usage information |
+|     ↳ `tokens` | number | Number of tokens consumed by this request |
 
 
