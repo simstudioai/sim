@@ -854,8 +854,8 @@ function parseConstProperties(
     const propName = match[1]
     const constRef = match[2]
 
-    // Skip keywords
-    if (propName === 'items' || propName === 'properties' || propName === 'type') {
+    // Skip keywords, but allow 'properties' if it's an actual output field (has type: inside)
+    if (propName === 'items' || propName === 'type') {
       continue
     }
 
@@ -865,6 +865,31 @@ function parseConstProperties(
     const closeBraces = (beforeMatch.match(/\}/g) || []).length
     if (openBraces !== closeBraces) {
       continue // Skip - this is a nested property
+    }
+
+    // For 'properties', check if it's an output field definition vs nested properties block
+    if (propName === 'properties' && !constRef) {
+      // Peek at what's inside the braces
+      const startPos = match.index + match[0].length - 1
+      let braceCount = 1
+      let endPos = startPos + 1
+      while (endPos < content.length && braceCount > 0) {
+        if (content[endPos] === '{') braceCount++
+        else if (content[endPos] === '}') braceCount--
+        endPos++
+      }
+      if (braceCount === 0) {
+        const propContent = content.substring(startPos + 1, endPos - 1).trim()
+        // If it starts with 'type:', it's an output field definition - process it
+        if (propContent.match(/^\s*type\s*:/)) {
+          const parsedProp = parseConstFieldContent(propContent, toolPrefix, typesContent, depth)
+          if (parsedProp) {
+            properties[propName] = parsedProp
+          }
+        }
+        // Otherwise, it's a nested properties block - skip it
+      }
+      continue
     }
 
     if (constRef) {

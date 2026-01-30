@@ -56,6 +56,7 @@ Read database information and structure from Notion
 | `url` | string | Notion database URL |
 | `created_time` | string | ISO 8601 creation timestamp |
 | `last_edited_time` | string | ISO 8601 last edit timestamp |
+| `properties` | object | Database properties schema |
 | `title` | string | Database title |
 
 ### `notion_write`
@@ -146,6 +147,7 @@ Query and filter Notion database entries with advanced filtering
 |       ↳ `id` | string | File upload UUID |
 |     ↳ `external` | object | External file object \(when type is "external"\) |
 |       ↳ `url` | string | External file URL \(never expires\) |
+|   ↳ `properties` | object | Page property values \(structure depends on parent type - database properties or title only\) |
 | `has_more` | boolean | Whether more results are available |
 | `next_cursor` | string | Cursor for next page of results |
 | `total_results` | number | Number of results returned |
@@ -187,6 +189,7 @@ Search across all pages and databases in Notion workspace
 |     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
 |     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
 |     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `properties` | object | Object properties |
 | `has_more` | boolean | Whether more results are available |
 | `next_cursor` | string | Cursor for next page of results |
 | `total_results` | number | Number of results returned |
@@ -210,6 +213,7 @@ Create a new database in Notion with custom properties
 | `id` | string | Database UUID |
 | `url` | string | Notion database URL |
 | `created_time` | string | ISO 8601 creation timestamp |
+| `properties` | object | Database properties schema |
 | `title` | string | Database title |
 
 ### `notion_add_database_row`

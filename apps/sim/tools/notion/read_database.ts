@@ -111,7 +111,6 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
   },
 }
 
-// V2 Tool with API-aligned outputs
 interface NotionReadDatabaseV2Response {
   success: boolean
   output: {
