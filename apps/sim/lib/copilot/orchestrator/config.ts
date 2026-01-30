@@ -21,3 +21,22 @@ export const INTERRUPT_TOOL_NAMES = [
 
 export const INTERRUPT_TOOL_SET = new Set<string>(INTERRUPT_TOOL_NAMES)
 
+export const SUBAGENT_TOOL_NAMES = [
+  'debug',
+  'edit',
+  'plan',
+  'test',
+  'deploy',
+  'auth',
+  'research',
+  'knowledge',
+  'custom_tool',
+  'tour',
+  'info',
+  'workflow',
+  'evaluate',
+  'superagent',
+] as const
+
+export const SUBAGENT_TOOL_SET = new Set<string>(SUBAGENT_TOOL_NAMES)
+

@@ -9,7 +9,7 @@ import type {
 } from '@/lib/copilot/orchestrator/types'
 import { executeToolServerSide, markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
 import { getToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
-import { INTERRUPT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
+import { INTERRUPT_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
 
 const logger = createLogger('CopilotSseHandlers')
 
@@ -167,6 +167,10 @@ export const sseHandlers: Record<string, SSEHandler> = {
     addContentBlock(context, { type: 'tool_call', toolCall })
 
     if (isPartial) return
+
+    if (SUBAGENT_TOOL_SET.has(toolName)) {
+      return
+    }
 
     const isInterruptTool = INTERRUPT_TOOL_SET.has(toolName)
     const isInteractive = options.interactive === true
