@@ -322,6 +322,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         // Handle join workflow success - confirms room membership with presence list
         socketInstance.on('join-workflow-success', ({ workflowId, presenceUsers }) => {
           isRejoiningRef.current = false
+          // Ignore stale success responses from previous navigation
+          if (workflowId !== urlWorkflowIdRef.current) {
+            logger.debug(`Ignoring stale join-workflow-success for ${workflowId}`)
+            return
+          }
           setCurrentWorkflowId(workflowId)
           setPresenceUsers(presenceUsers || [])
           logger.info(`Successfully joined workflow room: ${workflowId}`, {
@@ -516,7 +521,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           logger.info('Received workflow state from server')
 
           if (workflowData?.state) {
-            await rehydrateWorkflowStores(workflowData.id, workflowData.state, 'workflow-state')
+            try {
+              await rehydrateWorkflowStores(workflowData.id, workflowData.state, 'workflow-state')
+            } catch (error) {
+              logger.error('Error rehydrating workflow state:', error)
+            }
           }
         })
 
@@ -598,10 +607,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const leaveWorkflow = useCallback(() => {
     if (socket && currentWorkflowId) {
       logger.info(`Leaving workflow: ${currentWorkflowId}`)
-      try {
-        const { useOperationQueueStore } = require('@/stores/operation-queue/store')
-        useOperationQueueStore.getState().cancelOperationsForWorkflow(currentWorkflowId)
-      } catch {}
+      import('@/stores/operation-queue/store')
+        .then(({ useOperationQueueStore }) => {
+          useOperationQueueStore.getState().cancelOperationsForWorkflow(currentWorkflowId)
+        })
+        .catch((error) => {
+          logger.warn('Failed to cancel operations for workflow:', error)
+        })
       socket.emit('leave-workflow')
       setCurrentWorkflowId(null)
       setPresenceUsers([])

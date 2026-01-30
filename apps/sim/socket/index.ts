@@ -10,6 +10,9 @@ import { createHttpHandler } from '@/socket/routes/http'
 
 const logger = createLogger('CollaborativeSocketServer')
 
+/** Maximum time to wait for graceful shutdown before forcing exit */
+const SHUTDOWN_TIMEOUT_MS = 10000
+
 async function createRoomManager(io: SocketIOServer): Promise<IRoomManager> {
   if (env.REDIS_URL) {
     logger.info('Initializing Redis-backed RoomManager for multi-pod support')
@@ -108,7 +111,7 @@ async function main() {
     setTimeout(() => {
       logger.error('Forced shutdown after timeout')
       process.exit(1)
-    }, 10000)
+    }, SHUTDOWN_TIMEOUT_MS)
   }
 
   process.on('SIGINT', shutdown)

@@ -1,11 +1,52 @@
 import type { IncomingMessage, ServerResponse } from 'http'
+import { env } from '@/lib/core/config/env'
 import type { IRoomManager } from '@/socket/rooms'
 
 interface Logger {
-  info: (message: string, ...args: any[]) => void
-  error: (message: string, ...args: any[]) => void
-  debug: (message: string, ...args: any[]) => void
-  warn: (message: string, ...args: any[]) => void
+  info: (message: string, ...args: unknown[]) => void
+  error: (message: string, ...args: unknown[]) => void
+  debug: (message: string, ...args: unknown[]) => void
+  warn: (message: string, ...args: unknown[]) => void
+}
+
+function checkInternalApiKey(req: IncomingMessage): { success: boolean; error?: string } {
+  const apiKey = req.headers['x-api-key']
+  const expectedApiKey = env.INTERNAL_API_SECRET
+
+  if (!expectedApiKey) {
+    return { success: false, error: 'Internal API key not configured' }
+  }
+
+  if (!apiKey) {
+    return { success: false, error: 'API key required' }
+  }
+
+  if (apiKey !== expectedApiKey) {
+    return { success: false, error: 'Invalid API key' }
+  }
+
+  return { success: true }
+}
+
+function readRequestBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = ''
+    req.on('data', (chunk) => {
+      body += chunk.toString()
+    })
+    req.on('end', () => resolve(body))
+    req.on('error', reject)
+  })
+}
+
+function sendSuccess(res: ServerResponse): void {
+  res.writeHead(200, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ success: true }))
+}
+
+function sendError(res: ServerResponse, message: string, status = 500): void {
+  res.writeHead(status, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ error: message }))
 }
 
 /**
@@ -16,6 +57,7 @@ interface Logger {
  */
 export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
   return async (req: IncomingMessage, res: ServerResponse) => {
+    // Health check doesn't require auth
     if (req.method === 'GET' && req.url === '/health') {
       try {
         const connections = await roomManager.getTotalActiveConnections()
@@ -35,87 +77,69 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
+    // All POST endpoints require internal API key authentication
+    if (req.method === 'POST') {
+      const authResult = checkInternalApiKey(req)
+      if (!authResult.success) {
+        res.writeHead(401, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: authResult.error }))
+        return
+      }
+    }
+
     // Handle workflow deletion notifications from the main API
     if (req.method === 'POST' && req.url === '/api/workflow-deleted') {
-      let body = ''
-      req.on('data', (chunk) => {
-        body += chunk.toString()
-      })
-      req.on('end', async () => {
-        try {
-          const { workflowId } = JSON.parse(body)
-          await roomManager.handleWorkflowDeletion(workflowId)
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ success: true }))
-        } catch (error) {
-          logger.error('Error handling workflow deletion notification:', error)
-          res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'Failed to process deletion notification' }))
-        }
-      })
+      try {
+        const body = await readRequestBody(req)
+        const { workflowId } = JSON.parse(body)
+        await roomManager.handleWorkflowDeletion(workflowId)
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling workflow deletion notification:', error)
+        sendError(res, 'Failed to process deletion notification')
+      }
       return
     }
 
     // Handle workflow update notifications from the main API
     if (req.method === 'POST' && req.url === '/api/workflow-updated') {
-      let body = ''
-      req.on('data', (chunk) => {
-        body += chunk.toString()
-      })
-      req.on('end', async () => {
-        try {
-          const { workflowId } = JSON.parse(body)
-          await roomManager.handleWorkflowUpdate(workflowId)
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ success: true }))
-        } catch (error) {
-          logger.error('Error handling workflow update notification:', error)
-          res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'Failed to process update notification' }))
-        }
-      })
+      try {
+        const body = await readRequestBody(req)
+        const { workflowId } = JSON.parse(body)
+        await roomManager.handleWorkflowUpdate(workflowId)
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling workflow update notification:', error)
+        sendError(res, 'Failed to process update notification')
+      }
       return
     }
 
     // Handle copilot workflow edit notifications from the main API
     if (req.method === 'POST' && req.url === '/api/copilot-workflow-edit') {
-      let body = ''
-      req.on('data', (chunk) => {
-        body += chunk.toString()
-      })
-      req.on('end', async () => {
-        try {
-          const { workflowId, description } = JSON.parse(body)
-          await roomManager.handleCopilotWorkflowEdit(workflowId, description)
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ success: true }))
-        } catch (error) {
-          logger.error('Error handling copilot workflow edit notification:', error)
-          res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'Failed to process copilot edit notification' }))
-        }
-      })
+      try {
+        const body = await readRequestBody(req)
+        const { workflowId, description } = JSON.parse(body)
+        await roomManager.handleCopilotWorkflowEdit(workflowId, description)
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling copilot workflow edit notification:', error)
+        sendError(res, 'Failed to process copilot edit notification')
+      }
       return
     }
 
     // Handle workflow revert notifications from the main API
     if (req.method === 'POST' && req.url === '/api/workflow-reverted') {
-      let body = ''
-      req.on('data', (chunk) => {
-        body += chunk.toString()
-      })
-      req.on('end', async () => {
-        try {
-          const { workflowId, timestamp } = JSON.parse(body)
-          await roomManager.handleWorkflowRevert(workflowId, timestamp)
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ success: true }))
-        } catch (error) {
-          logger.error('Error handling workflow revert notification:', error)
-          res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'Failed to process revert notification' }))
-        }
-      })
+      try {
+        const body = await readRequestBody(req)
+        const { workflowId, timestamp } = JSON.parse(body)
+        await roomManager.handleWorkflowRevert(workflowId, timestamp)
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling workflow revert notification:', error)
+        sendError(res, 'Failed to process revert notification')
+      }
       return
     }
 

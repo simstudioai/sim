@@ -97,7 +97,10 @@ export async function POST(
       const socketServerUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
       await fetch(`${socketServerUrl}/api/workflow-reverted`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': env.INTERNAL_API_SECRET,
+        },
         body: JSON.stringify({ workflowId: id, timestamp: Date.now() }),
       })
     } catch (e) {

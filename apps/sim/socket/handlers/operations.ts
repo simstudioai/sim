@@ -23,19 +23,28 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
     const session = await roomManager.getUserSession(socket.id)
 
     if (!workflowId || !session) {
-      socket.emit('error', {
-        type: 'NOT_JOINED',
-        message: 'Not joined to any workflow',
+      socket.emit('operation-forbidden', {
+        type: 'SESSION_ERROR',
+        message: 'Session expired, please rejoin workflow',
       })
+      if (data?.operationId) {
+        socket.emit('operation-failed', { operationId: data.operationId, error: 'Session expired' })
+      }
       return
     }
 
     const hasRoom = await roomManager.hasWorkflowRoom(workflowId)
     if (!hasRoom) {
-      socket.emit('error', {
+      socket.emit('operation-forbidden', {
         type: 'ROOM_NOT_FOUND',
         message: 'Workflow room not found',
       })
+      if (data?.operationId) {
+        socket.emit('operation-failed', {
+          operationId: data.operationId,
+          error: 'Workflow room not found',
+        })
+      }
       return
     }
 

@@ -7,6 +7,9 @@ import type { IRoomManager } from '@/socket/rooms'
 
 const logger = createLogger('VariablesHandlers')
 
+/** Debounce interval for coalescing rapid variable updates before persisting */
+const DEBOUNCE_INTERVAL_MS = 25
+
 type PendingVariable = {
   latest: { variableId: string; field: string; value: any; timestamp: number }
   timeout: NodeJS.Timeout
@@ -21,7 +24,7 @@ const pendingVariableUpdates = new Map<string, PendingVariable>()
  * Removes the socket's operationIds from pending updates to prevent memory leaks.
  */
 export function cleanupPendingVariablesForSocket(socketId: string): void {
-  for (const [key, pending] of pendingVariableUpdates.entries()) {
+  for (const [, pending] of pendingVariableUpdates.entries()) {
     for (const [opId, sid] of pending.opToSocket.entries()) {
       if (sid === socketId) {
         pending.opToSocket.delete(opId)
@@ -48,6 +51,9 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
           type: 'SESSION_ERROR',
           message: 'Session expired, please rejoin workflow',
         })
+        if (operationId) {
+          socket.emit('operation-failed', { operationId, error: 'Session expired' })
+        }
         return
       }
 
@@ -74,7 +80,7 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
         existing.timeout = setTimeout(async () => {
           await flushVariableUpdate(workflowId, existing, roomManager)
           pendingVariableUpdates.delete(debouncedKey)
-        }, 25)
+        }, DEBOUNCE_INTERVAL_MS)
       } else {
         const opToSocket = new Map<string, string>()
         if (operationId) opToSocket.set(operationId, socket.id)
@@ -84,7 +90,7 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
             await flushVariableUpdate(workflowId, pending, roomManager)
             pendingVariableUpdates.delete(debouncedKey)
           }
-        }, 25)
+        }, DEBOUNCE_INTERVAL_MS)
         pendingVariableUpdates.set(debouncedKey, {
           latest: { variableId, field, value, timestamp },
           timeout,

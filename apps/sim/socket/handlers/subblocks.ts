@@ -7,6 +7,9 @@ import type { IRoomManager } from '@/socket/rooms'
 
 const logger = createLogger('SubblocksHandlers')
 
+/** Debounce interval for coalescing rapid subblock updates before persisting */
+const DEBOUNCE_INTERVAL_MS = 25
+
 type PendingSubblock = {
   latest: { blockId: string; subblockId: string; value: any; timestamp: number }
   timeout: NodeJS.Timeout
@@ -22,7 +25,7 @@ const pendingSubblockUpdates = new Map<string, PendingSubblock>()
  * Removes the socket's operationIds from pending updates to prevent memory leaks.
  */
 export function cleanupPendingSubblocksForSocket(socketId: string): void {
-  for (const [key, pending] of pendingSubblockUpdates.entries()) {
+  for (const [, pending] of pendingSubblockUpdates.entries()) {
     // Remove this socket's operation entries
     for (const [opId, sid] of pending.opToSocket.entries()) {
       if (sid === socketId) {
@@ -52,6 +55,9 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
           type: 'SESSION_ERROR',
           message: 'Session expired, please rejoin workflow',
         })
+        if (operationId) {
+          socket.emit('operation-failed', { operationId, error: 'Session expired' })
+        }
         return
       }
 
@@ -79,7 +85,7 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
         existing.timeout = setTimeout(async () => {
           await flushSubblockUpdate(workflowId, existing, roomManager)
           pendingSubblockUpdates.delete(debouncedKey)
-        }, 25)
+        }, DEBOUNCE_INTERVAL_MS)
       } else {
         const opToSocket = new Map<string, string>()
         if (operationId) opToSocket.set(operationId, socket.id)
@@ -89,7 +95,7 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
             await flushSubblockUpdate(workflowId, pending, roomManager)
             pendingSubblockUpdates.delete(debouncedKey)
           }
-        }, 25)
+        }, DEBOUNCE_INTERVAL_MS)
         pendingSubblockUpdates.set(debouncedKey, {
           latest: { blockId, subblockId, value, timestamp },
           timeout,

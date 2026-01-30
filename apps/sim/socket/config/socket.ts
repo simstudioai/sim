@@ -9,6 +9,13 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('SocketIOConfig')
 
+/** Socket.IO ping timeout - how long to wait for pong before considering connection dead */
+const PING_TIMEOUT_MS = 60000
+/** Socket.IO ping interval - how often to send ping packets */
+const PING_INTERVAL_MS = 25000
+/** Maximum HTTP buffer size for Socket.IO messages */
+const MAX_HTTP_BUFFER_SIZE = 1e6
+
 let adapterPubClient: RedisClientType | null = null
 let adapterSubClient: RedisClientType | null = null
 
@@ -41,9 +48,9 @@ export async function createSocketIOServer(httpServer: HttpServer): Promise<Serv
     },
     transports: ['websocket', 'polling'],
     allowEIO3: true,
-    pingTimeout: 60000,
-    pingInterval: 25000,
-    maxHttpBufferSize: 1e6,
+    pingTimeout: PING_TIMEOUT_MS,
+    pingInterval: PING_INTERVAL_MS,
+    maxHttpBufferSize: MAX_HTTP_BUFFER_SIZE,
     cookie: {
       name: 'io',
       path: '/',
@@ -103,9 +110,9 @@ export async function createSocketIOServer(httpServer: HttpServer): Promise<Serv
   logger.info('Socket.IO server configured with:', {
     allowedOrigins: allowedOrigins.length,
     transports: ['websocket', 'polling'],
-    pingTimeout: 60000,
-    pingInterval: 25000,
-    maxHttpBufferSize: 1e6,
+    pingTimeout: PING_TIMEOUT_MS,
+    pingInterval: PING_INTERVAL_MS,
+    maxHttpBufferSize: MAX_HTTP_BUFFER_SIZE,
     cookieSecure: isProd,
     corsCredentials: true,
     redisAdapter: !!env.REDIS_URL,
