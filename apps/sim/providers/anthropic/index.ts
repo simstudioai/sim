@@ -302,13 +302,18 @@ export const anthropicProvider: ProviderConfig = {
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
+      const nonStreamingMaxTokens =
+        Number.parseInt(String(request.maxTokens)) ||
+        getMaxOutputTokensForModel(request.model, false)
+      const intermediatePayload = { ...payload, max_tokens: nonStreamingMaxTokens }
+
       try {
         const initialCallTime = Date.now()
-        const originalToolChoice = payload.tool_choice
+        const originalToolChoice = intermediatePayload.tool_choice
         const forcedTools = preparedTools?.forcedTools || []
         let usedForcedTools: string[] = []
 
-        let currentResponse = await anthropic.messages.create(payload)
+        let currentResponse = await anthropic.messages.create(intermediatePayload)
         const firstResponseTime = Date.now() - initialCallTime
 
         let content = ''
@@ -491,7 +496,7 @@ export const anthropicProvider: ProviderConfig = {
             toolsTime += thisToolsTime
 
             const nextPayload = {
-              ...payload,
+              ...intermediatePayload,
               messages: currentMessages,
             }
 
@@ -674,13 +679,17 @@ export const anthropicProvider: ProviderConfig = {
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
+    const toolLoopMaxTokens =
+      Number.parseInt(String(request.maxTokens)) || getMaxOutputTokensForModel(request.model, false)
+    const toolLoopPayload = { ...payload, max_tokens: toolLoopMaxTokens }
+
     try {
       const initialCallTime = Date.now()
-      const originalToolChoice = payload.tool_choice
+      const originalToolChoice = toolLoopPayload.tool_choice
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await anthropic.messages.create(payload)
+      let currentResponse = await anthropic.messages.create(toolLoopPayload)
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = ''
@@ -867,7 +876,7 @@ export const anthropicProvider: ProviderConfig = {
           toolsTime += thisToolsTime
 
           const nextPayload = {
-            ...payload,
+            ...toolLoopPayload,
             messages: currentMessages,
           }
 

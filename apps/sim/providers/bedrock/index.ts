@@ -268,6 +268,13 @@ export const bedrockProvider: ProviderConfig = {
         getMaxOutputTokensForModel(request.model, request.stream ?? false),
     }
 
+    const toolLoopInferenceConfig = {
+      ...inferenceConfig,
+      maxTokens:
+        Number.parseInt(String(request.maxTokens)) ||
+        getMaxOutputTokensForModel(request.model, false),
+    }
+
     const shouldStreamToolCalls = request.streamToolCalls ?? false
 
     if (request.stream && (!bedrockTools || bedrockTools.length === 0)) {
@@ -374,7 +381,7 @@ export const bedrockProvider: ProviderConfig = {
         modelId: bedrockModelId,
         messages,
         system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
-        inferenceConfig,
+        inferenceConfig: toolLoopInferenceConfig,
         toolConfig,
       })
 
@@ -620,7 +627,7 @@ export const bedrockProvider: ProviderConfig = {
           modelId: bedrockModelId,
           messages: currentMessages,
           system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
-          inferenceConfig,
+          inferenceConfig: toolLoopInferenceConfig,
           toolConfig: bedrockTools?.length
             ? { tools: bedrockTools, toolChoice: nextToolChoice }
             : undefined,
@@ -687,7 +694,7 @@ export const bedrockProvider: ProviderConfig = {
           modelId: bedrockModelId,
           messages: currentMessages,
           system: systemPromptWithSchema.length > 0 ? systemPromptWithSchema : undefined,
-          inferenceConfig,
+          inferenceConfig: toolLoopInferenceConfig,
           toolConfig: {
             tools: [structuredOutputTool],
             toolChoice: { tool: { name: structuredOutputToolName } },
