@@ -87,28 +87,28 @@ Retrieve details of a specific prediction market by ID or slug
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `market` | object | Market object with details |
-| ↳ `id` | string | Market ID |
-| ↳ `question` | string | Market question |
-| ↳ `conditionId` | string | Condition ID |
-| ↳ `slug` | string | Market slug |
-| ↳ `resolutionSource` | string | Resolution source |
-| ↳ `endDate` | string | End date |
-| ↳ `startDate` | string | Start date |
-| ↳ `image` | string | Market image URL |
-| ↳ `icon` | string | Market icon URL |
-| ↳ `description` | string | Market description |
-| ↳ `outcomes` | string | Outcomes JSON string |
-| ↳ `outcomePrices` | string | Outcome prices JSON string |
-| ↳ `volume` | string | Total volume |
-| ↳ `liquidity` | string | Total liquidity |
-| ↳ `active` | boolean | Whether market is active |
-| ↳ `closed` | boolean | Whether market is closed |
-| ↳ `archived` | boolean | Whether market is archived |
-| ↳ `volumeNum` | number | Volume as number |
-| ↳ `liquidityNum` | number | Liquidity as number |
-| ↳ `clobTokenIds` | array | CLOB token IDs |
-| ↳ `acceptingOrders` | boolean | Whether accepting orders |
-| ↳ `negRisk` | boolean | Whether negative risk |
+|   ↳ `id` | string | Market ID |
+|   ↳ `question` | string | Market question |
+|   ↳ `conditionId` | string | Condition ID |
+|   ↳ `slug` | string | Market slug |
+|   ↳ `resolutionSource` | string | Resolution source |
+|   ↳ `endDate` | string | End date |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `image` | string | Market image URL |
+|   ↳ `icon` | string | Market icon URL |
+|   ↳ `description` | string | Market description |
+|   ↳ `outcomes` | string | Outcomes JSON string |
+|   ↳ `outcomePrices` | string | Outcome prices JSON string |
+|   ↳ `volume` | string | Total volume |
+|   ↳ `liquidity` | string | Total liquidity |
+|   ↳ `active` | boolean | Whether market is active |
+|   ↳ `closed` | boolean | Whether market is closed |
+|   ↳ `archived` | boolean | Whether market is archived |
+|   ↳ `volumeNum` | number | Volume as number |
+|   ↳ `liquidityNum` | number | Liquidity as number |
+|   ↳ `clobTokenIds` | array | CLOB token IDs |
+|   ↳ `acceptingOrders` | boolean | Whether accepting orders |
+|   ↳ `negRisk` | boolean | Whether negative risk |
 
 ### `polymarket_get_events`
 
@@ -162,24 +162,24 @@ Retrieve details of a specific event by ID or slug
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `event` | object | Event object with details |
-| ↳ `id` | string | Event ID |
-| ↳ `ticker` | string | Event ticker |
-| ↳ `slug` | string | Event slug |
-| ↳ `title` | string | Event title |
-| ↳ `description` | string | Event description |
-| ↳ `startDate` | string | Start date |
-| ↳ `creationDate` | string | Creation date |
-| ↳ `endDate` | string | End date |
-| ↳ `image` | string | Event image URL |
-| ↳ `icon` | string | Event icon URL |
-| ↳ `active` | boolean | Whether event is active |
-| ↳ `closed` | boolean | Whether event is closed |
-| ↳ `archived` | boolean | Whether event is archived |
-| ↳ `liquidity` | number | Total liquidity |
-| ↳ `volume` | number | Total volume |
-| ↳ `openInterest` | number | Open interest |
-| ↳ `commentCount` | number | Comment count |
-| ↳ `markets` | array | Array of markets in this event |
+|   ↳ `id` | string | Event ID |
+|   ↳ `ticker` | string | Event ticker |
+|   ↳ `slug` | string | Event slug |
+|   ↳ `title` | string | Event title |
+|   ↳ `description` | string | Event description |
+|   ↳ `startDate` | string | Start date |
+|   ↳ `creationDate` | string | Creation date |
+|   ↳ `endDate` | string | End date |
+|   ↳ `image` | string | Event image URL |
+|   ↳ `icon` | string | Event icon URL |
+|   ↳ `active` | boolean | Whether event is active |
+|   ↳ `closed` | boolean | Whether event is closed |
+|   ↳ `archived` | boolean | Whether event is archived |
+|   ↳ `liquidity` | number | Total liquidity |
+|   ↳ `volume` | number | Total volume |
+|   ↳ `openInterest` | number | Open interest |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `markets` | array | Array of markets in this event |
 
 ### `polymarket_get_tags`
 
@@ -231,10 +231,10 @@ Search for markets, events, and profiles on Polymarket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | object | Search results containing markets, events, tags, and profiles arrays |
-| ↳ `markets` | array | Array of matching market objects |
-| ↳ `events` | array | Array of matching event objects |
-| ↳ `tags` | array | Array of matching tag objects |
-| ↳ `profiles` | array | Array of matching profile objects |
+|   ↳ `markets` | array | Array of matching market objects |
+|   ↳ `events` | array | Array of matching event objects |
+|   ↳ `tags` | array | Array of matching tag objects |
+|   ↳ `profiles` | array | Array of matching profile objects |
 
 ### `polymarket_get_series`
 
@@ -283,23 +283,23 @@ Retrieve a specific series (related market group) by ID from Polymarket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `series` | object | Series object with details |
-| ↳ `id` | string | Series ID |
-| ↳ `ticker` | string | Series ticker |
-| ↳ `slug` | string | Series slug |
-| ↳ `title` | string | Series title |
-| ↳ `seriesType` | string | Series type |
-| ↳ `recurrence` | string | Recurrence pattern |
-| ↳ `image` | string | Series image URL |
-| ↳ `icon` | string | Series icon URL |
-| ↳ `active` | boolean | Whether series is active |
-| ↳ `closed` | boolean | Whether series is closed |
-| ↳ `archived` | boolean | Whether series is archived |
-| ↳ `featured` | boolean | Whether series is featured |
-| ↳ `volume` | number | Total volume |
-| ↳ `liquidity` | number | Total liquidity |
-| ↳ `commentCount` | number | Comment count |
-| ↳ `eventCount` | number | Number of events in series |
-| ↳ `events` | array | Array of events in this series |
+|   ↳ `id` | string | Series ID |
+|   ↳ `ticker` | string | Series ticker |
+|   ↳ `slug` | string | Series slug |
+|   ↳ `title` | string | Series title |
+|   ↳ `seriesType` | string | Series type |
+|   ↳ `recurrence` | string | Recurrence pattern |
+|   ↳ `image` | string | Series image URL |
+|   ↳ `icon` | string | Series icon URL |
+|   ↳ `active` | boolean | Whether series is active |
+|   ↳ `closed` | boolean | Whether series is closed |
+|   ↳ `archived` | boolean | Whether series is archived |
+|   ↳ `featured` | boolean | Whether series is featured |
+|   ↳ `volume` | number | Total volume |
+|   ↳ `liquidity` | number | Total liquidity |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `eventCount` | number | Number of events in series |
+|   ↳ `events` | array | Array of events in this series |
 
 ### `polymarket_get_orderbook`
 
@@ -316,19 +316,19 @@ Retrieve the order book summary for a specific token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orderbook` | object | Order book with bids and asks arrays |
-| ↳ `market` | string | Market identifier |
-| ↳ `asset_id` | string | Asset token ID |
-| ↳ `hash` | string | Order book hash |
-| ↳ `timestamp` | string | Timestamp |
-| ↳ `bids` | array | Bid orders |
-|   ↳ `price` | string | Bid price |
-|   ↳ `size` | string | Bid size |
-| ↳ `asks` | array | Ask orders |
-|   ↳ `price` | string | Ask price |
-|   ↳ `size` | string | Ask size |
-| ↳ `min_order_size` | string | Minimum order size |
-| ↳ `tick_size` | string | Tick size |
-| ↳ `neg_risk` | boolean | Whether negative risk |
+|   ↳ `market` | string | Market identifier |
+|   ↳ `asset_id` | string | Asset token ID |
+|   ↳ `hash` | string | Order book hash |
+|   ↳ `timestamp` | string | Timestamp |
+|   ↳ `bids` | array | Bid orders |
+|     ↳ `price` | string | Bid price |
+|     ↳ `size` | string | Bid size |
+|   ↳ `asks` | array | Ask orders |
+|     ↳ `price` | string | Ask price |
+|     ↳ `size` | string | Ask size |
+|   ↳ `min_order_size` | string | Minimum order size |
+|   ↳ `tick_size` | string | Tick size |
+|   ↳ `neg_risk` | boolean | Whether negative risk |
 
 ### `polymarket_get_price`
 
@@ -417,7 +417,7 @@ Retrieve the bid-ask spread for a specific token
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `spread` | object | Spread value between bid and ask |
-| ↳ `spread` | string | The spread value |
+|   ↳ `spread` | string | The spread value |
 
 ### `polymarket_get_tick_size`
 
@@ -625,15 +625,15 @@ Retrieve top holders of a specific market token
 | `holders` | array | Array of market holder groups by token |
 |   ↳ `token` | string | Token/asset ID |
 |   ↳ `holders` | array | Array of holders for this token |
-|   ↳ `proxyWallet` | string | Holder wallet address |
-|   ↳ `bio` | string | Holder bio |
-|   ↳ `asset` | string | Asset ID |
-|   ↳ `pseudonym` | string | Holder pseudonym |
-|   ↳ `amount` | number | Amount held |
-|   ↳ `displayUsernamePublic` | boolean | Whether username is publicly displayed |
-|   ↳ `outcomeIndex` | number | Outcome index |
-|   ↳ `name` | string | Holder display name |
-|   ↳ `profileImage` | string | Profile image URL |
-|   ↳ `profileImageOptimized` | string | Optimized profile image URL |
+|     ↳ `proxyWallet` | string | Holder wallet address |
+|     ↳ `bio` | string | Holder bio |
+|     ↳ `asset` | string | Asset ID |
+|     ↳ `pseudonym` | string | Holder pseudonym |
+|     ↳ `amount` | number | Amount held |
+|     ↳ `displayUsernamePublic` | boolean | Whether username is publicly displayed |
+|     ↳ `outcomeIndex` | number | Outcome index |
+|     ↳ `name` | string | Holder display name |
+|     ↳ `profileImage` | string | Profile image URL |
+|     ↳ `profileImageOptimized` | string | Optimized profile image URL |
 
 

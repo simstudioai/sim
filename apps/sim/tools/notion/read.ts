@@ -1,4 +1,5 @@
 import type { NotionReadParams, NotionResponse } from '@/tools/notion/types'
+import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
@@ -165,6 +166,12 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     metadata: {
       type: 'object',
       description: 'Page metadata including title, URL, and timestamps',
+      properties: {
+        title: { type: 'string', description: 'Page title' },
+        lastEditedTime: { type: 'string', description: 'ISO 8601 last edit timestamp' },
+        createdTime: { type: 'string', description: 'ISO 8601 creation timestamp' },
+        url: { type: 'string', description: 'Notion page URL' },
+      },
     },
   },
 }
@@ -292,8 +299,8 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
   outputs: {
     content: { type: 'string', description: 'Page content in markdown format' },
     title: { type: 'string', description: 'Page title' },
-    url: { type: 'string', description: 'Page URL' },
-    created_time: { type: 'string', description: 'Creation timestamp' },
-    last_edited_time: { type: 'string', description: 'Last edit timestamp' },
+    url: PAGE_OUTPUT_PROPERTIES.url,
+    created_time: PAGE_OUTPUT_PROPERTIES.created_time,
+    last_edited_time: PAGE_OUTPUT_PROPERTIES.last_edited_time,
   },
 }

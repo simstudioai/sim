@@ -1,4 +1,9 @@
 import type { GetReleaseParams, ReleaseResponse } from '@/tools/github/types'
+import {
+  RELEASE_ASSET_OUTPUT_PROPERTIES,
+  RELEASE_OUTPUT_PROPERTIES,
+  USER_OUTPUT,
+} from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const getReleaseTool: ToolConfig<GetReleaseParams, ReleaseResponse> = {
@@ -142,19 +147,18 @@ export const getReleaseV2Tool: ToolConfig<GetReleaseParams, any> = {
   },
 
   outputs: {
-    id: { type: 'number', description: 'Release ID' },
-    tag_name: { type: 'string', description: 'Git tag name' },
-    name: { type: 'string', description: 'Release name' },
-    body: { type: 'string', description: 'Release description', optional: true },
-    html_url: { type: 'string', description: 'GitHub web URL' },
-    tarball_url: { type: 'string', description: 'Tarball download URL' },
-    zipball_url: { type: 'string', description: 'Zipball download URL' },
-    draft: { type: 'boolean', description: 'Whether this is a draft' },
-    prerelease: { type: 'boolean', description: 'Whether this is a prerelease' },
-    author: { type: 'json', description: 'Release author object' },
-    assets: { type: 'array', description: 'Array of release asset objects' },
-    created_at: { type: 'string', description: 'Creation timestamp' },
-    published_at: { type: 'string', description: 'Publication timestamp', optional: true },
-    target_commitish: { type: 'string', description: 'Target commit/branch' },
+    ...RELEASE_OUTPUT_PROPERTIES,
+    author: USER_OUTPUT,
+    assets: {
+      type: 'array',
+      description: 'Release assets',
+      items: {
+        type: 'object',
+        properties: {
+          ...RELEASE_ASSET_OUTPUT_PROPERTIES,
+          uploader: USER_OUTPUT,
+        },
+      },
+    },
   },
 }

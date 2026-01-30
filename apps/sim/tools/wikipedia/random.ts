@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { WikipediaRandomPageResponse } from '@/tools/wikipedia/types'
+import { WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES } from '@/tools/wikipedia/types'
 
 export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPageResponse> = {
   id: 'wikipedia_random',
@@ -46,13 +47,7 @@ export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPa
     randomPage: {
       type: 'object',
       description: 'Random Wikipedia page data',
-      properties: {
-        title: { type: 'string', description: 'Page title' },
-        extract: { type: 'string', description: 'Page extract/summary' },
-        description: { type: 'string', description: 'Page description', optional: true },
-        thumbnail: { type: 'object', description: 'Thumbnail image data', optional: true },
-        content_urls: { type: 'object', description: 'URLs to access the page' },
-      },
+      properties: WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -104,6 +104,12 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
     data: {
       type: 'object',
       description: 'Comment data including ID, name, permalink, and body',
+      properties: {
+        id: { type: 'string', description: 'New comment ID' },
+        name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
+        permalink: { type: 'string', description: 'Comment permalink' },
+        body: { type: 'string', description: 'Comment body text' },
+      },
     },
   },
 }

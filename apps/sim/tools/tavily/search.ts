@@ -1,4 +1,8 @@
 import type { TavilySearchParams, TavilySearchResponse } from '@/tools/tavily/types'
+import {
+  TAVILY_IMAGE_OUTPUT_PROPERTIES,
+  TAVILY_SEARCH_RESULT_OUTPUT_PROPERTIES,
+} from '@/tools/tavily/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = {
@@ -205,28 +209,31 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
     query: { type: 'string', description: 'The search query that was executed' },
     results: {
       type: 'array',
+      description:
+        'Ranked search results with titles, URLs, content snippets, and optional metadata',
       items: {
         type: 'object',
-        properties: {
-          title: { type: 'string' },
-          url: { type: 'string' },
-          snippet: { type: 'string' },
-          score: { type: 'number' },
-          raw_content: { type: 'string' },
-          favicon: { type: 'string' },
-        },
+        properties: TAVILY_SEARCH_RESULT_OUTPUT_PROPERTIES,
       },
-      description: 'Search results with titles, URLs, content snippets, and optional metadata',
     },
-    answer: { type: 'string', description: 'LLM-generated answer to the query (if requested)' },
+    answer: {
+      type: 'string',
+      description: 'LLM-generated answer to the query (if requested)',
+      optional: true,
+    },
     images: {
       type: 'array',
-      items: { type: 'string' },
       description: 'Query-related images (if requested)',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: TAVILY_IMAGE_OUTPUT_PROPERTIES,
+      },
     },
     auto_parameters: {
       type: 'object',
       description: 'Automatically selected parameters based on query intent (if enabled)',
+      optional: true,
     },
     response_time: { type: 'number', description: 'Time taken for the search request in seconds' },
   },

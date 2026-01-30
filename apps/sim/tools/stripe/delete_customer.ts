@@ -1,4 +1,5 @@
 import type { CustomerDeleteResponse, DeleteCustomerParams } from '@/tools/stripe/types'
+import { DELETE_OUTPUT_PROPERTIES } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeDeleteCustomerTool: ToolConfig<DeleteCustomerParams, CustomerDeleteResponse> = {
@@ -43,13 +44,7 @@ export const stripeDeleteCustomerTool: ToolConfig<DeleteCustomerParams, Customer
   },
 
   outputs: {
-    deleted: {
-      type: 'boolean',
-      description: 'Whether the customer was deleted',
-    },
-    id: {
-      type: 'string',
-      description: 'The ID of the deleted customer',
-    },
+    deleted: DELETE_OUTPUT_PROPERTIES.deleted,
+    id: DELETE_OUTPUT_PROPERTIES.id,
   },
 }

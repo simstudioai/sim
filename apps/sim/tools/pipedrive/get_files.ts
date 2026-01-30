@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { PipedriveGetFilesParams, PipedriveGetFilesResponse } from '@/tools/pipedrive/types'
+import { PIPEDRIVE_FILE_OUTPUT_PROPERTIES } from '@/tools/pipedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetFiles')
@@ -91,7 +92,14 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
     },
 
     outputs: {
-      files: { type: 'array', description: 'Array of file objects from Pipedrive' },
+      files: {
+        type: 'array',
+        description: 'Array of file objects from Pipedrive',
+        items: {
+          type: 'object',
+          properties: PIPEDRIVE_FILE_OUTPUT_PROPERTIES,
+        },
+      },
       total_items: { type: 'number', description: 'Total number of files returned' },
       success: { type: 'boolean', description: 'Operation success status' },
     },

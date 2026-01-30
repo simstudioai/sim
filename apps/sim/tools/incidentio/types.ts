@@ -1,5 +1,274 @@
 // Common types for incident.io tools
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
+
+/**
+ * Output property definitions for incident.io API responses.
+ * @see https://api-docs.incident.io/
+ */
+
+/**
+ * Output definition for severity objects.
+ * @see https://api-docs.incident.io/#tag/Severities
+ */
+export const INCIDENTIO_SEVERITY_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Severity ID' },
+  name: { type: 'string', description: 'Severity name (e.g., Critical, Major, Minor)' },
+  description: { type: 'string', description: 'Severity description' },
+  rank: { type: 'number', description: 'Severity rank (lower = more severe)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for status objects.
+ * @see https://api-docs.incident.io/#tag/Incident-Statuses
+ */
+export const INCIDENTIO_STATUS_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Status ID' },
+  name: { type: 'string', description: 'Status name' },
+  description: { type: 'string', description: 'Status description' },
+  category: {
+    type: 'string',
+    description: 'Status category (triage, active, post-incident, closed)',
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for incident type objects.
+ * @see https://api-docs.incident.io/#tag/Incident-Types
+ */
+export const INCIDENTIO_INCIDENT_TYPE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Incident type ID' },
+  name: { type: 'string', description: 'Incident type name' },
+  description: { type: 'string', description: 'Incident type description' },
+  is_default: { type: 'boolean', description: 'Whether this is the default incident type' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for user objects.
+ * @see https://api-docs.incident.io/#tag/Users
+ */
+export const INCIDENTIO_USER_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'User ID' },
+  name: { type: 'string', description: 'User display name' },
+  email: { type: 'string', description: 'User email address' },
+  role: { type: 'string', description: 'User role' },
+  slack_user_id: { type: 'string', description: 'Slack user ID', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for incident objects.
+ * @see https://api-docs.incident.io/#tag/Incidents
+ */
+export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Incident ID' },
+  name: { type: 'string', description: 'Incident name/title' },
+  summary: { type: 'string', description: 'Incident summary', optional: true },
+  description: { type: 'string', description: 'Incident description', optional: true },
+  mode: {
+    type: 'string',
+    description: 'Incident mode (standard, retrospective, test)',
+    optional: true,
+  },
+  call_url: { type: 'string', description: 'Video call URL', optional: true },
+  severity: {
+    type: 'object',
+    description: 'Incident severity',
+    optional: true,
+    properties: INCIDENTIO_SEVERITY_OUTPUT_PROPERTIES,
+  },
+  status: {
+    type: 'object',
+    description: 'Current incident status',
+    optional: true,
+    properties: INCIDENTIO_STATUS_OUTPUT_PROPERTIES,
+  },
+  incident_type: {
+    type: 'object',
+    description: 'Incident type',
+    optional: true,
+    properties: INCIDENTIO_INCIDENT_TYPE_OUTPUT_PROPERTIES,
+  },
+  created_at: { type: 'string', description: 'When the incident was created (ISO 8601)' },
+  updated_at: { type: 'string', description: 'When the incident was last updated (ISO 8601)' },
+  incident_url: { type: 'string', description: 'URL to the incident page', optional: true },
+  slack_channel_id: { type: 'string', description: 'Slack channel ID', optional: true },
+  slack_channel_name: { type: 'string', description: 'Slack channel name', optional: true },
+  visibility: {
+    type: 'string',
+    description: 'Incident visibility (public, private)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete incident output definition
+ */
+export const INCIDENTIO_INCIDENT_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Incident.io incident object',
+  properties: INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for action objects.
+ * @see https://api-docs.incident.io/#tag/Actions
+ */
+export const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Action ID' },
+  description: { type: 'string', description: 'Action description' },
+  assignee: {
+    type: 'object',
+    description: 'User assigned to the action',
+    optional: true,
+    properties: INCIDENTIO_USER_OUTPUT_PROPERTIES,
+  },
+  status: { type: 'string', description: 'Action status (outstanding, completed, deleted)' },
+  due_at: { type: 'string', description: 'Due date/time', optional: true },
+  created_at: { type: 'string', description: 'When the action was created' },
+  updated_at: { type: 'string', description: 'When the action was last updated' },
+  incident_id: { type: 'string', description: 'Associated incident ID', optional: true },
+  completed_at: { type: 'string', description: 'When the action was completed', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete action output definition
+ */
+export const INCIDENTIO_ACTION_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Incident.io action object',
+  properties: INCIDENTIO_ACTION_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for follow-up objects.
+ * @see https://api-docs.incident.io/#tag/Follow-ups
+ */
+export const INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Follow-up ID' },
+  title: { type: 'string', description: 'Follow-up title' },
+  description: { type: 'string', description: 'Follow-up description', optional: true },
+  assignee: {
+    type: 'object',
+    description: 'User assigned to the follow-up',
+    optional: true,
+    properties: INCIDENTIO_USER_OUTPUT_PROPERTIES,
+  },
+  status: { type: 'string', description: 'Follow-up status' },
+  created_at: { type: 'string', description: 'When the follow-up was created' },
+  updated_at: { type: 'string', description: 'When the follow-up was last updated' },
+  incident_id: { type: 'string', description: 'Associated incident ID', optional: true },
+  completed_at: { type: 'string', description: 'When the follow-up was completed', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete follow-up output definition
+ */
+export const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Incident.io follow-up object',
+  properties: INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for workflow objects.
+ * @see https://api-docs.incident.io/#tag/Workflows
+ */
+export const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Workflow ID' },
+  name: { type: 'string', description: 'Workflow name' },
+  state: { type: 'string', description: 'Workflow state (active, draft, disabled)' },
+  folder: { type: 'string', description: 'Workflow folder', optional: true },
+  created_at: { type: 'string', description: 'When the workflow was created', optional: true },
+  updated_at: { type: 'string', description: 'When the workflow was last updated', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete workflow output definition
+ */
+export const INCIDENTIO_WORKFLOW_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Incident.io workflow object',
+  properties: INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for custom field objects.
+ * @see https://api-docs.incident.io/#tag/Custom-Fields
+ */
+export const INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Custom field ID' },
+  name: { type: 'string', description: 'Custom field name' },
+  description: { type: 'string', description: 'Custom field description', optional: true },
+  field_type: {
+    type: 'string',
+    description: 'Field type (text, single_select, multi_select, numeric, link)',
+  },
+  created_at: { type: 'string', description: 'When the field was created' },
+  updated_at: { type: 'string', description: 'When the field was last updated' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete custom field output definition
+ */
+export const INCIDENTIO_CUSTOM_FIELD_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Incident.io custom field object',
+  properties: INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for schedule objects.
+ * @see https://api-docs.incident.io/#tag/Schedules
+ */
+export const INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Schedule ID' },
+  name: { type: 'string', description: 'Schedule name' },
+  timezone: { type: 'string', description: 'Schedule timezone' },
+  created_at: { type: 'string', description: 'When the schedule was created', optional: true },
+  updated_at: { type: 'string', description: 'When the schedule was last updated', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete schedule output definition
+ */
+export const INCIDENTIO_SCHEDULE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Incident.io schedule object',
+  properties: INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for incident role objects.
+ * @see https://api-docs.incident.io/#tag/Incident-Roles
+ */
+export const INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Incident role ID' },
+  name: { type: 'string', description: 'Role name' },
+  description: { type: 'string', description: 'Role description', optional: true },
+  instructions: { type: 'string', description: 'Role instructions' },
+  shortform: { type: 'string', description: 'Role shortform/abbreviation' },
+  role_type: { type: 'string', description: 'Role type (lead, custom)' },
+  required: { type: 'boolean', description: 'Whether the role is required' },
+  created_at: { type: 'string', description: 'When the role was created' },
+  updated_at: { type: 'string', description: 'When the role was last updated' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete incident role output definition
+ */
+export const INCIDENTIO_INCIDENT_ROLE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Incident.io incident role object',
+  properties: INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Pagination output properties
+ */
+export const INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES = {
+  after: { type: 'string', description: 'Cursor for next page', optional: true },
+  page_size: { type: 'number', description: 'Number of items per page' },
+  total_record_count: { type: 'number', description: 'Total number of records', optional: true },
+} as const satisfies Record<string, OutputProperty>
 
 // Common parameters for all incident.io tools
 export interface IncidentioBaseParams {

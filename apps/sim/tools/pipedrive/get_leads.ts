@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { PipedriveGetLeadsParams, PipedriveGetLeadsResponse } from '@/tools/pipedrive/types'
+import { PIPEDRIVE_LEAD_OUTPUT_PROPERTIES } from '@/tools/pipedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetLeads')
@@ -134,11 +135,16 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
         type: 'array',
         description: 'Array of lead objects (when listing all)',
         optional: true,
+        items: {
+          type: 'object',
+          properties: PIPEDRIVE_LEAD_OUTPUT_PROPERTIES,
+        },
       },
       lead: {
         type: 'object',
         description: 'Single lead object (when lead_id is provided)',
         optional: true,
+        properties: PIPEDRIVE_LEAD_OUTPUT_PROPERTIES,
       },
       total_items: {
         type: 'number',

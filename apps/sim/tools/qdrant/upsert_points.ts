@@ -1,4 +1,8 @@
 import type { QdrantResponse, QdrantUpsertParams } from '@/tools/qdrant/types'
+import {
+  QDRANT_RESPONSE_OUTPUT_PROPERTIES,
+  UPSERT_RESULT_OUTPUT_PROPERTIES,
+} from '@/tools/qdrant/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = {
@@ -56,13 +60,11 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
   },
 
   outputs: {
-    status: {
-      type: 'string',
-      description: 'Status of the upsert operation',
-    },
+    status: QDRANT_RESPONSE_OUTPUT_PROPERTIES.status,
     data: {
       type: 'object',
       description: 'Result data from the upsert operation',
+      properties: UPSERT_RESULT_OUTPUT_PROPERTIES,
     },
   },
 }

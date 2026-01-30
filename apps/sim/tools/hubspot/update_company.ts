@@ -3,6 +3,7 @@ import type {
   HubSpotUpdateCompanyParams,
   HubSpotUpdateCompanyResponse,
 } from '@/tools/hubspot/types'
+import { COMPANY_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotUpdateCompany')
@@ -103,7 +104,7 @@ export const hubspotUpdateCompanyTool: ToolConfig<
   },
 
   outputs: {
-    company: { type: 'object', description: 'Updated HubSpot company object' },
+    company: COMPANY_OBJECT_OUTPUT,
     companyId: { type: 'string', description: 'The updated company ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

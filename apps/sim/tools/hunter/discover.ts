@@ -1,4 +1,5 @@
 import type { HunterDiscoverParams, HunterDiscoverResponse } from '@/tools/hunter/types'
+import { DISCOVER_RESULTS_OUTPUT } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverResponse> = {
@@ -106,10 +107,6 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
   },
 
   outputs: {
-    results: {
-      type: 'array',
-      description:
-        'Array of companies matching the search criteria, each containing domain, name, headcount, technologies, and email_count',
-    },
+    results: DISCOVER_RESULTS_OUTPUT,
   },
 }

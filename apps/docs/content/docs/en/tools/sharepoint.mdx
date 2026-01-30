@@ -52,13 +52,13 @@ Create a new page in a SharePoint site
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `page` | object | Created SharePoint page information |
-| ↳ `id` | string | The unique ID of the created page |
-| ↳ `name` | string | The name of the created page |
-| ↳ `title` | string | The title of the created page |
-| ↳ `webUrl` | string | The URL to access the page |
-| ↳ `pageLayout` | string | The layout type of the page |
-| ↳ `createdDateTime` | string | When the page was created |
-| ↳ `lastModifiedDateTime` | string | When the page was last modified |
+|   ↳ `id` | string | The unique ID of the created page |
+|   ↳ `name` | string | The name of the created page |
+|   ↳ `title` | string | The title of the created page |
+|   ↳ `webUrl` | string | The URL to access the page |
+|   ↳ `pageLayout` | string | The layout type of the page |
+|   ↳ `createdDateTime` | string | When the page was created |
+|   ↳ `lastModifiedDateTime` | string | When the page was last modified |
 
 ### `sharepoint_read_page`
 
@@ -79,15 +79,6 @@ Read a specific page from a SharePoint site
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `page` | object | Information about the SharePoint page |
-| ↳ `id` | string | The unique ID of the page |
-| ↳ `name` | string | The name of the page |
-| ↳ `title` | string | The title of the page |
-| ↳ `webUrl` | string | The URL to access the page |
-| ↳ `pageLayout` | string | The layout type of the page |
-| ↳ `createdDateTime` | string | When the page was created |
-| ↳ `lastModifiedDateTime` | string | When the page was last modified |
-| `pages` | array | List of SharePoint pages |
-|   ↳ `page` | object | The unique ID of the page |
 |   ↳ `id` | string | The unique ID of the page |
 |   ↳ `name` | string | The name of the page |
 |   ↳ `title` | string | The title of the page |
@@ -95,12 +86,21 @@ Read a specific page from a SharePoint site
 |   ↳ `pageLayout` | string | The layout type of the page |
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
+| `pages` | array | List of SharePoint pages |
+|   ↳ `page` | object | The unique ID of the page |
+|     ↳ `id` | string | The unique ID of the page |
+|     ↳ `name` | string | The name of the page |
+|     ↳ `title` | string | The title of the page |
+|     ↳ `webUrl` | string | The URL to access the page |
+|     ↳ `pageLayout` | string | The layout type of the page |
+|     ↳ `createdDateTime` | string | When the page was created |
+|     ↳ `lastModifiedDateTime` | string | When the page was last modified |
 |   ↳ `content` | object | Extracted text content from the page |
+|     ↳ `content` | string | Extracted text content from the page |
+|     ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
+| `content` | object | Content of the SharePoint page |
 |   ↳ `content` | string | Extracted text content from the page |
 |   ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
-| `content` | object | Content of the SharePoint page |
-| ↳ `content` | string | Extracted text content from the page |
-| ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
 | `totalPages` | number | Total number of pages found |
 
 ### `sharepoint_list_sites`
@@ -119,18 +119,18 @@ List details of all SharePoint sites
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `site` | object | Information about the current SharePoint site |
-| ↳ `id` | string | The unique ID of the site |
-| ↳ `name` | string | The name of the site |
-| ↳ `displayName` | string | The display name of the site |
-| ↳ `webUrl` | string | The URL to access the site |
-| ↳ `description` | string | The description of the site |
-| ↳ `createdDateTime` | string | When the site was created |
-| ↳ `lastModifiedDateTime` | string | When the site was last modified |
-| ↳ `isPersonalSite` | boolean | Whether this is a personal site |
-| ↳ `root` | object | Server relative URL |
-|   ↳ `serverRelativeUrl` | string | Server relative URL |
-| ↳ `siteCollection` | object | Site collection hostname |
-|   ↳ `hostname` | string | Site collection hostname |
+|   ↳ `id` | string | The unique ID of the site |
+|   ↳ `name` | string | The name of the site |
+|   ↳ `displayName` | string | The display name of the site |
+|   ↳ `webUrl` | string | The URL to access the site |
+|   ↳ `description` | string | The description of the site |
+|   ↳ `createdDateTime` | string | When the site was created |
+|   ↳ `lastModifiedDateTime` | string | When the site was last modified |
+|   ↳ `isPersonalSite` | boolean | Whether this is a personal site |
+|   ↳ `root` | object | Server relative URL |
+|     ↳ `serverRelativeUrl` | string | Server relative URL |
+|   ↳ `siteCollection` | object | Site collection hostname |
+|     ↳ `hostname` | string | Site collection hostname |
 | `sites` | array | List of all accessible SharePoint sites |
 |   ↳ `id` | string | The unique ID of the site |
 |   ↳ `name` | string | The name of the site |
@@ -160,13 +160,13 @@ Create a new list in a SharePoint site
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `list` | object | Created SharePoint list information |
-| ↳ `id` | string | The unique ID of the list |
-| ↳ `displayName` | string | The display name of the list |
-| ↳ `name` | string | The internal name of the list |
-| ↳ `webUrl` | string | The web URL of the list |
-| ↳ `createdDateTime` | string | When the list was created |
-| ↳ `lastModifiedDateTime` | string | When the list was last modified |
-| ↳ `list` | object | List properties \(e.g., template\) |
+|   ↳ `id` | string | The unique ID of the list |
+|   ↳ `displayName` | string | The display name of the list |
+|   ↳ `name` | string | The internal name of the list |
+|   ↳ `webUrl` | string | The web URL of the list |
+|   ↳ `createdDateTime` | string | When the list was created |
+|   ↳ `lastModifiedDateTime` | string | When the list was last modified |
+|   ↳ `list` | object | List properties \(e.g., template\) |
 
 ### `sharepoint_get_list`
 
@@ -185,14 +185,14 @@ Get metadata (and optionally columns/items) for a SharePoint list
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `list` | object | Information about the SharePoint list |
-| ↳ `id` | string | The unique ID of the list |
-| ↳ `displayName` | string | The display name of the list |
-| ↳ `name` | string | The internal name of the list |
-| ↳ `webUrl` | string | The web URL of the list |
-| ↳ `createdDateTime` | string | When the list was created |
-| ↳ `lastModifiedDateTime` | string | When the list was last modified |
-| ↳ `list` | object | List properties \(e.g., template\) |
-| ↳ `columns` | array | List column definitions |
+|   ↳ `id` | string | The unique ID of the list |
+|   ↳ `displayName` | string | The display name of the list |
+|   ↳ `name` | string | The internal name of the list |
+|   ↳ `webUrl` | string | The web URL of the list |
+|   ↳ `createdDateTime` | string | When the list was created |
+|   ↳ `lastModifiedDateTime` | string | When the list was last modified |
+|   ↳ `list` | object | List properties \(e.g., template\) |
+|   ↳ `columns` | array | List column definitions |
 | `lists` | array | All lists in the site when no listId/title provided |
 
 ### `sharepoint_update_list`
@@ -214,8 +214,8 @@ Update the properties (fields) on a SharePoint list item
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `item` | object | Updated SharePoint list item |
-| ↳ `id` | string | Item ID |
-| ↳ `fields` | object | Updated field values |
+|   ↳ `id` | string | Item ID |
+|   ↳ `fields` | object | Updated field values |
 
 ### `sharepoint_add_list_items`
 
@@ -235,8 +235,8 @@ Add a new item to a SharePoint list
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `item` | object | Created SharePoint list item |
-| ↳ `id` | string | Item ID |
-| ↳ `fields` | object | Field values for the new item |
+|   ↳ `id` | string | Item ID |
+|   ↳ `fields` | object | Field values for the new item |
 
 ### `sharepoint_upload_file`
 

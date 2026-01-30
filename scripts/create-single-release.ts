@@ -57,7 +57,7 @@ function findVersionCommit(version: string): VersionCommit | null {
   for (const line of lines) {
     const [hash, message, date, author] = line.split('|')
 
-    const versionMatch = message.match(/^(v\d+\.\d+\.?\d*):\s*(.+)$/)
+    const versionMatch = message.match(/^\s*(v\d+\.\d+\.?\d*):\s*(.+)$/)
     if (versionMatch && versionMatch[1] === version) {
       return {
         hash,
@@ -83,7 +83,7 @@ function findPreviousVersionCommit(currentVersion: string): VersionCommit | null
   for (const line of lines) {
     const [hash, message, date, author] = line.split('|')
 
-    const versionMatch = message.match(/^(v\d+\.\d+\.?\d*):\s*(.+)$/)
+    const versionMatch = message.match(/^\s*(v\d+\.\d+\.?\d*):\s*(.+)$/)
     if (versionMatch) {
       if (versionMatch[1] === currentVersion) {
         foundCurrent = true

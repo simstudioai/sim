@@ -1,4 +1,5 @@
 import type { ListWorkflowsParams, ListWorkflowsResponse } from '@/tools/github/types'
+import { WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWorkflowsTool: ToolConfig<ListWorkflowsParams, ListWorkflowsResponse> = {
@@ -163,18 +164,7 @@ export const listWorkflowsV2Tool: ToolConfig<ListWorkflowsParams, any> = {
       description: 'Array of workflow objects',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'number', description: 'Workflow ID' },
-          node_id: { type: 'string', description: 'Workflow node ID' },
-          name: { type: 'string', description: 'Workflow name' },
-          path: { type: 'string', description: 'Path to workflow file' },
-          state: { type: 'string', description: 'Workflow state' },
-          html_url: { type: 'string', description: 'GitHub web URL' },
-          badge_url: { type: 'string', description: 'Badge URL' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
-          deleted_at: { type: 'string', description: 'Deletion timestamp', optional: true },
-        },
+        properties: WORKFLOW_OUTPUT_PROPERTIES,
       },
     },
   },

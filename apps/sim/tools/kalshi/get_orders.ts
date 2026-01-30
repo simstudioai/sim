@@ -5,7 +5,12 @@ import type {
   KalshiPaginationParams,
   KalshiPagingInfo,
 } from './types'
-import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from './types'
+import {
+  buildKalshiAuthHeaders,
+  buildKalshiUrl,
+  handleKalshiError,
+  KALSHI_ORDER_OUTPUT_PROPERTIES,
+} from './types'
 
 export interface KalshiGetOrdersParams extends KalshiAuthParams, KalshiPaginationParams {
   ticker?: string
@@ -116,6 +121,10 @@ export const kalshiGetOrdersTool: ToolConfig<KalshiGetOrdersParams, KalshiGetOrd
     orders: {
       type: 'array',
       description: 'Array of order objects',
+      items: {
+        type: 'object',
+        properties: KALSHI_ORDER_OUTPUT_PROPERTIES,
+      },
     },
     paging: {
       type: 'object',
@@ -328,40 +337,9 @@ export const kalshiGetOrdersV2Tool: ToolConfig<KalshiGetOrdersV2Params, KalshiGe
       orders: {
         type: 'array',
         description: 'Array of order objects with full API response fields',
-        properties: {
-          order_id: { type: 'string', description: 'Order ID' },
-          user_id: { type: 'string', description: 'User ID' },
-          client_order_id: { type: 'string', description: 'Client order ID' },
-          ticker: { type: 'string', description: 'Market ticker' },
-          side: { type: 'string', description: 'Order side (yes/no)' },
-          action: { type: 'string', description: 'Action (buy/sell)' },
-          type: { type: 'string', description: 'Order type (limit/market)' },
-          status: { type: 'string', description: 'Order status (resting/canceled/executed)' },
-          yes_price: { type: 'number', description: 'Yes price in cents' },
-          no_price: { type: 'number', description: 'No price in cents' },
-          yes_price_dollars: { type: 'string', description: 'Yes price in dollars' },
-          no_price_dollars: { type: 'string', description: 'No price in dollars' },
-          fill_count: { type: 'number', description: 'Filled contract count' },
-          fill_count_fp: { type: 'string', description: 'Filled count (fixed-point)' },
-          remaining_count: { type: 'number', description: 'Remaining contracts' },
-          remaining_count_fp: { type: 'string', description: 'Remaining count (fixed-point)' },
-          initial_count: { type: 'number', description: 'Initial contract count' },
-          initial_count_fp: { type: 'string', description: 'Initial count (fixed-point)' },
-          taker_fees: { type: 'number', description: 'Taker fees in cents' },
-          maker_fees: { type: 'number', description: 'Maker fees in cents' },
-          taker_fees_dollars: { type: 'string', description: 'Taker fees in dollars' },
-          maker_fees_dollars: { type: 'string', description: 'Maker fees in dollars' },
-          taker_fill_cost: { type: 'number', description: 'Taker fill cost in cents' },
-          maker_fill_cost: { type: 'number', description: 'Maker fill cost in cents' },
-          taker_fill_cost_dollars: { type: 'string', description: 'Taker fill cost in dollars' },
-          maker_fill_cost_dollars: { type: 'string', description: 'Maker fill cost in dollars' },
-          queue_position: { type: 'number', description: 'Queue position (deprecated)' },
-          expiration_time: { type: 'string', description: 'Order expiration time' },
-          created_time: { type: 'string', description: 'Order creation time' },
-          last_update_time: { type: 'string', description: 'Last update time' },
-          self_trade_prevention_type: { type: 'string', description: 'Self-trade prevention type' },
-          order_group_id: { type: 'string', description: 'Order group ID' },
-          cancel_order_on_pause: { type: 'boolean', description: 'Cancel on market pause' },
+        items: {
+          type: 'object',
+          properties: KALSHI_ORDER_OUTPUT_PROPERTIES,
         },
       },
       cursor: {

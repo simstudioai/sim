@@ -1,6 +1,7 @@
-import type {
-  SupabaseStorageDeleteBucketParams,
-  SupabaseStorageDeleteBucketResponse,
+import {
+  STORAGE_MOVE_OUTPUT_PROPERTIES,
+  type SupabaseStorageDeleteBucketParams,
+  type SupabaseStorageDeleteBucketResponse,
 } from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -68,6 +69,7 @@ export const storageDeleteBucketTool: ToolConfig<
     results: {
       type: 'object',
       description: 'Delete operation result',
+      properties: STORAGE_MOVE_OUTPUT_PROPERTIES,
     },
   },
 }

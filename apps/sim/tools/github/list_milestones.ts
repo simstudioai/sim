@@ -1,3 +1,4 @@
+import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListMilestonesParams {
@@ -212,36 +213,8 @@ export const listMilestonesV2Tool: ToolConfig<ListMilestonesParams, any> = {
       items: {
         type: 'object',
         properties: {
-          id: { type: 'number', description: 'Milestone ID' },
-          node_id: { type: 'string', description: 'GraphQL node ID' },
-          number: { type: 'number', description: 'Milestone number' },
-          title: { type: 'string', description: 'Milestone title' },
-          description: { type: 'string', description: 'Milestone description', optional: true },
-          state: { type: 'string', description: 'State (open or closed)' },
-          url: { type: 'string', description: 'API URL' },
-          html_url: { type: 'string', description: 'GitHub web URL' },
-          labels_url: { type: 'string', description: 'Labels API URL' },
-          due_on: { type: 'string', description: 'Due date (ISO 8601)', optional: true },
-          open_issues: { type: 'number', description: 'Number of open issues' },
-          closed_issues: { type: 'number', description: 'Number of closed issues' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
-          closed_at: { type: 'string', description: 'Close timestamp', optional: true },
-          creator: {
-            type: 'object',
-            description: 'Milestone creator',
-            optional: true,
-            properties: {
-              login: { type: 'string', description: 'Username' },
-              id: { type: 'number', description: 'User ID' },
-              node_id: { type: 'string', description: 'GraphQL node ID' },
-              avatar_url: { type: 'string', description: 'Avatar image URL' },
-              url: { type: 'string', description: 'API URL' },
-              html_url: { type: 'string', description: 'Profile page URL' },
-              type: { type: 'string', description: 'User or Organization' },
-              site_admin: { type: 'boolean', description: 'GitHub staff indicator' },
-            },
-          },
+          ...MILESTONE_V2_OUTPUT_PROPERTIES,
+          creator: MILESTONE_CREATOR_OUTPUT,
         },
       },
     },

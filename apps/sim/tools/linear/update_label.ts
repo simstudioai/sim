@@ -1,4 +1,5 @@
 import type { LinearUpdateLabelParams, LinearUpdateLabelResponse } from '@/tools/linear/types'
+import { LABEL_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateLabelTool: ToolConfig<LinearUpdateLabelParams, LinearUpdateLabelResponse> =
@@ -118,12 +119,7 @@ export const linearUpdateLabelTool: ToolConfig<LinearUpdateLabelParams, LinearUp
       label: {
         type: 'object',
         description: 'The updated label',
-        properties: {
-          id: { type: 'string', description: 'Label ID' },
-          name: { type: 'string', description: 'Label name' },
-          color: { type: 'string', description: 'Label color' },
-          description: { type: 'string', description: 'Label description' },
-        },
+        properties: LABEL_FULL_OUTPUT_PROPERTIES,
       },
     },
   }

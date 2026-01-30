@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { MESSAGES_ARRAY_OUTPUT, PAGINATION_OUTPUT_PROPERTIES } from '@/tools/zep/types'
 
-// Get Messages Tool - Retrieve messages from a thread (Zep v3)
 export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_messages',
   name: 'Get Messages',
@@ -77,17 +77,8 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
   },
 
   outputs: {
-    messages: {
-      type: 'array',
-      description: 'Array of message objects',
-    },
-    rowCount: {
-      type: 'number',
-      description: 'Number of messages in this response',
-    },
-    totalCount: {
-      type: 'number',
-      description: 'Total number of messages in the thread',
-    },
+    messages: MESSAGES_ARRAY_OUTPUT,
+    rowCount: PAGINATION_OUTPUT_PROPERTIES.rowCount,
+    totalCount: PAGINATION_OUTPUT_PROPERTIES.totalCount,
   },
 }

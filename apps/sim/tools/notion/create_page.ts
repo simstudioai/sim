@@ -1,4 +1,5 @@
 import type { NotionCreatePageParams, NotionResponse } from '@/tools/notion/types'
+import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResponse> = {
@@ -140,6 +141,13 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
     metadata: {
       type: 'object',
       description: 'Page metadata including title, page ID, URL, and timestamps',
+      properties: {
+        title: { type: 'string', description: 'Page title' },
+        pageId: PAGE_OUTPUT_PROPERTIES.id,
+        url: PAGE_OUTPUT_PROPERTIES.url,
+        lastEditedTime: PAGE_OUTPUT_PROPERTIES.last_edited_time,
+        createdTime: PAGE_OUTPUT_PROPERTIES.created_time,
+      },
     },
   },
 }
@@ -196,10 +204,10 @@ export const notionCreatePageV2Tool: ToolConfig<
   },
 
   outputs: {
-    id: { type: 'string', description: 'Page ID' },
+    id: PAGE_OUTPUT_PROPERTIES.id,
     title: { type: 'string', description: 'Page title' },
-    url: { type: 'string', description: 'Page URL' },
-    created_time: { type: 'string', description: 'Creation timestamp' },
-    last_edited_time: { type: 'string', description: 'Last edit timestamp' },
+    url: PAGE_OUTPUT_PROPERTIES.url,
+    created_time: PAGE_OUTPUT_PROPERTIES.created_time,
+    last_edited_time: PAGE_OUTPUT_PROPERTIES.last_edited_time,
   },
 }

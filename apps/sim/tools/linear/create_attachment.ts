@@ -2,6 +2,7 @@ import type {
   LinearCreateAttachmentParams,
   LinearCreateAttachmentResponse,
 } from '@/tools/linear/types'
+import { ATTACHMENT_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateAttachmentTool: ToolConfig<
@@ -121,13 +122,7 @@ export const linearCreateAttachmentTool: ToolConfig<
     attachment: {
       type: 'object',
       description: 'The created attachment',
-      properties: {
-        id: { type: 'string', description: 'Attachment ID' },
-        title: { type: 'string', description: 'Attachment title' },
-        subtitle: { type: 'string', description: 'Attachment subtitle' },
-        url: { type: 'string', description: 'Attachment URL' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
-      },
+      properties: ATTACHMENT_OUTPUT_PROPERTIES,
     },
   },
 }

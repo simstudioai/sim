@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetCurrentlyPlayingParams {
   accessToken: string
@@ -103,6 +104,11 @@ export const spotifyGetCurrentlyPlayingTool: ToolConfig<
   outputs: {
     is_playing: { type: 'boolean', description: 'Whether playback is active' },
     progress_ms: { type: 'number', description: 'Current position in track (ms)', optional: true },
-    track: { type: 'json', description: 'Currently playing track', optional: true },
+    track: {
+      type: 'object',
+      description: 'Currently playing track',
+      optional: true,
+      properties: CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES,
+    },
   },
 }

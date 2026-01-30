@@ -69,22 +69,49 @@ Create a new Zoom meeting
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `meeting` | object | The created meeting with all its properties |
-| ↳ `id` | number | Meeting ID |
-| ↳ `uuid` | string | Meeting UUID |
-| ↳ `host_id` | string | Host user ID |
-| ↳ `host_email` | string | Host email |
-| ↳ `topic` | string | Meeting topic |
-| ↳ `type` | number | Meeting type |
-| ↳ `status` | string | Meeting status |
-| ↳ `start_time` | string | Start time |
-| ↳ `duration` | number | Duration in minutes |
-| ↳ `timezone` | string | Timezone |
-| ↳ `agenda` | string | Meeting agenda |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `start_url` | string | Host start URL |
-| ↳ `join_url` | string | Participant join URL |
-| ↳ `password` | string | Meeting password |
-| ↳ `settings` | object | Meeting settings |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `uuid` | string | Meeting UUID |
+|   ↳ `host_id` | string | Host user ID |
+|   ↳ `host_email` | string | Host email address |
+|   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
+|   ↳ `status` | string | Meeting status \(e.g., waiting, started\) |
+|   ↳ `start_time` | string | Start time in ISO 8601 format |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `timezone` | string | Timezone \(e.g., America/Los_Angeles\) |
+|   ↳ `agenda` | string | Meeting agenda |
+|   ↳ `created_at` | string | Creation timestamp in ISO 8601 format |
+|   ↳ `start_url` | string | URL for host to start the meeting |
+|   ↳ `join_url` | string | URL for participants to join the meeting |
+|   ↳ `password` | string | Meeting password |
+|   ↳ `h323_password` | string | H.323/SIP room system password |
+|   ↳ `pstn_password` | string | PSTN password for phone dial-in |
+|   ↳ `encrypted_password` | string | Encrypted password for joining |
+|   ↳ `settings` | object | Meeting settings |
+|     ↳ `host_video` | boolean | Start with host video on |
+|     ↳ `participant_video` | boolean | Start with participant video on |
+|     ↳ `join_before_host` | boolean | Allow participants to join before host |
+|     ↳ `mute_upon_entry` | boolean | Mute participants upon entry |
+|     ↳ `watermark` | boolean | Add watermark when viewing shared screen |
+|     ↳ `audio` | string | Audio options: both, telephony, or voip |
+|     ↳ `auto_recording` | string | Auto recording: local, cloud, or none |
+|     ↳ `waiting_room` | boolean | Enable waiting room |
+|     ↳ `meeting_authentication` | boolean | Require meeting authentication |
+|     ↳ `approval_type` | number | Approval type: 0=auto, 1=manual, 2=none |
+|   ↳ `recurrence` | object | Recurrence settings for recurring meetings |
+|     ↳ `type` | number | Recurrence type: 1=daily, 2=weekly, 3=monthly |
+|     ↳ `repeat_interval` | number | Interval between recurring meetings |
+|     ↳ `weekly_days` | string | Days of week for weekly recurrence \(1-7, comma-separated\) |
+|     ↳ `monthly_day` | number | Day of month for monthly recurrence |
+|     ↳ `monthly_week` | number | Week of month for monthly recurrence |
+|     ↳ `monthly_week_day` | number | Day of week for monthly recurrence |
+|     ↳ `end_times` | number | Number of occurrences |
+|     ↳ `end_date_time` | string | End date time in ISO 8601 format |
+|   ↳ `occurrences` | array | Meeting occurrences for recurring meetings |
+|     ↳ `occurrence_id` | string | Occurrence ID |
+|     ↳ `start_time` | string | Start time in ISO 8601 format |
+|     ↳ `duration` | number | Duration in minutes |
+|     ↳ `status` | string | Occurrence status |
 
 ### `zoom_list_meetings`
 
@@ -104,12 +131,23 @@ List all meetings for a Zoom user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `meetings` | array | List of meetings |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `uuid` | string | Meeting UUID |
+|   ↳ `host_id` | string | Host user ID |
+|   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type |
+|   ↳ `start_time` | string | Start time in ISO 8601 format |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `timezone` | string | Timezone |
+|   ↳ `agenda` | string | Meeting agenda |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `join_url` | string | URL for participants to join |
 | `pageInfo` | object | Pagination information |
-| ↳ `pageCount` | number | Total number of pages |
-| ↳ `pageNumber` | number | Current page number |
-| ↳ `pageSize` | number | Number of records per page |
-| ↳ `totalRecords` | number | Total number of records |
-| ↳ `nextPageToken` | string | Token for next page |
+|   ↳ `pageCount` | number | Total number of pages |
+|   ↳ `pageNumber` | number | Current page number |
+|   ↳ `pageSize` | number | Number of records per page |
+|   ↳ `totalRecords` | number | Total number of records |
+|   ↳ `nextPageToken` | string | Token for next page of results |
 
 ### `zoom_get_meeting`
 
@@ -128,24 +166,49 @@ Get details of a specific Zoom meeting
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `meeting` | object | The meeting details |
-| ↳ `id` | number | Meeting ID |
-| ↳ `uuid` | string | Meeting UUID |
-| ↳ `host_id` | string | Host user ID |
-| ↳ `host_email` | string | Host email |
-| ↳ `topic` | string | Meeting topic |
-| ↳ `type` | number | Meeting type |
-| ↳ `status` | string | Meeting status |
-| ↳ `start_time` | string | Start time |
-| ↳ `duration` | number | Duration in minutes |
-| ↳ `timezone` | string | Timezone |
-| ↳ `agenda` | string | Meeting agenda |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `start_url` | string | Host start URL |
-| ↳ `join_url` | string | Participant join URL |
-| ↳ `password` | string | Meeting password |
-| ↳ `settings` | object | Meeting settings |
-| ↳ `recurrence` | object | Recurrence settings |
-| ↳ `occurrences` | array | Meeting occurrences |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `uuid` | string | Meeting UUID |
+|   ↳ `host_id` | string | Host user ID |
+|   ↳ `host_email` | string | Host email address |
+|   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
+|   ↳ `status` | string | Meeting status \(e.g., waiting, started\) |
+|   ↳ `start_time` | string | Start time in ISO 8601 format |
+|   ↳ `duration` | number | Duration in minutes |
+|   ↳ `timezone` | string | Timezone \(e.g., America/Los_Angeles\) |
+|   ↳ `agenda` | string | Meeting agenda |
+|   ↳ `created_at` | string | Creation timestamp in ISO 8601 format |
+|   ↳ `start_url` | string | URL for host to start the meeting |
+|   ↳ `join_url` | string | URL for participants to join the meeting |
+|   ↳ `password` | string | Meeting password |
+|   ↳ `h323_password` | string | H.323/SIP room system password |
+|   ↳ `pstn_password` | string | PSTN password for phone dial-in |
+|   ↳ `encrypted_password` | string | Encrypted password for joining |
+|   ↳ `settings` | object | Meeting settings |
+|     ↳ `host_video` | boolean | Start with host video on |
+|     ↳ `participant_video` | boolean | Start with participant video on |
+|     ↳ `join_before_host` | boolean | Allow participants to join before host |
+|     ↳ `mute_upon_entry` | boolean | Mute participants upon entry |
+|     ↳ `watermark` | boolean | Add watermark when viewing shared screen |
+|     ↳ `audio` | string | Audio options: both, telephony, or voip |
+|     ↳ `auto_recording` | string | Auto recording: local, cloud, or none |
+|     ↳ `waiting_room` | boolean | Enable waiting room |
+|     ↳ `meeting_authentication` | boolean | Require meeting authentication |
+|     ↳ `approval_type` | number | Approval type: 0=auto, 1=manual, 2=none |
+|   ↳ `recurrence` | object | Recurrence settings for recurring meetings |
+|     ↳ `type` | number | Recurrence type: 1=daily, 2=weekly, 3=monthly |
+|     ↳ `repeat_interval` | number | Interval between recurring meetings |
+|     ↳ `weekly_days` | string | Days of week for weekly recurrence \(1-7, comma-separated\) |
+|     ↳ `monthly_day` | number | Day of month for monthly recurrence |
+|     ↳ `monthly_week` | number | Week of month for monthly recurrence |
+|     ↳ `monthly_week_day` | number | Day of week for monthly recurrence |
+|     ↳ `end_times` | number | Number of occurrences |
+|     ↳ `end_date_time` | string | End date time in ISO 8601 format |
+|   ↳ `occurrences` | array | Meeting occurrences for recurring meetings |
+|     ↳ `occurrence_id` | string | Occurrence ID |
+|     ↳ `start_time` | string | Start time in ISO 8601 format |
+|     ↳ `duration` | number | Duration in minutes |
+|     ↳ `status` | string | Occurrence status |
 
 ### `zoom_update_meeting`
 
@@ -231,12 +294,35 @@ List all cloud recordings for a Zoom user
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordings` | array | List of recordings |
+|   ↳ `uuid` | string | Meeting UUID |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `account_id` | string | Account ID |
+|   ↳ `host_id` | string | Host user ID |
+|   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type |
+|   ↳ `start_time` | string | Meeting start time |
+|   ↳ `duration` | number | Meeting duration in minutes |
+|   ↳ `total_size` | number | Total size of all recordings in bytes |
+|   ↳ `recording_count` | number | Number of recording files |
+|   ↳ `share_url` | string | URL to share recordings |
+|   ↳ `recording_files` | array | List of recording files |
+|     ↳ `id` | string | Recording file ID |
+|     ↳ `meeting_id` | string | Meeting ID associated with the recording |
+|     ↳ `recording_start` | string | Start time of the recording |
+|     ↳ `recording_end` | string | End time of the recording |
+|     ↳ `file_type` | string | Type of recording file \(MP4, M4A, etc.\) |
+|     ↳ `file_extension` | string | File extension |
+|     ↳ `file_size` | number | File size in bytes |
+|     ↳ `play_url` | string | URL to play the recording |
+|     ↳ `download_url` | string | URL to download the recording |
+|     ↳ `status` | string | Recording status |
+|     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
 | `pageInfo` | object | Pagination information |
-| ↳ `from` | string | Start date of query range |
-| ↳ `to` | string | End date of query range |
-| ↳ `pageSize` | number | Number of records per page |
-| ↳ `totalRecords` | number | Total number of records |
-| ↳ `nextPageToken` | string | Token for next page |
+|   ↳ `from` | string | Start date of query range |
+|   ↳ `to` | string | End date of query range |
+|   ↳ `pageSize` | number | Number of records per page |
+|   ↳ `totalRecords` | number | Total number of records |
+|   ↳ `nextPageToken` | string | Token for next page of results |
 
 ### `zoom_get_meeting_recordings`
 
@@ -255,14 +341,29 @@ Get all recordings for a specific Zoom meeting
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recording` | object | The meeting recording with all files |
-| ↳ `uuid` | string | Meeting UUID |
-| ↳ `id` | number | Meeting ID |
-| ↳ `topic` | string | Meeting topic |
-| ↳ `start_time` | string | Meeting start time |
-| ↳ `duration` | number | Meeting duration in minutes |
-| ↳ `total_size` | number | Total size of recordings in bytes |
-| ↳ `share_url` | string | URL to share recordings |
-| ↳ `recording_files` | array | List of recording files |
+|   ↳ `uuid` | string | Meeting UUID |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `account_id` | string | Account ID |
+|   ↳ `host_id` | string | Host user ID |
+|   ↳ `topic` | string | Meeting topic |
+|   ↳ `type` | number | Meeting type |
+|   ↳ `start_time` | string | Meeting start time |
+|   ↳ `duration` | number | Meeting duration in minutes |
+|   ↳ `total_size` | number | Total size of all recordings in bytes |
+|   ↳ `recording_count` | number | Number of recording files |
+|   ↳ `share_url` | string | URL to share recordings |
+|   ↳ `recording_files` | array | List of recording files |
+|     ↳ `id` | string | Recording file ID |
+|     ↳ `meeting_id` | string | Meeting ID associated with the recording |
+|     ↳ `recording_start` | string | Start time of the recording |
+|     ↳ `recording_end` | string | End time of the recording |
+|     ↳ `file_type` | string | Type of recording file \(MP4, M4A, etc.\) |
+|     ↳ `file_extension` | string | File extension |
+|     ↳ `file_size` | number | File size in bytes |
+|     ↳ `play_url` | string | URL to play the recording |
+|     ↳ `download_url` | string | URL to download the recording |
+|     ↳ `status` | string | Recording status |
+|     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
 
 ### `zoom_delete_recording`
 
@@ -299,9 +400,19 @@ List participants from a past Zoom meeting
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `participants` | array | List of meeting participants |
+|   ↳ `id` | string | Participant unique identifier |
+|   ↳ `user_id` | string | User ID if registered Zoom user |
+|   ↳ `name` | string | Participant display name |
+|   ↳ `user_email` | string | Participant email address |
+|   ↳ `join_time` | string | Time when participant joined \(ISO 8601\) |
+|   ↳ `leave_time` | string | Time when participant left \(ISO 8601\) |
+|   ↳ `duration` | number | Duration in seconds participant was in meeting |
+|   ↳ `attentiveness_score` | string | Attentiveness score \(deprecated\) |
+|   ↳ `failover` | boolean | Whether participant failed over to another data center |
+|   ↳ `status` | string | Participant status |
 | `pageInfo` | object | Pagination information |
-| ↳ `pageSize` | number | Number of records per page |
-| ↳ `totalRecords` | number | Total number of records |
-| ↳ `nextPageToken` | string | Token for next page |
+|   ↳ `pageSize` | number | Number of records per page |
+|   ↳ `totalRecords` | number | Total number of records |
+|   ↳ `nextPageToken` | string | Token for next page of results |
 
 

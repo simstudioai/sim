@@ -61,6 +61,20 @@ Extract structured content from web pages with comprehensive metadata support. C
 | `markdown` | string | Page content in markdown format |
 | `html` | string | Raw HTML content of the page |
 | `metadata` | object | Page metadata including SEO and Open Graph information |
+|   ↳ `title` | string | Page title |
+|   ↳ `description` | string | Page meta description |
+|   ↳ `language` | string | Page language code \(e.g., "en"\) |
+|   ↳ `sourceURL` | string | Original source URL that was scraped |
+|   ↳ `statusCode` | number | HTTP status code of the response |
+|   ↳ `keywords` | string | Page meta keywords |
+|   ↳ `robots` | string | Robots meta directive \(e.g., "follow, index"\) |
+|   ↳ `ogTitle` | string | Open Graph title |
+|   ↳ `ogDescription` | string | Open Graph description |
+|   ↳ `ogUrl` | string | Open Graph URL |
+|   ↳ `ogImage` | string | Open Graph image URL |
+|   ↳ `ogLocaleAlternate` | array | Alternate locale versions for Open Graph |
+|   ↳ `ogSiteName` | string | Open Graph site name |
+|   ↳ `error` | string | Error message if scrape failed |
 
 ### `firecrawl_search`
 
@@ -77,7 +91,21 @@ Search for information on the web using Firecrawl
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | array | Search results data |
+| `data` | array | Search results data with scraped content and metadata |
+|   ↳ `title` | string | Search result title from search engine |
+|   ↳ `description` | string | Search result description/snippet from search engine |
+|   ↳ `url` | string | URL of the search result |
+|   ↳ `markdown` | string | Page content in markdown \(when scrapeOptions.formats includes "markdown"\) |
+|   ↳ `html` | string | Processed HTML content \(when scrapeOptions.formats includes "html"\) |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML \(when scrapeOptions.formats includes "rawHtml"\) |
+|   ↳ `links` | array | Links found on the page \(when scrapeOptions.formats includes "links"\) |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours, when scrapeOptions.formats includes "screenshot"\) |
+|   ↳ `metadata` | object | Metadata about the search result page |
+|     ↳ `title` | string | Page title |
+|     ↳ `description` | string | Page meta description |
+|     ↳ `sourceURL` | string | Original source URL |
+|     ↳ `statusCode` | number | HTTP status code |
+|     ↳ `error` | string | Error message if scrape failed |
 
 ### `firecrawl_crawl`
 
@@ -98,13 +126,17 @@ Crawl entire websites and extract structured content from all accessible pages
 | --------- | ---- | ----------- |
 | `pages` | array | Array of crawled pages with their content and metadata |
 |   ↳ `markdown` | string | Page content in markdown format |
-|   ↳ `html` | string | Page HTML content |
-|   ↳ `metadata` | object | Page metadata |
-|   ↳ `title` | string | Page title |
-|   ↳ `description` | string | Page description |
-|   ↳ `language` | string | Page language |
-|   ↳ `sourceURL` | string | Source URL of the page |
-|   ↳ `statusCode` | number | HTTP status code |
+|   ↳ `html` | string | Processed HTML content of the page |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML content |
+|   ↳ `links` | array | Array of links found on the page |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\) |
+|   ↳ `metadata` | object | Page metadata from crawl operation |
+|     ↳ `title` | string | Page title |
+|     ↳ `description` | string | Page meta description |
+|     ↳ `language` | string | Page language code |
+|     ↳ `sourceURL` | string | Original source URL |
+|     ↳ `statusCode` | number | HTTP status code |
+|     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
 | `total` | number | Total number of pages found during crawl |
 | `creditsUsed` | number | Number of credits consumed by the crawl operation |
 

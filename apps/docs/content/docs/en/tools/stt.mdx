@@ -74,6 +74,11 @@ Transcribe audio to text using OpenAI Whisper
 | --------- | ---- | ----------- |
 | `transcript` | string | Full transcribed text |
 | `segments` | array | Timestamped segments |
+|   ↳ `text` | string | Transcribed text for this segment |
+|   ↳ `start` | number | Start time in seconds |
+|   ↳ `end` | number | End time in seconds |
+|   ↳ `speaker` | string | Speaker identifier \(if diarization enabled\) |
+|   ↳ `confidence` | number | Confidence score \(0-1\) |
 | `language` | string | Detected or specified language |
 | `duration` | number | Audio duration in seconds |
 
@@ -101,6 +106,11 @@ Transcribe audio to text using Deepgram
 | --------- | ---- | ----------- |
 | `transcript` | string | Full transcribed text |
 | `segments` | array | Timestamped segments with speaker labels |
+|   ↳ `text` | string | Transcribed text for this segment |
+|   ↳ `start` | number | Start time in seconds |
+|   ↳ `end` | number | End time in seconds |
+|   ↳ `speaker` | string | Speaker identifier \(if diarization enabled\) |
+|   ↳ `confidence` | number | Confidence score \(0-1\) |
 | `language` | string | Detected or specified language |
 | `duration` | number | Audio duration in seconds |
 | `confidence` | number | Overall confidence score |
@@ -160,11 +170,25 @@ Transcribe audio to text using AssemblyAI with advanced NLP features
 | --------- | ---- | ----------- |
 | `transcript` | string | Full transcribed text |
 | `segments` | array | Timestamped segments with speaker labels |
+|   ↳ `text` | string | Transcribed text for this segment |
+|   ↳ `start` | number | Start time in seconds |
+|   ↳ `end` | number | End time in seconds |
+|   ↳ `speaker` | string | Speaker identifier \(if diarization enabled\) |
+|   ↳ `confidence` | number | Confidence score \(0-1\) |
 | `language` | string | Detected or specified language |
 | `duration` | number | Audio duration in seconds |
 | `confidence` | number | Overall confidence score |
 | `sentiment` | array | Sentiment analysis results |
+|   ↳ `text` | string | Text that was analyzed |
+|   ↳ `sentiment` | string | Sentiment \(POSITIVE, NEGATIVE, NEUTRAL\) |
+|   ↳ `confidence` | number | Confidence score |
+|   ↳ `start` | number | Start time in milliseconds |
+|   ↳ `end` | number | End time in milliseconds |
 | `entities` | array | Detected entities |
+|   ↳ `entity_type` | string | Entity type \(e.g., person_name, location, organization\) |
+|   ↳ `text` | string | Entity text |
+|   ↳ `start` | number | Start time in milliseconds |
+|   ↳ `end` | number | End time in milliseconds |
 | `summary` | string | Auto-generated summary |
 
 ### `stt_gemini`

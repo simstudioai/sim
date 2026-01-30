@@ -1,4 +1,109 @@
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
+
+/**
+ * Output property definitions for PostgreSQL introspection and query responses.
+ * @see https://www.postgresql.org/docs/current/information-schema.html
+ */
+
+/**
+ * Output definition for table column objects from introspection.
+ * @see https://www.postgresql.org/docs/current/infoschema-columns.html
+ */
+export const POSTGRES_COLUMN_OUTPUT_PROPERTIES = {
+  name: { type: 'string', description: 'Column name' },
+  type: { type: 'string', description: 'Data type (e.g., integer, varchar, timestamp)' },
+  nullable: { type: 'boolean', description: 'Whether the column allows NULL values' },
+  default: { type: 'string', description: 'Default value expression', optional: true },
+  isPrimaryKey: { type: 'boolean', description: 'Whether the column is part of the primary key' },
+  isForeignKey: { type: 'boolean', description: 'Whether the column is a foreign key' },
+  references: {
+    type: 'object',
+    description: 'Foreign key reference information',
+    optional: true,
+    properties: {
+      table: { type: 'string', description: 'Referenced table name' },
+      column: { type: 'string', description: 'Referenced column name' },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete column output definition
+ */
+export const POSTGRES_COLUMN_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'PostgreSQL table column',
+  properties: POSTGRES_COLUMN_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for foreign key constraint objects.
+ */
+export const POSTGRES_FOREIGN_KEY_OUTPUT_PROPERTIES = {
+  column: { type: 'string', description: 'Local column name' },
+  referencesTable: { type: 'string', description: 'Referenced table name' },
+  referencesColumn: { type: 'string', description: 'Referenced column name' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for index objects.
+ * @see https://www.postgresql.org/docs/current/catalog-pg-index.html
+ */
+export const POSTGRES_INDEX_OUTPUT_PROPERTIES = {
+  name: { type: 'string', description: 'Index name' },
+  columns: {
+    type: 'array',
+    description: 'Columns included in the index',
+    items: { type: 'string', description: 'Column name' },
+  },
+  unique: { type: 'boolean', description: 'Whether the index enforces uniqueness' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for table schema objects from introspection.
+ */
+export const POSTGRES_TABLE_OUTPUT_PROPERTIES = {
+  name: { type: 'string', description: 'Table name' },
+  schema: { type: 'string', description: 'Schema name (e.g., public)' },
+  columns: {
+    type: 'array',
+    description: 'Table columns',
+    items: {
+      type: 'object',
+      properties: POSTGRES_COLUMN_OUTPUT_PROPERTIES,
+    },
+  },
+  primaryKey: {
+    type: 'array',
+    description: 'Primary key column names',
+    items: { type: 'string', description: 'Column name' },
+  },
+  foreignKeys: {
+    type: 'array',
+    description: 'Foreign key constraints',
+    items: {
+      type: 'object',
+      properties: POSTGRES_FOREIGN_KEY_OUTPUT_PROPERTIES,
+    },
+  },
+  indexes: {
+    type: 'array',
+    description: 'Table indexes',
+    items: {
+      type: 'object',
+      properties: POSTGRES_INDEX_OUTPUT_PROPERTIES,
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete table schema output definition
+ */
+export const POSTGRES_TABLE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'PostgreSQL table schema information',
+  properties: POSTGRES_TABLE_OUTPUT_PROPERTIES,
+}
 
 export interface PostgresConnectionConfig {
   host: string

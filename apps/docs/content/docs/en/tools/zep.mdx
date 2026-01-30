@@ -52,10 +52,10 @@ Start a new conversation thread in Zep
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `threadId` | string | The thread ID |
-| `userId` | string | The user ID |
+| `threadId` | string | Thread identifier |
+| `userId` | string | Associated user ID |
 | `uuid` | string | Internal UUID |
-| `createdAt` | string | Creation timestamp |
+| `createdAt` | string | Creation timestamp \(ISO 8601\) |
 | `projectUuid` | string | Project UUID |
 
 ### `zep_get_threads`
@@ -77,8 +77,15 @@ List all conversation threads
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `threads` | array | Array of thread objects |
-| `responseCount` | number | Number of threads in this response |
-| `totalCount` | number | Total number of threads available |
+|   ↳ `threadId` | string | Thread identifier |
+|   ↳ `userId` | string | Associated user ID |
+|   ↳ `uuid` | string | Internal UUID |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `projectUuid` | string | Project UUID |
+|   ↳ `metadata` | object | Custom metadata \(dynamic key-value pairs\) |
+| `responseCount` | number | Number of items in this response |
+| `totalCount` | number | Total number of items available |
 
 ### `zep_delete_thread`
 
@@ -135,8 +142,16 @@ Retrieve messages from a thread
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `messages` | array | Array of message objects |
-| `rowCount` | number | Number of messages in this response |
-| `totalCount` | number | Total number of messages in the thread |
+|   ↳ `uuid` | string | Message UUID |
+|   ↳ `role` | string | Message role \(user, assistant, system, tool\) |
+|   ↳ `roleType` | string | Role type \(AI, human, tool\) |
+|   ↳ `content` | string | Message content |
+|   ↳ `name` | string | Sender name |
+|   ↳ `createdAt` | string | Timestamp \(RFC3339 format\) |
+|   ↳ `metadata` | object | Message metadata \(dynamic key-value pairs\) |
+|   ↳ `processed` | boolean | Whether message has been processed |
+| `rowCount` | number | Number of rows returned |
+| `totalCount` | number | Total number of items available |
 
 ### `zep_add_messages`
 
@@ -154,7 +169,7 @@ Add messages to an existing thread
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `threadId` | string | The thread ID |
+| `threadId` | string | Thread identifier |
 | `added` | boolean | Whether messages were added successfully |
 | `messageIds` | array | Array of added message UUIDs |
 
@@ -177,13 +192,13 @@ Create a new user in Zep
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `userId` | string | The user ID |
-| `email` | string | User email |
+| `userId` | string | User identifier |
+| `email` | string | User email address |
 | `firstName` | string | User first name |
 | `lastName` | string | User last name |
 | `uuid` | string | Internal UUID |
-| `createdAt` | string | Creation timestamp |
-| `metadata` | object | User metadata |
+| `createdAt` | string | Creation timestamp \(ISO 8601\) |
+| `metadata` | object | User metadata \(dynamic key-value pairs\) |
 
 ### `zep_get_user`
 
@@ -200,14 +215,14 @@ Retrieve user information from Zep
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `userId` | string | The user ID |
-| `email` | string | User email |
+| `userId` | string | User identifier |
+| `email` | string | User email address |
 | `firstName` | string | User first name |
 | `lastName` | string | User last name |
 | `uuid` | string | Internal UUID |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `metadata` | object | User metadata |
+| `createdAt` | string | Creation timestamp \(ISO 8601\) |
+| `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+| `metadata` | object | User metadata \(dynamic key-value pairs\) |
 
 ### `zep_get_user_threads`
 
@@ -225,7 +240,14 @@ List all conversation threads for a specific user
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `threads` | array | Array of thread objects for this user |
-| `totalCount` | number | Total number of threads returned |
+| `threads` | array | Array of thread objects |
+|   ↳ `threadId` | string | Thread identifier |
+|   ↳ `userId` | string | Associated user ID |
+|   ↳ `uuid` | string | Internal UUID |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `projectUuid` | string | Project UUID |
+|   ↳ `metadata` | object | Custom metadata \(dynamic key-value pairs\) |
+| `totalCount` | number | Total number of items available |
 
 

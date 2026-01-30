@@ -5,7 +5,13 @@ import type {
   KalshiPagingInfo,
   KalshiPosition,
 } from './types'
-import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from './types'
+import {
+  buildKalshiAuthHeaders,
+  buildKalshiUrl,
+  handleKalshiError,
+  KALSHI_EVENT_POSITION_OUTPUT_PROPERTIES,
+  KALSHI_POSITION_OUTPUT_PROPERTIES,
+} from './types'
 
 export interface KalshiGetPositionsParams extends KalshiAuthParams, KalshiPaginationParams {
   ticker?: string
@@ -119,6 +125,10 @@ export const kalshiGetPositionsTool: ToolConfig<
     positions: {
       type: 'array',
       description: 'Array of position objects',
+      items: {
+        type: 'object',
+        properties: KALSHI_POSITION_OUTPUT_PROPERTIES,
+      },
     },
     paging: {
       type: 'object',
@@ -289,27 +299,17 @@ export const kalshiGetPositionsV2Tool: ToolConfig<
     market_positions: {
       type: 'array',
       description: 'Array of market position objects',
-      properties: {
-        ticker: { type: 'string', description: 'Market ticker' },
-        event_ticker: { type: 'string', description: 'Event ticker' },
-        event_title: { type: 'string', description: 'Event title' },
-        market_title: { type: 'string', description: 'Market title' },
-        position: { type: 'number', description: 'Position size' },
-        market_exposure: { type: 'number', description: 'Market exposure' },
-        realized_pnl: { type: 'number', description: 'Realized P&L' },
-        total_traded: { type: 'number', description: 'Total traded' },
-        resting_orders_count: { type: 'number', description: 'Resting orders count' },
-        fees_paid: { type: 'number', description: 'Fees paid' },
+      items: {
+        type: 'object',
+        properties: KALSHI_POSITION_OUTPUT_PROPERTIES,
       },
     },
     event_positions: {
       type: 'array',
       description: 'Array of event position objects',
-      properties: {
-        event_ticker: { type: 'string', description: 'Event ticker' },
-        event_exposure: { type: 'number', description: 'Event exposure' },
-        realized_pnl: { type: 'number', description: 'Realized P&L' },
-        total_cost: { type: 'number', description: 'Total cost' },
+      items: {
+        type: 'object',
+        properties: KALSHI_EVENT_POSITION_OUTPUT_PROPERTIES,
       },
     },
     cursor: {

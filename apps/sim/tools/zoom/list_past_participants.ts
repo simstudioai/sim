@@ -3,6 +3,10 @@ import type {
   ZoomListPastParticipantsParams,
   ZoomListPastParticipantsResponse,
 } from '@/tools/zoom/types'
+import {
+  PARTICIPANT_OUTPUT_PROPERTIES,
+  PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES,
+} from '@/tools/zoom/types'
 
 export const zoomListPastParticipantsTool: ToolConfig<
   ZoomListPastParticipantsParams,
@@ -113,15 +117,15 @@ export const zoomListPastParticipantsTool: ToolConfig<
     participants: {
       type: 'array',
       description: 'List of meeting participants',
+      items: {
+        type: 'object',
+        properties: PARTICIPANT_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
-      properties: {
-        pageSize: { type: 'number', description: 'Number of records per page' },
-        totalRecords: { type: 'number', description: 'Total number of records' },
-        nextPageToken: { type: 'string', description: 'Token for next page' },
-      },
+      properties: PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

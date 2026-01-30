@@ -1,3 +1,4 @@
+import { ATTACHMENTS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceListAttachmentsParams {
@@ -113,7 +114,7 @@ export const confluenceListAttachmentsTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of retrieval' },
-    attachments: { type: 'array', description: 'List of attachments' },
+    ts: TIMESTAMP_OUTPUT,
+    attachments: ATTACHMENTS_OUTPUT,
   },
 }

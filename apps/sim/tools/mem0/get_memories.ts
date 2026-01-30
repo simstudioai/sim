@@ -1,6 +1,10 @@
+import { MEMORY_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
 import type { ToolConfig } from '@/tools/types'
 
-// Get Memories Tool
+/**
+ * Get Memories Tool
+ * @see https://docs.mem0.ai/api-reference/memory/get-memories
+ */
 export const mem0GetMemoriesTool: ToolConfig = {
   id: 'mem0_get_memories',
   name: 'Get Memories',
@@ -123,10 +127,17 @@ export const mem0GetMemoriesTool: ToolConfig = {
     memories: {
       type: 'array',
       description: 'Array of retrieved memory objects',
+      items: {
+        type: 'object',
+        properties: MEMORY_OUTPUT_PROPERTIES,
+      },
     },
     ids: {
       type: 'array',
       description: 'Array of memory IDs that were retrieved',
+      items: {
+        type: 'string',
+      },
     },
   },
 }

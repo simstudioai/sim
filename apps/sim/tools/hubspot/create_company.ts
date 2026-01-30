@@ -3,6 +3,7 @@ import type {
   HubSpotCreateCompanyParams,
   HubSpotCreateCompanyResponse,
 } from '@/tools/hubspot/types'
+import { COMPANY_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotCreateCompany')
@@ -96,7 +97,7 @@ export const hubspotCreateCompanyTool: ToolConfig<
   },
 
   outputs: {
-    company: { type: 'object', description: 'Created HubSpot company object' },
+    company: COMPANY_OBJECT_OUTPUT,
     companyId: { type: 'string', description: 'The created company ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

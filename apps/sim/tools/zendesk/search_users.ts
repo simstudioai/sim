@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  METADATA_OUTPUT,
+  PAGING_OUTPUT,
+  USERS_ARRAY_OUTPUT,
+} from './types'
 
 const logger = createLogger('ZendeskSearchUsers')
 
@@ -136,30 +142,8 @@ export const zendeskSearchUsersTool: ToolConfig<
   },
 
   outputs: {
-    users: { type: 'array', description: 'Array of user objects' },
-    paging: {
-      type: 'object',
-      description: 'Pagination information',
-      properties: {
-        next_page: { type: 'string', description: 'URL for next page of results', optional: true },
-        previous_page: {
-          type: 'string',
-          description: 'URL for previous page of results',
-          optional: true,
-        },
-        count: { type: 'number', description: 'Total count of users' },
-      },
-    },
-    metadata: {
-      type: 'object',
-      description: 'Response metadata',
-      properties: {
-        total_returned: {
-          type: 'number',
-          description: 'Number of users returned in this response',
-        },
-        has_more: { type: 'boolean', description: 'Whether more users are available' },
-      },
-    },
+    users: USERS_ARRAY_OUTPUT,
+    paging: PAGING_OUTPUT,
+    metadata: METADATA_OUTPUT,
   },
 }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { FirecrawlCrawlParams, FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
+import { CRAWLED_PAGE_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FirecrawlCrawlTool')
@@ -165,21 +166,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       description: 'Array of crawled pages with their content and metadata',
       items: {
         type: 'object',
-        properties: {
-          markdown: { type: 'string', description: 'Page content in markdown format' },
-          html: { type: 'string', description: 'Page HTML content' },
-          metadata: {
-            type: 'object',
-            description: 'Page metadata',
-            properties: {
-              title: { type: 'string', description: 'Page title' },
-              description: { type: 'string', description: 'Page description' },
-              language: { type: 'string', description: 'Page language' },
-              sourceURL: { type: 'string', description: 'Source URL of the page' },
-              statusCode: { type: 'number', description: 'HTTP status code' },
-            },
-          },
-        },
+        properties: CRAWLED_PAGE_OUTPUT_PROPERTIES,
       },
     },
     total: { type: 'number', description: 'Total number of pages found during crawl' },

@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetAlbumsParams {
   accessToken: string
@@ -89,6 +90,26 @@ export const spotifyGetAlbumsTool: ToolConfig<SpotifyGetAlbumsParams, SpotifyGet
   },
 
   outputs: {
-    albums: { type: 'json', description: 'List of albums' },
+    albums: {
+      type: 'array',
+      description: 'List of albums',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Spotify album ID' },
+          name: { type: 'string', description: 'Album name' },
+          artists: {
+            type: 'array',
+            description: 'List of artists',
+            items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+          },
+          album_type: { type: 'string', description: 'Type of album (album, single, compilation)' },
+          total_tracks: { type: 'number', description: 'Total number of tracks' },
+          release_date: { type: 'string', description: 'Release date' },
+          image_url: { type: 'string', description: 'Album cover image URL', optional: true },
+          external_url: { type: 'string', description: 'Spotify URL' },
+        },
+      },
+    },
   },
 }

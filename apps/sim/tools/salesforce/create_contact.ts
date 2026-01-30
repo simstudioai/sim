@@ -3,6 +3,7 @@ import type {
   SalesforceCreateContactParams,
   SalesforceCreateContactResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -151,11 +152,7 @@ export const salesforceCreateContactTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Created contact data',
-      properties: {
-        id: { type: 'string', description: 'Created contact ID' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-        created: { type: 'boolean', description: 'Whether contact was created' },
-      },
+      properties: SOBJECT_CREATE_OUTPUT_PROPERTIES,
     },
   },
 }

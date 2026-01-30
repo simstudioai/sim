@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { A2AResubscribeParams, A2AResubscribeResponse } from './types'
+import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aResubscribeTool: ToolConfig<A2AResubscribeParams, A2AResubscribeResponse> = {
   id: 'a2a_resubscribe',
@@ -65,29 +66,11 @@ export const a2aResubscribeTool: ToolConfig<A2AResubscribeParams, A2AResubscribe
   },
 
   outputs: {
-    taskId: {
-      type: 'string',
-      description: 'Task ID',
-    },
-    contextId: {
-      type: 'string',
-      description: 'Context ID',
-    },
-    state: {
-      type: 'string',
-      description: 'Current task state',
-    },
-    isRunning: {
-      type: 'boolean',
-      description: 'Whether the task is still running',
-    },
-    artifacts: {
-      type: 'array',
-      description: 'Output artifacts',
-    },
-    history: {
-      type: 'array',
-      description: 'Message history',
-    },
+    taskId: A2A_OUTPUT_PROPERTIES.taskId,
+    contextId: A2A_OUTPUT_PROPERTIES.contextId,
+    state: A2A_OUTPUT_PROPERTIES.state,
+    isRunning: A2A_OUTPUT_PROPERTIES.isRunning,
+    artifacts: A2A_OUTPUT_PROPERTIES.artifacts,
+    history: A2A_OUTPUT_PROPERTIES.history,
   },
 }

@@ -1,4 +1,5 @@
 import type { InvoiceResponse, VoidInvoiceParams } from '@/tools/stripe/types'
+import { INVOICE_METADATA_OUTPUT_PROPERTIES, INVOICE_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeVoidInvoiceTool: ToolConfig<VoidInvoiceParams, InvoiceResponse> = {
@@ -49,22 +50,13 @@ export const stripeVoidInvoiceTool: ToolConfig<VoidInvoiceParams, InvoiceRespons
 
   outputs: {
     invoice: {
-      type: 'json',
+      ...INVOICE_OUTPUT,
       description: 'The voided invoice object',
     },
     metadata: {
       type: 'json',
       description: 'Invoice metadata',
-
-      properties: {
-        id: { type: 'string', description: 'Stripe unique identifier' },
-        status: { type: 'string', description: 'Current state of the resource' },
-        amount_due: {
-          type: 'number',
-          description: 'Amount remaining to be paid in smallest currency unit',
-        },
-        currency: { type: 'string', description: 'Three-letter ISO currency code (lowercase)' },
-      },
+      properties: INVOICE_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

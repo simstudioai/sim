@@ -2,6 +2,7 @@ import type {
   SalesforceUpdateCaseParams,
   SalesforceUpdateCaseResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -104,10 +105,7 @@ export const salesforceUpdateCaseTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated case data',
-      properties: {
-        id: { type: 'string', description: 'Updated case ID' },
-        updated: { type: 'boolean', description: 'Whether case was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

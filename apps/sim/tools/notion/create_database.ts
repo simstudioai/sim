@@ -1,4 +1,5 @@
 import type { NotionCreateDatabaseParams, NotionResponse } from '@/tools/notion/types'
+import { DATABASE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, NotionResponse> = {
@@ -127,6 +128,13 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
       type: 'object',
       description:
         'Database metadata including ID, title, URL, creation time, and properties schema',
+      properties: {
+        id: DATABASE_OUTPUT_PROPERTIES.id,
+        title: { type: 'string', description: 'Database title' },
+        url: DATABASE_OUTPUT_PROPERTIES.url,
+        createdTime: DATABASE_OUTPUT_PROPERTIES.created_time,
+        properties: DATABASE_OUTPUT_PROPERTIES.properties,
+      },
     },
   },
 }
@@ -172,10 +180,10 @@ export const notionCreateDatabaseV2Tool: ToolConfig<
   },
 
   outputs: {
-    id: { type: 'string', description: 'Database ID' },
+    id: DATABASE_OUTPUT_PROPERTIES.id,
     title: { type: 'string', description: 'Database title' },
-    url: { type: 'string', description: 'Database URL' },
-    created_time: { type: 'string', description: 'Creation timestamp' },
-    properties: { type: 'object', description: 'Database properties schema' },
+    url: DATABASE_OUTPUT_PROPERTIES.url,
+    created_time: DATABASE_OUTPUT_PROPERTIES.created_time,
+    properties: DATABASE_OUTPUT_PROPERTIES.properties,
   },
 }

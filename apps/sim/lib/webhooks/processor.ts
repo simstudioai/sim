@@ -13,6 +13,7 @@ import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
+  validateCalcomSignature,
   validateCirclebackSignature,
   validateFirefliesSignature,
   validateGitHubSignature,
@@ -651,6 +652,31 @@ export async function verifyProviderAuth(
       }
 
       logger.debug(`[${requestId}] Circleback signature verified successfully`)
+    }
+  }
+
+  if (foundWebhook.provider === 'calcom') {
+    const secret = providerConfig.webhookSecret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('X-Cal-Signature-256')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Cal.com webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Cal.com signature', { status: 401 })
+      }
+
+      const isValidSignature = validateCalcomSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Cal.com signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Cal.com signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Cal.com signature verified successfully`)
     }
   }
 
