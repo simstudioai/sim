@@ -127,14 +127,11 @@ async function flushVariableUpdate(
 
     if (workflowExists.length === 0) {
       pending.opToSocket.forEach((socketId, opId) => {
-        const sock = io.sockets.sockets.get(socketId)
-        if (sock) {
-          sock.emit('operation-failed', {
-            operationId: opId,
-            error: 'Workflow not found',
-            retryable: false,
-          })
-        }
+        io.to(socketId).emit('operation-failed', {
+          operationId: opId,
+          error: 'Workflow not found',
+          retryable: false,
+        })
       })
       return
     }
@@ -170,22 +167,9 @@ async function flushVariableUpdate(
     })
 
     if (updateSuccessful) {
-      // Collect all sender socket IDs to exclude from broadcast
+      // Broadcast to room excluding all senders (works cross-pod via Redis adapter)
       const senderSocketIds = [...pending.opToSocket.values()]
-      const firstSenderSocket =
-        senderSocketIds.length > 0 ? io.sockets.sockets.get(senderSocketIds[0]) : null
-
-      if (firstSenderSocket) {
-        // socket.to(room).emit() excludes sender and broadcasts across all pods via Redis adapter
-        firstSenderSocket.to(workflowId).emit('variable-update', {
-          variableId,
-          field,
-          value,
-          timestamp,
-        })
-      } else if (senderSocketIds.length > 0) {
-        // Senders disconnected but we should still exclude them in case they reconnected
-        // Use io.except() to exclude all sender socket IDs
+      if (senderSocketIds.length > 0) {
         io.to(workflowId).except(senderSocketIds).emit('variable-update', {
           variableId,
           field,
@@ -193,8 +177,7 @@ async function flushVariableUpdate(
           timestamp,
         })
       } else {
-        // No senders tracked (edge case) - broadcast to all
-        roomManager.emitToWorkflow(workflowId, 'variable-update', {
+        io.to(workflowId).emit('variable-update', {
           variableId,
           field,
           value,
@@ -202,37 +185,32 @@ async function flushVariableUpdate(
         })
       }
 
+      // Confirm all coalesced operationIds (io.to(socketId) works cross-pod)
       pending.opToSocket.forEach((socketId, opId) => {
-        const sock = io.sockets.sockets.get(socketId)
-        if (sock) {
-          sock.emit('operation-confirmed', { operationId: opId, serverTimestamp: Date.now() })
-        }
+        io.to(socketId).emit('operation-confirmed', {
+          operationId: opId,
+          serverTimestamp: Date.now(),
+        })
       })
 
       logger.debug(`Flushed variable update ${workflowId}: ${variableId}.${field}`)
     } else {
       pending.opToSocket.forEach((socketId, opId) => {
-        const sock = io.sockets.sockets.get(socketId)
-        if (sock) {
-          sock.emit('operation-failed', {
-            operationId: opId,
-            error: 'Variable no longer exists',
-            retryable: false,
-          })
-        }
+        io.to(socketId).emit('operation-failed', {
+          operationId: opId,
+          error: 'Variable no longer exists',
+          retryable: false,
+        })
       })
     }
   } catch (error) {
     logger.error('Error flushing variable update:', error)
     pending.opToSocket.forEach((socketId, opId) => {
-      const sock = io.sockets.sockets.get(socketId)
-      if (sock) {
-        sock.emit('operation-failed', {
-          operationId: opId,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          retryable: true,
-        })
-      }
+      io.to(socketId).emit('operation-failed', {
+        operationId: opId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        retryable: true,
+      })
     })
   }
 }
