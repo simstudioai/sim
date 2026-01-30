@@ -49,6 +49,8 @@ export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AGetAgentC
     provider: A2A_OUTPUT_PROPERTIES.agentProvider,
     capabilities: A2A_OUTPUT_PROPERTIES.agentCapabilities,
     skills: A2A_OUTPUT_PROPERTIES.agentSkills,
-    protocolVersions: A2A_OUTPUT_PROPERTIES.protocolVersions,
+    version: A2A_OUTPUT_PROPERTIES.version,
+    defaultInputModes: A2A_OUTPUT_PROPERTIES.defaultInputModes,
+    defaultOutputModes: A2A_OUTPUT_PROPERTIES.defaultOutputModes,
   },
 }

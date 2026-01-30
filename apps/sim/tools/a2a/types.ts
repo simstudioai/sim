@@ -171,11 +171,23 @@ export const A2A_OUTPUT_PROPERTIES = {
     optional: true,
   },
 
-  /** Protocol versions */
-  protocolVersions: {
+  /** Protocol version (single string from protocolVersion field) */
+  version: { type: 'string', description: 'A2A protocol version supported by the agent' },
+
+  /** Default input modes */
+  defaultInputModes: {
     type: 'array',
-    description: 'Supported A2A protocol versions',
+    description: 'Default input content types accepted by the agent',
     items: { type: 'string' },
+    optional: true,
+  },
+
+  /** Default output modes */
+  defaultOutputModes: {
+    type: 'array',
+    description: 'Default output content types produced by the agent',
+    items: { type: 'string' },
+    optional: true,
   },
 
   /** Push notification webhook URL */
@@ -225,6 +237,8 @@ export interface A2AGetAgentCardResponse extends ToolResponse {
       name: string
       description?: string
     }>
+    defaultInputModes?: string[]
+    defaultOutputModes?: string[]
   }
 }
 

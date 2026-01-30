@@ -1419,6 +1419,27 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
         outputs[propName] = resolvedConst[accessedProp]
       }
     }
+
+    // Pattern 3: Spread operator (e.g., "...COMMENT_OUTPUT_PROPERTIES,")
+    const spreadRegex = /\.\.\.([A-Z][A-Z_0-9]+)\s*(?:,|$)/g
+    let spreadMatch
+    while ((spreadMatch = spreadRegex.exec(outputsContent)) !== null) {
+      const constName = spreadMatch[1]
+
+      // Check if at depth 0 (not inside nested braces)
+      const beforeMatch = outputsContent.substring(0, spreadMatch.index)
+      const openBraces = (beforeMatch.match(/\{/g) || []).length
+      const closeBraces = (beforeMatch.match(/\}/g) || []).length
+      if (openBraces !== closeBraces) {
+        continue
+      }
+
+      const resolvedConst = resolveConstReference(constName, toolPrefix)
+      if (resolvedConst && typeof resolvedConst === 'object') {
+        // Spread all properties from the resolved const
+        Object.assign(outputs, resolvedConst)
+      }
+    }
   }
 
   const braces: Array<{ type: 'open' | 'close'; pos: number; level: number }> = []

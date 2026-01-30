@@ -133,5 +133,5 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
         recordingUrl: { type: 'string', description: 'Recording URL' },
       },
     },
-  } as Record<string, TriggerOutput>
+  } as any
 }

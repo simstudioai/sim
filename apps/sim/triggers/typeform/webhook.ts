@@ -133,7 +133,6 @@ export const typeformWebhookTrigger: TriggerConfig = {
         type: 'object',
         properties: {
           key: { type: 'string', description: 'Variable key' },
-          type: { type: 'string', description: 'Variable type (number, text)' },
           number: { type: 'number', description: 'Numeric value (if type is number)' },
           text: { type: 'string', description: 'Text value (if type is text)' },
         },
@@ -149,11 +148,6 @@ export const typeformWebhookTrigger: TriggerConfig = {
       items: {
         type: 'object',
         properties: {
-          type: {
-            type: 'string',
-            description:
-              'Answer type (text, choice, choices, email, number, boolean, date, file_url, payment, url)',
-          },
           text: { type: 'string', description: 'Text answer value' },
           email: { type: 'string', description: 'Email answer value' },
           number: { type: 'number', description: 'Number answer value' },
@@ -185,7 +179,6 @@ export const typeformWebhookTrigger: TriggerConfig = {
             properties: {
               id: { type: 'string', description: 'Field ID' },
               ref: { type: 'string', description: 'Field reference' },
-              type: { type: 'string', description: 'Field type' },
             },
           },
         },
@@ -211,7 +204,6 @@ export const typeformWebhookTrigger: TriggerConfig = {
             properties: {
               id: { type: 'string', description: 'Field ID' },
               ref: { type: 'string', description: 'Field reference' },
-              type: { type: 'string', description: 'Field type' },
               title: { type: 'string', description: 'Field title' },
             },
           },
