@@ -425,26 +425,13 @@ export default function Hero() {
             key={isEmpty ? 'empty' : 'filled'}
             type='button'
             aria-label='Submit description'
-            className='absolute right-2.5 bottom-4 flex h-[30px] w-[30px] items-center justify-center transition-all duration-200 sm:right-[11px] sm:bottom-[16px] sm:h-[34px] sm:w-[34px]'
+            className={`absolute right-2.5 bottom-4 flex h-[30px] w-[30px] items-center justify-center rounded-full p-1 transition-all duration-200 sm:right-[11px] sm:bottom-[16px] sm:h-[34px] sm:w-[34px] ${
+              isEmpty
+                ? 'cursor-not-allowed border border-[#E0E0E0] bg-[#E5E5E5]'
+                : 'cursor-pointer border border-[#343434] bg-gradient-to-b from-[#060606] to-[#323232] shadow-[inset_0_1.25px_2.5px_0_#9B77FF] hover:opacity-90'
+            }`}
             disabled={isEmpty}
             onClick={handleSubmit}
-            style={{
-              padding: '3.75px 3.438px 3.75px 4.063px',
-              borderRadius: 55,
-              ...(isEmpty
-                ? {
-                    border: '0.625px solid #E0E0E0',
-                    background: '#E5E5E5',
-                    boxShadow: 'none',
-                    cursor: 'not-allowed',
-                  }
-                : {
-                    border: '0.625px solid #343434',
-                    background: 'linear-gradient(180deg, #060606 0%, #323232 100%)',
-                    boxShadow: '0 1.25px 2.5px 0 #9B77FF inset',
-                    cursor: 'pointer',
-                  }),
-            }}
           >
             <ArrowUp size={18} className='sm:h-5 sm:w-5' color={isEmpty ? '#999999' : '#FFFFFF'} />
           </button>
