@@ -302,9 +302,12 @@ export const anthropicProvider: ProviderConfig = {
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-      const nonStreamingMaxTokens =
-        Number.parseInt(String(request.maxTokens)) ||
-        getMaxOutputTokensForModel(request.model, false)
+      // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
+      // but allow users to set lower values if desired
+      const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
+      const nonStreamingMaxTokens = request.maxTokens
+        ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
+        : nonStreamingLimit
       const intermediatePayload = { ...payload, max_tokens: nonStreamingMaxTokens }
 
       try {
@@ -679,8 +682,12 @@ export const anthropicProvider: ProviderConfig = {
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-    const toolLoopMaxTokens =
-      Number.parseInt(String(request.maxTokens)) || getMaxOutputTokensForModel(request.model, false)
+    // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
+    // but allow users to set lower values if desired
+    const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
+    const toolLoopMaxTokens = request.maxTokens
+      ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
+      : nonStreamingLimit
     const toolLoopPayload = { ...payload, max_tokens: toolLoopMaxTokens }
 
     try {
