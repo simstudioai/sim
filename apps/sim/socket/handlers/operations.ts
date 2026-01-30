@@ -83,6 +83,9 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
             operation,
             target,
           })
+          if (operationId) {
+            socket.emit('operation-failed', { operationId, error: 'User session not found' })
+          }
           return
         }
 

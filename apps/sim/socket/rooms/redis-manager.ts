@@ -179,6 +179,7 @@ export class RedisRoomManager implements IRoomManager {
       const failed = results.some((result) => result instanceof Error)
       if (failed) {
         logger.error(`Pipeline partially failed when adding user to room`, { workflowId, socketId })
+        throw new Error('Failed to store user session data in Redis')
       }
 
       logger.debug(`Added user ${presence.userId} to workflow ${workflowId} (socket: ${socketId})`)
