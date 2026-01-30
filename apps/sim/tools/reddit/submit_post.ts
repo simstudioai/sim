@@ -154,6 +154,12 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
     data: {
       type: 'object',
       description: 'Post data including ID, name, URL, and permalink',
+      properties: {
+        id: { type: 'string', description: 'New post ID' },
+        name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
+        url: { type: 'string', description: 'Post URL from API response' },
+        permalink: { type: 'string', description: 'Full Reddit permalink' },
+      },
     },
   },
 }

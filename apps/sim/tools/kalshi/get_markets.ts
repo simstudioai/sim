@@ -1,6 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
 import type { KalshiMarket, KalshiPaginationParams, KalshiPagingInfo } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
+import {
+  buildKalshiUrl,
+  handleKalshiError,
+  KALSHI_MARKET_OUTPUT_PROPERTIES,
+  KALSHI_PAGING_OUTPUT_PROPERTIES,
+} from './types'
 
 export interface KalshiGetMarketsParams extends KalshiPaginationParams {
   status?: string // unopened, open, closed, settled
@@ -98,10 +103,15 @@ export const kalshiGetMarketsTool: ToolConfig<KalshiGetMarketsParams, KalshiGetM
     markets: {
       type: 'array',
       description: 'Array of market objects',
+      items: {
+        type: 'object',
+        properties: KALSHI_MARKET_OUTPUT_PROPERTIES,
+      },
     },
     paging: {
       type: 'object',
       description: 'Pagination cursor for fetching more results',
+      properties: KALSHI_PAGING_OUTPUT_PROPERTIES,
     },
   },
 }
@@ -383,58 +393,9 @@ export const kalshiGetMarketsV2Tool: ToolConfig<
     markets: {
       type: 'array',
       description: 'Array of market objects with all API fields',
-      properties: {
-        ticker: { type: 'string', description: 'Market ticker' },
-        event_ticker: { type: 'string', description: 'Event ticker' },
-        market_type: { type: 'string', description: 'Market type' },
-        title: { type: 'string', description: 'Market title' },
-        subtitle: { type: 'string', description: 'Market subtitle' },
-        yes_sub_title: { type: 'string', description: 'Yes outcome subtitle' },
-        no_sub_title: { type: 'string', description: 'No outcome subtitle' },
-        open_time: { type: 'string', description: 'Market open time' },
-        close_time: { type: 'string', description: 'Market close time' },
-        expected_expiration_time: { type: 'string', description: 'Expected expiration time' },
-        expiration_time: { type: 'string', description: 'Expiration time' },
-        latest_expiration_time: { type: 'string', description: 'Latest expiration time' },
-        settlement_timer_seconds: { type: 'number', description: 'Settlement timer in seconds' },
-        status: { type: 'string', description: 'Market status' },
-        response_price_units: { type: 'string', description: 'Response price units' },
-        notional_value: { type: 'number', description: 'Notional value' },
-        tick_size: { type: 'number', description: 'Tick size' },
-        yes_bid: { type: 'number', description: 'Current yes bid price' },
-        yes_ask: { type: 'number', description: 'Current yes ask price' },
-        no_bid: { type: 'number', description: 'Current no bid price' },
-        no_ask: { type: 'number', description: 'Current no ask price' },
-        last_price: { type: 'number', description: 'Last trade price' },
-        previous_yes_bid: { type: 'number', description: 'Previous yes bid' },
-        previous_yes_ask: { type: 'number', description: 'Previous yes ask' },
-        previous_price: { type: 'number', description: 'Previous price' },
-        volume: { type: 'number', description: 'Total volume' },
-        volume_24h: { type: 'number', description: '24-hour volume' },
-        liquidity: { type: 'number', description: 'Market liquidity' },
-        open_interest: { type: 'number', description: 'Open interest' },
-        result: { type: 'string', description: 'Market result' },
-        cap_strike: { type: 'number', description: 'Cap strike' },
-        floor_strike: { type: 'number', description: 'Floor strike' },
-        can_close_early: { type: 'boolean', description: 'Can close early' },
-        expiration_value: { type: 'string', description: 'Expiration value' },
-        category: { type: 'string', description: 'Market category' },
-        risk_limit_cents: { type: 'number', description: 'Risk limit in cents' },
-        strike_type: { type: 'string', description: 'Strike type' },
-        rules_primary: { type: 'string', description: 'Primary rules' },
-        rules_secondary: { type: 'string', description: 'Secondary rules' },
-        settlement_source_url: { type: 'string', description: 'Settlement source URL' },
-        custom_strike: { type: 'object', description: 'Custom strike object' },
-        underlying: { type: 'string', description: 'Underlying asset' },
-        settlement_value: { type: 'number', description: 'Settlement value' },
-        cfd_contract_size: { type: 'number', description: 'CFD contract size' },
-        yes_fee_fp: { type: 'number', description: 'Yes fee (fixed-point)' },
-        no_fee_fp: { type: 'number', description: 'No fee (fixed-point)' },
-        last_price_fp: { type: 'number', description: 'Last price (fixed-point)' },
-        yes_bid_fp: { type: 'number', description: 'Yes bid (fixed-point)' },
-        yes_ask_fp: { type: 'number', description: 'Yes ask (fixed-point)' },
-        no_bid_fp: { type: 'number', description: 'No bid (fixed-point)' },
-        no_ask_fp: { type: 'number', description: 'No ask (fixed-point)' },
+      items: {
+        type: 'object',
+        properties: KALSHI_MARKET_OUTPUT_PROPERTIES,
       },
     },
     cursor: {

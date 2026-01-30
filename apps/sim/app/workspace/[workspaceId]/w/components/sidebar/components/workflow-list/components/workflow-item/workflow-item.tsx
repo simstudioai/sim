@@ -13,6 +13,7 @@ import {
   useContextMenu,
   useItemDrag,
   useItemRename,
+  useSidebarDragContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   useCanDelete,
@@ -52,6 +53,7 @@ export function WorkflowItem({
   onDragStart: onDragStartProp,
   onDragEnd: onDragEndProp,
 }: WorkflowItemProps) {
+  const { isAnyDragActive } = useSidebarDragContext()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const selectedWorkflows = useFolderStore((state) => state.selectedWorkflows)
@@ -64,7 +66,7 @@ export function WorkflowItem({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteItemType, setDeleteItemType] = useState<'workflow' | 'mixed'>('workflow')
   const [deleteModalNames, setDeleteModalNames] = useState<string | string[]>('')
-  const [canDeleteCaptured, setCanDeleteCaptured] = useState(true)
+  const [canDeleteSelection, setCanDeleteSelection] = useState(true)
 
   const capturedSelectionRef = useRef<{
     workflowIds: string[]
@@ -91,16 +93,15 @@ export function WorkflowItem({
     setIsDeleteModalOpen(true)
   }, [])
 
-  // Single/multi workflow delete hook (for non-mixed selection)
-  const { isDeleting: isDeletingSingle, handleDeleteWorkflow } = useDeleteWorkflow({
-    workspaceId,
-    workflowIds: capturedSelectionRef.current?.workflowIds || [],
-    isActive: (workflowIds) => workflowIds.includes(params.workflowId as string),
-    onSuccess: () => setIsDeleteModalOpen(false),
-  })
+  const { isDeleting: isDeletingWorkflows, handleDeleteWorkflow: handleDeleteWorkflows } =
+    useDeleteWorkflow({
+      workspaceId,
+      workflowIds: capturedSelectionRef.current?.workflowIds || [],
+      isActive: (workflowIds) => workflowIds.includes(params.workflowId as string),
+      onSuccess: () => setIsDeleteModalOpen(false),
+    })
 
-  // Mixed selection delete hook
-  const { isDeleting: isDeletingMixed, handleDeleteSelection } = useDeleteSelection({
+  const { isDeleting: isDeletingSelection, handleDeleteSelection } = useDeleteSelection({
     workspaceId,
     workflowIds: capturedSelectionRef.current?.workflowIds || [],
     folderIds: capturedSelectionRef.current?.folderIds || [],
@@ -108,11 +109,8 @@ export function WorkflowItem({
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
-  const isDeleting = isDeletingSingle || isDeletingMixed
+  const isDeleting = isDeletingWorkflows || isDeletingSelection
 
-  /**
-   * Handle delete confirmation - uses appropriate hook based on selection
-   */
   const handleConfirmDelete = useCallback(async () => {
     if (!capturedSelectionRef.current) return
 
@@ -121,13 +119,13 @@ export function WorkflowItem({
     if (isMixed) {
       await handleDeleteSelection()
     } else {
-      await handleDeleteWorkflow()
+      await handleDeleteWorkflows()
     }
-  }, [handleDeleteSelection, handleDeleteWorkflow])
+  }, [handleDeleteSelection, handleDeleteWorkflows])
 
   const { handleDuplicateWorkflow: duplicateWorkflow } = useDuplicateWorkflow({ workspaceId })
 
-  const { handleExportWorkflow: exportWorkflowSingle } = useExportWorkflow()
+  const { handleExportWorkflow: handleExportWorkflows } = useExportWorkflow()
   const { handleExportSelection } = useExportSelection()
 
   const handleDuplicateWorkflow = useCallback(() => {
@@ -136,7 +134,7 @@ export function WorkflowItem({
     duplicateWorkflow(workflowIds)
   }, [duplicateWorkflow])
 
-  const handleExportWorkflow = useCallback(() => {
+  const handleExport = useCallback(() => {
     if (!capturedSelectionRef.current) return
 
     const { isMixed, workflowIds, folderIds } = capturedSelectionRef.current
@@ -145,9 +143,9 @@ export function WorkflowItem({
       handleExportSelection(workflowIds, folderIds)
     } else {
       if (workflowIds.length === 0) return
-      exportWorkflowSingle(workflowIds)
+      handleExportWorkflows(workflowIds)
     }
-  }, [exportWorkflowSingle, handleExportSelection])
+  }, [handleExportWorkflows, handleExportSelection])
 
   const handleOpenInNewTab = useCallback(() => {
     window.open(`/workspace/${workspaceId}/w/${workflow.id}`, '_blank')
@@ -213,7 +211,7 @@ export function WorkflowItem({
     const canDeleteAllWorkflows = canDeleteWorkflows(workflowIds)
     const canDeleteAllFolders =
       folderIds.length === 0 || folderIds.every((id) => canDeleteFolder(id))
-    setCanDeleteCaptured(canDeleteAllWorkflows && canDeleteAllFolders)
+    setCanDeleteSelection(canDeleteAllWorkflows && canDeleteAllFolders)
   }, [workflow.id, canDeleteWorkflows, canDeleteFolder])
 
   const handleContextMenu = useCallback(
@@ -279,14 +277,20 @@ export function WorkflowItem({
         return
       }
 
-      const currentSelection = useFolderStore.getState().selectedWorkflows
-      const isCurrentlySelected = currentSelection.has(workflow.id)
-      const workflowIds =
-        isCurrentlySelected && currentSelection.size > 1
-          ? Array.from(currentSelection)
-          : [workflow.id]
+      const { selectedWorkflows, selectedFolders } = useFolderStore.getState()
+      const isCurrentlySelected = selectedWorkflows.has(workflow.id)
 
-      e.dataTransfer.setData('workflow-ids', JSON.stringify(workflowIds))
+      const selection = isCurrentlySelected
+        ? {
+            workflowIds: Array.from(selectedWorkflows),
+            folderIds: Array.from(selectedFolders),
+          }
+        : {
+            workflowIds: [workflow.id],
+            folderIds: [],
+          }
+
+      e.dataTransfer.setData('sidebar-selection', JSON.stringify(selection))
       e.dataTransfer.effectAllowed = 'move'
       onDragStartProp?.()
     },
@@ -343,13 +347,15 @@ export function WorkflowItem({
         data-item-id={workflow.id}
         className={clsx(
           'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
-          active
-            ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
-            : 'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
-          isSelected && selectedWorkflows.size > 1 && !active
-            ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
-            : '',
-          isDragging ? 'opacity-50' : ''
+          active && 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]',
+          !active &&
+            !isAnyDragActive &&
+            'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+          isSelected &&
+            selectedWorkflows.size > 1 &&
+            !active &&
+            'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]',
+          (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         draggable={!isEditing && !dragDisabled}
         onDragStart={handleDragStart}
@@ -372,9 +378,8 @@ export function WorkflowItem({
                 onBlur={handleInputBlur}
                 className={clsx(
                   'w-full min-w-0 border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
-                  active
-                    ? 'text-[var(--text-primary)]'
-                    : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+                  active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]',
+                  !active && !isAnyDragActive && 'group-hover:text-[var(--text-primary)]'
                 )}
                 maxLength={100}
                 disabled={isRenaming}
@@ -391,9 +396,8 @@ export function WorkflowItem({
               <div
                 className={clsx(
                   'min-w-0 truncate font-medium',
-                  active
-                    ? 'text-[var(--text-primary)]'
-                    : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+                  active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]',
+                  !active && !isAnyDragActive && 'group-hover:text-[var(--text-primary)]'
                 )}
                 onDoubleClick={handleDoubleClick}
               >
@@ -407,9 +411,13 @@ export function WorkflowItem({
           <>
             <button
               type='button'
+              aria-label='Workflow options'
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
-              className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+              className={clsx(
+                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)]',
+                !isAnyDragActive && 'group-hover:opacity-100'
+              )}
             >
               <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
             </button>
@@ -425,7 +433,7 @@ export function WorkflowItem({
         onOpenInNewTab={handleOpenInNewTab}
         onRename={handleStartEdit}
         onDuplicate={handleDuplicateWorkflow}
-        onExport={handleExportWorkflow}
+        onExport={handleExport}
         onDelete={handleOpenDeleteModal}
         onColorChange={handleColorChange}
         currentColor={workflow.color}
@@ -438,7 +446,7 @@ export function WorkflowItem({
         disableDuplicate={!userPermissions.canEdit}
         disableExport={!userPermissions.canEdit}
         disableColorChange={!userPermissions.canEdit}
-        disableDelete={!userPermissions.canEdit || !canDeleteCaptured}
+        disableDelete={!userPermissions.canEdit || !canDeleteSelection}
       />
 
       <DeleteModal

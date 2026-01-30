@@ -1,5 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifySearchParams, SpotifySearchResponse } from './types'
+import {
+  SEARCH_ALBUM_OUTPUT_PROPERTIES,
+  SEARCH_ARTIST_OUTPUT_PROPERTIES,
+  SEARCH_PLAYLIST_OUTPUT_PROPERTIES,
+  SEARCH_TRACK_OUTPUT_PROPERTIES,
+} from './types'
 
 export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchResponse> = {
   id: 'spotify_search',
@@ -127,31 +133,22 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
     tracks: {
       type: 'array',
       description: 'List of matching tracks',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Spotify track ID' },
-          name: { type: 'string', description: 'Track name' },
-          artists: { type: 'array', description: 'List of artist names' },
-          album: { type: 'string', description: 'Album name' },
-          duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
-          popularity: { type: 'number', description: 'Popularity score (0-100)' },
-          preview_url: { type: 'string', description: 'URL to 30-second preview' },
-          external_url: { type: 'string', description: 'Spotify URL' },
-        },
-      },
+      items: { type: 'object', properties: SEARCH_TRACK_OUTPUT_PROPERTIES },
     },
     artists: {
       type: 'array',
       description: 'List of matching artists',
+      items: { type: 'object', properties: SEARCH_ARTIST_OUTPUT_PROPERTIES },
     },
     albums: {
       type: 'array',
       description: 'List of matching albums',
+      items: { type: 'object', properties: SEARCH_ALBUM_OUTPUT_PROPERTIES },
     },
     playlists: {
       type: 'array',
       description: 'List of matching playlists',
+      items: { type: 'object', properties: SEARCH_PLAYLIST_OUTPUT_PROPERTIES },
     },
   },
 }

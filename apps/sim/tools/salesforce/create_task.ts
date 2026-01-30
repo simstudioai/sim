@@ -2,6 +2,7 @@ import type {
   SalesforceCreateTaskParams,
   SalesforceCreateTaskResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -117,11 +118,7 @@ export const salesforceCreateTaskTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Created task data',
-      properties: {
-        id: { type: 'string', description: 'Created task ID' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-        created: { type: 'boolean', description: 'Whether task was created' },
-      },
+      properties: SOBJECT_CREATE_OUTPUT_PROPERTIES,
     },
   },
 }

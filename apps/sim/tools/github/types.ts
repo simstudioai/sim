@@ -565,6 +565,322 @@ export const GIST_FILES_OUTPUT = {
   },
 } as const satisfies OutputProperty
 
+/**
+ * Output definition for GitHub label objects
+ * @see https://docs.github.com/en/rest/issues/labels
+ */
+export const LABEL_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Label ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  url: { type: 'string', description: 'API URL' },
+  name: { type: 'string', description: 'Label name' },
+  description: { type: 'string', description: 'Label description', optional: true },
+  color: { type: 'string', description: 'Hex color code (without #)' },
+  default: { type: 'boolean', description: 'Whether this is a default label' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete label object output definition
+ */
+export const LABEL_OUTPUT = {
+  type: 'object',
+  description: 'GitHub label object',
+  properties: LABEL_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for GitHub milestone objects
+ * @see https://docs.github.com/en/rest/issues/milestones
+ */
+export const MILESTONE_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Milestone ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  number: { type: 'number', description: 'Milestone number' },
+  title: { type: 'string', description: 'Milestone title' },
+  description: { type: 'string', description: 'Milestone description', optional: true },
+  state: { type: 'string', description: 'State (open or closed)' },
+  url: { type: 'string', description: 'API URL' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  labels_url: { type: 'string', description: 'Labels API URL' },
+  due_on: { type: 'string', description: 'Due date (ISO 8601)', optional: true },
+  open_issues: { type: 'number', description: 'Number of open issues' },
+  closed_issues: { type: 'number', description: 'Number of closed issues' },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+  closed_at: { type: 'string', description: 'Close timestamp', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete milestone object output definition
+ */
+export const MILESTONE_OUTPUT = {
+  type: 'object',
+  description: 'GitHub milestone object',
+  optional: true,
+  properties: MILESTONE_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for GitHub issue objects (V2 tools)
+ * @see https://docs.github.com/en/rest/issues/issues
+ */
+export const ISSUE_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Issue ID' },
+  number: { type: 'number', description: 'Issue number' },
+  title: { type: 'string', description: 'Issue title' },
+  state: { type: 'string', description: 'Issue state (open/closed)' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  body: { type: 'string', description: 'Issue body/description', optional: true },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+  closed_at: { type: 'string', description: 'Close timestamp', optional: true },
+  state_reason: {
+    type: 'string',
+    description: 'State reason (completed/not_planned)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for GitHub comment objects (V2 tools)
+ * @see https://docs.github.com/en/rest/issues/comments
+ */
+export const COMMENT_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Comment ID' },
+  body: { type: 'string', description: 'Comment body' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  path: { type: 'string', description: 'File path (for file comments)', optional: true },
+  line: { type: 'number', description: 'Line number (for file comments)', optional: true },
+  side: { type: 'string', description: 'Side (LEFT/RIGHT for diff comments)', optional: true },
+  commit_id: { type: 'string', description: 'Commit SHA', optional: true },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for GitHub reaction objects
+ * @see https://docs.github.com/en/rest/reactions
+ */
+export const REACTION_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Reaction ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  content: {
+    type: 'string',
+    description: 'Reaction type (+1, -1, laugh, confused, heart, hooray, rocket, eyes)',
+  },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for GitHub release asset objects
+ * @see https://docs.github.com/en/rest/releases/assets
+ */
+export const RELEASE_ASSET_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Asset ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  name: { type: 'string', description: 'Asset filename' },
+  label: { type: 'string', description: 'Asset label', optional: true },
+  state: { type: 'string', description: 'Asset state (uploaded/open)' },
+  content_type: { type: 'string', description: 'MIME type' },
+  size: { type: 'number', description: 'File size in bytes' },
+  download_count: { type: 'number', description: 'Number of downloads' },
+  browser_download_url: { type: 'string', description: 'Direct download URL' },
+  created_at: { type: 'string', description: 'Upload timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for GitHub release objects (V2 tools)
+ * @see https://docs.github.com/en/rest/releases/releases
+ */
+export const RELEASE_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Release ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  tag_name: { type: 'string', description: 'Git tag name' },
+  name: { type: 'string', description: 'Release name', optional: true },
+  body: { type: 'string', description: 'Release notes (markdown)', optional: true },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  tarball_url: { type: 'string', description: 'Source tarball URL' },
+  zipball_url: { type: 'string', description: 'Source zipball URL' },
+  draft: { type: 'boolean', description: 'Whether this is a draft release' },
+  prerelease: { type: 'boolean', description: 'Whether this is a prerelease' },
+  target_commitish: { type: 'string', description: 'Target branch or commit SHA' },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  published_at: { type: 'string', description: 'Publication timestamp', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for GitHub workflow objects (V2 tools)
+ * @see https://docs.github.com/en/rest/actions/workflows
+ */
+export const WORKFLOW_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Workflow ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  name: { type: 'string', description: 'Workflow name' },
+  path: { type: 'string', description: 'Path to workflow file' },
+  state: {
+    type: 'string',
+    description: 'Workflow state (active/disabled_manually/disabled_inactivity)',
+  },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  badge_url: { type: 'string', description: 'Status badge URL' },
+  url: { type: 'string', description: 'API URL' },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+  deleted_at: { type: 'string', description: 'Deletion timestamp', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for head commit in workflow runs
+ * @see https://docs.github.com/en/rest/actions/workflow-runs
+ */
+export const HEAD_COMMIT_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Commit SHA' },
+  tree_id: { type: 'string', description: 'Tree SHA' },
+  message: { type: 'string', description: 'Commit message' },
+  timestamp: { type: 'string', description: 'Commit timestamp' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete head commit output definition
+ */
+export const HEAD_COMMIT_OUTPUT = {
+  type: 'object',
+  description: 'Head commit information',
+  optional: true,
+  properties: HEAD_COMMIT_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for PR references in workflow runs
+ */
+export const PR_REFERENCE_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Pull request ID' },
+  number: { type: 'number', description: 'Pull request number' },
+  url: { type: 'string', description: 'API URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete PR reference output definition
+ */
+export const PR_REFERENCE_OUTPUT = {
+  type: 'object',
+  description: 'Pull request reference',
+  properties: PR_REFERENCE_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for referenced workflows in workflow runs
+ */
+export const REFERENCED_WORKFLOW_OUTPUT_PROPERTIES = {
+  path: { type: 'string', description: 'Path to referenced workflow' },
+  sha: { type: 'string', description: 'Commit SHA of referenced workflow' },
+  ref: { type: 'string', description: 'Git ref of referenced workflow', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete referenced workflow output definition
+ */
+export const REFERENCED_WORKFLOW_OUTPUT = {
+  type: 'object',
+  description: 'Referenced workflow',
+  properties: REFERENCED_WORKFLOW_OUTPUT_PROPERTIES,
+} as const satisfies OutputProperty
+
+/**
+ * Output definition for GitHub workflow run objects (V2 tools)
+ * @see https://docs.github.com/en/rest/actions/workflow-runs
+ */
+export const WORKFLOW_RUN_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Workflow run ID' },
+  name: { type: 'string', description: 'Workflow name', optional: true },
+  head_branch: { type: 'string', description: 'Head branch name', optional: true },
+  head_sha: { type: 'string', description: 'Head commit SHA' },
+  run_number: { type: 'number', description: 'Run number' },
+  run_attempt: { type: 'number', description: 'Run attempt number' },
+  event: { type: 'string', description: 'Event that triggered the run' },
+  status: { type: 'string', description: 'Run status (queued/in_progress/completed)' },
+  conclusion: {
+    type: 'string',
+    description: 'Run conclusion (success/failure/cancelled/etc)',
+    optional: true,
+  },
+  workflow_id: { type: 'number', description: 'Associated workflow ID' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  logs_url: { type: 'string', description: 'Logs download URL' },
+  jobs_url: { type: 'string', description: 'Jobs API URL' },
+  artifacts_url: { type: 'string', description: 'Artifacts API URL' },
+  run_started_at: { type: 'string', description: 'Run start timestamp', optional: true },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for PR file objects (changed files in a PR)
+ * @see https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files
+ */
+export const PR_FILE_OUTPUT_PROPERTIES = {
+  sha: { type: 'string', description: 'Blob SHA' },
+  filename: { type: 'string', description: 'File path' },
+  status: {
+    type: 'string',
+    description: 'Change status (added/removed/modified/renamed/copied/changed/unchanged)',
+  },
+  additions: { type: 'number', description: 'Lines added' },
+  deletions: { type: 'number', description: 'Lines deleted' },
+  changes: { type: 'number', description: 'Total line changes' },
+  blob_url: { type: 'string', description: 'Blob URL' },
+  raw_url: { type: 'string', description: 'Raw file URL' },
+  contents_url: { type: 'string', description: 'Contents API URL' },
+  patch: { type: 'string', description: 'Diff patch', optional: true },
+  previous_filename: {
+    type: 'string',
+    description: 'Previous filename (for renames)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for PR review comment objects
+ * @see https://docs.github.com/en/rest/pulls/comments
+ */
+export const PR_COMMENT_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Comment ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  body: { type: 'string', description: 'Comment body' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  path: { type: 'string', description: 'File path' },
+  position: { type: 'number', description: 'Position in diff', optional: true },
+  line: { type: 'number', description: 'Line number', optional: true },
+  side: { type: 'string', description: 'Side (LEFT/RIGHT)', optional: true },
+  commit_id: { type: 'string', description: 'Commit SHA' },
+  original_commit_id: { type: 'string', description: 'Original commit SHA' },
+  diff_hunk: { type: 'string', description: 'Diff hunk context' },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for PR summary objects (list view)
+ * @see https://docs.github.com/en/rest/pulls/pulls#list-pull-requests
+ */
+export const PR_SUMMARY_OUTPUT_PROPERTIES = {
+  id: { type: 'number', description: 'Pull request ID' },
+  node_id: { type: 'string', description: 'GraphQL node ID' },
+  number: { type: 'number', description: 'Pull request number' },
+  title: { type: 'string', description: 'PR title' },
+  state: { type: 'string', description: 'PR state (open/closed)' },
+  html_url: { type: 'string', description: 'GitHub web URL' },
+  diff_url: { type: 'string', description: 'Diff URL' },
+  body: { type: 'string', description: 'PR description', optional: true },
+  locked: { type: 'boolean', description: 'Whether PR is locked' },
+  draft: { type: 'boolean', description: 'Whether PR is a draft' },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+  closed_at: { type: 'string', description: 'Close timestamp', optional: true },
+  merged_at: { type: 'string', description: 'Merge timestamp', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
 // Base parameters shared by all GitHub operations
 export interface BaseGitHubParams {
   owner: string

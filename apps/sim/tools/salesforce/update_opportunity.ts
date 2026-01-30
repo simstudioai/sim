@@ -2,6 +2,7 @@ import type {
   SalesforceUpdateOpportunityParams,
   SalesforceUpdateOpportunityResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -108,10 +109,7 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated opportunity data',
-      properties: {
-        id: { type: 'string', description: 'Updated opportunity ID' },
-        updated: { type: 'boolean', description: 'Whether opportunity was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

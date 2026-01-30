@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZoomGetMeetingParams, ZoomGetMeetingResponse } from '@/tools/zoom/types'
+import { MEETING_OUTPUT_PROPERTIES } from '@/tools/zoom/types'
 
 export const zoomGetMeetingTool: ToolConfig<ZoomGetMeetingParams, ZoomGetMeetingResponse> = {
   id: 'zoom_get_meeting',
@@ -107,26 +108,7 @@ export const zoomGetMeetingTool: ToolConfig<ZoomGetMeetingParams, ZoomGetMeeting
     meeting: {
       type: 'object',
       description: 'The meeting details',
-      properties: {
-        id: { type: 'number', description: 'Meeting ID' },
-        uuid: { type: 'string', description: 'Meeting UUID' },
-        host_id: { type: 'string', description: 'Host user ID' },
-        host_email: { type: 'string', description: 'Host email' },
-        topic: { type: 'string', description: 'Meeting topic' },
-        type: { type: 'number', description: 'Meeting type' },
-        status: { type: 'string', description: 'Meeting status' },
-        start_time: { type: 'string', description: 'Start time' },
-        duration: { type: 'number', description: 'Duration in minutes' },
-        timezone: { type: 'string', description: 'Timezone' },
-        agenda: { type: 'string', description: 'Meeting agenda' },
-        created_at: { type: 'string', description: 'Creation timestamp' },
-        start_url: { type: 'string', description: 'Host start URL' },
-        join_url: { type: 'string', description: 'Participant join URL' },
-        password: { type: 'string', description: 'Meeting password' },
-        settings: { type: 'object', description: 'Meeting settings' },
-        recurrence: { type: 'object', description: 'Recurrence settings' },
-        occurrences: { type: 'array', description: 'Meeting occurrences' },
-      },
+      properties: MEETING_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -99,15 +99,15 @@ Post an event to the Datadog event stream. Use for deployment notifications, ale
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `event` | object | The created event details |
-| ↳ `id` | number | Event ID |
-| ↳ `title` | string | Event title |
-| ↳ `text` | string | Event text |
-| ↳ `date_happened` | number | Unix timestamp when event occurred |
-| ↳ `priority` | string | Event priority |
-| ↳ `alert_type` | string | Alert type |
-| ↳ `host` | string | Associated host |
-| ↳ `tags` | array | Event tags |
-| ↳ `url` | string | URL to view the event in Datadog |
+|   ↳ `id` | number | Event ID |
+|   ↳ `title` | string | Event title |
+|   ↳ `text` | string | Event text |
+|   ↳ `date_happened` | number | Unix timestamp when event occurred |
+|   ↳ `priority` | string | Event priority |
+|   ↳ `alert_type` | string | Alert type |
+|   ↳ `host` | string | Associated host |
+|   ↳ `tags` | array | Event tags |
+|   ↳ `url` | string | URL to view the event in Datadog |
 
 ### `datadog_create_monitor`
 
@@ -133,16 +133,16 @@ Create a new monitor/alert in Datadog. Monitors can track metrics, service check
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `monitor` | object | The created monitor details |
-| ↳ `id` | number | Monitor ID |
-| ↳ `name` | string | Monitor name |
-| ↳ `type` | string | Monitor type |
-| ↳ `query` | string | Monitor query |
-| ↳ `message` | string | Notification message |
-| ↳ `tags` | array | Monitor tags |
-| ↳ `priority` | number | Monitor priority |
-| ↳ `overall_state` | string | Current monitor state |
-| ↳ `created` | string | Creation timestamp |
-| ↳ `modified` | string | Last modification timestamp |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `name` | string | Monitor name |
+|   ↳ `type` | string | Monitor type |
+|   ↳ `query` | string | Monitor query |
+|   ↳ `message` | string | Notification message |
+|   ↳ `tags` | array | Monitor tags |
+|   ↳ `priority` | number | Monitor priority |
+|   ↳ `overall_state` | string | Current monitor state |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
 
 ### `datadog_get_monitor`
 
@@ -164,16 +164,16 @@ Retrieve details of a specific monitor by ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `monitor` | object | The monitor details |
-| ↳ `id` | number | Monitor ID |
-| ↳ `name` | string | Monitor name |
-| ↳ `type` | string | Monitor type |
-| ↳ `query` | string | Monitor query |
-| ↳ `message` | string | Notification message |
-| ↳ `tags` | array | Monitor tags |
-| ↳ `priority` | number | Monitor priority |
-| ↳ `overall_state` | string | Current monitor state |
-| ↳ `created` | string | Creation timestamp |
-| ↳ `modified` | string | Last modification timestamp |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `name` | string | Monitor name |
+|   ↳ `type` | string | Monitor type |
+|   ↳ `query` | string | Monitor query |
+|   ↳ `message` | string | Notification message |
+|   ↳ `tags` | array | Monitor tags |
+|   ↳ `priority` | number | Monitor priority |
+|   ↳ `overall_state` | string | Current monitor state |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
 
 ### `datadog_list_monitors`
 
@@ -252,11 +252,11 @@ Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or mon
 | `logs` | array | List of log entries |
 |   ↳ `id` | string | Log ID |
 |   ↳ `content` | object | Log content |
-|   ↳ `timestamp` | string | Log timestamp |
-|   ↳ `host` | string | Host name |
-|   ↳ `service` | string | Service name |
-|   ↳ `message` | string | Log message |
-|   ↳ `status` | string | Log status/level |
+|     ↳ `timestamp` | string | Log timestamp |
+|     ↳ `host` | string | Host name |
+|     ↳ `service` | string | Service name |
+|     ↳ `message` | string | Log message |
+|     ↳ `status` | string | Log status/level |
 | `nextLogId` | string | Cursor for pagination |
 
 ### `datadog_send_logs`
@@ -302,12 +302,12 @@ Schedule a downtime to suppress monitor notifications during maintenance windows
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `downtime` | object | The created downtime details |
-| ↳ `id` | number | Downtime ID |
-| ↳ `scope` | array | Downtime scope |
-| ↳ `message` | string | Downtime message |
-| ↳ `start` | number | Start time \(Unix timestamp\) |
-| ↳ `end` | number | End time \(Unix timestamp\) |
-| ↳ `active` | boolean | Whether downtime is currently active |
+|   ↳ `id` | number | Downtime ID |
+|   ↳ `scope` | array | Downtime scope |
+|   ↳ `message` | string | Downtime message |
+|   ↳ `start` | number | Start time \(Unix timestamp\) |
+|   ↳ `end` | number | End time \(Unix timestamp\) |
+|   ↳ `active` | boolean | Whether downtime is currently active |
 
 ### `datadog_list_downtimes`
 

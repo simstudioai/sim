@@ -52,12 +52,12 @@ Send a message to an external A2A-compatible agent.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | The text response from the agent |
-| `taskId` | string | Task ID for follow-up interactions |
-| `contextId` | string | Context ID for conversation continuity |
-| `state` | string | Task state |
-| `artifacts` | array | Structured output artifacts |
-| `history` | array | Full message history |
+| `content` | string | Text response content from the agent |
+| `taskId` | string | Unique task identifier |
+| `contextId` | string | Groups related tasks/messages |
+| `state` | string | Current lifecycle state \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+| `artifacts` | array | Task output artifacts |
+| `history` | array | Conversation history \(Message array\) |
 
 ### `a2a_get_task`
 
@@ -76,11 +76,11 @@ Query the status of an existing A2A task.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `taskId` | string | Task ID |
-| `contextId` | string | Context ID |
-| `state` | string | Task state |
-| `artifacts` | array | Output artifacts |
-| `history` | array | Message history |
+| `taskId` | string | Unique task identifier |
+| `contextId` | string | Groups related tasks/messages |
+| `state` | string | Current lifecycle state \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
+| `artifacts` | array | Task output artifacts |
+| `history` | array | Conversation history \(Message array\) |
 
 ### `a2a_cancel_task`
 
@@ -99,7 +99,7 @@ Cancel a running A2A task.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `cancelled` | boolean | Whether cancellation was successful |
-| `state` | string | Task state after cancellation |
+| `state` | string | Current lifecycle state \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
 
 ### `a2a_get_agent_card`
 
@@ -116,14 +116,13 @@ Fetch the Agent Card (discovery document) for an A2A agent.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `name` | string | Agent name |
-| `description` | string | Agent description |
-| `url` | string | Agent endpoint URL |
-| `version` | string | Agent version |
-| `capabilities` | object | Agent capabilities \(streaming, pushNotifications, etc.\) |
-| `skills` | array | Skills the agent can perform |
-| `defaultInputModes` | array | Default input modes \(text, file, data\) |
-| `defaultOutputModes` | array | Default output modes \(text, file, data\) |
+| `name` | string | Agent display name |
+| `description` | string | Agent purpose/capabilities |
+| `url` | string | Service endpoint URL |
+| `provider` | object | Creator organization details |
+| `capabilities` | object | Feature support matrix |
+| `skills` | array | Available operations |
+| `protocolVersions` | array | Supported A2A protocol versions |
 
 ### `a2a_resubscribe`
 
@@ -141,12 +140,12 @@ Reconnect to an ongoing A2A task stream after connection interruption.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `taskId` | string | Task ID |
-| `contextId` | string | Context ID |
-| `state` | string | Current task state |
+| `taskId` | string | Unique task identifier |
+| `contextId` | string | Groups related tasks/messages |
+| `state` | string | Current lifecycle state \(working, completed, failed, canceled, rejected, input_required, auth_required\) |
 | `isRunning` | boolean | Whether the task is still running |
-| `artifacts` | array | Output artifacts |
-| `history` | array | Message history |
+| `artifacts` | array | Task output artifacts |
+| `history` | array | Conversation history \(Message array\) |
 
 ### `a2a_set_push_notification`
 
@@ -166,9 +165,9 @@ Configure a webhook to receive task update notifications.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `url` | string | Configured webhook URL |
-| `token` | string | Token for webhook validation |
-| `success` | boolean | Whether configuration was successful |
+| `url` | string | HTTPS webhook URL for notifications |
+| `token` | string | Authentication token for webhook validation |
+| `success` | boolean | Whether the operation was successful |
 
 ### `a2a_get_push_notification`
 
@@ -186,9 +185,8 @@ Get the push notification webhook configuration for a task.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `url` | string | Configured webhook URL |
-| `token` | string | Token for webhook validation |
-| `exists` | boolean | Whether a push notification config exists |
+| `token` | string | Authentication token for webhook validation |
+| `exists` | boolean | Whether the resource exists |
 
 ### `a2a_delete_push_notification`
 
@@ -207,6 +205,6 @@ Delete the push notification webhook configuration for a task.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether deletion was successful |
+| `success` | boolean | Whether the operation was successful |
 
 

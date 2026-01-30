@@ -64,21 +64,21 @@ Send a message to a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Discord message data |
-| ↳ `id` | string | Message ID |
-| ↳ `content` | string | Message content |
-| ↳ `channel_id` | string | Channel ID where message was sent |
-| ↳ `author` | object | Message author information |
-|   ↳ `id` | string | Author user ID |
-|   ↳ `username` | string | Author username |
-|   ↳ `avatar` | string | Author avatar hash |
-|   ↳ `bot` | boolean | Whether author is a bot |
-| ↳ `timestamp` | string | Message timestamp |
-| ↳ `edited_timestamp` | string | Message edited timestamp |
-| ↳ `embeds` | array | Message embeds |
-| ↳ `attachments` | array | Message attachments |
-| ↳ `mentions` | array | User mentions in message |
-| ↳ `mention_roles` | array | Role mentions in message |
-| ↳ `mention_everyone` | boolean | Whether message mentions everyone |
+|   ↳ `id` | string | Message ID |
+|   ↳ `content` | string | Message content |
+|   ↳ `channel_id` | string | Channel ID where message was sent |
+|   ↳ `author` | object | Message author information |
+|     ↳ `id` | string | Author user ID |
+|     ↳ `username` | string | Author username |
+|     ↳ `avatar` | string | Author avatar hash |
+|     ↳ `bot` | boolean | Whether author is a bot |
+|   ↳ `timestamp` | string | Message timestamp |
+|   ↳ `edited_timestamp` | string | Message edited timestamp |
+|   ↳ `embeds` | array | Message embeds |
+|   ↳ `attachments` | array | Message attachments |
+|   ↳ `mentions` | array | User mentions in message |
+|   ↳ `mention_roles` | array | Role mentions in message |
+|   ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 
 ### `discord_get_messages`
 
@@ -98,23 +98,23 @@ Retrieve messages from a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Container for messages data |
-| ↳ `messages` | array | Array of Discord messages with full metadata |
-|   ↳ `id` | string | Message ID |
-|   ↳ `content` | string | Message content |
+|   ↳ `messages` | array | Array of Discord messages with full metadata |
+|     ↳ `id` | string | Message ID |
+|     ↳ `content` | string | Message content |
+|     ↳ `channel_id` | string | Channel ID |
+|     ↳ `author` | object | Message author information |
+|       ↳ `id` | string | Author user ID |
+|       ↳ `username` | string | Author username |
+|       ↳ `avatar` | string | Author avatar hash |
+|       ↳ `bot` | boolean | Whether author is a bot |
+|     ↳ `timestamp` | string | Message timestamp |
+|     ↳ `edited_timestamp` | string | Message edited timestamp |
+|     ↳ `embeds` | array | Message embeds |
+|     ↳ `attachments` | array | Message attachments |
+|     ↳ `mentions` | array | User mentions in message |
+|     ↳ `mention_roles` | array | Role mentions in message |
+|     ↳ `mention_everyone` | boolean | Whether message mentions everyone |
 |   ↳ `channel_id` | string | Channel ID |
-|   ↳ `author` | object | Message author information |
-|   ↳ `id` | string | Author user ID |
-|   ↳ `username` | string | Author username |
-|   ↳ `avatar` | string | Author avatar hash |
-|   ↳ `bot` | boolean | Whether author is a bot |
-|   ↳ `timestamp` | string | Message timestamp |
-|   ↳ `edited_timestamp` | string | Message edited timestamp |
-|   ↳ `embeds` | array | Message embeds |
-|   ↳ `attachments` | array | Message attachments |
-|   ↳ `mentions` | array | User mentions in message |
-|   ↳ `mention_roles` | array | Role mentions in message |
-|   ↳ `mention_everyone` | boolean | Whether message mentions everyone |
-| ↳ `channel_id` | string | Channel ID |
 
 ### `discord_get_server`
 
@@ -133,14 +133,14 @@ Retrieve information about a Discord server (guild)
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Discord server \(guild\) information |
-| ↳ `id` | string | Server ID |
-| ↳ `name` | string | Server name |
-| ↳ `icon` | string | Server icon hash |
-| ↳ `description` | string | Server description |
-| ↳ `owner_id` | string | Server owner user ID |
-| ↳ `roles` | array | Server roles |
-| ↳ `channels` | array | Server channels |
-| ↳ `member_count` | number | Number of members in server |
+|   ↳ `id` | string | Server ID |
+|   ↳ `name` | string | Server name |
+|   ↳ `icon` | string | Server icon hash |
+|   ↳ `description` | string | Server description |
+|   ↳ `owner_id` | string | Server owner user ID |
+|   ↳ `roles` | array | Server roles |
+|   ↳ `channels` | array | Server channels |
+|   ↳ `member_count` | number | Number of members in server |
 
 ### `discord_get_user`
 
@@ -159,14 +159,14 @@ Retrieve information about a Discord user
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Discord user information |
-| ↳ `id` | string | User ID |
-| ↳ `username` | string | Username |
-| ↳ `discriminator` | string | User discriminator \(4-digit number\) |
-| ↳ `avatar` | string | User avatar hash |
-| ↳ `bot` | boolean | Whether user is a bot |
-| ↳ `system` | boolean | Whether user is a system user |
-| ↳ `email` | string | User email \(if available\) |
-| ↳ `verified` | boolean | Whether user email is verified |
+|   ↳ `id` | string | User ID |
+|   ↳ `username` | string | Username |
+|   ↳ `discriminator` | string | User discriminator \(4-digit number\) |
+|   ↳ `avatar` | string | User avatar hash |
+|   ↳ `bot` | boolean | Whether user is a bot |
+|   ↳ `system` | boolean | Whether user is a system user |
+|   ↳ `email` | string | User email \(if available\) |
+|   ↳ `verified` | boolean | Whether user email is verified |
 
 ### `discord_edit_message`
 
@@ -188,10 +188,10 @@ Edit an existing message in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated Discord message data |
-| ↳ `id` | string | Message ID |
-| ↳ `content` | string | Updated message content |
-| ↳ `channel_id` | string | Channel ID |
-| ↳ `edited_timestamp` | string | Message edited timestamp |
+|   ↳ `id` | string | Message ID |
+|   ↳ `content` | string | Updated message content |
+|   ↳ `channel_id` | string | Channel ID |
+|   ↳ `edited_timestamp` | string | Message edited timestamp |
 
 ### `discord_delete_message`
 
@@ -312,11 +312,11 @@ Create a thread in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created thread data |
-| ↳ `id` | string | Thread ID |
-| ↳ `name` | string | Thread name |
-| ↳ `type` | number | Thread channel type |
-| ↳ `guild_id` | string | Server ID |
-| ↳ `parent_id` | string | Parent channel ID |
+|   ↳ `id` | string | Thread ID |
+|   ↳ `name` | string | Thread name |
+|   ↳ `type` | number | Thread channel type |
+|   ↳ `guild_id` | string | Server ID |
+|   ↳ `parent_id` | string | Parent channel ID |
 
 ### `discord_join_thread`
 
@@ -373,8 +373,8 @@ Archive or unarchive a thread in Discord
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated thread data |
-| ↳ `id` | string | Thread ID |
-| ↳ `archived` | boolean | Whether thread is archived |
+|   ↳ `id` | string | Thread ID |
+|   ↳ `archived` | boolean | Whether thread is archived |
 
 ### `discord_create_channel`
 
@@ -397,10 +397,10 @@ Create a new channel in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created channel data |
-| ↳ `id` | string | Channel ID |
-| ↳ `name` | string | Channel name |
-| ↳ `type` | number | Channel type |
-| ↳ `guild_id` | string | Server ID |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `type` | number | Channel type |
+|   ↳ `guild_id` | string | Server ID |
 
 ### `discord_update_channel`
 
@@ -422,10 +422,10 @@ Update a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated channel data |
-| ↳ `id` | string | Channel ID |
-| ↳ `name` | string | Channel name |
-| ↳ `type` | number | Channel type |
-| ↳ `topic` | string | Channel topic |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `type` | number | Channel type |
+|   ↳ `topic` | string | Channel topic |
 
 ### `discord_delete_channel`
 
@@ -463,11 +463,11 @@ Get information about a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Channel data |
-| ↳ `id` | string | Channel ID |
-| ↳ `name` | string | Channel name |
-| ↳ `type` | number | Channel type |
-| ↳ `topic` | string | Channel topic |
-| ↳ `guild_id` | string | Server ID |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `type` | number | Channel type |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `guild_id` | string | Server ID |
 
 ### `discord_create_role`
 
@@ -490,11 +490,11 @@ Create a new role in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created role data |
-| ↳ `id` | string | Role ID |
-| ↳ `name` | string | Role name |
-| ↳ `color` | number | Role color |
-| ↳ `hoist` | boolean | Whether role is hoisted |
-| ↳ `mentionable` | boolean | Whether role is mentionable |
+|   ↳ `id` | string | Role ID |
+|   ↳ `name` | string | Role name |
+|   ↳ `color` | number | Role color |
+|   ↳ `hoist` | boolean | Whether role is hoisted |
+|   ↳ `mentionable` | boolean | Whether role is mentionable |
 
 ### `discord_update_role`
 
@@ -518,9 +518,9 @@ Update a role in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated role data |
-| ↳ `id` | string | Role ID |
-| ↳ `name` | string | Role name |
-| ↳ `color` | number | Role color |
+|   ↳ `id` | string | Role ID |
+|   ↳ `name` | string | Role name |
+|   ↳ `color` | number | Role color |
 
 ### `discord_delete_role`
 
@@ -654,13 +654,13 @@ Get information about a member in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Member data |
-| ↳ `user` | object | User information |
-|   ↳ `id` | string | User ID |
-|   ↳ `username` | string | Username |
-|   ↳ `avatar` | string | Avatar hash |
-| ↳ `nick` | string | Server nickname |
-| ↳ `roles` | array | Array of role IDs |
-| ↳ `joined_at` | string | When the member joined |
+|   ↳ `user` | object | User information |
+|     ↳ `id` | string | User ID |
+|     ↳ `username` | string | Username |
+|     ↳ `avatar` | string | Avatar hash |
+|   ↳ `nick` | string | Server nickname |
+|   ↳ `roles` | array | Array of role IDs |
+|   ↳ `joined_at` | string | When the member joined |
 
 ### `discord_update_member`
 
@@ -683,9 +683,9 @@ Update a member in a Discord server (e.g., change nickname)
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Updated member data |
-| ↳ `nick` | string | Server nickname |
-| ↳ `mute` | boolean | Voice mute status |
-| ↳ `deaf` | boolean | Voice deaf status |
+|   ↳ `nick` | string | Server nickname |
+|   ↳ `mute` | boolean | Voice mute status |
+|   ↳ `deaf` | boolean | Voice deaf status |
 
 ### `discord_create_invite`
 
@@ -708,11 +708,11 @@ Create an invite link for a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created invite data |
-| ↳ `code` | string | Invite code |
-| ↳ `url` | string | Full invite URL |
-| ↳ `max_age` | number | Max age in seconds |
-| ↳ `max_uses` | number | Max uses |
-| ↳ `temporary` | boolean | Whether temporary |
+|   ↳ `code` | string | Invite code |
+|   ↳ `url` | string | Full invite URL |
+|   ↳ `max_age` | number | Max age in seconds |
+|   ↳ `max_uses` | number | Max uses |
+|   ↳ `temporary` | boolean | Whether temporary |
 
 ### `discord_get_invite`
 
@@ -732,11 +732,11 @@ Get information about a Discord invite
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Invite data |
-| ↳ `code` | string | Invite code |
-| ↳ `guild` | object | Server information |
-| ↳ `channel` | object | Channel information |
-| ↳ `approximate_member_count` | number | Approximate member count |
-| ↳ `approximate_presence_count` | number | Approximate online count |
+|   ↳ `code` | string | Invite code |
+|   ↳ `guild` | object | Server information |
+|   ↳ `channel` | object | Channel information |
+|   ↳ `approximate_member_count` | number | Approximate member count |
+|   ↳ `approximate_presence_count` | number | Approximate online count |
 
 ### `discord_delete_invite`
 
@@ -775,11 +775,11 @@ Create a webhook in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Created webhook data |
-| ↳ `id` | string | Webhook ID |
-| ↳ `name` | string | Webhook name |
-| ↳ `token` | string | Webhook token |
-| ↳ `url` | string | Webhook URL |
-| ↳ `channel_id` | string | Channel ID |
+|   ↳ `id` | string | Webhook ID |
+|   ↳ `name` | string | Webhook name |
+|   ↳ `token` | string | Webhook token |
+|   ↳ `url` | string | Webhook URL |
+|   ↳ `channel_id` | string | Channel ID |
 
 ### `discord_execute_webhook`
 
@@ -801,10 +801,10 @@ Execute a Discord webhook to send a message
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Message sent via webhook |
-| ↳ `id` | string | Message ID |
-| ↳ `content` | string | Message content |
-| ↳ `channel_id` | string | Channel ID |
-| ↳ `timestamp` | string | Message timestamp |
+|   ↳ `id` | string | Message ID |
+|   ↳ `content` | string | Message content |
+|   ↳ `channel_id` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
 
 ### `discord_get_webhook`
 
@@ -824,11 +824,11 @@ Get information about a Discord webhook
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `data` | object | Webhook data |
-| ↳ `id` | string | Webhook ID |
-| ↳ `name` | string | Webhook name |
-| ↳ `channel_id` | string | Channel ID |
-| ↳ `guild_id` | string | Server ID |
-| ↳ `token` | string | Webhook token |
+|   ↳ `id` | string | Webhook ID |
+|   ↳ `name` | string | Webhook name |
+|   ↳ `channel_id` | string | Channel ID |
+|   ↳ `guild_id` | string | Server ID |
+|   ↳ `token` | string | Webhook token |
 
 ### `discord_delete_webhook`
 

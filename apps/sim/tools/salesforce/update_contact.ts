@@ -3,6 +3,7 @@ import type {
   SalesforceUpdateContactParams,
   SalesforceUpdateContactResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -156,10 +157,7 @@ export const salesforceUpdateContactTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated contact data',
-      properties: {
-        id: { type: 'string', description: 'Updated contact ID' },
-        updated: { type: 'boolean', description: 'Whether contact was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { SlackDownloadParams, SlackDownloadResponse } from '@/tools/slack/types'
+import { FILE_DOWNLOAD_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SlackDownloadTool')
@@ -145,6 +146,10 @@ export const slackDownloadTool: ToolConfig<SlackDownloadParams, SlackDownloadRes
   },
 
   outputs: {
-    file: { type: 'file', description: 'Downloaded file stored in execution files' },
+    file: {
+      type: 'file',
+      description: 'Downloaded file stored in execution files',
+      properties: FILE_DOWNLOAD_OUTPUT_PROPERTIES,
+    },
   },
 }

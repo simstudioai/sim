@@ -125,11 +125,11 @@ Get detailed information about a specific person in PostHog by their ID or UUID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `person` | object | Person details including properties and identifiers |
-| ↳ `id` | string | Person ID |
-| ↳ `name` | string | Person name |
-| ↳ `distinct_ids` | array | All distinct IDs associated with this person |
-| ↳ `created_at` | string | When the person was first seen |
-| ↳ `uuid` | string | Person UUID |
+|   ↳ `id` | string | Person ID |
+|   ↳ `name` | string | Person name |
+|   ↳ `distinct_ids` | array | All distinct IDs associated with this person |
+|   ↳ `created_at` | string | When the person was first seen |
+|   ↳ `uuid` | string | Person UUID |
 
 ### `posthog_delete_person`
 
@@ -599,19 +599,19 @@ Get details of a specific feature flag
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `flag` | object | Feature flag details |
-| ↳ `id` | number | Feature flag ID |
-| ↳ `name` | string | Feature flag name |
-| ↳ `key` | string | Feature flag key |
-| ↳ `filters` | object | Feature flag filters |
-| ↳ `deleted` | boolean | Whether the flag is deleted |
-| ↳ `active` | boolean | Whether the flag is active |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `created_by` | object | Creator information |
-| ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
-| ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
-| ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
-| ↳ `usage_dashboard` | number | Usage dashboard ID |
-| ↳ `has_enriched_analytics` | boolean | Whether enriched analytics are enabled |
+|   ↳ `id` | number | Feature flag ID |
+|   ↳ `name` | string | Feature flag name |
+|   ↳ `key` | string | Feature flag key |
+|   ↳ `filters` | object | Feature flag filters |
+|   ↳ `deleted` | boolean | Whether the flag is deleted |
+|   ↳ `active` | boolean | Whether the flag is active |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
+|   ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
+|   ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
+|   ↳ `usage_dashboard` | number | Usage dashboard ID |
+|   ↳ `has_enriched_analytics` | boolean | Whether enriched analytics are enabled |
 
 ### `posthog_create_feature_flag`
 
@@ -636,17 +636,17 @@ Create a new feature flag in PostHog
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `flag` | object | Created feature flag |
-| ↳ `id` | number | Feature flag ID |
-| ↳ `name` | string | Feature flag name |
-| ↳ `key` | string | Feature flag key |
-| ↳ `filters` | object | Feature flag filters |
-| ↳ `deleted` | boolean | Whether the flag is deleted |
-| ↳ `active` | boolean | Whether the flag is active |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `created_by` | object | Creator information |
-| ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
-| ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
-| ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
+|   ↳ `id` | number | Feature flag ID |
+|   ↳ `name` | string | Feature flag name |
+|   ↳ `key` | string | Feature flag key |
+|   ↳ `filters` | object | Feature flag filters |
+|   ↳ `deleted` | boolean | Whether the flag is deleted |
+|   ↳ `active` | boolean | Whether the flag is active |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
+|   ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
+|   ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
 
 ### `posthog_update_feature_flag`
 
@@ -672,17 +672,17 @@ Update an existing feature flag in PostHog
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `flag` | object | Updated feature flag |
-| ↳ `id` | number | Feature flag ID |
-| ↳ `name` | string | Feature flag name |
-| ↳ `key` | string | Feature flag key |
-| ↳ `filters` | object | Feature flag filters |
-| ↳ `deleted` | boolean | Whether the flag is deleted |
-| ↳ `active` | boolean | Whether the flag is active |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `created_by` | object | Creator information |
-| ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
-| ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
-| ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
+|   ↳ `id` | number | Feature flag ID |
+|   ↳ `name` | string | Feature flag name |
+|   ↳ `key` | string | Feature flag key |
+|   ↳ `filters` | object | Feature flag filters |
+|   ↳ `deleted` | boolean | Whether the flag is deleted |
+|   ↳ `active` | boolean | Whether the flag is active |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `is_simple_flag` | boolean | Whether this is a simple flag |
+|   ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
+|   ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
 
 ### `posthog_delete_feature_flag`
 
@@ -781,21 +781,21 @@ Get details of a specific experiment
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `experiment` | object | Experiment details |
-| ↳ `id` | number | Experiment ID |
-| ↳ `name` | string | Experiment name |
-| ↳ `description` | string | Experiment description |
-| ↳ `feature_flag_key` | string | Associated feature flag key |
-| ↳ `feature_flag` | object | Feature flag details |
-| ↳ `parameters` | object | Experiment parameters |
-| ↳ `filters` | object | Experiment filters |
-| ↳ `variants` | object | Experiment variants |
-| ↳ `start_date` | string | Start date |
-| ↳ `end_date` | string | End date |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `created_by` | object | Creator information |
-| ↳ `archived` | boolean | Whether the experiment is archived |
-| ↳ `metrics` | array | Primary metrics |
-| ↳ `metrics_secondary` | array | Secondary metrics |
+|   ↳ `id` | number | Experiment ID |
+|   ↳ `name` | string | Experiment name |
+|   ↳ `description` | string | Experiment description |
+|   ↳ `feature_flag_key` | string | Associated feature flag key |
+|   ↳ `feature_flag` | object | Feature flag details |
+|   ↳ `parameters` | object | Experiment parameters |
+|   ↳ `filters` | object | Experiment filters |
+|   ↳ `variants` | object | Experiment variants |
+|   ↳ `start_date` | string | Start date |
+|   ↳ `end_date` | string | End date |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `archived` | boolean | Whether the experiment is archived |
+|   ↳ `metrics` | array | Primary metrics |
+|   ↳ `metrics_secondary` | array | Secondary metrics |
 
 ### `posthog_create_experiment`
 
@@ -822,19 +822,19 @@ Create a new experiment in PostHog
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `experiment` | object | Created experiment |
-| ↳ `id` | number | Experiment ID |
-| ↳ `name` | string | Experiment name |
-| ↳ `description` | string | Experiment description |
-| ↳ `feature_flag_key` | string | Associated feature flag key |
-| ↳ `feature_flag` | object | Feature flag details |
-| ↳ `parameters` | object | Experiment parameters |
-| ↳ `filters` | object | Experiment filters |
-| ↳ `variants` | object | Experiment variants |
-| ↳ `start_date` | string | Start date |
-| ↳ `end_date` | string | End date |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `created_by` | object | Creator information |
-| ↳ `archived` | boolean | Whether the experiment is archived |
+|   ↳ `id` | number | Experiment ID |
+|   ↳ `name` | string | Experiment name |
+|   ↳ `description` | string | Experiment description |
+|   ↳ `feature_flag_key` | string | Associated feature flag key |
+|   ↳ `feature_flag` | object | Feature flag details |
+|   ↳ `parameters` | object | Experiment parameters |
+|   ↳ `filters` | object | Experiment filters |
+|   ↳ `variants` | object | Experiment variants |
+|   ↳ `start_date` | string | Start date |
+|   ↳ `end_date` | string | End date |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `archived` | boolean | Whether the experiment is archived |
 
 ### `posthog_list_surveys`
 
@@ -886,19 +886,19 @@ Get details of a specific survey in PostHog by ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `survey` | object | Survey details |
-| ↳ `id` | string | Survey ID |
-| ↳ `name` | string | Survey name |
-| ↳ `description` | string | Survey description |
-| ↳ `type` | string | Survey type \(popover or api\) |
-| ↳ `questions` | array | Survey questions |
-| ↳ `appearance` | object | Survey appearance configuration |
-| ↳ `conditions` | object | Survey display conditions |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `created_by` | object | Creator information |
-| ↳ `start_date` | string | Survey start date |
-| ↳ `end_date` | string | Survey end date |
-| ↳ `archived` | boolean | Whether survey is archived |
-| ↳ `responses_limit` | number | Maximum number of responses |
+|   ↳ `id` | string | Survey ID |
+|   ↳ `name` | string | Survey name |
+|   ↳ `description` | string | Survey description |
+|   ↳ `type` | string | Survey type \(popover or api\) |
+|   ↳ `questions` | array | Survey questions |
+|   ↳ `appearance` | object | Survey appearance configuration |
+|   ↳ `conditions` | object | Survey display conditions |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `created_by` | object | Creator information |
+|   ↳ `start_date` | string | Survey start date |
+|   ↳ `end_date` | string | Survey end date |
+|   ↳ `archived` | boolean | Whether survey is archived |
+|   ↳ `responses_limit` | number | Maximum number of responses |
 
 ### `posthog_create_survey`
 
@@ -928,14 +928,14 @@ Create a new survey in PostHog. Supports question types: Basic (open), Link, Rat
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `survey` | object | Created survey details |
-| ↳ `id` | string | Survey ID |
-| ↳ `name` | string | Survey name |
-| ↳ `description` | string | Survey description |
-| ↳ `type` | string | Survey type \(popover or api\) |
-| ↳ `questions` | array | Survey questions |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `start_date` | string | Survey start date |
-| ↳ `end_date` | string | Survey end date |
+|   ↳ `id` | string | Survey ID |
+|   ↳ `name` | string | Survey name |
+|   ↳ `description` | string | Survey description |
+|   ↳ `type` | string | Survey type \(popover or api\) |
+|   ↳ `questions` | array | Survey questions |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `start_date` | string | Survey start date |
+|   ↳ `end_date` | string | Survey end date |
 
 ### `posthog_update_survey`
 
@@ -967,15 +967,15 @@ Update an existing survey in PostHog. Can modify questions, appearance, conditio
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `survey` | object | Updated survey details |
-| ↳ `id` | string | Survey ID |
-| ↳ `name` | string | Survey name |
-| ↳ `description` | string | Survey description |
-| ↳ `type` | string | Survey type \(popover or api\) |
-| ↳ `questions` | array | Survey questions |
-| ↳ `created_at` | string | Creation timestamp |
-| ↳ `start_date` | string | Survey start date |
-| ↳ `end_date` | string | Survey end date |
-| ↳ `archived` | boolean | Whether survey is archived |
+|   ↳ `id` | string | Survey ID |
+|   ↳ `name` | string | Survey name |
+|   ↳ `description` | string | Survey description |
+|   ↳ `type` | string | Survey type \(popover or api\) |
+|   ↳ `questions` | array | Survey questions |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `start_date` | string | Survey start date |
+|   ↳ `end_date` | string | Survey end date |
+|   ↳ `archived` | boolean | Whether survey is archived |
 
 ### `posthog_list_session_recordings`
 
@@ -1032,22 +1032,22 @@ Get details of a specific session recording in PostHog by ID.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recording` | object | Session recording details |
-| ↳ `id` | string | Recording ID |
-| ↳ `distinct_id` | string | User distinct ID |
-| ↳ `viewed` | boolean | Whether recording has been viewed |
-| ↳ `recording_duration` | number | Recording duration in seconds |
-| ↳ `active_seconds` | number | Active time in seconds |
-| ↳ `inactive_seconds` | number | Inactive time in seconds |
-| ↳ `start_time` | string | Recording start timestamp |
-| ↳ `end_time` | string | Recording end timestamp |
-| ↳ `click_count` | number | Number of clicks |
-| ↳ `keypress_count` | number | Number of keypresses |
-| ↳ `console_log_count` | number | Number of console logs |
-| ↳ `console_warn_count` | number | Number of console warnings |
-| ↳ `console_error_count` | number | Number of console errors |
-| ↳ `start_url` | string | Starting URL of the recording |
-| ↳ `person` | object | Person information |
-| ↳ `matching_events` | array | Events that occurred during recording |
+|   ↳ `id` | string | Recording ID |
+|   ↳ `distinct_id` | string | User distinct ID |
+|   ↳ `viewed` | boolean | Whether recording has been viewed |
+|   ↳ `recording_duration` | number | Recording duration in seconds |
+|   ↳ `active_seconds` | number | Active time in seconds |
+|   ↳ `inactive_seconds` | number | Inactive time in seconds |
+|   ↳ `start_time` | string | Recording start timestamp |
+|   ↳ `end_time` | string | Recording end timestamp |
+|   ↳ `click_count` | number | Number of clicks |
+|   ↳ `keypress_count` | number | Number of keypresses |
+|   ↳ `console_log_count` | number | Number of console logs |
+|   ↳ `console_warn_count` | number | Number of console warnings |
+|   ↳ `console_error_count` | number | Number of console errors |
+|   ↳ `start_url` | string | Starting URL of the recording |
+|   ↳ `person` | object | Person information |
+|   ↳ `matching_events` | array | Events that occurred during recording |
 
 ### `posthog_list_recording_playlists`
 
@@ -1344,29 +1344,29 @@ Get detailed information about a specific project by ID. Returns comprehensive p
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `project` | object | Detailed project information with all configuration settings |
-| ↳ `id` | number | Project ID |
-| ↳ `uuid` | string | Project UUID |
-| ↳ `organization` | string | Organization UUID |
-| ↳ `api_token` | string | Project API token for ingestion |
-| ↳ `app_urls` | array | Allowed app URLs |
-| ↳ `name` | string | Project name |
-| ↳ `slack_incoming_webhook` | string | Slack webhook URL for notifications |
-| ↳ `created_at` | string | Project creation timestamp |
-| ↳ `updated_at` | string | Last update timestamp |
-| ↳ `anonymize_ips` | boolean | Whether IP anonymization is enabled |
-| ↳ `completed_snippet_onboarding` | boolean | Whether snippet onboarding is completed |
-| ↳ `ingested_event` | boolean | Whether any event has been ingested |
-| ↳ `test_account_filters` | array | Filters for test accounts |
-| ↳ `is_demo` | boolean | Whether this is a demo project |
-| ↳ `timezone` | string | Project timezone |
-| ↳ `data_attributes` | array | Custom data attributes |
-| ↳ `person_display_name_properties` | array | Properties used for person display names |
-| ↳ `correlation_config` | object | Configuration for correlation analysis |
-| ↳ `autocapture_opt_out` | boolean | Whether autocapture is disabled |
-| ↳ `autocapture_exceptions_opt_in` | boolean | Whether exception autocapture is enabled |
-| ↳ `session_recording_opt_in` | boolean | Whether session recording is enabled |
-| ↳ `capture_console_log_opt_in` | boolean | Whether console log capture is enabled |
-| ↳ `capture_performance_opt_in` | boolean | Whether performance capture is enabled |
+|   ↳ `id` | number | Project ID |
+|   ↳ `uuid` | string | Project UUID |
+|   ↳ `organization` | string | Organization UUID |
+|   ↳ `api_token` | string | Project API token for ingestion |
+|   ↳ `app_urls` | array | Allowed app URLs |
+|   ↳ `name` | string | Project name |
+|   ↳ `slack_incoming_webhook` | string | Slack webhook URL for notifications |
+|   ↳ `created_at` | string | Project creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `anonymize_ips` | boolean | Whether IP anonymization is enabled |
+|   ↳ `completed_snippet_onboarding` | boolean | Whether snippet onboarding is completed |
+|   ↳ `ingested_event` | boolean | Whether any event has been ingested |
+|   ↳ `test_account_filters` | array | Filters for test accounts |
+|   ↳ `is_demo` | boolean | Whether this is a demo project |
+|   ↳ `timezone` | string | Project timezone |
+|   ↳ `data_attributes` | array | Custom data attributes |
+|   ↳ `person_display_name_properties` | array | Properties used for person display names |
+|   ↳ `correlation_config` | object | Configuration for correlation analysis |
+|   ↳ `autocapture_opt_out` | boolean | Whether autocapture is disabled |
+|   ↳ `autocapture_exceptions_opt_in` | boolean | Whether exception autocapture is enabled |
+|   ↳ `session_recording_opt_in` | boolean | Whether session recording is enabled |
+|   ↳ `capture_console_log_opt_in` | boolean | Whether console log capture is enabled |
+|   ↳ `capture_performance_opt_in` | boolean | Whether performance capture is enabled |
 
 ### `posthog_list_organizations`
 
@@ -1411,20 +1411,20 @@ Get detailed information about a specific organization by ID. Returns comprehens
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `organization` | object | Detailed organization information with settings and features |
-| ↳ `id` | string | Organization ID \(UUID\) |
-| ↳ `name` | string | Organization name |
-| ↳ `slug` | string | Organization slug |
-| ↳ `created_at` | string | Organization creation timestamp |
-| ↳ `updated_at` | string | Last update timestamp |
-| ↳ `membership_level` | number | User membership level in organization |
-| ↳ `plugins_access_level` | number | Access level for plugins/apps |
-| ↳ `teams` | array | List of team IDs in this organization |
-| ↳ `available_product_features` | array | Available product features with their limits and descriptions |
-| ↳ `domain_whitelist` | array | Whitelisted domains for organization |
-| ↳ `is_member_join_email_enabled` | boolean | Whether member join emails are enabled |
-| ↳ `metadata` | object | Organization metadata |
-| ↳ `customer_id` | string | Customer ID for billing |
-| ↳ `available_features` | array | List of available feature flags for organization |
-| ↳ `usage` | object | Organization usage statistics |
+|   ↳ `id` | string | Organization ID \(UUID\) |
+|   ↳ `name` | string | Organization name |
+|   ↳ `slug` | string | Organization slug |
+|   ↳ `created_at` | string | Organization creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `membership_level` | number | User membership level in organization |
+|   ↳ `plugins_access_level` | number | Access level for plugins/apps |
+|   ↳ `teams` | array | List of team IDs in this organization |
+|   ↳ `available_product_features` | array | Available product features with their limits and descriptions |
+|   ↳ `domain_whitelist` | array | Whitelisted domains for organization |
+|   ↳ `is_member_join_email_enabled` | boolean | Whether member join emails are enabled |
+|   ↳ `metadata` | object | Organization metadata |
+|   ↳ `customer_id` | string | Customer ID for billing |
+|   ↳ `available_features` | array | List of available feature flags for organization |
+|   ↳ `usage` | object | Organization usage statistics |
 
 

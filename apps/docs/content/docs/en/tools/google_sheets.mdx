@@ -53,8 +53,8 @@ Read data from a specific sheet in a Google Sheets spreadsheet
 | `range` | string | The range of cells that was read |
 | `values` | array | The cell values as a 2D array |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
-| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_write`
 
@@ -79,8 +79,8 @@ Write data to a specific sheet in a Google Sheets spreadsheet
 | `updatedColumns` | number | Number of columns updated |
 | `updatedCells` | number | Number of cells updated |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
-| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_update`
 
@@ -105,8 +105,8 @@ Update data in a specific sheet in a Google Sheets spreadsheet
 | `updatedColumns` | number | Number of columns updated |
 | `updatedCells` | number | Number of cells updated |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
-| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_append`
 
@@ -133,8 +133,8 @@ Append data to the end of a specific sheet in a Google Sheets spreadsheet
 | `updatedColumns` | number | Number of columns updated |
 | `updatedCells` | number | Number of cells updated |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
-| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_clear`
 
@@ -155,8 +155,8 @@ Clear values from a specific range in a Google Sheets spreadsheet
 | `clearedRange` | string | The range that was cleared |
 | `sheetName` | string | Name of the sheet that was cleared |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
-| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_get_spreadsheet`
 
@@ -234,8 +234,8 @@ Read multiple ranges from a Google Sheets spreadsheet in a single request
 |   ↳ `majorDimension` | string | Major dimension \(ROWS or COLUMNS\) |
 |   ↳ `values` | array | The cell values as a 2D array |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
-| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_batch_update`
 
@@ -265,8 +265,8 @@ Update multiple ranges in a Google Sheets spreadsheet in a single request
 |   ↳ `updatedColumns` | number | Number of columns updated in this range |
 |   ↳ `updatedCells` | number | Number of cells updated in this range |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
-| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_batch_clear`
 
@@ -286,8 +286,8 @@ Clear multiple ranges in a Google Sheets spreadsheet in a single request
 | `spreadsheetId` | string | The spreadsheet ID |
 | `clearedRanges` | array | Array of ranges that were cleared |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
-| ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
-| ↳ `spreadsheetUrl` | string | Spreadsheet URL |
+|   ↳ `spreadsheetId` | string | Google Sheets spreadsheet ID |
+|   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
 
 ### `google_sheets_copy_sheet`
 

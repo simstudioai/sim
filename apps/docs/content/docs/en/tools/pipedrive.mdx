@@ -55,7 +55,25 @@ Retrieve all deals from Pipedrive with optional filters
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deals` | array | Array of deal objects from Pipedrive |
+|   ↳ `id` | number | Deal ID |
+|   ↳ `title` | string | Deal title |
+|   ↳ `value` | number | Deal value |
+|   ↳ `currency` | string | Currency code |
+|   ↳ `status` | string | Deal status \(open, won, lost, deleted\) |
+|   ↳ `stage_id` | number | Pipeline stage ID |
+|   ↳ `pipeline_id` | number | Pipeline ID |
+|   ↳ `person_id` | number | Associated person ID |
+|   ↳ `org_id` | number | Associated organization ID |
+|   ↳ `owner_id` | number | Deal owner user ID |
+|   ↳ `add_time` | string | When the deal was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the deal was last updated \(ISO 8601\) |
+|   ↳ `won_time` | string | When the deal was won |
+|   ↳ `lost_time` | string | When the deal was lost |
+|   ↳ `close_time` | string | When the deal was closed |
+|   ↳ `expected_close_date` | string | Expected close date |
 | `metadata` | object | Pagination metadata for the response |
+|   ↳ `total_items` | number | Total number of items |
+|   ↳ `has_more` | boolean | Whether more items are available |
 | `success` | boolean | Operation success status |
 
 ### `pipedrive_get_deal`
@@ -140,6 +158,16 @@ Retrieve files from Pipedrive with optional filters
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `files` | array | Array of file objects from Pipedrive |
+|   ↳ `id` | number | File ID |
+|   ↳ `name` | string | File name |
+|   ↳ `file_type` | string | File type/extension |
+|   ↳ `file_size` | number | File size in bytes |
+|   ↳ `add_time` | string | When the file was uploaded |
+|   ↳ `update_time` | string | When the file was last updated |
+|   ↳ `deal_id` | number | Associated deal ID |
+|   ↳ `person_id` | number | Associated person ID |
+|   ↳ `org_id` | number | Associated organization ID |
+|   ↳ `url` | string | File download URL |
 | `total_items` | number | Total number of files returned |
 | `success` | boolean | Operation success status |
 
@@ -198,6 +226,14 @@ Retrieve all pipelines from Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `pipelines` | array | Array of pipeline objects from Pipedrive |
+|   ↳ `id` | number | Pipeline ID |
+|   ↳ `name` | string | Pipeline name |
+|   ↳ `url_title` | string | URL-friendly title |
+|   ↳ `order_nr` | number | Pipeline order number |
+|   ↳ `active` | boolean | Whether the pipeline is active |
+|   ↳ `deal_probability` | boolean | Whether deal probability is enabled |
+|   ↳ `add_time` | string | When the pipeline was created |
+|   ↳ `update_time` | string | When the pipeline was last updated |
 | `total_items` | number | Total number of pipelines returned |
 | `success` | boolean | Operation success status |
 
@@ -283,6 +319,18 @@ Retrieve activities (tasks) from Pipedrive with optional filters
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `activities` | array | Array of activity objects from Pipedrive |
+|   ↳ `id` | number | Activity ID |
+|   ↳ `subject` | string | Activity subject |
+|   ↳ `due_date` | string | Due date \(YYYY-MM-DD\) |
+|   ↳ `due_time` | string | Due time \(HH:MM\) |
+|   ↳ `duration` | string | Duration \(HH:MM\) |
+|   ↳ `deal_id` | number | Associated deal ID |
+|   ↳ `person_id` | number | Associated person ID |
+|   ↳ `org_id` | number | Associated organization ID |
+|   ↳ `done` | boolean | Whether the activity is done |
+|   ↳ `note` | string | Activity note |
+|   ↳ `add_time` | string | When the activity was created |
+|   ↳ `update_time` | string | When the activity was last updated |
 | `total_items` | number | Total number of activities returned |
 | `success` | boolean | Operation success status |
 
@@ -354,7 +402,33 @@ Retrieve all leads or a specific lead from Pipedrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `leads` | array | Array of lead objects \(when listing all\) |
+|   ↳ `id` | string | Lead ID \(UUID\) |
+|   ↳ `title` | string | Lead title |
+|   ↳ `person_id` | number | ID of the associated person |
+|   ↳ `organization_id` | number | ID of the associated organization |
+|   ↳ `owner_id` | number | ID of the lead owner |
+|   ↳ `value` | object | Lead value |
+|     ↳ `amount` | number | Value amount |
+|     ↳ `currency` | string | Currency code \(e.g., USD, EUR\) |
+|   ↳ `expected_close_date` | string | Expected close date \(YYYY-MM-DD\) |
+|   ↳ `is_archived` | boolean | Whether the lead is archived |
+|   ↳ `was_seen` | boolean | Whether the lead was seen |
+|   ↳ `add_time` | string | When the lead was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the lead was last updated \(ISO 8601\) |
 | `lead` | object | Single lead object \(when lead_id is provided\) |
+|   ↳ `id` | string | Lead ID \(UUID\) |
+|   ↳ `title` | string | Lead title |
+|   ↳ `person_id` | number | ID of the associated person |
+|   ↳ `organization_id` | number | ID of the associated organization |
+|   ↳ `owner_id` | number | ID of the lead owner |
+|   ↳ `value` | object | Lead value |
+|     ↳ `amount` | number | Value amount |
+|     ↳ `currency` | string | Currency code \(e.g., USD, EUR\) |
+|   ↳ `expected_close_date` | string | Expected close date \(YYYY-MM-DD\) |
+|   ↳ `is_archived` | boolean | Whether the lead is archived |
+|   ↳ `was_seen` | boolean | Whether the lead was seen |
+|   ↳ `add_time` | string | When the lead was created \(ISO 8601\) |
+|   ↳ `update_time` | string | When the lead was last updated \(ISO 8601\) |
 | `total_items` | number | Total number of leads returned |
 | `success` | boolean | Operation success status |
 

@@ -2,6 +2,7 @@ import type {
   LinearListAttachmentsParams,
   LinearListAttachmentsResponse,
 } from '@/tools/linear/types'
+import { ATTACHMENT_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListAttachmentsTool: ToolConfig<
@@ -118,18 +119,9 @@ export const linearListAttachmentsTool: ToolConfig<
       description: 'Array of attachments',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Attachment ID' },
-          title: { type: 'string', description: 'Attachment title' },
-          subtitle: { type: 'string', description: 'Attachment subtitle' },
-          url: { type: 'string', description: 'Attachment URL' },
-          createdAt: { type: 'string', description: 'Creation timestamp' },
-        },
+        properties: ATTACHMENT_OUTPUT_PROPERTIES,
       },
     },
-    pageInfo: {
-      type: 'object',
-      description: 'Pagination information',
-    },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

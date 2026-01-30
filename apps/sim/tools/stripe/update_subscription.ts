@@ -1,4 +1,5 @@
 import type { SubscriptionResponse, UpdateSubscriptionParams } from '@/tools/stripe/types'
+import { SUBSCRIPTION_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeUpdateSubscriptionTool: ToolConfig<
@@ -93,17 +94,13 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
 
   outputs: {
     subscription: {
-      type: 'json',
+      ...SUBSCRIPTION_OUTPUT,
       description: 'The updated subscription object',
     },
     metadata: {
       type: 'json',
       description: 'Subscription metadata including ID, status, and customer',
-      properties: {
-        id: { type: 'string', description: 'Stripe unique identifier' },
-        status: { type: 'string', description: 'Current state of the resource' },
-        customer: { type: 'string', description: 'Associated customer ID' },
-      },
+      properties: SUBSCRIPTION_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

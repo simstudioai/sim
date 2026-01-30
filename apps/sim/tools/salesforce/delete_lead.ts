@@ -2,6 +2,7 @@ import type {
   SalesforceDeleteLeadParams,
   SalesforceDeleteLeadResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -57,10 +58,7 @@ export const salesforceDeleteLeadTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Deleted lead data',
-      properties: {
-        id: { type: 'string', description: 'Deleted lead ID' },
-        deleted: { type: 'boolean', description: 'Whether lead was deleted' },
-      },
+      properties: SOBJECT_DELETE_OUTPUT_PROPERTIES,
     },
   },
 }

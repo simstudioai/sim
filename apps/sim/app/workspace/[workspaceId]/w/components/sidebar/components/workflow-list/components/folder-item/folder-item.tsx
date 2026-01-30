@@ -14,6 +14,7 @@ import {
   useFolderExpand,
   useItemDrag,
   useItemRename,
+  useSidebarDragContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import {
@@ -55,6 +56,7 @@ export function FolderItem({
   onDragStart: onDragStartProp,
   onDragEnd: onDragEndProp,
 }: FolderItemProps) {
+  const { isAnyDragActive } = useSidebarDragContext()
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -66,7 +68,6 @@ export function FolderItem({
   const isSelected = selectedFolders.has(folder.id)
 
   const { canDeleteFolder, canDeleteWorkflows } = useCanDelete({ workspaceId })
-  const canDelete = useMemo(() => canDeleteFolder(folder.id), [canDeleteFolder, folder.id])
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [deleteItemType, setDeleteItemType] = useState<'folder' | 'mixed'>('folder')
@@ -79,16 +80,16 @@ export function FolderItem({
     names: string[]
   } | null>(null)
 
-  const [canDeleteCaptured, setCanDeleteCaptured] = useState(true)
+  const [canDeleteSelection, setCanDeleteSelection] = useState(true)
 
-  const { isDeleting: isDeletingSingle, handleDeleteFolder: handleDeleteSingleFolder } =
+  const { isDeleting: isDeletingThisFolder, handleDeleteFolder: handleDeleteThisFolder } =
     useDeleteFolder({
       workspaceId,
       folderIds: folder.id,
       onSuccess: () => setIsDeleteModalOpen(false),
     })
 
-  const { isDeleting: isDeletingMixed, handleDeleteSelection } = useDeleteSelection({
+  const { isDeleting: isDeletingSelection, handleDeleteSelection } = useDeleteSelection({
     workspaceId,
     workflowIds: capturedSelectionRef.current?.workflowIds || [],
     folderIds: capturedSelectionRef.current?.folderIds || [],
@@ -96,7 +97,7 @@ export function FolderItem({
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
-  const isDeleting = isDeletingSingle || isDeletingMixed
+  const isDeleting = isDeletingThisFolder || isDeletingSelection
 
   const { handleDuplicateFolder } = useDuplicateFolder({
     workspaceId,
@@ -104,16 +105,16 @@ export function FolderItem({
   })
 
   const {
-    isExporting: isExportingSingle,
+    isExporting: isExportingThisFolder,
     hasWorkflows,
-    handleExportFolder,
+    handleExportFolder: handleExportThisFolder,
   } = useExportFolder({
     folderId: folder.id,
   })
 
-  const { isExporting: isExportingMixed, handleExportSelection } = useExportSelection()
+  const { isExporting: isExportingSelection, handleExportSelection } = useExportSelection()
 
-  const isExporting = isExportingSingle || isExportingMixed
+  const isExporting = isExportingThisFolder || isExportingSelection
 
   const {
     isExpanded,
@@ -175,7 +176,20 @@ export function FolderItem({
         return
       }
 
-      e.dataTransfer.setData('folder-id', folder.id)
+      const { selectedWorkflows, selectedFolders } = useFolderStore.getState()
+      const isCurrentlySelected = selectedFolders.has(folder.id)
+
+      const selection = isCurrentlySelected
+        ? {
+            workflowIds: Array.from(selectedWorkflows),
+            folderIds: Array.from(selectedFolders),
+          }
+        : {
+            workflowIds: [],
+            folderIds: [folder.id],
+          }
+
+      e.dataTransfer.setData('sidebar-selection', JSON.stringify(selection))
       e.dataTransfer.effectAllowed = 'move'
       onDragStartProp?.()
     },
@@ -242,7 +256,7 @@ export function FolderItem({
 
     const canDeleteAllFolders = folderIds.every((id) => canDeleteFolder(id))
     const canDeleteAllWorkflows = workflowIds.length === 0 || canDeleteWorkflows(workflowIds)
-    setCanDeleteCaptured(canDeleteAllFolders && canDeleteAllWorkflows)
+    setCanDeleteSelection(canDeleteAllFolders && canDeleteAllWorkflows)
   }, [folder.id, canDeleteFolder, canDeleteWorkflows])
 
   const handleContextMenu = useCallback(
@@ -374,21 +388,21 @@ export function FolderItem({
     if (isMixed || folderIds.length > 1) {
       await handleDeleteSelection()
     } else {
-      await handleDeleteSingleFolder()
+      await handleDeleteThisFolder()
     }
-  }, [handleDeleteSelection, handleDeleteSingleFolder])
+  }, [handleDeleteSelection, handleDeleteThisFolder])
 
   const handleExport = useCallback(async () => {
     if (!capturedSelectionRef.current) return
 
     const { isMixed, workflowIds, folderIds } = capturedSelectionRef.current
 
-    if (isMixed) {
+    if (isMixed || folderIds.length > 1) {
       await handleExportSelection(workflowIds, folderIds)
     } else {
-      await handleExportFolder()
+      await handleExportThisFolder()
     }
-  }, [handleExportSelection, handleExportFolder])
+  }, [handleExportSelection, handleExportThisFolder])
 
   const isMixedSelection = useMemo(() => {
     return capturedSelectionRef.current?.isMixed ?? false
@@ -409,9 +423,10 @@ export function FolderItem({
         aria-expanded={isExpanded}
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={clsx(
-          'group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+          'group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
+          !isAnyDragActive && 'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
           isSelected ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]' : '',
-          isDragging ? 'opacity-50' : ''
+          (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
@@ -423,20 +438,26 @@ export function FolderItem({
       >
         <ChevronRight
           className={clsx(
-            'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
-            'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]',
+            'h-3.5 w-3.5 flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100',
+            !isAnyDragActive && 'group-hover:text-[var(--text-primary)]',
             isExpanded && 'rotate-90'
           )}
           aria-hidden='true'
         />
         {isExpanded ? (
           <FolderOpen
-            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+            className={clsx(
+              'h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]',
+              !isAnyDragActive && 'group-hover:text-[var(--text-primary)]'
+            )}
             aria-hidden='true'
           />
         ) : (
           <Folder
-            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+            className={clsx(
+              'h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]',
+              !isAnyDragActive && 'group-hover:text-[var(--text-primary)]'
+            )}
             aria-hidden='true'
           />
         )}
@@ -464,16 +485,23 @@ export function FolderItem({
         ) : (
           <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
             <span
-              className='min-w-0 flex-1 truncate font-medium text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              className={clsx(
+                'min-w-0 flex-1 truncate font-medium text-[var(--text-tertiary)]',
+                !isAnyDragActive && 'group-hover:text-[var(--text-primary)]'
+              )}
               onDoubleClick={handleDoubleClick}
             >
               {folder.name}
             </span>
             <button
               type='button'
+              aria-label='Folder options'
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
-              className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+              className={clsx(
+                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)]',
+                !isAnyDragActive && 'group-hover:opacity-100'
+              )}
             >
               <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
             </button>
@@ -502,7 +530,7 @@ export function FolderItem({
         disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
         disableDuplicate={!userPermissions.canEdit || !hasWorkflows}
         disableExport={!userPermissions.canEdit || isExporting || !hasExportableContent}
-        disableDelete={!userPermissions.canEdit || !canDeleteCaptured}
+        disableDelete={!userPermissions.canEdit || !canDeleteSelection}
       />
 
       <DeleteModal

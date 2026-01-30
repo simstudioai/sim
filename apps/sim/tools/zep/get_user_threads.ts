@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { PAGINATION_OUTPUT_PROPERTIES, THREADS_ARRAY_OUTPUT } from '@/tools/zep/types'
 
-// Get User Threads Tool - List all threads for a user (Zep v3)
 export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_user_threads',
   name: 'Get User Threads',
@@ -61,13 +61,7 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
   },
 
   outputs: {
-    threads: {
-      type: 'array',
-      description: 'Array of thread objects for this user',
-    },
-    totalCount: {
-      type: 'number',
-      description: 'Total number of threads returned',
-    },
+    threads: THREADS_ARRAY_OUTPUT,
+    totalCount: PAGINATION_OUTPUT_PROPERTIES.totalCount,
   },
 }

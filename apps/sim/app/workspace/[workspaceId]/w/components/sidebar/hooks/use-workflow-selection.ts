@@ -45,10 +45,8 @@ export function useWorkflowSelection({ workflowIds, activeWorkflowId }: UseWorkf
       else if (shiftKey) {
         toggleWorkflowSelection(workflowId)
       }
-      // Regular click: Select only this workflow (clears folder selection for single-item focus)
+      // Regular click: Select only this workflow (preserves folder selection for unified multi-select)
       else {
-        const { clearFolderSelection } = useFolderStore.getState()
-        clearFolderSelection()
         selectOnly(workflowId)
       }
     },

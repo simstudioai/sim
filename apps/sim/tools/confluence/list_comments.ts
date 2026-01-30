@@ -1,3 +1,4 @@
+import { COMMENTS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceListCommentsParams {
@@ -112,7 +113,7 @@ export const confluenceListCommentsTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of retrieval' },
-    comments: { type: 'array', description: 'List of comments' },
+    ts: TIMESTAMP_OUTPUT,
+    comments: COMMENTS_OUTPUT,
   },
 }

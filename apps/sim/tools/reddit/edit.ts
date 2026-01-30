@@ -101,6 +101,11 @@ export const editTool: ToolConfig<RedditEditParams, RedditWriteResponse> = {
     data: {
       type: 'object',
       description: 'Updated content data',
+      properties: {
+        id: { type: 'string', description: 'Edited thing ID' },
+        body: { type: 'string', description: 'Updated comment body (for comments)' },
+        selftext: { type: 'string', description: 'Updated post text (for self posts)' },
+      },
     },
   },
 }

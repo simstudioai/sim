@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from './types'
 
 const logger = createLogger('ZendeskGetCurrentUser')
 
@@ -81,7 +81,11 @@ export const zendeskGetCurrentUserTool: ToolConfig<
   },
 
   outputs: {
-    user: { type: 'object', description: 'Current user object' },
+    user: {
+      type: 'object',
+      description: 'Current user object',
+      properties: USER_OUTPUT_PROPERTIES,
+    },
     user_id: { type: 'number', description: 'The current user ID' },
   },
 }

@@ -53,15 +53,15 @@ Retrieve accounts from Salesforce CRM
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Accounts data |
-| ↳ `accounts` | array | Array of account objects |
-| ↳ `paging` | object | Pagination information |
-|   ↳ `nextRecordsUrl` | string | URL for next page of results |
-|   ↳ `totalSize` | number | Total number of records |
-|   ↳ `done` | boolean | Whether all records returned |
-| ↳ `metadata` | object | Response metadata |
-|   ↳ `totalReturned` | number | Number of accounts returned |
-|   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `accounts` | array | Array of account objects |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_create_account`
 
@@ -93,9 +93,9 @@ Create a new account in Salesforce CRM
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created account data |
-| ↳ `id` | string | Created account ID |
-| ↳ `success` | boolean | Salesforce operation success |
-| ↳ `created` | boolean | Whether account was created |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Whether the create operation was successful |
+|   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
 ### `salesforce_update_account`
 
@@ -128,8 +128,8 @@ Update an existing account in Salesforce CRM
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated account data |
-| ↳ `id` | string | Updated account ID |
-| ↳ `updated` | boolean | Whether account was updated |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
 ### `salesforce_delete_account`
 
@@ -149,8 +149,8 @@ Delete an account from Salesforce CRM
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Deleted account data |
-| ↳ `id` | string | Deleted account ID |
-| ↳ `deleted` | boolean | Whether account was deleted |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
 ### `salesforce_get_contacts`
 
@@ -173,17 +173,17 @@ Get contact(s) from Salesforce - single contact if ID provided, or list if not
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Contact\(s\) data |
-| ↳ `contacts` | array | Array of contacts \(list query\) |
-| ↳ `contact` | object | Single contact \(by ID\) |
-| ↳ `paging` | object | Pagination information |
-|   ↳ `nextRecordsUrl` | string | URL for next page of results |
-|   ↳ `totalSize` | number | Total number of records |
-|   ↳ `done` | boolean | Whether all records returned |
-| ↳ `metadata` | object | Response metadata |
-|   ↳ `totalReturned` | number | Number of contacts returned |
-|   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `singleContact` | boolean | Whether single contact was returned |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `contacts` | array | Array of contacts \(list query\) |
+|   ↳ `contact` | object | Single contact \(by ID\) |
+|   ↳ `singleContact` | boolean | Whether single contact was returned |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_create_contact`
 
@@ -215,9 +215,9 @@ Create a new contact in Salesforce CRM
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created contact data |
-| ↳ `id` | string | Created contact ID |
-| ↳ `success` | boolean | Salesforce operation success |
-| ↳ `created` | boolean | Whether contact was created |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Whether the create operation was successful |
+|   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
 ### `salesforce_update_contact`
 
@@ -250,8 +250,8 @@ Update an existing contact in Salesforce CRM
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated contact data |
-| ↳ `id` | string | Updated contact ID |
-| ↳ `updated` | boolean | Whether contact was updated |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
 ### `salesforce_delete_contact`
 
@@ -271,8 +271,8 @@ Delete a contact from Salesforce CRM
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Deleted contact data |
-| ↳ `id` | string | Deleted contact ID |
-| ↳ `deleted` | boolean | Whether contact was deleted |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
 ### `salesforce_get_leads`
 
@@ -295,17 +295,17 @@ Get lead(s) from Salesforce
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Lead data |
-| ↳ `lead` | object | Single lead object \(when leadId provided\) |
-| ↳ `leads` | array | Array of lead objects \(when listing\) |
-| ↳ `paging` | object | Pagination information |
-|   ↳ `nextRecordsUrl` | string | URL for next page of results |
-|   ↳ `totalSize` | number | Total number of records |
-|   ↳ `done` | boolean | Whether all records returned |
-| ↳ `metadata` | object | Response metadata |
-|   ↳ `totalReturned` | number | Number of leads returned |
-|   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `singleLead` | boolean | Whether single lead was returned |
-| ↳ `success` | boolean | Operation success status |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `lead` | object | Single lead object \(when leadId provided\) |
+|   ↳ `leads` | array | Array of lead objects \(when listing\) |
+|   ↳ `singleLead` | boolean | Whether single lead was returned |
+|   ↳ `success` | boolean | Operation success status |
 
 ### `salesforce_create_lead`
 
@@ -333,9 +333,9 @@ Create a new lead
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created lead data |
-| ↳ `id` | string | Created lead ID |
-| ↳ `success` | boolean | Salesforce operation success |
-| ↳ `created` | boolean | Whether lead was created |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Whether the create operation was successful |
+|   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
 ### `salesforce_update_lead`
 
@@ -364,8 +364,8 @@ Update an existing lead
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated lead data |
-| ↳ `id` | string | Updated lead ID |
-| ↳ `updated` | boolean | Whether lead was updated |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
 ### `salesforce_delete_lead`
 
@@ -385,8 +385,8 @@ Delete a lead
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Deleted lead data |
-| ↳ `id` | string | Deleted lead ID |
-| ↳ `deleted` | boolean | Whether lead was deleted |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
 ### `salesforce_get_opportunities`
 
@@ -409,16 +409,16 @@ Get opportunity(ies) from Salesforce
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Opportunity data |
-| ↳ `opportunity` | object | Single opportunity object \(when opportunityId provided\) |
-| ↳ `opportunities` | array | Array of opportunity objects \(when listing\) |
-| ↳ `paging` | object | Pagination information |
-|   ↳ `nextRecordsUrl` | string | URL for next page of results |
-|   ↳ `totalSize` | number | Total number of records |
-|   ↳ `done` | boolean | Whether all records returned |
-| ↳ `metadata` | object | Response metadata |
-|   ↳ `totalReturned` | number | Number of opportunities returned |
-|   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `success` | boolean | Operation success status |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `opportunity` | object | Single opportunity object \(when opportunityId provided\) |
+|   ↳ `opportunities` | array | Array of opportunity objects \(when listing\) |
+|   ↳ `success` | boolean | Operation success status |
 
 ### `salesforce_create_opportunity`
 
@@ -444,9 +444,9 @@ Create a new opportunity
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created opportunity data |
-| ↳ `id` | string | Created opportunity ID |
-| ↳ `success` | boolean | Salesforce operation success |
-| ↳ `created` | boolean | Whether opportunity was created |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Whether the create operation was successful |
+|   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
 ### `salesforce_update_opportunity`
 
@@ -473,8 +473,8 @@ Update an existing opportunity
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated opportunity data |
-| ↳ `id` | string | Updated opportunity ID |
-| ↳ `updated` | boolean | Whether opportunity was updated |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
 ### `salesforce_delete_opportunity`
 
@@ -494,8 +494,8 @@ Delete an opportunity
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Deleted opportunity data |
-| ↳ `id` | string | Deleted opportunity ID |
-| ↳ `deleted` | boolean | Whether opportunity was deleted |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
 ### `salesforce_get_cases`
 
@@ -518,16 +518,16 @@ Get case(s) from Salesforce
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Case data |
-| ↳ `case` | object | Single case object \(when caseId provided\) |
-| ↳ `cases` | array | Array of case objects \(when listing\) |
-| ↳ `paging` | object | Pagination information |
-|   ↳ `nextRecordsUrl` | string | URL for next page of results |
-|   ↳ `totalSize` | number | Total number of records |
-|   ↳ `done` | boolean | Whether all records returned |
-| ↳ `metadata` | object | Response metadata |
-|   ↳ `totalReturned` | number | Number of cases returned |
-|   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `success` | boolean | Operation success status |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `case` | object | Single case object \(when caseId provided\) |
+|   ↳ `cases` | array | Array of case objects \(when listing\) |
+|   ↳ `success` | boolean | Operation success status |
 
 ### `salesforce_create_case`
 
@@ -553,9 +553,9 @@ Create a new case
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created case data |
-| ↳ `id` | string | Created case ID |
-| ↳ `success` | boolean | Salesforce operation success |
-| ↳ `created` | boolean | Whether case was created |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Whether the create operation was successful |
+|   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
 ### `salesforce_update_case`
 
@@ -579,8 +579,8 @@ Update an existing case
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated case data |
-| ↳ `id` | string | Updated case ID |
-| ↳ `updated` | boolean | Whether case was updated |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
 ### `salesforce_delete_case`
 
@@ -600,8 +600,8 @@ Delete a case
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Deleted case data |
-| ↳ `id` | string | Deleted case ID |
-| ↳ `deleted` | boolean | Whether case was deleted |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
 ### `salesforce_get_tasks`
 
@@ -624,16 +624,16 @@ Get task(s) from Salesforce
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Task data |
-| ↳ `task` | object | Single task object \(when taskId provided\) |
-| ↳ `tasks` | array | Array of task objects \(when listing\) |
-| ↳ `paging` | object | Pagination information |
-|   ↳ `nextRecordsUrl` | string | URL for next page of results |
-|   ↳ `totalSize` | number | Total number of records |
-|   ↳ `done` | boolean | Whether all records returned |
-| ↳ `metadata` | object | Response metadata |
-|   ↳ `totalReturned` | number | Number of tasks returned |
-|   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `success` | boolean | Operation success status |
+|   ↳ `paging` | object | Pagination information from Salesforce API |
+|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
+|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
+|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `task` | object | Single task object \(when taskId provided\) |
+|   ↳ `tasks` | array | Array of task objects \(when listing\) |
+|   ↳ `success` | boolean | Operation success status |
 
 ### `salesforce_create_task`
 
@@ -659,9 +659,9 @@ Create a new task
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Created task data |
-| ↳ `id` | string | Created task ID |
-| ↳ `success` | boolean | Salesforce operation success |
-| ↳ `created` | boolean | Whether task was created |
+|   ↳ `id` | string | The Salesforce ID of the newly created record |
+|   ↳ `success` | boolean | Whether the create operation was successful |
+|   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
 ### `salesforce_update_task`
 
@@ -686,8 +686,8 @@ Update an existing task
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Updated task data |
-| ↳ `id` | string | Updated task ID |
-| ↳ `updated` | boolean | Whether task was updated |
+|   ↳ `id` | string | The Salesforce ID of the updated record |
+|   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
 ### `salesforce_delete_task`
 
@@ -707,8 +707,8 @@ Delete a task
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Deleted task data |
-| ↳ `id` | string | Deleted task ID |
-| ↳ `deleted` | boolean | Whether task was deleted |
+|   ↳ `id` | string | The Salesforce ID of the deleted record |
+|   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
 ### `salesforce_list_reports`
 
@@ -729,9 +729,9 @@ Get a list of reports accessible by the current user
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Reports data |
-| ↳ `reports` | array | Array of report objects |
-| ↳ `totalReturned` | number | Number of reports returned |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `totalReturned` | number | Number of items returned |
+|   ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `reports` | array | Array of report objects |
 
 ### `salesforce_get_report`
 
@@ -751,9 +751,9 @@ Get metadata and describe information for a specific report
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Report metadata |
-| ↳ `report` | object | Report metadata object |
-| ↳ `reportId` | string | Report ID |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `report` | object | Report metadata object |
+|   ↳ `reportId` | string | Report ID |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_run_report`
 
@@ -775,17 +775,17 @@ Execute a report and retrieve the results
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Report results |
-| ↳ `reportId` | string | Report ID |
-| ↳ `reportMetadata` | object | Report metadata |
-| ↳ `reportExtendedMetadata` | object | Extended metadata |
-| ↳ `factMap` | object | Report data organized by groupings |
-| ↳ `groupingsDown` | object | Row groupings |
-| ↳ `groupingsAcross` | object | Column groupings |
-| ↳ `hasDetailRows` | boolean | Whether report has detail rows |
-| ↳ `allData` | boolean | Whether all data is returned |
-| ↳ `reportName` | string | Report name |
-| ↳ `reportFormat` | string | Report format type |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `reportId` | string | Report ID |
+|   ↳ `reportMetadata` | object | Report metadata including name, format, and filter definitions |
+|   ↳ `reportExtendedMetadata` | object | Extended metadata for aggregate columns and groupings |
+|   ↳ `factMap` | object | Report data organized by groupings with aggregates and row data |
+|   ↳ `groupingsDown` | object | Row grouping hierarchy and values |
+|   ↳ `groupingsAcross` | object | Column grouping hierarchy and values |
+|   ↳ `hasDetailRows` | boolean | Whether the report includes detail-level row data |
+|   ↳ `allData` | boolean | Whether all data is returned \(false if truncated due to size limits\) |
+|   ↳ `reportName` | string | Display name of the report |
+|   ↳ `reportFormat` | string | Report format type \(TABULAR, SUMMARY, MATRIX, JOINED\) |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_list_report_types`
 
@@ -804,9 +804,9 @@ Get a list of available report types
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Report types data |
-| ↳ `reportTypes` | array | Array of report type objects |
-| ↳ `totalReturned` | number | Number of report types returned |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `totalReturned` | number | Number of items returned |
+|   ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `reportTypes` | array | Array of report type objects |
 
 ### `salesforce_list_dashboards`
 
@@ -826,9 +826,9 @@ Get a list of dashboards accessible by the current user
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Dashboards data |
-| ↳ `dashboards` | array | Array of dashboard objects |
-| ↳ `totalReturned` | number | Number of dashboards returned |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `totalReturned` | number | Number of items returned |
+|   ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `dashboards` | array | Array of dashboard objects |
 
 ### `salesforce_get_dashboard`
 
@@ -848,13 +848,13 @@ Get details and results for a specific dashboard
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Dashboard data |
-| ↳ `dashboard` | object | Dashboard details |
-| ↳ `dashboardId` | string | Dashboard ID |
-| ↳ `components` | array | Dashboard component data |
-| ↳ `dashboardName` | string | Dashboard name |
-| ↳ `folderId` | string | Folder ID containing the dashboard |
-| ↳ `runningUser` | object | Running user information |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `dashboard` | object | Full dashboard details object |
+|   ↳ `dashboardId` | string | Dashboard ID |
+|   ↳ `components` | array | Array of dashboard component data with visualizations and filters |
+|   ↳ `dashboardName` | string | Display name of the dashboard |
+|   ↳ `folderId` | string | ID of the folder containing the dashboard |
+|   ↳ `runningUser` | object | User context under which the dashboard data was retrieved |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_refresh_dashboard`
 
@@ -874,13 +874,13 @@ Refresh a dashboard to get the latest data
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Refreshed dashboard data |
-| ↳ `dashboard` | object | Dashboard details |
-| ↳ `dashboardId` | string | Dashboard ID |
-| ↳ `components` | array | Dashboard component data |
-| ↳ `status` | object | Dashboard status |
-| ↳ `dashboardName` | string | Dashboard name |
-| ↳ `refreshDate` | string | Date when dashboard was refreshed |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `dashboard` | object | Full dashboard details object |
+|   ↳ `dashboardId` | string | Dashboard ID |
+|   ↳ `components` | array | Array of dashboard component data with fresh visualizations |
+|   ↳ `status` | object | Dashboard refresh status information |
+|   ↳ `dashboardName` | string | Display name of the dashboard |
+|   ↳ `refreshDate` | string | ISO 8601 timestamp when the dashboard was last refreshed |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_query`
 
@@ -900,15 +900,12 @@ Execute a custom SOQL query to retrieve data from Salesforce
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Query results |
-| ↳ `records` | array | Array of record objects |
-| ↳ `totalSize` | number | Total number of records matching query |
-| ↳ `done` | boolean | Whether all records have been returned |
-| ↳ `nextRecordsUrl` | string | URL to fetch next batch of records |
-| ↳ `query` | string | The executed SOQL query |
-| ↳ `metadata` | object | Response metadata |
-|   ↳ `totalReturned` | number | Number of records returned in this response |
-|   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `records` | array | Array of sObject records matching the query |
+|   ↳ `query` | string | The executed SOQL query |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_query_more`
 
@@ -928,14 +925,11 @@ Retrieve additional query results using the nextRecordsUrl from a previous query
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Query results |
-| ↳ `records` | array | Array of record objects |
-| ↳ `totalSize` | number | Total number of records matching query |
-| ↳ `done` | boolean | Whether all records have been returned |
-| ↳ `nextRecordsUrl` | string | URL to fetch next batch of records |
-| ↳ `metadata` | object | Response metadata |
-|   ↳ `totalReturned` | number | Number of records returned in this response |
-|   ↳ `hasMore` | boolean | Whether more records exist |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `records` | array | Array of sObject records matching the query |
+|   ↳ `metadata` | object | Response metadata |
+|     ↳ `totalReturned` | number | Number of records returned in this response |
+|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_describe_object`
 
@@ -955,19 +949,41 @@ Get metadata and field information for a Salesforce object
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Object metadata |
-| ↳ `objectName` | string | API name of the object |
-| ↳ `label` | string | Display label |
-| ↳ `labelPlural` | string | Plural display label |
-| ↳ `fields` | array | Array of field definitions |
-| ↳ `keyPrefix` | string | ID prefix for this object type |
-| ↳ `queryable` | boolean | Whether object can be queried |
-| ↳ `createable` | boolean | Whether records can be created |
-| ↳ `updateable` | boolean | Whether records can be updated |
-| ↳ `deletable` | boolean | Whether records can be deleted |
-| ↳ `childRelationships` | array | Child relationship definitions |
-| ↳ `recordTypeInfos` | array | Record type information |
-| ↳ `fieldCount` | number | Number of fields in the object |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `objectName` | string | API name of the object \(e.g., Account, Contact\) |
+|   ↳ `label` | string | Human-readable singular label for the object |
+|   ↳ `labelPlural` | string | Human-readable plural label for the object |
+|   ↳ `fields` | array | Array of field metadata objects |
+|     ↳ `name` | string | API name of the field |
+|     ↳ `label` | string | Display label of the field |
+|     ↳ `length` | number | Maximum length for text fields |
+|     ↳ `precision` | number | Precision for numeric fields |
+|     ↳ `scale` | number | Scale for numeric fields |
+|     ↳ `nillable` | boolean | Whether the field can be null |
+|     ↳ `unique` | boolean | Whether values must be unique |
+|     ↳ `createable` | boolean | Whether field can be set on create |
+|     ↳ `updateable` | boolean | Whether field can be updated |
+|     ↳ `defaultedOnCreate` | boolean | Whether field has default value on create |
+|     ↳ `calculated` | boolean | Whether field is a formula field |
+|     ↳ `autoNumber` | boolean | Whether field is auto-number |
+|     ↳ `externalId` | boolean | Whether field is an external ID |
+|     ↳ `idLookup` | boolean | Whether field can be used in ID lookup |
+|     ↳ `inlineHelpText` | string | Help text for the field |
+|     ↳ `picklistValues` | array | Available picklist values for picklist fields |
+|     ↳ `referenceTo` | array | Objects this field can reference \(for lookup fields\) |
+|     ↳ `relationshipName` | string | Relationship name for lookup fields |
+|     ↳ `custom` | boolean | Whether this is a custom field |
+|     ↳ `filterable` | boolean | Whether field can be used in SOQL filter |
+|     ↳ `groupable` | boolean | Whether field can be used in GROUP BY |
+|     ↳ `sortable` | boolean | Whether field can be used in ORDER BY |
+|   ↳ `keyPrefix` | string | Three-character prefix used in record IDs \(e.g., "001" for Account\) |
+|   ↳ `queryable` | boolean | Whether the object can be queried via SOQL |
+|   ↳ `createable` | boolean | Whether records can be created for this object |
+|   ↳ `updateable` | boolean | Whether records can be updated for this object |
+|   ↳ `deletable` | boolean | Whether records can be deleted for this object |
+|   ↳ `childRelationships` | array | Array of child relationship metadata for related objects |
+|   ↳ `recordTypeInfos` | array | Array of record type information for the object |
+|   ↳ `fieldCount` | number | Total number of fields on the object |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_list_objects`
 
@@ -986,10 +1002,26 @@ Get a list of all available Salesforce objects
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Objects list |
-| ↳ `objects` | array | Array of available Salesforce objects |
-| ↳ `encoding` | string | Encoding used |
-| ↳ `maxBatchSize` | number | Maximum batch size |
-| ↳ `totalReturned` | number | Number of objects returned |
-| ↳ `success` | boolean | Salesforce operation success |
+|   ↳ `objects` | array | Array of sObject metadata |
+|     ↳ `name` | string | API name of the object |
+|     ↳ `label` | string | Display label of the object |
+|     ↳ `labelPlural` | string | Plural display label |
+|     ↳ `keyPrefix` | string | Three-character ID prefix |
+|     ↳ `custom` | boolean | Whether this is a custom object |
+|     ↳ `queryable` | boolean | Whether object can be queried |
+|     ↳ `createable` | boolean | Whether records can be created |
+|     ↳ `updateable` | boolean | Whether records can be updated |
+|     ↳ `deletable` | boolean | Whether records can be deleted |
+|     ↳ `searchable` | boolean | Whether object is searchable |
+|     ↳ `triggerable` | boolean | Whether triggers are supported |
+|     ↳ `layoutable` | boolean | Whether page layouts are supported |
+|     ↳ `replicateable` | boolean | Whether object can be replicated |
+|     ↳ `retrieveable` | boolean | Whether records can be retrieved |
+|     ↳ `undeletable` | boolean | Whether records can be undeleted |
+|     ↳ `urls` | object | URLs for accessing object resources |
+|   ↳ `encoding` | string | Character encoding for the organization \(e.g., UTF-8\) |
+|   ↳ `maxBatchSize` | number | Maximum number of records that can be returned in a single query batch \(typically 200\) |
+|   ↳ `totalReturned` | number | Number of objects returned |
+|   ↳ `success` | boolean | Salesforce operation success |
 
 

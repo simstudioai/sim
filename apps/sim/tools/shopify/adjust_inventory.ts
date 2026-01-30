@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ShopifyAdjustInventoryParams, ShopifyInventoryResponse } from './types'
+import { INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyAdjustInventoryTool: ToolConfig<
   ShopifyAdjustInventoryParams,
@@ -155,6 +156,7 @@ export const shopifyAdjustInventoryTool: ToolConfig<
     inventoryLevel: {
       type: 'object',
       description: 'The inventory adjustment result',
+      properties: INVENTORY_ADJUSTMENT_OUTPUT_PROPERTIES,
     },
   },
 }

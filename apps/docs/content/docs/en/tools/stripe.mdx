@@ -59,12 +59,11 @@ Create a new Payment Intent to process a payment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | json | The created Payment Intent object |
 | `metadata` | json | Payment Intent metadata including ID, status, amount, and currency |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_retrieve_payment_intent`
 
@@ -81,12 +80,11 @@ Retrieve an existing Payment Intent by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | json | The retrieved Payment Intent object |
 | `metadata` | json | Payment Intent metadata including ID, status, amount, and currency |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_update_payment_intent`
 
@@ -108,12 +106,11 @@ Update an existing Payment Intent
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | json | The updated Payment Intent object |
 | `metadata` | json | Payment Intent metadata including ID, status, amount, and currency |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_confirm_payment_intent`
 
@@ -131,12 +128,11 @@ Confirm a Payment Intent to complete the payment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | json | The confirmed Payment Intent object |
 | `metadata` | json | Payment Intent metadata including ID, status, amount, and currency |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_capture_payment_intent`
 
@@ -154,12 +150,11 @@ Capture an authorized Payment Intent
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | json | The captured Payment Intent object |
 | `metadata` | json | Payment Intent metadata including ID, status, amount, and currency |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_cancel_payment_intent`
 
@@ -177,12 +172,11 @@ Cancel a Payment Intent
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | json | The canceled Payment Intent object |
 | `metadata` | json | Payment Intent metadata including ID, status, amount, and currency |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_list_payment_intents`
 
@@ -201,10 +195,56 @@ List all Payment Intents
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intents` | json | Array of Payment Intent objects |
+| `payment_intents` | array | Array of Payment Intent objects |
+|   ↳ `id` | string | Unique identifier for the Payment Intent |
+|   ↳ `object` | string | String representing the object type \(payment_intent\) |
+|   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
+|   ↳ `amount_capturable` | number | Amount that can be captured |
+|   ↳ `amount_received` | number | Amount that was collected |
+|   ↳ `application` | string | ID of the Connect application that created the PaymentIntent |
+|   ↳ `application_fee_amount` | number | Application fee amount \(if any\) |
+|   ↳ `automatic_payment_methods` | json | Settings for automatic payment methods |
+|   ↳ `canceled_at` | number | Unix timestamp of cancellation |
+|   ↳ `cancellation_reason` | string | Reason for cancellation |
+|   ↳ `capture_method` | string | Controls when funds will be captured \(automatic or manual\) |
+|   ↳ `client_secret` | string | Client secret for confirming the PaymentIntent |
+|   ↳ `confirmation_method` | string | How the PaymentIntent can be confirmed \(automatic or manual\) |
+|   ↳ `created` | number | Unix timestamp when the PaymentIntent was created |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `customer` | string | ID of the Customer this PaymentIntent belongs to |
+|   ↳ `description` | string | Description of the payment |
+|   ↳ `invoice` | string | ID of the invoice that created this PaymentIntent |
+|   ↳ `last_payment_error` | json | The payment error encountered in the previous PaymentIntent confirmation |
+|   ↳ `latest_charge` | string | ID of the latest charge created by this PaymentIntent |
+|   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|   ↳ `next_action` | json | Actions required before the PaymentIntent can be confirmed |
+|   ↳ `on_behalf_of` | string | The account on behalf of which to charge |
+|   ↳ `payment_method` | string | ID of the payment method used |
+|   ↳ `payment_method_options` | json | Payment-method-specific configuration |
+|   ↳ `payment_method_types` | array | Payment method types that can be used |
+|   ↳ `processing` | json | Processing status if payment is being processed asynchronously |
+|   ↳ `receipt_email` | string | Email address to send the receipt to |
+|   ↳ `review` | string | ID of the review associated with this PaymentIntent |
+|   ↳ `setup_future_usage` | string | Indicates intent to make future payments |
+|   ↳ `shipping` | object | Shipping information |
+|     ↳ `name` | string | Recipient name |
+|     ↳ `phone` | string | Recipient phone number |
+|     ↳ `address` | object | Address object |
+|       ↳ `line1` | string | Address line 1 \(street address\) |
+|       ↳ `line2` | string | Address line 2 \(apartment, suite, etc.\) |
+|       ↳ `city` | string | City name |
+|       ↳ `state` | string | State, county, province, or region |
+|       ↳ `postal_code` | string | ZIP or postal code |
+|       ↳ `country` | string | Two-letter country code \(ISO 3166-1 alpha-2\) |
+|   ↳ `statement_descriptor` | string | Statement descriptor for charges |
+|   ↳ `statement_descriptor_suffix` | string | Statement descriptor suffix |
+|   ↳ `status` | string | Status of the PaymentIntent \(requires_payment_method, requires_confirmation, requires_action, processing, requires_capture, canceled, succeeded\) |
+|   ↳ `transfer_data` | json | The data for creating a transfer after the payment succeeds |
+|   ↳ `transfer_group` | string | Transfer group for transfers associated with the payment |
 | `metadata` | json | List metadata including count and has_more |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_search_payment_intents`
 
@@ -222,10 +262,56 @@ Search for Payment Intents using query syntax
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intents` | json | Array of matching Payment Intent objects |
+| `payment_intents` | array | Array of matching Payment Intent objects |
+|   ↳ `id` | string | Unique identifier for the Payment Intent |
+|   ↳ `object` | string | String representing the object type \(payment_intent\) |
+|   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
+|   ↳ `amount_capturable` | number | Amount that can be captured |
+|   ↳ `amount_received` | number | Amount that was collected |
+|   ↳ `application` | string | ID of the Connect application that created the PaymentIntent |
+|   ↳ `application_fee_amount` | number | Application fee amount \(if any\) |
+|   ↳ `automatic_payment_methods` | json | Settings for automatic payment methods |
+|   ↳ `canceled_at` | number | Unix timestamp of cancellation |
+|   ↳ `cancellation_reason` | string | Reason for cancellation |
+|   ↳ `capture_method` | string | Controls when funds will be captured \(automatic or manual\) |
+|   ↳ `client_secret` | string | Client secret for confirming the PaymentIntent |
+|   ↳ `confirmation_method` | string | How the PaymentIntent can be confirmed \(automatic or manual\) |
+|   ↳ `created` | number | Unix timestamp when the PaymentIntent was created |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `customer` | string | ID of the Customer this PaymentIntent belongs to |
+|   ↳ `description` | string | Description of the payment |
+|   ↳ `invoice` | string | ID of the invoice that created this PaymentIntent |
+|   ↳ `last_payment_error` | json | The payment error encountered in the previous PaymentIntent confirmation |
+|   ↳ `latest_charge` | string | ID of the latest charge created by this PaymentIntent |
+|   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|   ↳ `next_action` | json | Actions required before the PaymentIntent can be confirmed |
+|   ↳ `on_behalf_of` | string | The account on behalf of which to charge |
+|   ↳ `payment_method` | string | ID of the payment method used |
+|   ↳ `payment_method_options` | json | Payment-method-specific configuration |
+|   ↳ `payment_method_types` | array | Payment method types that can be used |
+|   ↳ `processing` | json | Processing status if payment is being processed asynchronously |
+|   ↳ `receipt_email` | string | Email address to send the receipt to |
+|   ↳ `review` | string | ID of the review associated with this PaymentIntent |
+|   ↳ `setup_future_usage` | string | Indicates intent to make future payments |
+|   ↳ `shipping` | object | Shipping information |
+|     ↳ `name` | string | Recipient name |
+|     ↳ `phone` | string | Recipient phone number |
+|     ↳ `address` | object | Address object |
+|       ↳ `line1` | string | Address line 1 \(street address\) |
+|       ↳ `line2` | string | Address line 2 \(apartment, suite, etc.\) |
+|       ↳ `city` | string | City name |
+|       ↳ `state` | string | State, county, province, or region |
+|       ↳ `postal_code` | string | ZIP or postal code |
+|       ↳ `country` | string | Two-letter country code \(ISO 3166-1 alpha-2\) |
+|   ↳ `statement_descriptor` | string | Statement descriptor for charges |
+|   ↳ `statement_descriptor_suffix` | string | Statement descriptor suffix |
+|   ↳ `status` | string | Status of the PaymentIntent \(requires_payment_method, requires_confirmation, requires_action, processing, requires_capture, canceled, succeeded\) |
+|   ↳ `transfer_data` | json | The data for creating a transfer after the payment succeeds |
+|   ↳ `transfer_group` | string | Transfer group for transfers associated with the payment |
 | `metadata` | json | Search metadata including count and has_more |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_create_customer`
 
@@ -248,11 +334,10 @@ Create a new customer object
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | json | The created customer object |
 | `metadata` | json | Customer metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `email` | string | Customer email address |
-| ↳ `name` | string | Display name |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `name` | string | Display name |
 
 ### `stripe_retrieve_customer`
 
@@ -269,11 +354,10 @@ Retrieve an existing customer by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | json | The retrieved customer object |
 | `metadata` | json | Customer metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `email` | string | Customer email address |
-| ↳ `name` | string | Display name |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `name` | string | Display name |
 
 ### `stripe_update_customer`
 
@@ -296,11 +380,10 @@ Update an existing customer
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | json | The updated customer object |
 | `metadata` | json | Customer metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `email` | string | Customer email address |
-| ↳ `name` | string | Display name |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `email` | string | Customer email address |
+|   ↳ `name` | string | Display name |
 
 ### `stripe_delete_customer`
 
@@ -317,8 +400,8 @@ Permanently delete a customer
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `deleted` | boolean | Whether the customer was deleted |
-| `id` | string | The ID of the deleted customer |
+| `deleted` | boolean | Whether the resource was deleted |
+| `id` | string | ID of the deleted resource |
 
 ### `stripe_list_customers`
 
@@ -337,10 +420,47 @@ List all customers
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customers` | json | Array of customer objects |
+| `customers` | array | Array of customer objects |
+|   ↳ `id` | string | Unique identifier for the customer |
+|   ↳ `object` | string | String representing the object type \(customer\) |
+|   ↳ `address` | object | Address object |
+|     ↳ `line1` | string | Address line 1 \(street address\) |
+|     ↳ `line2` | string | Address line 2 \(apartment, suite, etc.\) |
+|     ↳ `city` | string | City name |
+|     ↳ `state` | string | State, county, province, or region |
+|     ↳ `postal_code` | string | ZIP or postal code |
+|     ↳ `country` | string | Two-letter country code \(ISO 3166-1 alpha-2\) |
+|   ↳ `balance` | number | Current balance in smallest currency unit |
+|   ↳ `created` | number | Unix timestamp when the customer was created |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `default_source` | string | ID of the default payment source |
+|   ↳ `delinquent` | boolean | Whether the customer has unpaid invoices |
+|   ↳ `description` | string | Description of the customer |
+|   ↳ `discount` | json | Discount that applies to all recurring charges |
+|   ↳ `email` | string | Customer email address \(max 512 characters\) |
+|   ↳ `invoice_prefix` | string | Prefix for generating unique invoice numbers |
+|   ↳ `invoice_settings` | json | Default invoice settings |
+|   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|   ↳ `name` | string | Customer full name or business name \(max 256 characters\) |
+|   ↳ `next_invoice_sequence` | number | Next invoice sequence number |
+|   ↳ `phone` | string | Customer phone number \(max 20 characters\) |
+|   ↳ `preferred_locales` | array | Customer preferred locales |
+|   ↳ `shipping` | object | Shipping information |
+|     ↳ `name` | string | Recipient name |
+|     ↳ `phone` | string | Recipient phone number |
+|     ↳ `address` | object | Address object |
+|       ↳ `line1` | string | Address line 1 \(street address\) |
+|       ↳ `line2` | string | Address line 2 \(apartment, suite, etc.\) |
+|       ↳ `city` | string | City name |
+|       ↳ `state` | string | State, county, province, or region |
+|       ↳ `postal_code` | string | ZIP or postal code |
+|       ↳ `country` | string | Two-letter country code \(ISO 3166-1 alpha-2\) |
+|   ↳ `tax_exempt` | string | Tax exemption status \(none, exempt, reverse\) |
+|   ↳ `test_clock` | string | ID of the test clock |
 | `metadata` | json | List metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_search_customers`
 
@@ -358,10 +478,47 @@ Search for customers using query syntax
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customers` | json | Array of matching customer objects |
+| `customers` | array | Array of matching customer objects |
+|   ↳ `id` | string | Unique identifier for the customer |
+|   ↳ `object` | string | String representing the object type \(customer\) |
+|   ↳ `address` | object | Address object |
+|     ↳ `line1` | string | Address line 1 \(street address\) |
+|     ↳ `line2` | string | Address line 2 \(apartment, suite, etc.\) |
+|     ↳ `city` | string | City name |
+|     ↳ `state` | string | State, county, province, or region |
+|     ↳ `postal_code` | string | ZIP or postal code |
+|     ↳ `country` | string | Two-letter country code \(ISO 3166-1 alpha-2\) |
+|   ↳ `balance` | number | Current balance in smallest currency unit |
+|   ↳ `created` | number | Unix timestamp when the customer was created |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `default_source` | string | ID of the default payment source |
+|   ↳ `delinquent` | boolean | Whether the customer has unpaid invoices |
+|   ↳ `description` | string | Description of the customer |
+|   ↳ `discount` | json | Discount that applies to all recurring charges |
+|   ↳ `email` | string | Customer email address \(max 512 characters\) |
+|   ↳ `invoice_prefix` | string | Prefix for generating unique invoice numbers |
+|   ↳ `invoice_settings` | json | Default invoice settings |
+|   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|   ↳ `name` | string | Customer full name or business name \(max 256 characters\) |
+|   ↳ `next_invoice_sequence` | number | Next invoice sequence number |
+|   ↳ `phone` | string | Customer phone number \(max 20 characters\) |
+|   ↳ `preferred_locales` | array | Customer preferred locales |
+|   ↳ `shipping` | object | Shipping information |
+|     ↳ `name` | string | Recipient name |
+|     ↳ `phone` | string | Recipient phone number |
+|     ↳ `address` | object | Address object |
+|       ↳ `line1` | string | Address line 1 \(street address\) |
+|       ↳ `line2` | string | Address line 2 \(apartment, suite, etc.\) |
+|       ↳ `city` | string | City name |
+|       ↳ `state` | string | State, county, province, or region |
+|       ↳ `postal_code` | string | ZIP or postal code |
+|       ↳ `country` | string | Two-letter country code \(ISO 3166-1 alpha-2\) |
+|   ↳ `tax_exempt` | string | Tax exemption status \(none, exempt, reverse\) |
+|   ↳ `test_clock` | string | ID of the test clock |
 | `metadata` | json | Search metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_create_subscription`
 
@@ -383,11 +540,10 @@ Create a new subscription for a customer
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | json | The created subscription object |
 | `metadata` | json | Subscription metadata including ID, status, and customer |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `customer` | string | Associated customer ID |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `customer` | string | Associated customer ID |
 
 ### `stripe_retrieve_subscription`
 
@@ -404,11 +560,10 @@ Retrieve an existing subscription by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | json | The retrieved subscription object |
 | `metadata` | json | Subscription metadata including ID, status, and customer |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `customer` | string | Associated customer ID |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `customer` | string | Associated customer ID |
 
 ### `stripe_update_subscription`
 
@@ -428,11 +583,10 @@ Update an existing subscription
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | json | The updated subscription object |
 | `metadata` | json | Subscription metadata including ID, status, and customer |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `customer` | string | Associated customer ID |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `customer` | string | Associated customer ID |
 
 ### `stripe_cancel_subscription`
 
@@ -451,11 +605,10 @@ Cancel a subscription
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | json | The canceled subscription object |
 | `metadata` | json | Subscription metadata including ID, status, and customer |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `customer` | string | Associated customer ID |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `customer` | string | Associated customer ID |
 
 ### `stripe_resume_subscription`
 
@@ -472,11 +625,10 @@ Resume a subscription that was scheduled for cancellation
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | json | The resumed subscription object |
 | `metadata` | json | Subscription metadata including ID, status, and customer |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `customer` | string | Associated customer ID |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `customer` | string | Associated customer ID |
 
 ### `stripe_list_subscriptions`
 
@@ -496,10 +648,52 @@ List all subscriptions
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriptions` | json | Array of subscription objects |
+| `subscriptions` | array | Array of subscription objects |
+|   ↳ `id` | string | Unique identifier for the subscription |
+|   ↳ `object` | string | String representing the object type \(subscription\) |
+|   ↳ `application` | string | ID of the Connect application that created the subscription |
+|   ↳ `application_fee_percent` | number | Application fee percent \(if any\) |
+|   ↳ `automatic_tax` | json | Automatic tax settings |
+|   ↳ `billing_cycle_anchor` | number | Unix timestamp determining when billing cycle starts |
+|   ↳ `billing_thresholds` | json | Billing thresholds for the subscription |
+|   ↳ `cancel_at` | number | Unix timestamp when the subscription will be canceled |
+|   ↳ `cancel_at_period_end` | boolean | Whether the subscription will be canceled at period end |
+|   ↳ `canceled_at` | number | Unix timestamp when the subscription was canceled |
+|   ↳ `cancellation_details` | json | Details about cancellation |
+|   ↳ `collection_method` | string | Collection method \(charge_automatically or send_invoice\) |
+|   ↳ `created` | number | Unix timestamp when the subscription was created |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `current_period_end` | number | Unix timestamp when the current period ends |
+|   ↳ `current_period_start` | number | Unix timestamp when the current period started |
+|   ↳ `customer` | string | ID of the customer who owns the subscription |
+|   ↳ `days_until_due` | number | Number of days a customer has to pay invoices |
+|   ↳ `default_payment_method` | string | ID of the default payment method |
+|   ↳ `default_source` | string | ID of the default source |
+|   ↳ `default_tax_rates` | array | Default tax rates |
+|   ↳ `description` | string | Subscription description \(max 500 characters\) |
+|   ↳ `discount` | json | Discount that applies to the subscription |
+|   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `latest_invoice` | string | ID of the most recent invoice |
+|   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|   ↳ `next_pending_invoice_item_invoice` | number | Unix timestamp of next pending invoice item invoice |
+|   ↳ `on_behalf_of` | string | Account the subscription is made on behalf of |
+|   ↳ `pause_collection` | json | If paused, when collection is paused until |
+|   ↳ `payment_settings` | json | Payment settings for the subscription |
+|   ↳ `pending_invoice_item_interval` | json | Pending invoice item interval |
+|   ↳ `pending_setup_intent` | string | ID of the pending SetupIntent |
+|   ↳ `pending_update` | json | Pending subscription update |
+|   ↳ `schedule` | string | ID of the subscription schedule |
+|   ↳ `start_date` | number | Unix timestamp when the subscription started |
+|   ↳ `status` | string | Status of the subscription \(incomplete, incomplete_expired, trialing, active, past_due, canceled, unpaid, paused\) |
+|   ↳ `test_clock` | string | ID of the test clock |
+|   ↳ `transfer_data` | json | Data for creating transfers after payments succeed |
+|   ↳ `trial_end` | number | Unix timestamp when the trial ends |
+|   ↳ `trial_settings` | json | Settings related to subscription trials |
+|   ↳ `trial_start` | number | Unix timestamp when the trial started |
 | `metadata` | json | List metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_search_subscriptions`
 
@@ -517,10 +711,52 @@ Search for subscriptions using query syntax
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriptions` | json | Array of matching subscription objects |
+| `subscriptions` | array | Array of matching subscription objects |
+|   ↳ `id` | string | Unique identifier for the subscription |
+|   ↳ `object` | string | String representing the object type \(subscription\) |
+|   ↳ `application` | string | ID of the Connect application that created the subscription |
+|   ↳ `application_fee_percent` | number | Application fee percent \(if any\) |
+|   ↳ `automatic_tax` | json | Automatic tax settings |
+|   ↳ `billing_cycle_anchor` | number | Unix timestamp determining when billing cycle starts |
+|   ↳ `billing_thresholds` | json | Billing thresholds for the subscription |
+|   ↳ `cancel_at` | number | Unix timestamp when the subscription will be canceled |
+|   ↳ `cancel_at_period_end` | boolean | Whether the subscription will be canceled at period end |
+|   ↳ `canceled_at` | number | Unix timestamp when the subscription was canceled |
+|   ↳ `cancellation_details` | json | Details about cancellation |
+|   ↳ `collection_method` | string | Collection method \(charge_automatically or send_invoice\) |
+|   ↳ `created` | number | Unix timestamp when the subscription was created |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `current_period_end` | number | Unix timestamp when the current period ends |
+|   ↳ `current_period_start` | number | Unix timestamp when the current period started |
+|   ↳ `customer` | string | ID of the customer who owns the subscription |
+|   ↳ `days_until_due` | number | Number of days a customer has to pay invoices |
+|   ↳ `default_payment_method` | string | ID of the default payment method |
+|   ↳ `default_source` | string | ID of the default source |
+|   ↳ `default_tax_rates` | array | Default tax rates |
+|   ↳ `description` | string | Subscription description \(max 500 characters\) |
+|   ↳ `discount` | json | Discount that applies to the subscription |
+|   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `latest_invoice` | string | ID of the most recent invoice |
+|   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|   ↳ `next_pending_invoice_item_invoice` | number | Unix timestamp of next pending invoice item invoice |
+|   ↳ `on_behalf_of` | string | Account the subscription is made on behalf of |
+|   ↳ `pause_collection` | json | If paused, when collection is paused until |
+|   ↳ `payment_settings` | json | Payment settings for the subscription |
+|   ↳ `pending_invoice_item_interval` | json | Pending invoice item interval |
+|   ↳ `pending_setup_intent` | string | ID of the pending SetupIntent |
+|   ↳ `pending_update` | json | Pending subscription update |
+|   ↳ `schedule` | string | ID of the subscription schedule |
+|   ↳ `start_date` | number | Unix timestamp when the subscription started |
+|   ↳ `status` | string | Status of the subscription \(incomplete, incomplete_expired, trialing, active, past_due, canceled, unpaid, paused\) |
+|   ↳ `test_clock` | string | ID of the test clock |
+|   ↳ `transfer_data` | json | Data for creating transfers after payments succeed |
+|   ↳ `trial_end` | number | Unix timestamp when the trial ends |
+|   ↳ `trial_settings` | json | Settings related to subscription trials |
+|   ↳ `trial_start` | number | Unix timestamp when the trial started |
 | `metadata` | json | Search metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_create_invoice`
 
@@ -541,12 +777,11 @@ Create a new invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | json | The created invoice object |
 | `metadata` | json | Invoice metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_retrieve_invoice`
 
@@ -563,12 +798,11 @@ Retrieve an existing invoice by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | json | The retrieved invoice object |
 | `metadata` | json | Invoice metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_update_invoice`
 
@@ -588,12 +822,11 @@ Update an existing invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | json | The updated invoice object |
 | `metadata` | json | Invoice metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_delete_invoice`
 
@@ -629,12 +862,11 @@ Finalize a draft invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | json | The finalized invoice object |
 | `metadata` | json | Invoice metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_pay_invoice`
 
@@ -652,12 +884,11 @@ Pay an invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | json | The paid invoice object |
 | `metadata` | json | Invoice metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_void_invoice`
 
@@ -674,12 +905,11 @@ Void an invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | json | The voided invoice object |
 | `metadata` | json | Invoice metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_send_invoice`
 
@@ -698,10 +928,10 @@ Send an invoice to the customer
 | --------- | ---- | ----------- |
 | `invoice` | json | The sent invoice object |
 | `metadata` | json | Invoice metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_list_invoices`
 
@@ -722,8 +952,8 @@ List all invoices
 | --------- | ---- | ----------- |
 | `invoices` | json | Array of invoice objects |
 | `metadata` | json | List metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_search_invoices`
 
@@ -743,8 +973,8 @@ Search for invoices using query syntax
 | --------- | ---- | ----------- |
 | `invoices` | json | Array of matching invoice objects |
 | `metadata` | json | Search metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_create_charge`
 
@@ -769,11 +999,11 @@ Create a new charge to process a payment
 | --------- | ---- | ----------- |
 | `charge` | json | The created Charge object |
 | `metadata` | json | Charge metadata including ID, status, amount, currency, and paid status |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-| ↳ `paid` | boolean | Whether payment has been received |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `paid` | boolean | Whether payment has been received |
 
 ### `stripe_retrieve_charge`
 
@@ -792,11 +1022,11 @@ Retrieve an existing charge by ID
 | --------- | ---- | ----------- |
 | `charge` | json | The retrieved Charge object |
 | `metadata` | json | Charge metadata including ID, status, amount, currency, and paid status |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-| ↳ `paid` | boolean | Whether payment has been received |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `paid` | boolean | Whether payment has been received |
 
 ### `stripe_update_charge`
 
@@ -817,11 +1047,11 @@ Update an existing charge
 | --------- | ---- | ----------- |
 | `charge` | json | The updated Charge object |
 | `metadata` | json | Charge metadata including ID, status, amount, currency, and paid status |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-| ↳ `paid` | boolean | Whether payment has been received |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `paid` | boolean | Whether payment has been received |
 
 ### `stripe_capture_charge`
 
@@ -841,11 +1071,11 @@ Capture an uncaptured charge
 | --------- | ---- | ----------- |
 | `charge` | json | The captured Charge object |
 | `metadata` | json | Charge metadata including ID, status, amount, currency, and paid status |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `status` | string | Current state of the resource |
-| ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-| ↳ `paid` | boolean | Whether payment has been received |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `status` | string | Current state of the resource |
+|   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `paid` | boolean | Whether payment has been received |
 
 ### `stripe_list_charges`
 
@@ -866,8 +1096,8 @@ List all charges
 | --------- | ---- | ----------- |
 | `charges` | json | Array of Charge objects |
 | `metadata` | json | List metadata including count and has_more |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_search_charges`
 
@@ -887,8 +1117,8 @@ Search for charges using query syntax
 | --------- | ---- | ----------- |
 | `charges` | json | Array of matching Charge objects |
 | `metadata` | json | Search metadata including count and has_more |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_create_product`
 
@@ -911,9 +1141,9 @@ Create a new product object
 | --------- | ---- | ----------- |
 | `product` | json | The created product object |
 | `metadata` | json | Product metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `name` | string | Display name |
-| ↳ `active` | boolean | Whether the resource is currently active |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `name` | string | Display name |
+|   ↳ `active` | boolean | Whether the resource is currently active |
 
 ### `stripe_retrieve_product`
 
@@ -932,9 +1162,9 @@ Retrieve an existing product by ID
 | --------- | ---- | ----------- |
 | `product` | json | The retrieved product object |
 | `metadata` | json | Product metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `name` | string | Display name |
-| ↳ `active` | boolean | Whether the resource is currently active |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `name` | string | Display name |
+|   ↳ `active` | boolean | Whether the resource is currently active |
 
 ### `stripe_update_product`
 
@@ -958,9 +1188,9 @@ Update an existing product
 | --------- | ---- | ----------- |
 | `product` | json | The updated product object |
 | `metadata` | json | Product metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `name` | string | Display name |
-| ↳ `active` | boolean | Whether the resource is currently active |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `name` | string | Display name |
+|   ↳ `active` | boolean | Whether the resource is currently active |
 
 ### `stripe_delete_product`
 
@@ -998,8 +1228,8 @@ List all products
 | --------- | ---- | ----------- |
 | `products` | json | Array of product objects |
 | `metadata` | json | List metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_search_products`
 
@@ -1019,8 +1249,8 @@ Search for products using query syntax
 | --------- | ---- | ----------- |
 | `products` | json | Array of matching product objects |
 | `metadata` | json | Search metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_create_price`
 
@@ -1044,10 +1274,10 @@ Create a new price for a product
 | --------- | ---- | ----------- |
 | `price` | json | The created price object |
 | `metadata` | json | Price metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `product` | string | Associated product ID |
-| ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `product` | string | Associated product ID |
+|   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_retrieve_price`
 
@@ -1066,10 +1296,10 @@ Retrieve an existing price by ID
 | --------- | ---- | ----------- |
 | `price` | json | The retrieved price object |
 | `metadata` | json | Price metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `product` | string | Associated product ID |
-| ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `product` | string | Associated product ID |
+|   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_update_price`
 
@@ -1090,10 +1320,10 @@ Update an existing price
 | --------- | ---- | ----------- |
 | `price` | json | The updated price object |
 | `metadata` | json | Price metadata |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `product` | string | Associated product ID |
-| ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
-| ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `product` | string | Associated product ID |
+|   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
+|   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
 ### `stripe_list_prices`
 
@@ -1114,8 +1344,8 @@ List all prices
 | --------- | ---- | ----------- |
 | `prices` | json | Array of price objects |
 | `metadata` | json | List metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_search_prices`
 
@@ -1135,8 +1365,8 @@ Search for prices using query syntax
 | --------- | ---- | ----------- |
 | `prices` | json | Array of matching price objects |
 | `metadata` | json | Search metadata |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 ### `stripe_retrieve_event`
 
@@ -1155,9 +1385,9 @@ Retrieve an existing Event by ID
 | --------- | ---- | ----------- |
 | `event` | json | The retrieved Event object |
 | `metadata` | json | Event metadata including ID, type, and created timestamp |
-| ↳ `id` | string | Stripe unique identifier |
-| ↳ `type` | string | Event type identifier |
-| ↳ `created` | number | Unix timestamp of creation |
+|   ↳ `id` | string | Stripe unique identifier |
+|   ↳ `type` | string | Event type identifier |
+|   ↳ `created` | number | Unix timestamp of creation |
 
 ### `stripe_list_events`
 
@@ -1178,7 +1408,7 @@ List all Events
 | --------- | ---- | ----------- |
 | `events` | json | Array of Event objects |
 | `metadata` | json | List metadata including count and has_more |
-| ↳ `count` | number | Number of items returned |
-| ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `count` | number | Number of items returned |
+|   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
 

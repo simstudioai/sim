@@ -108,6 +108,24 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
       type: 'array',
       description:
         'Array of hot posts with title, author, URL, score, comments count, and metadata',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Post ID' },
+          title: { type: 'string', description: 'Post title' },
+          author: { type: 'string', description: 'Author username' },
+          url: { type: 'string', description: 'Post URL' },
+          permalink: { type: 'string', description: 'Reddit permalink' },
+          score: { type: 'number', description: 'Post score (upvotes - downvotes)' },
+          num_comments: { type: 'number', description: 'Number of comments' },
+          created_utc: { type: 'number', description: 'Creation timestamp (UTC)' },
+          is_self: { type: 'boolean', description: 'Whether this is a text post' },
+          selftext: { type: 'string', description: 'Text content for self posts' },
+          thumbnail: { type: 'string', description: 'Thumbnail URL' },
+          subreddit: { type: 'string', description: 'Subreddit name' },
+          subreddit_name_prefixed: { type: 'string', description: 'Subreddit name with r/ prefix' },
+        },
+      },
     },
   },
 }

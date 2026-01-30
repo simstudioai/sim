@@ -3,6 +3,7 @@ import type {
   SalesforceUpdateAccountParams,
   SalesforceUpdateAccountResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceUpdateAccount')
@@ -215,10 +216,7 @@ export const salesforceUpdateAccountTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated account data',
-      properties: {
-        id: { type: 'string', description: 'Updated account ID' },
-        updated: { type: 'boolean', description: 'Whether account was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

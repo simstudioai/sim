@@ -1,4 +1,5 @@
 import type { SlackListUsersParams, SlackListUsersResponse } from '@/tools/slack/types'
+import { USER_SUMMARY_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackListUsersTool: ToolConfig<SlackListUsersParams, SlackListUsersResponse> = {
@@ -122,29 +123,18 @@ export const slackListUsersTool: ToolConfig<SlackListUsersParams, SlackListUsers
       description: 'Array of user objects from the workspace',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'User ID (e.g., U1234567890)' },
-          name: { type: 'string', description: 'Username (handle)' },
-          real_name: { type: 'string', description: 'Full real name' },
-          display_name: { type: 'string', description: 'Display name shown in Slack' },
-          is_bot: { type: 'boolean', description: 'Whether the user is a bot' },
-          is_admin: { type: 'boolean', description: 'Whether the user is a workspace admin' },
-          is_owner: { type: 'boolean', description: 'Whether the user is the workspace owner' },
-          deleted: { type: 'boolean', description: 'Whether the user is deactivated' },
-          timezone: { type: 'string', description: 'User timezone identifier' },
-          avatar: { type: 'string', description: 'URL to user avatar image' },
-          status_text: { type: 'string', description: 'Custom status text' },
-          status_emoji: { type: 'string', description: 'Custom status emoji' },
-        },
+        properties: USER_SUMMARY_OUTPUT_PROPERTIES,
       },
     },
     ids: {
       type: 'array',
       description: 'Array of user IDs for easy access',
+      items: { type: 'string', description: 'User ID' },
     },
     names: {
       type: 'array',
       description: 'Array of usernames for easy access',
+      items: { type: 'string', description: 'Username' },
     },
     count: {
       type: 'number',

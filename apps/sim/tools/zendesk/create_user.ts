@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from './types'
 
 const logger = createLogger('ZendeskCreateUser')
 
@@ -157,7 +157,11 @@ export const zendeskCreateUserTool: ToolConfig<ZendeskCreateUserParams, ZendeskC
     },
 
     outputs: {
-      user: { type: 'object', description: 'Created user object' },
+      user: {
+        type: 'object',
+        description: 'Created user object',
+        properties: USER_OUTPUT_PROPERTIES,
+      },
       user_id: { type: 'number', description: 'The created user ID' },
     },
   }

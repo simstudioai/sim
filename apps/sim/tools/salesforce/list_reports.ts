@@ -3,6 +3,7 @@ import type {
   SalesforceListReportsParams,
   SalesforceListReportsResponse,
 } from '@/tools/salesforce/types'
+import { LIST_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -103,8 +104,7 @@ export const salesforceListReportsTool: ToolConfig<
       description: 'Reports data',
       properties: {
         reports: { type: 'array', description: 'Array of report objects' },
-        totalReturned: { type: 'number', description: 'Number of reports returned' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
+        ...LIST_OUTPUT_PROPERTIES,
       },
     },
   },

@@ -1,5 +1,6 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 import type { ShopifyBaseParams } from './types'
+import { FULFILLMENT_OUTPUT_PROPERTIES } from './types'
 
 interface ShopifyCreateFulfillmentParams extends ShopifyBaseParams {
   fulfillmentOrderId: string
@@ -235,6 +236,7 @@ export const shopifyCreateFulfillmentTool: ToolConfig<
     fulfillment: {
       type: 'object',
       description: 'The created fulfillment with tracking info and fulfilled items',
+      properties: FULFILLMENT_OUTPUT_PROPERTIES,
     },
   },
 }

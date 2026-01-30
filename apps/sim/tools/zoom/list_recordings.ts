@@ -1,5 +1,9 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZoomListRecordingsParams, ZoomListRecordingsResponse } from '@/tools/zoom/types'
+import {
+  RECORDING_OUTPUT_PROPERTIES,
+  RECORDING_PAGE_INFO_OUTPUT_PROPERTIES,
+} from '@/tools/zoom/types'
 
 export const zoomListRecordingsTool: ToolConfig<
   ZoomListRecordingsParams,
@@ -143,17 +147,15 @@ export const zoomListRecordingsTool: ToolConfig<
     recordings: {
       type: 'array',
       description: 'List of recordings',
+      items: {
+        type: 'object',
+        properties: RECORDING_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
-      properties: {
-        from: { type: 'string', description: 'Start date of query range' },
-        to: { type: 'string', description: 'End date of query range' },
-        pageSize: { type: 'number', description: 'Number of records per page' },
-        totalRecords: { type: 'number', description: 'Total number of records' },
-        nextPageToken: { type: 'string', description: 'Token for next page' },
-      },
+      properties: RECORDING_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

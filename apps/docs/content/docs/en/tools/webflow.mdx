@@ -51,8 +51,19 @@ List all items from a Webflow CMS collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `items` | json | Array of collection items |
-| `metadata` | json | Metadata about the query |
+| `items` | array | Array of collection items |
+|   ↳ `id` | string | Unique item ID |
+|   ↳ `cmsLocaleId` | string | CMS locale ID |
+|   ↳ `lastPublished` | string | Last published date \(ISO 8601\) |
+|   ↳ `lastUpdated` | string | Last updated date \(ISO 8601\) |
+|   ↳ `createdOn` | string | Creation date \(ISO 8601\) |
+|   ↳ `isArchived` | boolean | Whether the item is archived |
+|   ↳ `isDraft` | boolean | Whether the item is a draft |
+|   ↳ `fieldData` | object | Collection-specific field data \(varies by collection schema\) |
+| `metadata` | object | Metadata about the query |
+|   ↳ `itemCount` | number | Number of items returned |
+|   ↳ `offset` | number | Pagination offset |
+|   ↳ `limit` | number | Maximum items per page |
 
 ### `webflow_get_item`
 

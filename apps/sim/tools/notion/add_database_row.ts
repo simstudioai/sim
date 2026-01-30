@@ -1,4 +1,5 @@
 import type { NotionAddDatabaseRowParams } from '@/tools/notion/types'
+import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import type { ToolConfig } from '@/tools/types'
 
 interface NotionAddDatabaseRowResponse {
@@ -99,10 +100,10 @@ export const notionAddDatabaseRowTool: ToolConfig<
   },
 
   outputs: {
-    id: { type: 'string', description: 'Page/row ID' },
-    url: { type: 'string', description: 'Page/row URL' },
+    id: PAGE_OUTPUT_PROPERTIES.id,
+    url: PAGE_OUTPUT_PROPERTIES.url,
     title: { type: 'string', description: 'Row title' },
-    created_time: { type: 'string', description: 'Creation timestamp' },
-    last_edited_time: { type: 'string', description: 'Last edit timestamp' },
+    created_time: PAGE_OUTPUT_PROPERTIES.created_time,
+    last_edited_time: PAGE_OUTPUT_PROPERTIES.last_edited_time,
   },
 }

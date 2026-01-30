@@ -482,14 +482,12 @@ function extractOutputsFromContent(content: string): Record<string, any> {
         const fieldContent = outputsContent.substring(startPos + 1, endPos - 1).trim()
 
         const typeMatch = fieldContent.match(/type\s*:\s*['"](.*?)['"]/)
-        const descriptionMatch = fieldContent.match(/description\s*:\s*['"](.*?)['"]/)
+        const description = extractDescription(fieldContent)
 
         if (typeMatch) {
           outputs[field.name] = {
             type: typeMatch[1],
-            description: descriptionMatch
-              ? descriptionMatch[1]
-              : `${field.name} output from the block`,
+            description: description || `${field.name} output from the block`,
           }
         }
       }
@@ -651,14 +649,12 @@ function extractOutputs(content: string): Record<string, any> {
         const fieldContent = outputsContent.substring(startPos + 1, endPos - 1).trim()
 
         const typeMatch = fieldContent.match(/type\s*:\s*['"](.*?)['"]/)
-        const descriptionMatch = fieldContent.match(/description\s*:\s*['"](.*?)['"]/)
+        const description = extractDescription(fieldContent)
 
         if (typeMatch) {
           outputs[field.name] = {
             type: typeMatch[1],
-            description: descriptionMatch
-              ? descriptionMatch[1]
-              : `${field.name} output from the block`,
+            description: description || `${field.name} output from the block`,
           }
         }
       }
@@ -965,6 +961,26 @@ function resolveConstFromTypesContent(
 /**
  * Parse a field content from a const, resolving nested const references.
  */
+/**
+ * Extract description from field content, handling quoted strings properly.
+ * Handles single quotes, double quotes, and backticks, preserving internal quotes.
+ */
+function extractDescription(fieldContent: string): string | null {
+  // Try single-quoted string (can contain double quotes)
+  const singleQuoteMatch = fieldContent.match(/description\s*:\s*'([^']*)'/)
+  if (singleQuoteMatch) return singleQuoteMatch[1]
+
+  // Try double-quoted string (can contain single quotes)
+  const doubleQuoteMatch = fieldContent.match(/description\s*:\s*"([^"]*)"/)
+  if (doubleQuoteMatch) return doubleQuoteMatch[1]
+
+  // Try backtick string
+  const backtickMatch = fieldContent.match(/description\s*:\s*`([^`]*)`/)
+  if (backtickMatch) return backtickMatch[1]
+
+  return null
+}
+
 function parseConstFieldContent(
   fieldContent: string,
   toolPrefix: string,
@@ -972,16 +988,15 @@ function parseConstFieldContent(
   depth: number
 ): any {
   const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
-  const descMatch = fieldContent.match(/description\s*:\s*['"`]([^'"`\n]+)['"`]/)
+  const description = extractDescription(fieldContent)
 
   if (!typeMatch) return null
 
   const fieldType = typeMatch[1]
-  const description = descMatch ? descMatch[1] : ''
 
   const result: any = {
     type: fieldType,
-    description: description,
+    description: description || '',
   }
 
   // Check for properties - either inline or const reference
@@ -1053,11 +1068,11 @@ function parseConstFieldContent(
       if (braceCount === 0) {
         const itemsContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
         const itemsType = itemsContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
-        const itemsDesc = itemsContent.match(/description\s*:\s*['"`]([^'"`\n]+)['"`]/)
+        const itemsDesc = extractDescription(itemsContent)
 
         result.items = {
           type: itemsType ? itemsType[1] : 'object',
-          description: itemsDesc ? itemsDesc[1] : '',
+          description: itemsDesc || '',
         }
 
         // Check for properties in items - either inline or const reference
@@ -1319,18 +1334,18 @@ function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): s
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
 
+    // Build prefix based on indent level - each level adds 2 spaces before the arrow
     let prefix = ''
-    if (indentLevel === 1) {
-      prefix = '↳ '
-    } else if (indentLevel >= 2) {
-      prefix = '  ↳ '
+    if (indentLevel > 0) {
+      const spaces = '  '.repeat(indentLevel)
+      prefix = `${spaces}↳ `
     }
 
     if (typeof output === 'object' && output !== null && output.type === 'array') {
       result += `| ${prefix}\`${key}\` | ${type} | ${escapedDescription} |\n`
 
       if (output.items?.properties) {
-        const arrayItemsResult = formatOutputStructure(output.items.properties, indentLevel + 2)
+        const arrayItemsResult = formatOutputStructure(output.items.properties, indentLevel + 1)
         result += arrayItemsResult
       }
     } else if (
@@ -1478,16 +1493,15 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
 
 function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
   const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
-  const descMatch = fieldContent.match(/description\s*:\s*['"`]([^'"`\n]+)['"`]/)
+  const description = extractDescription(fieldContent)
 
   if (!typeMatch) return null
 
   const fieldType = typeMatch[1]
-  const description = descMatch ? descMatch[1] : ''
 
   const result: any = {
     type: fieldType,
-    description: description,
+    description: description || '',
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
@@ -1548,16 +1562,22 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
         const itemsContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
         const itemsType = itemsContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
 
-        // Check for const reference before inline properties
-        const itemsPropsConstMatch = itemsContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
-        const propertiesStart = itemsContent.search(/properties\s*:\s*{/)
+        // Check for inline properties FIRST (properties: {), then const reference
+        const propertiesInlineStart = itemsContent.search(/properties\s*:\s*{/)
+        // Only match const reference if it's at the TOP level (before any {)
+        const itemsPropsConstMatch =
+          propertiesInlineStart === -1
+            ? itemsContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+            : null
         const searchContent =
-          propertiesStart >= 0 ? itemsContent.substring(0, propertiesStart) : itemsContent
-        const itemsDesc = searchContent.match(/description\s*:\s*['"`]([^'"`\n]+)['"`]/)
+          propertiesInlineStart >= 0
+            ? itemsContent.substring(0, propertiesInlineStart)
+            : itemsContent
+        const itemsDesc = extractDescription(searchContent)
 
         result.items = {
           type: itemsType ? itemsType[1] : 'object',
-          description: itemsDesc ? itemsDesc[1] : '',
+          description: itemsDesc || '',
         }
 
         if (itemsPropsConstMatch && toolPrefix) {
@@ -1565,7 +1585,7 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
           if (resolvedProps) {
             result.items.properties = resolvedProps
           }
-        } else {
+        } else if (propertiesInlineStart !== -1) {
           const itemsPropertiesRegex = /properties\s*:\s*{/
           const itemsPropsStart = itemsContent.search(itemsPropertiesRegex)
 

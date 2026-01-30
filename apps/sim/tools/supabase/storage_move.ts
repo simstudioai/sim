@@ -1,4 +1,8 @@
-import type { SupabaseStorageMoveParams, SupabaseStorageMoveResponse } from '@/tools/supabase/types'
+import {
+  STORAGE_MOVE_OUTPUT_PROPERTIES,
+  type SupabaseStorageMoveParams,
+  type SupabaseStorageMoveResponse,
+} from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageMoveTool: ToolConfig<SupabaseStorageMoveParams, SupabaseStorageMoveResponse> = {
@@ -82,6 +86,7 @@ export const storageMoveTool: ToolConfig<SupabaseStorageMoveParams, SupabaseStor
     results: {
       type: 'object',
       description: 'Move operation result',
+      properties: STORAGE_MOVE_OUTPUT_PROPERTIES,
     },
   },
 }

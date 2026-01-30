@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import { buildZendeskUrl, handleZendeskError, METADATA_OUTPUT, PAGING_OUTPUT } from './types'
 
 const logger = createLogger('ZendeskSearch')
 
@@ -141,30 +141,12 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
   },
 
   outputs: {
-    results: { type: 'array', description: 'Array of result objects' },
-    paging: {
-      type: 'object',
-      description: 'Pagination information',
-      properties: {
-        next_page: { type: 'string', description: 'URL for next page of results', optional: true },
-        previous_page: {
-          type: 'string',
-          description: 'URL for previous page of results',
-          optional: true,
-        },
-        count: { type: 'number', description: 'Total count of results' },
-      },
+    results: {
+      type: 'array',
+      description:
+        'Array of result objects (tickets, users, or organizations depending on search query)',
     },
-    metadata: {
-      type: 'object',
-      description: 'Response metadata',
-      properties: {
-        total_returned: {
-          type: 'number',
-          description: 'Number of results returned in this response',
-        },
-        has_more: { type: 'boolean', description: 'Whether more results are available' },
-      },
-    },
+    paging: PAGING_OUTPUT,
+    metadata: METADATA_OUTPUT,
   },
 }

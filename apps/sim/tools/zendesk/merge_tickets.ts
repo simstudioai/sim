@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from './types'
 
 const logger = createLogger('ZendeskMergeTickets')
 
@@ -115,7 +115,7 @@ export const zendeskMergeTicketsTool: ToolConfig<
   },
 
   outputs: {
-    job_status: { type: 'object', description: 'Job status object' },
+    job_status: JOB_STATUS_OUTPUT,
     job_id: { type: 'string', description: 'The merge job ID' },
     target_ticket_id: {
       type: 'string',

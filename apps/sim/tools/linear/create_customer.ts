@@ -1,4 +1,5 @@
 import type { LinearCreateCustomerParams, LinearCreateCustomerResponse } from '@/tools/linear/types'
+import { CUSTOMER_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateCustomerTool: ToolConfig<
@@ -176,16 +177,7 @@ export const linearCreateCustomerTool: ToolConfig<
     customer: {
       type: 'object',
       description: 'The created customer',
-      properties: {
-        id: { type: 'string', description: 'Customer ID' },
-        name: { type: 'string', description: 'Customer name' },
-        domains: { type: 'array', description: 'Associated domains' },
-        externalIds: { type: 'array', description: 'External IDs' },
-        logoUrl: { type: 'string', description: 'Logo URL' },
-        approximateNeedCount: { type: 'number', description: 'Number of customer needs' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
-        archivedAt: { type: 'string', description: 'Archive timestamp (null if not archived)' },
-      },
+      properties: CUSTOMER_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -7,9 +7,11 @@ import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
 import {
+  SidebarDragContext,
   useContextMenu,
   useDragDrop,
   useFolderSelection,
+  useSidebarDragContextValue,
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useFolders } from '@/hooks/queries/folders'
@@ -102,6 +104,9 @@ export function WorkflowList({
     handleDragStart,
     handleDragEnd,
   } = useDragDrop({ disabled: !canReorder })
+
+  // Create context value with drag state for visual styling
+  const dragContextValue = useSidebarDragContextValue(isDragging)
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -407,7 +412,7 @@ export function WorkflowList({
   )
 
   return (
-    <>
+    <SidebarDragContext.Provider value={dragContextValue}>
       <div
         className='flex min-h-full flex-col pb-[8px]'
         onClick={handleContainerClick}
@@ -457,6 +462,6 @@ export function WorkflowList({
           disableCreateFolder={disableCreate}
         />
       )}
-    </>
+    </SidebarDragContext.Provider>
   )
 }

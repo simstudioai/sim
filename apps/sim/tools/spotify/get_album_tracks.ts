@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { ALBUM_TRACK_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetAlbumTracksParams {
   accessToken: string
@@ -105,7 +106,11 @@ export const spotifyGetAlbumTracksTool: ToolConfig<
   },
 
   outputs: {
-    tracks: { type: 'json', description: 'List of tracks' },
+    tracks: {
+      type: 'array',
+      description: 'List of tracks',
+      items: { type: 'object', properties: ALBUM_TRACK_OUTPUT_PROPERTIES },
+    },
     total: { type: 'number', description: 'Total number of tracks' },
     next: { type: 'string', description: 'URL for next page', optional: true },
   },

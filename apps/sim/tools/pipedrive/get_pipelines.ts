@@ -3,6 +3,7 @@ import type {
   PipedriveGetPipelinesParams,
   PipedriveGetPipelinesResponse,
 } from '@/tools/pipedrive/types'
+import { PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES } from '@/tools/pipedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetPipelines')
@@ -96,7 +97,14 @@ export const pipedriveGetPipelinesTool: ToolConfig<
   },
 
   outputs: {
-    pipelines: { type: 'array', description: 'Array of pipeline objects from Pipedrive' },
+    pipelines: {
+      type: 'array',
+      description: 'Array of pipeline objects from Pipedrive',
+      items: {
+        type: 'object',
+        properties: PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES,
+      },
+    },
     total_items: { type: 'number', description: 'Total number of pipelines returned' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

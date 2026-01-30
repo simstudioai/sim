@@ -57,10 +57,10 @@ Retrieve a single response or list responses from a Google Form
 |   ↳ `lastSubmittedTime` | string | When the response was last submitted |
 |   ↳ `answers` | json | Map of question IDs to answer values |
 | `response` | object | Single form response \(when responseId is provided\) |
-| ↳ `responseId` | string | Unique response ID |
-| ↳ `createTime` | string | When the response was created |
-| ↳ `lastSubmittedTime` | string | When the response was last submitted |
-| ↳ `answers` | json | Map of question IDs to answer values |
+|   ↳ `responseId` | string | Unique response ID |
+|   ↳ `createTime` | string | When the response was created |
+|   ↳ `lastSubmittedTime` | string | When the response was last submitted |
+|   ↳ `answers` | json | Map of question IDs to answer values |
 | `raw` | json | Raw API response data |
 
 ### `google_forms_get_form`
@@ -131,25 +131,25 @@ Apply multiple updates to a form (add items, update info, change settings, etc.)
 | --------- | ---- | ----------- |
 | `replies` | array | The replies from each update request |
 | `writeControl` | object | Write control information with revision IDs |
-| ↳ `requiredRevisionId` | string | Required revision ID for conflict detection |
-| ↳ `targetRevisionId` | string | Target revision ID |
+|   ↳ `requiredRevisionId` | string | Required revision ID for conflict detection |
+|   ↳ `targetRevisionId` | string | Target revision ID |
 | `form` | object | The updated form \(if includeFormInResponse was true\) |
-| ↳ `formId` | string | The form ID |
-| ↳ `info` | object | Form info containing title and description |
-|   ↳ `title` | string | The form title visible to responders |
-|   ↳ `description` | string | The form description |
-|   ↳ `documentTitle` | string | The document title visible in Drive |
-| ↳ `settings` | object | Form settings |
-|   ↳ `quizSettings` | object | Quiz settings |
-|   ↳ `isQuiz` | boolean | Whether the form is a quiz |
-|   ↳ `emailCollectionType` | string | Email collection type |
-| ↳ `revisionId` | string | The revision ID of the form |
-| ↳ `responderUri` | string | The URI to share with responders |
-| ↳ `linkedSheetId` | string | The ID of the linked Google Sheet |
-| ↳ `publishSettings` | object | Form publish settings |
-|   ↳ `publishState` | object | Current publish state |
-|   ↳ `isPublished` | boolean | Whether the form is published |
-|   ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
+|   ↳ `formId` | string | The form ID |
+|   ↳ `info` | object | Form info containing title and description |
+|     ↳ `title` | string | The form title visible to responders |
+|     ↳ `description` | string | The form description |
+|     ↳ `documentTitle` | string | The document title visible in Drive |
+|   ↳ `settings` | object | Form settings |
+|     ↳ `quizSettings` | object | Quiz settings |
+|       ↳ `isQuiz` | boolean | Whether the form is a quiz |
+|     ↳ `emailCollectionType` | string | Email collection type |
+|   ↳ `revisionId` | string | The revision ID of the form |
+|   ↳ `responderUri` | string | The URI to share with responders |
+|   ↳ `linkedSheetId` | string | The ID of the linked Google Sheet |
+|   ↳ `publishSettings` | object | Form publish settings |
+|     ↳ `publishState` | object | Current publish state |
+|       ↳ `isPublished` | boolean | Whether the form is published |
+|       ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
 
 ### `google_forms_set_publish_settings`
 
@@ -169,9 +169,9 @@ Update the publish settings of a form (publish/unpublish, accept responses)
 | --------- | ---- | ----------- |
 | `formId` | string | The form ID |
 | `publishSettings` | json | The updated publish settings |
-| ↳ `publishState` | object | The publish state |
-|   ↳ `isPublished` | boolean | Whether the form is published |
-|   ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
+|   ↳ `publishState` | object | The publish state |
+|     ↳ `isPublished` | boolean | Whether the form is published |
+|     ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
 
 ### `google_forms_create_watch`
 

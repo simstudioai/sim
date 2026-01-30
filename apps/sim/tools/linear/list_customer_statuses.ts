@@ -2,6 +2,7 @@ import type {
   LinearListCustomerStatusesParams,
   LinearListCustomerStatusesResponse,
 } from '@/tools/linear/types'
+import { CUSTOMER_STATUS_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListCustomerStatusesTool: ToolConfig<
@@ -75,6 +76,10 @@ export const linearListCustomerStatusesTool: ToolConfig<
     customerStatuses: {
       type: 'array',
       description: 'List of customer statuses',
+      items: {
+        type: 'object',
+        properties: CUSTOMER_STATUS_OUTPUT_PROPERTIES,
+      },
     },
   },
 }

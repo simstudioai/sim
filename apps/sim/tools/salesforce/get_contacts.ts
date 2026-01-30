@@ -3,6 +3,7 @@ import type {
   SalesforceGetContactsParams,
   SalesforceGetContactsResponse,
 } from '@/tools/salesforce/types'
+import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -130,27 +131,8 @@ export const salesforceGetContactsTool: ToolConfig<
       properties: {
         contacts: { type: 'array', description: 'Array of contacts (list query)' },
         contact: { type: 'object', description: 'Single contact (by ID)' },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-          properties: {
-            nextRecordsUrl: {
-              type: 'string',
-              description: 'URL for next page of results',
-              optional: true,
-            },
-            totalSize: { type: 'number', description: 'Total number of records' },
-            done: { type: 'boolean', description: 'Whether all records returned' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Response metadata',
-          properties: {
-            totalReturned: { type: 'number', description: 'Number of contacts returned' },
-            hasMore: { type: 'boolean', description: 'Whether more records exist' },
-          },
-        },
+        paging: QUERY_PAGING_OUTPUT,
+        metadata: RESPONSE_METADATA_OUTPUT,
         singleContact: { type: 'boolean', description: 'Whether single contact was returned' },
         success: { type: 'boolean', description: 'Salesforce operation success' },
       },

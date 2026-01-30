@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { StagehandAgentParams, StagehandAgentResponse } from '@/tools/stagehand/types'
+import { STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES } from '@/tools/stagehand/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('StagehandAgentTool')
@@ -89,23 +90,7 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
     agentResult: {
       type: 'object',
       description: 'Result from the Stagehand agent execution',
-      properties: {
-        success: { type: 'boolean', description: 'Whether the agent task completed successfully' },
-        completed: { type: 'boolean', description: 'Whether the task was fully completed' },
-        message: { type: 'string', description: 'Status message or final result' },
-        actions: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              type: { type: 'string', description: 'Type of action performed' },
-              params: { type: 'object', description: 'Parameters used for the action' },
-              result: { type: 'object', description: 'Result of the action' },
-            },
-          },
-          description: 'List of actions performed by the agent',
-        },
-      },
+      properties: STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES,
     },
     structuredOutput: {
       type: 'object',

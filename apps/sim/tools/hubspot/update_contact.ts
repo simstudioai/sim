@@ -3,6 +3,7 @@ import type {
   HubSpotUpdateContactParams,
   HubSpotUpdateContactResponse,
 } from '@/tools/hubspot/types'
+import { CONTACT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotUpdateContact')
@@ -103,7 +104,7 @@ export const hubspotUpdateContactTool: ToolConfig<
   },
 
   outputs: {
-    contact: { type: 'object', description: 'Updated HubSpot contact object' },
+    contact: CONTACT_OBJECT_OUTPUT,
     contactId: { type: 'string', description: 'The updated contact ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

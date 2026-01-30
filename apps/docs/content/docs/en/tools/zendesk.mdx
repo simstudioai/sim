@@ -77,13 +77,64 @@ Retrieve a list of tickets from Zendesk with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tickets` | array | Array of ticket objects |
+|   ↳ `id` | number | Automatically assigned ticket ID |
+|   ↳ `url` | string | API URL of the ticket |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `via` | object | How the ticket was created |
+|     ↳ `channel` | string | Channel through which the ticket was created \(e.g., email, web, api\) |
+|     ↳ `source` | object | Source details for the channel |
+|       ↳ `from` | object | Information about the source sender |
+|         ↳ `address` | string | Email address or other identifier |
+|         ↳ `name` | string | Name of the sender |
+|       ↳ `to` | object | Information about the recipient |
+|         ↳ `address` | string | Email address or other identifier |
+|         ↳ `name` | string | Name of the recipient |
+|       ↳ `rel` | string | Relationship type |
+|   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
+|   ↳ `subject` | string | Subject of the ticket |
+|   ↳ `raw_subject` | string | Subject of the ticket as entered by the requester |
+|   ↳ `description` | string | Read-only first comment on the ticket |
+|   ↳ `priority` | string | Priority level \(low, normal, high, urgent\) |
+|   ↳ `status` | string | Ticket status \(new, open, pending, hold, solved, closed\) |
+|   ↳ `recipient` | string | Original recipient email address |
+|   ↳ `requester_id` | number | User ID of the ticket requester |
+|   ↳ `submitter_id` | number | User ID of the ticket submitter |
+|   ↳ `assignee_id` | number | User ID of the agent assigned to the ticket |
+|   ↳ `organization_id` | number | Organization ID of the requester |
+|   ↳ `group_id` | number | Group ID assigned to the ticket |
+|   ↳ `collaborator_ids` | array | User IDs of collaborators \(CC\) |
+|   ↳ `follower_ids` | array | User IDs of followers |
+|   ↳ `email_cc_ids` | array | User IDs of email CCs |
+|   ↳ `forum_topic_id` | number | Topic ID in the community forum |
+|   ↳ `problem_id` | number | For incident tickets, the ID of the associated problem ticket |
+|   ↳ `has_incidents` | boolean | Whether the ticket has incident tickets linked |
+|   ↳ `is_public` | boolean | Whether the first comment is public |
+|   ↳ `due_at` | string | Due date for task tickets \(ISO 8601 format\) |
+|   ↳ `tags` | array | Tags associated with the ticket |
+|   ↳ `custom_fields` | array | Custom ticket fields |
+|     ↳ `id` | number | Custom field ID |
+|     ↳ `value` | string | Custom field value |
+|   ↳ `custom_status_id` | number | Custom status ID |
+|   ↳ `satisfaction_rating` | object | Customer satisfaction rating |
+|     ↳ `id` | number | Satisfaction rating ID |
+|     ↳ `score` | string | Rating score \(e.g., good, bad, offered, unoffered\) |
+|     ↳ `comment` | string | Comment left with the rating |
+|   ↳ `sharing_agreement_ids` | array | Sharing agreement IDs |
+|   ↳ `followup_ids` | array | IDs of follow-up tickets |
+|   ↳ `brand_id` | number | Brand ID the ticket belongs to |
+|   ↳ `allow_attachments` | boolean | Whether attachments are allowed |
+|   ↳ `allow_channelback` | boolean | Whether channelback is enabled |
+|   ↳ `from_messaging_channel` | boolean | Whether the ticket originated from a messaging channel |
+|   ↳ `ticket_form_id` | number | Ticket form ID |
+|   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `paging` | object | Pagination information |
-| ↳ `next_page` | string | URL for next page of results |
-| ↳ `previous_page` | string | URL for previous page of results |
-| ↳ `count` | number | Total count of tickets |
+|   ↳ `next_page` | string | URL for next page of results |
+|   ↳ `previous_page` | string | URL for previous page of results |
+|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
-| ↳ `total_returned` | number | Number of tickets returned in this response |
-| ↳ `has_more` | boolean | Whether more tickets are available |
+|   ↳ `total_returned` | number | Number of items returned in this response |
+|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_get_ticket`
 
@@ -103,6 +154,57 @@ Get a single ticket by ID from Zendesk
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ticket` | object | Ticket object |
+|   ↳ `id` | number | Automatically assigned ticket ID |
+|   ↳ `url` | string | API URL of the ticket |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `via` | object | How the ticket was created |
+|     ↳ `channel` | string | Channel through which the ticket was created \(e.g., email, web, api\) |
+|     ↳ `source` | object | Source details for the channel |
+|       ↳ `from` | object | Information about the source sender |
+|         ↳ `address` | string | Email address or other identifier |
+|         ↳ `name` | string | Name of the sender |
+|       ↳ `to` | object | Information about the recipient |
+|         ↳ `address` | string | Email address or other identifier |
+|         ↳ `name` | string | Name of the recipient |
+|       ↳ `rel` | string | Relationship type |
+|   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
+|   ↳ `subject` | string | Subject of the ticket |
+|   ↳ `raw_subject` | string | Subject of the ticket as entered by the requester |
+|   ↳ `description` | string | Read-only first comment on the ticket |
+|   ↳ `priority` | string | Priority level \(low, normal, high, urgent\) |
+|   ↳ `status` | string | Ticket status \(new, open, pending, hold, solved, closed\) |
+|   ↳ `recipient` | string | Original recipient email address |
+|   ↳ `requester_id` | number | User ID of the ticket requester |
+|   ↳ `submitter_id` | number | User ID of the ticket submitter |
+|   ↳ `assignee_id` | number | User ID of the agent assigned to the ticket |
+|   ↳ `organization_id` | number | Organization ID of the requester |
+|   ↳ `group_id` | number | Group ID assigned to the ticket |
+|   ↳ `collaborator_ids` | array | User IDs of collaborators \(CC\) |
+|   ↳ `follower_ids` | array | User IDs of followers |
+|   ↳ `email_cc_ids` | array | User IDs of email CCs |
+|   ↳ `forum_topic_id` | number | Topic ID in the community forum |
+|   ↳ `problem_id` | number | For incident tickets, the ID of the associated problem ticket |
+|   ↳ `has_incidents` | boolean | Whether the ticket has incident tickets linked |
+|   ↳ `is_public` | boolean | Whether the first comment is public |
+|   ↳ `due_at` | string | Due date for task tickets \(ISO 8601 format\) |
+|   ↳ `tags` | array | Tags associated with the ticket |
+|   ↳ `custom_fields` | array | Custom ticket fields |
+|     ↳ `id` | number | Custom field ID |
+|     ↳ `value` | string | Custom field value |
+|   ↳ `custom_status_id` | number | Custom status ID |
+|   ↳ `satisfaction_rating` | object | Customer satisfaction rating |
+|     ↳ `id` | number | Satisfaction rating ID |
+|     ↳ `score` | string | Rating score \(e.g., good, bad, offered, unoffered\) |
+|     ↳ `comment` | string | Comment left with the rating |
+|   ↳ `sharing_agreement_ids` | array | Sharing agreement IDs |
+|   ↳ `followup_ids` | array | IDs of follow-up tickets |
+|   ↳ `brand_id` | number | Brand ID the ticket belongs to |
+|   ↳ `allow_attachments` | boolean | Whether attachments are allowed |
+|   ↳ `allow_channelback` | boolean | Whether channelback is enabled |
+|   ↳ `from_messaging_channel` | boolean | Whether the ticket originated from a messaging channel |
+|   ↳ `ticket_form_id` | number | Ticket form ID |
+|   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `ticket_id` | number | The ticket ID |
 
 ### `zendesk_create_ticket`
@@ -132,6 +234,57 @@ Create a new ticket in Zendesk with support for custom fields
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ticket` | object | Created ticket object |
+|   ↳ `id` | number | Automatically assigned ticket ID |
+|   ↳ `url` | string | API URL of the ticket |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `via` | object | How the ticket was created |
+|     ↳ `channel` | string | Channel through which the ticket was created \(e.g., email, web, api\) |
+|     ↳ `source` | object | Source details for the channel |
+|       ↳ `from` | object | Information about the source sender |
+|         ↳ `address` | string | Email address or other identifier |
+|         ↳ `name` | string | Name of the sender |
+|       ↳ `to` | object | Information about the recipient |
+|         ↳ `address` | string | Email address or other identifier |
+|         ↳ `name` | string | Name of the recipient |
+|       ↳ `rel` | string | Relationship type |
+|   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
+|   ↳ `subject` | string | Subject of the ticket |
+|   ↳ `raw_subject` | string | Subject of the ticket as entered by the requester |
+|   ↳ `description` | string | Read-only first comment on the ticket |
+|   ↳ `priority` | string | Priority level \(low, normal, high, urgent\) |
+|   ↳ `status` | string | Ticket status \(new, open, pending, hold, solved, closed\) |
+|   ↳ `recipient` | string | Original recipient email address |
+|   ↳ `requester_id` | number | User ID of the ticket requester |
+|   ↳ `submitter_id` | number | User ID of the ticket submitter |
+|   ↳ `assignee_id` | number | User ID of the agent assigned to the ticket |
+|   ↳ `organization_id` | number | Organization ID of the requester |
+|   ↳ `group_id` | number | Group ID assigned to the ticket |
+|   ↳ `collaborator_ids` | array | User IDs of collaborators \(CC\) |
+|   ↳ `follower_ids` | array | User IDs of followers |
+|   ↳ `email_cc_ids` | array | User IDs of email CCs |
+|   ↳ `forum_topic_id` | number | Topic ID in the community forum |
+|   ↳ `problem_id` | number | For incident tickets, the ID of the associated problem ticket |
+|   ↳ `has_incidents` | boolean | Whether the ticket has incident tickets linked |
+|   ↳ `is_public` | boolean | Whether the first comment is public |
+|   ↳ `due_at` | string | Due date for task tickets \(ISO 8601 format\) |
+|   ↳ `tags` | array | Tags associated with the ticket |
+|   ↳ `custom_fields` | array | Custom ticket fields |
+|     ↳ `id` | number | Custom field ID |
+|     ↳ `value` | string | Custom field value |
+|   ↳ `custom_status_id` | number | Custom status ID |
+|   ↳ `satisfaction_rating` | object | Customer satisfaction rating |
+|     ↳ `id` | number | Satisfaction rating ID |
+|     ↳ `score` | string | Rating score \(e.g., good, bad, offered, unoffered\) |
+|     ↳ `comment` | string | Comment left with the rating |
+|   ↳ `sharing_agreement_ids` | array | Sharing agreement IDs |
+|   ↳ `followup_ids` | array | IDs of follow-up tickets |
+|   ↳ `brand_id` | number | Brand ID the ticket belongs to |
+|   ↳ `allow_attachments` | boolean | Whether attachments are allowed |
+|   ↳ `allow_channelback` | boolean | Whether channelback is enabled |
+|   ↳ `from_messaging_channel` | boolean | Whether the ticket originated from a messaging channel |
+|   ↳ `ticket_form_id` | number | Ticket form ID |
+|   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `ticket_id` | number | The created ticket ID |
 
 ### `zendesk_create_tickets_bulk`
@@ -151,7 +304,21 @@ Create multiple tickets in Zendesk at once (max 100)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `job_status` | object | Job status object |
+| `job_status` | object | Job status object for bulk operations |
+|   ↳ `id` | string | Automatically assigned job ID |
+|   ↳ `url` | string | URL to poll for status updates |
+|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
+|   ↳ `job_type` | string | Category of background task |
+|   ↳ `total` | number | Total number of tasks in this job |
+|   ↳ `progress` | number | Number of tasks already completed |
+|   ↳ `message` | string | Message from the job worker |
+|   ↳ `results` | array | Array of result objects from the job |
+|     ↳ `id` | number | ID of the created or updated resource |
+|     ↳ `index` | number | Position of the result in the batch |
+|     ↳ `action` | string | Action performed \(e.g., create, update\) |
+|     ↳ `success` | boolean | Whether the operation succeeded |
+|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
+|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_update_ticket`
@@ -181,6 +348,57 @@ Update an existing ticket in Zendesk with support for custom fields
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ticket` | object | Updated ticket object |
+|   ↳ `id` | number | Automatically assigned ticket ID |
+|   ↳ `url` | string | API URL of the ticket |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `via` | object | How the ticket was created |
+|     ↳ `channel` | string | Channel through which the ticket was created \(e.g., email, web, api\) |
+|     ↳ `source` | object | Source details for the channel |
+|       ↳ `from` | object | Information about the source sender |
+|         ↳ `address` | string | Email address or other identifier |
+|         ↳ `name` | string | Name of the sender |
+|       ↳ `to` | object | Information about the recipient |
+|         ↳ `address` | string | Email address or other identifier |
+|         ↳ `name` | string | Name of the recipient |
+|       ↳ `rel` | string | Relationship type |
+|   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
+|   ↳ `subject` | string | Subject of the ticket |
+|   ↳ `raw_subject` | string | Subject of the ticket as entered by the requester |
+|   ↳ `description` | string | Read-only first comment on the ticket |
+|   ↳ `priority` | string | Priority level \(low, normal, high, urgent\) |
+|   ↳ `status` | string | Ticket status \(new, open, pending, hold, solved, closed\) |
+|   ↳ `recipient` | string | Original recipient email address |
+|   ↳ `requester_id` | number | User ID of the ticket requester |
+|   ↳ `submitter_id` | number | User ID of the ticket submitter |
+|   ↳ `assignee_id` | number | User ID of the agent assigned to the ticket |
+|   ↳ `organization_id` | number | Organization ID of the requester |
+|   ↳ `group_id` | number | Group ID assigned to the ticket |
+|   ↳ `collaborator_ids` | array | User IDs of collaborators \(CC\) |
+|   ↳ `follower_ids` | array | User IDs of followers |
+|   ↳ `email_cc_ids` | array | User IDs of email CCs |
+|   ↳ `forum_topic_id` | number | Topic ID in the community forum |
+|   ↳ `problem_id` | number | For incident tickets, the ID of the associated problem ticket |
+|   ↳ `has_incidents` | boolean | Whether the ticket has incident tickets linked |
+|   ↳ `is_public` | boolean | Whether the first comment is public |
+|   ↳ `due_at` | string | Due date for task tickets \(ISO 8601 format\) |
+|   ↳ `tags` | array | Tags associated with the ticket |
+|   ↳ `custom_fields` | array | Custom ticket fields |
+|     ↳ `id` | number | Custom field ID |
+|     ↳ `value` | string | Custom field value |
+|   ↳ `custom_status_id` | number | Custom status ID |
+|   ↳ `satisfaction_rating` | object | Customer satisfaction rating |
+|     ↳ `id` | number | Satisfaction rating ID |
+|     ↳ `score` | string | Rating score \(e.g., good, bad, offered, unoffered\) |
+|     ↳ `comment` | string | Comment left with the rating |
+|   ↳ `sharing_agreement_ids` | array | Sharing agreement IDs |
+|   ↳ `followup_ids` | array | IDs of follow-up tickets |
+|   ↳ `brand_id` | number | Brand ID the ticket belongs to |
+|   ↳ `allow_attachments` | boolean | Whether attachments are allowed |
+|   ↳ `allow_channelback` | boolean | Whether channelback is enabled |
+|   ↳ `from_messaging_channel` | boolean | Whether the ticket originated from a messaging channel |
+|   ↳ `ticket_form_id` | number | Ticket form ID |
+|   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `ticket_id` | number | The updated ticket ID |
 
 ### `zendesk_update_tickets_bulk`
@@ -205,7 +423,21 @@ Update multiple tickets in Zendesk at once (max 100)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `job_status` | object | Job status object |
+| `job_status` | object | Job status object for bulk operations |
+|   ↳ `id` | string | Automatically assigned job ID |
+|   ↳ `url` | string | URL to poll for status updates |
+|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
+|   ↳ `job_type` | string | Category of background task |
+|   ↳ `total` | number | Total number of tasks in this job |
+|   ↳ `progress` | number | Number of tasks already completed |
+|   ↳ `message` | string | Message from the job worker |
+|   ↳ `results` | array | Array of result objects from the job |
+|     ↳ `id` | number | ID of the created or updated resource |
+|     ↳ `index` | number | Position of the result in the batch |
+|     ↳ `action` | string | Action performed \(e.g., create, update\) |
+|     ↳ `success` | boolean | Whether the operation succeeded |
+|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
+|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_delete_ticket`
@@ -247,7 +479,21 @@ Merge multiple tickets into a target ticket
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `job_status` | object | Job status object |
+| `job_status` | object | Job status object for bulk operations |
+|   ↳ `id` | string | Automatically assigned job ID |
+|   ↳ `url` | string | URL to poll for status updates |
+|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
+|   ↳ `job_type` | string | Category of background task |
+|   ↳ `total` | number | Total number of tasks in this job |
+|   ↳ `progress` | number | Number of tasks already completed |
+|   ↳ `message` | string | Message from the job worker |
+|   ↳ `results` | array | Array of result objects from the job |
+|     ↳ `id` | number | ID of the created or updated resource |
+|     ↳ `index` | number | Position of the result in the batch |
+|     ↳ `action` | string | Action performed \(e.g., create, update\) |
+|     ↳ `success` | boolean | Whether the operation succeeded |
+|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
+|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The merge job ID |
 | `target_ticket_id` | string | The target ticket ID that tickets were merged into |
 
@@ -272,13 +518,54 @@ Retrieve a list of users from Zendesk with optional filtering
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `users` | array | Array of user objects |
+|   ↳ `id` | number | Automatically assigned user ID |
+|   ↳ `url` | string | API URL of the user |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | Primary email address |
+|   ↳ `created_at` | string | When the user was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the user was last updated \(ISO 8601 format\) |
+|   ↳ `time_zone` | string | Time zone \(e.g., Eastern Time \(US & Canada\)\) |
+|   ↳ `iana_time_zone` | string | IANA time zone \(e.g., America/New_York\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
+|   ↳ `photo` | object | User photo details |
+|     ↳ `content_url` | string | URL to the photo |
+|     ↳ `file_name` | string | Photo file name |
+|     ↳ `size` | number | File size in bytes |
+|   ↳ `locale` | string | Locale \(e.g., en-US\) |
+|   ↳ `locale_id` | number | Locale ID |
+|   ↳ `organization_id` | number | Primary organization ID |
+|   ↳ `role` | string | User role \(end-user, agent, admin\) |
+|   ↳ `role_type` | number | Role type identifier |
+|   ↳ `custom_role_id` | number | Custom role ID |
+|   ↳ `active` | boolean | Whether the user is active \(false if deleted\) |
+|   ↳ `verified` | boolean | Whether any user identity has been verified |
+|   ↳ `alias` | string | Alias displayed to end users |
+|   ↳ `details` | string | Details about the user |
+|   ↳ `notes` | string | Notes about the user |
+|   ↳ `signature` | string | User signature for email replies |
+|   ↳ `default_group_id` | number | Default group ID for the user |
+|   ↳ `tags` | array | Tags associated with the user |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `restricted_agent` | boolean | Whether the agent has restrictions |
+|   ↳ `suspended` | boolean | Whether the user is suspended |
+|   ↳ `moderator` | boolean | Whether the user has moderator permissions |
+|   ↳ `chat_only` | boolean | Whether the user is a chat-only agent |
+|   ↳ `only_private_comments` | boolean | Whether the user can only create private comments |
+|   ↳ `two_factor_auth_enabled` | boolean | Whether two-factor auth is enabled |
+|   ↳ `last_login_at` | string | Last login time \(ISO 8601 format\) |
+|   ↳ `ticket_restriction` | string | Ticket access restriction \(organization, groups, assigned, requested\) |
+|   ↳ `user_fields` | json | Custom user fields \(dynamic key-value pairs\) |
+|   ↳ `shared` | boolean | Whether the user is shared from a different Zendesk |
+|   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
+|   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `paging` | object | Pagination information |
-| ↳ `next_page` | string | URL for next page of results |
-| ↳ `previous_page` | string | URL for previous page of results |
-| ↳ `count` | number | Total count of users |
+|   ↳ `next_page` | string | URL for next page of results |
+|   ↳ `previous_page` | string | URL for previous page of results |
+|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
-| ↳ `total_returned` | number | Number of users returned in this response |
-| ↳ `has_more` | boolean | Whether more users are available |
+|   ↳ `total_returned` | number | Number of items returned in this response |
+|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_get_user`
 
@@ -298,6 +585,47 @@ Get a single user by ID from Zendesk
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `user` | object | User object |
+|   ↳ `id` | number | Automatically assigned user ID |
+|   ↳ `url` | string | API URL of the user |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | Primary email address |
+|   ↳ `created_at` | string | When the user was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the user was last updated \(ISO 8601 format\) |
+|   ↳ `time_zone` | string | Time zone \(e.g., Eastern Time \(US & Canada\)\) |
+|   ↳ `iana_time_zone` | string | IANA time zone \(e.g., America/New_York\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
+|   ↳ `photo` | object | User photo details |
+|     ↳ `content_url` | string | URL to the photo |
+|     ↳ `file_name` | string | Photo file name |
+|     ↳ `size` | number | File size in bytes |
+|   ↳ `locale` | string | Locale \(e.g., en-US\) |
+|   ↳ `locale_id` | number | Locale ID |
+|   ↳ `organization_id` | number | Primary organization ID |
+|   ↳ `role` | string | User role \(end-user, agent, admin\) |
+|   ↳ `role_type` | number | Role type identifier |
+|   ↳ `custom_role_id` | number | Custom role ID |
+|   ↳ `active` | boolean | Whether the user is active \(false if deleted\) |
+|   ↳ `verified` | boolean | Whether any user identity has been verified |
+|   ↳ `alias` | string | Alias displayed to end users |
+|   ↳ `details` | string | Details about the user |
+|   ↳ `notes` | string | Notes about the user |
+|   ↳ `signature` | string | User signature for email replies |
+|   ↳ `default_group_id` | number | Default group ID for the user |
+|   ↳ `tags` | array | Tags associated with the user |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `restricted_agent` | boolean | Whether the agent has restrictions |
+|   ↳ `suspended` | boolean | Whether the user is suspended |
+|   ↳ `moderator` | boolean | Whether the user has moderator permissions |
+|   ↳ `chat_only` | boolean | Whether the user is a chat-only agent |
+|   ↳ `only_private_comments` | boolean | Whether the user can only create private comments |
+|   ↳ `two_factor_auth_enabled` | boolean | Whether two-factor auth is enabled |
+|   ↳ `last_login_at` | string | Last login time \(ISO 8601 format\) |
+|   ↳ `ticket_restriction` | string | Ticket access restriction \(organization, groups, assigned, requested\) |
+|   ↳ `user_fields` | json | Custom user fields \(dynamic key-value pairs\) |
+|   ↳ `shared` | boolean | Whether the user is shared from a different Zendesk |
+|   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
+|   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The user ID |
 
 ### `zendesk_get_current_user`
@@ -317,6 +645,47 @@ Get the currently authenticated user from Zendesk
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `user` | object | Current user object |
+|   ↳ `id` | number | Automatically assigned user ID |
+|   ↳ `url` | string | API URL of the user |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | Primary email address |
+|   ↳ `created_at` | string | When the user was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the user was last updated \(ISO 8601 format\) |
+|   ↳ `time_zone` | string | Time zone \(e.g., Eastern Time \(US & Canada\)\) |
+|   ↳ `iana_time_zone` | string | IANA time zone \(e.g., America/New_York\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
+|   ↳ `photo` | object | User photo details |
+|     ↳ `content_url` | string | URL to the photo |
+|     ↳ `file_name` | string | Photo file name |
+|     ↳ `size` | number | File size in bytes |
+|   ↳ `locale` | string | Locale \(e.g., en-US\) |
+|   ↳ `locale_id` | number | Locale ID |
+|   ↳ `organization_id` | number | Primary organization ID |
+|   ↳ `role` | string | User role \(end-user, agent, admin\) |
+|   ↳ `role_type` | number | Role type identifier |
+|   ↳ `custom_role_id` | number | Custom role ID |
+|   ↳ `active` | boolean | Whether the user is active \(false if deleted\) |
+|   ↳ `verified` | boolean | Whether any user identity has been verified |
+|   ↳ `alias` | string | Alias displayed to end users |
+|   ↳ `details` | string | Details about the user |
+|   ↳ `notes` | string | Notes about the user |
+|   ↳ `signature` | string | User signature for email replies |
+|   ↳ `default_group_id` | number | Default group ID for the user |
+|   ↳ `tags` | array | Tags associated with the user |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `restricted_agent` | boolean | Whether the agent has restrictions |
+|   ↳ `suspended` | boolean | Whether the user is suspended |
+|   ↳ `moderator` | boolean | Whether the user has moderator permissions |
+|   ↳ `chat_only` | boolean | Whether the user is a chat-only agent |
+|   ↳ `only_private_comments` | boolean | Whether the user can only create private comments |
+|   ↳ `two_factor_auth_enabled` | boolean | Whether two-factor auth is enabled |
+|   ↳ `last_login_at` | string | Last login time \(ISO 8601 format\) |
+|   ↳ `ticket_restriction` | string | Ticket access restriction \(organization, groups, assigned, requested\) |
+|   ↳ `user_fields` | json | Custom user fields \(dynamic key-value pairs\) |
+|   ↳ `shared` | boolean | Whether the user is shared from a different Zendesk |
+|   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
+|   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The current user ID |
 
 ### `zendesk_search_users`
@@ -340,13 +709,54 @@ Search for users in Zendesk using a query string
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `users` | array | Array of user objects |
+|   ↳ `id` | number | Automatically assigned user ID |
+|   ↳ `url` | string | API URL of the user |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | Primary email address |
+|   ↳ `created_at` | string | When the user was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the user was last updated \(ISO 8601 format\) |
+|   ↳ `time_zone` | string | Time zone \(e.g., Eastern Time \(US & Canada\)\) |
+|   ↳ `iana_time_zone` | string | IANA time zone \(e.g., America/New_York\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
+|   ↳ `photo` | object | User photo details |
+|     ↳ `content_url` | string | URL to the photo |
+|     ↳ `file_name` | string | Photo file name |
+|     ↳ `size` | number | File size in bytes |
+|   ↳ `locale` | string | Locale \(e.g., en-US\) |
+|   ↳ `locale_id` | number | Locale ID |
+|   ↳ `organization_id` | number | Primary organization ID |
+|   ↳ `role` | string | User role \(end-user, agent, admin\) |
+|   ↳ `role_type` | number | Role type identifier |
+|   ↳ `custom_role_id` | number | Custom role ID |
+|   ↳ `active` | boolean | Whether the user is active \(false if deleted\) |
+|   ↳ `verified` | boolean | Whether any user identity has been verified |
+|   ↳ `alias` | string | Alias displayed to end users |
+|   ↳ `details` | string | Details about the user |
+|   ↳ `notes` | string | Notes about the user |
+|   ↳ `signature` | string | User signature for email replies |
+|   ↳ `default_group_id` | number | Default group ID for the user |
+|   ↳ `tags` | array | Tags associated with the user |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `restricted_agent` | boolean | Whether the agent has restrictions |
+|   ↳ `suspended` | boolean | Whether the user is suspended |
+|   ↳ `moderator` | boolean | Whether the user has moderator permissions |
+|   ↳ `chat_only` | boolean | Whether the user is a chat-only agent |
+|   ↳ `only_private_comments` | boolean | Whether the user can only create private comments |
+|   ↳ `two_factor_auth_enabled` | boolean | Whether two-factor auth is enabled |
+|   ↳ `last_login_at` | string | Last login time \(ISO 8601 format\) |
+|   ↳ `ticket_restriction` | string | Ticket access restriction \(organization, groups, assigned, requested\) |
+|   ↳ `user_fields` | json | Custom user fields \(dynamic key-value pairs\) |
+|   ↳ `shared` | boolean | Whether the user is shared from a different Zendesk |
+|   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
+|   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `paging` | object | Pagination information |
-| ↳ `next_page` | string | URL for next page of results |
-| ↳ `previous_page` | string | URL for previous page of results |
-| ↳ `count` | number | Total count of users |
+|   ↳ `next_page` | string | URL for next page of results |
+|   ↳ `previous_page` | string | URL for previous page of results |
+|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
-| ↳ `total_returned` | number | Number of users returned in this response |
-| ↳ `has_more` | boolean | Whether more users are available |
+|   ↳ `total_returned` | number | Number of items returned in this response |
+|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_create_user`
 
@@ -373,6 +783,47 @@ Create a new user in Zendesk
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `user` | object | Created user object |
+|   ↳ `id` | number | Automatically assigned user ID |
+|   ↳ `url` | string | API URL of the user |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | Primary email address |
+|   ↳ `created_at` | string | When the user was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the user was last updated \(ISO 8601 format\) |
+|   ↳ `time_zone` | string | Time zone \(e.g., Eastern Time \(US & Canada\)\) |
+|   ↳ `iana_time_zone` | string | IANA time zone \(e.g., America/New_York\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
+|   ↳ `photo` | object | User photo details |
+|     ↳ `content_url` | string | URL to the photo |
+|     ↳ `file_name` | string | Photo file name |
+|     ↳ `size` | number | File size in bytes |
+|   ↳ `locale` | string | Locale \(e.g., en-US\) |
+|   ↳ `locale_id` | number | Locale ID |
+|   ↳ `organization_id` | number | Primary organization ID |
+|   ↳ `role` | string | User role \(end-user, agent, admin\) |
+|   ↳ `role_type` | number | Role type identifier |
+|   ↳ `custom_role_id` | number | Custom role ID |
+|   ↳ `active` | boolean | Whether the user is active \(false if deleted\) |
+|   ↳ `verified` | boolean | Whether any user identity has been verified |
+|   ↳ `alias` | string | Alias displayed to end users |
+|   ↳ `details` | string | Details about the user |
+|   ↳ `notes` | string | Notes about the user |
+|   ↳ `signature` | string | User signature for email replies |
+|   ↳ `default_group_id` | number | Default group ID for the user |
+|   ↳ `tags` | array | Tags associated with the user |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `restricted_agent` | boolean | Whether the agent has restrictions |
+|   ↳ `suspended` | boolean | Whether the user is suspended |
+|   ↳ `moderator` | boolean | Whether the user has moderator permissions |
+|   ↳ `chat_only` | boolean | Whether the user is a chat-only agent |
+|   ↳ `only_private_comments` | boolean | Whether the user can only create private comments |
+|   ↳ `two_factor_auth_enabled` | boolean | Whether two-factor auth is enabled |
+|   ↳ `last_login_at` | string | Last login time \(ISO 8601 format\) |
+|   ↳ `ticket_restriction` | string | Ticket access restriction \(organization, groups, assigned, requested\) |
+|   ↳ `user_fields` | json | Custom user fields \(dynamic key-value pairs\) |
+|   ↳ `shared` | boolean | Whether the user is shared from a different Zendesk |
+|   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
+|   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The created user ID |
 
 ### `zendesk_create_users_bulk`
@@ -392,7 +843,21 @@ Create multiple users in Zendesk using bulk import
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `job_status` | object | Job status object |
+| `job_status` | object | Job status object for bulk operations |
+|   ↳ `id` | string | Automatically assigned job ID |
+|   ↳ `url` | string | URL to poll for status updates |
+|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
+|   ↳ `job_type` | string | Category of background task |
+|   ↳ `total` | number | Total number of tasks in this job |
+|   ↳ `progress` | number | Number of tasks already completed |
+|   ↳ `message` | string | Message from the job worker |
+|   ↳ `results` | array | Array of result objects from the job |
+|     ↳ `id` | number | ID of the created or updated resource |
+|     ↳ `index` | number | Position of the result in the batch |
+|     ↳ `action` | string | Action performed \(e.g., create, update\) |
+|     ↳ `success` | boolean | Whether the operation succeeded |
+|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
+|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_update_user`
@@ -420,7 +885,48 @@ Update an existing user in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `user` | json | Updated user object |
+| `user` | object | Updated user object |
+|   ↳ `id` | number | Automatically assigned user ID |
+|   ↳ `url` | string | API URL of the user |
+|   ↳ `name` | string | User name |
+|   ↳ `email` | string | Primary email address |
+|   ↳ `created_at` | string | When the user was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the user was last updated \(ISO 8601 format\) |
+|   ↳ `time_zone` | string | Time zone \(e.g., Eastern Time \(US & Canada\)\) |
+|   ↳ `iana_time_zone` | string | IANA time zone \(e.g., America/New_York\) |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
+|   ↳ `photo` | object | User photo details |
+|     ↳ `content_url` | string | URL to the photo |
+|     ↳ `file_name` | string | Photo file name |
+|     ↳ `size` | number | File size in bytes |
+|   ↳ `locale` | string | Locale \(e.g., en-US\) |
+|   ↳ `locale_id` | number | Locale ID |
+|   ↳ `organization_id` | number | Primary organization ID |
+|   ↳ `role` | string | User role \(end-user, agent, admin\) |
+|   ↳ `role_type` | number | Role type identifier |
+|   ↳ `custom_role_id` | number | Custom role ID |
+|   ↳ `active` | boolean | Whether the user is active \(false if deleted\) |
+|   ↳ `verified` | boolean | Whether any user identity has been verified |
+|   ↳ `alias` | string | Alias displayed to end users |
+|   ↳ `details` | string | Details about the user |
+|   ↳ `notes` | string | Notes about the user |
+|   ↳ `signature` | string | User signature for email replies |
+|   ↳ `default_group_id` | number | Default group ID for the user |
+|   ↳ `tags` | array | Tags associated with the user |
+|   ↳ `external_id` | string | External ID for linking to external records |
+|   ↳ `restricted_agent` | boolean | Whether the agent has restrictions |
+|   ↳ `suspended` | boolean | Whether the user is suspended |
+|   ↳ `moderator` | boolean | Whether the user has moderator permissions |
+|   ↳ `chat_only` | boolean | Whether the user is a chat-only agent |
+|   ↳ `only_private_comments` | boolean | Whether the user can only create private comments |
+|   ↳ `two_factor_auth_enabled` | boolean | Whether two-factor auth is enabled |
+|   ↳ `last_login_at` | string | Last login time \(ISO 8601 format\) |
+|   ↳ `ticket_restriction` | string | Ticket access restriction \(organization, groups, assigned, requested\) |
+|   ↳ `user_fields` | json | Custom user fields \(dynamic key-value pairs\) |
+|   ↳ `shared` | boolean | Whether the user is shared from a different Zendesk |
+|   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
+|   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `user_id` | number | The updated user ID |
 
 ### `zendesk_update_users_bulk`
@@ -440,7 +946,21 @@ Update multiple users in Zendesk using bulk update
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `job_status` | object | Job status object |
+| `job_status` | object | Job status object for bulk operations |
+|   ↳ `id` | string | Automatically assigned job ID |
+|   ↳ `url` | string | URL to poll for status updates |
+|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
+|   ↳ `job_type` | string | Category of background task |
+|   ↳ `total` | number | Total number of tasks in this job |
+|   ↳ `progress` | number | Number of tasks already completed |
+|   ↳ `message` | string | Message from the job worker |
+|   ↳ `results` | array | Array of result objects from the job |
+|     ↳ `id` | number | ID of the created or updated resource |
+|     ↳ `index` | number | Position of the result in the batch |
+|     ↳ `action` | string | Action performed \(e.g., create, update\) |
+|     ↳ `success` | boolean | Whether the operation succeeded |
+|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
+|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_delete_user`
@@ -482,13 +1002,27 @@ Retrieve a list of organizations from Zendesk
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `organizations` | array | Array of organization objects |
+|   ↳ `id` | number | Automatically assigned organization ID |
+|   ↳ `url` | string | API URL of the organization |
+|   ↳ `name` | string | Unique organization name |
+|   ↳ `domain_names` | array | Domain names for automatic user assignment |
+|   ↳ `details` | string | Details about the organization |
+|   ↳ `notes` | string | Notes about the organization |
+|   ↳ `group_id` | number | Group ID for auto-routing new tickets |
+|   ↳ `shared_tickets` | boolean | Whether end users can see each others tickets |
+|   ↳ `shared_comments` | boolean | Whether end users can see each others comments |
+|   ↳ `tags` | array | Tags associated with the organization |
+|   ↳ `organization_fields` | json | Custom organization fields \(dynamic key-value pairs\) |
+|   ↳ `created_at` | string | When the organization was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the organization was last updated \(ISO 8601 format\) |
+|   ↳ `external_id` | string | External ID for linking to external records |
 | `paging` | object | Pagination information |
-| ↳ `next_page` | string | URL for next page of results |
-| ↳ `previous_page` | string | URL for previous page of results |
-| ↳ `count` | number | Total count of organizations |
+|   ↳ `next_page` | string | URL for next page of results |
+|   ↳ `previous_page` | string | URL for previous page of results |
+|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
-| ↳ `total_returned` | number | Number of organizations returned in this response |
-| ↳ `has_more` | boolean | Whether more organizations are available |
+|   ↳ `total_returned` | number | Number of items returned in this response |
+|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_get_organization`
 
@@ -507,7 +1041,21 @@ Get a single organization by ID from Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `organization` | json | Organization object |
+| `organization` | object | Organization object |
+|   ↳ `id` | number | Automatically assigned organization ID |
+|   ↳ `url` | string | API URL of the organization |
+|   ↳ `name` | string | Unique organization name |
+|   ↳ `domain_names` | array | Domain names for automatic user assignment |
+|   ↳ `details` | string | Details about the organization |
+|   ↳ `notes` | string | Notes about the organization |
+|   ↳ `group_id` | number | Group ID for auto-routing new tickets |
+|   ↳ `shared_tickets` | boolean | Whether end users can see each others tickets |
+|   ↳ `shared_comments` | boolean | Whether end users can see each others comments |
+|   ↳ `tags` | array | Tags associated with the organization |
+|   ↳ `organization_fields` | json | Custom organization fields \(dynamic key-value pairs\) |
+|   ↳ `created_at` | string | When the organization was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the organization was last updated \(ISO 8601 format\) |
+|   ↳ `external_id` | string | External ID for linking to external records |
 | `organization_id` | number | The organization ID |
 
 ### `zendesk_autocomplete_organizations`
@@ -530,13 +1078,27 @@ Autocomplete organizations in Zendesk by name prefix (for name matching/autocomp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `organizations` | array | Array of organization objects |
+|   ↳ `id` | number | Automatically assigned organization ID |
+|   ↳ `url` | string | API URL of the organization |
+|   ↳ `name` | string | Unique organization name |
+|   ↳ `domain_names` | array | Domain names for automatic user assignment |
+|   ↳ `details` | string | Details about the organization |
+|   ↳ `notes` | string | Notes about the organization |
+|   ↳ `group_id` | number | Group ID for auto-routing new tickets |
+|   ↳ `shared_tickets` | boolean | Whether end users can see each others tickets |
+|   ↳ `shared_comments` | boolean | Whether end users can see each others comments |
+|   ↳ `tags` | array | Tags associated with the organization |
+|   ↳ `organization_fields` | json | Custom organization fields \(dynamic key-value pairs\) |
+|   ↳ `created_at` | string | When the organization was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the organization was last updated \(ISO 8601 format\) |
+|   ↳ `external_id` | string | External ID for linking to external records |
 | `paging` | object | Pagination information |
-| ↳ `next_page` | string | URL for next page of results |
-| ↳ `previous_page` | string | URL for previous page of results |
-| ↳ `count` | number | Total count of organizations |
+|   ↳ `next_page` | string | URL for next page of results |
+|   ↳ `previous_page` | string | URL for previous page of results |
+|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
-| ↳ `total_returned` | number | Number of organizations returned in this response |
-| ↳ `has_more` | boolean | Whether more organizations are available |
+|   ↳ `total_returned` | number | Number of items returned in this response |
+|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_create_organization`
 
@@ -560,7 +1122,21 @@ Create a new organization in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `organization` | json | Created organization object |
+| `organization` | object | Created organization object |
+|   ↳ `id` | number | Automatically assigned organization ID |
+|   ↳ `url` | string | API URL of the organization |
+|   ↳ `name` | string | Unique organization name |
+|   ↳ `domain_names` | array | Domain names for automatic user assignment |
+|   ↳ `details` | string | Details about the organization |
+|   ↳ `notes` | string | Notes about the organization |
+|   ↳ `group_id` | number | Group ID for auto-routing new tickets |
+|   ↳ `shared_tickets` | boolean | Whether end users can see each others tickets |
+|   ↳ `shared_comments` | boolean | Whether end users can see each others comments |
+|   ↳ `tags` | array | Tags associated with the organization |
+|   ↳ `organization_fields` | json | Custom organization fields \(dynamic key-value pairs\) |
+|   ↳ `created_at` | string | When the organization was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the organization was last updated \(ISO 8601 format\) |
+|   ↳ `external_id` | string | External ID for linking to external records |
 | `organization_id` | number | The created organization ID |
 
 ### `zendesk_create_organizations_bulk`
@@ -580,7 +1156,21 @@ Create multiple organizations in Zendesk using bulk import
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `job_status` | object | Job status object |
+| `job_status` | object | Job status object for bulk operations |
+|   ↳ `id` | string | Automatically assigned job ID |
+|   ↳ `url` | string | URL to poll for status updates |
+|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
+|   ↳ `job_type` | string | Category of background task |
+|   ↳ `total` | number | Total number of tasks in this job |
+|   ↳ `progress` | number | Number of tasks already completed |
+|   ↳ `message` | string | Message from the job worker |
+|   ↳ `results` | array | Array of result objects from the job |
+|     ↳ `id` | number | ID of the created or updated resource |
+|     ↳ `index` | number | Position of the result in the batch |
+|     ↳ `action` | string | Action performed \(e.g., create, update\) |
+|     ↳ `success` | boolean | Whether the operation succeeded |
+|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
+|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_update_organization`
@@ -606,7 +1196,21 @@ Update an existing organization in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `organization` | json | Updated organization object |
+| `organization` | object | Updated organization object |
+|   ↳ `id` | number | Automatically assigned organization ID |
+|   ↳ `url` | string | API URL of the organization |
+|   ↳ `name` | string | Unique organization name |
+|   ↳ `domain_names` | array | Domain names for automatic user assignment |
+|   ↳ `details` | string | Details about the organization |
+|   ↳ `notes` | string | Notes about the organization |
+|   ↳ `group_id` | number | Group ID for auto-routing new tickets |
+|   ↳ `shared_tickets` | boolean | Whether end users can see each others tickets |
+|   ↳ `shared_comments` | boolean | Whether end users can see each others comments |
+|   ↳ `tags` | array | Tags associated with the organization |
+|   ↳ `organization_fields` | json | Custom organization fields \(dynamic key-value pairs\) |
+|   ↳ `created_at` | string | When the organization was created \(ISO 8601 format\) |
+|   ↳ `updated_at` | string | When the organization was last updated \(ISO 8601 format\) |
+|   ↳ `external_id` | string | External ID for linking to external records |
 | `organization_id` | number | The updated organization ID |
 
 ### `zendesk_delete_organization`
@@ -650,14 +1254,14 @@ Unified search across tickets, users, and organizations in Zendesk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | array | Array of result objects |
 | `paging` | object | Pagination information |
-| ↳ `next_page` | string | URL for next page of results |
-| ↳ `previous_page` | string | URL for previous page of results |
-| ↳ `count` | number | Total count of results |
+|   ↳ `next_page` | string | URL for next page of results |
+|   ↳ `previous_page` | string | URL for previous page of results |
+|   ↳ `count` | number | Total count of items |
 | `metadata` | object | Response metadata |
-| ↳ `total_returned` | number | Number of results returned in this response |
-| ↳ `has_more` | boolean | Whether more results are available |
+|   ↳ `total_returned` | number | Number of items returned in this response |
+|   ↳ `has_more` | boolean | Whether more items are available |
+| `results` | array | Array of result objects \(tickets, users, or organizations depending on search query\) |
 
 ### `zendesk_search_count`
 

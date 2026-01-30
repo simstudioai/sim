@@ -1,4 +1,4 @@
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
  * Base params that include OAuth access token
@@ -6,6 +6,253 @@ import type { ToolResponse } from '@/tools/types'
 export interface SpotifyBaseParams {
   accessToken: string
 }
+
+/**
+ * Shared output property constants for Spotify tools
+ * Based on Spotify Web API documentation: https://developer.spotify.com/documentation/web-api
+ */
+
+/** Simplified artist properties (id and name only) */
+export const SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify artist ID' },
+  name: { type: 'string', description: 'Artist name' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Full artist properties */
+export const ARTIST_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify artist ID' },
+  name: { type: 'string', description: 'Artist name' },
+  genres: { type: 'array', description: 'List of genres associated with the artist' },
+  popularity: { type: 'number', description: 'Popularity score (0-100)' },
+  followers: { type: 'number', description: 'Number of followers' },
+  image_url: { type: 'string', description: 'Artist image URL', optional: true },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Simplified album properties (id, name, image_url) */
+export const SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify album ID' },
+  name: { type: 'string', description: 'Album name' },
+  image_url: { type: 'string', description: 'Album cover image URL', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/** Album properties for listing (includes basic album info) */
+export const ALBUM_LIST_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify album ID' },
+  name: { type: 'string', description: 'Album name' },
+  album_type: { type: 'string', description: 'Type of album (album, single, compilation)' },
+  total_tracks: { type: 'number', description: 'Total number of tracks' },
+  release_date: { type: 'string', description: 'Release date' },
+  image_url: { type: 'string', description: 'Album cover image URL', optional: true },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Album properties with artists */
+export const ALBUM_WITH_ARTISTS_OUTPUT_PROPERTIES = {
+  ...ALBUM_LIST_OUTPUT_PROPERTIES,
+  artists: {
+    type: 'array',
+    description: 'List of artists',
+    items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Track properties for basic track info */
+export const TRACK_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify track ID' },
+  name: { type: 'string', description: 'Track name' },
+  artists: {
+    type: 'array',
+    description: 'List of artists',
+    items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+  },
+  album: {
+    type: 'object',
+    description: 'Album information',
+    properties: SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  },
+  duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
+  explicit: { type: 'boolean', description: 'Whether the track has explicit content' },
+  popularity: { type: 'number', description: 'Popularity score (0-100)' },
+  preview_url: { type: 'string', description: 'URL to 30-second preview', optional: true },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Track properties without explicit and preview_url (for listings) */
+export const TRACK_LIST_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify track ID' },
+  name: { type: 'string', description: 'Track name' },
+  artists: {
+    type: 'array',
+    description: 'List of artists',
+    items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+  },
+  album: {
+    type: 'object',
+    description: 'Album information',
+    properties: SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  },
+  duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
+  popularity: { type: 'number', description: 'Popularity score (0-100)' },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Track properties for search results (uses string array for artists, string for album) */
+export const SEARCH_TRACK_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify track ID' },
+  name: { type: 'string', description: 'Track name' },
+  artists: { type: 'array', description: 'List of artist names' },
+  album: { type: 'string', description: 'Album name' },
+  duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
+  popularity: { type: 'number', description: 'Popularity score (0-100)' },
+  preview_url: { type: 'string', description: 'URL to 30-second preview', optional: true },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Search artist result properties */
+export const SEARCH_ARTIST_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify artist ID' },
+  name: { type: 'string', description: 'Artist name' },
+  genres: { type: 'array', description: 'List of genres' },
+  popularity: { type: 'number', description: 'Popularity score (0-100)' },
+  followers: { type: 'number', description: 'Number of followers' },
+  image_url: { type: 'string', description: 'Artist image URL', optional: true },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Search album result properties (uses string array for artists) */
+export const SEARCH_ALBUM_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify album ID' },
+  name: { type: 'string', description: 'Album name' },
+  artists: { type: 'array', description: 'List of artist names' },
+  total_tracks: { type: 'number', description: 'Total number of tracks' },
+  release_date: { type: 'string', description: 'Release date' },
+  image_url: { type: 'string', description: 'Album cover image URL', optional: true },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Search playlist result properties */
+export const SEARCH_PLAYLIST_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify playlist ID' },
+  name: { type: 'string', description: 'Playlist name' },
+  description: { type: 'string', description: 'Playlist description', optional: true },
+  owner: { type: 'string', description: 'Owner display name' },
+  total_tracks: { type: 'number', description: 'Total number of tracks' },
+  image_url: { type: 'string', description: 'Playlist cover image URL', optional: true },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Playlist owner properties */
+export const PLAYLIST_OWNER_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify user ID' },
+  display_name: { type: 'string', description: 'Display name' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Playlist list item properties */
+export const PLAYLIST_LIST_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify playlist ID' },
+  name: { type: 'string', description: 'Playlist name' },
+  description: { type: 'string', description: 'Playlist description', optional: true },
+  public: { type: 'boolean', description: 'Whether the playlist is public' },
+  collaborative: { type: 'boolean', description: 'Whether the playlist is collaborative' },
+  owner: { type: 'string', description: 'Owner display name' },
+  total_tracks: { type: 'number', description: 'Number of tracks' },
+  image_url: { type: 'string', description: 'Playlist cover image URL', optional: true },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Device properties */
+export const DEVICE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Device ID' },
+  name: { type: 'string', description: 'Device name' },
+  type: { type: 'string', description: 'Device type (Computer, Smartphone, etc.)' },
+  volume_percent: { type: 'number', description: 'Current volume (0-100)' },
+  is_active: { type: 'boolean', description: 'Whether device is active' },
+  is_private_session: { type: 'boolean', description: 'Whether in private session' },
+  is_restricted: { type: 'boolean', description: 'Whether device is restricted' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Simplified device properties (for playback state) */
+export const SIMPLIFIED_DEVICE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Device ID' },
+  name: { type: 'string', description: 'Device name' },
+  type: { type: 'string', description: 'Device type' },
+  volume_percent: { type: 'number', description: 'Current volume (0-100)' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Album track properties (simplified track from album endpoint) */
+export const ALBUM_TRACK_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify track ID' },
+  name: { type: 'string', description: 'Track name' },
+  artists: {
+    type: 'array',
+    description: 'List of artists',
+    items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+  },
+  duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
+  track_number: { type: 'number', description: 'Track position on the disc' },
+  disc_number: { type: 'number', description: 'Disc number' },
+  explicit: { type: 'boolean', description: 'Whether the track has explicit content' },
+  preview_url: { type: 'string', description: 'URL to 30-second preview', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/** Simplified album track properties (for get_album response) */
+export const SIMPLIFIED_ALBUM_TRACK_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify track ID' },
+  name: { type: 'string', description: 'Track name' },
+  duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
+  track_number: { type: 'number', description: 'Track position on the disc' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Artist top track properties */
+export const ARTIST_TOP_TRACK_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify track ID' },
+  name: { type: 'string', description: 'Track name' },
+  album: {
+    type: 'object',
+    description: 'Album information',
+    properties: SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  },
+  duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
+  popularity: { type: 'number', description: 'Popularity score (0-100)' },
+  preview_url: { type: 'string', description: 'URL to 30-second preview', optional: true },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Playback track properties (track in playback state without external_url) */
+export const PLAYBACK_TRACK_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify track ID' },
+  name: { type: 'string', description: 'Track name' },
+  artists: {
+    type: 'array',
+    description: 'List of artists',
+    items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+  },
+  album: {
+    type: 'object',
+    description: 'Album information',
+    properties: SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  },
+  duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Currently playing track properties */
+export const CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Spotify track ID' },
+  name: { type: 'string', description: 'Track name' },
+  artists: {
+    type: 'array',
+    description: 'List of artists',
+    items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+  },
+  album: {
+    type: 'object',
+    description: 'Album information',
+    properties: SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  },
+  duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
+  external_url: { type: 'string', description: 'Spotify URL' },
+} as const satisfies Record<string, OutputProperty>
 
 /**
  * Common Spotify objects

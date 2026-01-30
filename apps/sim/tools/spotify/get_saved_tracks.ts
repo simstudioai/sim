@@ -1,5 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { SpotifyGetSavedTracksParams, SpotifyGetSavedTracksResponse } from './types'
+import { TRACK_LIST_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetSavedTracksTool: ToolConfig<
   SpotifyGetSavedTracksParams,
@@ -94,7 +95,11 @@ export const spotifyGetSavedTracksTool: ToolConfig<
         type: 'object',
         properties: {
           added_at: { type: 'string', description: 'When the track was saved' },
-          track: { type: 'object', description: 'Track information' },
+          track: {
+            type: 'object',
+            description: 'Track information',
+            properties: TRACK_LIST_OUTPUT_PROPERTIES,
+          },
         },
       },
     },
