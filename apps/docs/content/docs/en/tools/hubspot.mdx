@@ -44,7 +44,7 @@ Retrieve all users from HubSpot account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Number of results to return \(default: 100\) |
+| `limit` | string | No | Number of results to return \(default: 100, max: 100\) |
 
 #### Output
 
@@ -69,9 +69,9 @@ Retrieve all contacts from HubSpot account with pagination support
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `limit` | string | No | Maximum number of results per page \(max 100, default 100\) |
-| `after` | string | No | Pagination cursor for next page of results |
-| `properties` | string | No | Comma-separated list of properties to return \(e.g., "email,firstname,lastname"\) |
-| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "email,firstname,lastname,phone"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "companies,deals"\) |
 
 #### Output
 
@@ -114,10 +114,10 @@ Retrieve a single contact by ID or email from HubSpot
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `contactId` | string | Yes | The ID or email of the contact to retrieve |
+| `contactId` | string | Yes | The HubSpot contact ID \(numeric string\) or email address to retrieve |
 | `idProperty` | string | No | Property to use as unique identifier \(e.g., "email"\). If not specified, uses record ID |
-| `properties` | string | No | Comma-separated list of properties to return |
-| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "email,firstname,lastname,phone"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "companies,deals"\) |
 
 #### Output
 
@@ -155,8 +155,8 @@ Create a new contact in HubSpot. Requires at least one of: email, firstname, or 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Yes | Contact properties as JSON object. Must include at least one of: email, firstname, or lastname |
-| `associations` | array | No | Array of associations to create with the contact \(e.g., companies, deals\). Each object should have "to" \(with "id"\) and "types" \(with "associationCategory" and "associationTypeId"\) |
+| `properties` | object | Yes | Contact properties as JSON object. Must include at least one of: email, firstname, or lastname \(e.g., \{"email": "john@example.com", "firstname": "John", "lastname": "Doe"\}\) |
+| `associations` | array | No | Array of associations to create with the contact as JSON. Each object should have "to.id" \(company/deal ID\) and "types" array with "associationCategory" and "associationTypeId" |
 
 #### Output
 
@@ -194,9 +194,9 @@ Update an existing contact in HubSpot by ID or email
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `contactId` | string | Yes | The ID or email of the contact to update |
+| `contactId` | string | Yes | The HubSpot contact ID \(numeric string\) or email of the contact to update |
 | `idProperty` | string | No | Property to use as unique identifier \(e.g., "email"\). If not specified, uses record ID |
-| `properties` | object | Yes | Contact properties to update as JSON object |
+| `properties` | object | Yes | Contact properties to update as JSON object \(e.g., \{"firstname": "John", "phone": "+1234567890"\}\) |
 
 #### Output
 
@@ -234,12 +234,12 @@ Search for contacts in HubSpot using filters, sorting, and queries
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | No | Array of filter groups. Each group contains filters with propertyName, operator, and value |
-| `sorts` | array | No | Array of sort objects with propertyName and direction \("ASCENDING" or "DESCENDING"\) |
-| `query` | string | No | Search query string |
-| `properties` | array | No | Array of property names to return |
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS"\), and "value" |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+| `query` | string | No | Search query string to match against contact name, email, and other text fields |
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["email", "firstname", "lastname", "phone"\]\) |
 | `limit` | number | No | Maximum number of results to return \(max 100\) |
-| `after` | string | No | Pagination cursor for next page |
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
 
 #### Output
 
@@ -284,9 +284,9 @@ Retrieve all companies from HubSpot account with pagination support
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `limit` | string | No | Maximum number of results per page \(max 100, default 100\) |
-| `after` | string | No | Pagination cursor for next page of results |
-| `properties` | string | No | Comma-separated list of properties to return |
-| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "name,domain,industry"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,deals"\) |
 
 #### Output
 
@@ -330,10 +330,10 @@ Retrieve a single company by ID or domain from HubSpot
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `companyId` | string | Yes | The ID or domain of the company to retrieve |
+| `companyId` | string | Yes | The HubSpot company ID \(numeric string\) or domain to retrieve |
 | `idProperty` | string | No | Property to use as unique identifier \(e.g., "domain"\). If not specified, uses record ID |
-| `properties` | string | No | Comma-separated list of properties to return |
-| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "name,domain,industry"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,deals"\) |
 
 #### Output
 
@@ -372,8 +372,8 @@ Create a new company in HubSpot
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `properties` | object | Yes | Company properties as JSON object \(e.g., name, domain, city, industry\) |
-| `associations` | array | No | Array of associations to create with the company |
+| `properties` | object | Yes | Company properties as JSON object \(e.g., \{"name": "Acme Inc", "domain": "acme.com", "industry": "Technology"\}\) |
+| `associations` | array | No | Array of associations to create with the company as JSON \(each with "to.id" and "types" containing "associationCategory" and "associationTypeId"\) |
 
 #### Output
 
@@ -412,9 +412,9 @@ Update an existing company in HubSpot by ID or domain
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `companyId` | string | Yes | The ID or domain of the company to update |
+| `companyId` | string | Yes | The HubSpot company ID \(numeric string\) or domain of the company to update |
 | `idProperty` | string | No | Property to use as unique identifier \(e.g., "domain"\). If not specified, uses record ID |
-| `properties` | object | Yes | Company properties to update as JSON object |
+| `properties` | object | Yes | Company properties to update as JSON object \(e.g., \{"name": "New Name", "industry": "Finance"\}\) |
 
 #### Output
 
@@ -453,12 +453,12 @@ Search for companies in HubSpot using filters, sorting, and queries
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | No | Array of filter groups. Each group contains filters with propertyName, operator, and value |
-| `sorts` | array | No | Array of sort objects with propertyName and direction \("ASCENDING" or "DESCENDING"\) |
-| `query` | string | No | Search query string |
-| `properties` | array | No | Array of property names to return |
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS"\), and "value" |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+| `query` | string | No | Search query string to match against company name, domain, and other text fields |
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["name", "domain", "industry"\]\) |
 | `limit` | number | No | Maximum number of results to return \(max 100\) |
-| `after` | string | No | Pagination cursor for next page |
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
 
 #### Output
 
@@ -504,9 +504,9 @@ Retrieve all deals from HubSpot account with pagination support
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `limit` | string | No | Maximum number of results per page \(max 100, default 100\) |
-| `after` | string | No | Pagination cursor for next page of results |
-| `properties` | string | No | Comma-separated list of properties to return |
-| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "dealname,amount,dealstage"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
 
 #### Output
 

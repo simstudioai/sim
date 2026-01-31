@@ -67,7 +67,7 @@ Send messages to Telegram channels or users through the Telegram Bot API. Enable
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | Your Telegram Bot API Token |
-| `chatId` | string | Yes | Target Telegram chat ID |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `text` | string | Yes | Message text to send |
 
 #### Output
@@ -99,8 +99,8 @@ Delete messages in Telegram channels or chats through the Telegram Bot API. Requ
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | Your Telegram Bot API Token |
-| `chatId` | string | Yes | Target Telegram chat ID |
-| `messageId` | string | Yes | Message ID to delete |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
+| `messageId` | string | Yes | Telegram message ID \(numeric identifier of the message to delete\) |
 
 #### Output
 
@@ -120,7 +120,7 @@ Send photos to Telegram channels or users through the Telegram Bot API.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | Your Telegram Bot API Token |
-| `chatId` | string | Yes | Target Telegram chat ID |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `photo` | string | Yes | Photo to send. Pass a file_id or HTTP URL |
 | `caption` | string | No | Photo caption \(optional\) |
 
@@ -159,7 +159,7 @@ Send videos to Telegram channels or users through the Telegram Bot API.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | Your Telegram Bot API Token |
-| `chatId` | string | Yes | Target Telegram chat ID |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `video` | string | Yes | Video to send. Pass a file_id or HTTP URL |
 | `caption` | string | No | Video caption \(optional\) |
 
@@ -231,7 +231,7 @@ Send audio files to Telegram channels or users through the Telegram Bot API.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | Your Telegram Bot API Token |
-| `chatId` | string | Yes | Target Telegram chat ID |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `audio` | string | Yes | Audio file to send. Pass a file_id or HTTP URL |
 | `caption` | string | No | Audio caption \(optional\) |
 
@@ -273,7 +273,7 @@ Send animations (GIFs) to Telegram channels or users through the Telegram Bot AP
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | Your Telegram Bot API Token |
-| `chatId` | string | Yes | Target Telegram chat ID |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `animation` | string | Yes | Animation to send. Pass a file_id or HTTP URL |
 | `caption` | string | No | Animation caption \(optional\) |
 
@@ -345,7 +345,7 @@ Send documents (PDF, ZIP, DOC, etc.) to Telegram channels or users through the T
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `botToken` | string | Yes | Your Telegram Bot API Token |
-| `chatId` | string | Yes | Target Telegram chat ID |
+| `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `files` | file[] | No | Document file to send \(PDF, ZIP, DOC, etc.\). Max size: 50MB |
 | `caption` | string | No | Document caption \(optional\) |
 

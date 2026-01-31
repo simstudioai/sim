@@ -43,9 +43,9 @@ Retrieve accounts from Salesforce CRM
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | The ID token from Salesforce OAuth \(contains instance URL\) |
 | `instanceUrl` | string | No | The Salesforce instance URL |
-| `limit` | string | No | Number of results to return \(default: 100, max: 2000\) |
-| `fields` | string | No | Comma-separated list of fields to return \(e.g., "Id,Name,Industry,Phone"\) |
-| `orderBy` | string | No | Field to order by \(e.g., "Name ASC" or "CreatedDate DESC"\) |
+| `limit` | string | No | Maximum number of results \(default: 100, max: 2000\) |
+| `fields` | string | No | Comma-separated field API names \(e.g., "Id,Name,Industry,Phone"\) |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., "Name ASC" or "CreatedDate DESC"\) |
 
 #### Output
 
@@ -84,8 +84,8 @@ Create a new account in Salesforce CRM
 | `billingPostalCode` | string | No | Billing postal code |
 | `billingCountry` | string | No | Billing country |
 | `description` | string | No | Account description |
-| `annualRevenue` | string | No | Annual revenue \(number\) |
-| `numberOfEmployees` | string | No | Number of employees \(number\) |
+| `annualRevenue` | string | No | Annual revenue as a number |
+| `numberOfEmployees` | string | No | Number of employees as an integer |
 
 #### Output
 
@@ -107,10 +107,10 @@ Update an existing account in Salesforce CRM
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `accountId` | string | Yes | Account ID to update \(required\) |
+| `accountId` | string | Yes | Salesforce Account ID to update \(18-character string starting with 001\) |
 | `name` | string | No | Account name |
-| `type` | string | No | Account type |
-| `industry` | string | No | Industry |
+| `type` | string | No | Account type \(e.g., Customer, Partner, Prospect\) |
+| `industry` | string | No | Industry \(e.g., Technology, Healthcare, Finance\) |
 | `phone` | string | No | Phone number |
 | `website` | string | No | Website URL |
 | `billingStreet` | string | No | Billing street address |
@@ -119,8 +119,8 @@ Update an existing account in Salesforce CRM
 | `billingPostalCode` | string | No | Billing postal code |
 | `billingCountry` | string | No | Billing country |
 | `description` | string | No | Account description |
-| `annualRevenue` | string | No | Annual revenue \(number\) |
-| `numberOfEmployees` | string | No | Number of employees \(number\) |
+| `annualRevenue` | string | No | Annual revenue as a number |
+| `numberOfEmployees` | string | No | Number of employees as an integer |
 
 #### Output
 
@@ -141,7 +141,7 @@ Delete an account from Salesforce CRM
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `accountId` | string | Yes | Account ID to delete \(required\) |
+| `accountId` | string | Yes | Salesforce Account ID to delete \(18-character string starting with 001\) |
 
 #### Output
 
@@ -162,10 +162,10 @@ Get contact(s) from Salesforce - single contact if ID provided, or list if not
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `contactId` | string | No | Contact ID \(if provided, returns single contact\) |
-| `limit` | string | No | Number of results \(default: 100, max: 2000\). Only for list query. |
-| `fields` | string | No | Comma-separated fields \(e.g., "Id,FirstName,LastName,Email,Phone"\) |
-| `orderBy` | string | No | Order by field \(e.g., "LastName ASC"\). Only for list query. |
+| `contactId` | string | No | Salesforce Contact ID \(18-character string starting with 003\) to get a single contact |
+| `limit` | string | No | Maximum number of results \(default: 100, max: 2000\). Only for list query. |
+| `fields` | string | No | Comma-separated field API names \(e.g., "Id,FirstName,LastName,Email,Phone"\) |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., "LastName ASC"\). Only for list query. |
 
 #### Output
 
@@ -199,7 +199,7 @@ Create a new contact in Salesforce CRM
 | `firstName` | string | No | First name |
 | `email` | string | No | Email address |
 | `phone` | string | No | Phone number |
-| `accountId` | string | No | Account ID to associate contact with |
+| `accountId` | string | No | Salesforce Account ID \(18-character string starting with 001\) |
 | `title` | string | No | No description |
 | `department` | string | No | Department |
 | `mailingStreet` | string | No | Mailing street |
@@ -229,12 +229,12 @@ Update an existing contact in Salesforce CRM
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `contactId` | string | Yes | Contact ID to update \(required\) |
+| `contactId` | string | Yes | Salesforce Contact ID to update \(18-character string starting with 003\) |
 | `lastName` | string | No | Last name |
 | `firstName` | string | No | First name |
 | `email` | string | No | Email address |
 | `phone` | string | No | Phone number |
-| `accountId` | string | No | Account ID to associate with |
+| `accountId` | string | No | Salesforce Account ID \(18-character string starting with 001\) |
 | `title` | string | No | No description |
 | `department` | string | No | Department |
 | `mailingStreet` | string | No | Mailing street |
@@ -242,7 +242,7 @@ Update an existing contact in Salesforce CRM
 | `mailingState` | string | No | Mailing state |
 | `mailingPostalCode` | string | No | Mailing postal code |
 | `mailingCountry` | string | No | Mailing country |
-| `description` | string | No | Description |
+| `description` | string | No | Contact description |
 
 #### Output
 
@@ -263,7 +263,7 @@ Delete a contact from Salesforce CRM
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `contactId` | string | Yes | Contact ID to delete \(required\) |
+| `contactId` | string | Yes | Salesforce Contact ID to delete \(18-character string starting with 003\) |
 
 #### Output
 
@@ -284,10 +284,10 @@ Get lead(s) from Salesforce
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `leadId` | string | No | Lead ID \(optional\) |
-| `limit` | string | No | Max results \(default: 100\) |
-| `fields` | string | No | Comma-separated fields |
-| `orderBy` | string | No | Order by field |
+| `leadId` | string | No | Salesforce Lead ID \(18-character string starting with 00Q\) to get a single lead |
+| `limit` | string | No | Maximum number of results to return \(default: 100\) |
+| `fields` | string | No | Comma-separated list of field API names to return |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., LastName ASC\) |
 
 #### Output
 
@@ -318,14 +318,14 @@ Create a new lead
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
 | `lastName` | string | Yes | Last name \(required\) |
-| `company` | string | Yes | Company \(required\) |
+| `company` | string | Yes | Company name \(required\) |
 | `firstName` | string | No | First name |
-| `email` | string | No | No description |
-| `phone` | string | No | No description |
-| `status` | string | No | Lead status |
-| `leadSource` | string | No | Lead source |
+| `email` | string | No | Email address |
+| `phone` | string | No | Phone number |
+| `status` | string | No | Lead status \(e.g., Open, Working, Closed\) |
+| `leadSource` | string | No | Lead source \(e.g., Web, Referral, Campaign\) |
 | `title` | string | No | No description |
-| `description` | string | No | Description |
+| `description` | string | No | Lead description |
 
 #### Output
 
@@ -347,16 +347,16 @@ Update an existing lead
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `leadId` | string | Yes | Lead ID \(required\) |
+| `leadId` | string | Yes | Salesforce Lead ID to update \(18-character string starting with 00Q\) |
 | `lastName` | string | No | Last name |
-| `company` | string | No | No description |
+| `company` | string | No | Company name |
 | `firstName` | string | No | First name |
-| `email` | string | No | No description |
-| `phone` | string | No | No description |
-| `status` | string | No | Lead status |
-| `leadSource` | string | No | Lead source |
+| `email` | string | No | Email address |
+| `phone` | string | No | Phone number |
+| `status` | string | No | Lead status \(e.g., Open, Working, Closed\) |
+| `leadSource` | string | No | Lead source \(e.g., Web, Referral, Campaign\) |
 | `title` | string | No | No description |
-| `description` | string | No | Description |
+| `description` | string | No | Lead description |
 
 #### Output
 
@@ -377,7 +377,7 @@ Delete a lead
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `leadId` | string | Yes | Lead ID \(required\) |
+| `leadId` | string | Yes | Salesforce Lead ID to delete \(18-character string starting with 00Q\) |
 
 #### Output
 
@@ -398,10 +398,10 @@ Get opportunity(ies) from Salesforce
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `opportunityId` | string | No | Opportunity ID \(optional\) |
-| `limit` | string | No | Max results \(default: 100\) |
-| `fields` | string | No | Comma-separated fields |
-| `orderBy` | string | No | Order by field |
+| `opportunityId` | string | No | Salesforce Opportunity ID \(18-character string starting with 006\) to get a single opportunity |
+| `limit` | string | No | Maximum number of results to return \(default: 100\) |
+| `fields` | string | No | Comma-separated list of field API names to return |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., CloseDate DESC\) |
 
 #### Output
 
@@ -431,12 +431,12 @@ Create a new opportunity
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
 | `name` | string | Yes | Opportunity name \(required\) |
-| `stageName` | string | Yes | Stage name \(required\) |
-| `closeDate` | string | Yes | Close date YYYY-MM-DD \(required\) |
-| `accountId` | string | No | Account ID |
-| `amount` | string | No | Amount \(number\) |
-| `probability` | string | No | Probability \(0-100\) |
-| `description` | string | No | Description |
+| `stageName` | string | Yes | Stage name \(required, e.g., Prospecting, Qualification, Closed Won\) |
+| `closeDate` | string | Yes | Close date in YYYY-MM-DD format \(required\) |
+| `accountId` | string | No | Salesforce Account ID \(18-character string starting with 001\) |
+| `amount` | string | No | Deal amount as a number |
+| `probability` | string | No | Win probability as integer \(0-100\) |
+| `description` | string | No | Opportunity description |
 
 #### Output
 
@@ -458,14 +458,14 @@ Update an existing opportunity
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `opportunityId` | string | Yes | Opportunity ID \(required\) |
+| `opportunityId` | string | Yes | Salesforce Opportunity ID to update \(18-character string starting with 006\) |
 | `name` | string | No | Opportunity name |
-| `stageName` | string | No | Stage name |
-| `closeDate` | string | No | Close date YYYY-MM-DD |
-| `accountId` | string | No | Account ID |
-| `amount` | string | No | No description |
-| `probability` | string | No | Probability \(0-100\) |
-| `description` | string | No | Description |
+| `stageName` | string | No | Stage name \(e.g., Prospecting, Qualification, Closed Won\) |
+| `closeDate` | string | No | Close date in YYYY-MM-DD format |
+| `accountId` | string | No | Salesforce Account ID \(18-character string starting with 001\) |
+| `amount` | string | No | Deal amount as a number |
+| `probability` | string | No | Win probability as integer \(0-100\) |
+| `description` | string | No | Opportunity description |
 
 #### Output
 
@@ -486,7 +486,7 @@ Delete an opportunity
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `opportunityId` | string | Yes | Opportunity ID \(required\) |
+| `opportunityId` | string | Yes | Salesforce Opportunity ID to delete \(18-character string starting with 006\) |
 
 #### Output
 
@@ -507,10 +507,10 @@ Get case(s) from Salesforce
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `caseId` | string | No | Case ID \(optional\) |
-| `limit` | string | No | Max results \(default: 100\) |
-| `fields` | string | No | Comma-separated fields |
-| `orderBy` | string | No | Order by field |
+| `caseId` | string | No | Salesforce Case ID \(18-character string starting with 500\) to get a single case |
+| `limit` | string | No | Maximum number of results to return \(default: 100\) |
+| `fields` | string | No | Comma-separated list of field API names to return |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., CreatedDate DESC\) |
 
 #### Output
 
@@ -543,9 +543,9 @@ Create a new case
 | `status` | string | No | Status \(e.g., New, Working, Escalated\) |
 | `priority` | string | No | Priority \(e.g., Low, Medium, High\) |
 | `origin` | string | No | Origin \(e.g., Phone, Email, Web\) |
-| `contactId` | string | No | Contact ID |
-| `accountId` | string | No | Account ID |
-| `description` | string | No | Description |
+| `contactId` | string | No | Salesforce Contact ID \(18-character string starting with 003\) |
+| `accountId` | string | No | Salesforce Account ID \(18-character string starting with 001\) |
+| `description` | string | No | Case description |
 
 #### Output
 
@@ -567,11 +567,11 @@ Update an existing case
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `caseId` | string | Yes | Case ID \(required\) |
+| `caseId` | string | Yes | Salesforce Case ID to update \(18-character string starting with 500\) |
 | `subject` | string | No | Case subject |
-| `status` | string | No | Status |
-| `priority` | string | No | Priority |
-| `description` | string | No | Description |
+| `status` | string | No | Status \(e.g., New, Working, Escalated, Closed\) |
+| `priority` | string | No | Priority \(e.g., Low, Medium, High\) |
+| `description` | string | No | Case description |
 
 #### Output
 
@@ -592,7 +592,7 @@ Delete a case
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `caseId` | string | Yes | Case ID \(required\) |
+| `caseId` | string | Yes | Salesforce Case ID to delete \(18-character string starting with 500\) |
 
 #### Output
 
@@ -613,10 +613,10 @@ Get task(s) from Salesforce
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `taskId` | string | No | Task ID \(optional\) |
-| `limit` | string | No | Max results \(default: 100\) |
-| `fields` | string | No | Comma-separated fields |
-| `orderBy` | string | No | Order by field |
+| `taskId` | string | No | Salesforce Task ID \(18-character string starting with 00T\) to get a single task |
+| `limit` | string | No | Maximum number of results to return \(default: 100\) |
+| `fields` | string | No | Comma-separated list of field API names to return |
+| `orderBy` | string | No | Field and direction for sorting \(e.g., ActivityDate DESC\) |
 
 #### Output
 
@@ -648,10 +648,10 @@ Create a new task
 | `subject` | string | Yes | Task subject \(required\) |
 | `status` | string | No | Status \(e.g., Not Started, In Progress, Completed\) |
 | `priority` | string | No | Priority \(e.g., Low, Normal, High\) |
-| `activityDate` | string | No | Due date YYYY-MM-DD |
-| `whoId` | string | No | Related Contact/Lead ID |
-| `whatId` | string | No | Related Account/Opportunity ID |
-| `description` | string | No | Description |
+| `activityDate` | string | No | Due date in YYYY-MM-DD format |
+| `whoId` | string | No | Related Contact ID \(003...\) or Lead ID \(00Q...\) |
+| `whatId` | string | No | Related Account ID \(001...\) or Opportunity ID \(006...\) |
+| `description` | string | No | Task description |
 
 #### Output
 
@@ -673,12 +673,12 @@ Update an existing task
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `taskId` | string | Yes | Task ID \(required\) |
+| `taskId` | string | Yes | Salesforce Task ID to update \(18-character string starting with 00T\) |
 | `subject` | string | No | Task subject |
-| `status` | string | No | Status |
-| `priority` | string | No | Priority |
-| `activityDate` | string | No | Due date YYYY-MM-DD |
-| `description` | string | No | Description |
+| `status` | string | No | Status \(e.g., Not Started, In Progress, Completed\) |
+| `priority` | string | No | Priority \(e.g., Low, Normal, High\) |
+| `activityDate` | string | No | Due date in YYYY-MM-DD format |
+| `description` | string | No | Task description |
 
 #### Output
 
@@ -699,7 +699,7 @@ Delete a task
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `taskId` | string | Yes | Task ID \(required\) |
+| `taskId` | string | Yes | Salesforce Task ID to delete \(18-character string starting with 00T\) |
 
 #### Output
 
@@ -720,8 +720,8 @@ Get a list of reports accessible by the current user
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `folderName` | string | No | Filter by folder name |
-| `searchTerm` | string | No | Search term to filter reports by name |
+| `folderName` | string | No | Filter reports by folder name \(case-insensitive partial match\) |
+| `searchTerm` | string | No | Search term to filter reports by name or description |
 
 #### Output
 
@@ -743,7 +743,7 @@ Get metadata and describe information for a specific report
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `reportId` | string | Yes | Report ID \(required\) |
+| `reportId` | string | Yes | Salesforce Report ID \(18-character string starting with 00O\) |
 
 #### Output
 
@@ -765,9 +765,9 @@ Execute a report and retrieve the results
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `reportId` | string | Yes | Report ID \(required\) |
+| `reportId` | string | Yes | Salesforce Report ID \(18-character string starting with 00O\) |
 | `includeDetails` | string | No | Include detail rows \(true/false, default: true\) |
-| `filters` | string | No | JSON string of report filters to apply |
+| `filters` | string | No | JSON array of report filter objects to apply |
 
 #### Output
 
@@ -818,7 +818,7 @@ Get a list of dashboards accessible by the current user
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `folderName` | string | No | Filter by folder name |
+| `folderName` | string | No | Filter dashboards by folder name \(case-insensitive partial match\) |
 
 #### Output
 
@@ -840,7 +840,7 @@ Get details and results for a specific dashboard
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `dashboardId` | string | Yes | Dashboard ID \(required\) |
+| `dashboardId` | string | Yes | Salesforce Dashboard ID \(18-character string starting with 01Z\) |
 
 #### Output
 
@@ -866,7 +866,7 @@ Refresh a dashboard to get the latest data
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `dashboardId` | string | Yes | Dashboard ID \(required\) |
+| `dashboardId` | string | Yes | Salesforce Dashboard ID \(18-character string starting with 01Z\) |
 
 #### Output
 
@@ -917,7 +917,7 @@ Retrieve additional query results using the nextRecordsUrl from a previous query
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `nextRecordsUrl` | string | Yes | The nextRecordsUrl from a previous query response |
+| `nextRecordsUrl` | string | Yes | The nextRecordsUrl value from a previous query response \(e.g., /services/data/v59.0/query/01g...\) |
 
 #### Output
 
@@ -941,7 +941,7 @@ Get metadata and field information for a Salesforce object
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `objectName` | string | Yes | API name of the object \(e.g., Account, Contact, Lead, Custom_Object__c\) |
+| `objectName` | string | Yes | Salesforce object API name \(e.g., Account, Contact, Lead, Custom_Object__c\) |
 
 #### Output
 

@@ -59,7 +59,7 @@ Transcribe audio to text using OpenAI Whisper
 | `provider` | string | Yes | STT provider \(whisper\) |
 | `apiKey` | string | Yes | OpenAI API key |
 | `model` | string | No | Whisper model to use \(default: whisper-1\) |
-| `audioFile` | file | No | Audio or video file to transcribe |
+| `audioFile` | file | No | Audio or video file to transcribe \(e.g., MP3, WAV, M4A, WEBM\) |
 | `audioFileReference` | file | No | Reference to audio/video file from previous blocks |
 | `audioUrl` | string | No | URL to audio or video file |
 | `language` | string | No | Language code \(e.g., "en", "es", "fr"\) or "auto" for auto-detection |
@@ -67,6 +67,7 @@ Transcribe audio to text using OpenAI Whisper
 | `translateToEnglish` | boolean | No | Translate audio to English |
 | `prompt` | string | No | Optional text to guide the model's style or continue a previous audio segment. Helps with proper nouns and context. |
 | `temperature` | number | No | Sampling temperature between 0 and 1. Higher values make output more random, lower values more focused and deterministic. |
+| `responseFormat` | string | No | Output format for the transcription \(e.g., "json", "text", "srt", "verbose_json", "vtt"\) |
 
 #### Output
 
@@ -93,7 +94,7 @@ Transcribe audio to text using Deepgram
 | `provider` | string | Yes | STT provider \(deepgram\) |
 | `apiKey` | string | Yes | Deepgram API key |
 | `model` | string | No | Deepgram model to use \(nova-3, nova-2, whisper-large, etc.\) |
-| `audioFile` | file | No | Audio or video file to transcribe |
+| `audioFile` | file | No | Audio or video file to transcribe \(e.g., MP3, WAV, M4A, WEBM\) |
 | `audioFileReference` | file | No | Reference to audio/video file from previous blocks |
 | `audioUrl` | string | No | URL to audio or video file |
 | `language` | string | No | Language code \(e.g., "en", "es", "fr"\) or "auto" for auto-detection |
@@ -126,7 +127,7 @@ Transcribe audio to text using ElevenLabs
 | `provider` | string | Yes | STT provider \(elevenlabs\) |
 | `apiKey` | string | Yes | ElevenLabs API key |
 | `model` | string | No | ElevenLabs model to use \(scribe_v1, scribe_v1_experimental\) |
-| `audioFile` | file | No | Audio or video file to transcribe |
+| `audioFile` | file | No | Audio or video file to transcribe \(e.g., MP3, WAV, M4A, WEBM\) |
 | `audioFileReference` | file | No | Reference to audio/video file from previous blocks |
 | `audioUrl` | string | No | URL to audio or video file |
 | `language` | string | No | Language code \(e.g., "en", "es", "fr"\) or "auto" for auto-detection |
@@ -153,7 +154,7 @@ Transcribe audio to text using AssemblyAI with advanced NLP features
 | `provider` | string | Yes | STT provider \(assemblyai\) |
 | `apiKey` | string | Yes | AssemblyAI API key |
 | `model` | string | No | AssemblyAI model to use \(default: best\) |
-| `audioFile` | file | No | Audio or video file to transcribe |
+| `audioFile` | file | No | Audio or video file to transcribe \(e.g., MP3, WAV, M4A, WEBM\) |
 | `audioFileReference` | file | No | Reference to audio/video file from previous blocks |
 | `audioUrl` | string | No | URL to audio or video file |
 | `language` | string | No | Language code \(e.g., "en", "es", "fr"\) or "auto" for auto-detection |
@@ -202,7 +203,7 @@ Transcribe audio to text using Google Gemini with multimodal capabilities
 | `provider` | string | Yes | STT provider \(gemini\) |
 | `apiKey` | string | Yes | Google API key |
 | `model` | string | No | Gemini model to use \(default: gemini-2.5-flash\) |
-| `audioFile` | file | No | Audio or video file to transcribe |
+| `audioFile` | file | No | Audio or video file to transcribe \(e.g., MP3, WAV, M4A, WEBM\) |
 | `audioFileReference` | file | No | Reference to audio/video file from previous blocks |
 | `audioUrl` | string | No | URL to audio or video file |
 | `language` | string | No | Language code \(e.g., "en", "es", "fr"\) or "auto" for auto-detection |

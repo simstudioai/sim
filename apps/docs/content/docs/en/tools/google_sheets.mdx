@@ -144,7 +144,7 @@ Clear values from a specific range in a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
 | `sheetName` | string | Yes | The name of the sheet/tab to clear |
 | `cellRange` | string | No | The cell range to clear \(e.g. "A1:D10"\). Clears entire sheet if not specified. |
 
@@ -166,7 +166,7 @@ Get metadata about a Google Sheets spreadsheet including title and sheet list
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
 | `includeGridData` | boolean | No | Whether to include grid data \(cell values\). Defaults to false. |
 
 #### Output
@@ -219,7 +219,7 @@ Read multiple ranges from a Google Sheets spreadsheet in a single request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
 | `ranges` | json | Yes | Array of ranges to read \(e.g., \["Sheet1!A1:D10", "Sheet2!A1:B5"\]\). Each range should include sheet name. |
 | `majorDimension` | string | No | The major dimension of values: "ROWS" \(default\) or "COLUMNS" |
 | `valueRenderOption` | string | No | How values should be rendered: "FORMATTED_VALUE" \(default\), "UNFORMATTED_VALUE", or "FORMULA" |
@@ -245,7 +245,7 @@ Update multiple ranges in a Google Sheets spreadsheet in a single request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
 | `data` | json | Yes | Array of value ranges to update. Each item should have "range" \(e.g., "Sheet1!A1:D10"\) and "values" \(2D array\). |
 | `valueInputOption` | string | No | How input data should be interpreted: "RAW" or "USER_ENTERED" \(default\). USER_ENTERED parses formulas. |
 
@@ -276,7 +276,7 @@ Clear multiple ranges in a Google Sheets spreadsheet in a single request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `spreadsheetId` | string | Yes | The ID of the spreadsheet |
+| `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
 | `ranges` | json | Yes | Array of ranges to clear \(e.g., \["Sheet1!A1:D10", "Sheet2!A1:B5"\]\). Each range should include sheet name. |
 
 #### Output
@@ -297,7 +297,7 @@ Copy a sheet from one spreadsheet to another
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `sourceSpreadsheetId` | string | Yes | The ID of the source spreadsheet |
+| `sourceSpreadsheetId` | string | Yes | Source Google Sheets spreadsheet ID |
 | `sheetId` | number | Yes | The ID of the sheet to copy \(numeric ID, not the sheet name\). Use Get Spreadsheet to find sheet IDs. |
 | `destinationSpreadsheetId` | string | Yes | The ID of the destination spreadsheet where the sheet will be copied |
 

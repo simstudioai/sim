@@ -42,7 +42,7 @@ Returns companies matching a set of criteria using Hunter.io AI-powered search.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | No | Natural language search query for companies |
-| `domain` | string | No | Company domain names to filter by |
+| `domain` | string | No | Company domain name to filter by \(e.g., "stripe.com", "company.io"\) |
 | `headcount` | string | No | Company size filter \(e.g., "1-10", "11-50"\) |
 | `company_type` | string | No | Type of organization |
 | `technology` | string | No | Technology used by companies |
@@ -67,12 +67,12 @@ Returns all the email addresses found using one given domain name, with sources.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `domain` | string | Yes | Domain name to search for email addresses |
-| `limit` | number | No | Maximum email addresses to return \(default: 10\) |
-| `offset` | number | No | Number of email addresses to skip |
-| `type` | string | No | Filter for personal or generic emails |
-| `seniority` | string | No | Filter by seniority level: junior, senior, or executive |
-| `department` | string | No | Filter by specific departments \(e.g., sales, marketing\) |
+| `domain` | string | Yes | Domain name to search for email addresses \(e.g., "stripe.com", "company.io"\) |
+| `limit` | number | No | Maximum email addresses to return \(e.g., 10, 25, 50\). Default: 10 |
+| `offset` | number | No | Number of email addresses to skip for pagination \(e.g., 0, 10, 20\) |
+| `type` | string | No | Filter for personal or generic emails \(e.g., "personal", "generic", "all"\) |
+| `seniority` | string | No | Filter by seniority level \(e.g., "junior", "senior", "executive"\) |
+| `department` | string | No | Filter by specific department \(e.g., "sales", "marketing", "engineering", "hr"\) |
 | `apiKey` | string | Yes | Hunter.io API Key |
 
 #### Output
@@ -128,10 +128,10 @@ Finds the most likely email address for a person given their name and company do
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `domain` | string | Yes | Company domain name |
-| `first_name` | string | Yes | Person's first name |
-| `last_name` | string | Yes | Person's last name |
-| `company` | string | No | Company name |
+| `domain` | string | Yes | Company domain name \(e.g., "stripe.com", "company.io"\) |
+| `first_name` | string | Yes | Person\'s first name \(e.g., "John", "Sarah"\) |
+| `last_name` | string | Yes | Person\'s last name \(e.g., "Smith", "Johnson"\) |
+| `company` | string | No | Company name \(e.g., "Stripe", "Acme Inc"\) |
 | `apiKey` | string | Yes | Hunter.io API Key |
 
 #### Output
@@ -193,7 +193,7 @@ Enriches company data using domain name.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `domain` | string | Yes | Domain to find company data for |
+| `domain` | string | Yes | Domain to find company data for \(e.g., "stripe.com", "company.io"\) |
 | `apiKey` | string | Yes | Hunter.io API Key |
 
 #### Output
@@ -218,9 +218,9 @@ Returns the total number of email addresses found for a domain or company.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `domain` | string | No | Domain to count emails for \(required if company not provided\) |
-| `company` | string | No | Company name to count emails for \(required if domain not provided\) |
-| `type` | string | No | Filter for personal or generic emails only |
+| `domain` | string | No | Domain to count emails for \(e.g., "stripe.com"\). Required if company not provided |
+| `company` | string | No | Company name to count emails for \(e.g., "Stripe", "Acme Inc"\). Required if domain not provided |
+| `type` | string | No | Filter for personal or generic emails only \(e.g., "personal", "generic", "all"\) |
 | `apiKey` | string | Yes | Hunter.io API Key |
 
 #### Output

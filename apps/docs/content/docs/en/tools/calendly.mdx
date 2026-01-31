@@ -67,11 +67,11 @@ Retrieve a list of all event types for a user or organization
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Calendly Personal Access Token |
-| `user` | string | No | Return only event types that belong to this user \(URI format\) |
-| `organization` | string | No | Return only event types that belong to this organization \(URI format\) |
-| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
-| `pageToken` | string | No | Page token for pagination |
-| `sort` | string | No | Sort order for results \(e.g., "name:asc", "name:desc"\) |
+| `user` | string | No | Return only event types that belong to this user. Format: URI \(e.g., "https://api.calendly.com/users/abc123-def456"\) |
+| `organization` | string | No | Return only event types that belong to this organization. Format: URI \(e.g., "https://api.calendly.com/organizations/abc123-def456"\) |
+| `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
+| `pageToken` | string | No | Page token for pagination. Format: opaque string from previous response next_page_token |
+| `sort` | string | No | Sort order for results. Format: "field:direction" \(e.g., "name:asc", "name:desc"\) |
 | `active` | boolean | No | When true, show only active event types. When false or unchecked, show all event types \(both active and inactive\). |
 
 #### Output
@@ -108,7 +108,7 @@ Get detailed information about a specific event type
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Calendly Personal Access Token |
-| `eventTypeUuid` | string | Yes | Event type UUID \(can be full URI or just the UUID\) |
+| `eventTypeUuid` | string | Yes | Event type UUID. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/event_types/abc123-def456"\) |
 
 #### Output
 
@@ -145,15 +145,15 @@ Retrieve a list of scheduled events for a user or organization
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Calendly Personal Access Token |
-| `user` | string | No | Return events that belong to this user \(URI format\). Either "user" or "organization" must be provided. |
-| `organization` | string | No | Return events that belong to this organization \(URI format\). Either "user" or "organization" must be provided. |
+| `user` | string | No | Return events that belong to this user. Either "user" or "organization" must be provided. Format: URI \(e.g., "https://api.calendly.com/users/abc123-def456"\) |
+| `organization` | string | No | Return events that belong to this organization. Either "user" or "organization" must be provided. Format: URI \(e.g., "https://api.calendly.com/organizations/abc123-def456"\) |
 | `invitee_email` | string | No | Return events where invitee has this email |
-| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
-| `max_start_time` | string | No | Return events with start time before this time \(ISO 8601 format\) |
-| `min_start_time` | string | No | Return events with start time after this time \(ISO 8601 format\) |
-| `pageToken` | string | No | Page token for pagination |
-| `sort` | string | No | Sort order for results \(e.g., "start_time:asc", "start_time:desc"\) |
-| `status` | string | No | Filter by status \("active" or "canceled"\) |
+| `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
+| `max_start_time` | string | No | Return events with start time before this time. Format: ISO 8601 \(e.g., "2024-01-15T09:00:00Z"\) |
+| `min_start_time` | string | No | Return events with start time after this time. Format: ISO 8601 \(e.g., "2024-01-01T00:00:00Z"\) |
+| `pageToken` | string | No | Page token for pagination. Format: opaque string from previous response next_page_token |
+| `sort` | string | No | Sort order for results. Format: "field:direction" \(e.g., "start_time:asc", "start_time:desc"\) |
+| `status` | string | No | Filter by status. Format: "active" or "canceled" |
 
 #### Output
 
@@ -192,7 +192,7 @@ Get detailed information about a specific scheduled event
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Calendly Personal Access Token |
-| `eventUuid` | string | Yes | Scheduled event UUID \(can be full URI or just the UUID\) |
+| `eventUuid` | string | Yes | Scheduled event UUID. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/scheduled_events/abc123-def456"\) |
 
 #### Output
 
@@ -233,12 +233,12 @@ Retrieve a list of invitees for a scheduled event
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Calendly Personal Access Token |
-| `eventUuid` | string | Yes | Scheduled event UUID \(can be full URI or just the UUID\) |
-| `count` | number | No | Number of results per page \(default: 20, max: 100\) |
+| `eventUuid` | string | Yes | Scheduled event UUID. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/scheduled_events/abc123-def456"\) |
+| `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
 | `email` | string | No | Filter invitees by email address |
-| `pageToken` | string | No | Page token for pagination |
-| `sort` | string | No | Sort order for results \(e.g., "created_at:asc", "created_at:desc"\) |
-| `status` | string | No | Filter by status \("active" or "canceled"\) |
+| `pageToken` | string | No | Page token for pagination. Format: opaque string from previous response next_page_token |
+| `sort` | string | No | Sort order for results. Format: "field:direction" \(e.g., "created_at:asc", "created_at:desc"\) |
+| `status` | string | No | Filter by status. Format: "active" or "canceled" |
 
 #### Output
 
@@ -278,7 +278,7 @@ Cancel a scheduled event
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Calendly Personal Access Token |
-| `eventUuid` | string | Yes | Scheduled event UUID to cancel \(can be full URI or just the UUID\) |
+| `eventUuid` | string | Yes | Scheduled event UUID to cancel. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/scheduled_events/abc123-def456"\) |
 | `reason` | string | No | Reason for cancellation \(will be sent to invitees\) |
 
 #### Output

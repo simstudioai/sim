@@ -86,8 +86,8 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `destinationType` | string | No | Destination type: channel or dm |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `channel` | string | No | Target Slack channel \(e.g., #general\) |
-| `dmUserId` | string | No | Target Slack user for direct messages |
+| `channel` | string | No | Slack channel ID \(e.g., C1234567890\) |
+| `dmUserId` | string | No | Slack user ID for direct messages \(e.g., U1234567890\) |
 | `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
 | `thread_ts` | string | No | Thread timestamp to reply to \(creates thread reply\) |
 | `files` | file[] | No | Files to attach to the message |
@@ -165,7 +165,7 @@ Create and share Slack canvases in channels. Canvases are collaborative document
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `channel` | string | Yes | Target Slack channel \(e.g., #general\) |
+| `channel` | string | Yes | Slack channel ID \(e.g., C1234567890\) |
 | `title` | string | Yes | Title of the canvas |
 | `content` | string | Yes | Canvas content in markdown format |
 | `document_content` | object | No | Structured canvas document content |
@@ -189,8 +189,8 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `destinationType` | string | No | Destination type: channel or dm |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `channel` | string | No | Slack channel to read messages from \(e.g., #general\) |
-| `dmUserId` | string | No | Target Slack user for DM conversation |
+| `channel` | string | No | Slack channel ID to read messages from \(e.g., C1234567890\) |
+| `dmUserId` | string | No | Slack user ID for DM conversation \(e.g., U1234567890\) |
 | `limit` | number | No | Number of messages to retrieve \(default: 10, max: 15\) |
 | `oldest` | string | No | Start of time range \(timestamp\) |
 | `latest` | string | No | End of time range \(timestamp\) |

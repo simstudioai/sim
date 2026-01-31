@@ -47,8 +47,8 @@ Retrieve a list of prediction markets from Polymarket with optional filtering
 | `order` | string | No | Sort field \(e.g., volumeNum, liquidityNum, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
 | `tagId` | string | No | Filter by tag ID |
-| `limit` | string | No | Number of results per page \(max 50\) |
-| `offset` | string | No | Pagination offset \(skip this many results\) |
+| `limit` | string | No | Number of results per page \(e.g., "25"\). Max: 50. |
+| `offset` | string | No | Number of results to skip for pagination \(e.g., "50"\). |
 
 #### Output
 
@@ -79,8 +79,8 @@ Retrieve details of a specific prediction market by ID or slug
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `marketId` | string | No | The market ID. Required if slug is not provided. |
-| `slug` | string | No | The market slug \(e.g., "will-trump-win"\). Required if marketId is not provided. |
+| `marketId` | string | No | The market ID \(e.g., "0x1234...abcd" condition ID format\). Required if slug is not provided. |
+| `slug` | string | No | The market slug \(e.g., "will-trump-win"\). URL-friendly identifier. Required if marketId is not provided. |
 
 #### Output
 
@@ -122,8 +122,8 @@ Retrieve a list of events from Polymarket with optional filtering
 | `order` | string | No | Sort field \(e.g., volume, liquidity, startDate, endDate, createdAt\) |
 | `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
 | `tagId` | string | No | Filter by tag ID |
-| `limit` | string | No | Number of results per page \(max 50\) |
-| `offset` | string | No | Pagination offset \(skip this many results\) |
+| `limit` | string | No | Number of results per page \(e.g., "25"\). Max: 50. |
+| `offset` | string | No | Number of results to skip for pagination \(e.g., "50"\). |
 
 #### Output
 
@@ -154,8 +154,8 @@ Retrieve details of a specific event by ID or slug
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `eventId` | string | No | The event ID. Required if slug is not provided. |
-| `slug` | string | No | The event slug \(e.g., "2024-presidential-election"\). Required if eventId is not provided. |
+| `eventId` | string | No | The event ID \(e.g., "12345" or UUID format\). Required if slug is not provided. |
+| `slug` | string | No | The event slug \(e.g., "2024-presidential-election"\). URL-friendly identifier. Required if eventId is not provided. |
 
 #### Output
 
@@ -189,8 +189,8 @@ Retrieve available tags for filtering markets from Polymarket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Number of results per page \(max 50\) |
-| `offset` | string | No | Pagination offset \(skip this many results\) |
+| `limit` | string | No | Number of results per page \(e.g., "25"\). Max: 50. |
+| `offset` | string | No | Number of results to skip for pagination \(e.g., "50"\). |
 
 #### Output
 
@@ -211,9 +211,9 @@ Search for markets, events, and profiles on Polymarket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Search query term |
-| `limit` | string | No | Number of results per page \(max 50\) |
-| `page` | string | No | Page number for pagination \(1-indexed\) |
+| `query` | string | Yes | Search query term \(e.g., "presidential election", "bitcoin price"\). |
+| `limit` | string | No | Number of results per page \(e.g., "25"\). Max: 50. |
+| `page` | string | No | Page number for pagination \(e.g., "2"\). 1-indexed. |
 | `cache` | string | No | Enable caching \(true/false\) |
 | `eventsStatus` | string | No | Filter events by status |
 | `limitPerType` | string | No | Limit results per type \(markets, events, profiles\) |
@@ -244,8 +244,8 @@ Retrieve series (related market groups) from Polymarket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Number of results per page \(max 50\) |
-| `offset` | string | No | Pagination offset \(skip this many results\) |
+| `limit` | string | No | Number of results per page \(e.g., "25"\). Max: 50. |
+| `offset` | string | No | Number of results to skip for pagination \(e.g., "50"\). |
 
 #### Output
 
@@ -276,7 +276,7 @@ Retrieve a specific series (related market group) by ID from Polymarket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `seriesId` | string | Yes | The series ID |
+| `seriesId` | string | Yes | The series ID \(e.g., "12345" or UUID format\). |
 
 #### Output
 
@@ -309,7 +309,7 @@ Retrieve the order book summary for a specific token
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+| `tokenId` | string | Yes | The CLOB token ID from market clobTokenIds array \(e.g., "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
 
 #### Output
 
@@ -338,8 +338,8 @@ Retrieve the market price for a specific token and side
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
-| `side` | string | Yes | Order side: buy or sell |
+| `tokenId` | string | Yes | The CLOB token ID from market clobTokenIds array \(e.g., "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
+| `side` | string | Yes | Order side: "buy" or "sell". |
 
 #### Output
 
@@ -355,7 +355,7 @@ Retrieve the midpoint price for a specific token
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+| `tokenId` | string | Yes | The CLOB token ID from market clobTokenIds array \(e.g., "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
 
 #### Output
 
@@ -371,7 +371,7 @@ Retrieve historical price data for a specific market token
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+| `tokenId` | string | Yes | The CLOB token ID from market clobTokenIds array \(e.g., "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
 | `interval` | string | No | Duration ending at current time \(1m, 1h, 6h, 1d, 1w, max\). Mutually exclusive with startTs/endTs. |
 | `fidelity` | number | No | Data resolution in minutes \(e.g., 60 for hourly\) |
 | `startTs` | number | No | Start timestamp \(Unix seconds UTC\) |
@@ -393,7 +393,7 @@ Retrieve the last trade price for a specific token
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+| `tokenId` | string | Yes | The CLOB token ID from market clobTokenIds array \(e.g., "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
 
 #### Output
 
@@ -410,7 +410,7 @@ Retrieve the bid-ask spread for a specific token
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+| `tokenId` | string | Yes | The CLOB token ID from market clobTokenIds array \(e.g., "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
 
 #### Output
 
@@ -427,7 +427,7 @@ Retrieve the minimum tick size for a specific token
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tokenId` | string | Yes | The CLOB token ID \(from market clobTokenIds\) |
+| `tokenId` | string | Yes | The CLOB token ID from market clobTokenIds array \(e.g., "71321045679252212594626385532706912750332728571942532289631379312455583992563"\). |
 
 #### Output
 
@@ -444,16 +444,16 @@ Retrieve user positions from Polymarket
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `user` | string | Yes | User wallet address |
-| `market` | string | No | Condition IDs to filter positions \(comma-separated, mutually exclusive with eventId\) |
-| `eventId` | string | No | Event ID to filter positions \(mutually exclusive with market\) |
+| `market` | string | No | Condition IDs to filter positions \(e.g., "0x1234...abcd,0x5678...efgh"\). Mutually exclusive with eventId. |
+| `eventId` | string | No | Event ID to filter positions \(e.g., "12345"\). Mutually exclusive with market. |
 | `sizeThreshold` | string | No | Minimum position size threshold \(default: 1\) |
 | `redeemable` | string | No | Filter for redeemable positions only \(true/false\) |
 | `mergeable` | string | No | Filter for mergeable positions only \(true/false\) |
 | `sortBy` | string | No | Sort field \(TOKENS, CURRENT, INITIAL, CASHPNL, PERCENTPNL, TITLE, RESOLVING, PRICE, AVGPRICE\) |
 | `sortDirection` | string | No | Sort direction \(ASC or DESC\) |
 | `title` | string | No | Search filter by title |
-| `limit` | string | No | Number of results per page |
-| `offset` | string | No | Pagination offset |
+| `limit` | string | No | Number of results per page \(e.g., "25"\). |
+| `offset` | string | No | Number of results to skip for pagination \(e.g., "50"\). |
 
 #### Output
 
@@ -495,14 +495,14 @@ Retrieve trade history from Polymarket
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `user` | string | No | User wallet address to filter trades |
-| `market` | string | No | Market/condition ID to filter trades \(mutually exclusive with eventId\) |
-| `eventId` | string | No | Event ID to filter trades \(mutually exclusive with market\) |
+| `market` | string | No | Market/condition ID to filter trades \(e.g., "0x1234...abcd"\). Mutually exclusive with eventId. |
+| `eventId` | string | No | Event ID to filter trades \(e.g., "12345"\). Mutually exclusive with market. |
 | `side` | string | No | Trade direction filter \(BUY or SELL\) |
 | `takerOnly` | string | No | Filter for taker trades only \(true/false, default: true\) |
 | `filterType` | string | No | Filter type \(CASH or TOKENS\) - requires filterAmount |
 | `filterAmount` | string | No | Filter amount threshold - requires filterType |
-| `limit` | string | No | Number of results per page \(default: 100, max: 10000\) |
-| `offset` | string | No | Pagination offset \(skip this many results\) |
+| `limit` | string | No | Number of results per page \(e.g., "50"\). Default: 100, max: 10000. |
+| `offset` | string | No | Number of results to skip for pagination \(e.g., "100"\). |
 
 #### Output
 
@@ -538,10 +538,10 @@ Retrieve on-chain activity for a user including trades, splits, merges, redempti
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `user` | string | Yes | User wallet address \(0x-prefixed\) |
-| `limit` | string | No | Maximum results \(default: 100, max: 500\) |
-| `offset` | string | No | Pagination offset \(default: 0, max: 10000\) |
-| `market` | string | No | Comma-separated condition IDs \(mutually exclusive with eventId\) |
-| `eventId` | string | No | Comma-separated event IDs \(mutually exclusive with market\) |
+| `limit` | string | No | Maximum results to return \(e.g., "50"\). Default: 100, max: 500. |
+| `offset` | string | No | Number of results to skip for pagination \(e.g., "100"\). Default: 0, max: 10000. |
+| `market` | string | No | Comma-separated condition IDs \(e.g., "0x1234...abcd,0x5678...efgh"\). Mutually exclusive with eventId. |
+| `eventId` | string | No | Comma-separated event IDs \(e.g., "12345,67890"\). Mutually exclusive with market. |
 | `type` | string | No | Activity type filter: TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION, MAKER_REBATE |
 | `start` | number | No | Start timestamp \(Unix seconds\) |
 | `end` | number | No | End timestamp \(Unix seconds\) |
@@ -587,8 +587,8 @@ Retrieve trader leaderboard rankings by profit/loss or volume
 | `category` | string | No | Category filter: OVERALL, POLITICS, SPORTS, CRYPTO, CULTURE, MENTIONS, WEATHER, ECONOMICS, TECH, FINANCE \(default: OVERALL\) |
 | `timePeriod` | string | No | Time period: DAY, WEEK, MONTH, ALL \(default: DAY\) |
 | `orderBy` | string | No | Order by: PNL or VOL \(default: PNL\) |
-| `limit` | string | No | Number of results \(1-50, default: 25\) |
-| `offset` | string | No | Pagination offset \(0-1000, default: 0\) |
+| `limit` | string | No | Number of results to return \(e.g., "10"\). Range: 1-50, default: 25. |
+| `offset` | string | No | Number of results to skip for pagination \(e.g., "25"\). Range: 0-1000, default: 0. |
 | `user` | string | No | Filter by specific user wallet address |
 | `userName` | string | No | Filter by username |
 
@@ -614,8 +614,8 @@ Retrieve top holders of a specific market token
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `market` | string | Yes | Comma-separated list of condition IDs |
-| `limit` | string | No | Number of holders to return \(0-20, default: 20\) |
+| `market` | string | Yes | Comma-separated list of condition IDs \(e.g., "0x1234...abcd" or "0x1234...abcd,0x5678...efgh"\). |
+| `limit` | string | No | Number of holders to return \(e.g., "10"\). Range: 0-20, default: 20. |
 | `minBalance` | string | No | Minimum balance threshold \(default: 1\) |
 
 #### Output

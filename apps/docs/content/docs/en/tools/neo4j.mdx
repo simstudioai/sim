@@ -44,11 +44,11 @@ Execute MATCH queries to read nodes and relationships from Neo4j graph database.
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Neo4j server hostname or IP address |
 | `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "neo4j", "movies", "social"\) |
 | `username` | string | Yes | Neo4j username |
 | `password` | string | Yes | Neo4j password |
 | `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
-| `cypherQuery` | string | Yes | Cypher query to execute \(typically MATCH statements\) |
+| `cypherQuery` | string | Yes | Cypher query to execute \(e.g., "MATCH \(n:Person\) RETURN n LIMIT 10", "MATCH \(a\)-\[r\]-&gt;\(b\) WHERE a.name = $name RETURN a, r, b"\) |
 | `parameters` | object | No | Parameters for the Cypher query as a JSON object. Use for any dynamic values including LIMIT \(e.g., query: "MATCH \(n\) RETURN n LIMIT $limit", parameters: \{limit: 100\}\). |
 | `parameters` | string | No | No description |
 
@@ -71,12 +71,12 @@ Execute CREATE statements to add new nodes and relationships to Neo4j graph data
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Neo4j server hostname or IP address |
 | `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "neo4j", "movies", "social"\) |
 | `username` | string | Yes | Neo4j username |
 | `password` | string | Yes | Neo4j password |
 | `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
-| `cypherQuery` | string | Yes | Cypher CREATE statement to execute |
-| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+| `cypherQuery` | string | Yes | Cypher CREATE statement to execute \(e.g., "CREATE \(n:Person \{name: $name, age: $age\}\)", "CREATE \(a\)-\[:KNOWS\]-&gt;\(b\)"\) |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object \(e.g., \{"name": "Alice", "age": 30\}\) |
 
 #### Output
 
@@ -95,12 +95,12 @@ Execute MERGE statements to find or create nodes and relationships in Neo4j (ups
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Neo4j server hostname or IP address |
 | `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "neo4j", "movies", "social"\) |
 | `username` | string | Yes | Neo4j username |
 | `password` | string | Yes | Neo4j password |
 | `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
-| `cypherQuery` | string | Yes | Cypher MERGE statement to execute |
-| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+| `cypherQuery` | string | Yes | Cypher MERGE statement to execute \(e.g., "MERGE \(n:Person \{name: $name\}\) ON CREATE SET n.created = timestamp\(\)", "MERGE \(a\)-\[r:KNOWS\]-&gt;\(b\)"\) |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object \(e.g., \{"name": "Alice", "email": "alice@example.com"\}\) |
 
 #### Output
 
@@ -119,12 +119,12 @@ Execute SET statements to update properties of existing nodes and relationships 
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Neo4j server hostname or IP address |
 | `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "neo4j", "movies", "social"\) |
 | `username` | string | Yes | Neo4j username |
 | `password` | string | Yes | Neo4j password |
 | `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
-| `cypherQuery` | string | Yes | Cypher query with MATCH and SET statements to update properties |
-| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+| `cypherQuery` | string | Yes | Cypher query with MATCH and SET statements to update properties \(e.g., "MATCH \(n:Person \{name: $name\}\) SET n.age = $age", "MATCH \(n\) WHERE n.id = $id SET n += $props"\) |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object \(e.g., \{"name": "Alice", "age": 31, "props": \{"city": "NYC"\}\}\) |
 
 #### Output
 
@@ -143,12 +143,12 @@ Execute DELETE or DETACH DELETE statements to remove nodes and relationships fro
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Neo4j server hostname or IP address |
 | `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "neo4j", "movies", "social"\) |
 | `username` | string | Yes | Neo4j username |
 | `password` | string | Yes | Neo4j password |
 | `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
-| `cypherQuery` | string | Yes | Cypher query with MATCH and DELETE/DETACH DELETE statements |
-| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+| `cypherQuery` | string | Yes | Cypher query with MATCH and DELETE/DETACH DELETE statements \(e.g., "MATCH \(n:Person \{name: $name\}\) DELETE n", "MATCH \(n\) DETACH DELETE n"\) |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object \(e.g., \{"name": "Alice", "id": 123\}\) |
 | `detach` | boolean | No | Whether to use DETACH DELETE to remove relationships before deleting nodes |
 
 #### Output
@@ -168,12 +168,12 @@ Execute arbitrary Cypher queries on Neo4j graph database for complex operations
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Neo4j server hostname or IP address |
 | `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "neo4j", "movies", "social"\) |
 | `username` | string | Yes | Neo4j username |
 | `password` | string | Yes | Neo4j password |
 | `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
-| `cypherQuery` | string | Yes | Cypher query to execute \(any valid Cypher statement\) |
-| `parameters` | object | No | Parameters for the Cypher query as a JSON object |
+| `cypherQuery` | string | Yes | Cypher query to execute \(e.g., "CALL db.labels\(\)", "MATCH \(n\) RETURN count\(n\)", "CREATE INDEX FOR \(n:Person\) ON \(n.name\)"\) |
+| `parameters` | object | No | Parameters for the Cypher query as a JSON object \(e.g., \{"name": "Alice", "limit": 100\}\) |
 
 #### Output
 
@@ -194,7 +194,7 @@ Introspect a Neo4j database to discover its schema including node labels, relati
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Neo4j server hostname or IP address |
 | `port` | number | Yes | Neo4j server port \(default: 7687 for Bolt protocol\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "neo4j", "movies", "social"\) |
 | `username` | string | Yes | Neo4j username |
 | `password` | string | Yes | Neo4j password |
 | `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |

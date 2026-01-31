@@ -49,8 +49,8 @@ List incidents from incident.io. Returns a list of incidents with their details 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of incidents to return per page \(default: 25\) |
-| `after` | string | No | Pagination cursor to fetch the next page of results |
+| `page_size` | number | No | Number of incidents to return per page \(e.g., 10, 25, 50\). Default: 25 |
+| `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -99,9 +99,9 @@ Create a new incident in incident.io. Requires idempotency_key, severity_id, and
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `idempotency_key` | string | Yes | Unique identifier to prevent duplicate incident creation. Use a UUID or unique string. |
-| `name` | string | No | Name of the incident \(optional\) |
-| `summary` | string | No | Brief summary of the incident |
-| `severity_id` | string | Yes | ID of the severity level \(required\) |
+| `name` | string | No | Name of the incident \(e.g., "Database connection issues"\) |
+| `summary` | string | No | Brief summary of the incident \(e.g., "Intermittent connection failures to primary database"\) |
+| `severity_id` | string | Yes | ID of the severity level \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `incident_type_id` | string | No | ID of the incident type |
 | `incident_status_id` | string | No | ID of the initial incident status |
 | `visibility` | string | Yes | Visibility of the incident: "public" or "private" \(required\) |
@@ -144,7 +144,7 @@ Retrieve detailed information about a specific incident from incident.io by its 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | ID of the incident to retrieve |
+| `id` | string | Yes | ID of the incident to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -187,11 +187,11 @@ Update an existing incident in incident.io. Can update name, summary, severity, 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | ID of the incident to update |
-| `name` | string | No | Updated name of the incident |
-| `summary` | string | No | Updated summary of the incident |
-| `severity_id` | string | No | Updated severity ID for the incident |
-| `incident_status_id` | string | No | Updated status ID for the incident |
+| `id` | string | Yes | ID of the incident to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | No | Updated name of the incident \(e.g., "Database connection issues"\) |
+| `summary` | string | No | Updated summary of the incident \(e.g., "Intermittent connection failures to primary database"\) |
+| `severity_id` | string | No | Updated severity ID for the incident \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `incident_status_id` | string | No | Updated status ID for the incident \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `incident_type_id` | string | No | Updated incident type ID |
 | `notify_incident_channel` | boolean | Yes | Whether to notify the incident channel about this update |
 
@@ -233,8 +233,8 @@ List actions from incident.io. Optionally filter by incident ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `incident_id` | string | No | Filter actions by incident ID |
-| `page_size` | number | No | Number of actions to return per page |
+| `incident_id` | string | No | Filter actions by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `page_size` | number | No | Number of actions to return per page \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -271,7 +271,7 @@ Get detailed information about a specific action from incident.io.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | Action ID |
+| `id` | string | Yes | Action ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -308,8 +308,8 @@ List follow-ups from incident.io. Optionally filter by incident ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `incident_id` | string | No | Filter follow-ups by incident ID |
-| `page_size` | number | No | Number of follow-ups to return per page |
+| `incident_id` | string | No | Filter follow-ups by incident ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `page_size` | number | No | Number of follow-ups to return per page \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -352,7 +352,7 @@ Get detailed information about a specific follow-up from incident.io.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | Follow-up ID |
+| `id` | string | Yes | Follow-up ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -395,7 +395,7 @@ List all users in your Incident.io workspace. Returns user details including id,
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Incident.io API Key |
-| `page_size` | number | No | Number of results to return per page \(default: 25\) |
+| `page_size` | number | No | Number of results to return per page \(e.g., 10, 25, 50\). Default: 25 |
 
 #### Output
 
@@ -416,7 +416,7 @@ Get detailed information about a specific user in your Incident.io workspace by 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Incident.io API Key |
-| `id` | string | Yes | The unique identifier of the user to retrieve |
+| `id` | string | Yes | The unique identifier of the user to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -437,8 +437,8 @@ List all workflows in your incident.io workspace.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of workflows to return per page |
-| `after` | string | No | Pagination cursor to fetch the next page of results |
+| `page_size` | number | No | Number of workflows to return per page \(e.g., 10, 25, 50\) |
+| `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -464,7 +464,7 @@ Get details of a specific workflow in incident.io.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the workflow to retrieve |
+| `id` | string | Yes | The ID of the workflow to retrieve \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -487,8 +487,8 @@ Update an existing workflow in incident.io.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the workflow to update |
-| `name` | string | No | New name for the workflow |
+| `id` | string | Yes | The ID of the workflow to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | No | New name for the workflow \(e.g., "Notify on Critical Incidents"\) |
 | `state` | string | No | New state for the workflow \(active, draft, or disabled\) |
 | `folder` | string | No | New folder for the workflow |
 
@@ -513,7 +513,7 @@ Delete a workflow in incident.io.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the workflow to delete |
+| `id` | string | Yes | The ID of the workflow to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -530,8 +530,8 @@ List all schedules in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of results per page \(default: 25\) |
-| `after` | string | No | Pagination cursor to fetch the next page of results |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
+| `after` | string | No | Pagination cursor to fetch the next page of results \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -556,7 +556,7 @@ Create a new schedule in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `name` | string | Yes | Name of the schedule |
+| `name` | string | Yes | Name of the schedule \(e.g., "Primary On-Call"\) |
 | `timezone` | string | Yes | Timezone for the schedule \(e.g., America/New_York\) |
 | `config` | string | Yes | Schedule configuration as JSON string with rotations. Example: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
 | `Example` | string | No | No description |
@@ -581,7 +581,7 @@ Get details of a specific schedule in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the schedule |
+| `id` | string | Yes | The ID of the schedule \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -603,8 +603,8 @@ Update an existing schedule in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the schedule to update |
-| `name` | string | No | New name for the schedule |
+| `id` | string | Yes | The ID of the schedule to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | No | New name for the schedule \(e.g., "Primary On-Call"\) |
 | `timezone` | string | No | New timezone for the schedule \(e.g., America/New_York\) |
 | `config` | string | No | Schedule configuration as JSON string with rotations. Example: \{"rotations": \[\{"name": "Primary", "users": \[\{"id": "user_id"\}\], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": \[\{"interval": 1, "interval_type": "weekly"\}\]\}\]\} |
 | `Example` | string | No | No description |
@@ -629,7 +629,7 @@ Delete a schedule in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the schedule to delete |
+| `id` | string | Yes | The ID of the schedule to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -646,7 +646,7 @@ List all escalation policies in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `page_size` | number | No | Number of results per page \(default: 25\) |
+| `page_size` | number | No | Number of results per page \(e.g., 10, 25, 50\). Default: 25 |
 
 #### Output
 
@@ -668,7 +668,7 @@ Create a new escalation policy in incident.io
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
 | `idempotency_key` | string | Yes | Unique identifier to prevent duplicate escalation creation. Use a UUID or unique string. |
-| `title` | string | Yes | Title of the escalation |
+| `title` | string | Yes | Title of the escalation \(e.g., "Database Critical Alert"\) |
 | `escalation_path_id` | string | No | ID of the escalation path to use \(required if user_ids not provided\) |
 | `user_ids` | string | No | Comma-separated list of user IDs to notify \(required if escalation_path_id not provided\) |
 
@@ -691,7 +691,7 @@ Get details of a specific escalation policy in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the escalation policy |
+| `id` | string | Yes | The ID of the escalation policy \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -734,7 +734,7 @@ Create a new custom field in incident.io.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `name` | string | Yes | Name of the custom field |
+| `name` | string | Yes | Name of the custom field \(e.g., "Affected Service"\) |
 | `description` | string | Yes | Description of the custom field \(required\) |
 | `field_type` | string | Yes | Type of the custom field \(e.g., text, single_select, multi_select, numeric, datetime, link, user, team\) |
 
@@ -759,7 +759,7 @@ Get detailed information about a specific custom field from incident.io.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | Custom field ID |
+| `id` | string | Yes | Custom field ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -782,8 +782,8 @@ Update an existing custom field in incident.io.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | Custom field ID |
-| `name` | string | Yes | New name for the custom field \(required\) |
+| `id` | string | Yes | Custom field ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | Yes | New name for the custom field \(e.g., "Affected Service"\) |
 | `description` | string | Yes | New description for the custom field \(required\) |
 
 #### Output
@@ -807,7 +807,7 @@ Delete a custom field from incident.io.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | Custom field ID |
+| `id` | string | Yes | Custom field ID \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -909,7 +909,7 @@ Create a new incident role in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `name` | string | Yes | Name of the incident role |
+| `name` | string | Yes | Name of the incident role \(e.g., "Incident Commander"\) |
 | `description` | string | Yes | Description of the incident role |
 | `instructions` | string | Yes | Instructions for the incident role |
 | `shortform` | string | Yes | Short form abbreviation for the role |
@@ -938,7 +938,7 @@ Get details of a specific incident role in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the incident role |
+| `id` | string | Yes | The ID of the incident role \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -964,8 +964,8 @@ Update an existing incident role in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the incident role to update |
-| `name` | string | Yes | Name of the incident role |
+| `id` | string | Yes | The ID of the incident role to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | Yes | Name of the incident role \(e.g., "Incident Commander"\) |
 | `description` | string | Yes | Description of the incident role |
 | `instructions` | string | Yes | Instructions for the incident role |
 | `shortform` | string | Yes | Short form abbreviation for the role |
@@ -994,7 +994,7 @@ Delete an incident role in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the incident role to delete |
+| `id` | string | Yes | The ID of the incident role to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -1032,7 +1032,7 @@ Get details of a specific incident timestamp definition in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the incident timestamp |
+| `id` | string | Yes | The ID of the incident timestamp \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -1054,9 +1054,9 @@ List all updates for a specific incident in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `incident_id` | string | No | The ID of the incident to get updates for \(optional - if not provided, returns all updates\) |
-| `page_size` | number | No | Number of results to return per page |
-| `after` | string | No | Cursor for pagination |
+| `incident_id` | string | No | The ID of the incident to get updates for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\). If not provided, returns all updates |
+| `page_size` | number | No | Number of results to return per page \(e.g., 10, 25, 50\) |
+| `after` | string | No | Cursor for pagination \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -1093,11 +1093,11 @@ List all entries for a specific schedule in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `schedule_id` | string | Yes | The ID of the schedule to get entries for |
-| `entry_window_start` | string | No | Start date/time to filter entries \(ISO 8601 format\) |
-| `entry_window_end` | string | No | End date/time to filter entries \(ISO 8601 format\) |
-| `page_size` | number | No | Number of results to return per page |
-| `after` | string | No | Cursor for pagination |
+| `schedule_id` | string | Yes | The ID of the schedule to get entries for \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `entry_window_start` | string | No | Start date/time to filter entries in ISO 8601 format \(e.g., "2024-01-15T09:00:00Z"\) |
+| `entry_window_end` | string | No | End date/time to filter entries in ISO 8601 format \(e.g., "2024-01-22T09:00:00Z"\) |
+| `page_size` | number | No | Number of results to return per page \(e.g., 10, 25, 50\) |
+| `after` | string | No | Cursor for pagination \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -1129,13 +1129,13 @@ Create a new schedule override in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `rotation_id` | string | Yes | The ID of the rotation to override |
-| `schedule_id` | string | Yes | The ID of the schedule |
+| `rotation_id` | string | Yes | The ID of the rotation to override \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `schedule_id` | string | Yes | The ID of the schedule \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 | `user_id` | string | No | The ID of the user to assign \(provide one of: user_id, user_email, or user_slack_id\) |
 | `user_email` | string | No | The email of the user to assign \(provide one of: user_id, user_email, or user_slack_id\) |
 | `user_slack_id` | string | No | The Slack ID of the user to assign \(provide one of: user_id, user_email, or user_slack_id\) |
-| `start_at` | string | Yes | When the override starts \(ISO 8601 format\) |
-| `end_at` | string | Yes | When the override ends \(ISO 8601 format\) |
+| `start_at` | string | Yes | When the override starts in ISO 8601 format \(e.g., "2024-01-15T09:00:00Z"\) |
+| `end_at` | string | Yes | When the override ends in ISO 8601 format \(e.g., "2024-01-22T09:00:00Z"\) |
 
 #### Output
 
@@ -1163,7 +1163,7 @@ Create a new escalation path in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `name` | string | Yes | Name of the escalation path |
+| `name` | string | Yes | Name of the escalation path \(e.g., "Critical Incident Path"\) |
 | `path` | json | Yes | Array of escalation levels with targets and time to acknowledge in seconds. Each level should have: targets \(array of \{id, type, schedule_id?, user_id?, urgency\}\) and time_to_ack_seconds \(number\) |
 | `working_hours` | json | No | Optional working hours configuration. Array of \{weekday, start_time, end_time\} |
 
@@ -1198,7 +1198,7 @@ Get details of a specific escalation path in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the escalation path |
+| `id` | string | Yes | The ID of the escalation path \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 
@@ -1231,8 +1231,8 @@ Update an existing escalation path in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the escalation path to update |
-| `name` | string | No | New name for the escalation path |
+| `id` | string | Yes | The ID of the escalation path to update \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
+| `name` | string | No | New name for the escalation path \(e.g., "Critical Incident Path"\) |
 | `path` | json | No | New escalation path configuration. Array of escalation levels with targets and time_to_ack_seconds |
 | `working_hours` | json | No | New working hours configuration. Array of \{weekday, start_time, end_time\} |
 
@@ -1267,7 +1267,7 @@ Delete an escalation path in incident.io
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | incident.io API Key |
-| `id` | string | Yes | The ID of the escalation path to delete |
+| `id` | string | Yes | The ID of the escalation path to delete \(e.g., "01FCNDV6P870EA6S7TK1DSYDG0"\) |
 
 #### Output
 

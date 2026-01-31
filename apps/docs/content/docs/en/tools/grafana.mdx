@@ -48,8 +48,8 @@ Get a dashboard by its UID
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
-| `dashboardUid` | string | Yes | The UID of the dashboard to retrieve |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `dashboardUid` | string | Yes | The UID of the dashboard to retrieve \(e.g., abc123def\) |
 
 #### Output
 
@@ -68,10 +68,10 @@ Search and list all dashboards
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `query` | string | No | Search query to filter dashboards by title |
 | `tag` | string | No | Filter by tag \(comma-separated for multiple tags\) |
-| `folderIds` | string | No | Filter by folder IDs \(comma-separated\) |
+| `folderIds` | string | No | Filter by folder IDs \(comma-separated, e.g., 1,2,3\) |
 | `starred` | boolean | No | Only return starred dashboards |
 | `limit` | number | No | Maximum number of dashboards to return |
 
@@ -97,9 +97,9 @@ Create a new dashboard
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `title` | string | Yes | The title of the new dashboard |
-| `folderUid` | string | No | The UID of the folder to create the dashboard in |
+| `folderUid` | string | No | The UID of the folder to create the dashboard in \(e.g., folder-abc123\) |
 | `tags` | string | No | Comma-separated list of tags |
 | `timezone` | string | No | Dashboard timezone \(e.g., browser, utc\) |
 | `refresh` | string | No | Auto-refresh interval \(e.g., 5s, 1m, 5m\) |
@@ -128,10 +128,10 @@ Update an existing dashboard. Fetches the current dashboard and merges your chan
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
-| `dashboardUid` | string | Yes | The UID of the dashboard to update |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `dashboardUid` | string | Yes | The UID of the dashboard to update \(e.g., abc123def\) |
 | `title` | string | No | New title for the dashboard |
-| `folderUid` | string | No | New folder UID to move the dashboard to |
+| `folderUid` | string | No | New folder UID to move the dashboard to \(e.g., folder-abc123\) |
 | `tags` | string | No | Comma-separated list of new tags |
 | `timezone` | string | No | Dashboard timezone \(e.g., browser, utc\) |
 | `refresh` | string | No | Auto-refresh interval \(e.g., 5s, 1m, 5m\) |
@@ -160,8 +160,8 @@ Delete a dashboard by its UID
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
-| `dashboardUid` | string | Yes | The UID of the dashboard to delete |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `dashboardUid` | string | Yes | The UID of the dashboard to delete \(e.g., abc123def\) |
 
 #### Output
 
@@ -181,7 +181,7 @@ List all alert rules in the Grafana instance
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 
 #### Output
 
@@ -206,7 +206,7 @@ Get a specific alert rule by its UID
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `alertRuleUid` | string | Yes | The UID of the alert rule to retrieve |
 
 #### Output
@@ -234,9 +234,9 @@ Create a new alert rule
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `title` | string | Yes | The title of the alert rule |
-| `folderUid` | string | Yes | The UID of the folder to create the alert in |
+| `folderUid` | string | Yes | The UID of the folder to create the alert in \(e.g., folder-abc123\) |
 | `ruleGroup` | string | Yes | The name of the rule group |
 | `condition` | string | Yes | The refId of the query or expression to use as the alert condition |
 | `data` | string | Yes | JSON array of query/expression data objects |
@@ -265,10 +265,10 @@ Update an existing alert rule. Fetches the current rule and merges your changes.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `alertRuleUid` | string | Yes | The UID of the alert rule to update |
 | `title` | string | No | New title for the alert rule |
-| `folderUid` | string | No | New folder UID to move the alert to |
+| `folderUid` | string | No | New folder UID to move the alert to \(e.g., folder-abc123\) |
 | `ruleGroup` | string | No | New rule group name |
 | `condition` | string | No | New condition refId |
 | `data` | string | No | New JSON array of query/expression data objects |
@@ -297,7 +297,7 @@ Delete an alert rule by its UID
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `alertRuleUid` | string | Yes | The UID of the alert rule to delete |
 
 #### Output
@@ -316,7 +316,7 @@ List all alert notification contact points
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 
 #### Output
 
@@ -338,13 +338,13 @@ Create an annotation on a dashboard or as a global annotation
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `text` | string | Yes | The text content of the annotation |
 | `tags` | string | No | Comma-separated list of tags |
-| `dashboardUid` | string | Yes | UID of the dashboard to add the annotation to |
-| `panelId` | number | No | ID of the panel to add the annotation to |
-| `time` | number | No | Start time in epoch milliseconds \(defaults to now\) |
-| `timeEnd` | number | No | End time in epoch milliseconds \(for range annotations\) |
+| `dashboardUid` | string | Yes | UID of the dashboard to add the annotation to \(e.g., abc123def\) |
+| `panelId` | number | No | ID of the panel to add the annotation to \(e.g., 1, 2\) |
+| `time` | number | No | Start time in epoch milliseconds \(e.g., 1704067200000, defaults to now\) |
+| `timeEnd` | number | No | End time in epoch milliseconds for range annotations \(e.g., 1704153600000\) |
 
 #### Output
 
@@ -363,11 +363,11 @@ Query annotations by time range, dashboard, or tags
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
-| `from` | number | No | Start time in epoch milliseconds |
-| `to` | number | No | End time in epoch milliseconds |
-| `dashboardUid` | string | Yes | Dashboard UID to query annotations from |
-| `panelId` | number | No | Filter by panel ID |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `from` | number | No | Start time in epoch milliseconds \(e.g., 1704067200000\) |
+| `to` | number | No | End time in epoch milliseconds \(e.g., 1704153600000\) |
+| `dashboardUid` | string | Yes | Dashboard UID to query annotations from \(e.g., abc123def\) |
+| `panelId` | number | No | Filter by panel ID \(e.g., 1, 2\) |
 | `tags` | string | No | Comma-separated list of tags to filter by |
 | `type` | string | No | Filter by type \(alert or annotation\) |
 | `limit` | number | No | Maximum number of annotations to return |
@@ -401,12 +401,12 @@ Update an existing annotation
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `annotationId` | number | Yes | The ID of the annotation to update |
 | `text` | string | Yes | New text content for the annotation |
 | `tags` | string | No | Comma-separated list of new tags |
-| `time` | number | No | New start time in epoch milliseconds |
-| `timeEnd` | number | No | New end time in epoch milliseconds |
+| `time` | number | No | New start time in epoch milliseconds \(e.g., 1704067200000\) |
+| `timeEnd` | number | No | New end time in epoch milliseconds \(e.g., 1704153600000\) |
 
 #### Output
 
@@ -425,7 +425,7 @@ Delete an annotation by its ID
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `annotationId` | number | Yes | The ID of the annotation to delete |
 
 #### Output
@@ -444,7 +444,7 @@ List all data sources configured in Grafana
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 
 #### Output
 
@@ -468,8 +468,8 @@ Get a data source by its ID or UID
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
-| `dataSourceId` | string | Yes | The ID or UID of the data source to retrieve |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `dataSourceId` | string | Yes | The ID or UID of the data source to retrieve \(e.g., prometheus, P1234AB5678\) |
 
 #### Output
 
@@ -494,7 +494,7 @@ List all folders in Grafana
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `limit` | number | No | Maximum number of folders to return |
 | `page` | number | No | Page number for pagination |
 
@@ -527,7 +527,7 @@ Create a new folder in Grafana
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
-| `organizationId` | string | No | Organization ID for multi-org Grafana instances |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `title` | string | Yes | The title of the new folder |
 | `uid` | string | No | Optional UID for the folder \(auto-generated if not provided\) |
 

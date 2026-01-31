@@ -49,11 +49,12 @@ Search documents in Elasticsearch using Query DSL. Returns matching documents wi
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Index name to search |
-| `query` | string | No | Query DSL as JSON string |
-| `from` | number | No | Starting offset for pagination \(default: 0\) |
-| `size` | number | No | Number of results to return \(default: 10\) |
-| `sort` | string | No | Sort specification as JSON string |
+| `index` | string | Yes | Index name to search \(e.g., "products", "logs-2024"\) |
+| `query` | string | No | Query DSL as JSON string. Example: \{"match":\{"title":"search term"\}\} or \{"bool":\{"must":\[...\]\}\} |
+| `Example` | string | No | No description |
+| `from` | number | No | Starting offset for pagination \(e.g., 0, 10, 20\). Default: 0 |
+| `size` | number | No | Number of results to return \(e.g., 10, 25, 100\). Default: 10 |
+| `sort` | string | No | Sort specification as JSON string. Example: \[\{"created_at":"desc"\}\] or \[\{"_score":"desc"\},\{"name":"asc"\}\] |
 | `sourceIncludes` | string | No | Comma-separated list of fields to include in _source |
 | `sourceExcludes` | string | No | Comma-separated list of fields to exclude from _source |
 | `trackTotalHits` | boolean | No | Track accurate total hit count \(default: true\) |
@@ -82,8 +83,8 @@ Index (create or update) a document in Elasticsearch.
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Target index name |
-| `documentId` | string | No | Document ID \(auto-generated if not provided\) |
+| `index` | string | Yes | Target index name \(e.g., "products", "logs-2024"\) |
+| `documentId` | string | No | Document ID \(e.g., "abc123", "user_456"\). Auto-generated if not provided |
 | `document` | string | Yes | Document body as JSON string |
 | `refresh` | string | No | Refresh policy: true, false, or wait_for |
 
@@ -111,8 +112,8 @@ Retrieve a document by ID from Elasticsearch.
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Index name |
-| `documentId` | string | Yes | Document ID to retrieve |
+| `index` | string | Yes | Index name \(e.g., "products", "logs-2024"\) |
+| `documentId` | string | Yes | Document ID to retrieve \(e.g., "abc123", "user_456"\) |
 | `sourceIncludes` | string | No | Comma-separated list of fields to include |
 | `sourceExcludes` | string | No | Comma-separated list of fields to exclude |
 
@@ -141,8 +142,8 @@ Partially update a document in Elasticsearch using doc merge.
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Index name |
-| `documentId` | string | Yes | Document ID to update |
+| `index` | string | Yes | Index name \(e.g., "products", "logs-2024"\) |
+| `documentId` | string | Yes | Document ID to update \(e.g., "abc123", "user_456"\) |
 | `document` | string | Yes | Partial document to merge as JSON string |
 | `retryOnConflict` | number | No | Number of retries on version conflict |
 
@@ -170,8 +171,8 @@ Delete a document from Elasticsearch by ID.
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Index name |
-| `documentId` | string | Yes | Document ID to delete |
+| `index` | string | Yes | Index name \(e.g., "products", "logs-2024"\) |
+| `documentId` | string | Yes | Document ID to delete \(e.g., "abc123", "user_456"\) |
 | `refresh` | string | No | Refresh policy: true, false, or wait_for |
 
 #### Output
@@ -198,8 +199,9 @@ Perform multiple index, create, delete, or update operations in a single request
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | No | Default index for operations that do not specify one |
-| `operations` | string | Yes | Bulk operations as NDJSON string \(newline-delimited JSON\) |
+| `index` | string | No | Default index for operations \(e.g., "products", "logs-2024"\) |
+| `operations` | string | Yes | Bulk operations as NDJSON string. Each operation is two lines: action metadata and optional document. Example: \{"index":\{"_index":"products","_id":"1"\}\}\\n\{"name":"Widget"\}\\n |
+| `Example` | string | No | No description |
 | `refresh` | string | No | Refresh policy: true, false, or wait_for |
 
 #### Output
@@ -225,8 +227,9 @@ Count documents matching a query in Elasticsearch.
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Index name to count documents in |
-| `query` | string | No | Optional query to filter documents \(JSON string\) |
+| `index` | string | Yes | Index name to count documents in \(e.g., "products", "logs-2024"\) |
+| `query` | string | No | Query DSL to filter documents \(JSON string\). Example: \{"match":\{"status":"active"\}\} |
+| `Example` | string | No | No description |
 
 #### Output
 
@@ -250,7 +253,7 @@ Create a new index with optional settings and mappings.
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Index name to create |
+| `index` | string | Yes | Index name to create \(e.g., "products", "logs-2024"\) |
 | `settings` | string | No | Index settings as JSON string |
 | `mappings` | string | No | Index mappings as JSON string |
 
@@ -277,7 +280,7 @@ Delete an index and all its documents. This operation is irreversible.
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Index name to delete |
+| `index` | string | Yes | Index name to delete \(e.g., "products", "logs-2024"\) |
 
 #### Output
 
@@ -300,7 +303,7 @@ Retrieve index information including settings, mappings, and aliases.
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
-| `index` | string | Yes | Index name to retrieve info for |
+| `index` | string | Yes | Index name to retrieve info for \(e.g., "products", "logs-2024"\) |
 
 #### Output
 

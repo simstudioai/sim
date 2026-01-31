@@ -64,8 +64,8 @@ Insert or update text records in a Pinecone index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `indexHost` | string | Yes | Full Pinecone index host URL |
-| `namespace` | string | Yes | Namespace to upsert records into |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `namespace` | string | Yes | Namespace to upsert records into \(e.g., "documents", "embeddings"\) |
 | `records` | array | Yes | Record or array of records to upsert, each containing _id, text, and optional metadata |
 | `apiKey` | string | Yes | Pinecone API key |
 
@@ -83,12 +83,12 @@ Search for similar text in a Pinecone index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `indexHost` | string | Yes | Full Pinecone index host URL |
-| `namespace` | string | No | Namespace to search in |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `namespace` | string | No | Namespace to search in \(e.g., "documents", "embeddings"\) |
 | `searchQuery` | string | Yes | Text to search for |
-| `topK` | string | No | Number of results to return |
+| `topK` | string | No | Number of results to return \(e.g., "10", "25"\) |
 | `fields` | array | No | Fields to return in the results |
-| `filter` | object | No | Filter to apply to the search |
+| `filter` | object | No | Filter to apply to the search \(e.g., \{"category": "tech", "year": \{"$gte": 2020\}\}\) |
 | `rerank` | object | No | Reranking parameters |
 | `apiKey` | string | Yes | Pinecone API key |
 
@@ -113,13 +113,13 @@ Search for similar vectors in a Pinecone index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `indexHost` | string | Yes | Full Pinecone index host URL |
-| `namespace` | string | No | Namespace to search in |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `namespace` | string | No | Namespace to search in \(e.g., "documents", "embeddings"\) |
 | `vector` | array | Yes | Vector to search for |
-| `topK` | number | No | Number of results to return |
-| `filter` | object | No | Filter to apply to the search |
+| `topK` | number | No | Number of results to return \(e.g., 10, 25\) |
+| `filter` | object | No | Filter to apply to the search \(e.g., \{"category": "tech", "year": \{"$gte": 2020\}\}\) |
 | `includeValues` | boolean | No | Include vector values in response |
-| `includeMetadata` | boolean | No | Include metadata in response |
+| `includeMetadata` | boolean | No | Include metadata in response \(true/false\) |
 | `apiKey` | string | Yes | Pinecone API key |
 
 #### Output
@@ -137,9 +137,9 @@ Fetch vectors by ID from a Pinecone index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `indexHost` | string | Yes | Full Pinecone index host URL |
-| `ids` | array | Yes | Array of vector IDs to fetch |
-| `namespace` | string | No | Namespace to fetch vectors from |
+| `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io"\) |
+| `ids` | array | Yes | Array of vector IDs to fetch \(e.g., \["vec-001", "vec-002"\]\) |
+| `namespace` | string | No | Namespace to fetch vectors from \(e.g., "documents", "embeddings"\) |
 | `apiKey` | string | Yes | Pinecone API key |
 
 #### Output
