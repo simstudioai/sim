@@ -1,5 +1,5 @@
+import type { SpotifySaveTracksParams, SpotifySaveTracksResponse } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifySaveTracksParams, SpotifySaveTracksResponse } from './types'
 
 export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifySaveTracksResponse> =
   {

@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreateCategoryParams,
   type WordPressCreateCategoryResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const createCategoryTool: ToolConfig<
   WordPressCreateCategoryParams,

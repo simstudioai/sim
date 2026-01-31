@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetPageParams,
   type WordPressGetPageResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const getPageTool: ToolConfig<WordPressGetPageParams, WordPressGetPageResponse> = {
   id: 'wordpress_get_page',

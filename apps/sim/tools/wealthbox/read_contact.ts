@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WealthboxReadParams, WealthboxReadResponse } from '@/tools/wealthbox/types'
-
-const logger = createLogger('WealthboxReadContact')
 
 export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, WealthboxReadResponse> = {
   id: 'wealthbox_read_contact',

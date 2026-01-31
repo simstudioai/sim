@@ -1,5 +1,5 @@
+import type { SpotifyGetDevicesParams, SpotifyGetDevicesResponse } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetDevicesParams, SpotifyGetDevicesResponse } from './types'
 
 export const spotifyGetDevicesTool: ToolConfig<SpotifyGetDevicesParams, SpotifyGetDevicesResponse> =
   {

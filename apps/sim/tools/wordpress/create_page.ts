@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreatePageParams,
   type WordPressCreatePageResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCreatePageResponse> = {
   id: 'wordpress_create_page',

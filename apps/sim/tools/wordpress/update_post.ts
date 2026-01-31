@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressUpdatePostParams,
   type WordPressUpdatePostResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const updatePostTool: ToolConfig<WordPressUpdatePostParams, WordPressUpdatePostResponse> = {
   id: 'wordpress_update_post',

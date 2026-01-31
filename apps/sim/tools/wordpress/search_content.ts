@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressSearchContentParams,
   type WordPressSearchContentResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const searchContentTool: ToolConfig<
   WordPressSearchContentParams,

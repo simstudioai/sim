@@ -32,8 +32,7 @@ import {
   useTestNotification,
   useUpdateNotification,
 } from '@/hooks/queries/notifications'
-import { useConnectOAuthService } from '@/hooks/queries/oauth-connections'
-import { useSlackAccounts } from '@/hooks/use-slack-accounts'
+import { useConnectedAccounts, useConnectOAuthService } from '@/hooks/queries/oauth-connections'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 import { SlackChannelSelector } from './components/slack-channel-selector'
 import { WorkflowSelector } from './components/workflow-selector'
@@ -167,7 +166,8 @@ export function NotificationSettings({
   const deleteNotification = useDeleteNotification()
   const testNotification = useTestNotification()
 
-  const { accounts: slackAccounts, isLoading: isLoadingSlackAccounts } = useSlackAccounts()
+  const { data: slackAccounts = [], isLoading: isLoadingSlackAccounts } =
+    useConnectedAccounts('slack')
   const connectSlack = useConnectOAuthService()
 
   useEffect(() => {
@@ -530,7 +530,7 @@ export function NotificationSettings({
         message:
           result.data?.error || (result.data?.success ? 'Test sent successfully' : 'Test failed'),
       })
-    } catch (error) {
+    } catch (_error) {
       setTestStatus({ id, success: false, message: 'Failed to send test' })
     }
   }

@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeleteCommentParams,
   type WordPressDeleteCommentResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const deleteCommentTool: ToolConfig<
   WordPressDeleteCommentParams,

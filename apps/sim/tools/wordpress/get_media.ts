@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetMediaParams,
   type WordPressGetMediaResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const getMediaTool: ToolConfig<WordPressGetMediaParams, WordPressGetMediaResponse> = {
   id: 'wordpress_get_media',

@@ -1,5 +1,8 @@
+import type {
+  GoogleGroupsAddAliasParams,
+  GoogleGroupsAddAliasResponse,
+} from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsAddAliasParams, GoogleGroupsAddAliasResponse } from './types'
 
 export const addAliasTool: ToolConfig<GoogleGroupsAddAliasParams, GoogleGroupsAddAliasResponse> = {
   id: 'google_groups_add_alias',

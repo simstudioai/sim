@@ -1,6 +1,6 @@
+import type { ShopifyCancelOrderParams, ShopifyOrderResponse } from '@/tools/shopify/types'
+import { CANCEL_ORDER_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ShopifyCancelOrderParams, ShopifyOrderResponse } from './types'
-import { CANCEL_ORDER_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyCancelOrderTool: ToolConfig<ShopifyCancelOrderParams, ShopifyOrderResponse> = {
   id: 'shopify_cancel_order',

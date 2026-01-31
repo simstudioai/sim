@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import {
   buildZendeskUrl,
@@ -6,9 +5,7 @@ import {
   METADATA_OUTPUT,
   ORGANIZATIONS_ARRAY_OUTPUT,
   PAGING_OUTPUT,
-} from './types'
-
-const logger = createLogger('ZendeskGetOrganizations')
+} from '@/tools/zendesk/types'
 
 export interface ZendeskGetOrganizationsParams {
   email: string

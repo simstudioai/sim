@@ -1,6 +1,6 @@
+import type { KalshiEvent } from '@/tools/kalshi/types'
+import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiEvent } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetEventParams {
   eventTicker: string // Event ticker

@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreateTagParams,
   type WordPressCreateTagResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const createTagTool: ToolConfig<WordPressCreateTagParams, WordPressCreateTagResponse> = {
   id: 'wordpress_create_tag',

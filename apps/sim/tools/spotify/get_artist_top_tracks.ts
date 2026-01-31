@@ -1,6 +1,9 @@
+import type {
+  SpotifyGetArtistTopTracksParams,
+  SpotifyGetArtistTopTracksResponse,
+} from '@/tools/spotify/types'
+import { ARTIST_TOP_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetArtistTopTracksParams, SpotifyGetArtistTopTracksResponse } from './types'
-import { ARTIST_TOP_TRACK_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetArtistTopTracksTool: ToolConfig<
   SpotifyGetArtistTopTracksParams,

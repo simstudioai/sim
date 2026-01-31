@@ -1,6 +1,6 @@
+import type { KalshiSeries } from '@/tools/kalshi/types'
+import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiSeries } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetSeriesByTickerParams {
   seriesTicker: string

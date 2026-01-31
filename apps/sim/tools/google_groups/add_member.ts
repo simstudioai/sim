@@ -1,5 +1,5 @@
+import type { GoogleGroupsAddMemberParams, GoogleGroupsResponse } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsAddMemberParams, GoogleGroupsResponse } from './types'
 
 export const addMemberTool: ToolConfig<GoogleGroupsAddMemberParams, GoogleGroupsResponse> = {
   id: 'google_groups_add_member',

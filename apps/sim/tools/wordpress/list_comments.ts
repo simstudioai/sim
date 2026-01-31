@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressListCommentsParams,
   type WordPressListCommentsResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const listCommentsTool: ToolConfig<
   WordPressListCommentsParams,

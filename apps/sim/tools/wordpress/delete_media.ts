@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeleteMediaParams,
   type WordPressDeleteMediaResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const deleteMediaTool: ToolConfig<WordPressDeleteMediaParams, WordPressDeleteMediaResponse> =
   {

@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressUpdateCommentParams,
   type WordPressUpdateCommentResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const updateCommentTool: ToolConfig<
   WordPressUpdateCommentParams,

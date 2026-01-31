@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from './types'
-
-const logger = createLogger('ZendeskMergeTickets')
+import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from '@/tools/zendesk/types'
 
 export interface ZendeskMergeTicketsParams {
   email: string

@@ -1,5 +1,8 @@
+import type {
+  IncidentioSeveritiesListParams,
+  IncidentioSeveritiesListResponse,
+} from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { IncidentioSeveritiesListParams, IncidentioSeveritiesListResponse } from './types'
 
 export const severitiesListTool: ToolConfig<
   IncidentioSeveritiesListParams,

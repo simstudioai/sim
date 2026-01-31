@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreatePostParams,
   type WordPressCreatePostResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const createPostTool: ToolConfig<WordPressCreatePostParams, WordPressCreatePostResponse> = {
   id: 'wordpress_create_post',

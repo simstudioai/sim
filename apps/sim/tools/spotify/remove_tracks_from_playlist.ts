@@ -1,8 +1,8 @@
-import type { ToolConfig } from '@/tools/types'
 import type {
   SpotifyRemoveTracksFromPlaylistParams,
   SpotifyRemoveTracksFromPlaylistResponse,
-} from './types'
+} from '@/tools/spotify/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const spotifyRemoveTracksFromPlaylistTool: ToolConfig<
   SpotifyRemoveTracksFromPlaylistParams,

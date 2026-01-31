@@ -1,5 +1,8 @@
+import type {
+  GoogleGroupsResponse,
+  GoogleGroupsUpdateMemberParams,
+} from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsResponse, GoogleGroupsUpdateMemberParams } from './types'
 
 export const updateMemberTool: ToolConfig<GoogleGroupsUpdateMemberParams, GoogleGroupsResponse> = {
   id: 'google_groups_update_member',

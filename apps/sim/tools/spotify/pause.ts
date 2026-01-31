@@ -1,5 +1,5 @@
+import type { SpotifyPauseParams, SpotifyPauseResponse } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyPauseParams, SpotifyPauseResponse } from './types'
 
 export const spotifyPauseTool: ToolConfig<SpotifyPauseParams, SpotifyPauseResponse> = {
   id: 'spotify_pause',

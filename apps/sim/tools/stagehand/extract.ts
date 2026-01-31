@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { StagehandExtractParams, StagehandExtractResponse } from '@/tools/stagehand/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('StagehandExtractTool')
 
 export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractResponse> = {
   id: 'stagehand_extract',

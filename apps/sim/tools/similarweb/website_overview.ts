@@ -1,5 +1,8 @@
+import type {
+  SimilarwebWebsiteOverviewParams,
+  SimilarwebWebsiteOverviewResponse,
+} from '@/tools/similarweb/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SimilarwebWebsiteOverviewParams, SimilarwebWebsiteOverviewResponse } from './types'
 
 export const similarwebWebsiteOverviewTool: ToolConfig<
   SimilarwebWebsiteOverviewParams,

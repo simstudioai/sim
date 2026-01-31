@@ -1,16 +1,16 @@
-import type { ToolConfig } from '@/tools/types'
 import type {
   KalshiAuthParams,
   KalshiOrder,
   KalshiPaginationParams,
   KalshiPagingInfo,
-} from './types'
+} from '@/tools/kalshi/types'
 import {
   buildKalshiAuthHeaders,
   buildKalshiUrl,
   handleKalshiError,
   KALSHI_ORDER_OUTPUT_PROPERTIES,
-} from './types'
+} from '@/tools/kalshi/types'
+import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiGetOrdersParams extends KalshiAuthParams, KalshiPaginationParams {
   ticker?: string

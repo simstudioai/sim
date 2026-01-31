@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpDeleteMergeField')
 
 export interface MailchimpDeleteMergeFieldParams {
   apiKey: string

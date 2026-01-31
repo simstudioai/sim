@@ -1,5 +1,5 @@
+import type { WorkflowsShowParams, WorkflowsShowResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { WorkflowsShowParams, WorkflowsShowResponse } from './types'
 
 export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowResponse> = {
   id: 'incidentio_workflows_show',

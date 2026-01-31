@@ -1,5 +1,8 @@
+import type {
+  SpotifyGetArtistAlbumsParams,
+  SpotifyGetArtistAlbumsResponse,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetArtistAlbumsParams, SpotifyGetArtistAlbumsResponse } from './types'
 
 export const spotifyGetArtistAlbumsTool: ToolConfig<
   SpotifyGetArtistAlbumsParams,

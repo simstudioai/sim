@@ -6,27 +6,32 @@ import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 const logger = createLogger('OAuthConnectionsQuery')
 
 /**
- * Query key factories for OAuth connections
+ * Query key factory for OAuth connection queries.
+ * Provides hierarchical cache keys for connections and provider-specific accounts.
  */
 export const oauthConnectionsKeys = {
   all: ['oauthConnections'] as const,
   connections: () => [...oauthConnectionsKeys.all, 'connections'] as const,
+  accounts: (provider: string) => [...oauthConnectionsKeys.all, 'accounts', provider] as const,
 }
 
-/**
- * Service info type - extends OAuthServiceConfig with connection status and the service key
- */
+/** OAuth service with connection status and linked accounts. */
 export interface ServiceInfo extends OAuthServiceConfig {
-  /** The service key from OAUTH_PROVIDERS (e.g., 'gmail', 'google-drive') */
   id: string
   isConnected: boolean
   lastConnected?: string
   accounts?: { id: string; name: string }[]
 }
 
-/**
- * Define available services from standardized OAuth providers
- */
+/** OAuth connection data returned from the API. */
+interface OAuthConnectionResponse {
+  provider: string
+  baseProvider?: string
+  accounts?: { id: string; name: string }[]
+  lastConnected?: string
+  scopes?: string[]
+}
+
 function defineServices(): ServiceInfo[] {
   const servicesList: ServiceInfo[] = []
 
@@ -44,9 +49,6 @@ function defineServices(): ServiceInfo[] {
   return servicesList
 }
 
-/**
- * Fetch OAuth connections and merge with service definitions
- */
 async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
   try {
     const serviceDefinitions = defineServices()
@@ -65,7 +67,9 @@ async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
     const connections = data.connections || []
 
     const updatedServices = serviceDefinitions.map((service) => {
-      const connection = connections.find((conn: any) => conn.provider === service.providerId)
+      const connection = connections.find(
+        (conn: OAuthConnectionResponse) => conn.provider === service.providerId
+      )
 
       if (connection) {
         return {
@@ -76,13 +80,14 @@ async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
         }
       }
 
-      const connectionWithScopes = connections.find((conn: any) => {
+      const connectionWithScopes = connections.find((conn: OAuthConnectionResponse) => {
         if (!conn.baseProvider || !service.providerId.startsWith(conn.baseProvider)) {
           return false
         }
 
         if (conn.scopes && service.scopes) {
-          return service.scopes.every((scope) => conn.scopes.includes(scope))
+          const connScopes = conn.scopes
+          return service.scopes.every((scope) => connScopes.includes(scope))
         }
 
         return false
@@ -108,26 +113,28 @@ async function fetchOAuthConnections(): Promise<ServiceInfo[]> {
 }
 
 /**
- * Hook to fetch OAuth connections
+ * Fetches all OAuth service connections with their status.
+ * Returns service definitions merged with connection data.
  */
 export function useOAuthConnections() {
   return useQuery({
     queryKey: oauthConnectionsKeys.connections(),
     queryFn: fetchOAuthConnections,
-    staleTime: 30 * 1000, // 30 seconds - connections don't change often
-    retry: false, // Don't retry on 404
-    placeholderData: keepPreviousData, // Show cached data immediately
+    staleTime: 30 * 1000,
+    retry: false,
+    placeholderData: keepPreviousData,
   })
 }
 
-/**
- * Connect OAuth service mutation
- */
 interface ConnectServiceParams {
   providerId: string
   callbackURL: string
 }
 
+/**
+ * Initiates OAuth connection flow for a service.
+ * Redirects the user to the provider's authorization page.
+ */
 export function useConnectOAuthService() {
   const queryClient = useQueryClient()
 
@@ -138,7 +145,6 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
-      // Shopify requires a custom OAuth flow with shop domain input
       if (providerId === 'shopify') {
         const returnUrl = encodeURIComponent(callbackURL)
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
@@ -161,9 +167,6 @@ export function useConnectOAuthService() {
   })
 }
 
-/**
- * Disconnect OAuth service mutation
- */
 interface DisconnectServiceParams {
   provider: string
   providerId: string
@@ -171,6 +174,10 @@ interface DisconnectServiceParams {
   accountId: string
 }
 
+/**
+ * Disconnects an OAuth service account.
+ * Performs optimistic update and rolls back on failure.
+ */
 export function useDisconnectOAuthService() {
   const queryClient = useQueryClient()
 
@@ -228,5 +235,40 @@ export function useDisconnectOAuthService() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
     },
+  })
+}
+
+/** Connected OAuth account for a specific provider. */
+export interface ConnectedAccount {
+  id: string
+  accountId: string
+  providerId: string
+  displayName?: string
+}
+
+async function fetchConnectedAccounts(provider: string): Promise<ConnectedAccount[]> {
+  const response = await fetch(`/api/auth/accounts?provider=${provider}`)
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.error || `Failed to load ${provider} accounts`)
+  }
+
+  const data = await response.json()
+  return data.accounts || []
+}
+
+/**
+ * Fetches connected accounts for a specific OAuth provider.
+ * @param provider - The provider ID (e.g., 'slack', 'google')
+ * @param options - Query options including enabled flag
+ */
+export function useConnectedAccounts(provider: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: oauthConnectionsKeys.accounts(provider),
+    queryFn: () => fetchConnectedAccounts(provider),
+    enabled: options?.enabled ?? true,
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   })
 }

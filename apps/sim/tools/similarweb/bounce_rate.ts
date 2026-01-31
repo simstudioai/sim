@@ -1,5 +1,8 @@
+import type {
+  SimilarwebBounceRateParams,
+  SimilarwebBounceRateResponse,
+} from '@/tools/similarweb/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SimilarwebBounceRateParams, SimilarwebBounceRateResponse } from './types'
 
 export const similarwebBounceRateTool: ToolConfig<
   SimilarwebBounceRateParams,

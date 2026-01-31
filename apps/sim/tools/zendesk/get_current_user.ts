@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from './types'
-
-const logger = createLogger('ZendeskGetCurrentUser')
+import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from '@/tools/zendesk/types'
 
 export interface ZendeskGetCurrentUserParams {
   email: string

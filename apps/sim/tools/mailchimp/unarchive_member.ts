@@ -1,5 +1,9 @@
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  type MailchimpMember,
+} from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError, type MailchimpMember } from './types'
 
 export interface MailchimpUnarchiveMemberParams {
   apiKey: string

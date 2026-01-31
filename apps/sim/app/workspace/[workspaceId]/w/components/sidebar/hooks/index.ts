@@ -14,4 +14,4 @@ export {
 export { useSidebarResize } from './use-sidebar-resize'
 export { useWorkflowOperations } from './use-workflow-operations'
 export { useWorkflowSelection } from './use-workflow-selection'
-export { useWorkspaceManagement } from './use-workspace-management'
+export { useWorkspaceManagement, type Workspace } from './use-workspace-management'

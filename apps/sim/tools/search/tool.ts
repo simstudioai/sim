@@ -1,5 +1,5 @@
+import type { SearchParams, SearchResponse } from '@/tools/search/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SearchParams, SearchResponse } from './types'
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'search_tool',

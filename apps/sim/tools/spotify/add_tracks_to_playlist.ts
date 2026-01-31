@@ -1,5 +1,8 @@
+import type {
+  SpotifyAddTracksToPlaylistParams,
+  SpotifyAddTracksToPlaylistResponse,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyAddTracksToPlaylistParams, SpotifyAddTracksToPlaylistResponse } from './types'
 
 export const spotifyAddTracksToPlaylistTool: ToolConfig<
   SpotifyAddTracksToPlaylistParams,

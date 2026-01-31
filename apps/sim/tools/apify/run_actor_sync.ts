@@ -1,5 +1,5 @@
+import type { RunActorParams, RunActorResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { RunActorParams, RunActorResult } from './types'
 
 export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> = {
   id: 'apify_run_actor_sync',

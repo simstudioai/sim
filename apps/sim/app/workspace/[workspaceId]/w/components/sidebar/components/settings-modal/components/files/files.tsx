@@ -21,14 +21,13 @@ import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useDeleteWorkspaceFile,
   useStorageInfo,
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
-import { useUserPermissions } from '@/hooks/use-user-permissions'
-import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 
 const logger = createLogger('FileUploadsSettings')
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
@@ -94,9 +93,7 @@ export function Files() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const { permissions: workspacePermissions, loading: permissionsLoading } =
-    useWorkspacePermissions(workspaceId)
-  const userPermissions = useUserPermissions(workspacePermissions, permissionsLoading)
+  const { userPermissions, permissionsLoading } = useWorkspacePermissionsContext()
 
   const handleUploadClick = () => {
     fileInputRef.current?.click()

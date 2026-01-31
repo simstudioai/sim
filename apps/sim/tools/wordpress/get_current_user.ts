@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetCurrentUserParams,
   type WordPressGetCurrentUserResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const getCurrentUserTool: ToolConfig<
   WordPressGetCurrentUserParams,

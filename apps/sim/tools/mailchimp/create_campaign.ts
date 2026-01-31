@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  type MailchimpCampaign,
+} from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError, type MailchimpCampaign } from './types'
 
 const logger = createLogger('MailchimpCreateCampaign')
 

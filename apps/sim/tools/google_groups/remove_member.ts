@@ -1,5 +1,8 @@
+import type {
+  GoogleGroupsRemoveMemberParams,
+  GoogleGroupsResponse,
+} from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsRemoveMemberParams, GoogleGroupsResponse } from './types'
 
 export const removeMemberTool: ToolConfig<GoogleGroupsRemoveMemberParams, GoogleGroupsResponse> = {
   id: 'google_groups_remove_member',
