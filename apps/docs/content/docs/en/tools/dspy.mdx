@@ -59,20 +59,26 @@ Run a prediction using a self-hosted DSPy program endpoint
 
 ### `dspy_chain_of_thought`
 
+Run a Chain of Thought prediction using a self-hosted DSPy ChainOfThought program endpoint
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Base URL of the DSPy server \(e.g., https://your-dspy-server.com\) |
+| `apiKey` | string | No | API key for authentication \(if required by your server\) |
+| `endpoint` | string | No | API endpoint path \(defaults to /predict\) |
+| `question` | string | Yes | The question to answer using chain of thought reasoning |
+| `context` | string | No | Additional context to provide for answering the question |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `answer` | string | The answer/output from the DSPy program |
-| `reasoning` | string | The reasoning or rationale behind the answer |
-| `trajectory` | json | Step-by-step trajectory for ReAct \(thoughts, actions, observations\) |
-| `status` | string | Response status from the DSPy server |
-| `rawOutput` | json | Complete raw output from the DSPy program |
+| `answer` | string | The answer generated through chain of thought reasoning |
+| `reasoning` | string | The step-by-step reasoning that led to the answer |
+| `status` | string | Response status from the DSPy server \(success or error\) |
+| `rawOutput` | json | The complete raw output from the DSPy program \(result.toDict\(\)\) |
 
 ### `dspy_react`
 
