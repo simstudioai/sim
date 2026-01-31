@@ -5,11 +5,13 @@ import {
   customTools,
   permissions,
   workflow,
+  workflowFolder,
   workflowMcpServer,
   workflowMcpTool,
+  workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, max, or } from 'drizzle-orm'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
@@ -21,9 +23,14 @@ import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { mcpService } from '@/lib/mcp/service'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import {
+  deployWorkflow,
+  loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
+  undeployWorkflow,
+} from '@/lib/workflows/persistence/utils'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
-import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -57,6 +64,10 @@ const SIM_WORKFLOW_TOOLS = new Set<string>([
   'get_user_workflow',
   'get_workflow_from_name',
   'list_user_workflows',
+  'list_user_workspaces',
+  'list_folders',
+  'create_workflow',
+  'create_folder',
   'get_workflow_data',
   'get_block_outputs',
   'get_block_upstream_references',
@@ -225,7 +236,15 @@ async function executeSimWorkflowTool(
     case 'get_workflow_from_name':
       return executeGetWorkflowFromName(params, context)
     case 'list_user_workflows':
-      return executeListUserWorkflows(context)
+      return executeListUserWorkflows(params, context)
+    case 'list_user_workspaces':
+      return executeListUserWorkspaces(context)
+    case 'list_folders':
+      return executeListFolders(params, context)
+    case 'create_workflow':
+      return executeCreateWorkflow(params, context)
+    case 'create_folder':
+      return executeCreateFolder(params, context)
     case 'get_workflow_data':
       return executeGetWorkflowData(params, context)
     case 'get_block_outputs':
@@ -290,6 +309,61 @@ async function ensureWorkflowAccess(workflowId: string, userId: string): Promise
   }
 
   throw new Error('Unauthorized workflow access')
+}
+
+async function getDefaultWorkspaceId(userId: string): Promise<string> {
+  const workspaces = await db
+    .select({ workspaceId: workspace.id })
+    .from(permissions)
+    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+    .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+    .orderBy(desc(workspace.createdAt))
+    .limit(1)
+
+  const workspaceId = workspaces[0]?.workspaceId
+  if (!workspaceId) {
+    throw new Error('No workspace found for user')
+  }
+
+  return workspaceId
+}
+
+async function ensureWorkspaceAccess(
+  workspaceId: string,
+  userId: string,
+  requireWrite: boolean
+): Promise<void> {
+  const [row] = await db
+    .select({
+      permissionType: permissions.permissionType,
+      ownerId: workspace.ownerId,
+    })
+    .from(permissions)
+    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+    .where(
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId),
+        eq(permissions.userId, userId)
+      )
+    )
+    .limit(1)
+
+  if (!row) {
+    throw new Error(`Workspace ${workspaceId} not found`)
+  }
+
+  const isOwner = row.ownerId === userId
+  const permissionType = row.permissionType
+  const canWrite = isOwner || permissionType === 'admin' || permissionType === 'write'
+
+  if (requireWrite && !canWrite) {
+    throw new Error('Write or admin access required for this workspace')
+  }
+
+  if (!requireWrite && !canWrite && permissionType !== 'read') {
+    throw new Error('Access denied to workspace')
+  }
 }
 
 async function executeGetUserWorkflow(
@@ -398,8 +472,14 @@ async function executeGetWorkflowFromName(
   }
 }
 
-async function executeListUserWorkflows(context: ExecutionContext): Promise<ToolCallResult> {
+async function executeListUserWorkflows(
+  params: Record<string, any>,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
   try {
+    const workspaceId = params?.workspaceId as string | undefined
+    const folderId = params?.folderId as string | undefined
+
     const workspaceIds = await db
       .select({ entityId: permissions.entityId })
       .from(permissions)
@@ -410,6 +490,12 @@ async function executeListUserWorkflows(context: ExecutionContext): Promise<Tool
     const workflowConditions = [eq(workflow.userId, context.userId)]
     if (workspaceIdList.length > 0) {
       workflowConditions.push(inArray(workflow.workspaceId, workspaceIdList))
+    }
+    if (workspaceId) {
+      workflowConditions.push(eq(workflow.workspaceId, workspaceId))
+    }
+    if (folderId) {
+      workflowConditions.push(eq(workflow.folderId, folderId))
     }
     const workflows = await db
       .select()
@@ -426,9 +512,186 @@ async function executeListUserWorkflows(context: ExecutionContext): Promise<Tool
       workflowId: w.id,
       workflowName: w.name || '',
       workspaceId: w.workspaceId,
+      folderId: w.folderId,
     }))
 
     return { success: true, output: { workflow_names: names, workflows: workflowList } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+async function executeListUserWorkspaces(context: ExecutionContext): Promise<ToolCallResult> {
+  try {
+    const workspaces = await db
+      .select({
+        workspaceId: workspace.id,
+        workspaceName: workspace.name,
+        ownerId: workspace.ownerId,
+        permissionType: permissions.permissionType,
+      })
+      .from(permissions)
+      .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+      .where(and(eq(permissions.userId, context.userId), eq(permissions.entityType, 'workspace')))
+      .orderBy(desc(workspace.createdAt))
+
+    const output = workspaces.map((row) => ({
+      workspaceId: row.workspaceId,
+      workspaceName: row.workspaceName,
+      role: row.ownerId === context.userId ? 'owner' : row.permissionType,
+    }))
+
+    return { success: true, output: { workspaces: output } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+async function executeListFolders(
+  params: Record<string, any>,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workspaceId = (params?.workspaceId as string | undefined) ||
+      (await getDefaultWorkspaceId(context.userId))
+
+    await ensureWorkspaceAccess(workspaceId, context.userId, false)
+
+    const folders = await db
+      .select({
+        folderId: workflowFolder.id,
+        folderName: workflowFolder.name,
+        parentId: workflowFolder.parentId,
+        sortOrder: workflowFolder.sortOrder,
+      })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.workspaceId, workspaceId))
+      .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
+
+    return {
+      success: true,
+      output: {
+        workspaceId,
+        folders,
+      },
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+async function executeCreateWorkflow(
+  params: Record<string, any>,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const name = typeof params?.name === 'string' ? params.name.trim() : ''
+    if (!name) {
+      return { success: false, error: 'name is required' }
+    }
+
+    const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const folderId = params?.folderId || null
+    const description = typeof params?.description === 'string' ? params.description : null
+
+    await ensureWorkspaceAccess(workspaceId, context.userId, true)
+
+    const workflowId = crypto.randomUUID()
+    const now = new Date()
+
+    const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
+    const [maxResult] = await db
+      .select({ maxOrder: max(workflow.sortOrder) })
+      .from(workflow)
+      .where(and(eq(workflow.workspaceId, workspaceId), folderCondition))
+    const sortOrder = (maxResult?.maxOrder ?? 0) + 1
+
+    await db.insert(workflow).values({
+      id: workflowId,
+      userId: context.userId,
+      workspaceId,
+      folderId,
+      sortOrder,
+      name,
+      description,
+      color: '#3972F6',
+      lastSynced: now,
+      createdAt: now,
+      updatedAt: now,
+      isDeployed: false,
+      runCount: 0,
+      variables: {},
+    })
+
+    const { workflowState } = buildDefaultWorkflowArtifacts()
+    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
+    if (!saveResult.success) {
+      throw new Error(saveResult.error || 'Failed to save workflow state')
+    }
+
+    return {
+      success: true,
+      output: {
+        workflowId,
+        workflowName: name,
+        workspaceId,
+        folderId,
+      },
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+async function executeCreateFolder(
+  params: Record<string, any>,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const name = typeof params?.name === 'string' ? params.name.trim() : ''
+    if (!name) {
+      return { success: false, error: 'name is required' }
+    }
+
+    const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const parentId = params?.parentId || null
+
+    await ensureWorkspaceAccess(workspaceId, context.userId, true)
+
+    const [maxOrder] = await db
+      .select({ maxOrder: max(workflowFolder.sortOrder) })
+      .from(workflowFolder)
+      .where(
+        and(
+          eq(workflowFolder.workspaceId, workspaceId),
+          parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
+        )
+      )
+      .limit(1)
+
+    const sortOrder = (maxOrder?.maxOrder ?? 0) + 1
+    const folderId = crypto.randomUUID()
+
+    await db.insert(workflowFolder).values({
+      id: folderId,
+      name,
+      userId: context.userId,
+      workspaceId,
+      parentId,
+      color: '#6B7280',
+      sortOrder,
+    })
+
+    return {
+      success: true,
+      output: {
+        folderId,
+        folderName: name,
+        workspaceId,
+        parentId,
+        sortOrder,
+      },
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
