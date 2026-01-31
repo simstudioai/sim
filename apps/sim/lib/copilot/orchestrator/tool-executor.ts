@@ -302,7 +302,10 @@ async function executeGetUserWorkflow(
       return { success: false, error: 'workflowId is required' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord, workspaceId } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId
+    )
 
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
     if (!normalized) {
@@ -318,7 +321,16 @@ async function executeGetUserWorkflow(
     const sanitized = sanitizeForCopilot(workflowState)
     const userWorkflow = JSON.stringify(sanitized, null, 2)
 
-    return { success: true, output: { userWorkflow } }
+    // Return workflow ID so copilot can use it for subsequent tool calls
+    return {
+      success: true,
+      output: {
+        workflowId,
+        workflowName: workflowRecord.name || '',
+        workspaceId,
+        userWorkflow,
+      },
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -371,7 +383,16 @@ async function executeGetWorkflowFromName(
     const sanitized = sanitizeForCopilot(workflowState)
     const userWorkflow = JSON.stringify(sanitized, null, 2)
 
-    return { success: true, output: { userWorkflow } }
+    // Return workflow ID and workspaceId so copilot can use them for subsequent tool calls
+    return {
+      success: true,
+      output: {
+        workflowId: match.id,
+        workflowName: match.name || '',
+        workspaceId: match.workspaceId,
+        userWorkflow,
+      },
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -396,11 +417,18 @@ async function executeListUserWorkflows(context: ExecutionContext): Promise<Tool
       .where(or(...workflowConditions))
       .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
 
+    // Return both names (for backward compatibility) and full workflow info with IDs
     const names = workflows
       .map((w) => (typeof w.name === 'string' ? w.name : null))
       .filter((n): n is string => Boolean(n))
 
-    return { success: true, output: { workflow_names: names } }
+    const workflowList = workflows.map((w) => ({
+      workflowId: w.id,
+      workflowName: w.name || '',
+      workspaceId: w.workspaceId,
+    }))
+
+    return { success: true, output: { workflow_names: names, workflows: workflowList } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }

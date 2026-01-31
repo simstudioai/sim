@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { permissions, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { and, asc, eq, inArray, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { authenticateV1Request } from '@/app/api/v1/auth'
@@ -10,17 +13,71 @@ const logger = createLogger('CopilotHeadlessAPI')
 
 const RequestSchema = z.object({
   message: z.string().min(1, 'message is required'),
-  workflowId: z.string().min(1, 'workflowId is required'),
+  workflowId: z.string().optional(),
+  workflowName: z.string().optional(),
   chatId: z.string().optional(),
-  mode: z.enum(['agent', 'ask', 'plan']).optional().default('agent'),
+  mode: z.enum(['agent', 'ask', 'plan', 'fast']).optional().default('fast'),
   model: z.string().optional(),
   autoExecuteTools: z.boolean().optional().default(true),
   timeout: z.number().optional().default(300000),
 })
 
+async function resolveWorkflowId(
+  userId: string,
+  workflowId?: string,
+  workflowName?: string
+): Promise<{ workflowId: string; workflowName?: string } | null> {
+  // If workflowId provided, use it directly
+  if (workflowId) {
+    return { workflowId }
+  }
+
+  // Get user's accessible workflows
+  const workspaceIds = await db
+    .select({ entityId: permissions.entityId })
+    .from(permissions)
+    .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+
+  const workspaceIdList = workspaceIds.map((row) => row.entityId)
+
+  const workflowConditions = [eq(workflow.userId, userId)]
+  if (workspaceIdList.length > 0) {
+    workflowConditions.push(inArray(workflow.workspaceId, workspaceIdList))
+  }
+
+  const workflows = await db
+    .select()
+    .from(workflow)
+    .where(or(...workflowConditions))
+    .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
+
+  if (workflows.length === 0) {
+    return null
+  }
+
+  // If workflowName provided, find matching workflow
+  if (workflowName) {
+    const match = workflows.find(
+      (w) => String(w.name || '').trim().toLowerCase() === workflowName.toLowerCase()
+    )
+    if (match) {
+      return { workflowId: match.id, workflowName: match.name || undefined }
+    }
+    return null
+  }
+
+  // Default to first workflow
+  return { workflowId: workflows[0].id, workflowName: workflows[0].name || undefined }
+}
+
 /**
  * POST /api/v1/copilot/chat
  * Headless copilot endpoint for server-side orchestration.
+ * 
+ * workflowId is optional - if not provided:
+ * - If workflowName is provided, finds that workflow
+ * - Otherwise uses the user's first workflow as context
+ * - The copilot can still operate on any workflow using list_user_workflows
  */
 export async function POST(req: NextRequest) {
   const auth = await authenticateV1Request(req)
@@ -34,9 +91,18 @@ export async function POST(req: NextRequest) {
     const defaults = getCopilotModel('chat')
     const selectedModel = parsed.model || defaults.model
 
+    // Resolve workflow ID
+    const resolved = await resolveWorkflowId(auth.userId, parsed.workflowId, parsed.workflowName)
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: 'No workflows found. Create a workflow first or provide a valid workflowId.' },
+        { status: 400 }
+      )
+    }
+
     const requestPayload = {
       message: parsed.message,
-      workflowId: parsed.workflowId,
+      workflowId: resolved.workflowId,
       userId: auth.userId,
       stream: true,
       streamToolCalls: true,
@@ -44,12 +110,13 @@ export async function POST(req: NextRequest) {
       mode: parsed.mode,
       messageId: crypto.randomUUID(),
       version: SIM_AGENT_VERSION,
+      headless: true, // Enable cross-workflow operations via workflowId params
       ...(parsed.chatId ? { chatId: parsed.chatId } : {}),
     }
 
     const result = await orchestrateCopilotStream(requestPayload, {
       userId: auth.userId,
-      workflowId: parsed.workflowId,
+      workflowId: resolved.workflowId,
       chatId: parsed.chatId,
       autoExecuteTools: parsed.autoExecuteTools,
       timeout: parsed.timeout,
