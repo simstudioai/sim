@@ -2,6 +2,11 @@ import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isTriggerBehavior, normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { OutputSchema } from '@/executor/utils/block-reference'
+import {
+  extractBaseBlockId,
+  extractBranchIndex,
+  isBranchNodeId,
+} from '@/executor/utils/subflow-utils'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -86,14 +91,35 @@ export function getBlockSchema(
   return undefined
 }
 
-export function collectBlockData(ctx: ExecutionContext): BlockDataCollection {
+export function collectBlockData(
+  ctx: ExecutionContext,
+  currentNodeId?: string
+): BlockDataCollection {
   const blockData: Record<string, unknown> = {}
   const blockNameMapping: Record<string, string> = {}
   const blockOutputSchemas: Record<string, OutputSchema> = {}
 
+  // Determine if we're in a parallel branch context
+  const branchIndex =
+    currentNodeId && isBranchNodeId(currentNodeId) ? extractBranchIndex(currentNodeId) : null
+
   for (const [id, state] of ctx.blockStates.entries()) {
     if (state.output !== undefined) {
       blockData[id] = state.output
+
+      // If we're in a parallel branch and this state is from the same branch,
+      // also map it under the base block ID so references like <BlockName.field>
+      // resolve correctly within the same branch context
+      if (branchIndex !== null && isBranchNodeId(id)) {
+        const stateBranchIndex = extractBranchIndex(id)
+        if (stateBranchIndex === branchIndex) {
+          const baseId = extractBaseBlockId(id)
+          // Only set if not already set (prefer branch-specific data)
+          if (blockData[baseId] === undefined) {
+            blockData[baseId] = state.output
+          }
+        }
+      }
     }
   }
 
