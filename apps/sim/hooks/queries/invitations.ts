@@ -66,47 +66,6 @@ export function usePendingInvitations(workspaceId: string | undefined) {
   })
 }
 
-interface SendInvitationParams {
-  workspaceId: string
-  email: string
-  permission: 'admin' | 'write' | 'read'
-}
-
-/**
- * Sends a single workspace invitation.
- * Invalidates the invitation list cache on success.
- */
-export function useSendWorkspaceInvitation() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ workspaceId, email, permission }: SendInvitationParams) => {
-      const response = await fetch('/api/workspaces/invitations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId,
-          email,
-          role: 'member',
-          permission,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to send invitation')
-      }
-
-      return response.json()
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: invitationKeys.list(variables.workspaceId),
-      })
-    },
-  })
-}
-
 interface BatchSendInvitationsParams {
   workspaceId: string
   invitations: Array<{ email: string; permission: 'admin' | 'write' | 'read' }>
