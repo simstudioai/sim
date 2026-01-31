@@ -30,19 +30,21 @@ export const deleteTool: ToolConfig<DynamoDBDeleteParams, DynamoDBDeleteResponse
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'DynamoDB table name',
+      description: 'DynamoDB table name (e.g., "Users", "Orders")',
     },
     key: {
       type: 'object',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Primary key of the item to delete',
+      description:
+        'Primary key of the item to delete (e.g., {"pk": "USER#123"} or {"pk": "ORDER#456", "sk": "ITEM#789"})',
     },
     conditionExpression: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Condition that must be met for the delete to succeed',
+      description:
+        'Condition that must be met for the delete to succeed (e.g., "attribute_exists(pk)")',
     },
   },
 

@@ -24,19 +24,21 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the subreddit to post to (without the r/ prefix)',
+      description: 'The subreddit to post to (e.g., "technology", "programming")',
     },
     title: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Title of the submission (max 300 characters)',
+      description:
+        'Title of the submission (e.g., "Check out this new AI tool"). Max 300 characters',
     },
     text: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Text content for a self post (markdown supported)',
+      description:
+        'Text content for a self post in markdown format (e.g., "This is the **body** of my post")',
     },
     url: {
       type: 'string',

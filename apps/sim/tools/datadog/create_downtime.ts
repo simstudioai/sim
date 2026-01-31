@@ -25,25 +25,26 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Unix timestamp for downtime start (defaults to now)',
+      description:
+        'Unix timestamp for downtime start in seconds (e.g., 1705320000, defaults to now)',
     },
     end: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Unix timestamp for downtime end',
+      description: 'Unix timestamp for downtime end in seconds (e.g., 1705323600)',
     },
     timezone: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Timezone for the downtime (e.g., "America/New_York")',
+      description: 'Timezone for the downtime (e.g., "America/New_York", "UTC", "Europe/London")',
     },
     monitorId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Specific monitor ID to mute',
+      description: 'Specific monitor ID to mute (e.g., "12345678")',
     },
     monitorTags: {
       type: 'string',

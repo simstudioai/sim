@@ -19,7 +19,7 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company domain names to filter by',
+      description: 'Company domain name to filter by (e.g., "stripe.com", "company.io")',
     },
     headcount: {
       type: 'string',

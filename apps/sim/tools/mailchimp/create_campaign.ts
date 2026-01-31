@@ -39,20 +39,21 @@ export const mailchimpCreateCampaignTool: ToolConfig<
     campaignType: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Campaign type',
+      visibility: 'user-or-llm',
+      description: 'Campaign type: "regular", "plaintext", "absplit", "rss", or "variate"',
     },
     campaignSettings: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'JSON object of campaign settings',
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of campaign settings (e.g., {"subject_line": "Newsletter", "from_name": "Acme", "reply_to": "news@acme.com"})',
     },
     recipients: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'JSON object of recipients',
+      visibility: 'user-or-llm',
+      description: 'JSON object of recipients (e.g., {"list_id": "abc123"})',
     },
   },
 

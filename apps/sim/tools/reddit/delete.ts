@@ -23,7 +23,7 @@ export const deleteTool: ToolConfig<RedditDeleteParams, RedditWriteResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Thing fullname to delete (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
+      description: 'Thing fullname to delete (e.g., "t3_abc123" for post, "t1_def456" for comment)',
     },
   },
 

@@ -26,8 +26,8 @@ export const discordDeleteInviteTool: ToolConfig<
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord server ID (guild ID)',
+      visibility: 'user-or-llm',
+      description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
   },
 

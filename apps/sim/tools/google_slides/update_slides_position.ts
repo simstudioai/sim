@@ -47,8 +47,8 @@ export const updateSlidesPositionTool: ToolConfig<
     presentationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the presentation',
+      visibility: 'user-or-llm',
+      description: 'Google Slides presentation ID',
     },
     slideObjectIds: {
       type: 'string',

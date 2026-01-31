@@ -39,20 +39,21 @@ export const mailchimpUpdateCampaignTool: ToolConfig<
     campaignId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the campaign',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the campaign (e.g., "abc123def4")',
     },
     campaignSettings: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'JSON object of campaign settings',
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of campaign settings (e.g., {"subject_line": "Newsletter", "from_name": "Acme"})',
     },
     recipients: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'JSON object of recipients',
+      visibility: 'user-or-llm',
+      description: 'JSON object of recipients (e.g., {"list_id": "abc123"})',
     },
   },
 

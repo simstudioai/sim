@@ -32,8 +32,8 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet to read from',
+      visibility: 'user-or-llm',
+      description: 'The ID of the spreadsheet/workbook to read from (e.g., "01ABC123DEF456")',
     },
     range: {
       type: 'string',
@@ -237,14 +237,14 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet to read from',
+      visibility: 'user-or-llm',
+      description: 'The ID of the spreadsheet/workbook to read from (e.g., "01ABC123DEF456")',
     },
     sheetName: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the sheet/tab to read from',
+      description: 'The name of the sheet/tab to read from (e.g., "Sheet1", "Sales Data")',
     },
     cellRange: {
       type: 'string',

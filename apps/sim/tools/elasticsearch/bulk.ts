@@ -61,11 +61,13 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
     host: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elasticsearch host URL (for self-hosted)',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elastic Cloud ID (for cloud deployments)',
     },
     authMethod: {
@@ -82,6 +84,7 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
     username: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Username for basic auth',
     },
     password: {
@@ -93,12 +96,15 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
     index: {
       type: 'string',
       required: false,
-      description: 'Default index for operations that do not specify one',
+      visibility: 'user-or-llm',
+      description: 'Default index for operations (e.g., "products", "logs-2024")',
     },
     operations: {
       type: 'string',
       required: true,
-      description: 'Bulk operations as NDJSON string (newline-delimited JSON)',
+      visibility: 'user-or-llm',
+      description:
+        'Bulk operations as NDJSON string. Each operation is two lines: action metadata and optional document. Example: {"index":{"_index":"products","_id":"1"}}\\n{"name":"Widget"}\\n',
     },
     refresh: {
       type: 'string',

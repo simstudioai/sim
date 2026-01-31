@@ -32,8 +32,8 @@ export const mailchimpDeleteTemplateTool: ToolConfig<
     templateId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the template to delete',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the template to delete (e.g., "12345")',
     },
   },
 

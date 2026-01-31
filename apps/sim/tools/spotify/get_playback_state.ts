@@ -21,8 +21,8 @@ export const spotifyGetPlaybackStateTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO 3166-1 alpha-2 country code',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
   },
 

@@ -29,27 +29,28 @@ export const hubspotListContactsTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of results per page (max 100, default 100)',
     },
     after: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Pagination cursor for next page of results',
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor for next page of results (from previous response)',
     },
     properties: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Comma-separated list of properties to return (e.g., "email,firstname,lastname")',
+        'Comma-separated list of HubSpot property names to return (e.g., "email,firstname,lastname,phone")',
     },
     associations: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of object types to retrieve associated IDs for',
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of object types to retrieve associated IDs for (e.g., "companies,deals")',
     },
   },
 

@@ -18,7 +18,7 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by monitor ID',
+      description: 'Filter by monitor ID (e.g., "12345678")',
     },
     apiKey: {
       type: 'string',

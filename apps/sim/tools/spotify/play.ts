@@ -37,13 +37,13 @@ export const spotifyPlayTool: ToolConfig<SpotifyPlayParams, SpotifyPlayResponse>
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Position in context to start playing (0-based index)',
     },
     position_ms: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Position in track to start from (in milliseconds)',
     },
   },

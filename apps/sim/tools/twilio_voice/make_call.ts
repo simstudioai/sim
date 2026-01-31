@@ -15,27 +15,28 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
     to: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Phone number to call (E.164 format, e.g., +14155551234)',
+      visibility: 'user-or-llm',
+      description: 'Phone number to call in E.164 format (e.g., +14155551234)',
     },
     from: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Your Twilio phone number to call from (E.164 format)',
+      visibility: 'user-or-llm',
+      description: 'Your Twilio phone number to call from in E.164 format (e.g., +14155559876)',
     },
     url: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'URL that returns TwiML instructions for the call',
+      description:
+        'Webhook URL that returns TwiML instructions for the call (e.g., https://example.com/twiml)',
     },
     twiml: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'TwiML instructions to execute (alternative to URL). Use square brackets instead of angle brackets, e.g., [Response][Say]Hello[/Say][/Response]',
+        'TwiML instructions to execute. Use square brackets instead of angle brackets (e.g., [Response][Say]Hello[/Say][/Response])',
     },
     statusCallback: {
       type: 'string',

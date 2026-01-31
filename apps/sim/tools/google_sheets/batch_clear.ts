@@ -28,8 +28,8 @@ export const batchClearV2Tool: ToolConfig<
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet',
+      visibility: 'user-or-llm',
+      description: 'Google Sheets spreadsheet ID',
     },
     ranges: {
       type: 'json',

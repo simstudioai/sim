@@ -29,7 +29,7 @@ export const clerkRevokeSessionTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the session to revoke',
+      description: 'The ID of the session to revoke (e.g., sess_2NNEqL2nrIRdJ194ndJqAHwEfxC)',
     },
   },
 

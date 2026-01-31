@@ -38,7 +38,7 @@ export const slackUpdateMessageTool: ToolConfig<
     channel: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Channel ID where the message was posted (e.g., C1234567890)',
     },
     timestamp: {

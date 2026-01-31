@@ -23,8 +23,8 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the page to update',
+      visibility: 'user-or-llm',
+      description: 'The UUID of the Notion page to update',
     },
     properties: {
       type: 'json',

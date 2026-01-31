@@ -34,8 +34,8 @@ export const listWatchesTool: ToolConfig<
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Google Form',
+      visibility: 'user-or-llm',
+      description: 'Google Forms form ID',
     },
   },
 

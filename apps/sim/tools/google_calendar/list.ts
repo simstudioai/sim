@@ -28,8 +28,8 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
     calendarId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Calendar ID (defaults to primary)',
+      visibility: 'user-or-llm',
+      description: 'Google Calendar ID (e.g., primary or calendar@group.calendar.google.com)',
     },
     timeMin: {
       type: 'string',

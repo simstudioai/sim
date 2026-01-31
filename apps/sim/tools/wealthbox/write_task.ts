@@ -31,8 +31,8 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     contactId: {
       type: 'string',
       required: false,
-      description: 'ID of contact to link to this task',
-      visibility: 'user-only',
+      description: 'ID of contact to link to this task (e.g., "12345")',
+      visibility: 'user-or-llm',
     },
     description: {
       type: 'string',

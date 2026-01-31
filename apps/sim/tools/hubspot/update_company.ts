@@ -32,21 +32,22 @@ export const hubspotUpdateCompanyTool: ToolConfig<
     companyId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID or domain of the company to update',
+      visibility: 'user-or-llm',
+      description: 'The HubSpot company ID (numeric string) or domain of the company to update',
     },
     idProperty: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Property to use as unique identifier (e.g., "domain"). If not specified, uses record ID',
     },
     properties: {
       type: 'object',
       required: true,
-      visibility: 'user-only',
-      description: 'Company properties to update as JSON object',
+      visibility: 'user-or-llm',
+      description:
+        'Company properties to update as JSON object (e.g., {"name": "New Name", "industry": "Finance"})',
     },
   },
 

@@ -27,14 +27,15 @@ export const polymarketGetMarketTool: ToolConfig<
     marketId: {
       type: 'string',
       required: false,
-      description: 'The market ID. Required if slug is not provided.',
+      description:
+        'The market ID (e.g., "0x1234...abcd" condition ID format). Required if slug is not provided.',
       visibility: 'user-or-llm',
     },
     slug: {
       type: 'string',
       required: false,
       description:
-        'The market slug (e.g., "will-trump-win"). Required if marketId is not provided.',
+        'The market slug (e.g., "will-trump-win"). URL-friendly identifier. Required if marketId is not provided.',
       visibility: 'user-or-llm',
     },
   },

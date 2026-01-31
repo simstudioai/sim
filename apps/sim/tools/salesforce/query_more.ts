@@ -34,8 +34,9 @@ export const salesforceQueryMoreTool: ToolConfig<
     nextRecordsUrl: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The nextRecordsUrl from a previous query response',
+      visibility: 'user-or-llm',
+      description:
+        'The nextRecordsUrl value from a previous query response (e.g., /services/data/v59.0/query/01g...)',
     },
   },
 

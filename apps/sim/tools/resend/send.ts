@@ -11,32 +11,35 @@ export const mailSendTool: ToolConfig<MailSendParams, MailSendResult> = {
     fromAddress: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Email address to send from',
+      visibility: 'user-or-llm',
+      description:
+        'Email address to send from (e.g., "sender@example.com" or "Sender Name <sender@example.com>")',
     },
     to: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Recipient email address',
+      description:
+        'Recipient email address (e.g., "recipient@example.com" or "Recipient Name <recipient@example.com>")',
     },
     subject: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Email subject',
+      description: 'Email subject line',
     },
     body: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Email body content',
+      description: 'Email body content (plain text or HTML based on contentType)',
     },
     contentType: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Content type for the email body (text or html)',
+      description:
+        'Content type for the email body: "text" for plain text or "html" for HTML content',
     },
     resendApiKey: {
       type: 'string',

@@ -15,7 +15,7 @@ export const youtubeVideoDetailsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'YouTube video ID',
+      description: 'YouTube video ID (11-character string, e.g., "dQw4w9WgXcQ")',
     },
     apiKey: {
       type: 'string',

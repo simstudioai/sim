@@ -39,8 +39,8 @@ export const salesforceDeleteTaskTool: ToolConfig<
     taskId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Task ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Task ID to delete (18-character string starting with 00T)',
     },
   },
 

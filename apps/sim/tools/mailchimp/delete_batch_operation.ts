@@ -32,8 +32,8 @@ export const mailchimpDeleteBatchOperationTool: ToolConfig<
     batchId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the batch operation to delete',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the batch operation to delete (e.g., "abc123def4")',
     },
   },
 

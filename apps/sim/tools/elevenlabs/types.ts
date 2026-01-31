@@ -5,6 +5,8 @@ export interface ElevenLabsTtsParams {
   text: string
   voiceId: string
   modelId?: string
+  stability?: number
+  similarity?: number
 }
 
 export interface ElevenLabsTtsResponse extends ToolResponse {

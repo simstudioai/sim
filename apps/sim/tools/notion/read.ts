@@ -23,8 +23,8 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Notion page to read',
+      visibility: 'user-or-llm',
+      description: 'The UUID of the Notion page to read',
     },
   },
 

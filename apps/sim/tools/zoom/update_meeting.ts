@@ -19,13 +19,13 @@ export const zoomUpdateMeetingTool: ToolConfig<ZoomUpdateMeetingParams, ZoomUpda
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The meeting ID to update',
+        description: 'The meeting ID to update (e.g., "1234567890" or "85746065432")',
       },
       topic: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Meeting topic',
+        description: 'Meeting topic (e.g., "Weekly Team Standup" or "Project Review")',
       },
       type: {
         type: 'number',
@@ -44,7 +44,7 @@ export const zoomUpdateMeetingTool: ToolConfig<ZoomUpdateMeetingParams, ZoomUpda
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Meeting duration in minutes',
+        description: 'Meeting duration in minutes (e.g., 30, 60, 90)',
       },
       timezone: {
         type: 'string',
@@ -62,7 +62,7 @@ export const zoomUpdateMeetingTool: ToolConfig<ZoomUpdateMeetingParams, ZoomUpda
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Meeting agenda',
+        description: 'Meeting agenda or description text',
       },
       hostVideo: {
         type: 'boolean',

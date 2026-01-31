@@ -22,7 +22,7 @@ export const similarwebWebsiteOverviewTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Website domain to analyze (without www or protocol)',
+      description: 'Website domain to analyze (e.g., "example.com" without www or protocol)',
     },
   },
 

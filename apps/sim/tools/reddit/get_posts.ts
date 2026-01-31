@@ -24,19 +24,19 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the subreddit to fetch posts from (without the r/ prefix)',
+      description: 'The subreddit to fetch posts from (e.g., "technology", "news")',
     },
     sort: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort method for posts: "hot", "new", "top", or "rising" (default: "hot")',
+      description: 'Sort method for posts (e.g., "hot", "new", "top", "rising"). Default: "hot"',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of posts to return (default: 10, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of posts to return (e.g., 25). Default: 10, max: 100',
     },
     time: {
       type: 'string',

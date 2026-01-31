@@ -23,8 +23,8 @@ export const deleteTool: ToolConfig<MySQLDeleteParams, MySQLResponse> = {
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., my_database)',
     },
     username: {
       type: 'string',
@@ -48,7 +48,7 @@ export const deleteTool: ToolConfig<MySQLDeleteParams, MySQLResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Table name to delete from',
+      description: 'Table name to delete from (e.g., users, orders)',
     },
     where: {
       type: 'string',

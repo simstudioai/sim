@@ -32,21 +32,22 @@ export const hubspotUpdateContactTool: ToolConfig<
     contactId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID or email of the contact to update',
+      visibility: 'user-or-llm',
+      description: 'The HubSpot contact ID (numeric string) or email of the contact to update',
     },
     idProperty: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Property to use as unique identifier (e.g., "email"). If not specified, uses record ID',
     },
     properties: {
       type: 'object',
       required: true,
-      visibility: 'user-only',
-      description: 'Contact properties to update as JSON object',
+      visibility: 'user-or-llm',
+      description:
+        'Contact properties to update as JSON object (e.g., {"firstname": "John", "phone": "+1234567890"})',
     },
   },
 

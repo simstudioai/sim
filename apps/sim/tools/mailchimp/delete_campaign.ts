@@ -32,8 +32,8 @@ export const mailchimpDeleteCampaignTool: ToolConfig<
     campaignId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the campaign to delete',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the campaign to delete (e.g., "abc123def4")',
     },
   },
 

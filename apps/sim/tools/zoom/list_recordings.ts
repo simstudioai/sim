@@ -24,8 +24,9 @@ export const zoomListRecordingsTool: ToolConfig<
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The user ID or email address. Use "me" for the authenticated user.',
+      visibility: 'user-or-llm',
+      description:
+        'The user ID or email address (e.g., "me", "user@example.com", or "AbcDefGHi"). Use "me" for the authenticated user.',
     },
     from: {
       type: 'string',
@@ -43,7 +44,7 @@ export const zoomListRecordingsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of records per page (max 300)',
+      description: 'Number of records per page, 1-300 (e.g., 30, 50, 100)',
     },
     nextPageToken: {
       type: 'string',

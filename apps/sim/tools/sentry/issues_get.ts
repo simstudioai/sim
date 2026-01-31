@@ -18,14 +18,14 @@ export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueRespon
     organizationSlug: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The slug of the organization',
+      visibility: 'user-or-llm',
+      description: 'The slug of the organization (e.g., "my-org")',
     },
     issueId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The unique ID of the issue to retrieve',
+      description: 'The unique ID of the issue to retrieve (e.g., "12345")',
     },
   },
 

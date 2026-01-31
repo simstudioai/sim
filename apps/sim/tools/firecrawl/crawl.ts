@@ -18,13 +18,41 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The website URL to crawl',
+      description:
+        'The website URL to crawl (e.g., "https://example.com" or "https://docs.example.com/guide")',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of pages to crawl (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of pages to crawl (e.g., 50, 100, 500). Default: 100',
+    },
+    maxDepth: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Maximum depth to crawl from the starting URL (e.g., 1, 2, 3). Controls how many levels deep to follow links',
+    },
+    formats: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Output formats for scraped content (e.g., ["markdown"], ["markdown", "html"], ["markdown", "links"])',
+    },
+    excludePaths: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'URL paths to exclude from crawling (e.g., ["/blog/*", "/admin/*", "/*.pdf"])',
+    },
+    includePaths: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'URL paths to include in crawling (e.g., ["/docs/*", "/api/*"]). Only these paths will be crawled',
     },
     onlyMainContent: {
       type: 'boolean',
@@ -51,12 +79,13 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
         url: params.url,
         limit: Number(params.limit) || 100,
         scrapeOptions: params.scrapeOptions || {
-          formats: ['markdown'],
+          formats: params.formats || ['markdown'],
           onlyMainContent: params.onlyMainContent || false,
         },
       }
 
       if (params.prompt) body.prompt = params.prompt
+      if (params.maxDepth) body.maxDiscoveryDepth = Number(params.maxDepth)
       if (params.maxDiscoveryDepth) body.maxDiscoveryDepth = Number(params.maxDiscoveryDepth)
       if (params.sitemap) body.sitemap = params.sitemap
       if (typeof params.crawlEntireDomain === 'boolean')

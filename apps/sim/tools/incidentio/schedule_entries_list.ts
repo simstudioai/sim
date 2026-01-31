@@ -24,31 +24,33 @@ export const scheduleEntriesListTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the schedule to get entries for',
+      description: 'The ID of the schedule to get entries for (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     entry_window_start: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Start date/time to filter entries (ISO 8601 format)',
+      description:
+        'Start date/time to filter entries in ISO 8601 format (e.g., "2024-01-15T09:00:00Z")',
     },
     entry_window_end: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'End date/time to filter entries (ISO 8601 format)',
+      description:
+        'End date/time to filter entries in ISO 8601 format (e.g., "2024-01-22T09:00:00Z")',
     },
     page_size: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to return per page',
+      description: 'Number of results to return per page (e.g., 10, 25, 50)',
     },
     after: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Cursor for pagination',
+      description: 'Cursor for pagination (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

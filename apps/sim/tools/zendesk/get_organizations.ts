@@ -66,14 +66,14 @@ export const zendeskGetOrganizationsTool: ToolConfig<
     perPage: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Results per page (default: 100, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Results per page as a number string (default: "100", max: "100")',
     },
     page: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page number',
+      visibility: 'user-or-llm',
+      description: 'Page number as a string (e.g., "1", "2")',
     },
   },
 

@@ -44,8 +44,8 @@ export const spotifyGetCurrentlyPlayingTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO country code for market',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
   },
 

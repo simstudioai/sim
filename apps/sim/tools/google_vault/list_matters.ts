@@ -35,8 +35,8 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
     matterId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Optional matter ID to fetch a specific matter',
+      visibility: 'user-or-llm',
+      description: 'Optional matter ID to fetch a specific matter (e.g., "12345678901234567890")',
     },
   },
 

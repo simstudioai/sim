@@ -21,8 +21,9 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The user ID or email address. Use "me" for the authenticated user.',
+      visibility: 'user-or-llm',
+      description:
+        'The user ID or email address (e.g., "me", "user@example.com", or "AbcDefGHi"). Use "me" for the authenticated user.',
     },
     type: {
       type: 'string',
@@ -35,7 +36,7 @@ export const zoomListMeetingsTool: ToolConfig<ZoomListMeetingsParams, ZoomListMe
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of records per page (max 300)',
+      description: 'Number of records per page, 1-300 (e.g., 30, 50, 100)',
     },
     nextPageToken: {
       type: 'string',

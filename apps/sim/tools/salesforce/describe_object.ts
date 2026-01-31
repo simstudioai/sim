@@ -34,8 +34,8 @@ export const salesforceDescribeObjectTool: ToolConfig<
     objectName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'API name of the object (e.g., Account, Contact, Lead, Custom_Object__c)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce object API name (e.g., Account, Contact, Lead, Custom_Object__c)',
     },
   },
 

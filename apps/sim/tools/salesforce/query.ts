@@ -28,7 +28,7 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
     query: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'SOQL query to execute (e.g., SELECT Id, Name FROM Account LIMIT 10)',
     },
   },

@@ -46,13 +46,13 @@ export const getCohortTool: ToolConfig<PostHogGetCohortParams, PostHogGetCohortR
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The PostHog project ID',
+      description: 'The PostHog project ID (e.g., "12345" or project UUID)',
     },
     cohortId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The cohort ID to retrieve',
+      description: 'The cohort ID to retrieve (e.g., "42")',
     },
     region: {
       type: 'string',

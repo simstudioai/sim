@@ -51,8 +51,8 @@ export const zendeskDeleteTicketTool: ToolConfig<
     ticketId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Ticket ID to delete',
+      visibility: 'user-or-llm',
+      description: 'Ticket ID to delete as a numeric string (e.g., "12345")',
     },
   },
 

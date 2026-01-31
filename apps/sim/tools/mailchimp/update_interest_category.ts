@@ -37,20 +37,20 @@ export const mailchimpUpdateInterestCategoryTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     interestCategoryId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the interest category',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the interest category (e.g., "xyz789")',
     },
     interestCategoryTitle: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The title of the interest category',
+      visibility: 'user-or-llm',
+      description: 'The title of the interest category (e.g., "Email Preferences")',
     },
   },
 

@@ -23,19 +23,21 @@ export const updateMemberTool: ToolConfig<GoogleGroupsUpdateMemberParams, Google
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
     memberKey: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Member email address or unique member ID',
+      description:
+        'Member identifier. Can be the member email address (e.g., user@example.com) or the unique member ID',
     },
     role: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'New role for the member (MEMBER, MANAGER, or OWNER)',
+      description: 'New role for the member: MEMBER, MANAGER, or OWNER',
     },
   },
 

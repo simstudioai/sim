@@ -24,8 +24,8 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
     databaseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the database to query',
+      visibility: 'user-or-llm',
+      description: 'The UUID of the Notion database to query',
     },
     filter: {
       type: 'string',
@@ -42,7 +42,7 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of results to return (default: 100, max: 100)',
     },
   },

@@ -25,14 +25,14 @@ export const downloadTool: ToolConfig<OneDriveToolParams, OneDriveDownloadRespon
     fileId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the file to download',
+      visibility: 'user-or-llm',
+      description: 'The ID of the file to download (e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M")',
     },
     fileName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Optional filename override',
+      visibility: 'user-or-llm',
+      description: 'Optional filename override (e.g., "report.pdf", "data.xlsx")',
     },
   },
 

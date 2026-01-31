@@ -37,26 +37,27 @@ export const mailchimpUnarchiveMemberTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     subscriberEmail: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Member email address or MD5 hash',
+      visibility: 'user-or-llm',
+      description: 'Member email address or MD5 hash of the lowercase email',
     },
     emailAddress: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Member email address',
+      visibility: 'user-or-llm',
+      description: 'Member email address (e.g., "user@example.com")',
     },
     status: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Subscriber status',
+      visibility: 'user-or-llm',
+      description:
+        'Subscriber status: "subscribed", "unsubscribed", "cleaned", "pending", or "transactional"',
     },
   },
 

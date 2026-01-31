@@ -32,8 +32,8 @@ export const mailchimpStartAutomationTool: ToolConfig<
     workflowId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the automation workflow',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the automation workflow (e.g., "abc123def4")',
     },
   },
 

@@ -24,13 +24,13 @@ export const apolloOpportunityUpdateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the opportunity to update',
+      description: 'ID of the opportunity to update (e.g., "opp_abc123")',
     },
     name: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Name of the opportunity/deal',
+      description: 'Name of the opportunity/deal (e.g., "Enterprise License - Q1")',
     },
     amount: {
       type: 'number',

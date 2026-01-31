@@ -22,13 +22,13 @@ export const polymarketGetTagsTool: ToolConfig<PolymarketGetTagsParams, Polymark
       limit: {
         type: 'string',
         required: false,
-        description: 'Number of results per page (max 50)',
+        description: 'Number of results per page (e.g., "25"). Max: 50.',
         visibility: 'user-or-llm',
       },
       offset: {
         type: 'string',
         required: false,
-        description: 'Pagination offset (skip this many results)',
+        description: 'Number of results to skip for pagination (e.g., "50").',
         visibility: 'user-or-llm',
       },
     },

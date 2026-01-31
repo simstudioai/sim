@@ -20,8 +20,8 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
     noteId: {
       type: 'string',
       required: false,
-      description: 'The ID of the note to read',
-      visibility: 'user-only',
+      description: 'The ID of the note to read (e.g., "11111")',
+      visibility: 'user-or-llm',
     },
   },
 

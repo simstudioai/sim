@@ -367,6 +367,8 @@ export interface FirecrawlCrawlParams {
   apiKey: string
   url: string
   limit?: number
+  maxDepth?: number
+  formats?: string[]
   onlyMainContent?: boolean
   prompt?: string
   maxDiscoveryDepth?: number

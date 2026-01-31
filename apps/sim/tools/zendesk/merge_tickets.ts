@@ -54,20 +54,21 @@ export const zendeskMergeTicketsTool: ToolConfig<
     targetTicketId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Target ticket ID (tickets will be merged into this one)',
+      visibility: 'user-or-llm',
+      description:
+        'Target ticket ID as a numeric string (tickets will be merged into this one, e.g., "12345")',
     },
     sourceTicketIds: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Comma-separated source ticket IDs to merge',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated source ticket IDs to merge (e.g., "111, 222, 333")',
     },
     targetComment: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comment to add to target ticket after merge',
+      visibility: 'user-or-llm',
+      description: 'Comment text to add to target ticket after merge',
     },
   },
 

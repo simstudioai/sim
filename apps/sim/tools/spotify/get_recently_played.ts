@@ -21,20 +21,20 @@ export const spotifyGetRecentlyPlayedTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of tracks to return (1-50)',
     },
     after: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unix timestamp in milliseconds. Returns items after this cursor.',
     },
     before: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unix timestamp in milliseconds. Returns items before this cursor.',
     },
   },

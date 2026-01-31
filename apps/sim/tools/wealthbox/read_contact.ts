@@ -20,8 +20,8 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
     contactId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The ID of the contact to read',
+      visibility: 'user-or-llm',
+      description: 'The ID of the contact to read (e.g., "12345")',
     },
   },
 

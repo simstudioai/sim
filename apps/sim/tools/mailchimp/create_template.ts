@@ -38,13 +38,13 @@ export const mailchimpCreateTemplateTool: ToolConfig<
     templateName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The name of the template',
+      visibility: 'user-or-llm',
+      description: 'The name of the template (e.g., "Monthly Newsletter")',
     },
     templateHtml: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The HTML content for the template',
     },
   },

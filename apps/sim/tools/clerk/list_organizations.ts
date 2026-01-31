@@ -29,13 +29,13 @@ export const clerkListOrganizationsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results per page (1-500, default: 10)',
+      description: 'Number of results per page (e.g., 10, 50, 100; range: 1-500, default: 10)',
     },
     offset: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to skip for pagination',
+      description: 'Number of results to skip for pagination (e.g., 0, 10, 20)',
     },
     includeMembersCount: {
       type: 'boolean',
@@ -47,7 +47,7 @@ export const clerkListOrganizationsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search by organization ID, name, or slug',
+      description: 'Search by organization ID, name, or slug (e.g., Acme Corp or acme-corp)',
     },
     orderBy: {
       type: 'string',

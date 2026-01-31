@@ -13,19 +13,22 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Domain to count emails for (required if company not provided)',
+      description:
+        'Domain to count emails for (e.g., "stripe.com"). Required if company not provided',
     },
     company: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company name to count emails for (required if domain not provided)',
+      description:
+        'Company name to count emails for (e.g., "Stripe", "Acme Inc"). Required if domain not provided',
     },
     type: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter for personal or generic emails only',
+      visibility: 'user-or-llm',
+      description:
+        'Filter for personal or generic emails only (e.g., "personal", "generic", "all")',
     },
     apiKey: {
       type: 'string',

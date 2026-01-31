@@ -26,9 +26,10 @@ export const spotifyGetArtistTopTracksTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 'US',
-      description: 'ISO 3166-1 alpha-2 country code (required for this endpoint)',
+      description:
+        'ISO 3166-1 alpha-2 country code (e.g., "US", "GB") - required for this endpoint',
     },
   },
 

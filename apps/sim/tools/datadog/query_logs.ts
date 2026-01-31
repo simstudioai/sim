@@ -13,31 +13,34 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Log search query (e.g., "service:web-app status:error")',
+      description:
+        'Log search query using Datadog query syntax (e.g., "service:web-app status:error", "host:prod-* @http.status_code:500")',
     },
     from: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Start time in ISO-8601 format or relative (e.g., "now-1h")',
+      description:
+        'Start time in ISO-8601 format or relative time (e.g., "now-1h", "now-15m", "2024-01-15T10:00:00Z")',
     },
     to: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'End time in ISO-8601 format or relative (e.g., "now")',
+      description:
+        'End time in ISO-8601 format or relative time (e.g., "now", "now-5m", "2024-01-15T12:00:00Z")',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of logs to return (default: 50, max: 1000)',
+      description: 'Maximum number of logs to return (e.g., 50, 100, max: 1000)',
     },
     sort: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort order: timestamp (oldest first) or -timestamp (newest first)',
+      description: 'Sort order: "timestamp" for oldest first, "-timestamp" for newest first',
     },
     indexes: {
       type: 'string',

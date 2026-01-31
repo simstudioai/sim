@@ -20,16 +20,16 @@ export const spotifyGetUserPlaylistsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Maximum number of playlists to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of the first playlist to return',
+      description: 'Index of the first playlist to return for pagination',
     },
   },
 

@@ -51,8 +51,8 @@ export const zendeskDeleteOrganizationTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Organization ID to delete',
+      visibility: 'user-or-llm',
+      description: 'Organization ID to delete as a numeric string (e.g., "12345")',
     },
   },
 

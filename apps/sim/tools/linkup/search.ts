@@ -16,19 +16,20 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The search query',
+      description: 'The search query (e.g., "latest AI research papers 2024")',
     },
     depth: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Search depth (has to either be "standard" or "deep")',
+      description: 'Search depth: "standard" for quick results, "deep" for comprehensive search',
     },
     outputType: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Type of output to return (has to be "sourcedAnswer" or "searchResults")',
+      visibility: 'user-or-llm',
+      description:
+        'Output format: "sourcedAnswer" for AI-generated answer with citations, "searchResults" for raw results',
     },
     apiKey: {
       type: 'string',

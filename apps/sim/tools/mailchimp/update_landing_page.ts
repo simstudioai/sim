@@ -36,14 +36,14 @@ export const mailchimpUpdateLandingPageTool: ToolConfig<
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the landing page',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the landing page (e.g., "abc123def4")',
     },
     landingPageTitle: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The title of the landing page',
+      visibility: 'user-or-llm',
+      description: 'The title of the landing page (e.g., "Join Our Newsletter")',
     },
   },
 

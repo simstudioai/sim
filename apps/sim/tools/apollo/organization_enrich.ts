@@ -25,14 +25,14 @@ export const apolloOrganizationEnrichTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Name of the organization (at least one of organization_name or domain is required)',
+        'Name of the organization (e.g., "Acme Corporation") - at least one of organization_name or domain is required',
     },
     domain: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Company domain (e.g., apollo.io) (at least one of domain or organization_name is required)',
+        'Company domain (e.g., "apollo.io", "acme.com") - at least one of domain or organization_name is required',
     },
   },
 

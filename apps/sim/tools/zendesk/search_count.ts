@@ -50,8 +50,9 @@ export const zendeskSearchCountTool: ToolConfig<
     query: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Search query string',
+      visibility: 'user-or-llm',
+      description:
+        'Search query string using Zendesk search syntax (e.g., "type:ticket status:open")',
     },
   },
 

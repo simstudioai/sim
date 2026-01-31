@@ -15,14 +15,14 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
     indexHost: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Full Pinecone index host URL',
+      visibility: 'user-or-llm',
+      description: 'Full Pinecone index host URL (e.g., "https://my-index-abc123.svc.pinecone.io")',
     },
     namespace: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Namespace to search in',
+      visibility: 'user-or-llm',
+      description: 'Namespace to search in (e.g., "documents", "embeddings")',
     },
     searchQuery: {
       type: 'string',
@@ -33,8 +33,8 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
     topK: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (e.g., "10", "25")',
     },
     fields: {
       type: 'array',
@@ -45,8 +45,9 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
     filter: {
       type: 'object',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter to apply to the search',
+      visibility: 'user-or-llm',
+      description:
+        'Filter to apply to the search (e.g., {"category": "tech", "year": {"$gte": 2020}})',
     },
     rerank: {
       type: 'object',

@@ -48,8 +48,8 @@ export const zendeskGetUserTool: ToolConfig<ZendeskGetUserParams, ZendeskGetUser
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID to retrieve',
+      visibility: 'user-or-llm',
+      description: 'User ID to retrieve as a numeric string (e.g., "12345")',
     },
   },
 

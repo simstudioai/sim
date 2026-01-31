@@ -48,8 +48,8 @@ export const zendeskGetTicketTool: ToolConfig<ZendeskGetTicketParams, ZendeskGet
     ticketId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Ticket ID to retrieve',
+      visibility: 'user-or-llm',
+      description: 'Ticket ID to retrieve as a numeric string (e.g., "12345")',
     },
   },
 

@@ -29,14 +29,14 @@ export const deleteDashboardTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization ID for multi-org Grafana instances',
+      visibility: 'user-or-llm',
+      description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
     },
     dashboardUid: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The UID of the dashboard to delete',
+      description: 'The UID of the dashboard to delete (e.g., abc123def)',
     },
   },
 

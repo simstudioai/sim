@@ -51,8 +51,8 @@ export const zendeskGetOrganizationTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Organization ID to retrieve',
+      visibility: 'user-or-llm',
+      description: 'Organization ID to retrieve as a numeric string (e.g., "12345")',
     },
   },
 

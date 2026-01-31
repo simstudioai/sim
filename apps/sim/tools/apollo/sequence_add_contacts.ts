@@ -23,14 +23,15 @@ export const apolloSequenceAddContactsTool: ToolConfig<
     sequence_id: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the sequence to add contacts to',
+      visibility: 'user-or-llm',
+      description: 'ID of the sequence to add contacts to (e.g., "seq_abc123")',
     },
     contact_ids: {
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of contact IDs to add to the sequence',
+      description:
+        'Array of contact IDs to add to the sequence (e.g., ["con_abc123", "con_def456"])',
     },
     emailer_campaign_id: {
       type: 'string',

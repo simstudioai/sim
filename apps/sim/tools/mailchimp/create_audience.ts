@@ -42,32 +42,35 @@ export const mailchimpCreateAudienceTool: ToolConfig<
     audienceName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The name of the list',
+      visibility: 'user-or-llm',
+      description: 'The name of the audience/list (e.g., "Newsletter Subscribers")',
     },
     contact: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'JSON object of contact information',
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of contact information (e.g., {"company": "Acme", "address1": "123 Main St", "city": "NYC", "state": "NY", "zip": "10001", "country": "US"})',
     },
     permissionReminder: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Permission reminder text',
+      visibility: 'user-or-llm',
+      description:
+        'Permission reminder text shown to subscribers (e.g., "You signed up for updates on our website")',
     },
     campaignDefaults: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'JSON object of default campaign settings',
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of default campaign settings (e.g., {"from_name": "Acme", "from_email": "news@acme.com", "subject": "", "language": "en"})',
     },
     emailTypeOption: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Support multiple email formats',
+      visibility: 'user-or-llm',
+      description: 'Support multiple email formats: "true" or "false"',
     },
   },
 

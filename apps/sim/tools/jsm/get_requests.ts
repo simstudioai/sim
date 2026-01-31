@@ -34,39 +34,39 @@ export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequests
     serviceDeskId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by service desk ID',
+      visibility: 'user-or-llm',
+      description: 'Filter by service desk ID (e.g., "1", "2")',
     },
     requestOwnership: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, ORGANIZATION, ALL_REQUESTS',
     },
     requestStatus: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter by status: OPEN, CLOSED, ALL',
     },
     searchTerm: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search term to filter requests',
+      description: 'Search term to filter requests (e.g., "password reset", "laptop")',
     },
     start: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Start index for pagination (default: 0)',
+      visibility: 'user-or-llm',
+      description: 'Start index for pagination (e.g., 0, 50, 100)',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum results to return (default: 50)',
+      visibility: 'user-or-llm',
+      description: 'Maximum results to return (e.g., 10, 25, 50)',
     },
   },
 

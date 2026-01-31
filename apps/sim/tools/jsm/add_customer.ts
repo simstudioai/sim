@@ -34,8 +34,8 @@ export const jsmAddCustomerTool: ToolConfig<JsmAddCustomerParams, JsmAddCustomer
     serviceDeskId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Service Desk ID to add customers to',
+      visibility: 'user-or-llm',
+      description: 'Service Desk ID (e.g., "1", "2")',
     },
     emails: {
       type: 'string',

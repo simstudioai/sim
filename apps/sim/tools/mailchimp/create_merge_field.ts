@@ -40,21 +40,21 @@ export const mailchimpCreateMergeFieldTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     mergeName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The name of the merge field',
+      visibility: 'user-or-llm',
+      description: 'The name of the merge field (e.g., "First Name")',
     },
     mergeType: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'The type of the merge field (text, number, address, phone, date, url, imageurl, radio, dropdown, birthday, zip)',
+        'The type of the merge field: "text", "number", "address", "phone", "date", "url", "imageurl", "radio", "dropdown", "birthday", or "zip"',
     },
   },
 

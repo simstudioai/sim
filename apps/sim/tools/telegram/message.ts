@@ -28,8 +28,8 @@ export const telegramMessageTool: ToolConfig<
     chatId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Target Telegram chat ID',
+      visibility: 'user-or-llm',
+      description: 'Telegram chat ID (numeric, can be negative for groups)',
     },
     text: {
       type: 'string',

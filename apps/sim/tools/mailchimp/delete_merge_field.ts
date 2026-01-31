@@ -33,14 +33,14 @@ export const mailchimpDeleteMergeFieldTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     mergeId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the merge field to delete',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the merge field to delete (e.g., "1" or "FNAME")',
     },
   },
 

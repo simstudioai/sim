@@ -26,26 +26,26 @@ export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowLis
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the Webflow site',
+      visibility: 'user-or-llm',
+      description: 'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741")',
     },
     collectionId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the collection',
+      visibility: 'user-or-llm',
+      description: 'ID of the collection (e.g., "580e63fc8c9a982ac9b8b745")',
     },
     offset: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Offset for pagination (optional)',
+      description: 'Offset for pagination (e.g., 0, 100, 200)',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of items to return (optional, default: 100)',
+      description: 'Maximum number of items to return (e.g., 10, 50, 100; default: 100)',
     },
   },
 

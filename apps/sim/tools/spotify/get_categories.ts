@@ -20,19 +20,19 @@ export const spotifyGetCategoriesTool: ToolConfig<
     country: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
     locale: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Locale code (e.g., "en_US", "es_MX")',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of categories to return (1-50)',
     },

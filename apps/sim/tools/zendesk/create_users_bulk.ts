@@ -51,8 +51,9 @@ export const zendeskCreateUsersBulkTool: ToolConfig<
     users: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'JSON array of user objects to create',
+      visibility: 'user-or-llm',
+      description:
+        'JSON array of user objects to create (e.g., [{"name": "User1", "email": "user1@example.com"}])',
     },
   },
 

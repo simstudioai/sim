@@ -27,14 +27,14 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Google Form',
+      visibility: 'user-or-llm',
+      description: 'Google Forms form ID',
     },
     responseId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'If provided, returns this specific response',
+      visibility: 'user-or-llm',
+      description: 'Response ID - if provided, returns this specific response',
     },
     pageSize: {
       type: 'number',

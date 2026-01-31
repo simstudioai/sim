@@ -42,32 +42,34 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     audienceName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The name of the list',
+      visibility: 'user-or-llm',
+      description: 'The name of the audience/list (e.g., "Newsletter Subscribers")',
     },
     permissionReminder: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Permission reminder text',
+      visibility: 'user-or-llm',
+      description:
+        'Permission reminder text shown to subscribers (e.g., "You signed up for updates on our website")',
     },
     campaignDefaults: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'JSON object of default campaign settings',
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of default campaign settings (e.g., {"from_name": "Acme", "from_email": "news@acme.com"})',
     },
     emailTypeOption: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Support multiple email formats',
+      visibility: 'user-or-llm',
+      description: 'Support multiple email formats: "true" or "false"',
     },
   },
 

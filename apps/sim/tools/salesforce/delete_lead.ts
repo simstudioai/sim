@@ -27,8 +27,8 @@ export const salesforceDeleteLeadTool: ToolConfig<
     leadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Lead ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Lead ID to delete (18-character string starting with 00Q)',
     },
   },
 

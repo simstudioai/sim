@@ -23,19 +23,20 @@ export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGr
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of results to return (1-200)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (1-200). Example: 50',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
-      description: 'Token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Token for fetching the next page of results',
     },
     roles: {
       type: 'string',

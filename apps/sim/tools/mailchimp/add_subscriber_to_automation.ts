@@ -39,20 +39,20 @@ export const mailchimpAddSubscriberToAutomationTool: ToolConfig<
     workflowId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the automation workflow',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the automation workflow (e.g., "abc123def4")',
     },
     workflowEmailId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the workflow email',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the workflow email (e.g., "xyz789")',
     },
     emailAddress: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Email address of the subscriber',
+      visibility: 'user-or-llm',
+      description: 'Email address of the subscriber (e.g., "user@example.com")',
     },
   },
 

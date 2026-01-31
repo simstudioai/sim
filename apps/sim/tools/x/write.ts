@@ -24,13 +24,13 @@ export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text content of your tweet',
+      description: 'The text content of your tweet (max 280 characters)',
     },
     replyTo: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ID of the tweet to reply to',
+      visibility: 'user-or-llm',
+      description: 'ID of the tweet to reply to (e.g., 1234567890123456789)',
     },
     mediaIds: {
       type: 'array',

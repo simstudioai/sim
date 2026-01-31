@@ -28,16 +28,16 @@ export const spotifyGetTopTracksTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of tracks to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of the first track to return',
+      description: 'Index of the first track to return for pagination',
     },
   },
 

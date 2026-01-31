@@ -20,8 +20,8 @@ export const pipedriveGetDealTool: ToolConfig<PipedriveGetDealParams, PipedriveG
     deal_id: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the deal to retrieve',
+      visibility: 'user-or-llm',
+      description: 'The ID of the deal to retrieve (e.g., "123")',
     },
   },
 

@@ -39,14 +39,14 @@ export const mailchimpCreateLandingPageTool: ToolConfig<
     landingPageType: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The type of landing page (signup)',
+      visibility: 'user-or-llm',
+      description: 'The type of landing page: "signup"',
     },
     landingPageTitle: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The title of the landing page',
+      visibility: 'user-or-llm',
+      description: 'The title of the landing page (e.g., "Join Our Newsletter")',
     },
   },
 

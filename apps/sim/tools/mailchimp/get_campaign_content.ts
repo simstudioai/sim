@@ -35,8 +35,8 @@ export const mailchimpGetCampaignContentTool: ToolConfig<
     campaignId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the campaign',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the campaign (e.g., "abc123def4")',
     },
   },
 

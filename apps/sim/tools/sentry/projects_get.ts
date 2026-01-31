@@ -18,14 +18,14 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
     organizationSlug: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The slug of the organization',
+      visibility: 'user-or-llm',
+      description: 'The slug of the organization (e.g., "my-org")',
     },
     projectSlug: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID or slug of the project to retrieve',
+      description: 'The slug of the project to retrieve (e.g., "my-project")',
     },
   },
 

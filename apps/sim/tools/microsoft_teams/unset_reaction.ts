@@ -27,26 +27,29 @@ export const unsetReactionTool: ToolConfig<
     teamId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The ID of the team (for channel messages)',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the team for channel messages (e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID)',
     },
     channelId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The ID of the channel (for channel messages)',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the channel for channel messages (e.g., "19:abc123def456@thread.tacv2")',
     },
     chatId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The ID of the chat (for chat messages)',
+      visibility: 'user-or-llm',
+      description: 'The ID of the chat for chat messages (e.g., "19:abc123def456@thread.v2")',
     },
     messageId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the message',
+      description:
+        'The ID of the message (e.g., "1234567890123" - a numeric string from message responses)',
     },
     reactionType: {
       type: 'string',

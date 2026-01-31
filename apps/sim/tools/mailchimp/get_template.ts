@@ -37,8 +37,8 @@ export const mailchimpGetTemplateTool: ToolConfig<
     templateId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the template',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the template (e.g., "12345")',
     },
   },
 

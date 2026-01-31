@@ -26,8 +26,8 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (default: 100, max: 100)',
     },
   },
 

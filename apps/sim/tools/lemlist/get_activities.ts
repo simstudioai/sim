@@ -32,13 +32,13 @@ export const getActivitiesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by campaign ID',
+      description: 'Filter by campaign ID (e.g., "cam_abc123def456")',
     },
     leadId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by lead ID',
+      description: 'Filter by lead ID (e.g., "lea_abc123def456")',
     },
     isFirst: {
       type: 'boolean',
@@ -50,13 +50,13 @@ export const getActivitiesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results per request (max 100, default 100)',
+      description: 'Number of results per request (e.g., 50). Max 100, default 100',
     },
     offset: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of records to skip for pagination',
+      description: 'Number of records to skip for pagination (e.g., 0, 100, 200)',
     },
   },
 

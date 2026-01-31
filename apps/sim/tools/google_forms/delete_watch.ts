@@ -29,14 +29,14 @@ export const deleteWatchTool: ToolConfig<
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Google Form',
+      visibility: 'user-or-llm',
+      description: 'Google Forms form ID',
     },
     watchId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the watch to delete',
+      visibility: 'user-or-llm',
+      description: 'Watch ID to delete',
     },
   },
 

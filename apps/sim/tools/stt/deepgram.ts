@@ -30,13 +30,13 @@ export const deepgramSttTool: ToolConfig<SttParams, SttResponse> = {
     audioFile: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Audio or video file to transcribe',
+      visibility: 'user-only',
+      description: 'Audio or video file to transcribe (e.g., MP3, WAV, M4A, WEBM)',
     },
     audioFileReference: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Reference to audio/video file from previous blocks',
     },
     audioUrl: {

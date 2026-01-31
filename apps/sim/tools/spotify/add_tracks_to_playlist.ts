@@ -32,8 +32,8 @@ export const spotifyAddTracksToPlaylistTool: ToolConfig<
     position: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Position to insert tracks (0-based). If omitted, tracks are appended.',
+      visibility: 'user-or-llm',
+      description: 'Position to insert tracks (0-based index). If omitted, tracks are appended.',
     },
   },
 
