@@ -217,7 +217,7 @@ Search for videos on YouTube using the YouTube Data API. Supports advanced filte
 |   ↳ `channelId` | string | Channel ID that uploaded the video |
 |   ↳ `channelTitle` | string | Channel name |
 |   ↳ `publishedAt` | string | Video publish date |
-|   ↳ `liveBroadcastContent` | string | Live broadcast status:  |
+|   ↳ `liveBroadcastContent` | string | Live broadcast status: "none", "live", or "upcoming" |
 | `totalResults` | number | Total number of search results available |
 | `nextPageToken` | string | Token for accessing the next page of results |
 
@@ -271,7 +271,7 @@ Get a list of video categories available on YouTube. Use this to discover valid 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of video categories available in the specified region |
-|   ↳ `categoryId` | string | Category ID to use in search/trending filters \(e.g.,  |
+|   ↳ `categoryId` | string | Category ID to use in search/trending filters \(e.g., "10" for Music\) |
 |   ↳ `title` | string | Human-readable category name |
 |   ↳ `assignable` | boolean | Whether videos can be tagged with this category |
 | `totalResults` | number | Total number of categories available |
@@ -297,7 +297,7 @@ Get detailed information about a specific YouTube video including statistics, co
 | `channelId` | string | Channel ID |
 | `channelTitle` | string | Channel name |
 | `publishedAt` | string | Published date and time |
-| `duration` | string | Video duration in ISO 8601 format \(e.g.,  |
+| `duration` | string | Video duration in ISO 8601 format \(e.g., "PT4M13S" for 4 min 13 sec\) |
 | `viewCount` | number | Number of views |
 | `likeCount` | number | Number of likes |
 | `commentCount` | number | Number of comments |
@@ -305,11 +305,11 @@ Get detailed information about a specific YouTube video including statistics, co
 | `thumbnail` | string | Video thumbnail URL |
 | `tags` | array | Video tags |
 | `categoryId` | string | YouTube video category ID |
-| `definition` | string | Video definition:  |
-| `caption` | string | Whether captions are available:  |
+| `definition` | string | Video definition: "hd" or "sd" |
+| `caption` | string | Whether captions are available: "true" or "false" |
 | `licensedContent` | boolean | Whether the video is licensed content |
-| `privacyStatus` | string | Video privacy status:  |
-| `liveBroadcastContent` | string | Live broadcast status:  |
+| `privacyStatus` | string | Video privacy status: "public", "private", or "unlisted" |
+| `liveBroadcastContent` | string | Live broadcast status: "live", "upcoming", or "none" |
 | `defaultLanguage` | string | Default language of the video metadata |
 | `defaultAudioLanguage` | string | Default audio language of the video |
 | `isLiveContent` | boolean | Whether this video is or was a live stream |
