@@ -8,7 +8,10 @@ import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
@@ -3161,6 +3164,37 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     // Format skipped items for LLM feedback
     const skippedMessages =
       skippedItems.length > 0 ? skippedItems.map((item) => item.reason) : undefined
+
+    // Persist the workflow state to the database
+    const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
+    const workflowStateForDb = {
+      blocks: finalWorkflowState.blocks,
+      edges: finalWorkflowState.edges,
+      loops: generateLoopBlocks(finalWorkflowState.blocks as any),
+      parallels: generateParallelBlocks(finalWorkflowState.blocks as any),
+      lastSaved: Date.now(),
+      isDeployed: false,
+    }
+
+    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowStateForDb as any)
+    if (!saveResult.success) {
+      logger.error('Failed to persist workflow state to database', {
+        workflowId,
+        error: saveResult.error,
+      })
+      throw new Error(`Failed to save workflow: ${saveResult.error}`)
+    }
+
+    // Update workflow's lastSynced timestamp
+    await db
+      .update(workflowTable)
+      .set({
+        lastSynced: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(workflowTable.id, workflowId))
+
+    logger.info('Workflow state persisted to database', { workflowId })
 
     // Return the modified workflow state for the client to convert to YAML if needed
     return {
