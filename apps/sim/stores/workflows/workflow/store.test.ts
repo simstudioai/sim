@@ -782,6 +782,353 @@ describe('workflow store', () => {
     })
   })
 
+  describe('loop/parallel regeneration optimization', () => {
+    it('should NOT regenerate loops when adding a regular block without parentId', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      // Add a loop first
+      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
+
+      const stateAfterLoop = useWorkflowStore.getState()
+      const loopsAfterLoop = stateAfterLoop.loops
+
+      // Add a regular block (no parentId)
+      addBlock('agent-1', 'agent', 'Agent 1', { x: 200, y: 0 })
+
+      const stateAfterAgent = useWorkflowStore.getState()
+
+      // Loops should be unchanged (same content)
+      expect(Object.keys(stateAfterAgent.loops)).toEqual(Object.keys(loopsAfterLoop))
+      expect(stateAfterAgent.loops['loop-1'].nodes).toEqual(loopsAfterLoop['loop-1'].nodes)
+    })
+
+    it('should regenerate loops when adding a child to a loop', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      // Add a loop
+      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
+
+      const stateAfterLoop = useWorkflowStore.getState()
+      expect(stateAfterLoop.loops['loop-1'].nodes).toEqual([])
+
+      // Add a child block to the loop
+      addBlock(
+        'child-1',
+        'function',
+        'Child 1',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+
+      const stateAfterChild = useWorkflowStore.getState()
+
+      // Loop should now include the child
+      expect(stateAfterChild.loops['loop-1'].nodes).toContain('child-1')
+    })
+
+    it('should NOT regenerate parallels when adding a child to a loop', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      // Add both a loop and a parallel
+      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
+      addBlock('parallel-1', 'parallel', 'Parallel 1', { x: 300, y: 0 }, { count: 3 })
+
+      const stateAfterContainers = useWorkflowStore.getState()
+      const parallelsAfterContainers = stateAfterContainers.parallels
+
+      // Add a child to the loop (not the parallel)
+      addBlock(
+        'child-1',
+        'function',
+        'Child 1',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+
+      const stateAfterChild = useWorkflowStore.getState()
+
+      // Parallels should be unchanged
+      expect(stateAfterChild.parallels['parallel-1'].nodes).toEqual(
+        parallelsAfterContainers['parallel-1'].nodes
+      )
+    })
+
+    it('should regenerate parallels when adding a child to a parallel', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      // Add a parallel
+      addBlock('parallel-1', 'parallel', 'Parallel 1', { x: 0, y: 0 }, { count: 3 })
+
+      const stateAfterParallel = useWorkflowStore.getState()
+      expect(stateAfterParallel.parallels['parallel-1'].nodes).toEqual([])
+
+      // Add a child block to the parallel
+      addBlock(
+        'child-1',
+        'function',
+        'Child 1',
+        { x: 50, y: 50 },
+        { parentId: 'parallel-1' },
+        'parallel-1',
+        'parent'
+      )
+
+      const stateAfterChild = useWorkflowStore.getState()
+
+      // Parallel should now include the child
+      expect(stateAfterChild.parallels['parallel-1'].nodes).toContain('child-1')
+    })
+
+    it('should handle adding blocks in any order and produce correct final state', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      // Add child BEFORE the loop (simulating undo-redo edge case)
+      // Note: The child's parentId points to a loop that doesn't exist yet
+      addBlock(
+        'child-1',
+        'function',
+        'Child 1',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+
+      // At this point, the child exists but loop doesn't
+      const stateAfterChild = useWorkflowStore.getState()
+      expect(stateAfterChild.blocks['child-1']).toBeDefined()
+      expect(stateAfterChild.loops['loop-1']).toBeUndefined()
+
+      // Now add the loop
+      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
+
+      // Final state should be correct - loop should include the child
+      const finalState = useWorkflowStore.getState()
+      expect(finalState.loops['loop-1']).toBeDefined()
+      expect(finalState.loops['loop-1'].nodes).toContain('child-1')
+    })
+  })
+
+  describe('batchAddBlocks optimization', () => {
+    it('should NOT regenerate loops/parallels when adding regular blocks', () => {
+      const { batchAddBlocks } = useWorkflowStore.getState()
+
+      // Set up initial state with a loop
+      useWorkflowStore.setState({
+        blocks: {
+          'loop-1': {
+            id: 'loop-1',
+            type: 'loop',
+            name: 'Loop 1',
+            position: { x: 0, y: 0 },
+            subBlocks: {},
+            outputs: {},
+            enabled: true,
+            horizontalHandles: true,
+            advancedMode: false,
+            triggerMode: false,
+            height: 0,
+            data: { loopType: 'for', count: 5 },
+          },
+        },
+        edges: [],
+        loops: {
+          'loop-1': {
+            id: 'loop-1',
+            nodes: [],
+            iterations: 5,
+            loopType: 'for',
+            enabled: true,
+          },
+        },
+        parallels: {},
+      })
+
+      const stateBefore = useWorkflowStore.getState()
+
+      // Add regular blocks (no parentId, not loop/parallel type)
+      batchAddBlocks([
+        {
+          id: 'agent-1',
+          type: 'agent',
+          name: 'Agent 1',
+          position: { x: 200, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+        {
+          id: 'function-1',
+          type: 'function',
+          name: 'Function 1',
+          position: { x: 400, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+      ])
+
+      const stateAfter = useWorkflowStore.getState()
+
+      // Loops should be unchanged
+      expect(stateAfter.loops['loop-1'].nodes).toEqual(stateBefore.loops['loop-1'].nodes)
+    })
+
+    it('should regenerate loops when batch adding a loop block', () => {
+      const { batchAddBlocks } = useWorkflowStore.getState()
+
+      batchAddBlocks([
+        {
+          id: 'loop-1',
+          type: 'loop',
+          name: 'Loop 1',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+          data: { loopType: 'for', count: 5 },
+        },
+      ])
+
+      const state = useWorkflowStore.getState()
+      expect(state.loops['loop-1']).toBeDefined()
+      expect(state.loops['loop-1'].iterations).toBe(5)
+    })
+
+    it('should regenerate loops when batch adding a child of a loop', () => {
+      const { batchAddBlocks } = useWorkflowStore.getState()
+
+      // First add a loop
+      batchAddBlocks([
+        {
+          id: 'loop-1',
+          type: 'loop',
+          name: 'Loop 1',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+          data: { loopType: 'for', count: 5 },
+        },
+      ])
+
+      // Then add a child
+      batchAddBlocks([
+        {
+          id: 'child-1',
+          type: 'function',
+          name: 'Child 1',
+          position: { x: 50, y: 50 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+          data: { parentId: 'loop-1' },
+        },
+      ])
+
+      const state = useWorkflowStore.getState()
+      expect(state.loops['loop-1'].nodes).toContain('child-1')
+    })
+
+    it('should correctly handle batch adding loop and its children together', () => {
+      const { batchAddBlocks } = useWorkflowStore.getState()
+
+      // Add loop and child in same batch
+      batchAddBlocks([
+        {
+          id: 'loop-1',
+          type: 'loop',
+          name: 'Loop 1',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+          data: { loopType: 'for', count: 5 },
+        },
+        {
+          id: 'child-1',
+          type: 'function',
+          name: 'Child 1',
+          position: { x: 50, y: 50 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+          data: { parentId: 'loop-1' },
+        },
+      ])
+
+      const state = useWorkflowStore.getState()
+      expect(state.loops['loop-1']).toBeDefined()
+      expect(state.loops['loop-1'].nodes).toContain('child-1')
+    })
+  })
+
+  describe('edge operations should not affect loops/parallels', () => {
+    it('should preserve loops when adding edges', () => {
+      const { addBlock, batchAddEdges } = useWorkflowStore.getState()
+
+      // Create a loop with a child
+      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
+      addBlock(
+        'child-1',
+        'function',
+        'Child 1',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+      addBlock('external-1', 'function', 'External', { x: 300, y: 0 })
+
+      const stateBeforeEdge = useWorkflowStore.getState()
+      const loopsBeforeEdge = stateBeforeEdge.loops
+
+      // Add an edge (should not affect loops)
+      batchAddEdges([{ id: 'e1', source: 'loop-1', target: 'external-1' }])
+
+      const stateAfterEdge = useWorkflowStore.getState()
+
+      // Loops should be unchanged
+      expect(stateAfterEdge.loops['loop-1'].nodes).toEqual(loopsBeforeEdge['loop-1'].nodes)
+      expect(stateAfterEdge.loops['loop-1'].iterations).toEqual(
+        loopsBeforeEdge['loop-1'].iterations
+      )
+    })
+
+    it('should preserve loops when removing edges', () => {
+      const { addBlock, batchAddEdges, batchRemoveEdges } = useWorkflowStore.getState()
+
+      // Create a loop with a child and an edge
+      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
+      addBlock(
+        'child-1',
+        'function',
+        'Child 1',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+      addBlock('external-1', 'function', 'External', { x: 300, y: 0 })
+      batchAddEdges([{ id: 'e1', source: 'loop-1', target: 'external-1' }])
+
+      const stateBeforeRemove = useWorkflowStore.getState()
+      const loopsBeforeRemove = stateBeforeRemove.loops
+
+      // Remove the edge
+      batchRemoveEdges(['e1'])
+
+      const stateAfterRemove = useWorkflowStore.getState()
+
+      // Loops should be unchanged
+      expect(stateAfterRemove.loops['loop-1'].nodes).toEqual(loopsBeforeRemove['loop-1'].nodes)
+    })
+  })
+
   describe('updateBlockName', () => {
     beforeEach(() => {
       useWorkflowStore.setState({

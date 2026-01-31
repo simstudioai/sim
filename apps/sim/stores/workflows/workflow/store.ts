@@ -139,30 +139,32 @@ export const useWorkflowStore = create<WorkflowStore>()(
             ...(parentId && { parentId, extent: extent || 'parent' }),
           }
 
-          const newState = {
-            blocks: {
-              ...get().blocks,
-              [id]: {
-                id,
-                type,
-                name,
-                position,
-                subBlocks: {},
-                outputs: {},
-                enabled: blockProperties?.enabled ?? true,
-                horizontalHandles: blockProperties?.horizontalHandles ?? true,
-                advancedMode: blockProperties?.advancedMode ?? false,
-                triggerMode: blockProperties?.triggerMode ?? false,
-                height: blockProperties?.height ?? 0,
-                data: nodeData,
-              },
+          const newBlocks = {
+            ...get().blocks,
+            [id]: {
+              id,
+              type,
+              name,
+              position,
+              subBlocks: {},
+              outputs: {},
+              enabled: blockProperties?.enabled ?? true,
+              horizontalHandles: blockProperties?.horizontalHandles ?? true,
+              advancedMode: blockProperties?.advancedMode ?? false,
+              triggerMode: blockProperties?.triggerMode ?? false,
+              height: blockProperties?.height ?? 0,
+              data: nodeData,
             },
-            edges: [...get().edges],
-            loops: get().generateLoopBlocks(),
-            parallels: get().generateParallelBlocks(),
           }
 
-          set(newState)
+          // Only regenerate the relevant container type
+          set({
+            blocks: newBlocks,
+            edges: [...get().edges],
+            loops: type === 'loop' ? generateLoopBlocks(newBlocks) : { ...get().loops },
+            parallels:
+              type === 'parallel' ? generateParallelBlocks(newBlocks) : { ...get().parallels },
+          })
           get().updateLastSaved()
           return
         }
@@ -215,31 +217,39 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const triggerMode = blockProperties?.triggerMode ?? false
         const outputs = getBlockOutputs(type, subBlocks, triggerMode)
 
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [id]: {
-              id,
-              type,
-              name,
-              position,
-              subBlocks,
-              outputs,
-              enabled: blockProperties?.enabled ?? true,
-              horizontalHandles: blockProperties?.horizontalHandles ?? true,
-              advancedMode: blockProperties?.advancedMode ?? false,
-              triggerMode: triggerMode,
-              height: blockProperties?.height ?? 0,
-              layout: {},
-              data: nodeData,
-            },
+        const currentBlocks = get().blocks
+        const newBlocks = {
+          ...currentBlocks,
+          [id]: {
+            id,
+            type,
+            name,
+            position,
+            subBlocks,
+            outputs,
+            enabled: blockProperties?.enabled ?? true,
+            horizontalHandles: blockProperties?.horizontalHandles ?? true,
+            advancedMode: blockProperties?.advancedMode ?? false,
+            triggerMode: triggerMode,
+            height: blockProperties?.height ?? 0,
+            layout: {},
+            data: nodeData,
           },
-          edges: [...get().edges],
-          loops: get().generateLoopBlocks(),
-          parallels: get().generateParallelBlocks(),
         }
 
-        set(newState)
+        // Only regenerate loops/parallels if adding a block as a child of a container
+        const parentBlock = parentId ? currentBlocks[parentId] : null
+        const needsLoopRegeneration = parentBlock?.type === 'loop'
+        const needsParallelRegeneration = parentBlock?.type === 'parallel'
+
+        set({
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: needsLoopRegeneration ? generateLoopBlocks(newBlocks) : { ...get().loops },
+          parallels: needsParallelRegeneration
+            ? generateParallelBlocks(newBlocks)
+            : { ...get().parallels },
+        })
         get().updateLastSaved()
       },
 
@@ -386,11 +396,27 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }
 
+        // Only regenerate loops/parallels if we're adding blocks that affect them:
+        // - Adding a loop/parallel container block
+        // - Adding a block as a child of a loop/parallel (has parentId pointing to one)
+        const needsLoopRegeneration = blocks.some(
+          (block) =>
+            block.type === 'loop' ||
+            (block.data?.parentId && newBlocks[block.data.parentId]?.type === 'loop')
+        )
+        const needsParallelRegeneration = blocks.some(
+          (block) =>
+            block.type === 'parallel' ||
+            (block.data?.parentId && newBlocks[block.data.parentId]?.type === 'parallel')
+        )
+
         set({
           blocks: newBlocks,
           edges: newEdges,
-          loops: generateLoopBlocks(newBlocks),
-          parallels: generateParallelBlocks(newBlocks),
+          loops: needsLoopRegeneration ? generateLoopBlocks(newBlocks) : { ...get().loops },
+          parallels: needsParallelRegeneration
+            ? generateParallelBlocks(newBlocks)
+            : { ...get().parallels },
         })
 
         if (subBlockValues && Object.keys(subBlockValues).length > 0) {
@@ -529,8 +555,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set({
           blocks: { ...blocks },
           edges: newEdges,
-          loops: generateLoopBlocks(blocks),
-          parallels: generateParallelBlocks(blocks),
+          // Edges don't affect loop/parallel structure (determined by parentId), skip regeneration
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
         })
 
         get().updateLastSaved()
@@ -544,8 +571,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set({
           blocks: { ...blocks },
           edges: newEdges,
-          loops: generateLoopBlocks(blocks),
-          parallels: generateParallelBlocks(blocks),
+          // Edges don't affect loop/parallel structure (determined by parentId), skip regeneration
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
         })
 
         get().updateLastSaved()
