@@ -13,8 +13,8 @@ import { SlackMonoIcon } from '@/components/icons'
 import type { PlanFeature } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components/plan-card'
 
 export const PRO_PLAN_FEATURES: PlanFeature[] = [
-  { icon: Zap, text: '25 runs per minute (sync)' },
-  { icon: Clock, text: '200 runs per minute (async)' },
+  { icon: Zap, text: '150 runs per minute (sync)' },
+  { icon: Clock, text: '1,000 runs per minute (async)' },
   { icon: HardDrive, text: '50GB file storage' },
   { icon: Building2, text: 'Unlimited workspaces' },
   { icon: Users, text: 'Unlimited invites' },
@@ -22,8 +22,8 @@ export const PRO_PLAN_FEATURES: PlanFeature[] = [
 ]
 
 export const TEAM_PLAN_FEATURES: PlanFeature[] = [
-  { icon: Zap, text: '75 runs per minute (sync)' },
-  { icon: Clock, text: '500 runs per minute (async)' },
+  { icon: Zap, text: '300 runs per minute (sync)' },
+  { icon: Clock, text: '2,500 runs per minute (async)' },
   { icon: HardDrive, text: '500GB file storage (pooled)' },
   { icon: Building2, text: 'Unlimited workspaces' },
   { icon: Users, text: 'Unlimited invites' },

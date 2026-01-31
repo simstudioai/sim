@@ -125,8 +125,8 @@ app:
     
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
-    RATE_LIMIT_FREE_SYNC: "10"                            # Sync API executions per minute
-    RATE_LIMIT_FREE_ASYNC: "50"                           # Async API executions per minute
+    RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC: "200"                          # Async API executions per minute
     
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
