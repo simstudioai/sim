@@ -121,7 +121,14 @@ async function executeServerToolDirect(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const result = await routeExecution(toolName, params, { userId: context.userId })
+    // Inject workflowId from context if not provided in params
+    // This is needed for tools like set_environment_variables that require workflowId
+    const enrichedParams = { ...params }
+    if (!enrichedParams.workflowId && context.workflowId) {
+      enrichedParams.workflowId = context.workflowId
+    }
+
+    const result = await routeExecution(toolName, enrichedParams, { userId: context.userId })
     return { success: true, output: result }
   } catch (error) {
     logger.error('Server tool execution failed', {
