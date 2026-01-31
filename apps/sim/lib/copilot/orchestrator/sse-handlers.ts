@@ -202,6 +202,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
     // Respond tools are internal to copilot's subagent system - skip execution
     // The copilot backend handles these internally to signal subagent completion
     if (RESPOND_TOOL_SET.has(toolName)) {
+      toolCall.status = 'success'
+      toolCall.endTime = Date.now()
+      toolCall.result = { success: true, output: 'Internal respond tool - handled by copilot backend' }
       return
     }
 
@@ -354,6 +357,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     // Respond tools are internal to copilot's subagent system - skip execution
     if (RESPOND_TOOL_SET.has(toolName)) {
+      toolCall.status = 'success'
+      toolCall.endTime = Date.now()
+      toolCall.result = { success: true, output: 'Internal respond tool - handled by copilot backend' }
       return
     }
 
