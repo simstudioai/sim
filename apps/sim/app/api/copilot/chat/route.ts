@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, permissions, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -40,7 +40,8 @@ const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
-  workflowId: z.string().min(1, 'Workflow ID is required'),
+  workflowId: z.string().optional(),
+  workflowName: z.string().optional(),
   model: z.enum(COPILOT_MODEL_IDS).optional().default('claude-4.5-opus'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
@@ -78,6 +79,54 @@ const ChatMessageSchema = z.object({
   commands: z.array(z.string()).optional(),
 })
 
+async function resolveWorkflowId(
+  userId: string,
+  workflowId?: string,
+  workflowName?: string
+): Promise<{ workflowId: string; workflowName?: string } | null> {
+  // If workflowId provided, use it directly
+  if (workflowId) {
+    return { workflowId }
+  }
+
+  // Get user's accessible workflows
+  const workspaceIds = await db
+    .select({ entityId: permissions.entityId })
+    .from(permissions)
+    .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+
+  const workspaceIdList = workspaceIds.map((row) => row.entityId)
+
+  const workflowConditions = [eq(workflow.userId, userId)]
+  if (workspaceIdList.length > 0) {
+    workflowConditions.push(inArray(workflow.workspaceId, workspaceIdList))
+  }
+
+  const workflows = await db
+    .select()
+    .from(workflow)
+    .where(or(...workflowConditions))
+    .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
+
+  if (workflows.length === 0) {
+    return null
+  }
+
+  // If workflowName provided, find matching workflow
+  if (workflowName) {
+    const match = workflows.find(
+      (w) => String(w.name || '').trim().toLowerCase() === workflowName.toLowerCase()
+    )
+    if (match) {
+      return { workflowId: match.id, workflowName: match.name || undefined }
+    }
+    return null
+  }
+
+  // Default to first workflow
+  return { workflowId: workflows[0].id, workflowName: workflows[0].name || undefined }
+}
+
 /**
  * POST /api/copilot/chat
  * Send messages to sim agent and handle chat persistence
@@ -100,7 +149,8 @@ export async function POST(req: NextRequest) {
       message,
       userMessageId,
       chatId,
-      workflowId,
+      workflowId: providedWorkflowId,
+      workflowName,
       model,
       mode,
       prefetch,
@@ -113,6 +163,16 @@ export async function POST(req: NextRequest) {
       contexts,
       commands,
     } = ChatMessageSchema.parse(body)
+
+    // Resolve workflowId - if not provided, use first workflow or find by name
+    const resolved = await resolveWorkflowId(authenticatedUserId, providedWorkflowId, workflowName)
+    if (!resolved) {
+      return createBadRequestResponse(
+        'No workflows found. Create a workflow first or provide a valid workflowId.'
+      )
+    }
+    const workflowId = resolved.workflowId
+
     // Ensure we have a consistent user message ID for this request
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
     try {
