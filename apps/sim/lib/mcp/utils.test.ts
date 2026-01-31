@@ -81,8 +81,8 @@ describe('generateMcpServerId', () => {
 })
 
 describe('MCP_CONSTANTS', () => {
-  it.concurrent('has correct execution timeout', () => {
-    expect(MCP_CONSTANTS.EXECUTION_TIMEOUT).toBe(60000)
+  it.concurrent('has correct execution timeout (10 minutes)', () => {
+    expect(MCP_CONSTANTS.EXECUTION_TIMEOUT).toBe(600000)
   })
 
   it.concurrent('has correct cache timeout (5 minutes)', () => {
@@ -107,8 +107,8 @@ describe('MCP_CONSTANTS', () => {
 })
 
 describe('MCP_CLIENT_CONSTANTS', () => {
-  it.concurrent('has correct client timeout', () => {
-    expect(MCP_CLIENT_CONSTANTS.CLIENT_TIMEOUT).toBe(60000)
+  it.concurrent('has correct client timeout (10 minutes)', () => {
+    expect(MCP_CLIENT_CONSTANTS.CLIENT_TIMEOUT).toBe(600000)
   })
 
   it.concurrent('has correct auto refresh interval (5 minutes)', () => {

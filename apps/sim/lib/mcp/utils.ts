@@ -6,7 +6,7 @@ import { isMcpTool, MCP } from '@/executor/constants'
  * MCP-specific constants
  */
 export const MCP_CONSTANTS = {
-  EXECUTION_TIMEOUT: 60000,
+  EXECUTION_TIMEOUT: 600000,
   CACHE_TIMEOUT: 5 * 60 * 1000,
   DEFAULT_RETRIES: 3,
   DEFAULT_CONNECTION_TIMEOUT: 30000,
@@ -49,7 +49,7 @@ export function sanitizeHeaders(
  * Client-safe MCP constants
  */
 export const MCP_CLIENT_CONSTANTS = {
-  CLIENT_TIMEOUT: 60000,
+  CLIENT_TIMEOUT: 600000,
   AUTO_REFRESH_INTERVAL: 5 * 60 * 1000,
 } as const
 

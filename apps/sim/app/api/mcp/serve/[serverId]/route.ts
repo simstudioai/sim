@@ -264,7 +264,7 @@ async function handleToolsCall(
       method: 'POST',
       headers,
       body: JSON.stringify({ input: params.arguments || {}, triggerType: 'mcp' }),
-      signal: AbortSignal.timeout(300000), // 5 minute timeout
+      signal: AbortSignal.timeout(600000), // 10 minute timeout
     })
 
     const executeResult = await response.json()
