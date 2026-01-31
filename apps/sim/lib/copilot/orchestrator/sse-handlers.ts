@@ -13,6 +13,21 @@ import { INTERRUPT_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrato
 
 const logger = createLogger('CopilotSseHandlers')
 
+/**
+ * Respond tools are internal to the copilot's subagent system.
+ * They're used by subagents to signal completion and should NOT be executed by the sim side.
+ * The copilot backend handles these internally.
+ */
+const RESPOND_TOOL_SET = new Set([
+  'plan_respond',
+  'edit_respond',
+  'debug_respond',
+  'info_respond',
+  'research_respond',
+  'deploy_respond',
+  'superagent_respond',
+])
+
 export type SSEHandler = (
   event: SSEEvent,
   context: StreamingContext,
@@ -112,14 +127,25 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const current = context.toolCalls.get(toolCallId)
     if (!current) return
 
-    const success = event.data?.success ?? event.data?.result?.success
+    // Determine success: explicit success field, or if there's result data without explicit failure
+    const hasExplicitSuccess = event.data?.success !== undefined || event.data?.result?.success !== undefined
+    const explicitSuccess = event.data?.success ?? event.data?.result?.success
+    const hasResultData = event.data?.result !== undefined || event.data?.data !== undefined
+    const hasError = !!event.data?.error || !!event.data?.result?.error
+
+    // If explicitly set, use that; otherwise infer from data presence
+    const success = hasExplicitSuccess ? !!explicitSuccess : (hasResultData && !hasError)
+
     current.status = success ? 'success' : 'error'
     current.endTime = Date.now()
-    if (event.data?.result || event.data?.data) {
+    if (hasResultData) {
       current.result = {
-        success: !!success,
+        success,
         output: event.data?.result || event.data?.data,
       }
+    }
+    if (hasError) {
+      current.error = event.data?.error || event.data?.result?.error
     }
   },
   tool_error: (event, context) => {
@@ -168,7 +194,14 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) return
 
+    // Subagent tools are executed by the copilot backend, not sim side
     if (SUBAGENT_TOOL_SET.has(toolName)) {
+      return
+    }
+
+    // Respond tools are internal to copilot's subagent system - skip execution
+    // The copilot backend handles these internally to signal subagent completion
+    if (RESPOND_TOOL_SET.has(toolName)) {
       return
     }
 
@@ -309,12 +342,21 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       params: args,
       startTime: Date.now(),
     }
+
+    // Store in both places - subAgentToolCalls for tracking and toolCalls for executeToolAndReport
     if (!context.subAgentToolCalls[parentToolCallId]) {
       context.subAgentToolCalls[parentToolCallId] = []
     }
     context.subAgentToolCalls[parentToolCallId].push(toolCall)
+    context.toolCalls.set(toolCallId, toolCall)
 
     if (isPartial) return
+
+    // Respond tools are internal to copilot's subagent system - skip execution
+    if (RESPOND_TOOL_SET.has(toolName)) {
+      return
+    }
+
     if (options.autoExecuteTools !== false) {
       await executeToolAndReport(toolCallId, context, execContext, options)
     }
@@ -324,11 +366,41 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     if (!parentToolCallId) return
     const toolCallId = event.toolCallId || event.data?.id
     if (!toolCallId) return
+
+    // Update in subAgentToolCalls
     const toolCalls = context.subAgentToolCalls[parentToolCallId] || []
-    const toolCall = toolCalls.find((tc) => tc.id === toolCallId)
-    if (!toolCall) return
-    toolCall.status = event.data?.success ? 'success' : 'error'
-    toolCall.endTime = Date.now()
+    const subAgentToolCall = toolCalls.find((tc) => tc.id === toolCallId)
+
+    // Also update in main toolCalls (where we added it for execution)
+    const mainToolCall = context.toolCalls.get(toolCallId)
+
+    // Use same success inference logic as main handler
+    const hasExplicitSuccess =
+      event.data?.success !== undefined || event.data?.result?.success !== undefined
+    const explicitSuccess = event.data?.success ?? event.data?.result?.success
+    const hasResultData = event.data?.result !== undefined || event.data?.data !== undefined
+    const hasError = !!event.data?.error || !!event.data?.result?.error
+    const success = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
+
+    const status = success ? 'success' : 'error'
+    const endTime = Date.now()
+    const result = hasResultData
+      ? { success, output: event.data?.result || event.data?.data }
+      : undefined
+
+    if (subAgentToolCall) {
+      subAgentToolCall.status = status
+      subAgentToolCall.endTime = endTime
+      if (result) subAgentToolCall.result = result
+      if (hasError) subAgentToolCall.error = event.data?.error || event.data?.result?.error
+    }
+
+    if (mainToolCall) {
+      mainToolCall.status = status
+      mainToolCall.endTime = endTime
+      if (result) mainToolCall.result = result
+      if (hasError) mainToolCall.error = event.data?.error || event.data?.result?.error
+    }
   },
 }
 
