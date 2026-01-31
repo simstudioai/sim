@@ -201,36 +201,36 @@ export function useWorkspaceManagement({
 
       logger.info('Leaving workspace:', workspaceToLeave.id)
 
-      leaveWorkspaceMutation.mutate(
-        { userId: sessionUserId, workspaceId: workspaceToLeave.id },
-        {
-          onSuccess: async () => {
-            logger.info('Left workspace successfully:', workspaceToLeave.id)
+      try {
+        await leaveWorkspaceMutation.mutateAsync({
+          userId: sessionUserId,
+          workspaceId: workspaceToLeave.id,
+        })
 
-            const isLeavingCurrentWorkspace =
-              workspaceIdRef.current === workspaceToLeave.id ||
-              activeWorkspaceRef.current?.id === workspaceToLeave.id
+        logger.info('Left workspace successfully:', workspaceToLeave.id)
 
-            if (isLeavingCurrentWorkspace) {
-              logger.info(
-                'Leaving current workspace - using full workspace refresh with URL validation'
-              )
-              hasValidatedRef.current = false
-              const { data: updatedWorkspaces } = await refetchWorkspaces()
+        const isLeavingCurrentWorkspace =
+          workspaceIdRef.current === workspaceToLeave.id ||
+          activeWorkspaceRef.current?.id === workspaceToLeave.id
 
-              const remainingWorkspaces = (updatedWorkspaces || []).filter(
-                (w) => w.id !== workspaceToLeave.id
-              )
-              if (remainingWorkspaces.length > 0) {
-                await switchWorkspace(remainingWorkspaces[0])
-              }
-            }
-          },
-          onError: (error) => {
-            logger.error('Error leaving workspace:', error)
-          },
+        if (isLeavingCurrentWorkspace) {
+          logger.info(
+            'Leaving current workspace - using full workspace refresh with URL validation'
+          )
+          hasValidatedRef.current = false
+          const { data: updatedWorkspaces } = await refetchWorkspaces()
+
+          const remainingWorkspaces = (updatedWorkspaces || []).filter(
+            (w) => w.id !== workspaceToLeave.id
+          )
+          if (remainingWorkspaces.length > 0) {
+            await switchWorkspace(remainingWorkspaces[0])
+          }
         }
-      )
+      } catch (error) {
+        logger.error('Error leaving workspace:', error)
+        throw error
+      }
     },
     [refetchWorkspaces, switchWorkspace, sessionUserId, leaveWorkspaceMutation]
   )

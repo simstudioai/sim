@@ -55,6 +55,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   } | null>(null)
   const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({})
   const [resentInvitationIds, setResentInvitationIds] = useState<Record<string, boolean>>({})
+  const [resendingInvitationIds, setResendingInvitationIds] = useState<Record<string, boolean>>({})
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -329,12 +330,20 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       const secondsLeft = resendCooldowns[invitationId]
       if (secondsLeft && secondsLeft > 0) return
 
+      if (resendingInvitationIds[invitationId]) return
+
       setErrorMessage(null)
+      setResendingInvitationIds((prev) => ({ ...prev, [invitationId]: true }))
 
       resendInvitation.mutate(
         { invitationId, workspaceId },
         {
           onSuccess: () => {
+            setResendingInvitationIds((prev) => {
+              const next = { ...prev }
+              delete next[invitationId]
+              return next
+            })
             setResentInvitationIds((prev) => ({ ...prev, [invitationId]: true }))
             setTimeout(() => {
               setResentInvitationIds((prev) => {
@@ -369,19 +378,19 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
             cooldownIntervalsRef.current.set(invitationId, interval)
           },
           onError: (error) => {
+            setResendingInvitationIds((prev) => {
+              const next = { ...prev }
+              delete next[invitationId]
+              return next
+            })
             logger.error('Error resending invitation:', error)
             setErrorMessage(error.message || 'Failed to resend invitation. Please try again.')
           },
         }
       )
     },
-    [workspaceId, userPerms.canAdmin, resendCooldowns, resendInvitation]
+    [workspaceId, userPerms.canAdmin, resendCooldowns, resendingInvitationIds, resendInvitation]
   )
-
-  const resendingInvitationIds = useMemo(() => {
-    if (!resendInvitation.isPending || !resendInvitation.variables) return {}
-    return { [resendInvitation.variables.invitationId]: true }
-  }, [resendInvitation.isPending, resendInvitation.variables])
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -435,6 +444,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     setInvitationToRemove(null)
     setResendCooldowns({})
     setResentInvitationIds({})
+    setResendingInvitationIds({})
 
     cooldownIntervalsRef.current.forEach((interval) => clearInterval(interval))
     cooldownIntervalsRef.current.clear()
