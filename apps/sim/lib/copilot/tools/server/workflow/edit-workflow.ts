@@ -1404,6 +1404,101 @@ function filterDisallowedTools(
 }
 
 /**
+ * Normalizes block IDs in operations to ensure they are valid UUIDs.
+ * The LLM may generate human-readable IDs like "web_search" or "research_agent"
+ * which need to be converted to proper UUIDs for database compatibility.
+ *
+ * Returns the normalized operations and a mapping from old IDs to new UUIDs.
+ */
+function normalizeBlockIdsInOperations(operations: EditWorkflowOperation[]): {
+  normalizedOperations: EditWorkflowOperation[]
+  idMapping: Map<string, string>
+} {
+  const logger = createLogger('EditWorkflowServerTool')
+  const idMapping = new Map<string, string>()
+
+  // First pass: collect all non-UUID block_ids from add/insert operations
+  for (const op of operations) {
+    if (op.operation_type === 'add' || op.operation_type === 'insert_into_subflow') {
+      if (op.block_id && !UUID_REGEX.test(op.block_id)) {
+        const newId = crypto.randomUUID()
+        idMapping.set(op.block_id, newId)
+        logger.debug('Normalizing block ID', { oldId: op.block_id, newId })
+      }
+    }
+  }
+
+  if (idMapping.size === 0) {
+    return { normalizedOperations: operations, idMapping }
+  }
+
+  logger.info('Normalizing block IDs in operations', {
+    normalizedCount: idMapping.size,
+    mappings: Object.fromEntries(idMapping),
+  })
+
+  // Helper to replace an ID if it's in the mapping
+  const replaceId = (id: string | undefined): string | undefined => {
+    if (!id) return id
+    return idMapping.get(id) ?? id
+  }
+
+  // Second pass: update all references to use new UUIDs
+  const normalizedOperations = operations.map((op) => {
+    const normalized: EditWorkflowOperation = {
+      ...op,
+      block_id: replaceId(op.block_id) ?? op.block_id,
+    }
+
+    if (op.params) {
+      normalized.params = { ...op.params }
+
+      // Update subflowId references (for insert_into_subflow)
+      if (normalized.params.subflowId) {
+        normalized.params.subflowId = replaceId(normalized.params.subflowId)
+      }
+
+      // Update connection references
+      if (normalized.params.connections) {
+        const normalizedConnections: Record<string, any> = {}
+        for (const [handle, targets] of Object.entries(normalized.params.connections)) {
+          if (typeof targets === 'string') {
+            normalizedConnections[handle] = replaceId(targets)
+          } else if (Array.isArray(targets)) {
+            normalizedConnections[handle] = targets.map((t) => {
+              if (typeof t === 'string') return replaceId(t)
+              if (t && typeof t === 'object' && t.block) {
+                return { ...t, block: replaceId(t.block) }
+              }
+              return t
+            })
+          } else if (targets && typeof targets === 'object' && (targets as any).block) {
+            normalizedConnections[handle] = { ...targets, block: replaceId((targets as any).block) }
+          } else {
+            normalizedConnections[handle] = targets
+          }
+        }
+        normalized.params.connections = normalizedConnections
+      }
+
+      // Update nestedNodes block IDs
+      if (normalized.params.nestedNodes) {
+        const normalizedNestedNodes: Record<string, any> = {}
+        for (const [childId, childBlock] of Object.entries(normalized.params.nestedNodes)) {
+          const newChildId = replaceId(childId) ?? childId
+          normalizedNestedNodes[newChildId] = childBlock
+        }
+        normalized.params.nestedNodes = normalizedNestedNodes
+      }
+    }
+
+    return normalized
+  })
+
+  return { normalizedOperations, idMapping }
+}
+
+/**
  * Apply operations directly to the workflow JSON state
  */
 function applyOperationsToWorkflowState(
@@ -1422,6 +1517,11 @@ function applyOperationsToWorkflowState(
 
   // Log initial state
   const logger = createLogger('EditWorkflowServerTool')
+
+  // Normalize block IDs to UUIDs before processing
+  const { normalizedOperations } = normalizeBlockIdsInOperations(operations)
+  operations = normalizedOperations
+
   logger.info('Applying operations to workflow:', {
     totalOperations: operations.length,
     operationTypes: operations.reduce((acc: any, op) => {

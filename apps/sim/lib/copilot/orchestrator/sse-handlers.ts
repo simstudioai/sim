@@ -65,6 +65,20 @@ async function executeToolAndReport(
     toolCall.error = result.error
     toolCall.endTime = Date.now()
 
+    // If create_workflow was successful, update the execution context with the new workflowId
+    // This ensures subsequent tools in the same stream have access to the workflowId
+    if (
+      toolCall.name === 'create_workflow' &&
+      result.success &&
+      result.output?.workflowId &&
+      !execContext.workflowId
+    ) {
+      execContext.workflowId = result.output.workflowId
+      if (result.output.workspaceId) {
+        execContext.workspaceId = result.output.workspaceId
+      }
+    }
+
     await markToolComplete(
       toolCall.id,
       toolCall.name,
