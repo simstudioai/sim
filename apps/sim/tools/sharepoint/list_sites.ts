@@ -70,7 +70,7 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
     }),
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response, _params) => {
     const data = await response.json()
 
     // Check if this is a search result (multiple sites) or single site

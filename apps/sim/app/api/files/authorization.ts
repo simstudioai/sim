@@ -162,7 +162,7 @@ async function verifyWorkspaceFileAccess(
   cloudKey: string,
   userId: string,
   customConfig?: StorageConfig,
-  isLocal?: boolean
+  _isLocal?: boolean
 ): Promise<boolean> {
   try {
     // Priority 1: Check database (most reliable, works for both local and cloud)
@@ -228,7 +228,7 @@ async function verifyWorkspaceFileAccess(
 async function verifyExecutionFileAccess(
   cloudKey: string,
   userId: string,
-  customConfig?: StorageConfig
+  _customConfig?: StorageConfig
 ): Promise<boolean> {
   const parts = cloudKey.split('/')
 
@@ -493,7 +493,7 @@ async function verifyRegularFileAccess(
   cloudKey: string,
   userId: string,
   customConfig?: StorageConfig,
-  isLocal?: boolean
+  _isLocal?: boolean
 ): Promise<boolean> {
   try {
     // Priority 1: Check if this might be a workspace file (check database)

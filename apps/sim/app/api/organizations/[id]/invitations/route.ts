@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { db } from '@sim/db'
 import {
   invitation,
@@ -42,7 +42,7 @@ interface WorkspaceInvitation {
  * GET /api/organizations/[id]/invitations
  * Get all pending invitations for an organization
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession()
 

@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('IntercomSearchContacts')
 
 export interface IntercomSearchContactsParams {
   accessToken: string
@@ -136,7 +133,7 @@ const searchContactsBase = {
       let query
       try {
         query = JSON.parse(params.query)
-      } catch (error) {
+      } catch (_error) {
         // If not JSON, treat as simple text search
         query = {
           field: 'name',

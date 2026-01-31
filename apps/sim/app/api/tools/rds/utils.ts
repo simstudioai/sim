@@ -467,7 +467,7 @@ async function introspectPostgresql(
           unique: idx.is_unique,
         })
       }
-      indexMap.get(indexName)!.columns.push(idx.column_name)
+      indexMap.get(indexName)?.columns.push(idx.column_name)
     }
     const indexes = Array.from(indexMap.values())
 
@@ -657,7 +657,7 @@ async function introspectMysql(
           unique: idx.non_unique === 0,
         })
       }
-      indexMap.get(indexName)!.columns.push(idx.column_name)
+      indexMap.get(indexName)?.columns.push(idx.column_name)
     }
     const indexes = Array.from(indexMap.values())
 

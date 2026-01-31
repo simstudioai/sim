@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import { SupabaseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { SupabaseResponse } from '@/tools/supabase/types'
-
-const logger = createLogger('SupabaseBlock')
 
 export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   type: 'supabase',

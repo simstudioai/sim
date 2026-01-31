@@ -1,10 +1,7 @@
-import { createLogger } from '@sim/logger'
 import { LOOP, PARALLEL, PARSING, REFERENCE } from '@/executor/constants'
 import type { ContextExtensions } from '@/executor/execution/types'
 import type { BlockLog, ExecutionContext } from '@/executor/types'
 import type { VariableResolver } from '@/executor/variables/resolver'
-
-const logger = createLogger('SubflowUtils')
 
 const BRANCH_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
 const BRANCH_INDEX_PATTERN = new RegExp(`${PARALLEL.BRANCH.PREFIX}(\\d+)${PARALLEL.BRANCH.SUFFIX}$`)

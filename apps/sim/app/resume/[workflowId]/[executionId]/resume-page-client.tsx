@@ -192,11 +192,9 @@ export default function ResumeExecutionPage({
   const [selectedStatus, setSelectedStatus] =
     useState<PausePointWithQueue['resumeStatus']>('paused')
   const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
-  const [resumeInputs, setResumeInputs] = useState<Record<string, string>>({})
+  const [, setResumeInputs] = useState<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
-  const [formValuesByContext, setFormValuesByContext] = useState<
-    Record<string, Record<string, string>>
-  >({})
+  const [, setFormValuesByContext] = useState<Record<string, Record<string, string>>>({})
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [loadingDetail, setLoadingDetail] = useState(false)

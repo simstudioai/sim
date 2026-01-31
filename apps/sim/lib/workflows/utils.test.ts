@@ -11,7 +11,6 @@
 import {
   createSession,
   createWorkflowRecord,
-  createWorkspaceRecord,
   databaseMock,
   expectWorkflowAccessDenied,
   expectWorkflowAccessGranted,
@@ -36,10 +35,6 @@ describe('validateWorkflowPermissions', () => {
     id: 'wf-1',
     userId: 'owner-1',
     workspaceId: 'ws-1',
-  })
-  const mockWorkspace = createWorkspaceRecord({
-    id: 'ws-1',
-    ownerId: 'workspace-owner',
   })
 
   beforeEach(() => {

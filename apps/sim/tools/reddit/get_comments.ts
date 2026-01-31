@@ -153,7 +153,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     },
   },
 
-  transformResponse: async (response: Response, requestParams?: RedditCommentsParams) => {
+  transformResponse: async (response: Response, _requestParams?: RedditCommentsParams) => {
     const data = await response.json()
 
     // Extract post data (first element in the array)

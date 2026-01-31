@@ -126,7 +126,7 @@ export function TemplateProfile() {
   // Reset image load error when the URL changes
   useEffect(() => {
     setImageLoadError(false)
-  }, [profilePictureUrl])
+  }, [])
 
   // Initialize referenceId and initial form data when session loads (for new profiles)
   useEffect(() => {

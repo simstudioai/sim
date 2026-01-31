@@ -106,9 +106,8 @@ export function LandingFlow({
       proOptions={{ hideAttribution: true }}
       fitView={false}
       defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-      onInit={(instance) => {
+      onInit={() => {
         setRfReady(true)
-        // Expose limited viewport API for outer timeline to pan smoothly
         viewportApiRef.current = {
           panTo: (x: number, y: number, options?: { duration?: number }) => {
             setViewport({ x, y, zoom: 1 }, { duration: options?.duration ?? 0 })

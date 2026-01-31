@@ -19,7 +19,7 @@ interface GoogleIdToken {
 /**
  * Get all OAuth connections for the current user
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const requestId = generateRequestId()
 
   try {

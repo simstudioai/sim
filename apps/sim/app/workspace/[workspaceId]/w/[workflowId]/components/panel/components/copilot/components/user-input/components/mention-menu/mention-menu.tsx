@@ -95,7 +95,7 @@ function MentionMenuContent({
 
   useEffect(() => {
     setSubmenuActiveIndex(0)
-  }, [isInFolder, setSubmenuActiveIndex])
+  }, [setSubmenuActiveIndex])
 
   useEffect(() => {
     if (onFolderNavChange) {

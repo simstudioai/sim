@@ -12,7 +12,7 @@ const logger = createLogger('McpStoredToolsAPI')
 export const dynamic = 'force-dynamic'
 
 export const GET = withMcpAuth('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  async (_request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Fetching stored MCP tools for workspace ${workspaceId}`)
 

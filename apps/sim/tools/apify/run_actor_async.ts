@@ -1,5 +1,5 @@
+import type { RunActorParams, RunActorResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { RunActorParams, RunActorResult } from './types'
 
 const POLL_INTERVAL_MS = 5000 // 5 seconds between polls
 const MAX_POLL_TIME_MS = 300000 // 5 minutes maximum polling time
@@ -87,7 +87,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       if (params.input) {
         try {
           inputData = JSON.parse(params.input)
-        } catch (e) {
+        } catch (_e) {
           throw new Error('Invalid JSON in input parameter')
         }
       }

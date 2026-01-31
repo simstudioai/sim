@@ -15,7 +15,6 @@ const logger = createLogger('Workflows')
 export function getWorkflowWithValues(workflowId: string) {
   const { workflows } = useWorkflowRegistry.getState()
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-  const currentState = useWorkflowStore.getState()
 
   if (!workflows[workflowId]) {
     logger.warn(`Workflow ${workflowId} not found`)

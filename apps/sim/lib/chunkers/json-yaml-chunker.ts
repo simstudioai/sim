@@ -14,7 +14,7 @@ type JsonArray = JsonValue[]
 function getTokenCount(text: string): number {
   try {
     return getAccurateTokenCount(text, 'text-embedding-3-small')
-  } catch (error) {
+  } catch (_error) {
     logger.warn('Tiktoken failed, falling back to estimation')
     const estimate = estimateTokenCount(text)
     return estimate.count
@@ -82,7 +82,7 @@ export class JsonYamlChunker {
       )
 
       return chunks
-    } catch (error) {
+    } catch (_error) {
       logger.info('JSON parsing failed, falling back to text chunking')
       return this.chunkAsText(content)
     }

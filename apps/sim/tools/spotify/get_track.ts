@@ -1,6 +1,9 @@
+import type { SpotifyGetTrackParams, SpotifyGetTrackResponse } from '@/tools/spotify/types'
+import {
+  SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetTrackParams, SpotifyGetTrackResponse } from './types'
-import { SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES, SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTrackResponse> = {
   id: 'spotify_get_track',

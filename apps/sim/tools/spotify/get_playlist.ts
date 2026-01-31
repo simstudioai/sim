@@ -1,6 +1,6 @@
+import type { SpotifyGetPlaylistParams, SpotifyGetPlaylistResponse } from '@/tools/spotify/types'
+import { PLAYLIST_OWNER_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetPlaylistParams, SpotifyGetPlaylistResponse } from './types'
-import { PLAYLIST_OWNER_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetPlaylistTool: ToolConfig<
   SpotifyGetPlaylistParams,

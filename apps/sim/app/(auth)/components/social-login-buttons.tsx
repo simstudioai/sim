@@ -39,18 +39,8 @@ export function SocialLoginButtons({
     setIsGithubLoading(true)
     try {
       await client.signIn.social({ provider: 'github', callbackURL })
-    } catch (err: any) {
-      let errorMessage = 'Failed to sign in with GitHub'
-
-      if (err.message?.includes('account exists')) {
-        errorMessage = 'An account with this email already exists. Please sign in instead.'
-      } else if (err.message?.includes('cancelled')) {
-        errorMessage = 'GitHub sign in was cancelled. Please try again.'
-      } else if (err.message?.includes('network')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (err.message?.includes('rate limit')) {
-        errorMessage = 'Too many attempts. Please try again later.'
-      }
+    } catch (_err: unknown) {
+      // Error handling is done silently - user will see the OAuth error page if needed
     } finally {
       setIsGithubLoading(false)
     }
@@ -62,18 +52,8 @@ export function SocialLoginButtons({
     setIsGoogleLoading(true)
     try {
       await client.signIn.social({ provider: 'google', callbackURL })
-    } catch (err: any) {
-      let errorMessage = 'Failed to sign in with Google'
-
-      if (err.message?.includes('account exists')) {
-        errorMessage = 'An account with this email already exists. Please sign in instead.'
-      } else if (err.message?.includes('cancelled')) {
-        errorMessage = 'Google sign in was cancelled. Please try again.'
-      } else if (err.message?.includes('network')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (err.message?.includes('rate limit')) {
-        errorMessage = 'Too many attempts. Please try again later.'
-      }
+    } catch (_err: unknown) {
+      // Error handling is done silently - user will see the OAuth error page if needed
     } finally {
       setIsGoogleLoading(false)
     }

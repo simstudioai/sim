@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic'
  * GET - List all registered MCP servers for the workspace
  */
 export const GET = withMcpAuth('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  async (_request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
 

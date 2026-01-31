@@ -229,7 +229,7 @@ export function Preview({
 
   useEffect(() => {
     setWorkflowStack([])
-  }, [rootWorkflowState])
+  }, [])
 
   const isNested = workflowStack.length > 0
 

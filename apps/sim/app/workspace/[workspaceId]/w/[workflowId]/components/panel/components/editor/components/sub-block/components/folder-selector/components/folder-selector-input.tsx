@@ -30,7 +30,7 @@ export function FolderSelectorInput({
   const [connectedCredential] = useSubBlockValue(blockId, 'credential')
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
-  const [selectedFolderId, setSelectedFolderId] = useState<string>('')
+  const [, setSelectedFolderId] = useState<string>('')
 
   // Derive provider from serviceId using OAuth config (same pattern as credential-selector)
   const serviceId = subBlock.serviceId || ''

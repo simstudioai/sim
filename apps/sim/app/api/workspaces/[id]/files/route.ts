@@ -14,7 +14,7 @@ const logger = createLogger('WorkspaceFilesAPI')
  * GET /api/workspaces/[id]/files
  * List all files for a workspace (requires read permission)
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id: workspaceId } = await params
 

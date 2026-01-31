@@ -183,7 +183,7 @@ export function TrainingModal() {
           })
         }, 5000)
       })
-      .catch((error) => {
+      .catch((_error) => {
         // Remove from sending and mark as failed
         setSendingDatasets((prev) => {
           const newSet = new Set(prev)
@@ -206,9 +206,6 @@ export function TrainingModal() {
     setSendingAll(true)
     try {
       const results = await Promise.allSettled(datasets.map((dataset) => sendToIndexer(dataset)))
-
-      const successes = results.filter((r) => r.status === 'fulfilled')
-      const failures = results.filter((r) => r.status === 'rejected')
 
       // Mark successes and failures visually
       const successfulIds = datasets
@@ -508,7 +505,7 @@ export function TrainingModal() {
 
                   <div className='max-h-[320px] overflow-y-auto'>
                     <div className='flex flex-col gap-[8px]'>
-                      {datasets.map((dataset, index) => (
+                      {datasets.map((dataset) => (
                         <div
                           key={dataset.id}
                           className='rounded-[8px] border bg-[var(--surface-3)] transition-colors hover:bg-[var(--surface-4)]'

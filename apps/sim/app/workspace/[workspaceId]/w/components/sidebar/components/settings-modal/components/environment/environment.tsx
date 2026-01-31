@@ -172,10 +172,10 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
-  const [conflicts, setConflicts] = useState<string[]>([])
+  const [, setConflicts] = useState<string[]>([])
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
-  const [changeToken, setChangeToken] = useState(0)
+  const [, setChangeToken] = useState(0)
 
   const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -225,7 +225,7 @@ export function EnvironmentVariables({ registerBeforeLeaveHandler }: Environment
     }
 
     return false
-  }, [envVars, workspaceVars, changeToken])
+  }, [envVars, workspaceVars])
 
   const hasConflicts = useMemo(() => {
     return envVars.some((envVar) => !!envVar.key && Object.hasOwn(workspaceVars, envVar.key))

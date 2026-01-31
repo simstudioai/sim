@@ -59,19 +59,6 @@ function validateVariable(variable: Variable): string | undefined {
   }
 }
 
-function migrateStringToPlain(variable: Variable): Variable {
-  if (variable.type !== 'string') {
-    return variable
-  }
-
-  const updated = {
-    ...variable,
-    type: 'plain' as const,
-  }
-
-  return updated
-}
-
 export const useVariablesStore = create<VariablesStore>()(
   devtools((set, get) => ({
     variables: {},
@@ -277,7 +264,6 @@ export const useVariablesStore = create<VariablesStore>()(
       set((state) => {
         if (!state.variables[id]) return state
 
-        const workflowId = state.variables[id].workflowId
         const { [id]: _, ...rest } = state.variables
 
         return { variables: rest }

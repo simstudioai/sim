@@ -82,7 +82,7 @@ describe('Custom Tools API Routes', () => {
 
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
-    mockWhere.mockImplementation((condition) => {
+    mockWhere.mockImplementation((_condition) => {
       const queryBuilder = {
         orderBy: mockOrderBy,
         limit: mockLimit,
@@ -90,7 +90,7 @@ describe('Custom Tools API Routes', () => {
           resolve(sampleTools)
           return queryBuilder
         },
-        catch: (reject: (error: Error) => void) => queryBuilder,
+        catch: (_reject: (error: Error) => void) => queryBuilder,
       }
       return queryBuilder
     })
@@ -101,7 +101,7 @@ describe('Custom Tools API Routes', () => {
           resolve(sampleTools)
           return queryBuilder
         },
-        catch: (reject: (error: Error) => void) => queryBuilder,
+        catch: (_reject: (error: Error) => void) => queryBuilder,
       }
       return queryBuilder
     })
@@ -131,12 +131,12 @@ describe('Custom Tools API Routes', () => {
                 resolve(sampleTools)
                 return queryBuilder
               },
-              catch: (reject: (error: Error) => void) => queryBuilder,
+              catch: (_reject: (error: Error) => void) => queryBuilder,
             }
             return queryBuilder
           })
 
-          const txMockWhere = vi.fn().mockImplementation((condition) => {
+          const txMockWhere = vi.fn().mockImplementation((_condition) => {
             const queryBuilder = {
               orderBy: txMockOrderBy,
               limit: mockLimit,
@@ -144,7 +144,7 @@ describe('Custom Tools API Routes', () => {
                 resolve(sampleTools)
                 return queryBuilder
               },
-              catch: (reject: (error: Error) => void) => queryBuilder,
+              catch: (_reject: (error: Error) => void) => queryBuilder,
             }
             return queryBuilder
           })
@@ -274,14 +274,14 @@ describe('Custom Tools API Routes', () => {
 
       mockLimit.mockResolvedValueOnce([{ workspaceId: 'workspace-123' }])
 
-      mockWhere.mockImplementationOnce((condition) => {
+      mockWhere.mockImplementationOnce((_condition) => {
         const queryBuilder = {
           limit: mockLimit,
           then: (resolve: (value: typeof sampleTools) => void) => {
             resolve(sampleTools)
             return queryBuilder
           },
-          catch: (reject: (error: Error) => void) => queryBuilder,
+          catch: (_reject: (error: Error) => void) => queryBuilder,
         }
         return queryBuilder
       })

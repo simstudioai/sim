@@ -39,7 +39,7 @@ export function createMockSocket(): IMockSocket {
     disconnected: false,
 
     // Core methods
-    emit: vi.fn((event: string, ..._args: any[]) => {
+    emit: vi.fn((_event: string, ..._args: any[]) => {
       return socket
     }),
 

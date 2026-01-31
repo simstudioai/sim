@@ -31,7 +31,7 @@ interface RouteParams {
   id: string
 }
 
-export const GET = withAdminAuthParams<RouteParams>(async (request, context) => {
+export const GET = withAdminAuthParams<RouteParams>(async (_request, context) => {
   const { id: workflowId } = await context.params
 
   try {
@@ -71,7 +71,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
   }
 })
 
-export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) => {
+export const DELETE = withAdminAuthParams<RouteParams>(async (_request, context) => {
   const { id: workflowId } = await context.params
 
   try {

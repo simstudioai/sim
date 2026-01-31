@@ -77,7 +77,7 @@ export const deleteBucketTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (_response: Response) => {
     logger.info('Bucket deleted successfully')
 
     const result: MicrosoftPlannerDeleteBucketResponse = {

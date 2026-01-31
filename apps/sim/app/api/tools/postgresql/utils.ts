@@ -324,7 +324,7 @@ export async function executeIntrospect(
           unique: row.is_unique,
         })
       }
-      indexMap.get(indexName)!.columns.push(row.column_name)
+      indexMap.get(indexName)?.columns.push(row.column_name)
     }
     const indexes = Array.from(indexMap.values())
 

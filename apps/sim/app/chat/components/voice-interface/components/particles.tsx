@@ -463,7 +463,16 @@ export function ParticlesVisualization({
       container.removeEventListener('mousemove', handleMouseMove)
       cleanup()
     }
-  }, [])
+  }, [
+    audioLevels.length,
+    audioLevels.reduce,
+    cleanup,
+    isListening,
+    isMuted,
+    isPlayingAudio,
+    isProcessingInterruption,
+    isStreaming,
+  ])
 
   useEffect(() => {
     const handleResize = () => {

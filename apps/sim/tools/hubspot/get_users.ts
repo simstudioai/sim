@@ -56,7 +56,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
     },
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response, _params) => {
     const data = await response.json()
 
     if (!response.ok) {

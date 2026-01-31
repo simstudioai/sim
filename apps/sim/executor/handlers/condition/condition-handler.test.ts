@@ -509,7 +509,7 @@ describe('ConditionBlockHandler', () => {
         enabled: true,
       }
 
-      mockContext.workflow!.blocks!.push(mockTargetBlock3)
+      mockContext.workflow?.blocks?.push(mockTargetBlock3)
 
       const conditions = [
         { id: 'cond1', title: 'if', value: 'context.score >= 90' },

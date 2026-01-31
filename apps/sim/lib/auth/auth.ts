@@ -507,7 +507,7 @@ export const auth = betterAuth({
     sendVerificationOnSignUp: isEmailVerificationEnabled, // Auto-send verification OTP on signup when verification is required
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
-    sendResetPassword: async ({ user, url, token }, request) => {
+    sendResetPassword: async ({ user, url, token }, _request) => {
       const username = user.name || ''
 
       const html = await renderPasswordResetEmail(username, url)

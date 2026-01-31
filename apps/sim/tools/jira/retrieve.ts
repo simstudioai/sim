@@ -77,7 +77,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
 
     // If we don't have a cloudId, resolve it robustly using the Jira utils helper
     if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      const cloudId = await getJiraCloudId(params?.domain, params?.accessToken)
       // Now fetch the actual issue with the found cloudId
       const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
       const issueResponse = await fetch(issueUrl, {
@@ -103,13 +103,13 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
       const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey}`
       const [commentsResp, worklogResp, watchersResp] = await Promise.all([
         fetch(`${base}/comment?maxResults=100&orderBy=-created`, {
-          headers: { Accept: 'application/json', Authorization: `Bearer ${params!.accessToken}` },
+          headers: { Accept: 'application/json', Authorization: `Bearer ${params?.accessToken}` },
         }),
         fetch(`${base}/worklog?maxResults=100`, {
-          headers: { Accept: 'application/json', Authorization: `Bearer ${params!.accessToken}` },
+          headers: { Accept: 'application/json', Authorization: `Bearer ${params?.accessToken}` },
         }),
         fetch(`${base}/watchers`, {
-          headers: { Accept: 'application/json', Authorization: `Bearer ${params!.accessToken}` },
+          headers: { Accept: 'application/json', Authorization: `Bearer ${params?.accessToken}` },
         }),
       ])
 
@@ -178,13 +178,13 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
         const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey}`
         const [commentsResp, worklogResp, watchersResp] = await Promise.all([
           fetch(`${base}/comment?maxResults=100&orderBy=-created`, {
-            headers: { Accept: 'application/json', Authorization: `Bearer ${params!.accessToken}` },
+            headers: { Accept: 'application/json', Authorization: `Bearer ${params?.accessToken}` },
           }),
           fetch(`${base}/worklog?maxResults=100`, {
-            headers: { Accept: 'application/json', Authorization: `Bearer ${params!.accessToken}` },
+            headers: { Accept: 'application/json', Authorization: `Bearer ${params?.accessToken}` },
           }),
           fetch(`${base}/watchers`, {
-            headers: { Accept: 'application/json', Authorization: `Bearer ${params!.accessToken}` },
+            headers: { Accept: 'application/json', Authorization: `Bearer ${params?.accessToken}` },
           }),
         ])
 

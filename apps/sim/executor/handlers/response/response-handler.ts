@@ -20,7 +20,7 @@ export class ResponseBlockHandler implements BlockHandler {
   }
 
   async execute(
-    ctx: ExecutionContext,
+    _ctx: ExecutionContext,
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<NormalizedBlockOutput> {

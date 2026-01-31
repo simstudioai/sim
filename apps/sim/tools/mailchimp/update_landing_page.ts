@@ -1,6 +1,6 @@
+import type { MailchimpLandingPage } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpLandingPage } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 export interface MailchimpUpdateLandingPageParams {
   apiKey: string

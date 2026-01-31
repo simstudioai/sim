@@ -84,7 +84,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
   }
 })
 
-export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) => {
+export const DELETE = withAdminAuthParams<RouteParams>(async (_request, context) => {
   const { id: workspaceId } = await context.params
 
   try {

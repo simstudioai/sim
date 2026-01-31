@@ -41,7 +41,7 @@ export async function fetchThreadingHeaders(
         subject: headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value,
       }
     }
-  } catch (error) {
+  } catch (_error) {
     // Continue without threading headers rather than failing
   }
 
@@ -86,7 +86,7 @@ export async function processMessage(
   if (params?.includeAttachments && hasAttachments && params.accessToken) {
     try {
       attachments = await downloadAttachments(message.id, attachmentInfo, params.accessToken)
-    } catch (error) {
+    } catch (_error) {
       // Continue without attachments rather than failing the entire request
     }
   }
@@ -255,7 +255,7 @@ export async function downloadAttachments(
         mimeType: attachment.mimeType,
         size: attachment.size,
       })
-    } catch (error) {
+    } catch (_error) {
       // Continue with other attachments
     }
   }

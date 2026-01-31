@@ -53,11 +53,11 @@ async function downloadAttachments(
             })
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Continue with other attachments
       }
     }
-  } catch (error) {
+  } catch (_error) {
     // Return empty array on error
   }
 
@@ -154,7 +154,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
         if (params?.includeAttachments && message.hasAttachments && params?.accessToken) {
           try {
             attachments = await downloadAttachments(message.id, params.accessToken)
-          } catch (error) {
+          } catch (_error) {
             // Continue without attachments rather than failing the entire request
           }
         }

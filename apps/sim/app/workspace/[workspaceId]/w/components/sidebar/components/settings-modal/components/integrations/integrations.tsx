@@ -104,8 +104,8 @@ export function Integrations({ onOpenChange, registerCloseHandler }: Integration
   const { config: permissionConfig } = usePermissionConfig()
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [pendingService, setPendingService] = useState<string | null>(null)
   const [authSuccess, setAuthSuccess] = useState(false)
+  const [pendingService, setPendingService] = useState<string | null>(null)
   const [showActionRequired, setShowActionRequired] = useState(false)
   const prevConnectedIdsRef = useRef<Set<string>>(new Set())
   const connectionAddedRef = useRef<boolean>(false)

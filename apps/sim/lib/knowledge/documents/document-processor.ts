@@ -325,7 +325,7 @@ async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {
   if (fileUrl.startsWith('http')) {
     return downloadFileWithTimeout(fileUrl)
   }
-  const fs = await import('fs/promises')
+  const fs = await import('node:fs/promises')
   return fs.readFile(fileUrl)
 }
 
@@ -510,7 +510,7 @@ async function parseWithMistralOCR(
 
   try {
     const response = await executeMistralOCRRequest(params, userId)
-    const result = (await mistralParserTool.transformResponse!(response, params)) as OCRResult
+    const result = (await mistralParserTool.transformResponse?.(response, params)) as OCRResult
     const content = processOCRContent(result, filename)
 
     return { content, processingMethod: 'mistral-ocr' as const, cloudUrl }
@@ -531,9 +531,9 @@ async function executeMistralOCRRequest(
   return retryWithExponentialBackoff(
     async () => {
       let url =
-        typeof mistralParserTool.request!.url === 'function'
-          ? mistralParserTool.request!.url(params)
-          : mistralParserTool.request!.url
+        typeof mistralParserTool.request?.url === 'function'
+          ? mistralParserTool.request?.url(params)
+          : mistralParserTool.request?.url
 
       const isInternalRoute = url.startsWith('/')
 
@@ -543,9 +543,9 @@ async function executeMistralOCRRequest(
       }
 
       let headers =
-        typeof mistralParserTool.request!.headers === 'function'
-          ? mistralParserTool.request!.headers(params)
-          : mistralParserTool.request!.headers
+        typeof mistralParserTool.request?.headers === 'function'
+          ? mistralParserTool.request?.headers(params)
+          : mistralParserTool.request?.headers
 
       if (isInternalRoute) {
         const { generateInternalToken } = await import('@/lib/auth/internal')
@@ -556,7 +556,7 @@ async function executeMistralOCRRequest(
         }
       }
 
-      const requestBody = mistralParserTool.request!.body!(params) as OCRRequestBody
+      const requestBody = mistralParserTool.request?.body?.(params) as OCRRequestBody
       return makeOCRRequest(url, headers as Record<string, string>, requestBody)
     },
     { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000 }
@@ -623,7 +623,7 @@ async function processChunk(
     }
 
     const response = await executeMistralOCRRequest(params, userId)
-    const result = (await mistralParserTool.transformResponse!(response, params)) as OCRResult
+    const result = (await mistralParserTool.transformResponse?.(response, params)) as OCRResult
 
     if (result.success && result.output?.content) {
       logger.info(`Chunk ${chunkIndex + 1}/${totalChunks} completed successfully`)

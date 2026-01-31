@@ -10,7 +10,7 @@ import { getSession } from '@/lib/auth'
 const logger = createLogger('ApiKeysAPI')
 
 // GET /api/users/me/api-keys - Get all API keys for the current user
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {

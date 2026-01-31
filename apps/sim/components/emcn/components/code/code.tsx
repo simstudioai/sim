@@ -937,7 +937,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     if (rows.length === 0) return
 
     return dynamicRowHeight.observeRowElements(rows)
-  }, [wrapText, dynamicRowHeight, visibleLines])
+  }, [wrapText, dynamicRowHeight])
 
   const setRefs = useCallback(
     (el: HTMLDivElement | null) => {

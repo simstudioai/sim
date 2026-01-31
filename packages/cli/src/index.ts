@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import { execSync, spawn } from 'child_process'
-import { existsSync, mkdirSync } from 'fs'
-import { homedir } from 'os'
-import { join } from 'path'
-import { createInterface } from 'readline'
+import { execSync, spawn } from 'node:child_process'
+import { existsSync, mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { createInterface } from 'node:readline'
 import chalk from 'chalk'
 import { Command } from 'commander'
 

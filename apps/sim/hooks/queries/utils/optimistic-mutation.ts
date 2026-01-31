@@ -3,7 +3,7 @@ import type { QueryClient } from '@tanstack/react-query'
 
 const logger = createLogger('OptimisticMutation')
 
-export interface OptimisticMutationConfig<TData, TVariables, TItem, TContext> {
+export interface OptimisticMutationConfig<TData, TVariables, TItem, _TContext> {
   name: string
   getQueryKey: (variables: TVariables) => readonly unknown[]
   getSnapshot: () => Record<string, TItem>

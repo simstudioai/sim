@@ -94,7 +94,8 @@ export const gmailUnarchiveV2Tool: ToolConfig<GmailMarkReadParams, GmailModifyV2
   params: gmailUnarchiveTool.params,
   request: gmailUnarchiveTool.request,
   transformResponse: async (response) => {
-    const legacy = await gmailUnarchiveTool.transformResponse!(response)
+    const legacy = await gmailUnarchiveTool.transformResponse?.(response)
+    if (!legacy) return { success: false, output: {}, error: 'Transform response failed' }
     if (!legacy.success) return { success: false, output: {}, error: legacy.error }
     const metadata = legacy.output.metadata as any
     return {

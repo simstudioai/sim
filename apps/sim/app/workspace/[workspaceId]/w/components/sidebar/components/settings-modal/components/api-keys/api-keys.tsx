@@ -122,7 +122,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     if (registerCloseHandler) {
       registerCloseHandler(handleModalClose)
     }
-  }, [registerCloseHandler])
+  }, [registerCloseHandler, handleModalClose])
 
   useEffect(() => {
     if (shouldScrollToBottom && scrollContainerRef.current) {

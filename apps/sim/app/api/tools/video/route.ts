@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
 
 async function generateWithRunway(
   apiKey: string,
-  model: string,
+  _model: string,
   prompt: string,
   duration: number,
   aspectRatio: string,
@@ -814,9 +814,6 @@ async function generateWithFalAI(
     'minimax-hailuo-2.3-pro',
     'minimax-hailuo-2.3-standard',
   ]
-
-  // Models that only need prompt (minimal params)
-  const minimalParamModels = ['ltxv-0.9.8', 'wan-2.1', 'veo-3.1', 'sora-2']
 
   if (supportsStandardParams.includes(model)) {
     // Kling and MiniMax models support duration and aspect_ratio

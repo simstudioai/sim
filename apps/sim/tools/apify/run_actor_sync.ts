@@ -1,5 +1,5 @@
+import type { RunActorParams, RunActorResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { RunActorParams, RunActorResult } from './types'
 
 export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> = {
   id: 'apify_run_actor_sync',
@@ -67,7 +67,7 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
       if (params.input) {
         try {
           inputData = JSON.parse(params.input)
-        } catch (e) {
+        } catch (_e) {
           throw new Error('Invalid JSON in input parameter')
         }
       }

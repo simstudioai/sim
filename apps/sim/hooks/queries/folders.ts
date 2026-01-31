@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createOptimisticMutationHandlers,
@@ -8,8 +7,6 @@ import {
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
-
-const logger = createLogger('FolderQueries')
 
 export const folderKeys = {
   all: ['folders'] as const,

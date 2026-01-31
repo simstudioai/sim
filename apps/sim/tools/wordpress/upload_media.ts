@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressUploadMediaParams, WordPressUploadMediaResponse } from './types'
+import type {
+  WordPressUploadMediaParams,
+  WordPressUploadMediaResponse,
+} from '@/tools/wordpress/types'
 
 const logger = createLogger('WordPressUploadMediaTool')
 

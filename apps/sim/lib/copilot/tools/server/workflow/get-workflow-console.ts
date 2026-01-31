@@ -167,53 +167,6 @@ function extractErrorFromTraceSpans(traceSpans: any[]): ExecutionEntry['errorBlo
   return {}
 }
 
-function deriveExecutionErrorSummary(params: {
-  blockExecutions: BlockExecution[]
-  traceSpans: any[]
-  executionData: any
-}): { message?: string; block?: ExecutionEntry['errorBlock'] } {
-  const { blockExecutions, traceSpans, executionData } = params
-
-  const blockError = blockExecutions.find((block) => block.status === 'error' && block.errorMessage)
-  if (blockError) {
-    return {
-      message: blockError.errorMessage,
-      block: {
-        blockId: blockError.blockId,
-        blockName: blockError.blockName,
-        blockType: blockError.blockType,
-      },
-    }
-  }
-
-  const executionDataError = extractErrorFromExecutionData(executionData)
-  if (executionDataError.message) {
-    return {
-      message: executionDataError.message,
-      block: {
-        blockId: executionDataError.blockId,
-        blockName:
-          executionDataError.blockName || (executionDataError.blockId ? undefined : 'Workflow'),
-        blockType: executionDataError.blockType,
-      },
-    }
-  }
-
-  const traceError = extractErrorFromTraceSpans(traceSpans)
-  if (traceError.message) {
-    return {
-      message: traceError.message,
-      block: {
-        blockId: traceError.blockId,
-        blockName: traceError.blockName || (traceError.blockId ? undefined : 'Workflow'),
-        blockType: traceError.blockType,
-      },
-    }
-  }
-
-  return {}
-}
-
 export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs, any> = {
   name: 'get_workflow_console',
   async execute(rawArgs: GetWorkflowConsoleArgs): Promise<any> {

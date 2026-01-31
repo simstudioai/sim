@@ -53,7 +53,6 @@ import { useChatStore } from '@/stores/chat/store'
 import { getChatPosition } from '@/stores/chat/utils'
 import { useExecutionStore } from '@/stores/execution'
 import { useOperationQueue } from '@/stores/operation-queue/store'
-import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -253,9 +252,6 @@ export function Chat() {
     exportChatCSV,
   } = useChatStore()
 
-  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
-  const entriesFromStore = useTerminalConsoleStore((state) => state.entries)
-  const entries = hasConsoleHydrated ? entriesFromStore : []
   const { isExecuting } = useExecutionStore()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
@@ -414,11 +410,6 @@ export function Chat() {
     onPositionChange: setChatPosition,
     onDimensionsChange: setChatDimensions,
   })
-
-  const outputEntries = useMemo(() => {
-    if (!activeWorkflowId) return []
-    return entries.filter((entry) => entry.workflowId === activeWorkflowId && entry.output)
-  }, [entries, activeWorkflowId])
 
   const workflowMessages = useMemo(() => {
     if (!activeWorkflowId) return []
@@ -599,7 +590,7 @@ export function Chat() {
         focusInput(100)
       }
     },
-    [appendMessageContent, finalizeMessageStream, focusInput, selectedOutputs, activeWorkflowId]
+    [appendMessageContent, finalizeMessageStream, focusInput]
   )
 
   /**

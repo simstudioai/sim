@@ -1,12 +1,9 @@
 'use client'
 
 import Image from 'next/image'
-import { useBrandConfig } from '@/lib/branding/branding'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 
 export function PoweredBySim() {
-  const brandConfig = useBrandConfig()
-
   return (
     <div
       className={`${inter.className} auth-text-muted fixed right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[13px] leading-relaxed`}

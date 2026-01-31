@@ -100,7 +100,7 @@ export function useDeployedState({
       setIsLoadingDeployedState(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflowId, isDeployed, isRegistryLoading, setNeedsRedeploymentFlag])
+  }, [workflowId, isDeployed, isRegistryLoading, setNeedsRedeploymentFlag, fetchDeployedState])
 
   return {
     deployedState,

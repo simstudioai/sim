@@ -3,7 +3,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const baseUrl = getBaseUrl()
 
   return new NextResponse(

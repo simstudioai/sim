@@ -1,5 +1,8 @@
+import type {
+  SimilarwebTrafficVisitsParams,
+  SimilarwebTrafficVisitsResponse,
+} from '@/tools/similarweb/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SimilarwebTrafficVisitsParams, SimilarwebTrafficVisitsResponse } from './types'
 
 export const similarwebTrafficVisitsTool: ToolConfig<
   SimilarwebTrafficVisitsParams,

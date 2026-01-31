@@ -255,7 +255,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         let parsedValues
         try {
           parsedValues = values ? JSON.parse(values as string) : undefined
-        } catch (error) {
+        } catch (_error) {
           throw new Error('Invalid JSON format for values')
         }
 

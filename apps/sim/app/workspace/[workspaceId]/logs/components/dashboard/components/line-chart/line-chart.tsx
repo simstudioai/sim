@@ -146,7 +146,7 @@ function LineChartComponent({
         const y = Math.max(yMin, Math.min(yMax, rawY))
         return { x, y }
       }),
-    [data, chartWidth, chartHeight, minValue, valueRange, yMin, yMax, padding.left, padding.top]
+    [data, chartWidth, chartHeight, minValue, valueRange, yMin, yMax]
   )
 
   const scaledSeries = useMemo(
@@ -161,17 +161,7 @@ function LineChartComponent({
         })
         return { ...s, pts }
       }),
-    [
-      allSeries,
-      chartWidth,
-      chartHeight,
-      minValue,
-      valueRange,
-      yMin,
-      yMax,
-      padding.left,
-      padding.top,
-    ]
+    [allSeries, chartWidth, chartHeight, minValue, valueRange, yMin, yMax]
   )
 
   const getSeriesById = (id?: string | null) => scaledSeries.find((s) => s.id === id)
@@ -206,7 +196,7 @@ function LineChartComponent({
     try {
       const f = formatDate(timestamp)
       return `${f.compactDate} ${f.compactTime}`
-    } catch (e) {
+    } catch (_e) {
       const d = new Date(timestamp)
       if (Number.isNaN(d.getTime())) return ''
       return d.toLocaleString('en-US', {

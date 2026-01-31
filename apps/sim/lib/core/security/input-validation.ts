@@ -1,7 +1,7 @@
-import dns from 'dns/promises'
-import http from 'http'
-import https from 'https'
-import type { LookupFunction } from 'net'
+import dns from 'node:dns/promises'
+import http from 'node:http'
+import https from 'node:https'
+import type { LookupFunction } from 'node:net'
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
 

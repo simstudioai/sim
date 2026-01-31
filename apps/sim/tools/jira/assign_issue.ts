@@ -90,16 +90,16 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
   transformResponse: async (response: Response, params?: JiraAssignIssueParams) => {
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      const assignUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/assignee`
+      const assignUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/assignee`
       const assignResponse = await fetch(assignUrl, {
         method: 'PUT',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${params!.accessToken}`,
+          Authorization: `Bearer ${params?.accessToken}`,
         },
         body: JSON.stringify({
-          accountId: params!.accountId === 'null' ? null : params!.accountId,
+          accountId: params?.accountId === 'null' ? null : params?.accountId,
         }),
       })
 

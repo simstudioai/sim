@@ -19,7 +19,7 @@ const DeleteSchema = z.object({
   keys: z.array(z.string()).min(1),
 })
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const workspaceId = (await params).id
 

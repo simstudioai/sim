@@ -14,7 +14,7 @@ const logger = createLogger('WorkspaceFileAPI')
  * Delete a workspace file (requires write permission)
  */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string; fileId: string }> }
 ) {
   const requestId = generateRequestId()

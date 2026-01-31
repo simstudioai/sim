@@ -271,7 +271,7 @@ export function validateCopilotConfig(config: CopilotConfig): ValidationResult {
     if (!chatDefaultModel) {
       errors.push(`Chat provider '${config.chat.defaultProvider}' not found`)
     }
-  } catch (error) {
+  } catch (_error) {
     errors.push(`Invalid chat provider: ${config.chat.defaultProvider}`)
   }
 
@@ -280,7 +280,7 @@ export function validateCopilotConfig(config: CopilotConfig): ValidationResult {
     if (!ragDefaultModel) {
       errors.push(`RAG provider '${config.rag.defaultProvider}' not found`)
     }
-  } catch (error) {
+  } catch (_error) {
     errors.push(`Invalid RAG provider: ${config.rag.defaultProvider}`)
   }
 

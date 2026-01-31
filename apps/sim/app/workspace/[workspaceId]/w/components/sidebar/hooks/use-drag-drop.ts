@@ -234,35 +234,38 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     [isDragging]
   )
 
-  const getSiblingItems = useCallback((folderId: string | null): SiblingItem[] => {
-    const cacheKey = folderId ?? 'root'
-    const cached = siblingsCacheRef.current.get(cacheKey)
-    if (cached) return cached
+  const getSiblingItems = useCallback(
+    (folderId: string | null): SiblingItem[] => {
+      const cacheKey = folderId ?? 'root'
+      const cached = siblingsCacheRef.current.get(cacheKey)
+      if (cached) return cached
 
-    const currentFolders = useFolderStore.getState().folders
-    const currentWorkflows = useWorkflowRegistry.getState().workflows
-    const siblings = [
-      ...Object.values(currentFolders)
-        .filter((f) => f.parentId === folderId)
-        .map((f) => ({
-          type: 'folder' as const,
-          id: f.id,
-          sortOrder: f.sortOrder,
-          createdAt: f.createdAt,
-        })),
-      ...Object.values(currentWorkflows)
-        .filter((w) => w.folderId === folderId)
-        .map((w) => ({
-          type: 'workflow' as const,
-          id: w.id,
-          sortOrder: w.sortOrder,
-          createdAt: w.createdAt,
-        })),
-    ].sort(compareSiblingItems)
+      const currentFolders = useFolderStore.getState().folders
+      const currentWorkflows = useWorkflowRegistry.getState().workflows
+      const siblings = [
+        ...Object.values(currentFolders)
+          .filter((f) => f.parentId === folderId)
+          .map((f) => ({
+            type: 'folder' as const,
+            id: f.id,
+            sortOrder: f.sortOrder,
+            createdAt: f.createdAt,
+          })),
+        ...Object.values(currentWorkflows)
+          .filter((w) => w.folderId === folderId)
+          .map((w) => ({
+            type: 'workflow' as const,
+            id: w.id,
+            sortOrder: w.sortOrder,
+            createdAt: w.createdAt,
+          })),
+      ].sort(compareSiblingItems)
 
-    siblingsCacheRef.current.set(cacheKey, siblings)
-    return siblings
-  }, [])
+      siblingsCacheRef.current.set(cacheKey, siblings)
+      return siblings
+    },
+    [compareSiblingItems]
+  )
 
   const setNormalizedDropIndicator = useCallback(
     (indicator: DropIndicator | null) => {
@@ -355,7 +358,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
 
       return { fromDestination, fromOther }
     },
-    []
+    [compareSiblingItems]
   )
 
   const handleSelectionDrop = useCallback(

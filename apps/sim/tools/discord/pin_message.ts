@@ -45,7 +45,7 @@ export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordP
       }),
     },
 
-    transformResponse: async (response) => {
+    transformResponse: async (_response) => {
       return {
         success: true,
         output: {

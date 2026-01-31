@@ -253,7 +253,7 @@ export function useCancelA2ATask() {
 
   return useMutation({
     mutationFn: cancelA2ATask,
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: a2aTaskKeys.detail(variables.agentUrl, variables.taskId),
       })

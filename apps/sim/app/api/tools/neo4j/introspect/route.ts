@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         if (!nodePropertiesMap.has(labelKey)) {
           nodePropertiesMap.set(labelKey, [])
         }
-        nodePropertiesMap.get(labelKey)!.push({ name: propertyName, types: propertyTypes })
+        nodePropertiesMap.get(labelKey)?.push({ name: propertyName, types: propertyTypes })
       }
 
       for (const [labelKey, properties] of nodePropertiesMap) {
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
           relPropertiesMap.set(relType, [])
         }
         if (propertyName) {
-          relPropertiesMap.get(relType)!.push({ name: propertyName, types: propertyTypes })
+          relPropertiesMap.get(relType)?.push({ name: propertyName, types: propertyTypes })
         }
       }
 

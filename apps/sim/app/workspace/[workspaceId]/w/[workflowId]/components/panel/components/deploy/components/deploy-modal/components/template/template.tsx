@@ -99,7 +99,7 @@ export function TemplateDeploy({
       updateField('creatorId', creatorProfiles[0].id)
       logger.info('Auto-selected single creator profile:', creatorProfiles[0].name)
     }
-  }, [creatorProfiles, formData.creatorId])
+  }, [creatorProfiles, formData.creatorId, updateField])
 
   useEffect(() => {
     const handleCreatorProfileSaved = () => {

@@ -1,9 +1,9 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createSqsClient, sendMessage } from '../utils'
+import { createSqsClient, sendMessage } from '@/app/api/tools/sqs/utils'
 
 const logger = createLogger('SQSSendMessageAPI')
 

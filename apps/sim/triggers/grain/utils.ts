@@ -15,7 +15,7 @@ export const grainTriggerOptions = [
 /**
  * Generate setup instructions for a specific Grain event type
  */
-export function grainSetupInstructions(eventType: string): string {
+export function grainSetupInstructions(_eventType: string): string {
   const instructions = [
     'Enter your Grain API Key (Personal Access Token) above.',
     'You can find or create your API key in Grain at <strong>Settings > Integrations > API</strong>. See the <a href="https://docs.grain.inc/" target="_blank" rel="noopener noreferrer">Grain API documentation</a> for details.',

@@ -313,7 +313,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
     isSubflow && subflowConfig
       ? (nodeConfig as any)?.[subflowConfig.typeKey] ||
         (blockData as any)?.[subflowConfig.typeKey] ||
-        (currentBlock!.type === 'loop' ? 'for' : 'count')
+        (currentBlock?.type === 'loop' ? 'for' : 'count')
       : null
 
   const isCountMode = currentType === 'for' || currentType === 'count'

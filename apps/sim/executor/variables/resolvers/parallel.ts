@@ -152,7 +152,7 @@ export class ParallelResolver implements Resolver {
           return Object.entries(parsed)
         }
         return []
-      } catch (e) {
+      } catch (_e) {
         logger.error('Failed to parse distribution items', { rawItems })
         return []
       }

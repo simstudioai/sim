@@ -196,7 +196,7 @@ export function useVerification({
 
       return () => clearTimeout(timeoutId)
     }
-  }, [otp, email, isLoading, isVerified])
+  }, [otp, email, isLoading, isVerified, verifyCode])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -220,7 +220,7 @@ export function useVerification({
         handleRedirect()
       }
     }
-  }, [isEmailVerificationEnabled, router, isInviteFlow, redirectUrl])
+  }, [isEmailVerificationEnabled, router, isInviteFlow, redirectUrl, refetchSession])
 
   return {
     otp,

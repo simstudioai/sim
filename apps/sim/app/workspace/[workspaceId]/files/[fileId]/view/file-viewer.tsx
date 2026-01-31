@@ -18,7 +18,7 @@ export function FileViewer({ file }: FileViewerProps) {
         src={serveUrl}
         className='h-full w-full border-0'
         title={file.name}
-        onError={(e) => {
+        onError={(_e) => {
           logger.error(`Failed to load file: ${file.name}`)
         }}
       />

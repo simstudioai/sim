@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -14,7 +14,7 @@ const UpdateChunkSchema = z.object({
 })
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
   const requestId = randomUUID().slice(0, 8)
@@ -134,7 +134,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
   const requestId = randomUUID().slice(0, 8)

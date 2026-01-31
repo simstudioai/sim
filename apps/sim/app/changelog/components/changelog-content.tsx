@@ -42,7 +42,7 @@ export default async function ChangelogContent() {
         url: r.html_url,
         contributors: extractMentions(String(r.body || '')),
       }))
-  } catch (err) {
+  } catch (_err) {
     entries = []
   }
 

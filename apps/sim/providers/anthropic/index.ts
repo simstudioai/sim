@@ -319,15 +319,6 @@ export const anthropicProvider: ProviderConfig = {
         let currentResponse = await anthropic.messages.create(intermediatePayload)
         const firstResponseTime = Date.now() - initialCallTime
 
-        let content = ''
-
-        if (Array.isArray(currentResponse.content)) {
-          content = currentResponse.content
-            .filter((item) => item.type === 'text')
-            .map((item) => item.text)
-            .join('\n')
-        }
-
         const tokens = {
           input: currentResponse.usage?.input_tokens || 0,
           output: currentResponse.usage?.output_tokens || 0,
@@ -367,15 +358,6 @@ export const anthropicProvider: ProviderConfig = {
 
         try {
           while (iterationCount < MAX_TOOL_ITERATIONS) {
-            const textContent = currentResponse.content
-              .filter((item) => item.type === 'text')
-              .map((item) => item.text)
-              .join('\n')
-
-            if (textContent) {
-              content = textContent
-            }
-
             const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
             if (!toolUses || toolUses.length === 0) {
               break

@@ -15,7 +15,7 @@ const logger = createLogger('WebhookAPI')
 export const dynamic = 'force-dynamic'
 
 // Get a specific webhook
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
 
   try {
@@ -176,7 +176,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 // Delete a webhook
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = generateRequestId()

@@ -1001,7 +1001,7 @@ export const ToolInput = memo(function ToolInput({
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-  const [open, setOpen] = useState(false)
+  const [, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -1330,9 +1330,9 @@ export const ToolInput = memo(function ToolInput({
    * @returns Empty parameter object to be populated by the user
    */
   const initializeToolParams = (
-    toolId: string,
-    params: ToolParameterConfig[],
-    instanceId?: string
+    _toolId: string,
+    _params: ToolParameterConfig[],
+    _instanceId?: string
   ): Record<string, string> => {
     return {}
   }
@@ -1558,8 +1558,6 @@ export const ToolInput = memo(function ToolInput({
 
       const initialParams = initializeToolParams(newToolId, toolParams.userInputParameters, blockId)
 
-      const oldToolParams = tool.toolId ? getToolParametersConfig(tool.toolId, tool.type) : null
-      const oldParamIds = new Set(oldToolParams?.userInputParameters.map((p) => p.id) || [])
       const newParamIds = new Set(toolParams.userInputParameters.map((p) => p.id))
 
       const preservedParams: Record<string, string> = {}
@@ -2683,7 +2681,7 @@ export const ToolInput = memo(function ToolInput({
                                       parsed[param.id] ? 'true' : 'false'
                                     )
                                   })
-                                } catch (e) {
+                                } catch (_e) {
                                   // Handle error
                                 }
                               }}

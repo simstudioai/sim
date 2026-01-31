@@ -26,7 +26,7 @@ function getNotificationUrl(webhook: any): string {
  * Throws errors with friendly messages if subscription creation fails
  */
 export async function createTeamsSubscription(
-  request: NextRequest,
+  _request: NextRequest,
   webhook: any,
   workflow: any,
   requestId: string
@@ -210,7 +210,6 @@ export async function deleteTeamsSubscription(
         `[${requestId}] Successfully deleted Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`
       )
     } else {
-      const errorBody = await res.text()
       teamsLogger.warn(
         `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`
       )
@@ -228,7 +227,7 @@ export async function deleteTeamsSubscription(
  * Throws errors with friendly messages if webhook creation fails
  */
 export async function createTelegramWebhook(
-  request: NextRequest,
+  _request: NextRequest,
   webhook: any,
   requestId: string
 ): Promise<void> {
@@ -488,7 +487,7 @@ export async function deleteAirtableWebhook(
  * Throws errors with friendly messages if webhook creation fails
  */
 export async function createTypeformWebhook(
-  request: NextRequest,
+  _request: NextRequest,
   webhook: any,
   requestId: string
 ): Promise<string> {

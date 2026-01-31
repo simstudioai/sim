@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {
@@ -30,7 +30,7 @@ const logger = createLogger('WorkspaceInvitationsAPI')
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 // Get all invitations for the user's workspaces
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   const session = await getSession()
 
   if (!session?.user?.id) {

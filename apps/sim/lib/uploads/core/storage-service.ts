@@ -145,8 +145,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     return uploadResult
   }
 
-  const { writeFile, mkdir } = await import('fs/promises')
-  const { join, dirname } = await import('path')
+  const { writeFile, mkdir } = await import('node:fs/promises')
+  const { join, dirname } = await import('node:path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
   const storageKey = keyToUse
@@ -197,8 +197,8 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     }
   }
 
-  const { readFile } = await import('fs/promises')
-  const { join } = await import('path')
+  const { readFile } = await import('node:fs/promises')
+  const { join } = await import('node:path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
   const safeKey = sanitizeFileKey(key)
@@ -227,8 +227,8 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     }
   }
 
-  const { unlink } = await import('fs/promises')
-  const { join } = await import('path')
+  const { unlink } = await import('node:fs/promises')
+  const { join } = await import('node:path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
   const safeKey = sanitizeFileKey(key)

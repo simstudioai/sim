@@ -10,7 +10,6 @@ import {
   useRef,
 } from 'react'
 import { createLogger } from '@sim/logger'
-import { useRouter } from 'next/navigation'
 
 const logger = createLogger('GlobalCommands')
 
@@ -81,8 +80,6 @@ function matchesShortcut(e: KeyboardEvent, parsed: ParsedShortcut): boolean {
 
 export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
   const registryRef = useRef<Map<string, RegistryCommand>>(new Map())
-  const isMac = useMemo(() => isMacPlatform(), [])
-  const router = useRouter()
 
   const register = useCallback((commands: GlobalCommand[]) => {
     const createdIds: string[] = []
@@ -134,7 +131,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener('keydown', onKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [isMac, router])
+  }, [])
 
   const value = useMemo<GlobalCommandsContextValue>(() => ({ register }), [register])
 
@@ -164,5 +161,5 @@ export function useRegisterGlobalCommands(commands: GlobalCommand[] | (() => Glo
     const unregister = ctx.register(wrappedCommands)
     return unregister
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [ctx.register])
 }

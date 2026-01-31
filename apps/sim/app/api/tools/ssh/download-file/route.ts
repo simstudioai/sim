@@ -1,5 +1,5 @@
-import { randomUUID } from 'crypto'
-import path from 'path'
+import { randomUUID } from 'node:crypto'
+import path from 'node:path'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { Client, SFTPWrapper } from 'ssh2'

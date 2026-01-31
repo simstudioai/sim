@@ -13,7 +13,7 @@ import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetInviteToken')
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
 
   const [invitation] = await db
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   })
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
 
   const session = await getSession()

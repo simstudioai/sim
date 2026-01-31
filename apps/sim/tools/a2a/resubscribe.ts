@@ -1,6 +1,6 @@
+import type { A2AResubscribeParams, A2AResubscribeResponse } from '@/tools/a2a/types'
+import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
-import type { A2AResubscribeParams, A2AResubscribeResponse } from './types'
-import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aResubscribeTool: ToolConfig<A2AResubscribeParams, A2AResubscribeResponse> = {
   id: 'a2a_resubscribe',

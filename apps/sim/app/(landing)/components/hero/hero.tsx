@@ -140,7 +140,7 @@ export default function Hero() {
    */
   const [rfNodes, setRfNodes] = React.useState<Node[]>([])
   const [rfEdges, setRfEdges] = React.useState<Edge[]>([])
-  const [groupBox, setGroupBox] = React.useState<LandingGroupData | null>(null)
+  const [groupBox] = React.useState<LandingGroupData | null>(null)
   const [worldWidth, setWorldWidth] = React.useState<number>(1000)
   const viewportApiRef = React.useRef<LandingViewportApi | null>(null)
 

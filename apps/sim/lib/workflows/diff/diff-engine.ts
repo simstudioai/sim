@@ -21,31 +21,6 @@ function buildEdgeKey(edge: Edge): string {
   return `${edge.source}|${sourceHandle}->${edge.target}|${targetHandle}|${edgeType}`
 }
 
-function groupBlocksByParent(blocks: Record<string, BlockState>): {
-  root: string[]
-  children: Map<string, string[]>
-} {
-  const root: string[] = []
-  const children = new Map<string, string[]>()
-
-  for (const [id, block] of Object.entries(blocks)) {
-    const parentId = getParentId(block)
-
-    if (!parentId) {
-      root.push(id)
-      continue
-    }
-
-    if (!children.has(parentId)) {
-      children.set(parentId, [])
-    }
-
-    children.get(parentId)!.push(id)
-  }
-
-  return { root, children }
-}
-
 function buildAdjacency(edges: Edge[]): Map<string, Set<string>> {
   const adjacency = new Map<string, Set<string>>()
 
@@ -53,7 +28,7 @@ function buildAdjacency(edges: Edge[]): Map<string, Set<string>> {
     if (!adjacency.has(edge.source)) {
       adjacency.set(edge.source, new Set())
     }
-    adjacency.get(edge.source)!.add(edge.target)
+    adjacency.get(edge.source)?.add(edge.target)
   }
 
   return adjacency
@@ -496,7 +471,7 @@ export class WorkflowDiffEngine {
 
       if (isEditingOnTopOfDiff) {
         logger.info('Editing on top of existing diff - using diff as baseline for comparison', {
-          diffBlockCount: Object.keys(this.currentDiff!.proposedState.blocks).length,
+          diffBlockCount: Object.keys(this.currentDiff?.proposedState.blocks ?? {}).length,
         })
       }
 

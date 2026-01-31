@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -505,11 +505,11 @@ function topologicalSortInserts(
         // Only add dependency if parent is also being inserted (not added)
         // Because adds run before inserts, added parents are already created
         if (insertMap.has(parentId)) {
-          dependencies.get(blockId)!.add(parentId)
+          dependencies.get(blockId)?.add(parentId)
           if (!dependents.has(parentId)) {
             dependents.set(parentId, new Set())
           }
-          dependents.get(parentId)!.add(blockId)
+          dependents.get(parentId)?.add(blockId)
         }
       }
     }
@@ -846,7 +846,7 @@ function normalizeResponseFormat(value: any): string {
     }
 
     return String(value)
-  } catch (error) {
+  } catch (_error) {
     // If parsing fails, return the original value as string
     return String(value)
   }
@@ -2228,9 +2228,6 @@ function applyOperationsToWorkflowState(
           })
           break
         }
-
-        // Get block configuration
-        const blockConfig = getAllBlocks().find((block) => block.type === params.type)
 
         // Check if block already exists (moving into subflow) or is new
         const existingBlock = modifiedState.blocks[block_id]

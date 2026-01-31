@@ -144,11 +144,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     cancelEditRef.current = handleCancelEdit
 
-    const cleanTextContent = useMemo(() => {
-      if (!message.content) return ''
-      return message.content.replace(/\n{3,}/g, '\n\n')
-    }, [message.content])
-
     const parsedTags = useMemo(() => {
       if (isUser) return null
 
@@ -210,7 +205,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       return message.contentBlocks.map((block, index) => {
         if (block.type === 'text') {
           const isLastTextBlock =
-            index === message.contentBlocks!.length - 1 && block.type === 'text'
+            index === (message.contentBlocks?.length ?? 0) - 1 && block.type === 'text'
           const parsed = parseSpecialTags(block.content)
           // Mask credential IDs in the displayed content
           const cleanBlockContent = maskCredentialValue(
@@ -236,7 +231,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )
         }
         if (block.type === 'thinking') {
-          const hasFollowingContent = index < message.contentBlocks!.length - 1
+          const hasFollowingContent = index < (message.contentBlocks?.length ?? 0) - 1
           const hasSpecialTags = !!(parsedTags?.options || parsedTags?.plan)
           const blockKey = `thinking-${index}-${block.timestamp || index}`
 
@@ -266,7 +261,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         }
         return null
       })
-    }, [message.contentBlocks, isActivelyStreaming, parsedTags, isLastMessage])
+    }, [message.contentBlocks, isActivelyStreaming, parsedTags, isLastMessage, maskCredentialValue])
 
     if (isUser) {
       return (

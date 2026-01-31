@@ -1,5 +1,8 @@
+import type {
+  SimilarwebVisitDurationParams,
+  SimilarwebVisitDurationResponse,
+} from '@/tools/similarweb/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SimilarwebVisitDurationParams, SimilarwebVisitDurationResponse } from './types'
 
 export const similarwebVisitDurationTool: ToolConfig<
   SimilarwebVisitDurationParams,

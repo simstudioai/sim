@@ -18,7 +18,7 @@ vi.mock('@/blocks', () => blocksMock)
  * This checks user-or-llm visibility fields that should have been provided by either source.
  */
 function validateRequiredParametersAfterMerge(
-  toolId: string,
+  _toolId: string,
   tool: any,
   params: Record<string, any>
 ): void {

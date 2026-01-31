@@ -118,7 +118,7 @@ export function DotPattern({
           <stop offset='100%' stopColor='currentColor' stopOpacity='0' />
         </radialGradient>
       </defs>
-      {dots.map((dot, index) => (
+      {dots.map((dot, _index) => (
         <circle
           key={`${dot.x}-${dot.y}`}
           cx={dot.x}

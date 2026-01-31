@@ -235,6 +235,7 @@ export function useWand({
       onStreamStart,
       onGenerationComplete,
       queryClient,
+      conversationHistory,
     ]
   )
 

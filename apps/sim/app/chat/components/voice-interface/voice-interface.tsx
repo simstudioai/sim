@@ -72,9 +72,7 @@ export function VoiceInterface({
   const [isInitialized, setIsInitialized] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [audioLevels, setAudioLevels] = useState<number[]>(new Array(200).fill(0))
-  const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>(
-    'prompt'
-  )
+  const [, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt')
   const [currentTranscript, setCurrentTranscript] = useState('')
 
   const currentStateRef = useRef<'idle' | 'listening' | 'agent_speaking'>('idle')
@@ -254,7 +252,7 @@ export function VoiceInterface({
         if (recognitionRef.current) {
           try {
             recognitionRef.current.stop()
-          } catch (error) {
+          } catch (_error) {
             // Ignore
           }
         }
@@ -326,7 +324,7 @@ export function VoiceInterface({
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop()
-      } catch (error) {
+      } catch (_error) {
         // Ignore
       }
     }

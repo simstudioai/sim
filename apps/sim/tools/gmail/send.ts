@@ -151,7 +151,8 @@ export const gmailSendV2Tool: ToolConfig<GmailSendParams, GmailSendV2Response> =
   params: gmailSendTool.params,
   request: gmailSendTool.request,
   transformResponse: async (response) => {
-    const legacy = await gmailSendTool.transformResponse!(response)
+    const legacy = await gmailSendTool.transformResponse?.(response)
+    if (!legacy) return { success: false, output: {}, error: 'Transform response failed' }
     if (!legacy.success) {
       return {
         success: false,

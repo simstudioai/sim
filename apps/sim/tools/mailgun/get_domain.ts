@@ -30,7 +30,7 @@ export const mailgunGetDomainTool: ToolConfig<GetDomainParams, GetDomainResult> 
     }),
   },
 
-  transformResponse: async (response, params): Promise<GetDomainResult> => {
+  transformResponse: async (response, _params): Promise<GetDomainResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to get domain')

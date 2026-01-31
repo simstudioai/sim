@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -145,17 +145,15 @@ async function fetchWithDNSPinning(
 async function formatTeamsGraphNotification(
   body: any,
   foundWebhook: any,
-  foundWorkflow: any,
-  request: NextRequest
+  _foundWorkflow: any,
+  _request: NextRequest
 ): Promise<any> {
   const notification = body.value?.[0]
   if (!notification) {
     logger.warn('Received empty Teams notification body')
     return null
   }
-  const changeType = notification.changeType || 'created'
   const resource = notification.resource || ''
-  const subscriptionId = notification.subscriptionId || ''
 
   let chatId: string | null = null
   let messageId: string | null = null
@@ -743,7 +741,6 @@ export async function formatWebhookInput(
     }
 
     const messageText = body?.text || ''
-    const messageId = body?.id || ''
     const timestamp = body?.timestamp || body?.localTimestamp || ''
     const from = body?.from || {}
     const conversation = body?.conversation || {}

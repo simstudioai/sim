@@ -168,7 +168,7 @@ export async function executeWorkflowWithFullLogging(
             case 'execution:error':
               throw new Error(event.data.error || 'Execution failed')
           }
-        } catch (parseError) {
+        } catch (_parseError) {
           // Skip malformed SSE events
         }
       }

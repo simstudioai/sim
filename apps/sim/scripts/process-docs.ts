@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import path from 'path'
+import path from 'node:path'
 import { db } from '@sim/db'
 import { docsEmbeddings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'

@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 
 export function encodeS3PathComponent(pathComponent: string): string {
   return encodeURIComponent(pathComponent).replace(/%2F/g, '/')

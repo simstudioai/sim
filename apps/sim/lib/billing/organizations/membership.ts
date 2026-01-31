@@ -5,7 +5,7 @@
  * Used by both regular routes and admin routes to ensure consistent business logic.
  */
 
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { db } from '@sim/db'
 import {
   member,

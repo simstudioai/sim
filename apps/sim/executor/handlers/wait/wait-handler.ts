@@ -72,7 +72,7 @@ export class WaitBlockHandler implements BlockHandler {
 
   async execute(
     ctx: ExecutionContext,
-    block: SerializedBlock,
+    _block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<any> {
     const timeValue = Number.parseInt(inputs.timeValue || '10', 10)

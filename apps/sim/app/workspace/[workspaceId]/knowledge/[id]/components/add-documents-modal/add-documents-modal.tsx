@@ -47,7 +47,7 @@ export function AddDocumentsModal({
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragCounter, setDragCounter] = useState(0)
+  const [_dragCounter, setDragCounter] = useState(0)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(new Set())
 
   const { isUploading, uploadProgress, uploadFiles, uploadError, clearError } = useKnowledgeUpload({

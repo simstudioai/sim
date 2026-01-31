@@ -153,7 +153,7 @@ describe('AgentBlockHandler', () => {
       timing: { total: 100 },
     })
 
-    mockFetch.mockImplementation((url: string) => {
+    mockFetch.mockImplementation((_url: string) => {
       return Promise.resolve({
         ok: true,
         headers: {
@@ -191,7 +191,7 @@ describe('AgentBlockHandler', () => {
         writable: true,
         configurable: true,
       })
-    } catch (e) {}
+    } catch (_e) {}
   })
 
   describe('canHandle', () => {
@@ -1298,7 +1298,7 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should handle MCP tools in agent execution', async () => {
-      mockExecuteTool.mockImplementation((toolId, params, skipPostProcess, context) => {
+      mockExecuteTool.mockImplementation((toolId, params, _skipPostProcess, _context) => {
         if (isMcpTool(toolId)) {
           return Promise.resolve({
             success: true,
@@ -1403,7 +1403,7 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should handle MCP tool execution errors', async () => {
-      mockExecuteTool.mockImplementation((toolId, params) => {
+      mockExecuteTool.mockImplementation((toolId, _params) => {
         if (toolId === 'mcp-server1-failing_tool') {
           return Promise.resolve({
             success: false,
@@ -1531,9 +1531,7 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should provide workspaceId context for MCP tool execution', async () => {
-      let capturedContext: any
-      mockExecuteTool.mockImplementation((toolId, params, skipPostProcess, context) => {
-        capturedContext = context
+      mockExecuteTool.mockImplementation((toolId, _params, _skipPostProcess, _context) => {
         if (isMcpTool(toolId)) {
           return Promise.resolve({
             success: true,
@@ -1662,8 +1660,6 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should pass toolSchema to execution endpoint when using cached schema', async () => {
-      let executionCall: any = null
-
       mockExecuteProviderRequest.mockResolvedValueOnce({
         content: 'Tool executed',
         model: 'gpt-4o',
@@ -1677,9 +1673,8 @@ describe('AgentBlockHandler', () => {
         timing: { total: 50 },
       })
 
-      mockFetch.mockImplementation((url: string, options: any) => {
+      mockFetch.mockImplementation((url: string, _options: any) => {
         if (url.includes('/api/mcp/tools/execute')) {
-          executionCall = { url, body: JSON.parse(options.body) }
           return Promise.resolve({
             ok: true,
             json: () =>

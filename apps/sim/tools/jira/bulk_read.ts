@@ -40,7 +40,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
   },
 
   request: {
-    url: (params: JiraRetrieveBulkParams) => {
+    url: (_params: JiraRetrieveBulkParams) => {
       // Always return accessible resources endpoint; transformResponse will build search URLs
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -155,9 +155,9 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     // cloudId present: resolve project and paginate using the Search API
     // Resolve to canonical project key for consistent JQL
     const projectKey = await resolveProjectKey(
-      params!.cloudId!,
-      params!.accessToken,
-      params!.projectId
+      params?.cloudId!,
+      params?.accessToken,
+      params?.projectId
     )
 
     const jql = `project = ${projectKey} ORDER BY updated DESC`

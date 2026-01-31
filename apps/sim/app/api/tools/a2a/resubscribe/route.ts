@@ -9,7 +9,7 @@ import type {
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/utils'
+import { createA2AClient, isTerminalState } from '@/lib/a2a/utils'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 
@@ -50,14 +50,12 @@ export async function POST(request: NextRequest) {
     let taskId = validatedData.taskId
     let contextId: string | undefined
     let state: TaskState = 'working'
-    let content = ''
     let artifacts: Artifact[] = []
     let history: Message[] = []
 
     for await (const event of stream) {
       if (event.kind === 'message') {
         const msg = event as Message
-        content = extractTextContent(msg)
         taskId = msg.taskId || taskId
         contextId = msg.contextId || contextId
         state = 'completed'
@@ -68,10 +66,6 @@ export async function POST(request: NextRequest) {
         state = task.status.state
         artifacts = task.artifacts || []
         history = task.history || []
-        const lastAgentMessage = history.filter((m) => m.role === 'agent').pop()
-        if (lastAgentMessage) {
-          content = extractTextContent(lastAgentMessage)
-        }
       } else if ('status' in event) {
         const statusEvent = event as TaskStatusUpdateEvent
         state = statusEvent.status.state

@@ -117,15 +117,15 @@ export function evaluateSubBlockCondition(
   const andMatch = !actual.and
     ? true
     : (() => {
-        const andFieldValue = values[actual.and!.field]
-        const andValueMatch = Array.isArray(actual.and!.value)
+        const andFieldValue = values[actual.and?.field]
+        const andValueMatch = Array.isArray(actual.and?.value)
           ? andFieldValue != null &&
-            (actual.and!.not
-              ? !actual.and!.value.includes(andFieldValue as any)
-              : actual.and!.value.includes(andFieldValue as any))
-          : actual.and!.not
-            ? andFieldValue !== actual.and!.value
-            : andFieldValue === actual.and!.value
+            (actual.and?.not
+              ? !actual.and?.value.includes(andFieldValue as any)
+              : actual.and?.value.includes(andFieldValue as any))
+          : actual.and?.not
+            ? andFieldValue !== actual.and?.value
+            : andFieldValue === actual.and?.value
         return andValueMatch
       })()
 

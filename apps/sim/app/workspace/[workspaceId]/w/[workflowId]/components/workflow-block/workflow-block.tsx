@@ -425,13 +425,7 @@ const SubBlockRow = memo(function SubBlockRow({
       }
       return accumulator
     }, {})
-  }, [
-    canonicalIndex,
-    canonicalModeOverrides,
-    displayAdvancedOptions,
-    rawValues,
-    subBlock?.dependsOn,
-  ])
+  }, [canonicalIndex, canonicalModeOverrides, rawValues, subBlock?.dependsOn])
 
   const credentialSourceId =
     subBlock?.type === 'oauth-input' && typeof rawValue === 'string' ? rawValue : undefined
@@ -616,7 +610,7 @@ const SubBlockRow = memo(function SubBlockRow({
     if (toolNames.length === 1) return toolNames[0]
     if (toolNames.length === 2) return `${toolNames[0]}, ${toolNames[1]}`
     return `${toolNames[0]}, ${toolNames[1]} +${toolNames.length - 2}`
-  }, [subBlock?.type, rawValue, customTools, workspaceId])
+  }, [subBlock?.type, rawValue, customTools])
 
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
@@ -677,8 +671,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ringStyles,
     runPathStatus,
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
-
-  const currentBlock = currentWorkflow.getBlockById(id)
 
   const { horizontalHandles, blockHeight, blockWidth, displayAdvancedMode, displayTriggerMode } =
     useBlockProperties(
@@ -839,18 +831,15 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     config.subBlocks,
     config.category,
     config.triggers,
-    id,
     displayAdvancedMode,
     displayTriggerMode,
     data.isPreview,
     data.subBlockValues,
-    currentWorkflow.isDiffMode,
-    currentBlock,
     canonicalModeOverrides,
     userPermissions.canEdit,
     canonicalIndex,
     blockSubBlockValues,
-    activeWorkflowId,
+    blockWidth,
   ])
 
   const subBlockRows = subBlockRowsData.rows
@@ -1030,7 +1019,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const updateNodeInternals = useUpdateNodeInternals()
   useEffect(() => {
     updateNodeInternals(id)
-  }, [horizontalHandles, id, updateNodeInternals])
+  }, [id, updateNodeInternals])
 
   const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && isWebhookConfigured
   const shouldShowScheduleBadge =

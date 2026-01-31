@@ -295,7 +295,8 @@ export const gmailReadV2Tool: ToolConfig<GmailReadParams, GmailReadV2Response> =
   params: gmailReadTool.params,
   request: gmailReadTool.request,
   transformResponse: async (response: Response, params?: GmailReadParams) => {
-    const legacy = await gmailReadTool.transformResponse!(response, params)
+    const legacy = await gmailReadTool.transformResponse?.(response, params)
+    if (!legacy) return { success: false, output: {}, error: 'Transform response failed' }
     if (!legacy.success) {
       return {
         success: false,

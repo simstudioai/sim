@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const url = new URL(request.url)
     const hasApiKey = !!request.headers.get('x-api-key')
 
     // Check internal API key authentication
@@ -126,7 +125,7 @@ export async function GET(request: NextRequest) {
 }
 
 // Add a helpful OPTIONS handler for CORS preflight
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS(_request: NextRequest) {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] OPTIONS request received for /api/templates/approved/sanitized`)
 

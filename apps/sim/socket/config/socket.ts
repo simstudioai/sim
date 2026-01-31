@@ -1,4 +1,4 @@
-import type { Server as HttpServer } from 'http'
+import type { Server as HttpServer } from 'node:http'
 import { createLogger } from '@sim/logger'
 import { createAdapter } from '@socket.io/redis-adapter'
 import { createClient, type RedisClientType } from 'redis'

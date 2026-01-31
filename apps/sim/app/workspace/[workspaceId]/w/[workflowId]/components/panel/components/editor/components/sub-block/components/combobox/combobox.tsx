@@ -335,7 +335,7 @@ export const ComboBox = memo(function ComboBox({
     fetchedOptions.length,
     isLoadingOptions,
     fetchError,
-    dependencyValues,
+    fetchOptionsIfNeeded,
   ])
 
   // Hydrate the stored value's label by fetching it individually
@@ -463,7 +463,7 @@ export const ComboBox = memo(function ComboBox({
         </div>
       </div>
     )
-  }, [inputValue, accessiblePrefixes, selectedOption, selectedOptionIcon])
+  }, [inputValue, accessiblePrefixes, selectedOptionIcon])
 
   const ctrlOnChangeRef = useRef<
     ((e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
@@ -491,7 +491,7 @@ export const ComboBox = memo(function ComboBox({
       } as React.ChangeEvent<HTMLInputElement>
       ctrlOnChangeRef.current?.(syntheticEvent)
     },
-    [comboboxOptions, setInputValue]
+    [comboboxOptions]
   )
 
   const comboboxInputProps = useMemo(

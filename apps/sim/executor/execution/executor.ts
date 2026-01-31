@@ -368,7 +368,7 @@ export class DAGExecutor {
   }
 
   private initializeStarterBlock(
-    context: ExecutionContext,
+    _context: ExecutionContext,
     state: ExecutionState,
     triggerBlockId?: string
   ): void {

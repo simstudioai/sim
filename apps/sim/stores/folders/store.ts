@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import type { FolderTreeNode, WorkflowFolder } from './types'
-
-const logger = createLogger('FoldersStore')
 
 interface FolderState {
   folders: Record<string, WorkflowFolder>

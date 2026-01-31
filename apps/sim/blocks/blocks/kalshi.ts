@@ -713,7 +713,7 @@ export const KalshiV2Block: BlockConfig = {
       'kalshi_amend_order_v2',
     ],
     config: {
-      ...KalshiBlock.tools!.config,
+      ...KalshiBlock.tools?.config,
       tool: createVersionedToolSelector({
         baseToolSelector: (params) => {
           switch (params.operation) {

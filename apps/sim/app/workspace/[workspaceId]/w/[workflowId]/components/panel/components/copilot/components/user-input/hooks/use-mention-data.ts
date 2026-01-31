@@ -136,7 +136,7 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
 
   useEffect(() => {
     setBlocksList([])
-  }, [config.allowedIntegrations])
+  }, [])
 
   const [templatesList, setTemplatesList] = useState<TemplateItem[]>([])
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
@@ -145,7 +145,7 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
   const [isLoadingLogs, setIsLoadingLogs] = useState(false)
 
   const [workflowBlocks, setWorkflowBlocks] = useState<WorkflowBlockItem[]>([])
-  const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
+  const [isLoadingWorkflowBlocks, _setIsLoadingWorkflowBlocks] = useState(false)
 
   const blockKeys = useWorkflowStore(
     useShallow(useCallback((state) => Object.keys(state.blocks), []))
@@ -177,7 +177,7 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
   useEffect(() => {
     setPastChats([])
     setIsLoadingPastChats(false)
-  }, [workflowId])
+  }, [])
 
   /**
    * Syncs workflow blocks from store

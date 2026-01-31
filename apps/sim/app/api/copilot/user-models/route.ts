@@ -34,7 +34,7 @@ const DEFAULT_ENABLED_MODELS: Record<CopilotModelId, boolean> = {
 }
 
 // GET - Fetch user's enabled models
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getSession()
 

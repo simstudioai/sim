@@ -333,11 +333,11 @@ describe('regenerateBlockIds', () => {
 
     expect(newLoop).toBeDefined()
     expect(newChild).toBeDefined()
-    expect(newChild!.data?.parentId).toBe(newLoop!.id)
-    expect(newChild!.data?.extent).toBe('parent')
+    expect(newChild?.data?.parentId).toBe(newLoop?.id)
+    expect(newChild?.data?.extent).toBe('parent')
 
-    expect(newLoop!.position).toEqual({ x: 250, y: 250 })
-    expect(newChild!.position).toEqual({ x: 100, y: 50 })
+    expect(newLoop?.position).toEqual({ x: 250, y: 250 })
+    expect(newChild?.position).toEqual({ x: 100, y: 50 })
   })
 
   it('should apply offset to top-level blocks', () => {

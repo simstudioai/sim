@@ -41,5 +41,5 @@ export function useBlockDimensions({
       updateNodeInternals(blockId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blockId, updateBlockLayoutMetrics, updateNodeInternals, ...dependencies])
+  }, [blockId, updateBlockLayoutMetrics, updateNodeInternals, ...dependencies, calculateDimensions])
 }

@@ -1,5 +1,5 @@
+import type { WorkflowsDeleteParams, WorkflowsDeleteResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { WorkflowsDeleteParams, WorkflowsDeleteResponse } from './types'
 
 export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDeleteResponse> = {
   id: 'incidentio_workflows_delete',
@@ -31,7 +31,7 @@ export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDel
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (_response: Response) => {
     return {
       success: true,
       output: {

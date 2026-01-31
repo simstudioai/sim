@@ -203,7 +203,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         label: `${FIELD_TYPE_LABELS[type]} (${used}/${max})`,
       }
     })
-  }, [kbTagDefinitions])
+  }, [getSlotUsageByFieldType, hasAvailableSlots])
 
   const saveTagDefinition = async () => {
     if (!canSaveTag()) return

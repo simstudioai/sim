@@ -202,7 +202,7 @@ export function LongInput({
         setLocalContent(baseValueString)
       }
     }
-  }, [baseValue, wandHook.isStreaming]) // Removed localContent to prevent infinite loop
+  }, [baseValue, wandHook.isStreaming, localContent]) // Removed localContent to prevent infinite loop
 
   // Update height when rows prop changes
   useLayoutEffect(() => {
@@ -231,7 +231,7 @@ export function LongInput({
       overlayRef.current.scrollTop = textareaRef.current.scrollTop
       overlayRef.current.scrollLeft = textareaRef.current.scrollLeft
     }
-  }, [value])
+  }, [])
 
   // Handle resize functionality
   const startResize = (e: React.MouseEvent) => {

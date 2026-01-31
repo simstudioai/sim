@@ -210,8 +210,6 @@ export const ShortInput = memo(function ShortInput({
   const effectiveValue =
     useWebhookUrl && webhookManagement.webhookUrl ? webhookManagement.webhookUrl : baseValue
 
-  const value = wandHook?.isStreaming ? localContent : effectiveValue
-
   useEffect(() => {
     if (!wandHook.isStreaming) {
       const baseValueString = baseValue?.toString() ?? ''

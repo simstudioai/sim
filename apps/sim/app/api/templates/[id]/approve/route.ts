@@ -14,7 +14,7 @@ export const revalidate = 0
 /**
  * POST /api/templates/[id]/approve - Approve a template (super users only)
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id } = await params
 

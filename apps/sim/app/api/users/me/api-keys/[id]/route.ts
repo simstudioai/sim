@@ -10,7 +10,7 @@ const logger = createLogger('ApiKeyAPI')
 
 // DELETE /api/users/me/api-keys/[id] - Delete an API key
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = generateRequestId()

@@ -1,6 +1,10 @@
+import type { KalshiPaginationParams, KalshiPagingInfo, KalshiTrade } from '@/tools/kalshi/types'
+import {
+  buildKalshiUrl,
+  handleKalshiError,
+  KALSHI_TRADE_OUTPUT_PROPERTIES,
+} from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiPaginationParams, KalshiPagingInfo, KalshiTrade } from './types'
-import { buildKalshiUrl, handleKalshiError, KALSHI_TRADE_OUTPUT_PROPERTIES } from './types'
 
 export interface KalshiGetTradesParams extends KalshiPaginationParams {}
 

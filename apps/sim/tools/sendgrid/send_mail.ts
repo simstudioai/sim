@@ -136,7 +136,7 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
             typeof params.dynamicTemplateData === 'string'
               ? JSON.parse(params.dynamicTemplateData)
               : params.dynamicTemplateData
-        } catch (e) {
+        } catch (_e) {
           // If parsing fails, use as-is
         }
       }
@@ -174,7 +174,7 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
             typeof params.attachments === 'string'
               ? JSON.parse(params.attachments)
               : params.attachments
-        } catch (e) {
+        } catch (_e) {
           // If parsing fails, skip attachments
         }
       }

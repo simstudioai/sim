@@ -67,7 +67,7 @@ export const mailgunCreateMailingListTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response, params): Promise<CreateMailingListResult> => {
+  transformResponse: async (response, _params): Promise<CreateMailingListResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to create mailing list')

@@ -1,4 +1,4 @@
-import { readFile } from 'fs/promises'
+import { readFile } from 'node:fs/promises'
 import { createLogger } from '@sim/logger'
 import * as cheerio from 'cheerio'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'

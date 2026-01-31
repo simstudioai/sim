@@ -968,8 +968,8 @@ describe('Database Helpers', () => {
       expect(loadedState?.blocks['agent-duplicate'].advancedMode).toBe(true)
 
       const workflowState = {
-        blocks: loadedState!.blocks,
-        edges: loadedState!.edges,
+        blocks: loadedState?.blocks,
+        edges: loadedState?.edges,
         loops: {},
         parallels: {},
         deploymentStatuses: {},

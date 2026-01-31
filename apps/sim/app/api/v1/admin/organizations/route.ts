@@ -21,7 +21,7 @@
  * Response: AdminSingleResponse<AdminOrganization & { memberId: string }>
  */
 
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'

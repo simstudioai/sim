@@ -83,7 +83,7 @@ export async function extractAudioFromVideo(
         duration: metadata.duration || 0,
         size: inputBuffer.length,
       }
-    } catch (error) {
+    } catch (_error) {
       // If metadata extraction fails, still return the buffer
       return {
         buffer: inputBuffer,
@@ -172,7 +172,7 @@ async function convertAudioWithFFmpeg(
     try {
       await fs.unlink(inputFile).catch(() => {})
       await fs.unlink(outputFile).catch(() => {})
-    } catch (error) {
+    } catch (_error) {
       // Ignore cleanup errors
     }
   }
@@ -197,7 +197,7 @@ export async function getAudioMetadata(buffer: Buffer, mimeType: string): Promis
     // Clean up temporary file
     try {
       await fs.unlink(inputFile).catch(() => {})
-    } catch (error) {
+    } catch (_error) {
       // Ignore cleanup errors
     }
   }

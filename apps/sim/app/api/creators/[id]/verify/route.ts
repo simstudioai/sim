@@ -12,7 +12,7 @@ const logger = createLogger('CreatorVerificationAPI')
 export const revalidate = 0
 
 // POST /api/creators/[id]/verify - Verify a creator (super users only)
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id } = await params
 
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 // DELETE /api/creators/[id]/verify - Unverify a creator (super users only)
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = generateRequestId()

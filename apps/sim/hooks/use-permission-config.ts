@@ -58,7 +58,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       if (config.allowedIntegrations === null) return blocks
       return blocks.filter(
         (block) =>
-          block.type === 'start_trigger' || config.allowedIntegrations!.includes(block.type)
+          block.type === 'start_trigger' || config.allowedIntegrations?.includes(block.type)
       )
     }
   }, [config.allowedIntegrations])
@@ -66,7 +66,7 @@ export function usePermissionConfig(): PermissionConfigResult {
   const filterProviders = useMemo(() => {
     return (providerIds: string[]): string[] => {
       if (config.allowedModelProviders === null) return providerIds
-      return providerIds.filter((id) => config.allowedModelProviders!.includes(id))
+      return providerIds.filter((id) => config.allowedModelProviders?.includes(id))
     }
   }, [config.allowedModelProviders])
 

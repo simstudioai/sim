@@ -46,7 +46,7 @@ async function hasPermission(userId: string, profile: any): Promise<boolean> {
 }
 
 // GET /api/creators/[id] - Get a specific creator profile
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id } = await params
 
@@ -137,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 // DELETE /api/creators/[id] - Delete a creator profile
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = generateRequestId()

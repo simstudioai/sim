@@ -37,7 +37,7 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
   request: {
     url: '/api/tools/tts',
     method: 'POST',
-    headers: (params) => ({
+    headers: (_params) => ({
       'Content-Type': 'application/json',
     }),
     body: (

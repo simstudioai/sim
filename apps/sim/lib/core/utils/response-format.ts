@@ -117,7 +117,7 @@ export function extractFieldValues(
 export function formatFieldValues(extractedValues: Record<string, any>): string {
   const formattedValues: string[] = []
 
-  for (const [fieldName, value] of Object.entries(extractedValues)) {
+  for (const value of Object.values(extractedValues)) {
     const formattedValue = typeof value === 'string' ? value : JSON.stringify(value)
     formattedValues.push(formattedValue)
   }
@@ -152,7 +152,7 @@ export function parseOutputContentSafely(output: any): any {
   if (typeof output.content === 'string') {
     try {
       return JSON.parse(output.content)
-    } catch (e) {
+    } catch (_e) {
       // Fallback to original structure if parsing fails
       return output
     }

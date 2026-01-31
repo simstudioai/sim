@@ -102,7 +102,7 @@ export function assignLayers(
     if (!incomingEdgesMap.has(edge.target)) {
       incomingEdgesMap.set(edge.target, [])
     }
-    incomingEdgesMap.get(edge.target)!.push(edge)
+    incomingEdgesMap.get(edge.target)?.push(edge)
   }
 
   for (const edge of edges) {
@@ -193,7 +193,7 @@ export function groupByLayer(nodes: Map<string, GraphNode>): Map<number, GraphNo
     if (!layers.has(node.layer)) {
       layers.set(node.layer, [])
     }
-    layers.get(node.layer)!.push(node)
+    layers.get(node.layer)?.push(node)
   }
 
   return layers
@@ -216,7 +216,7 @@ function resolveVerticalOverlaps(nodes: GraphNode[], verticalSpacing: number): v
       if (!nodesByLayer.has(node.layer)) {
         nodesByLayer.set(node.layer, [])
       }
-      nodesByLayer.get(node.layer)!.push(node)
+      nodesByLayer.get(node.layer)?.push(node)
     }
 
     for (const [layer, layerNodes] of nodesByLayer) {
@@ -313,7 +313,7 @@ export function calculatePositions(
     if (!incomingEdgesMap.has(edge.target)) {
       incomingEdgesMap.set(edge.target, [])
     }
-    incomingEdgesMap.get(edge.target)!.push(edge)
+    incomingEdgesMap.get(edge.target)?.push(edge)
   }
 
   for (const layerNum of layerNumbers) {

@@ -131,7 +131,7 @@ export function FileUpload({
 
   useEffect(() => {
     void loadWorkspaceFiles()
-  }, [workspaceId])
+  }, [loadWorkspaceFiles])
 
   /**
    * Opens file dialog
@@ -512,7 +512,7 @@ export function FileUpload({
         }
       }),
     ],
-    [availableWorkspaceFiles, acceptedTypes]
+    [availableWorkspaceFiles, acceptedTypes, isFileTypeAccepted]
   )
 
   const handleComboboxChange = (value: string) => {

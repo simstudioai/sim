@@ -158,7 +158,7 @@ export default function LoginPage({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [forgotPasswordEmail, forgotPasswordOpen])
+  }, [forgotPasswordOpen])
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value

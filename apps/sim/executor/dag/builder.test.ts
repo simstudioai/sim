@@ -117,7 +117,7 @@ describe('DAGBuilder human-in-the-loop transformation', () => {
     expect(startOutgoing).toHaveLength(1)
     expect(startOutgoing[0].target).toBe('pause')
 
-    const pauseOutgoing = Array.from(pauseNode!.outgoingEdges.values())
+    const pauseOutgoing = Array.from(pauseNode?.outgoingEdges.values())
     expect(pauseOutgoing).toHaveLength(1)
     expect(pauseOutgoing[0].target).toBe('finish')
 

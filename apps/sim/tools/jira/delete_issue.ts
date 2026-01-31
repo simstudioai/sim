@@ -83,13 +83,13 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
   transformResponse: async (response: Response, params?: JiraDeleteIssueParams) => {
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      const deleteSubtasksParam = params!.deleteSubtasks ? '?deleteSubtasks=true' : ''
-      const deleteUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}${deleteSubtasksParam}`
+      const deleteSubtasksParam = params?.deleteSubtasks ? '?deleteSubtasks=true' : ''
+      const deleteUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}${deleteSubtasksParam}`
       const deleteResponse = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${params!.accessToken}`,
+          Authorization: `Bearer ${params?.accessToken}`,
         },
       })
 

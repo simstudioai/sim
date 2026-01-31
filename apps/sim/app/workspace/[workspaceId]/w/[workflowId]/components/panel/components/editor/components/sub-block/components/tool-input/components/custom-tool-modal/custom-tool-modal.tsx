@@ -297,7 +297,7 @@ try {
     } else {
       resetForm()
     }
-  }, [open])
+  }, [open, initialValues])
 
   useEffect(() => {
     if (!showSchemaParams || schemaParamSelectedIndex < 0) return
@@ -391,7 +391,10 @@ try {
     }
   }, [jsonSchema])
 
-  const isSchemaValid = useMemo(() => validateSchema(jsonSchema).isValid, [jsonSchema])
+  const isSchemaValid = useMemo(
+    () => validateSchema(jsonSchema).isValid,
+    [jsonSchema, validateSchema]
+  )
 
   const hasChanges = useMemo(() => {
     if (!isEditing) return true

@@ -131,7 +131,7 @@ describe('File Serve API Route', () => {
     expect(disposition).toContain('filename=')
     expect(disposition).toContain('test-file.txt')
 
-    const fs = await import('fs/promises')
+    const fs = await import('node:fs/promises')
     expect(fs.readFile).toHaveBeenCalled()
   })
 
@@ -196,7 +196,7 @@ describe('File Serve API Route', () => {
 
     expect(response.status).toBe(200)
 
-    const fs = await import('fs/promises')
+    const fs = await import('node:fs/promises')
     expect(fs.readFile).toHaveBeenCalledWith('/test/uploads/nested/path/file.txt')
   })
 

@@ -51,7 +51,7 @@ export default function WorkflowsPage() {
       const firstWorkflowId = workspaceWorkflows[0]
       router.replace(`/workspace/${workspaceId}/w/${firstWorkflowId}`)
     }
-  }, [isMounted, isLoading, workflows, workspaceId, router, setActiveWorkflow, isError])
+  }, [isMounted, isLoading, workflows, workspaceId, router, isError])
 
   // Always show loading state until redirect happens
   // There should always be a default workflow, so we never show "no workflows found"

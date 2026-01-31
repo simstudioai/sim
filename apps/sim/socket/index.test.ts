@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { createServer, request as httpRequest } from 'http'
+import { createServer, request as httpRequest } from 'node:http'
 import { createMockLogger, databaseMock } from '@sim/testing'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSocketIOServer } from '@/socket/config/socket'

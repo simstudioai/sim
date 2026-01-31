@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { db } from '@sim/db'
 import { permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -31,7 +31,7 @@ const updatePermissionsSchema = z.object({
  * @param workspaceId - The workspace ID from the URL parameters
  * @returns Array of users with their permissions for the workspace
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: workspaceId } = await params
     const session = await getSession()

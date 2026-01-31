@@ -33,7 +33,7 @@ function maskApiKey(key: string): string {
   return `${key.slice(0, 6)}...${key.slice(-4)}`
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const workspaceId = (await params).id
 
@@ -231,7 +231,7 @@ export async function DELETE(
     const body = await request.json()
     const { providerId } = DeleteKeySchema.parse(body)
 
-    const result = await db
+    const _result = await db
       .delete(workspaceBYOKKeys)
       .where(
         and(

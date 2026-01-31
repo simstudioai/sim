@@ -271,7 +271,7 @@ export async function executeIntrospect(
           unique: row.NON_UNIQUE === 0,
         })
       }
-      indexMap.get(indexName)!.columns.push(row.COLUMN_NAME)
+      indexMap.get(indexName)?.columns.push(row.COLUMN_NAME)
     }
     const indexes = Array.from(indexMap.values())
 

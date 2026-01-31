@@ -88,24 +88,9 @@ export function useSubBlockValue<T = any>(
   const hasSnapshotValue = snapshotSubBlock !== undefined
   const snapshotValue = hasSnapshotValue ? ((snapshotSubBlock as any)?.value ?? null) : null
 
-  // Check if this is an API key field that could be auto-filled
-  const isApiKey =
-    subBlockId === 'apiKey' || (subBlockId?.toLowerCase().includes('apikey') ?? false)
-
-  // Always call this hook unconditionally - don't wrap it in a condition
-  // Optimized: only re-render if model value actually changes
-  const modelSubBlockValue = useStoreWithEqualityFn(
-    useSubBlockStore,
-    useCallback((state) => (blockId ? state.getValue(blockId, 'model') : null), [blockId]),
-    (a, b) => a === b
-  )
-
   // Determine if this is a provider-based block type
   const isProviderBasedBlock =
     blockType === 'agent' || blockType === 'router' || blockType === 'evaluator'
-
-  // Compute the modelValue based on block type
-  const modelValue = isProviderBasedBlock ? (modelSubBlockValue as string) : null
 
   // Emit the value to socket/DB and update local store
   const emitValue = useCallback(
@@ -190,11 +175,8 @@ export function useSubBlockValue<T = any>(
     [
       blockId,
       subBlockId,
-      blockType,
-      isApiKey,
       storeValue,
       triggerWorkflowUpdate,
-      modelValue,
       isStreaming,
       emitValue,
       isBaselineView,
@@ -213,7 +195,7 @@ export function useSubBlockValue<T = any>(
   // Initialize valueRef on first render
   useEffect(() => {
     valueRef.current = effectiveValue
-  }, [])
+  }, [effectiveValue])
 
   // Update the ref if the effective value changes
   // This ensures we're always working with the latest value

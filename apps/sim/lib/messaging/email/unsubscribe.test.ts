@@ -116,7 +116,7 @@ describe('unsubscribe utilities', () => {
     it.concurrent('should handle legacy tokens (2 parts) and default to marketing', () => {
       const salt = 'abc123'
       const secret = 'test-secret-key'
-      const { createHash } = require('crypto')
+      const { createHash } = require('node:crypto')
       const hash = createHash('sha256').update(`${testEmail}:${salt}:${secret}`).digest('hex')
       const legacyToken = `${salt}:${hash}`
 

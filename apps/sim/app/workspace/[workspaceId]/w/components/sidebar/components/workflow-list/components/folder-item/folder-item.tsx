@@ -426,13 +426,13 @@ export function FolderItem({
 
   const isMixedSelection = useMemo(() => {
     return capturedSelectionRef.current?.isMixed ?? false
-  }, [isContextMenuOpen])
+  }, [])
 
   const hasExportableContent = useMemo(() => {
     if (!capturedSelectionRef.current) return hasWorkflows
     const { workflowIds } = capturedSelectionRef.current
     return workflowIds.length > 0 || hasWorkflows
-  }, [isContextMenuOpen, hasWorkflows])
+  }, [hasWorkflows])
 
   return (
     <>

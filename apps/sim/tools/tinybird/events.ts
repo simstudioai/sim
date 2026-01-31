@@ -1,4 +1,4 @@
-import { gzipSync } from 'zlib'
+import { gzipSync } from 'node:zlib'
 import { createLogger } from '@sim/logger'
 import type { TinybirdEventsParams, TinybirdEventsResponse } from '@/tools/tinybird/types'
 import type { ToolConfig } from '@/tools/types'

@@ -8,7 +8,7 @@ const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
  * Provides usage exceeded status from existing subscription data.
  */
 
-export function useUsageLimits(options?: {
+export function useUsageLimits(_options?: {
   context?: 'user' | 'organization'
   organizationId?: string
   autoRefresh?: boolean

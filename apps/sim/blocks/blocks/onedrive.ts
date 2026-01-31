@@ -1,11 +1,8 @@
-import { createLogger } from '@sim/logger'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
 import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
-
-const logger = createLogger('OneDriveBlock')
 
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',

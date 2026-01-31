@@ -646,11 +646,11 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           })
         }
 
-        containerGroups.get(groupKey)!.spans.push(span)
+        containerGroups.get(groupKey)?.spans.push(span)
       }
     })
 
-    containerGroups.forEach((group, groupKey) => {
+    containerGroups.forEach((group, _groupKey) => {
       const { type, containerId, containerName, spans } = group
 
       const iterationGroups = new Map<number, TraceSpan[]>()
@@ -663,7 +663,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           if (!iterationGroups.has(iterationIndex)) {
             iterationGroups.set(iterationIndex, [])
           }
-          iterationGroups.get(iterationIndex)!.push(span)
+          iterationGroups.get(iterationIndex)?.push(span)
         }
       })
 

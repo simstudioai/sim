@@ -17,7 +17,7 @@ export function useSidebarResize() {
    */
   const handleMouseDown = useCallback(() => {
     setIsResizing(true)
-  }, [])
+  }, [setIsResizing])
 
   /**
    * Setup resize event listeners and body styles when resizing
@@ -50,7 +50,7 @@ export function useSidebarResize() {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizing, setSidebarWidth])
+  }, [isResizing, setSidebarWidth, setIsResizing])
 
   return {
     isResizing,

@@ -192,7 +192,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (text) {
         body = JSON.parse(text)
       }
-    } catch (error) {
+    } catch (_error) {
       logger.warn(`[${requestId}] Failed to parse request body, using defaults`)
     }
 
@@ -291,8 +291,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!preprocessResult.success) {
       return NextResponse.json(
-        { error: preprocessResult.error!.message },
-        { status: preprocessResult.error!.statusCode }
+        { error: preprocessResult.error?.message },
+        { status: preprocessResult.error?.statusCode }
       )
     }
 
@@ -660,14 +660,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
             const reader = streamingExec.stream.getReader()
             const decoder = new TextDecoder()
-            let chunkCount = 0
 
             try {
               while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
 
-                chunkCount++
                 const chunk = decoder.decode(value, { stream: true })
                 sendEvent({
                   type: 'stream:chunk',

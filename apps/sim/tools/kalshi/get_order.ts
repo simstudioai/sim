@@ -1,6 +1,6 @@
+import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
+import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiAuthParams, KalshiOrder } from './types'
-import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to retrieve (required)

@@ -113,15 +113,15 @@ export const jiraTransitionIssueTool: ToolConfig<
   transformResponse: async (response: Response, params?: JiraTransitionIssueParams) => {
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      const transitionUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/transitions`
+      const transitionUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/transitions`
 
       const body: any = {
         transition: {
-          id: params!.transitionId,
+          id: params?.transitionId,
         },
       }
 
-      if (params!.comment) {
+      if (params?.comment) {
         body.update = {
           comment: [
             {
@@ -135,7 +135,7 @@ export const jiraTransitionIssueTool: ToolConfig<
                       content: [
                         {
                           type: 'text',
-                          text: params!.comment,
+                          text: params?.comment,
                         },
                       ],
                     },
@@ -152,7 +152,7 @@ export const jiraTransitionIssueTool: ToolConfig<
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${params!.accessToken}`,
+          Authorization: `Bearer ${params?.accessToken}`,
         },
         body: JSON.stringify(body),
       })

@@ -1332,7 +1332,7 @@ async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onSt
         if (res.ok) {
           notified = true
         }
-      } catch (e) {
+      } catch (_e) {
         if (attempt < 2) {
           await new Promise((resolve) => setTimeout(resolve, 500))
         }

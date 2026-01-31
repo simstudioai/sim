@@ -78,7 +78,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
       const scrollHeight = messageContentRef.current.scrollHeight
       setNeedsExpansion(scrollHeight > MESSAGE_TRUNCATION_HEIGHT)
     }
-  }, [message.content, message.role])
+  }, [message.role])
 
   /** Enters edit mode */
   const handleEditMessage = useCallback(() => {

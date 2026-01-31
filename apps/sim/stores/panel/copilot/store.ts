@@ -249,7 +249,7 @@ const CONTINUE_OPTIONS_TAG = '<options>{"1":"Continue"}</options>'
 function resolveToolDisplay(
   toolName: string | undefined,
   state: ClientToolCallState,
-  toolCallId?: string,
+  _toolCallId?: string,
   params?: Record<string, any>
 ): ClientToolDisplay | undefined {
   try {
@@ -269,7 +269,7 @@ function resolveToolDisplay(
           if (dynamicText) {
             return { text: dynamicText, icon: ds.icon }
           }
-        } catch (e) {
+        } catch (_e) {
           // Fall back to static text if formatter fails
         }
       }
@@ -2208,7 +2208,7 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
   },
 
   // Handle subagent stream done - just update the streaming state
-  done: (data, context, get, set) => {
+  done: (_data, context, get, set) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
 
@@ -2614,7 +2614,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
             if (currentChatStillExists) {
               const updatedCurrentChat = data.chats.find(
-                (c: CopilotChat) => c.id === currentChat!.id
+                (c: CopilotChat) => c.id === currentChat?.id
               )!
               if (isSendingMessage) {
                 set({ currentChat: { ...updatedCurrentChat, messages: get().messages } })
@@ -2778,7 +2778,7 @@ export const useCopilotStore = create<CopilotStore>()(
       }
 
       const isFirstMessage = get().messages.length === 0 && !currentChat?.title
-      set((state) => ({
+      set((_state) => ({
         messages: newMessages,
         currentUserMessageId: userMessage.id,
       }))
@@ -2791,7 +2791,7 @@ export const useCopilotStore = create<CopilotStore>()(
             : state.currentChat,
           chats: state.currentChat
             ? state.chats.map((c) =>
-                c.id === state.currentChat!.id ? { ...c, title: optimisticTitle } : c
+                c.id === state.currentChat?.id ? { ...c, title: optimisticTitle } : c
               )
             : state.chats,
         }))
@@ -3329,11 +3329,10 @@ export const useCopilotStore = create<CopilotStore>()(
       stream: ReadableStream,
       assistantMessageId: string,
       isContinuation = false,
-      triggerUserMessageId?: string
+      _triggerUserMessageId?: string
     ) => {
       const reader = stream.getReader()
       const decoder = new TextDecoder()
-      const startTimeMs = Date.now()
 
       const context: StreamingContext = {
         messageId: assistantMessageId,

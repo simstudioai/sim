@@ -148,7 +148,7 @@ export function useTextareaAutoResize({
     }
 
     syncOverlayStyles.current()
-  }, [message, selectedContexts, textareaRef])
+  }, [message, textareaRef])
 
   /**
    * Sync scroll position between textarea and overlay
@@ -208,7 +208,7 @@ export function useTextareaAutoResize({
       mutationObserver.disconnect()
       window.removeEventListener('resize', handleResize)
     }
-  }, [panelWidth, textareaRef, containerRef])
+  }, [textareaRef, containerRef])
 
   /**
    * Cleanup ResizeObservers on unmount

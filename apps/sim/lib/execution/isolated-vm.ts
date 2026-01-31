@@ -237,7 +237,7 @@ async function ensureWorker(): Promise<void> {
       }
       worker.on('message', readyHandler)
 
-      worker.on('exit', (code) => {
+      worker.on('exit', (_code) => {
         if (workerIdleTimeout) {
           clearTimeout(workerIdleTimeout)
           workerIdleTimeout = null
@@ -321,7 +321,7 @@ export async function executeInIsolatedVM(
     pendingExecutions.set(executionId, { resolve, timeout })
 
     try {
-      worker!.send({ type: 'execute', executionId, request: req })
+      worker?.send({ type: 'execute', executionId, request: req })
     } catch {
       clearTimeout(timeout)
       pendingExecutions.delete(executionId)

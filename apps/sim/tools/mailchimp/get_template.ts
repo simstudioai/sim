@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
+import type { MailchimpTemplate } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpTemplate } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpGetTemplate')
 
 export interface MailchimpGetTemplateParams {
   apiKey: string

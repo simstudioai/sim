@@ -11,7 +11,7 @@ const logger = createLogger('SuperUserAPI')
 export const revalidate = 0
 
 // GET /api/user/super-user - Check if current user is a super user (database status)
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const requestId = generateRequestId()
 
   try {

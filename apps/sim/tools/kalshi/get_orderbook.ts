@@ -1,6 +1,6 @@
+import type { KalshiOrderbook } from '@/tools/kalshi/types'
+import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiOrderbook } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetOrderbookParams {
   ticker: string

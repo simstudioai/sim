@@ -51,14 +51,14 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
       return `${baseUrl}/batch/`
     },
     method: 'POST',
-    headers: (params) => ({
+    headers: (_params) => ({
       'Content-Type': 'application/json',
     }),
     body: (params) => {
       let batch: any[]
       try {
         batch = JSON.parse(params.batch)
-      } catch (e) {
+      } catch (_e) {
         batch = []
       }
 

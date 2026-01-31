@@ -269,7 +269,7 @@ function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: an
     if (!filtersBySlot.has(slot)) {
       filtersBySlot.set(slot, [])
     }
-    filtersBySlot.get(slot)!.push(filter)
+    filtersBySlot.get(slot)?.push(filter)
   }
 
   // Build conditions: OR within same slot, AND across different slots

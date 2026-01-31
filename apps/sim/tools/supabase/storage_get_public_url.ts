@@ -55,7 +55,7 @@ export const storageGetPublicUrlTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response, params?: SupabaseStorageGetPublicUrlParams) => {
+  transformResponse: async (_response: Response, params?: SupabaseStorageGetPublicUrlParams) => {
     let publicUrl = `https://${params?.projectId}.supabase.co/storage/v1/object/public/${params?.bucket}/${params?.path}`
 
     if (params?.download) {

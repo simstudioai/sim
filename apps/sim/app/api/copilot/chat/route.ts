@@ -494,20 +494,6 @@ export async function POST(req: NextRequest) {
 
     // If streaming is requested, forward the stream and update chat later
     if (stream && simAgentResponse.body) {
-      // Create user message to save
-      const userMessage = {
-        id: userMessageIdToUse, // Consistent ID used for request and persistence
-        role: 'user',
-        content: message,
-        timestamp: new Date().toISOString(),
-        ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
-        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
-        ...(Array.isArray(contexts) &&
-          contexts.length > 0 && {
-            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
-          }),
-      }
-
       // Create a pass-through stream that captures the response
       const transformedStream = new ReadableStream({
         async start(controller) {
@@ -515,14 +501,11 @@ export async function POST(req: NextRequest) {
           let assistantContent = ''
           const toolCalls: any[] = []
           let buffer = ''
-          const isFirstDone = true
-          let responseIdFromStart: string | undefined
           let responseIdFromDone: string | undefined
           // Track tool call progress to identify a safe done event
           const announcedToolCallIds = new Set<string>()
           const startedToolExecutionIds = new Set<string>()
           const completedToolExecutionIds = new Set<string>()
-          let lastDoneResponseId: string | undefined
           let lastSafeDoneResponseId: string | undefined
 
           // Send chatId as first event
@@ -564,8 +547,14 @@ export async function POST(req: NextRequest) {
           }
 
           // Forward the sim agent stream and capture assistant response
-          const reader = simAgentResponse.body!.getReader()
+          const reader = simAgentResponse.body?.getReader()
           const decoder = new TextDecoder()
+
+          if (!reader) {
+            logger.error(`[${tracker.requestId}] Failed to get reader from response body`)
+            controller.close()
+            return
+          }
 
           try {
             while (true) {
@@ -647,15 +636,11 @@ export async function POST(req: NextRequest) {
                         break
 
                       case 'start':
-                        if (event.data?.responseId) {
-                          responseIdFromStart = event.data.responseId
-                        }
                         break
 
                       case 'done':
                         if (event.data?.responseId) {
                           responseIdFromDone = event.data.responseId
-                          lastDoneResponseId = responseIdFromDone
 
                           // Mark this done as safe only if no tool call is currently in progress or pending
                           const announced = announcedToolCallIds.size
@@ -690,7 +675,7 @@ export async function POST(req: NextRequest) {
                               `data: ${JSON.stringify({ type: 'content', data: formatted })}\n\n`
                             )
                           )
-                        } catch (enqueueErr) {
+                        } catch (_enqueueErr) {
                           reader.cancel()
                           break
                         }
@@ -699,7 +684,7 @@ export async function POST(req: NextRequest) {
                           controller.enqueue(
                             encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
                           )
-                        } catch (enqueueErr) {
+                        } catch (_enqueueErr) {
                           reader.cancel()
                           break
                         }
@@ -709,7 +694,7 @@ export async function POST(req: NextRequest) {
                       // Forward original event to client
                       try {
                         controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
-                      } catch (enqueueErr) {
+                      } catch (_enqueueErr) {
                         reader.cancel()
                         break
                       }
@@ -767,17 +752,17 @@ export async function POST(req: NextRequest) {
                       controller.enqueue(
                         encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
                       )
-                    } catch (enqueueErr) {
+                    } catch (_enqueueErr) {
                       reader.cancel()
                     }
                   } else {
                     try {
                       controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
-                    } catch (enqueueErr) {
+                    } catch (_enqueueErr) {
                       reader.cancel()
                     }
                   }
-                } catch (e) {
+                } catch (_e) {
                   logger.warn(`[${tracker.requestId}] Failed to parse final buffer: "${buffer}"`)
                 }
               }

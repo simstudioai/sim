@@ -98,7 +98,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
     body: () => undefined as any,
   },
 
-  transformResponse: async (response: Response, params?: JiraCreateIssueLinkParams) => {
+  transformResponse: async (_response: Response, params?: JiraCreateIssueLinkParams) => {
     // Resolve cloudId
     const cloudId = params?.cloudId || (await getJiraCloudId(params!.domain, params!.accessToken))
 
@@ -107,14 +107,14 @@ export const jiraCreateIssueLinkTool: ToolConfig<
       `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLinkType`,
       {
         method: 'GET',
-        headers: { Accept: 'application/json', Authorization: `Bearer ${params!.accessToken}` },
+        headers: { Accept: 'application/json', Authorization: `Bearer ${params?.accessToken}` },
       }
     )
     if (!typesResp.ok) {
       throw new Error(`Failed to fetch issue link types (${typesResp.status})`)
     }
     const typesData = await typesResp.json()
-    const provided = (params!.linkType || '').trim().toLowerCase()
+    const provided = (params?.linkType || '').trim().toLowerCase()
     let resolvedType: { id?: string; name?: string } | undefined
     const allTypes = Array.isArray(typesData?.issueLinkTypes) ? typesData.issueLinkTypes : []
     for (const t of allTypes) {
@@ -133,7 +133,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
       const available = allTypes
         .map((t: any) => `${t?.name} (inward: ${t?.inward}, outward: ${t?.outward})`)
         .join('; ')
-      throw new Error(`Unknown issue link type "${params!.linkType}". Available: ${available}`)
+      throw new Error(`Unknown issue link type "${params?.linkType}". Available: ${available}`)
     }
 
     // Create issue link
@@ -143,12 +143,12 @@ export const jiraCreateIssueLinkTool: ToolConfig<
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params!.accessToken}`,
+        Authorization: `Bearer ${params?.accessToken}`,
       },
       body: JSON.stringify({
         type: resolvedType,
-        inwardIssue: { key: params!.inwardIssueKey },
-        outwardIssue: { key: params!.outwardIssueKey },
+        inwardIssue: { key: params?.inwardIssueKey },
+        outwardIssue: { key: params?.outwardIssueKey },
         comment: params?.comment
           ? {
               body: {
@@ -160,7 +160,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
                     content: [
                       {
                         type: 'text',
-                        text: params!.comment,
+                        text: params?.comment,
                       },
                     ],
                   },

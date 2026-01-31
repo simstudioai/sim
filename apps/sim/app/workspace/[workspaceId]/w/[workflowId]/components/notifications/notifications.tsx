@@ -171,9 +171,9 @@ export const Notifications = memo(function Notifications() {
                   onClick={() => executeAction(notification.id, notification.action!)}
                   className='w-full px-[8px] py-[4px] font-medium text-[12px]'
                 >
-                  {notification.action!.type === 'copilot'
+                  {notification.action?.type === 'copilot'
                     ? 'Fix in Copilot'
-                    : notification.action!.type === 'refresh'
+                    : notification.action?.type === 'refresh'
                       ? 'Refresh'
                       : 'Take action'}
                 </Button>

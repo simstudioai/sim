@@ -28,7 +28,7 @@ function resolveInitialValue(subBlock: SubBlockConfig): unknown {
   if (typeof subBlock.value === 'function') {
     try {
       return cloneDefaultValue(subBlock.value({}))
-    } catch (error) {
+    } catch (_error) {
       // Ignore resolution errors and fall back to default/null values
     }
   }

@@ -355,7 +355,7 @@ export function Document({
   }, [hasPrevPage, currentPage, goToPage])
 
   const refreshChunks = showingSearch ? async () => {} : initialRefreshChunks
-  const updateChunk = showingSearch ? (id: string, updates: any) => {} : initialUpdateChunk
+  const updateChunk = showingSearch ? (_id: string, _updates: any) => {} : initialUpdateChunk
 
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)

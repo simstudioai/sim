@@ -386,7 +386,7 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
                           `[${requestId}] Received usage data: ${JSON.stringify(parsed.usage)}`
                         )
                       }
-                    } catch (parseError) {
+                    } catch (_parseError) {
                       logger.debug(
                         `[${requestId}] Skipped non-JSON line: ${data.substring(0, 100)}`
                       )

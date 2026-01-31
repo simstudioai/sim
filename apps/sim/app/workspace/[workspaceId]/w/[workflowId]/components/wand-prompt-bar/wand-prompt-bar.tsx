@@ -64,7 +64,7 @@ export function WandPromptBar({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isVisible, isStreaming, isLoading, isExiting, onCancel])
+  }, [isVisible, isStreaming, isLoading, isExiting, handleCancel])
 
   // Reset the exit state when visibility changes
   useEffect(() => {

@@ -147,6 +147,7 @@ export function useDependsOnGate(
       blockId,
       canonicalIndex,
       canonicalModeOverrides,
+      normalizeDependencyValue,
     ]
   )
 

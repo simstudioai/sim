@@ -268,7 +268,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     if (showPlanTodos) {
       setTodosCollapsed(true)
     }
-  }, [abortMessage, showPlanTodos])
+  }, [abortMessage, showPlanTodos, setTodosCollapsed])
 
   /** Closes the plan todos section and clears the todos */
   const handleClosePlanTodos = useCallback(() => {

@@ -551,7 +551,7 @@ describe('Folders API Route', () => {
       await POST(req)
 
       expect(capturedValues).not.toBeNull()
-      expect(capturedValues!.name).toBe('Test Folder With Spaces')
+      expect(capturedValues?.name).toBe('Test Folder With Spaces')
     })
 
     it('should use default color when not provided', async () => {
@@ -591,7 +591,7 @@ describe('Folders API Route', () => {
       await POST(req)
 
       expect(capturedValues).not.toBeNull()
-      expect(capturedValues!.color).toBe('#6B7280')
+      expect(capturedValues?.color).toBe('#6B7280')
     })
   })
 })

@@ -45,7 +45,7 @@ export const confluenceRetrieveTool: ToolConfig<
   },
 
   request: {
-    url: (params: ConfluenceRetrieveParams) => {
+    url: (_params: ConfluenceRetrieveParams) => {
       return '/api/tools/confluence/page'
     },
     method: 'POST',

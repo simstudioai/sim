@@ -290,5 +290,5 @@ export function useBlockOutputFields({
     }
 
     return Object.entries(baseOutputs).map(([name, output]) => createFieldFromOutput(name, output))
-  }, [blockId, blockType, mergedSubBlocks, responseFormat, operation, triggerMode])
+  }, [blockId, blockType, mergedSubBlocks, responseFormat, triggerMode])
 }

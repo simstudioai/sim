@@ -5,7 +5,6 @@ import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
-  createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
 import { env } from '@/lib/core/config/env'
@@ -19,7 +18,6 @@ const BodySchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const tracker = createRequestTracker()
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -62,7 +60,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch (_error) {
     return createInternalServerErrorResponse('Failed to forward copilot stats')
   }
 }

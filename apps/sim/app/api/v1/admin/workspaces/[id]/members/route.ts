@@ -30,7 +30,7 @@
  * Response: AdminSingleResponse<{ removed: true }>
  */
 
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { db } from '@sim/db'
 import { permissions, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'

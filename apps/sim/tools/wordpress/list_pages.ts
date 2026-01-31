@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressListPagesParams,
   type WordPressListPagesResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const listPagesTool: ToolConfig<WordPressListPagesParams, WordPressListPagesResponse> = {
   id: 'wordpress_list_pages',

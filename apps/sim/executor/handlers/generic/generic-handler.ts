@@ -9,7 +9,7 @@ import { getTool } from '@/tools/utils'
 const logger = createLogger('GenericBlockHandler')
 
 export class GenericBlockHandler implements BlockHandler {
-  canHandle(block: SerializedBlock): boolean {
+  canHandle(_block: SerializedBlock): boolean {
     return true
   }
 

@@ -221,7 +221,7 @@ export class ParallelExpander {
     parallelId: string,
     entryNodes: string[],
     terminalNodes: string[],
-    branchCount: number
+    _branchCount: number
   ): void {
     const sentinelStartId = buildParallelSentinelStartId(parallelId)
     const sentinelEndId = buildParallelSentinelEndId(parallelId)

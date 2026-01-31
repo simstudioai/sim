@@ -22,7 +22,7 @@ export function wouldCreateCycle(edges: Edge[], sourceId: string, targetId: stri
     if (!adjacencyList.has(edge.source)) {
       adjacencyList.set(edge.source, [])
     }
-    adjacencyList.get(edge.source)!.push(edge.target)
+    adjacencyList.get(edge.source)?.push(edge.target)
   }
 
   const visited = new Set<string>()
@@ -169,7 +169,7 @@ export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<s
 
   Object.entries(blocks)
     .filter(([_, block]) => block.type === 'loop')
-    .forEach(([id, block]) => {
+    .forEach(([id, _block]) => {
       const loop = convertLoopBlockToLoop(id, blocks)
       if (loop) {
         loops[id] = loop
@@ -192,7 +192,7 @@ export function generateParallelBlocks(
 
   Object.entries(blocks)
     .filter(([_, block]) => block.type === 'parallel')
-    .forEach(([id, block]) => {
+    .forEach(([id, _block]) => {
       const parallel = convertParallelBlockToParallel(id, blocks)
       if (parallel) {
         parallels[id] = parallel

@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   const requestId = generateRequestId()
 
   try {

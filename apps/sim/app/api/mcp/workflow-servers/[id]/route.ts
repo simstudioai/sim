@@ -18,7 +18,7 @@ interface RouteParams {
  * GET - Get a specific workflow MCP server with its tools
  */
 export const GET = withMcpAuth<RouteParams>('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (_request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId } = await params
 
@@ -127,7 +127,7 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
  * DELETE - Delete a workflow MCP server and all its tools
  */
 export const DELETE = withMcpAuth<RouteParams>('admin')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (_request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId } = await params
 

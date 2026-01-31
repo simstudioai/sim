@@ -75,7 +75,7 @@ export const hubspotTicketTriggerOptions = [
 /**
  * Generate setup instructions for a specific HubSpot event type
  */
-export function hubspotSetupInstructions(eventType: string, additionalNotes?: string): string {
+export function hubspotSetupInstructions(_eventType: string, additionalNotes?: string): string {
   const instructions = [
     '<strong>Step 1: Create a HubSpot Developer Account</strong><br/>Sign up for a free developer account at <a href="https://developers.hubspot.com" target="_blank">developers.hubspot.com</a> if you don\'t have one.',
     '<strong>Step 2: Create a Public App via CLI</strong><br/><strong>Note:</strong> HubSpot has deprecated the web UI for creating apps. You must use the HubSpot CLI to create and manage apps. Install the CLI with <code>npm install -g @hubspot/cli</code> and run <code>hs project create</code> to create a new app. See <a href="https://developers.hubspot.com/docs/platform/create-an-app" target="_blank">HubSpot\'s documentation</a> for details.',
@@ -90,7 +90,9 @@ export function hubspotSetupInstructions(eventType: string, additionalNotes?: st
     instructions.push(`<strong>Additional Info:</strong> ${additionalNotes}`)
   }
 
-  return instructions.map((instruction, index) => `<div class="mb-3">${instruction}</div>`).join('')
+  return instructions
+    .map((instruction, _index) => `<div class="mb-3">${instruction}</div>`)
+    .join('')
 }
 
 /**

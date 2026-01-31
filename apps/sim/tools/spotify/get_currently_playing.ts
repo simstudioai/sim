@@ -1,5 +1,5 @@
+import { CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import { CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetCurrentlyPlayingParams {
   accessToken: string

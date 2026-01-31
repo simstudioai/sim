@@ -121,7 +121,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
     let data: any
     try {
       data = JSON.parse(text)
-    } catch (e) {
+    } catch (_e) {
       return {
         success: false,
         output: { monitors: [] },

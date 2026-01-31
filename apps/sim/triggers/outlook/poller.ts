@@ -46,7 +46,7 @@ export const outlookPollingTrigger: TriggerConfig = {
       description: 'Choose which Outlook folders to monitor. Leave empty to monitor all emails.',
       required: false,
       options: [], // Will be populated dynamically
-      fetchOptions: async (blockId: string, subBlockId: string) => {
+      fetchOptions: async (blockId: string, _subBlockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null

@@ -271,7 +271,7 @@ export class LoopOrchestrator {
   }
 
   private createExitResult(
-    ctx: ExecutionContext,
+    _ctx: ExecutionContext,
     loopId: string,
     scope: LoopScope
   ): LoopContinuationResult {

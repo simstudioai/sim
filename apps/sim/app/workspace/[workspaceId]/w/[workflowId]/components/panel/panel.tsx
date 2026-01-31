@@ -75,7 +75,6 @@ export const Panel = memo(function Panel() {
   const workspaceId = params.workspaceId as string
 
   const panelRef = useRef<HTMLElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const { activeTab, setActiveTab, panelWidth, _hasHydrated, setHasHydrated } = usePanelStore(
     useShallow((state) => ({
       activeTab: state.activeTab,
@@ -168,7 +167,7 @@ export const Panel = memo(function Panel() {
       return
     }
     await handleRunWorkflow()
-  }, [usageExceeded, handleRunWorkflow])
+  }, [usageExceeded, handleRunWorkflow, openSubscriptionSettings])
 
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore(

@@ -174,7 +174,7 @@ export function useWorkflowExecution() {
       // Reset debug state
       resetDebugState()
     },
-    [activeWorkflowId, resetDebugState]
+    [resetDebugState]
   )
 
   /**
@@ -220,7 +220,7 @@ export function useWorkflowExecution() {
       // Reset debug state
       resetDebugState()
     },
-    [debugContext, activeWorkflowId, resetDebugState]
+    [debugContext, resetDebugState]
   )
 
   const persistLogs = async (
@@ -529,10 +529,6 @@ export function useWorkflowExecution() {
 
                 // Update block logs with actual stream completion times
                 if (result.logs && streamCompletionTimes.size > 0) {
-                  const streamCompletionEndTime = new Date(
-                    Math.max(...Array.from(streamCompletionTimes.values()))
-                  ).toISOString()
-
                   result.logs.forEach((log: BlockLog) => {
                     if (streamCompletionTimes.has(log.blockId)) {
                       const completionTime = streamCompletionTimes.get(log.blockId)!
@@ -656,14 +652,9 @@ export function useWorkflowExecution() {
     },
     [
       activeWorkflowId,
-      currentWorkflow,
-      toggleConsole,
-      getAllVariables,
-      getVariablesByWorkflowId,
       setIsExecuting,
       setIsDebugging,
       setDebugContext,
-      setExecutor,
       setPendingBlocks,
       setActiveBlocks,
       workflows,
@@ -674,7 +665,7 @@ export function useWorkflowExecution() {
   const executeWorkflow = async (
     workflowInput?: any,
     onStream?: (se: StreamingExecution) => Promise<void>,
-    executionId?: string,
+    _executionId?: string,
     onBlockComplete?: (blockId: string, output: any) => Promise<void>,
     overrideTriggerType?: 'chat' | 'manual' | 'api',
     stopAfterBlockId?: string
@@ -1267,16 +1258,6 @@ export function useWorkflowExecution() {
     setIsDebugging(false)
     setActiveBlocks(new Set())
 
-    let notificationMessage = WORKFLOW_EXECUTION_FAILURE_MESSAGE
-    if (isRecord(error) && isRecord(error.request) && sanitizeMessage(error.request.url)) {
-      notificationMessage += `: Request to ${(error.request.url as string).trim()} failed`
-      if ('status' in error && typeof error.status === 'number') {
-        notificationMessage += ` (Status: ${error.status})`
-      }
-    } else if (sanitizeMessage(errorResult.error)) {
-      notificationMessage += `: ${errorResult.error}`
-    }
-
     return errorResult
   }
 
@@ -1314,7 +1295,6 @@ export function useWorkflowExecution() {
     executor,
     debugContext,
     pendingBlocks,
-    activeWorkflowId,
     validateDebugState,
     resetDebugState,
     isDebugSessionComplete,
@@ -1346,7 +1326,7 @@ export function useWorkflowExecution() {
       let currentResult: ExecutionResult = {
         success: true,
         output: {},
-        logs: debugContext!.blockLogs,
+        logs: debugContext?.blockLogs,
       }
 
       // Create copies to avoid mutation issues
@@ -1415,7 +1395,6 @@ export function useWorkflowExecution() {
     executor,
     debugContext,
     pendingBlocks,
-    activeWorkflowId,
     validateDebugState,
     resetDebugState,
     handleDebugSessionComplete,
@@ -1788,7 +1767,14 @@ export function useWorkflowExecution() {
         setActiveBlocks(new Set())
       }
     },
-    [activeWorkflowId, setExecutionResult, setIsExecuting, setIsDebugging, setActiveBlocks]
+    [
+      activeWorkflowId,
+      setIsExecuting,
+      setIsDebugging,
+      setActiveBlocks,
+      executeWorkflow,
+      handleExecutionError,
+    ]
   )
 
   return {

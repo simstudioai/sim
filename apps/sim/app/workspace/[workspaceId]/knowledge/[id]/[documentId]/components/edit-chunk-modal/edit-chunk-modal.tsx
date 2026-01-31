@@ -100,7 +100,7 @@ export function EditChunkModal({
     if (chunk?.content) {
       setEditedContent(chunk.content)
     }
-  }, [chunk?.id, chunk?.content])
+  }, [chunk?.content])
 
   const currentChunkIndex = chunk ? allChunks.findIndex((c) => c.id === chunk.id) : -1
 

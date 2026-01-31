@@ -1,11 +1,11 @@
-import type { ToolConfig } from '@/tools/types'
-import type { SpotifySearchParams, SpotifySearchResponse } from './types'
+import type { SpotifySearchParams, SpotifySearchResponse } from '@/tools/spotify/types'
 import {
   SEARCH_ALBUM_OUTPUT_PROPERTIES,
   SEARCH_ARTIST_OUTPUT_PROPERTIES,
   SEARCH_PLAYLIST_OUTPUT_PROPERTIES,
   SEARCH_TRACK_OUTPUT_PROPERTIES,
-} from './types'
+} from '@/tools/spotify/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchResponse> = {
   id: 'spotify_search',

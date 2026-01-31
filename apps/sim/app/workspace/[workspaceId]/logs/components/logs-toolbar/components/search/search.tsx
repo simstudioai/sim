@@ -119,7 +119,7 @@ export function AutocompleteSearch({
       initializeFromQuery(parsed.textSearch, parsed.filters)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [initializeFromQuery, value])
 
   const [dropdownWidth, setDropdownWidth] = useState(400)
   useEffect(() => {
@@ -131,7 +131,7 @@ export function AutocompleteSearch({
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [])
+  }, [inputRef.current])
 
   useEffect(() => {
     onOpenChange?.(isOpen)
@@ -144,7 +144,7 @@ export function AutocompleteSearch({
     if (container && optionEl) {
       optionEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     }
-  }, [isOpen, highlightedIndex])
+  }, [isOpen, highlightedIndex, dropdownRef.current])
 
   const hasFilters = appliedFilters.length > 0
   const hasTextSearch = textSearch.length > 0

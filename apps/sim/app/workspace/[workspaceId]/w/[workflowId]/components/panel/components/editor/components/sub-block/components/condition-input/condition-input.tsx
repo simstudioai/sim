@@ -333,7 +333,15 @@ export function ConditionInput({
         isSyncingFromStoreRef.current = false
       }, 0)
     }
-  }, [storeValue, previewValue, isPreview, blockId, isReady])
+  }, [
+    storeValue,
+    previewValue,
+    isPreview,
+    isReady,
+    createDefaultBlocks,
+    isRouterMode,
+    safeParseJSON,
+  ])
 
   // Update store whenever conditional blocks change
   useEffect(() => {
@@ -353,15 +361,7 @@ export function ConditionInput({
       setStoreValue(newValue)
       updateNodeInternals(blockId)
     }
-  }, [
-    conditionalBlocks,
-    blockId,
-    subBlockId,
-    setStoreValue,
-    updateNodeInternals,
-    isReady,
-    isPreview,
-  ])
+  }, [conditionalBlocks, blockId, setStoreValue, updateNodeInternals, isReady, isPreview])
 
   // Cleanup when component unmounts
   useEffect(() => {
@@ -516,42 +516,6 @@ export function ConditionInput({
     } catch (error) {
       logger.error('Failed to parse drop data:', { error })
     }
-  }
-
-  // Handle tag selection - updated for individual blocks
-  const handleTagSelect = (blockId: string, newValue: string) => {
-    if (isPreview || disabled) return
-    shouldPersistRef.current = true
-    setConditionalBlocks((blocks) =>
-      blocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              value: newValue,
-              showTags: false,
-              activeSourceBlockId: null,
-            }
-          : block
-      )
-    )
-  }
-
-  // Handle environment variable selection - updated for individual blocks
-  const handleEnvVarSelect = (blockId: string, newValue: string) => {
-    if (isPreview || disabled) return
-    shouldPersistRef.current = true
-    setConditionalBlocks((blocks) =>
-      blocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              value: newValue,
-              showEnvVars: false,
-              searchTerm: '',
-            }
-          : block
-      )
-    )
   }
 
   const handleTagSelectImmediate = (blockId: string, newValue: string) => {
@@ -743,7 +707,7 @@ export function ConditionInput({
         })
       }
     })
-  }, [conditionalBlocks.length])
+  }, [conditionalBlocks.forEach])
 
   // Capture textarea refs from Editor components (condition mode)
   useEffect(() => {

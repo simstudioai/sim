@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import type { OutputProperty } from '@/tools/types'
 

@@ -1,5 +1,5 @@
-import { createReadStream, existsSync } from 'fs'
-import { Readable } from 'stream'
+import { createReadStream, existsSync } from 'node:fs'
+import { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { type Options, parse } from 'csv-parse'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'

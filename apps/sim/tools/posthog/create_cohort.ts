@@ -121,7 +121,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
         if (params.filters) {
           try {
             body.filters = JSON.parse(params.filters)
-          } catch (e) {
+          } catch (_e) {
             body.filters = {}
           }
         }
@@ -129,7 +129,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
         if (params.query) {
           try {
             body.query = JSON.parse(params.query)
-          } catch (e) {
+          } catch (_e) {
             body.query = null
           }
         }
@@ -141,7 +141,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
         if (params.groups) {
           try {
             body.groups = JSON.parse(params.groups)
-          } catch (e) {
+          } catch (_e) {
             body.groups = []
           }
         }

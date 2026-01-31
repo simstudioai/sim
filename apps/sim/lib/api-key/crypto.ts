@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 

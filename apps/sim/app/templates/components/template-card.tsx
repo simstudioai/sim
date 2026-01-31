@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import { Star, User } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
@@ -8,8 +7,6 @@ import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/prev
 import { getBlock } from '@/blocks/registry'
 import { useStarTemplate } from '@/hooks/queries/templates'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-
-const logger = createLogger('TemplateCard')
 
 interface TemplateCardProps {
   id: string
@@ -64,8 +61,8 @@ const extractBlockTypesFromState = (state?: {
 
   const blockTypes = Object.keys(state.blocks)
     .sort()
-    .map((key) => state.blocks![key].type)
-    .filter((type) => type !== 'starter')
+    .map((key) => state.blocks?.[key].type)
+    .filter((type): type is string => type !== undefined && type !== 'starter')
   return [...new Set(blockTypes)]
 }
 

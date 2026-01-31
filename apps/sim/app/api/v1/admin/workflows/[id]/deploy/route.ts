@@ -181,7 +181,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
   }
 })
 
-export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) => {
+export const DELETE = withAdminAuthParams<RouteParams>(async (_request, context) => {
   const { id: workflowId } = await context.params
   const requestId = generateRequestId()
 

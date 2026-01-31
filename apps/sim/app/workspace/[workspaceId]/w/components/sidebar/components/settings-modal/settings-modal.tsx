@@ -227,7 +227,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
   const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
-  const hasOrganization = !!activeOrganization?.id
 
   // Fetch superuser status
   useEffect(() => {
@@ -315,14 +314,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       return true
     })
   }, [
-    hasOrganization,
     hasTeamPlan,
     hasEnterprisePlan,
     isOrgAdminOrOwner,
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
-    isOwner,
-    isAdmin,
     permissionConfig,
     isSuperUser,
     generalSettings?.superUserModeEnabled,

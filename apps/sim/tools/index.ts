@@ -692,12 +692,12 @@ async function executeToolRequest(
       let errorData: any
       try {
         errorData = await response.json()
-      } catch (jsonError) {
+      } catch (_jsonError) {
         // JSON parsing failed, fall back to reading as text for error extraction
         logger.warn(`[${requestId}] Response is not JSON for ${toolId}, reading as text`)
         try {
           errorData = await response.text()
-        } catch (textError) {
+        } catch (_textError) {
           logger.error(`[${requestId}] Failed to read response body for ${toolId}`)
           errorData = null
         }
@@ -912,7 +912,7 @@ async function executeMcpTool(
       if (typeof params.arguments === 'string') {
         try {
           toolArguments = JSON.parse(params.arguments)
-        } catch (error) {
+        } catch (_error) {
           logger.warn(`[${actualRequestId}] Failed to parse MCP arguments JSON:`, params.arguments)
           toolArguments = {}
         }

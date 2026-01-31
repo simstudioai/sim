@@ -337,7 +337,7 @@ export async function executeWorkflowCore(
 
     // Convert initial workflow variables to their native types
     if (workflowVariables) {
-      for (const [varId, variable] of Object.entries(workflowVariables)) {
+      for (const variable of Object.values(workflowVariables)) {
         const v = variable as { value?: unknown; type?: string }
         if (v.value !== undefined && v.type) {
           v.value = parseVariableValueByType(v.value, v.type)

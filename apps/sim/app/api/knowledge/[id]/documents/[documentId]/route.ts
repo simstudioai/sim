@@ -47,7 +47,7 @@ const UpdateDocumentSchema = z.object({
 })
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
   const requestId = generateRequestId()
@@ -122,8 +122,6 @@ export async function PUT(
 
     try {
       const validatedData = UpdateDocumentSchema.parse(body)
-
-      const updateData: any = {}
 
       if (validatedData.markFailedDueToTimeout) {
         const doc = accessCheck.document
@@ -220,7 +218,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
   const requestId = generateRequestId()

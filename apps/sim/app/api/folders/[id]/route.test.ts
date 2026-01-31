@@ -321,7 +321,7 @@ describe('Individual Folder API Route', () => {
       await PUT(req, { params })
 
       expect(capturedUpdates).not.toBeNull()
-      expect(capturedUpdates!.name).toBe('Folder With Spaces')
+      expect(capturedUpdates?.name).toBe('Folder With Spaces')
     })
 
     it('should handle database errors gracefully', async () => {

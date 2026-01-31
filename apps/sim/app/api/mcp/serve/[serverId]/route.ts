@@ -63,7 +63,7 @@ async function getServer(serverId: string) {
   return server
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   const { serverId } = await params
 
   try {

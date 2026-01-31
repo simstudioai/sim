@@ -208,7 +208,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
         setLocalContent(baseValueString)
       }
     }
-  }, [baseValue, isStreaming])
+  }, [baseValue, isStreaming, localContent])
 
   // Update store during streaming (deferred persistence is handled by onStreamingEnd)
   useEffect(() => {
@@ -391,22 +391,6 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
     // Intentionally empty; consumers may mirror scroll to overlays if needed
   }, [])
 
-  // Helper to apply selected value coming from popovers
-  const applySelectedValue = useCallback(
-    (newValue: string, isTagSelection: boolean) => {
-      if (onChange) {
-        onChange(newValue)
-      } else if (!isPreview) {
-        if (isTagSelection) {
-          emitTagSelection(newValue)
-        } else {
-          setStoreValue(newValue)
-        }
-      }
-    },
-    [onChange, isPreview, emitTagSelection, setStoreValue]
-  )
-
   // Field-level state tracking for array-based inputs
   const [fieldStates, setFieldStates] = useState<Record<string, FieldState>>({})
 
@@ -532,7 +516,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
 
   // Create tag select handler for a field
   const createTagSelectHandler = useCallback(
-    (fieldId: string, fieldValue: string, onFieldChange: (newValue: string) => void) => {
+    (fieldId: string, _fieldValue: string, onFieldChange: (newValue: string) => void) => {
       return (newValue: string) => {
         if (!isPreview && !disabled) {
           onFieldChange(newValue)
@@ -545,7 +529,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
 
   // Create env var select handler for a field
   const createEnvVarSelectHandler = useCallback(
-    (fieldId: string, fieldValue: string, onFieldChange: (newValue: string) => void) => {
+    (fieldId: string, _fieldValue: string, onFieldChange: (newValue: string) => void) => {
       return (newValue: string) => {
         if (!isPreview && !disabled) {
           onFieldChange(newValue)

@@ -43,7 +43,7 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
   return { set, role: membership.role }
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -141,7 +141,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
 
   if (!session?.user?.id) {

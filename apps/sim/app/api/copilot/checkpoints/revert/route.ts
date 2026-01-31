@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await stateResponse.json()
+    const _result = await stateResponse.json()
     logger.info(
       `[${tracker.requestId}] Successfully reverted workflow ${checkpoint.workflowId} to checkpoint ${checkpointId}`
     )

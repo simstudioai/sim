@@ -136,7 +136,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
       if (currentNestedTag) {
         if (currentNestedTag.parentTag) {
           const parentIdx = flatTagList.findIndex(
-            (item) => item.tag === currentNestedTag!.parentTag
+            (item) => item.tag === currentNestedTag?.parentTag
           )
           if (parentIdx >= 0) {
             indices.push(parentIdx)
@@ -182,14 +182,12 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     return indices
   }, [isInFolder, currentFolder, flatTagList, nestedBlockTagGroups, nestedNav])
 
-  const nestedPathLength = nestedNav?.nestedPath.length ?? 0
-
   useEffect(() => {
     if (!visible || visibleIndices.length === 0) return
 
     setSelectedIndex(visibleIndices[0])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, isInFolder, currentFolder, nestedPathLength])
+  }, [visible, setSelectedIndex, visibleIndices.length, visibleIndices[0]])
 
   useEffect(() => {
     if (!visible || !flatTagList.length) return

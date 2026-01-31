@@ -46,7 +46,7 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
     }),
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response, _params) => {
     // Handle rate limit issues (429 status code)
     if (response.status === 429) {
       logger.warn('X API rate limit exceeded', {

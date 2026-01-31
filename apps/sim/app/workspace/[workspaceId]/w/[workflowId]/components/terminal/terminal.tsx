@@ -615,7 +615,7 @@ export const Terminal = memo(function Terminal() {
    */
   useEffect(() => {
     hasInitializedEntriesRef.current = false
-  }, [activeWorkflowId])
+  }, [])
 
   /**
    * Auto-open the terminal on new entries when "Open on run" is enabled.
@@ -649,14 +649,7 @@ export const Terminal = memo(function Terminal() {
     }
 
     prevWorkflowEntriesLengthRef.current = currentLength
-  }, [
-    allWorkflowEntries.length,
-    expandToLastHeight,
-    openOnRun,
-    isExpanded,
-    hasConsoleHydrated,
-    activeWorkflowId,
-  ])
+  }, [allWorkflowEntries.length, expandToLastHeight, openOnRun, isExpanded, hasConsoleHydrated])
 
   /**
    * Auto-expand subflows and iterations when new entries arrive.
@@ -946,7 +939,7 @@ export const Terminal = memo(function Terminal() {
     if (selectedEntry) {
       scrollEntryIntoView(selectedEntry.id)
     }
-  }, [selectedEntry?.id, scrollEntryIntoView])
+  }, [selectedEntry?.id, scrollEntryIntoView, selectedEntry])
 
   /**
    * Sync selected entry with latest data from store.

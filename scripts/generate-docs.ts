@@ -1,7 +1,7 @@
 #!/usr/bin/env ts-node
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { glob } from 'glob'
 
 console.log('Starting documentation generator...')
@@ -521,192 +521,9 @@ function extractToolsAccessFromContent(content: string): string[] {
   return tools
 }
 
-// Legacy function for backward compatibility (icon mapping, etc.)
-function extractBlockConfig(fileContent: string): BlockConfig | null {
-  const configs = extractAllBlockConfigs(fileContent)
-  // Return first non-hidden block for legacy code paths
-  return configs.length > 0 ? configs[0] : null
-}
-
-function findBlockType(content: string, blockName: string): string {
-  const blockExportRegex = new RegExp(
-    `export\\s+const\\s+${blockName}Block\\s*:[^{]*{[\\s\\S]*?type\\s*:\\s*['"]([^'"]+)['"][\\s\\S]*?}`,
-    'i'
-  )
-  const blockExportMatch = content.match(blockExportRegex)
-  if (blockExportMatch) return blockExportMatch[1]
-
-  const exportMatch = content.match(new RegExp(`export\\s+const\\s+${blockName}Block\\s*:`))
-  if (exportMatch) {
-    const afterExport = content.substring(exportMatch.index! + exportMatch[0].length)
-
-    const blockStartMatch = afterExport.match(/{/)
-    if (blockStartMatch) {
-      const blockStart = blockStartMatch.index!
-
-      let braceCount = 1
-      let blockEnd = blockStart + 1
-
-      while (blockEnd < afterExport.length && braceCount > 0) {
-        if (afterExport[blockEnd] === '{') braceCount++
-        else if (afterExport[blockEnd] === '}') braceCount--
-        blockEnd++
-      }
-
-      const blockContent = afterExport.substring(blockStart, blockEnd)
-      const typeMatch = blockContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
-      if (typeMatch) return typeMatch[1]
-    }
-  }
-
-  return blockName
-    .replace(/([A-Z])/g, '_$1')
-    .toLowerCase()
-    .replace(/^_/, '')
-}
-
-function extractStringProperty(content: string, propName: string): string | null {
-  const singleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*'(.*?)'`, 'm'))
-  if (singleQuoteMatch) return singleQuoteMatch[1]
-
-  const doubleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*"(.*?)"`, 'm'))
-  if (doubleQuoteMatch) return doubleQuoteMatch[1]
-
-  const templateMatch = content.match(new RegExp(`${propName}\\s*:\\s*\`([^\`]+)\``, 's'))
-  if (templateMatch) {
-    let templateContent = templateMatch[1]
-
-    templateContent = templateContent.replace(
-      /\$\{[^}]*shouldEnableURLInput[^}]*\?[^:]*:[^}]*\}/g,
-      'Upload files directly. '
-    )
-    templateContent = templateContent.replace(/\$\{[^}]*shouldEnableURLInput[^}]*\}/g, 'false')
-
-    templateContent = templateContent.replace(/\$\{[^}]+\}/g, '')
-
-    templateContent = templateContent.replace(/\s+/g, ' ').trim()
-
-    return templateContent
-  }
-
-  return null
-}
-
 function extractIconName(content: string): string | null {
   const iconMatch = content.match(/icon\s*:\s*(\w+Icon)/)
   return iconMatch ? iconMatch[1] : null
-}
-
-function extractOutputs(content: string): Record<string, any> {
-  const outputsStart = content.search(/outputs\s*:\s*{/)
-  if (outputsStart === -1) return {}
-
-  const openBracePos = content.indexOf('{', outputsStart)
-  if (openBracePos === -1) return {}
-
-  let braceCount = 1
-  let pos = openBracePos + 1
-
-  while (pos < content.length && braceCount > 0) {
-    if (content[pos] === '{') {
-      braceCount++
-    } else if (content[pos] === '}') {
-      braceCount--
-    }
-    pos++
-  }
-
-  if (braceCount === 0) {
-    const outputsContent = content.substring(openBracePos + 1, pos - 1).trim()
-    const outputs: Record<string, any> = {}
-
-    const fieldRegex = /(\w+)\s*:\s*{/g
-    let match
-    const fieldPositions: Array<{ name: string; start: number }> = []
-
-    while ((match = fieldRegex.exec(outputsContent)) !== null) {
-      fieldPositions.push({
-        name: match[1],
-        start: match.index + match[0].length - 1,
-      })
-    }
-
-    fieldPositions.forEach((field) => {
-      const startPos = field.start
-      let braceCount = 1
-      let endPos = startPos + 1
-
-      while (endPos < outputsContent.length && braceCount > 0) {
-        if (outputsContent[endPos] === '{') {
-          braceCount++
-        } else if (outputsContent[endPos] === '}') {
-          braceCount--
-        }
-        endPos++
-      }
-
-      if (braceCount === 0) {
-        const fieldContent = outputsContent.substring(startPos + 1, endPos - 1).trim()
-
-        const typeMatch = fieldContent.match(/type\s*:\s*['"](.*?)['"]/)
-        const description = extractDescription(fieldContent)
-
-        if (typeMatch) {
-          outputs[field.name] = {
-            type: typeMatch[1],
-            description: description || `${field.name} output from the block`,
-          }
-        }
-      }
-    })
-
-    if (Object.keys(outputs).length > 0) {
-      return outputs
-    }
-
-    const flatFieldMatches = outputsContent.match(/(\w+)\s*:\s*['"](.*?)['"]/g)
-
-    if (flatFieldMatches && flatFieldMatches.length > 0) {
-      flatFieldMatches.forEach((fieldMatch) => {
-        const fieldParts = fieldMatch.match(/(\w+)\s*:\s*['"](.*?)['"]/)
-        if (fieldParts) {
-          const fieldName = fieldParts[1]
-          const fieldType = fieldParts[2]
-
-          outputs[fieldName] = {
-            type: fieldType,
-            description: `${fieldName} output from the block`,
-          }
-        }
-      })
-
-      if (Object.keys(outputs).length > 0) {
-        return outputs
-      }
-    }
-  }
-
-  return {}
-}
-
-function extractToolsAccess(content: string): string[] {
-  const accessMatch = content.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
-  if (!accessMatch) return []
-
-  const accessContent = accessMatch[1]
-  const tools: string[] = []
-
-  const toolMatches = accessContent.match(/['"]([^'"]+)['"]/g)
-  if (toolMatches) {
-    toolMatches.forEach((toolText) => {
-      const match = toolText.match(/['"]([^'"]+)['"]/)
-      if (match) {
-        tools.push(match[1])
-      }
-    })
-  }
-
-  return tools
 }
 
 /**
@@ -1927,7 +1744,6 @@ async function getToolInfo(toolName: string): Promise<{
     })
 
     let toolFileContent = ''
-    let foundFile = ''
 
     // Try to find a file that contains the exact tool ID
     for (const location of possibleLocations) {
@@ -1938,14 +1754,12 @@ async function getToolInfo(toolName: string): Promise<{
         const toolIdRegex = new RegExp(`id:\\s*['"]${toolName}['"]`)
         if (toolIdRegex.test(content)) {
           toolFileContent = content
-          foundFile = location.path
           break
         }
 
         // For fallback locations, store the content in case we don't find an exact match
         if (location.priority === 'fallback' && !toolFileContent) {
           toolFileContent = content
-          foundFile = location.path
         }
       }
     }
@@ -1955,7 +1769,6 @@ async function getToolInfo(toolName: string): Promise<{
       for (const location of possibleLocations) {
         if (fs.existsSync(location.path)) {
           toolFileContent = fs.readFileSync(location.path, 'utf-8')
-          foundFile = location.path
           break
         }
       }
@@ -2113,82 +1926,17 @@ async function generateBlockDoc(blockPath: string) {
 
 async function generateMarkdownForBlock(
   blockConfig: BlockConfig,
-  displayType?: string
+  _displayType?: string
 ): Promise<string> {
   const {
     type,
     name,
     description,
     longDescription,
-    category,
     bgColor,
     outputs = {},
     tools = { access: [] },
   } = blockConfig
-
-  let outputsSection = ''
-
-  if (outputs && Object.keys(outputs).length > 0) {
-    outputsSection = '## Outputs\n\n'
-
-    outputsSection += '| Output | Type | Description |\n'
-    outputsSection += '| ------ | ---- | ----------- |\n'
-
-    for (const outputKey in outputs) {
-      const output = outputs[outputKey]
-
-      const escapedDescription = output.description
-        ? output.description
-            .replace(/\|/g, '\\|')
-            .replace(/\{/g, '\\{')
-            .replace(/\}/g, '\\}')
-            .replace(/\(/g, '\\(')
-            .replace(/\)/g, '\\)')
-            .replace(/\[/g, '\\[')
-            .replace(/\]/g, '\\]')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-        : `Output from ${outputKey}`
-
-      if (typeof output.type === 'string') {
-        outputsSection += `| \`${outputKey}\` | ${output.type} | ${escapedDescription} |\n`
-      } else if (output.type && typeof output.type === 'object') {
-        outputsSection += `| \`${outputKey}\` | object | ${escapedDescription} |\n`
-
-        for (const propName in output.type) {
-          const propType = output.type[propName]
-          const commentMatch =
-            propName && output.type[propName]._comment
-              ? output.type[propName]._comment
-              : `${propName} of the ${outputKey}`
-
-          outputsSection += `| ↳ \`${propName}\` | ${propType} | ${commentMatch} |\n`
-        }
-      } else if (output.properties) {
-        outputsSection += `| \`${outputKey}\` | object | ${escapedDescription} |\n`
-
-        for (const propName in output.properties) {
-          const prop = output.properties[propName]
-          const escapedPropertyDescription = prop.description
-            ? prop.description
-                .replace(/\|/g, '\\|')
-                .replace(/\{/g, '\\{')
-                .replace(/\}/g, '\\}')
-                .replace(/\(/g, '\\(')
-                .replace(/\)/g, '\\)')
-                .replace(/\[/g, '\\[')
-                .replace(/\]/g, '\\]')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-            : `The ${propName} of the ${outputKey}`
-
-          outputsSection += `| ↳ \`${propName}\` | ${prop.type} | ${escapedPropertyDescription} |\n`
-        }
-      }
-    }
-  } else {
-    outputsSection = 'This block does not produce any outputs.'
-  }
 
   let toolsSection = ''
   if (tools.access?.length) {

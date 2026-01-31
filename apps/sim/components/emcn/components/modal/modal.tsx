@@ -290,7 +290,7 @@ const ModalTabsList = React.forwardRef<
       observer.disconnect()
       window.removeEventListener('resize', updateIndicator)
     }
-  }, [activeValue])
+  }, [])
 
   return (
     <TabsPrimitive.List

@@ -96,7 +96,7 @@ export const pipedriveGetAllDealsTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response, params?: PipedriveGetAllDealsParams) => {
+  transformResponse: async (response: Response, _params?: PipedriveGetAllDealsParams) => {
     const data = await response.json()
 
     if (!data.success) {

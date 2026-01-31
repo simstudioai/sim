@@ -941,7 +941,7 @@ export function MCP({ initialServerId }: MCPProps) {
                               Parameters
                             </p>
                             <div className='flex flex-col gap-[6px]'>
-                              {Object.entries(tool.inputSchema!.properties!).map(
+                              {Object.entries(tool.inputSchema?.properties!).map(
                                 ([paramName, param]) => {
                                   const isRequired = requiredParams.includes(paramName)
                                   const paramType =

@@ -35,7 +35,7 @@ export function generateIncrementalName<T extends NameableEntity>(
   const existingNumbers = existingEntities
     .map((entity) => entity.name.match(pattern))
     .filter((match) => match !== null)
-    .map((match) => Number.parseInt(match![1], 10))
+    .map((match) => Number.parseInt(match?.[1], 10))
 
   // Find next available number (highest + 1, or 1 if none exist)
   const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1

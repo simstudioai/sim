@@ -1,5 +1,5 @@
-import { existsSync } from 'fs'
-import { join, resolve, sep } from 'path'
+import { existsSync } from 'node:fs'
+import { join, resolve, sep } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { UPLOAD_DIR } from '@/lib/uploads/config'
@@ -119,7 +119,7 @@ export function extractFilename(path: string): string {
   return filename
 }
 
-function sanitizeFilename(filename: string): string {
+function _sanitizeFilename(filename: string): string {
   if (!filename || typeof filename !== 'string') {
     throw new Error('Invalid filename provided')
   }

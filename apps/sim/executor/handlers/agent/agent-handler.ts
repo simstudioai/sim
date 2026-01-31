@@ -521,7 +521,7 @@ export class AgentBlockHandler implements BlockHandler {
       if (!toolsByServer.has(serverId)) {
         toolsByServer.set(serverId, [])
       }
-      toolsByServer.get(serverId)!.push(tool)
+      toolsByServer.get(serverId)?.push(tool)
     }
 
     const serverDiscoveryResults = await Promise.all(
@@ -867,7 +867,7 @@ export class AgentBlockHandler implements BlockHandler {
     } else {
       try {
         content = JSON.stringify(systemPrompt, null, 2)
-      } catch (error) {
+      } catch (_error) {
         content = String(systemPrompt)
       }
     }
@@ -1042,7 +1042,10 @@ export class AgentBlockHandler implements BlockHandler {
   /**
    * Resolves a Vertex AI OAuth credential to an access token
    */
-  private async resolveVertexCredential(credentialId: string, workflowId: string): Promise<string> {
+  private async resolveVertexCredential(
+    credentialId: string,
+    _workflowId: string
+  ): Promise<string> {
     const requestId = `vertex-${Date.now()}`
 
     logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
@@ -1214,7 +1217,7 @@ export class AgentBlockHandler implements BlockHandler {
         ...extractedJson,
         ...this.createResponseMetadata(result),
       }
-    } catch (error) {
+    } catch (_error) {
       logger.error('LLM did not adhere to structured response format:', {
         content: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
         responseFormat: responseFormat,

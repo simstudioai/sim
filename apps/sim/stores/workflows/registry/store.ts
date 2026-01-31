@@ -79,7 +79,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       pendingSelection: null,
 
       beginMetadataLoad: (workspaceId: string) => {
-        set((state) => ({
+        set((_state) => ({
           error: null,
           hydration: {
             phase: 'metadata-loading',

@@ -170,8 +170,8 @@ export class BlockExecutor {
           this.sanitizeInputsForLog(resolvedInputs),
           displayOutput,
           duration,
-          blockLog!.startedAt,
-          blockLog!.endedAt
+          blockLog?.startedAt ?? new Date().toISOString(),
+          blockLog?.endedAt ?? new Date().toISOString()
         )
       }
 
@@ -277,8 +277,8 @@ export class BlockExecutor {
         this.sanitizeInputsForLog(input),
         displayOutput,
         duration,
-        blockLog!.startedAt,
-        blockLog!.endedAt
+        blockLog?.startedAt ?? new Date().toISOString(),
+        blockLog?.endedAt ?? new Date().toISOString()
       )
     }
 

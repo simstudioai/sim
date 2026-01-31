@@ -39,7 +39,7 @@ export const discordDeleteRoleTool: ToolConfig<DiscordDeleteRoleParams, DiscordD
       }),
     },
 
-    transformResponse: async (response) => {
+    transformResponse: async (_response) => {
       return {
         success: true,
         output: {

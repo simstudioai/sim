@@ -330,7 +330,7 @@ export interface SubBlockConfig {
   ) => Promise<{ label: string; id: string } | null>
 }
 
-export interface BlockConfig<T extends ToolResponse = ToolResponse> {
+export interface BlockConfig<_T extends ToolResponse = ToolResponse> {
   type: string
   name: string
   description: string

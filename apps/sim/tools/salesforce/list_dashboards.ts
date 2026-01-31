@@ -68,7 +68,7 @@ export const salesforceListDashboardsTool: ToolConfig<
     // Filter by folder name if provided
     if (params?.folderName) {
       dashboards = dashboards.filter((dashboard: any) =>
-        dashboard.folderName?.toLowerCase().includes(params.folderName!.toLowerCase())
+        dashboard.folderName?.toLowerCase().includes(params.folderName?.toLowerCase())
       )
     }
 

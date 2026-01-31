@@ -527,7 +527,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketRef.current = null
       }
     }
-  }, [user?.id, authFailed])
+  }, [user?.id, authFailed, generateSocketToken, isConnecting, socket])
 
   useEffect(() => {
     if (!socket || !isConnected || !urlWorkflowId) return

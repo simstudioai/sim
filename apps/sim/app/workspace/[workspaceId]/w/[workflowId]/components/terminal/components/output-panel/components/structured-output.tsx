@@ -815,7 +815,7 @@ export const StructuredOutput = memo(function StructuredOutput({
     })
 
     return () => cancelAnimationFrame(rafId)
-  }, [currentMatchIndex, allMatchPaths.length, expandedPaths, useVirtualization])
+  }, [currentMatchIndex, allMatchPaths.length, useVirtualization])
 
   const containerClass = cn('flex flex-col pl-[20px]', wrapText && 'overflow-x-hidden', className)
   const virtualizedContainerClass = cn('relative', wrapText && 'overflow-x-hidden', className)

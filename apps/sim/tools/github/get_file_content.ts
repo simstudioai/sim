@@ -80,7 +80,7 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
     if (data.content) {
       try {
         decodedContent = Buffer.from(data.content, 'base64').toString('utf-8')
-      } catch (error) {
+      } catch (_error) {
         decodedContent = '[Binary file - content cannot be displayed as text]'
       }
     }

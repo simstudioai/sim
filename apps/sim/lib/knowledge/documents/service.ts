@@ -1,4 +1,4 @@
-import crypto, { randomUUID } from 'crypto'
+import crypto, { randomUUID } from 'node:crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'

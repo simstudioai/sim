@@ -53,7 +53,7 @@ async function processTriggerFileOutputs(
     if (outputDef?.type === 'file[]' && Array.isArray(val)) {
       try {
         processed[key] = await WebhookAttachmentProcessor.processAttachments(val as any, context)
-      } catch (error) {
+      } catch (_error) {
         processed[key] = []
       }
     } else if (outputDef?.type === 'file' && val) {

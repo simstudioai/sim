@@ -121,8 +121,6 @@ export async function POST(req: NextRequest) {
       return createBadRequestResponse('Failed to update tool call status or tool call not found')
     }
 
-    const duration = tracker.getDuration()
-
     return NextResponse.json({
       success: true,
       message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,

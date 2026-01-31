@@ -240,22 +240,6 @@ export function PreviewWorkflow({
     }
   }, [workflowState.blocks, isValidWorkflowState])
 
-  const loopsStructure = useMemo(() => {
-    if (!isValidWorkflowState) return { count: 0, ids: '' }
-    return {
-      count: Object.keys(workflowState.loops || {}).length,
-      ids: Object.keys(workflowState.loops || {}).join(','),
-    }
-  }, [workflowState.loops, isValidWorkflowState])
-
-  const parallelsStructure = useMemo(() => {
-    if (!isValidWorkflowState) return { count: 0, ids: '' }
-    return {
-      count: Object.keys(workflowState.parallels || {}).length,
-      ids: Object.keys(workflowState.parallels || {}).join(','),
-    }
-  }, [workflowState.parallels, isValidWorkflowState])
-
   /** Map of subflow ID to child block IDs */
   const subflowChildrenMap = useMemo(() => {
     if (!isValidWorkflowState) return new Map<string, string[]>()
@@ -324,14 +308,6 @@ export function PreviewWorkflow({
       return undefined
     }
   }, [workflowState.blocks, getSubflowExecutionStatus, blockExecutionMap])
-
-  const edgesStructure = useMemo(() => {
-    if (!isValidWorkflowState) return { count: 0, ids: '' }
-    return {
-      count: workflowState.edges?.length || 0,
-      ids: workflowState.edges?.map((e) => e.id).join(',') || '',
-    }
-  }, [workflowState.edges, isValidWorkflowState])
 
   const nodes: Node[] = useMemo(() => {
     if (!isValidWorkflowState) return []
@@ -412,9 +388,6 @@ export function PreviewWorkflow({
 
     return nodeArray
   }, [
-    blocksStructure,
-    loopsStructure,
-    parallelsStructure,
     workflowState.blocks,
     isValidWorkflowState,
     executedBlocks,
@@ -467,13 +440,7 @@ export function PreviewWorkflow({
         zIndex: status === 'success' ? 10 : isErrorEdge ? 5 : 0,
       }
     })
-  }, [
-    edgesStructure,
-    workflowState.edges,
-    isValidWorkflowState,
-    blockExecutionMap,
-    getBlockExecutionStatus,
-  ])
+  }, [workflowState.edges, isValidWorkflowState, blockExecutionMap, getBlockExecutionStatus])
 
   if (!isValidWorkflowState) {
     return (

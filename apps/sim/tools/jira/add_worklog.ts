@@ -107,7 +107,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
       if (!params?.timeSpentSeconds || params.timeSpentSeconds <= 0) {
         throw new Error('timeSpentSeconds is required and must be greater than 0')
       }
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      const cloudId = await getJiraCloudId(params?.domain, params?.accessToken)
       // Make the actual request with the resolved cloudId
       const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/worklog`
       const worklogResponse = await fetch(worklogUrl, {

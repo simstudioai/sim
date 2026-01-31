@@ -286,7 +286,7 @@ export const Dropdown = memo(function Dropdown({
       }
 
       return []
-    } catch (error) {
+    } catch (_error) {
       return []
     }
   }
@@ -331,7 +331,16 @@ export const Dropdown = memo(function Dropdown({
     }
 
     previousModeRef.current = currentMode
-  }, [storeValue, subBlockId, isPreview, disabled, setData, setBuilderData, multiSelect])
+  }, [
+    storeValue,
+    subBlockId,
+    isPreview,
+    disabled,
+    setData,
+    setBuilderData,
+    multiSelect,
+    convertJsonToBuilderData,
+  ])
 
   /**
    * Handles selection change for both single and multi-select modes
@@ -400,7 +409,7 @@ export const Dropdown = memo(function Dropdown({
     fetchedOptions.length,
     isLoadingOptions,
     fetchError,
-    dependencyValues,
+    fetchOptionsIfNeeded,
   ])
 
   /**

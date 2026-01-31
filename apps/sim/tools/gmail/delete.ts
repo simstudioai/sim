@@ -94,7 +94,8 @@ export const gmailDeleteV2Tool: ToolConfig<GmailMarkReadParams, GmailModifyV2Res
   params: gmailDeleteTool.params,
   request: gmailDeleteTool.request,
   transformResponse: async (response) => {
-    const legacy = await gmailDeleteTool.transformResponse!(response)
+    const legacy = await gmailDeleteTool.transformResponse?.(response)
+    if (!legacy) return { success: false, output: {}, error: 'Transform response failed' }
     if (!legacy.success) return { success: false, output: {}, error: legacy.error }
     const metadata = legacy.output.metadata as any
     return {

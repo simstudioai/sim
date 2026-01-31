@@ -99,7 +99,7 @@ export function WorkflowSelector({
         )}
       </div>
     )
-  }, [allWorkflows, selectedWorkflows, selectedIds])
+  }, [allWorkflows, selectedWorkflows, handleRemove])
 
   if (isLoading) {
     return (

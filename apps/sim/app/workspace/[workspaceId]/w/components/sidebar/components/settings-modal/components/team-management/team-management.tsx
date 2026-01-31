@@ -126,7 +126,7 @@ export function TeamManagement() {
     } catch (error) {
       logger.error('Failed to create organization', error)
     }
-  }, [orgName, orgSlug, createOrgMutation])
+  }, [orgName, orgSlug, createOrgMutation, session?.user])
 
   const handleInviteMember = useCallback(async () => {
     if (!session?.user || !activeOrganization?.id || !inviteEmail.trim()) return
@@ -157,7 +157,14 @@ export function TeamManagement() {
     } catch (error) {
       logger.error('Failed to invite member', error)
     }
-  }, [session?.user?.id, activeOrganization?.id, inviteEmail, selectedWorkspaces, inviteMutation])
+  }, [
+    session?.user?.id,
+    activeOrganization?.id,
+    inviteEmail,
+    selectedWorkspaces,
+    inviteMutation,
+    session?.user,
+  ])
 
   const handleWorkspaceToggle = useCallback((workspaceId: string, permission: string) => {
     setSelectedWorkspaces((prev) => {
@@ -221,7 +228,14 @@ export function TeamManagement() {
         logger.error('Failed to remove member', error)
       }
     },
-    [removeMemberDialog.memberId, session?.user?.id, activeOrganization?.id, removeMemberMutation]
+    [
+      removeMemberDialog.memberId,
+      session?.user?.id,
+      activeOrganization?.id,
+      removeMemberMutation,
+      removeMemberDialog,
+      session?.user,
+    ]
   )
 
   const handleReduceSeats = useCallback(async () => {
@@ -242,7 +256,14 @@ export function TeamManagement() {
     } catch (error) {
       logger.error('Failed to reduce seats', error)
     }
-  }, [session?.user?.id, activeOrganization?.id, subscriptionData, usedSeats, updateSeatsMutation])
+  }, [
+    session?.user?.id,
+    activeOrganization?.id,
+    subscriptionData,
+    usedSeats,
+    updateSeatsMutation,
+    session?.user,
+  ])
 
   const handleAddSeatDialog = useCallback(() => {
     if (subscriptionData && !checkEnterprisePlan(subscriptionData)) {
@@ -279,7 +300,7 @@ export function TeamManagement() {
       logger.info('Team upgrade requested', { seats, organizationId: activeOrganization?.id })
       alert(`Team upgrade to ${seats} seats - integration needed`)
     },
-    [session?.user?.id, activeOrganization?.id]
+    [session?.user?.id, activeOrganization?.id, session?.user]
   )
 
   const queryError = orgError || subscriptionError

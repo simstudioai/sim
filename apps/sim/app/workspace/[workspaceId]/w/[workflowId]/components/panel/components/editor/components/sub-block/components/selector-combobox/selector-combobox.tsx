@@ -61,7 +61,7 @@ export function SelectorCombobox({
     context: selectorContext,
     detailId: activeValue,
   })
-  const optionMap = useSelectorOptionMap(options, detailOption ?? undefined)
+  const optionMap = useSelectorOptionMap(options, detailOption)
   const hasMissingOption =
     Boolean(activeValue) &&
     Boolean(missingOptionLabel) &&

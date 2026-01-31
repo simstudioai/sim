@@ -45,7 +45,7 @@ export const discordAssignRoleTool: ToolConfig<DiscordAssignRoleParams, DiscordA
       }),
     },
 
-    transformResponse: async (response) => {
+    transformResponse: async (_response) => {
       return {
         success: true,
         output: {

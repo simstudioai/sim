@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { FileText, Loader2, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -7,8 +6,6 @@ import {
 } from '@/lib/copilot/tools/client/base-tool'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-
-const logger = createLogger('GetWorkflowFromNameClientTool')
 
 interface GetWorkflowFromNameArgs {
   workflow_name: string

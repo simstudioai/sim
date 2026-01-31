@@ -4,7 +4,7 @@ import type { FileParseResult } from '@/lib/file-parsers/types'
  * Parse JSON files
  */
 export async function parseJSON(filePath: string): Promise<FileParseResult> {
-  const fs = await import('fs/promises')
+  const fs = await import('node:fs/promises')
   const content = await fs.readFile(filePath, 'utf-8')
 
   try {

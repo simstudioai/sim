@@ -7,8 +7,11 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  MAX_EMAIL_RECIPIENTS,
+  MAX_WORKFLOW_IDS,
+} from '@/app/api/workspaces/[id]/notifications/constants'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { MAX_EMAIL_RECIPIENTS, MAX_WORKFLOW_IDS } from '../constants'
 
 const logger = createLogger('WorkspaceNotificationAPI')
 
@@ -118,7 +121,7 @@ async function getSubscription(notificationId: string, workspaceId: string) {
   return subscription
 }
 
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -278,7 +281,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {

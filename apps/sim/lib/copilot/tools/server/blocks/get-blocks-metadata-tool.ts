@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import {
@@ -154,7 +154,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           continue
         }
         const tools: CopilotToolMetadata[] = Array.isArray(blockConfig.tools?.access)
-          ? blockConfig.tools!.access.map((toolId) => {
+          ? blockConfig.tools?.access.map((toolId) => {
               const tool = toolsRegistry[toolId]
               if (!tool) return { id: toolId, name: toolId }
               return {

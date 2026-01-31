@@ -194,16 +194,7 @@ export function OutputSelect({
     })
 
     return outputs
-  }, [
-    workflowBlocks,
-    workflowId,
-    isShowingDiff,
-    isDiffReady,
-    baselineWorkflow,
-    blocks,
-    subBlockValues,
-    shouldUseBaseline,
-  ])
+  }, [workflowBlocks, workflowId, baselineWorkflow, subBlockValues, shouldUseBaseline])
 
   /**
    * Gets display text for selected outputs
@@ -317,7 +308,7 @@ export function OutputSelect({
         })),
       }
     })
-  }, [workflowOutputs, blocks, valueMode])
+  }, [workflowOutputs, blocks, valueMode, getOutputColor])
 
   /**
    * Normalize selected values to match the valueMode

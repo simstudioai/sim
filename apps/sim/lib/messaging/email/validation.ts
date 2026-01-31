@@ -56,8 +56,8 @@ async function checkMXRecord(domain: string): Promise<boolean> {
   }
 
   try {
-    const { promisify } = await import('util')
-    const dns = await import('dns')
+    const { promisify } = await import('node:util')
+    const dns = await import('node:dns')
     const resolveMx = promisify(dns.resolveMx)
 
     const mxRecords = await resolveMx(domain)

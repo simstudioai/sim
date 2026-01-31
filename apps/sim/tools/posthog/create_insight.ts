@@ -120,7 +120,7 @@ export const createInsightTool: ToolConfig<
       if (params.filters) {
         try {
           body.filters = JSON.parse(params.filters)
-        } catch (e) {
+        } catch (_e) {
           body.filters = {}
         }
       }
@@ -128,7 +128,7 @@ export const createInsightTool: ToolConfig<
       if (params.query) {
         try {
           body.query = JSON.parse(params.query)
-        } catch (e) {
+        } catch (_e) {
           body.query = null
         }
       }

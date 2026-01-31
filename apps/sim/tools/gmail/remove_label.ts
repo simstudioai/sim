@@ -101,7 +101,8 @@ export const gmailRemoveLabelV2Tool: ToolConfig<GmailLabelParams, GmailModifyV2R
   params: gmailRemoveLabelTool.params,
   request: gmailRemoveLabelTool.request,
   transformResponse: async (response) => {
-    const legacy = await gmailRemoveLabelTool.transformResponse!(response)
+    const legacy = await gmailRemoveLabelTool.transformResponse?.(response)
+    if (!legacy) return { success: false, output: {}, error: 'Transform response failed' }
     if (!legacy.success) return { success: false, output: {}, error: legacy.error }
     const metadata = legacy.output.metadata as any
     return {

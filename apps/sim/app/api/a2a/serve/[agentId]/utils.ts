@@ -149,7 +149,7 @@ export function extractAgentContent(executeResult: {
   if (typeof executeResult.output === 'object' && executeResult.output !== null) {
     const keys = Object.keys(executeResult.output)
     // Skip empty objects or objects with only undefined values
-    if (keys.length > 0 && keys.some((k) => executeResult.output![k] !== undefined)) {
+    if (keys.length > 0 && keys.some((k) => executeResult.output?.[k] !== undefined)) {
       return JSON.stringify(executeResult.output)
     }
   }

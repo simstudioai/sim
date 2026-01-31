@@ -27,7 +27,7 @@ const logger = createLogger('WorkflowDeployAPI')
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id } = await params
 
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const deployResult = await deployWorkflow({
       workflowId: id,
       deployedBy: actorUserId,
-      workflowName: workflowData!.name,
+      workflowName: workflowData?.name,
     })
 
     if (!deployResult.success) {
@@ -258,7 +258,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Sync MCP tools with the latest parameter schema
     await syncMcpToolsForWorkflow({ workflowId: id, requestId, context: 'deploy' })
 
-    const responseApiKeyInfo = workflowData!.workspaceId
+    const responseApiKeyInfo = workflowData?.workspaceId
       ? 'Workspace API keys'
       : 'Personal API keys'
 
@@ -288,7 +288,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = generateRequestId()

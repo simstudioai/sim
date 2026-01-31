@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -11,7 +11,7 @@ const logger = createLogger('TagDefinitionAPI')
 
 // DELETE /api/knowledge/[id]/tag-definitions/[tagId] - Delete a tag definition
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string; tagId: string }> }
 ) {
   const requestId = randomUUID().slice(0, 8)

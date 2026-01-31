@@ -77,7 +77,7 @@ export const deleteTaskTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (_response: Response) => {
     logger.info('Task deleted successfully')
 
     const result: MicrosoftPlannerDeleteTaskResponse = {

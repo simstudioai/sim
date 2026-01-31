@@ -64,7 +64,7 @@ export const hubspotCreateContactTool: ToolConfig<
       if (typeof properties === 'string') {
         try {
           properties = JSON.parse(properties)
-        } catch (e) {
+        } catch (_e) {
           throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
         }
       }

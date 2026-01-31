@@ -30,7 +30,7 @@ export const mailgunGetMailingListTool: ToolConfig<GetMailingListParams, GetMail
     }),
   },
 
-  transformResponse: async (response, params): Promise<GetMailingListResult> => {
+  transformResponse: async (response, _params): Promise<GetMailingListResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to get mailing list')

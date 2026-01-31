@@ -101,7 +101,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         method: 'GET',
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${params!.accessToken}`,
+          Authorization: `Bearer ${params?.accessToken}`,
         },
         body: JSON.stringify({
           jql: params?.jql,

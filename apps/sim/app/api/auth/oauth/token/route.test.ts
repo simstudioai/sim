@@ -177,7 +177,6 @@ describe('OAuth Token API Routes', () => {
       const { POST } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await POST(req)
-      const data = await response.json()
 
       expect(response.status).toBe(403)
     })

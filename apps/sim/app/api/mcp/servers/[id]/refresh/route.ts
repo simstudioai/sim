@@ -140,7 +140,7 @@ async function syncToolSchemasToWorkflows(
 }
 
 export const POST = withMcpAuth<{ id: string }>('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (_request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     const { id: serverId } = await params
 
     try {

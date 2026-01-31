@@ -1,5 +1,8 @@
+import type {
+  SpotifyGetCategoriesParams,
+  SpotifyGetCategoriesResponse,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetCategoriesParams, SpotifyGetCategoriesResponse } from './types'
 
 export const spotifyGetCategoriesTool: ToolConfig<
   SpotifyGetCategoriesParams,

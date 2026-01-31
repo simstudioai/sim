@@ -76,7 +76,7 @@ export default function Logs() {
       setSearchQuery(urlSearch)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [searchQuery])
 
   const [isLive, setIsLive] = useState(true)
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
@@ -226,7 +226,7 @@ export default function Logs() {
   const handleClearAllFilters = useCallback(() => {
     resetFilters()
     setSearchQuery('')
-  }, [resetFilters, setSearchQuery])
+  }, [resetFilters])
 
   const handleOpenPreview = useCallback(() => {
     if (contextMenuLog?.id) {
@@ -256,7 +256,7 @@ export default function Logs() {
         block: 'nearest',
       })
     }
-  }, [selectedLogIndex])
+  }, [])
 
   const handleRefresh = useCallback(() => {
     setIsVisuallyRefreshing(true)

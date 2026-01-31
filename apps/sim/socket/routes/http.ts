@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from 'http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { env } from '@/lib/core/config/env'
 import type { IRoomManager } from '@/socket/rooms'
 

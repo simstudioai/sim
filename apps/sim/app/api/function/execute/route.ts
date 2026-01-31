@@ -292,7 +292,7 @@ function formatE2BError(
  */
 function createUserFriendlyErrorMessage(
   enhanced: EnhancedError,
-  requestId: string,
+  _requestId: string,
   userCode?: string
 ): string {
   let errorMessage = enhanced.message

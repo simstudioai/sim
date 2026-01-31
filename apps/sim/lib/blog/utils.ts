@@ -1,5 +1,5 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 export const BLOG_DIR = path.join(process.cwd(), 'content', 'blog')
 export const AUTHORS_DIR = path.join(process.cwd(), 'content', 'authors')

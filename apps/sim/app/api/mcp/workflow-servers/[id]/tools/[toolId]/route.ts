@@ -20,7 +20,7 @@ interface RouteParams {
  * GET - Get a specific tool
  */
 export const GET = withMcpAuth<RouteParams>('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (_request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId, toolId } = await params
 
@@ -131,7 +131,7 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
  * DELETE - Remove a tool from an MCP server
  */
 export const DELETE = withMcpAuth<RouteParams>('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  async (_request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId, toolId } = await params
 

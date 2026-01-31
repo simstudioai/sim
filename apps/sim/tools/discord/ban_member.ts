@@ -64,7 +64,7 @@ export const discordBanMemberTool: ToolConfig<DiscordBanMemberParams, DiscordBan
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (_response) => {
     return {
       success: true,
       output: {

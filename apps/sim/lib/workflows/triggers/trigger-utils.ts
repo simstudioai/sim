@@ -252,7 +252,7 @@ export function groupTriggersByPath<
     if (!adjacency.has(edge.source)) {
       adjacency.set(edge.source, [])
     }
-    adjacency.get(edge.source)!.push(edge.target)
+    adjacency.get(edge.source)?.push(edge.target)
   }
 
   // Group triggers that feed into the same immediate blocks

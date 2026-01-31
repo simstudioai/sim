@@ -276,7 +276,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mentionMenu.showMentionMenu, mentionFolderNav?.isInFolder, message])
+    }, [
+      mentionMenu.showMentionMenu,
+      mentionFolderNav?.isInFolder,
+      mentionData.ensureBlocksLoaded,
+      mentionData.ensureKnowledgeLoaded,
+      mentionData.ensureLogsLoaded,
+      mentionData.ensurePastChatsLoaded,
+      mentionData.ensureTemplatesLoaded,
+      mentionMenu.getActiveMentionQueryAtPosition,
+      mentionMenu.getCaretPos,
+      mentionMenu.scrollActiveItemIntoView,
+      mentionMenu.setSubmenuActiveIndex,
+    ])
 
     useEffect(() => {
       if (mentionFolderNav?.isInFolder) {
@@ -284,7 +296,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         requestAnimationFrame(() => mentionMenu.scrollActiveItemIntoView(0))
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mentionFolderNav?.isInFolder])
+    }, [
+      mentionFolderNav?.isInFolder,
+      mentionMenu.scrollActiveItemIntoView,
+      mentionMenu.setSubmenuActiveIndex,
+    ])
 
     const handleSubmit = useCallback(
       async (overrideMessage?: string, options: { preserveInput?: boolean } = {}) => {
@@ -332,7 +348,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       [
         message,
         disabled,
-        isLoading,
         fileAttachments,
         onSubmit,
         contextManagement,

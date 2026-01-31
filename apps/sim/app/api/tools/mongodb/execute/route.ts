@@ -1,9 +1,13 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createMongoDBConnection, sanitizeCollectionName, validatePipeline } from '../utils'
+import {
+  createMongoDBConnection,
+  sanitizeCollectionName,
+  validatePipeline,
+} from '@/app/api/tools/mongodb/utils'
 
 const logger = createLogger('MongoDBExecuteAPI')
 

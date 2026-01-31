@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
 import { env } from '@/lib/core/config/env'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({ keys }, { status: 200 })
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: 'Failed to get keys' }, { status: 500 })
   }
 }
@@ -89,7 +89,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true }, { status: 200 })
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: 'Failed to delete key' }, { status: 500 })
   }
 }

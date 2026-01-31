@@ -101,7 +101,8 @@ export const gmailAddLabelV2Tool: ToolConfig<GmailLabelParams, GmailModifyV2Resp
   params: gmailAddLabelTool.params,
   request: gmailAddLabelTool.request,
   transformResponse: async (response) => {
-    const legacy = await gmailAddLabelTool.transformResponse!(response)
+    const legacy = await gmailAddLabelTool.transformResponse?.(response)
+    if (!legacy) return { success: false, output: {}, error: 'Transform response failed' }
     if (!legacy.success) return { success: false, output: {}, error: legacy.error }
     const metadata = legacy.output.metadata as any
     return {

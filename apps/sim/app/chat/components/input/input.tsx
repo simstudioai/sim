@@ -70,7 +70,7 @@ export const ChatInput: React.FC<{
   // Adjust height on input change
   useEffect(() => {
     adjustTextareaHeight()
-  }, [inputValue])
+  }, [adjustTextareaHeight])
 
   // Close the input when clicking outside (only when empty)
   useEffect(() => {
@@ -96,7 +96,7 @@ export const ChatInput: React.FC<{
       textareaRef.current.focus()
       adjustTextareaHeight() // Adjust height when becoming active
     }
-  }, [isActive])
+  }, [isActive, adjustTextareaHeight])
 
   const handleActivate = () => {
     setIsActive(true)

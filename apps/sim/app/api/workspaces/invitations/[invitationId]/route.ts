@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {

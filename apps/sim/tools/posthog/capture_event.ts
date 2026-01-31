@@ -74,7 +74,7 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
         return `${baseUrl}/capture/`
       },
       method: 'POST',
-      headers: (params) => ({
+      headers: (_params) => ({
         'Content-Type': 'application/json',
       }),
       body: (params) => {
@@ -87,7 +87,7 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
         if (params.properties) {
           try {
             body.properties = JSON.parse(params.properties)
-          } catch (e) {
+          } catch (_e) {
             body.properties = {}
           }
         }

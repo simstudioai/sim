@@ -1,4 +1,4 @@
-import { createServer } from 'http'
+import { createServer } from 'node:http'
 import { createLogger } from '@sim/logger'
 import type { Server as SocketIOServer } from 'socket.io'
 import { env } from '@/lib/core/config/env'

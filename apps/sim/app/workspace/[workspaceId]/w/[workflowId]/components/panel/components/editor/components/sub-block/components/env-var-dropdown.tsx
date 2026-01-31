@@ -165,7 +165,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
 
   useEffect(() => {
     setSelectedIndex(0)
-  }, [searchTerm])
+  }, [])
 
   const openEnvironmentSettings = () => {
     window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'environment' } }))
@@ -249,7 +249,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
       window.addEventListener('keydown', handleKeyboardEvent, true)
       return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
-  }, [visible, selectedIndex, filteredEnvVars])
+  }, [visible, selectedIndex, filteredEnvVars, handleEnvVarSelect, onClose])
 
   if (!visible) return null
 

@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto'
+import { createHmac } from 'node:crypto'
 import { db } from '@sim/db'
 import {
   account,
@@ -343,11 +343,6 @@ async function deliverSlack(
   }
 
   const alertReason = alertConfig ? formatAlertReason(alertConfig) : null
-  const statusEmoji = alertReason
-    ? ':warning:'
-    : payload.data.status === 'success'
-      ? ':white_check_mark:'
-      : ':x:'
   const statusColor = alertReason
     ? '#d97706'
     : payload.data.status === 'success'

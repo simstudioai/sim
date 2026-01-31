@@ -80,7 +80,7 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
     },
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response, _params) => {
     const data = await response.json()
 
     if (!response.ok) {

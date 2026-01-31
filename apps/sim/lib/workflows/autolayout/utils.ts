@@ -220,7 +220,7 @@ export function getBlocksByParent(blocks: Record<string, BlockState>): {
       if (!children.has(parentId)) {
         children.set(parentId, [])
       }
-      children.get(parentId)!.push(id)
+      children.get(parentId)?.push(id)
     }
   }
 

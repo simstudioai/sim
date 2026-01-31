@@ -1586,7 +1586,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     loops,
     parallels,
     workflowVariables,
-    workflowId,
   ])
 
   const filteredTags = useMemo(() => {
@@ -1888,7 +1887,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   useEffect(() => {
     setSelectedIndex(0)
-  }, [flatTagList.length])
+  }, [])
 
   useEffect(() => {
     if (visible) {

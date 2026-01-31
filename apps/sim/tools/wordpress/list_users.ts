@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressListUsersParams,
   type WordPressListUsersResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const listUsersTool: ToolConfig<WordPressListUsersParams, WordPressListUsersResponse> = {
   id: 'wordpress_list_users',

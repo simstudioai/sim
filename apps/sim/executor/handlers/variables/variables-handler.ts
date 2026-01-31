@@ -14,7 +14,7 @@ export class VariablesBlockHandler implements BlockHandler {
 
   async execute(
     ctx: ExecutionContext,
-    block: SerializedBlock,
+    _block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
     try {

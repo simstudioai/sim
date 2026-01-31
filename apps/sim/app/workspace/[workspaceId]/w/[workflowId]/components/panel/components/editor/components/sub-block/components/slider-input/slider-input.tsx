@@ -41,8 +41,6 @@ export function SliderInput({
       ? Math.max(min, Math.min(max, value))
       : computedDefaultValue
 
-  const displayValue = normalizedValue ?? computedDefaultValue
-
   // Ensure the normalized value is set if it differs from the current value
   useEffect(() => {
     if (!isPreview && value !== null && value !== undefined && value !== normalizedValue) {

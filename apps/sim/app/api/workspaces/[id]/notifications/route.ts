@@ -8,8 +8,12 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  MAX_EMAIL_RECIPIENTS,
+  MAX_NOTIFICATIONS_PER_TYPE,
+  MAX_WORKFLOW_IDS,
+} from '@/app/api/workspaces/[id]/notifications/constants'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
 
 const logger = createLogger('WorkspaceNotificationsAPI')
 
@@ -115,7 +119,7 @@ async function checkWorkspaceWriteAccess(
   return { hasAccess, permission }
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {

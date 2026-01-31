@@ -58,7 +58,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
-  const [dragCounter, setDragCounter] = useState(0)
+  const [_dragCounter, setDragCounter] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   /**
@@ -72,7 +72,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         }
       })
     }
-  }, [])
+  }, [attachedFiles.forEach])
 
   /**
    * Formats file size in bytes to human-readable format

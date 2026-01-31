@@ -366,7 +366,7 @@ describe('Automatic Internal Route Detection', () => {
 
     // The actual external fetch uses secureFetchWithPinnedIP which uses Node's http/https
     // This will fail with a network error in tests, which is expected
-    const result = await executeTool('test_external_tool', {})
+    const _result = await executeTool('test_external_tool', {})
 
     // We expect it to attempt direct fetch (which will fail in test env due to network)
     // The key point is it should NOT try to call /api/proxy
@@ -467,7 +467,7 @@ describe('Automatic Internal Route Detection', () => {
 
     // External URLs are now called directly with SSRF protection
     // The test verifies proxy is NOT called
-    const result = await executeTool('test_dynamic_external', { endpoint: 'users' })
+    const _result = await executeTool('test_dynamic_external', { endpoint: 'users' })
 
     // Verify proxy was not called
     expect(global.fetch).not.toHaveBeenCalledWith(
@@ -537,7 +537,7 @@ describe('Centralized Error Handling', () => {
     cleanupEnvVars()
   })
 
-  const testErrorFormat = async (name: string, errorResponse: any, expectedError: string) => {
+  const testErrorFormat = async (_name: string, errorResponse: any, expectedError: string) => {
     global.fetch = Object.assign(
       vi.fn().mockImplementation(async () => ({
         ok: false,
@@ -807,7 +807,7 @@ describe('MCP Tool Execution', () => {
 
   it('should handle MCP tool ID parsing correctly', async () => {
     global.fetch = Object.assign(
-      vi.fn().mockImplementation(async (url, options) => {
+      vi.fn().mockImplementation(async (_url, options) => {
         const body = JSON.parse(options?.body as string)
         expect(body.serverId).toBe('mcp-timestamp123')
         expect(body.toolName).toBe('complex-tool-name')
@@ -832,7 +832,7 @@ describe('MCP Tool Execution', () => {
 
   it('should handle MCP block arguments format', async () => {
     global.fetch = Object.assign(
-      vi.fn().mockImplementation(async (url, options) => {
+      vi.fn().mockImplementation(async (_url, options) => {
         const body = JSON.parse(options?.body as string)
         expect(body.arguments).toEqual({ file: 'test.txt', mode: 'read' })
 
@@ -865,7 +865,7 @@ describe('MCP Tool Execution', () => {
 
   it('should handle agent block MCP arguments format', async () => {
     global.fetch = Object.assign(
-      vi.fn().mockImplementation(async (url, options) => {
+      vi.fn().mockImplementation(async (_url, options) => {
         const body = JSON.parse(options?.body as string)
         expect(body.arguments).toEqual({ query: 'search term', limit: 10 })
 

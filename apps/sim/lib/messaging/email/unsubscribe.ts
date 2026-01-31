@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'

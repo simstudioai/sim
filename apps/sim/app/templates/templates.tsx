@@ -59,8 +59,8 @@ export default function Templates({
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const [activeTab, setActiveTab] = useState('gallery')
-  const [templates, setTemplates] = useState<Template[]>(initialTemplates)
-  const [loading, setLoading] = useState(false)
+  const [templates] = useState<Template[]>(initialTemplates)
+  const [loading] = useState(false)
 
   useEffect(() => {
     if (currentUserId) {

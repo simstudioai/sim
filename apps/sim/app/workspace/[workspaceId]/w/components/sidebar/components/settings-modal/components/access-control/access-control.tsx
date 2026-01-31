@@ -247,7 +247,6 @@ export function AccessControl() {
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
   const isOrgAdminOrOwner = isOwner || isAdmin
-  const canManage = hasEnterprisePlan && isOrgAdminOrOwner && !!activeOrganization?.id
 
   const queryEnabled = !!activeOrganization?.id
   const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
@@ -555,10 +554,9 @@ export function AccessControl() {
   }, [viewingGroup, editingConfig, activeOrganization?.id, updatePermissionGroup])
 
   const handleOpenAddMembersModal = useCallback(() => {
-    const existingMemberUserIds = new Set(members.map((m) => m.userId))
     setSelectedMemberIds(new Set())
     setShowAddMembersModal(true)
-  }, [members])
+  }, [])
 
   const handleAddSelectedMembers = useCallback(async () => {
     if (!viewingGroup || selectedMemberIds.size === 0) return

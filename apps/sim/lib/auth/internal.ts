@@ -58,7 +58,7 @@ export async function verifyInternalToken(
     }
 
     return { valid: false }
-  } catch (error) {
+  } catch (_error) {
     // Token verification failed
     return { valid: false }
   }

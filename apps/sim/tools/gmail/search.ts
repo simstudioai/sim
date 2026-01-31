@@ -169,7 +169,9 @@ export const gmailSearchV2Tool: ToolConfig<GmailSearchParams, GmailSearchV2Respo
   params: gmailSearchTool.params,
   request: gmailSearchTool.request,
   transformResponse: async (response: Response, params?: GmailSearchParams) => {
-    const legacy = await gmailSearchTool.transformResponse!(response, params)
+    const legacy = await gmailSearchTool.transformResponse?.(response, params)
+    if (!legacy)
+      return { success: false, output: { results: [] }, error: 'Transform response failed' }
     if (!legacy.success) {
       return {
         success: false,

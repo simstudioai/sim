@@ -74,7 +74,7 @@ export const salesforceListReportsTool: ToolConfig<
     // Filter by folder name if provided
     if (params?.folderName) {
       reports = reports.filter((report: any) =>
-        report.folderName?.toLowerCase().includes(params.folderName!.toLowerCase())
+        report.folderName?.toLowerCase().includes(params.folderName?.toLowerCase())
       )
     }
 
@@ -82,8 +82,8 @@ export const salesforceListReportsTool: ToolConfig<
     if (params?.searchTerm) {
       reports = reports.filter(
         (report: any) =>
-          report.name?.toLowerCase().includes(params.searchTerm!.toLowerCase()) ||
-          report.description?.toLowerCase().includes(params.searchTerm!.toLowerCase())
+          report.name?.toLowerCase().includes(params.searchTerm?.toLowerCase()) ||
+          report.description?.toLowerCase().includes(params.searchTerm?.toLowerCase())
       )
     }
 

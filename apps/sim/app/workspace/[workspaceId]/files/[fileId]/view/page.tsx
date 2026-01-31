@@ -31,7 +31,7 @@ export default async function FileViewerPage({ params }: FileViewerPageProps) {
     }
 
     return <FileViewer file={fileRecord} />
-  } catch (error) {
+  } catch (_error) {
     redirect(`/workspace/${workspaceId}`)
   }
 }

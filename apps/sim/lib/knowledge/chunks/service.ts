@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -233,7 +233,7 @@ export async function batchChunkOperation(
       const totalCharsToRemove = chunksToDelete.reduce((sum, chunk) => sum + chunk.contentLength, 0)
 
       // Delete chunks
-      const deleteResult = await tx
+      await tx
         .delete(embedding)
         .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
 

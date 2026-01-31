@@ -116,13 +116,13 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
 
       let usersUrl: string
-      if (params!.accountId) {
-        usersUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/user?accountId=${encodeURIComponent(params!.accountId)}`
+      if (params?.accountId) {
+        usersUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/user?accountId=${encodeURIComponent(params?.accountId)}`
       } else {
         const queryParams = new URLSearchParams()
-        if (params!.startAt !== undefined) queryParams.append('startAt', String(params!.startAt))
-        if (params!.maxResults !== undefined)
-          queryParams.append('maxResults', String(params!.maxResults))
+        if (params?.startAt !== undefined) queryParams.append('startAt', String(params?.startAt))
+        if (params?.maxResults !== undefined)
+          queryParams.append('maxResults', String(params?.maxResults))
         const queryString = queryParams.toString()
         usersUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/users/search${queryString ? `?${queryString}` : ''}`
       }
@@ -131,7 +131,7 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
         method: 'GET',
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${params!.accessToken}`,
+          Authorization: `Bearer ${params?.accessToken}`,
         },
       })
 
@@ -146,7 +146,7 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
 
       const data = await usersResponse.json()
 
-      const users = params!.accountId ? [data] : data
+      const users = params?.accountId ? [data] : data
 
       return {
         success: true,
@@ -162,9 +162,9 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
             timeZone: user.timeZone,
             self: user.self,
           })),
-          total: params!.accountId ? 1 : users.length,
-          startAt: params!.startAt || 0,
-          maxResults: params!.maxResults || 50,
+          total: params?.accountId ? 1 : users.length,
+          startAt: params?.startAt || 0,
+          maxResults: params?.maxResults || 50,
         },
       }
     }

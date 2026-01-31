@@ -63,7 +63,7 @@ describe('Form API Utils', () => {
 
     it.concurrent('should validate tokens with password hash', async () => {
       const { validateAuthToken } = await import('@/lib/core/security/deployment')
-      const crypto = await import('crypto')
+      const crypto = await import('node:crypto')
 
       const formId = 'test-form-id'
       const encryptedPassword = 'encrypted-password-value'

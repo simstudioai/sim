@@ -37,7 +37,7 @@ export function ProjectSelectorInput({
 }: ProjectSelectorInputProps) {
   const params = useParams()
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
+  const [, setSelectedProjectId] = useState<string>('')
   const [storeValue] = useSubBlockValue(blockId, subBlock.id)
   const [jiraDomainFromStore] = useSubBlockValue(blockId, 'domain')
 

@@ -319,7 +319,7 @@ export function useFloatResize({
         y: finalY,
       })
     },
-    [onDimensionsChange, onPositionChange]
+    [onDimensionsChange, onPositionChange, maxHeight, maxWidth, minHeight, minWidth]
   )
 
   /**

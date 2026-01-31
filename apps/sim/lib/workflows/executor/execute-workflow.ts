@@ -75,7 +75,7 @@ export async function executeWorkflow(
         onStream: streamConfig?.onStream,
         onBlockComplete: streamConfig?.onBlockComplete
           ? async (blockId: string, _blockName: string, _blockType: string, output: unknown) => {
-              await streamConfig.onBlockComplete!(blockId, output)
+              await streamConfig.onBlockComplete?.(blockId, output)
             }
           : undefined,
       },

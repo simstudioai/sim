@@ -232,14 +232,17 @@ export function Variables() {
     [workflowVariables]
   )
 
-  const handleVariableNameChange = useCallback((variableId: string, newName: string) => {
-    const validatedName = validateName(newName)
-    setLocalNames((prev) => ({
-      ...prev,
-      [variableId]: validatedName,
-    }))
-    clearVariableState(variableId, false)
-  }, [])
+  const handleVariableNameChange = useCallback(
+    (variableId: string, newName: string) => {
+      const validatedName = validateName(newName)
+      setLocalNames((prev) => ({
+        ...prev,
+        [variableId]: validatedName,
+      }))
+      clearVariableState(variableId, false)
+    },
+    [clearVariableState]
+  )
 
   const handleVariableNameBlur = useCallback(
     (variableId: string) => {
@@ -266,7 +269,7 @@ export function Variables() {
       collaborativeUpdateVariable(variableId, 'name', trimmedName)
       clearVariableState(variableId)
     },
-    [localNames, isDuplicateName, collaborativeUpdateVariable]
+    [localNames, isDuplicateName, collaborativeUpdateVariable, clearVariableState]
   )
 
   const handleVariableNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -317,7 +320,7 @@ export function Variables() {
         </div>
       )
     },
-    [collapsedById, toggleCollapsed, handleRemoveVariable]
+    [collapsedById, toggleCollapsed, handleRemoveVariable, handleHeaderKeyDown]
   )
 
   /**

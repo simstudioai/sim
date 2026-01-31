@@ -152,7 +152,7 @@ export class NodeExecutionOrchestrator {
 
   private handleParallelSentinel(
     ctx: ExecutionContext,
-    node: DAGNode,
+    _node: DAGNode,
     sentinelType: string | undefined,
     parallelId: string | undefined
   ): NormalizedBlockOutput {
@@ -263,7 +263,7 @@ export class NodeExecutionOrchestrator {
   }
 
   private handleRegularNodeCompletion(
-    ctx: ExecutionContext,
+    _ctx: ExecutionContext,
     node: DAGNode,
     output: NormalizedBlockOutput
   ): void {

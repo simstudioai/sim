@@ -393,7 +393,7 @@ export class WorkflowBlockHandler implements BlockHandler {
   private captureChildWorkflowLogs(
     childResult: ExecutionResult,
     childWorkflowName: string,
-    parentContext: ExecutionContext
+    _parentContext: ExecutionContext
   ): WorkflowTraceSpan[] {
     try {
       if (!childResult.logs || !Array.isArray(childResult.logs)) {
@@ -523,7 +523,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     childResult: ExecutionResult,
     childWorkflowId: string,
     childWorkflowName: string,
-    duration: number,
+    _duration: number,
     childTraceSpans?: WorkflowTraceSpan[],
     childWorkflowSnapshotId?: string
   ): BlockOutput {

@@ -67,9 +67,7 @@ async function buildMinimalResult(
   result: ExecutionResult,
   selectedOutputs: string[] | undefined,
   streamedContent: Map<string, string>,
-  requestId: string,
-  includeFileBase64: boolean,
-  base64MaxBytes: number | undefined
+  requestId: string
 ): Promise<{ success: boolean; error?: string; output: Record<string, unknown> }> {
   const minimalResult = {
     success: result.success,
@@ -299,9 +297,7 @@ export async function createStreamingResponse(
           result,
           streamConfig.selectedOutputs,
           state.streamedContent,
-          requestId,
-          streamConfig.includeFileBase64 ?? true,
-          streamConfig.base64MaxBytes
+          requestId
         )
 
         controller.enqueue(encodeSSE({ event: 'final', data: minimalResult }))

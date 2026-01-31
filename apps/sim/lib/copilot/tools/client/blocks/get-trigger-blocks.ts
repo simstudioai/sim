@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { ListFilter, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
@@ -31,7 +30,6 @@ export class GetTriggerBlocksClientTool extends BaseClientTool {
   }
 
   async execute(): Promise<void> {
-    const logger = createLogger('GetTriggerBlocksClientTool')
     try {
       this.setState(ClientToolCallState.executing)
 

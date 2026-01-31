@@ -105,7 +105,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
     }
 
     return level
-  }, [id, data?.parentId, getNodes])
+  }, [data?.parentId, getNodes])
 
   const startHandleId = data.kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
   const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'

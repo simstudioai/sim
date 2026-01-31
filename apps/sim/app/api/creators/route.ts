@@ -30,8 +30,6 @@ const CreateCreatorProfileSchema = z.object({
 // GET /api/creators - Get creator profiles for current user
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
 
   try {
     const session = await getSession()

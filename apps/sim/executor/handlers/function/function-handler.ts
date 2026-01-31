@@ -16,7 +16,7 @@ export class FunctionBlockHandler implements BlockHandler {
 
   async execute(
     ctx: ExecutionContext,
-    block: SerializedBlock,
+    _block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<any> {
     const codeContent = Array.isArray(inputs.code)

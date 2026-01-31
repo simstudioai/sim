@@ -182,7 +182,7 @@ export function WorkflowItem({
 
   const isMixedSelection = useMemo(() => {
     return capturedSelectionRef.current?.isMixed ?? false
-  }, [isContextMenuOpen])
+  }, [])
 
   const captureSelectionState = useCallback(() => {
     const store = useFolderStore.getState()

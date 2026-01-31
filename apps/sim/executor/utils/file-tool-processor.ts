@@ -88,7 +88,7 @@ export class FileToolProcessor {
     }
 
     return Promise.all(
-      fileData.map((file, index) => FileToolProcessor.processFileData(file, executionContext))
+      fileData.map((file, _index) => FileToolProcessor.processFileData(file, executionContext))
     )
   }
 

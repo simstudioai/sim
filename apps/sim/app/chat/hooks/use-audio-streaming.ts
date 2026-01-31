@@ -43,7 +43,7 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
       audioContextRef.current = new AudioContextConstructor()
     }
     return audioContextRef.current
-  }, [])
+  }, [audioContextRef])
 
   const stopAudio = useCallback(() => {
     abortControllerRef.current?.abort()
@@ -51,7 +51,7 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
     if (currentSourceRef.current) {
       try {
         currentSourceRef.current.stop()
-      } catch (e) {
+      } catch (_e) {
         // Already stopped
       }
       currentSourceRef.current = null

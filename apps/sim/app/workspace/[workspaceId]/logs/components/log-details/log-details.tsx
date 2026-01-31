@@ -263,7 +263,7 @@ export const LogDetails = memo(function LogDetails({
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
     }
-  }, [log?.id])
+  }, [])
 
   const isWorkflowExecutionLog = useMemo(() => {
     if (!log) return false
@@ -311,7 +311,7 @@ export const LogDetails = memo(function LogDetails({
 
   const formattedTimestamp = useMemo(
     () => (log ? formatDate(log.createdAt) : null),
-    [log?.createdAt]
+    [log?.createdAt, log]
   )
 
   const logStatus = useMemo(() => getDisplayStatus(log?.status), [log?.status])

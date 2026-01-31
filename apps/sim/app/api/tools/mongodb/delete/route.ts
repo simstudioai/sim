@@ -1,9 +1,13 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createMongoDBConnection, sanitizeCollectionName, validateFilter } from '../utils'
+import {
+  createMongoDBConnection,
+  sanitizeCollectionName,
+  validateFilter,
+} from '@/app/api/tools/mongodb/utils'
 
 const logger = createLogger('MongoDBDeleteAPI')
 
@@ -69,7 +73,7 @@ export async function POST(request: NextRequest) {
     let filterDoc
     try {
       filterDoc = JSON.parse(params.filter)
-    } catch (error) {
+    } catch (_error) {
       logger.warn(`[${requestId}] Invalid filter JSON: ${params.filter}`)
       return NextResponse.json({ error: 'Invalid JSON format in filter' }, { status: 400 })
     }

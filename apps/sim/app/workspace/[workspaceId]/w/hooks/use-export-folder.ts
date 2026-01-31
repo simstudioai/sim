@@ -183,7 +183,7 @@ export function useExportFolder({ folderId, onSuccess }: UseExportFolderProps) {
     } finally {
       setIsExporting(false)
     }
-  }, [folderId, isExporting, workflows, folders, onSuccess])
+  }, [folderId, isExporting, workflows, onSuccess])
 
   return {
     isExporting,

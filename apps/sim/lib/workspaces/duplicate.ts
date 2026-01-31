@@ -94,7 +94,7 @@ export async function duplicateWorkspace(
     if (!foldersByParent.has(parentKey)) {
       foldersByParent.set(parentKey, [])
     }
-    foldersByParent.get(parentKey)!.push(folder)
+    foldersByParent.get(parentKey)?.push(folder)
   }
 
   // Recursive function to duplicate folders in correct order

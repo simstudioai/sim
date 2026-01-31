@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -29,7 +29,7 @@ const UpdateSchema = z.object({
             throw new Error('Data must be a JSON object')
           }
           return parsed
-        } catch (e) {
+        } catch (_e) {
           throw new Error('Invalid JSON format in data field')
         }
       }),

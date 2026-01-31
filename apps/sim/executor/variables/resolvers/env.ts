@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { extractEnvVarName, isEnvVarReference } from '@/executor/constants'
 import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
-
-const logger = createLogger('EnvResolver')
 
 export class EnvResolver implements Resolver {
   canResolve(reference: string): boolean {

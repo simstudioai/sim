@@ -108,7 +108,8 @@ export const gmailMoveV2Tool: ToolConfig<GmailMoveParams, GmailModifyV2Response>
   params: gmailMoveTool.params,
   request: gmailMoveTool.request,
   transformResponse: async (response: Response, params?: GmailMoveParams) => {
-    const legacy = await gmailMoveTool.transformResponse!(response, params)
+    const legacy = await gmailMoveTool.transformResponse?.(response, params)
+    if (!legacy) return { success: false, output: {}, error: 'Transform response failed' }
     if (!legacy.success) {
       return { success: false, output: {}, error: legacy.error }
     }

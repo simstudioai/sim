@@ -220,8 +220,8 @@ export function addCSPSource(directive: keyof CSPDirectives, source: string): vo
   if (!buildTimeCSPDirectives[directive]) {
     buildTimeCSPDirectives[directive] = []
   }
-  if (!buildTimeCSPDirectives[directive]!.includes(source)) {
-    buildTimeCSPDirectives[directive]!.push(source)
+  if (!buildTimeCSPDirectives[directive]?.includes(source)) {
+    buildTimeCSPDirectives[directive]?.push(source)
   }
 }
 
@@ -230,7 +230,7 @@ export function addCSPSource(directive: keyof CSPDirectives, source: string): vo
  */
 export function removeCSPSource(directive: keyof CSPDirectives, source: string): void {
   if (buildTimeCSPDirectives[directive]) {
-    buildTimeCSPDirectives[directive] = buildTimeCSPDirectives[directive]!.filter(
+    buildTimeCSPDirectives[directive] = buildTimeCSPDirectives[directive]?.filter(
       (s: string) => s !== source
     )
   }

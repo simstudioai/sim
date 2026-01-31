@@ -24,7 +24,7 @@ export const mailgunListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRe
     }),
   },
 
-  transformResponse: async (response, params): Promise<ListDomainsResult> => {
+  transformResponse: async (response, _params): Promise<ListDomainsResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to list domains')

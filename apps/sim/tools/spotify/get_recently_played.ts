@@ -1,6 +1,9 @@
+import type {
+  SpotifyGetRecentlyPlayedParams,
+  SpotifyGetRecentlyPlayedResponse,
+} from '@/tools/spotify/types'
+import { CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetRecentlyPlayedParams, SpotifyGetRecentlyPlayedResponse } from './types'
-import { CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetRecentlyPlayedTool: ToolConfig<
   SpotifyGetRecentlyPlayedParams,

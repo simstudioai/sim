@@ -1,6 +1,9 @@
+import type {
+  SpotifyGetNewReleasesParams,
+  SpotifyGetNewReleasesResponse,
+} from '@/tools/spotify/types'
+import { ALBUM_WITH_ARTISTS_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetNewReleasesParams, SpotifyGetNewReleasesResponse } from './types'
-import { ALBUM_WITH_ARTISTS_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetNewReleasesTool: ToolConfig<
   SpotifyGetNewReleasesParams,

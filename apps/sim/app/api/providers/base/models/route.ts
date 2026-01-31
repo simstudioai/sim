@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const allModels = Object.keys(getBaseModelProviders())
     return NextResponse.json({ models: allModels })
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ models: [], error: 'Failed to fetch models' }, { status: 500 })
   }
 }

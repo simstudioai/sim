@@ -67,8 +67,8 @@ const extractBlockTypesFromState = (state?: {
 
   const blockTypes = Object.keys(state.blocks)
     .sort()
-    .map((key) => state.blocks![key].type)
-    .filter((type) => type !== 'starter')
+    .map((key) => state.blocks?.[key].type)
+    .filter((type): type is string => type !== undefined && type !== 'starter')
   return [...new Set(blockTypes)]
 }
 

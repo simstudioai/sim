@@ -409,7 +409,7 @@ export class EdgeConstructor {
   private findLoopBoundaryNodes(
     nodes: string[],
     dag: DAG,
-    reachableBlocks: Set<string>
+    _reachableBlocks: Set<string>
   ): { startNodes: string[]; terminalNodes: string[] } {
     const nodesSet = new Set(nodes)
     const startNodesSet = new Set<string>()

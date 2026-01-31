@@ -241,7 +241,7 @@ export class ParallelOrchestrator {
     if (!scope.branchOutputs.has(branchIndex)) {
       scope.branchOutputs.set(branchIndex, [])
     }
-    scope.branchOutputs.get(branchIndex)!.push(output)
+    scope.branchOutputs.get(branchIndex)?.push(output)
     scope.completedCount++
 
     const allComplete = scope.completedCount >= scope.totalExpectedNodes

@@ -138,33 +138,30 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     }
   }, [])
 
-  const scrollToMessage = useCallback(
-    (messageId: string, scrollToShowOnlyMessage = false) => {
-      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-      if (messageElement && messagesContainerRef.current) {
-        const container = messagesContainerRef.current
-        const containerRect = container.getBoundingClientRect()
-        const messageRect = messageElement.getBoundingClientRect()
+  const scrollToMessage = useCallback((messageId: string, scrollToShowOnlyMessage = false) => {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+    if (messageElement && messagesContainerRef.current) {
+      const container = messagesContainerRef.current
+      const containerRect = container.getBoundingClientRect()
+      const messageRect = messageElement.getBoundingClientRect()
 
-        if (scrollToShowOnlyMessage) {
-          const scrollTop = container.scrollTop + messageRect.top - containerRect.top
+      if (scrollToShowOnlyMessage) {
+        const scrollTop = container.scrollTop + messageRect.top - containerRect.top
 
-          container.scrollTo({
-            top: scrollTop,
-            behavior: 'smooth',
-          })
-        } else {
-          const scrollTop = container.scrollTop + messageRect.top - containerRect.top - 80
+        container.scrollTo({
+          top: scrollTop,
+          behavior: 'smooth',
+        })
+      } else {
+        const scrollTop = container.scrollTop + messageRect.top - containerRect.top - 80
 
-          container.scrollTo({
-            top: scrollTop,
-            behavior: 'smooth',
-          })
-        }
+        container.scrollTo({
+          top: scrollTop,
+          behavior: 'smooth',
+        })
       }
-    },
-    [messagesContainerRef]
-  )
+    }
+  }, [])
 
   const handleScroll = useCallback(
     throttle(() => {
@@ -179,7 +176,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         setUserHasScrolled(true)
       }
     }, 100),
-    [isStreamingResponse]
+    []
   )
 
   useEffect(() => {
@@ -265,7 +262,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       .catch((err) => {
         logger.error('Failed to fetch GitHub stars:', err)
       })
-  }, [identifier])
+  }, [fetchChatConfig])
 
   const refreshChat = () => {
     fetchChatConfig()
@@ -440,7 +437,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     if (isStreamingResponse) {
       stopStreaming(setMessages)
     }
-  }, [isStreamingResponse, stopStreaming, setMessages, stopAudio])
+  }, [isStreamingResponse, stopStreaming, stopAudio])
 
   const handleVoiceStart = useCallback(() => {
     setIsVoiceFirstMode(true)

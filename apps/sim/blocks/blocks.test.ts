@@ -164,7 +164,6 @@ describe('Blocks Module', () => {
 
       it('should have language and code subBlocks', () => {
         expect(block?.subBlocks.length).toBeGreaterThanOrEqual(1)
-        const languageSubBlock = block?.subBlocks.find((sb) => sb.id === 'language')
         const codeSubBlock = block?.subBlocks.find((sb) => sb.id === 'code')
         expect(codeSubBlock).toBeDefined()
         expect(codeSubBlock?.type).toBe('code')

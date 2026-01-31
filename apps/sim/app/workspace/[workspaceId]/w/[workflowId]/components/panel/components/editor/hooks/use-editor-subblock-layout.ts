@@ -149,5 +149,6 @@ export function useEditorSubblockLayout(
     activeWorkflowId,
     isSnapshotView,
     blockDataFromStore,
+    config,
   ])
 }

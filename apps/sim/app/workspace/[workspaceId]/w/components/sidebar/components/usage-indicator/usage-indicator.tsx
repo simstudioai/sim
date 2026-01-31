@@ -256,19 +256,16 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     canManageBilling: userCanManageBilling,
   }
 
-  const badgeConfig = useMemo(
-    () => getBadgeConfig(displayState),
-    [isBlocked, isDispute, planType, isCritical, userCanManageBilling]
-  )
+  const badgeConfig = useMemo(() => getBadgeConfig(displayState), [displayState])
 
   const statusText = useMemo(
     () => getStatusTextConfig(isBlocked, isDispute, usage),
-    [isBlocked, isDispute, usage.current, usage.limit]
+    [isBlocked, isDispute, usage.current, usage.limit, usage]
   )
 
   const showPlanText = useMemo(
     () => shouldShowPlanText(planType, usage, sidebarWidth, badgeConfig.show, isBlocked),
-    [planType, usage.current, usage.limit, sidebarWidth, badgeConfig.show, isBlocked]
+    [planType, usage.current, usage.limit, sidebarWidth, badgeConfig.show, isBlocked, usage]
   )
 
   const pillCount = useMemo(() => {

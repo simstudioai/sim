@@ -281,7 +281,12 @@ export const Sidebar = memo(function Sidebar() {
           onClick: () => openSettingsModal(),
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, permissionConfig.hideTemplates, permissionConfig.hideKnowledgeBaseTab]
+    [
+      workspaceId,
+      permissionConfig.hideTemplates,
+      permissionConfig.hideKnowledgeBaseTab,
+      openSettingsModal,
+    ]
   )
 
   const isLoading = workflowsLoading || sessionLoading

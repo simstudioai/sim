@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       { success: true, key: { id: data?.id || 'new', apiKey: data.apiKey } },
       { status: 201 }
     )
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: 'Failed to generate copilot API key' }, { status: 500 })
   }
 }

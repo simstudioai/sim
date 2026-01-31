@@ -947,8 +947,8 @@ describe('Serializer Extended Tests', () => {
         workflow.parallels
       )
 
-      expect(serialized.parallels!.parallel).toBeDefined()
-      expect(serialized.parallels!.parallel.count).toBe(4)
+      expect(serialized.parallels?.parallel).toBeDefined()
+      expect(serialized.parallels?.parallel.count).toBe(4)
     })
 
     it('should serialize blocks created with createBlock factory', () => {
@@ -1342,9 +1342,9 @@ describe('Serializer Extended Tests', () => {
       )
 
       expect(serialized.parallels).toBeDefined()
-      expect(serialized.parallels!.parallel).toBeDefined()
-      expect(serialized.parallels!.parallel.count).toBe(3)
-      expect(serialized.parallels!.parallel.parallelType).toBe('count')
+      expect(serialized.parallels?.parallel).toBeDefined()
+      expect(serialized.parallels?.parallel.count).toBe(3)
+      expect(serialized.parallels?.parallel.parallelType).toBe('count')
     })
 
     it('should handle empty loops and parallels', () => {

@@ -1,6 +1,6 @@
+import type { A2ACancelTaskParams, A2ACancelTaskResponse } from '@/tools/a2a/types'
+import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
-import type { A2ACancelTaskParams, A2ACancelTaskResponse } from './types'
-import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskResponse> = {
   id: 'a2a_cancel_task',

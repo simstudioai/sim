@@ -39,7 +39,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
   ) => {
     const [inputValue, setInputValue] = useState(currentLimit.toString())
     const [hasError, setHasError] = useState(false)
-    const [errorType, setErrorType] = useState<'general' | 'belowUsage' | null>(null)
+    const [, setErrorType] = useState<'general' | 'belowUsage' | null>(null)
     const [isEditing, setIsEditing] = useState(false)
     const [pendingLimit, setPendingLimit] = useState<number | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
@@ -64,7 +64,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       () => ({
         startEdit: handleStartEdit,
       }),
-      [canEdit, currentLimit, pendingLimit]
+      [handleStartEdit]
     )
 
     useEffect(() => {

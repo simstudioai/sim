@@ -78,7 +78,6 @@ describe('TextChunker', () => {
 
       if (chunks.length > 1) {
         const firstChunkEnd = chunks[0].text.slice(-10)
-        const secondChunkStart = chunks[1].text.slice(0, 10)
         expect(chunks[1].text.startsWith(firstChunkEnd)).toBe(false)
       }
     })

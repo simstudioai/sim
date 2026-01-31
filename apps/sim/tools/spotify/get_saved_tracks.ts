@@ -1,6 +1,9 @@
+import type {
+  SpotifyGetSavedTracksParams,
+  SpotifyGetSavedTracksResponse,
+} from '@/tools/spotify/types'
+import { TRACK_LIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetSavedTracksParams, SpotifyGetSavedTracksResponse } from './types'
-import { TRACK_LIST_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetSavedTracksTool: ToolConfig<
   SpotifyGetSavedTracksParams,

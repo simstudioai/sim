@@ -169,7 +169,7 @@ export function FormDeploy({
         }
       }
     }
-  }, [workflowId, fieldConfigs.length])
+  }, [fieldConfigs.length])
 
   const allowedEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
 
@@ -297,6 +297,7 @@ export function FormDeploy({
       updateFormMutation,
       onDeployed,
       onDeploymentComplete,
+      setError,
     ]
   )
 

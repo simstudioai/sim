@@ -61,7 +61,7 @@ export function McpToolSelector({
         setStoreValue('')
       }
     }
-  }, [serverValue, availableTools, storeValue, setStoreValue, isPreview, disabled])
+  }, [availableTools, storeValue, setStoreValue, isPreview, disabled])
 
   const comboboxOptions = useMemo(
     () =>

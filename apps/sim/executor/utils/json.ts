@@ -10,7 +10,7 @@ export function parseJSON<T>(value: unknown, fallback: T): T {
 
   try {
     return JSON.parse(value.trim())
-  } catch (error) {
+  } catch (_error) {
     return fallback
   }
 }

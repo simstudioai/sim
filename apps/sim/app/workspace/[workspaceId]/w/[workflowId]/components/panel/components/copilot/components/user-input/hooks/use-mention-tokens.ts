@@ -166,7 +166,7 @@ export function useMentionTokens({
    * @param e - Clipboard event
    */
   const handleCut = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    (_e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       const textarea = mentionMenu.textareaRef.current
       if (!textarea) return
 

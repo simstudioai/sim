@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     let parsedWorkflowState
     try {
       parsedWorkflowState = JSON.parse(workflowState)
-    } catch (error) {
+    } catch (_error) {
       return createBadRequestResponse('Invalid workflow state JSON')
     }
 

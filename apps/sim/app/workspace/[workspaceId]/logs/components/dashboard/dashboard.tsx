@@ -376,7 +376,7 @@ export default function Dashboard({ stats, isLoading, error }: DashboardProps) {
   useEffect(() => {
     setSelectedSegments({})
     setLastAnchorIndices({})
-  }, [stats, timeRange, workflowIds, searchQuery])
+  }, [])
 
   if (isLoading) {
     return <DashboardSkeleton />

@@ -220,7 +220,7 @@ export function hasInterrupt(toolName: string): boolean {
  */
 export function getSubagentLabels(
   toolName: string,
-  isStreaming: boolean
+  _isStreaming: boolean
 ): { streaming: string; completed: string } | undefined {
   const config = toolUIConfigs[toolName]?.subagent
   if (!config) return undefined

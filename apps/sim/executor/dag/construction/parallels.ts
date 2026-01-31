@@ -1,12 +1,9 @@
-import { createLogger } from '@sim/logger'
 import { BlockType, PARALLEL, type SentinelType } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import {
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
 } from '@/executor/utils/subflow-utils'
-
-const logger = createLogger('ParallelConstructor')
 
 export class ParallelConstructor {
   execute(dag: DAG, reachableBlocks: Set<string>): void {

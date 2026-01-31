@@ -136,7 +136,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Use a transaction for template updates and deployment version
-    const result = await db.transaction(async (tx) => {
+    const _result = await db.transaction(async (tx) => {
       // Prepare template update data
       const updateData: any = {
         views: sql`${templates.views} + 1`,

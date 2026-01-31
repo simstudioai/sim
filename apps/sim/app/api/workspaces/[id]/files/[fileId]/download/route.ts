@@ -15,7 +15,7 @@ const logger = createLogger('WorkspaceFileDownloadAPI')
  * Uses /api/files/serve endpoint which enforces authentication and context
  */
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string; fileId: string }> }
 ) {
   const requestId = generateRequestId()

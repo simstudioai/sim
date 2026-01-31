@@ -1,6 +1,12 @@
+import type {
+  SpotifyGetPlaybackStateParams,
+  SpotifyGetPlaybackStateResponse,
+} from '@/tools/spotify/types'
+import {
+  PLAYBACK_TRACK_OUTPUT_PROPERTIES,
+  SIMPLIFIED_DEVICE_OUTPUT_PROPERTIES,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetPlaybackStateParams, SpotifyGetPlaybackStateResponse } from './types'
-import { PLAYBACK_TRACK_OUTPUT_PROPERTIES, SIMPLIFIED_DEVICE_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetPlaybackStateTool: ToolConfig<
   SpotifyGetPlaybackStateParams,

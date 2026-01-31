@@ -109,9 +109,9 @@ export class LoggingSession {
   }
 
   async onBlockComplete(
-    blockId: string,
-    blockName: string,
-    blockType: string,
+    _blockId: string,
+    _blockName: string,
+    _blockType: string,
     output: any
   ): Promise<void> {
     if (!output?.cost || typeof output.cost.total !== 'number' || output.cost.total <= 0) {
@@ -258,7 +258,7 @@ export class LoggingSession {
    * Set up logging on an executor instance
    * Note: Logging now works through trace spans only, no direct executor integration needed
    */
-  setupExecutor(executor: any): void {
+  setupExecutor(_executor: any): void {
     if (this.requestId) {
       logger.debug(`[${this.requestId}] Logging session ready for execution ${this.executionId}`)
     }

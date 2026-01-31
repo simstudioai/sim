@@ -1,7 +1,7 @@
-import { Buffer } from 'buffer'
-import { createHash } from 'crypto'
-import fsPromises, { readFile } from 'fs/promises'
-import path from 'path'
+import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
+import fsPromises, { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import { createLogger } from '@sim/logger'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -899,7 +899,7 @@ Please use a PDF viewer for best results.`
  * Create error message for PDF parsing failure and make it more readable
  */
 function createPdfFailureMessage(
-  pageCount: number,
+  _pageCount: number,
   size: number,
   path: string,
   error: string

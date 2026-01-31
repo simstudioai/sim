@@ -37,7 +37,7 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
 }
 
 export async function POST(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string; invitationId: string }> }
 ) {
   const session = await getSession()

@@ -73,7 +73,7 @@ export function useSelectorDisplayName({
     enabled,
   })
 
-  const optionMap = useSelectorOptionMap(options, detailOption ?? undefined)
+  const optionMap = useSelectorOptionMap(options, detailOption)
   const displayName = detailId ? (optionMap.get(detailId)?.label ?? null) : null
 
   return {

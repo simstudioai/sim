@@ -178,7 +178,7 @@ describe('buildTraceSpans', () => {
     expect(agentSpan.toolCalls).toHaveLength(2)
 
     // Check first tool call
-    const firstToolCall = agentSpan.toolCalls![0]
+    const firstToolCall = agentSpan.toolCalls?.[0]
     expect(firstToolCall.name).toBe('test_tool') // custom_ prefix should be stripped
     expect(firstToolCall.duration).toBe(1000)
     expect(firstToolCall.status).toBe('success')
@@ -186,7 +186,7 @@ describe('buildTraceSpans', () => {
     expect(firstToolCall.output).toEqual({ output: 'test output' })
 
     // Check second tool call
-    const secondToolCall = agentSpan.toolCalls![1]
+    const secondToolCall = agentSpan.toolCalls?.[1]
     expect(secondToolCall.name).toBe('http_request')
     expect(secondToolCall.duration).toBe(2000)
     expect(secondToolCall.status).toBe('success')
@@ -239,7 +239,7 @@ describe('buildTraceSpans', () => {
     expect(agentSpan.toolCalls).toBeDefined()
     expect(agentSpan.toolCalls).toHaveLength(1)
 
-    const toolCall = agentSpan.toolCalls![0]
+    const toolCall = agentSpan.toolCalls?.[0]
     expect(toolCall.name).toBe('serper_search')
     expect(toolCall.duration).toBe(1500)
     expect(toolCall.status).toBe('success')
@@ -293,7 +293,7 @@ describe('buildTraceSpans', () => {
     expect(agentSpan.toolCalls).toBeDefined()
     expect(agentSpan.toolCalls).toHaveLength(1)
 
-    const toolCall = agentSpan.toolCalls![0]
+    const toolCall = agentSpan.toolCalls?.[0]
     expect(toolCall.name).toBe('analysis_tool') // custom_ prefix should be stripped
     expect(toolCall.duration).toBe(2000)
     expect(toolCall.status).toBe('success')
@@ -372,7 +372,7 @@ describe('buildTraceSpans', () => {
     expect(agentSpan.children).toHaveLength(3)
 
     // Check the tool segment with error
-    const toolSegment = agentSpan.children![1]
+    const toolSegment = agentSpan.children?.[1]
     expect(toolSegment.name).toBe('failing_tool')
     expect(toolSegment.type).toBe('tool')
     expect(toolSegment.status).toBe('error')

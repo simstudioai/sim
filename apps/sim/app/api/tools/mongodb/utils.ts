@@ -72,7 +72,7 @@ export function validateFilter(filter: string): { isValid: boolean; error?: stri
     }
 
     return { isValid: true }
-  } catch (error) {
+  } catch (_error) {
     return {
       isValid: false,
       error: 'Invalid JSON format in filter',
@@ -113,7 +113,7 @@ export function validatePipeline(pipeline: string): { isValid: boolean; error?: 
     }
 
     return { isValid: true }
-  } catch (error) {
+  } catch (_error) {
     return {
       isValid: false,
       error: 'Invalid JSON format in pipeline',

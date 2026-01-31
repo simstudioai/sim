@@ -188,9 +188,9 @@ export class Serializer {
    * Validate loop and parallel subflows for required inputs when running in "each/collection" modes
    */
   private validateSubflowsBeforeExecution(
-    blocks: Record<string, BlockState>,
-    loops: Record<string, Loop>,
-    parallels: Record<string, Parallel>
+    _blocks: Record<string, BlockState>,
+    _loops: Record<string, Loop>,
+    _parallels: Record<string, Parallel>
   ): void {
     // Note: Empty collections in forEach loops and parallel collection mode are handled gracefully
     // at runtime - the loop/parallel will simply be skipped. No build-time validation needed.

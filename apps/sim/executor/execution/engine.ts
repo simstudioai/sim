@@ -282,7 +282,6 @@ export class ExecutionEngine {
       for (const edge of remainingEdges) {
         const targetNode = this.dag.nodes.get(edge.target)
         if (targetNode) {
-          const hadEdge = targetNode.incomingEdges.has(edge.source)
           targetNode.incomingEdges.delete(edge.source)
 
           if (this.edgeManager.isNodeReady(targetNode)) {

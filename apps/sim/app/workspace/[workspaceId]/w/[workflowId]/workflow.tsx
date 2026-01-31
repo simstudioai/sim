@@ -733,7 +733,7 @@ const WorkflowContent = React.memo(() => {
       )
       usePanelEditorStore.getState().setCurrentBlockId(id)
     },
-    [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection]
+    [collaborativeBatchAddBlocks, setPendingSelection]
   )
 
   const { activeBlockIds, pendingBlocks, isDebugging, isExecuting, getLastExecutionSnapshot } =
@@ -1236,6 +1236,7 @@ const WorkflowContent = React.memo(() => {
     clipboard,
     getViewportCenter,
     executePasteOperation,
+    blocks,
   ])
 
   /**
@@ -2084,31 +2085,6 @@ const WorkflowContent = React.memo(() => {
     return blockConfigCache.current.get(type)
   }, [])
 
-  const prevBlocksHashRef = useRef<string>('')
-  const prevBlocksRef = useRef(blocks)
-
-  /** Stable hash of block STRUCTURAL properties - excludes position to prevent node recreation during drag. */
-  const blocksStructureHash = useMemo(() => {
-    // Only recalculate hash if blocks reference actually changed
-    if (prevBlocksRef.current === blocks) {
-      return prevBlocksHashRef.current
-    }
-
-    prevBlocksRef.current = blocks
-    // Hash only structural properties - NOT position (position changes shouldn't recreate nodes)
-    const hash = Object.values(blocks)
-      .map((b) => {
-        const width = typeof b.data?.width === 'number' ? b.data.width : ''
-        const height = typeof b.data?.height === 'number' ? b.data.height : ''
-        // Exclude position from hash - drag should not recreate nodes
-        return `${b.id}:${b.type}:${b.name}:${b.height}:${b.data?.parentId || ''}:${width}:${height}`
-      })
-      .join('|')
-
-    prevBlocksHashRef.current = hash
-    return hash
-  }, [blocks])
-
   /** Transforms blocks into ReactFlow nodes - only recreates on structural changes. */
   const derivedNodes = useMemo(() => {
     const nodeArray: Node[] = []
@@ -2200,7 +2176,7 @@ const WorkflowContent = React.memo(() => {
     })
 
     return nodeArray
-  }, [blocksStructureHash, blocks, activeBlockIds, pendingBlocks, isDebugging, getBlockConfig])
+  }, [blocks, activeBlockIds, pendingBlocks, isDebugging, getBlockConfig])
 
   // Local state for nodes - allows smooth drag without store updates on every frame
   const [displayNodes, setDisplayNodes] = useState<Node[]>([])
@@ -2835,7 +2811,7 @@ const WorkflowContent = React.memo(() => {
         }
       })
     },
-    [blocks, setDragStartPosition, getNodes, potentialParentId, setPotentialParentId]
+    [blocks, setDragStartPosition, getNodes]
   )
 
   /** Handles node drag stop to establish parent-child relationships. */
@@ -3199,7 +3175,6 @@ const WorkflowContent = React.memo(() => {
       potentialParentId,
       getNodeAbsolutePosition,
       getNodeDepth,
-      clearDragHighlights,
       highlightContainerNode,
     ]
   )
@@ -3228,8 +3203,8 @@ const WorkflowContent = React.memo(() => {
       getNodes,
       collaborativeBatchUpdatePositions,
       potentialParentId,
-      clearDragHighlights,
-      executeBatchParentUpdate,
+      executeBatchParentUpdate, // Clear drag state
+      setDragStartPosition,
     ]
   )
 

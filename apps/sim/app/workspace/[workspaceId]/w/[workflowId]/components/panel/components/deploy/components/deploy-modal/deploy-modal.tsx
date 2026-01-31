@@ -260,7 +260,7 @@ export function DeployModal({
     if (validOutputs.length !== selectedStreamingOutputs.length) {
       setSelectedStreamingOutputs(validOutputs)
     }
-  }, [open, selectedStreamingOutputs, setSelectedStreamingOutputs])
+  }, [open, selectedStreamingOutputs])
 
   useEffect(() => {
     const handleOpenDeployModal = (event: Event) => {

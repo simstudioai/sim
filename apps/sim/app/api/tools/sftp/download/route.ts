@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
