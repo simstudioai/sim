@@ -8,6 +8,7 @@ import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
+import { applyAutoLayout } from '@/lib/workflows/autolayout'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
@@ -3167,11 +3168,30 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
 
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
+
+    // Apply autolayout to position blocks properly
+    const layoutResult = applyAutoLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
+      horizontalSpacing: 250,
+      verticalSpacing: 100,
+      padding: { x: 100, y: 100 },
+    })
+
+    const layoutedBlocks = layoutResult.success && layoutResult.blocks
+      ? layoutResult.blocks
+      : finalWorkflowState.blocks
+
+    if (!layoutResult.success) {
+      logger.warn('Autolayout failed, using default positions', {
+        workflowId,
+        error: layoutResult.error,
+      })
+    }
+
     const workflowStateForDb = {
-      blocks: finalWorkflowState.blocks,
+      blocks: layoutedBlocks,
       edges: finalWorkflowState.edges,
-      loops: generateLoopBlocks(finalWorkflowState.blocks as any),
-      parallels: generateParallelBlocks(finalWorkflowState.blocks as any),
+      loops: generateLoopBlocks(layoutedBlocks as any),
+      parallels: generateParallelBlocks(layoutedBlocks as any),
       lastSaved: Date.now(),
       isDeployed: false,
     }
@@ -3196,10 +3216,10 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
 
     logger.info('Workflow state persisted to database', { workflowId })
 
-    // Return the modified workflow state for the client to convert to YAML if needed
+    // Return the modified workflow state with autolayout applied
     return {
       success: true,
-      workflowState: validation.sanitizedState || modifiedWorkflowState,
+      workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
       // Include input validation errors so the LLM can see what was rejected
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
