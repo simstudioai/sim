@@ -30,7 +30,7 @@ import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
-import { getPlans } from '@/lib/billing/plans'
+import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
@@ -2641,29 +2641,42 @@ export const auth = betterAuth({
                 }
               },
               onSubscriptionComplete: async ({
+                stripeSubscription,
                 subscription,
               }: {
                 event: Stripe.Event
                 stripeSubscription: Stripe.Subscription
                 subscription: any
               }) => {
+                const { priceId, planFromStripe, isTeamPlan } =
+                  resolvePlanFromStripeSubscription(stripeSubscription)
+
                 logger.info('[onSubscriptionComplete] Subscription created', {
                   subscriptionId: subscription.id,
                   referenceId: subscription.referenceId,
-                  plan: subscription.plan,
+                  dbPlan: subscription.plan,
+                  planFromStripe,
+                  priceId,
                   status: subscription.status,
                 })
 
+                const subscriptionForOrgCreation = isTeamPlan
+                  ? { ...subscription, plan: 'team' }
+                  : subscription
+
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
+                    subscriptionForOrgCreation
+                  )
                 } catch (orgError) {
                   logger.error(
                     '[onSubscriptionComplete] Failed to ensure organization for team subscription',
                     {
                       subscriptionId: subscription.id,
                       referenceId: subscription.referenceId,
-                      plan: subscription.plan,
+                      dbPlan: subscription.plan,
+                      planFromStripe,
                       error: orgError instanceof Error ? orgError.message : String(orgError),
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
@@ -2684,22 +2697,67 @@ export const auth = betterAuth({
                 event: Stripe.Event
                 subscription: any
               }) => {
+                const stripeSubscription = event.data.object as Stripe.Subscription
+                const { priceId, planFromStripe, isTeamPlan } =
+                  resolvePlanFromStripeSubscription(stripeSubscription)
+
+                if (priceId && !planFromStripe) {
+                  logger.warn(
+                    '[onSubscriptionUpdate] Could not determine plan from Stripe price ID',
+                    {
+                      subscriptionId: subscription.id,
+                      priceId,
+                      dbPlan: subscription.plan,
+                    }
+                  )
+                }
+
+                const isUpgradeToTeam =
+                  isTeamPlan &&
+                  subscription.plan !== 'team' &&
+                  !subscription.referenceId.startsWith('org_')
+
+                const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
+
                 logger.info('[onSubscriptionUpdate] Subscription updated', {
                   subscriptionId: subscription.id,
                   status: subscription.status,
-                  plan: subscription.plan,
+                  dbPlan: subscription.plan,
+                  planFromStripe,
+                  isUpgradeToTeam,
+                  referenceId: subscription.referenceId,
                 })
+
+                const subscriptionForOrgCreation = isUpgradeToTeam
+                  ? { ...subscription, plan: 'team' }
+                  : subscription
 
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
+                    subscriptionForOrgCreation
+                  )
+
+                  if (isUpgradeToTeam) {
+                    logger.info(
+                      '[onSubscriptionUpdate] Detected Pro -> Team upgrade, ensured organization creation',
+                      {
+                        subscriptionId: subscription.id,
+                        originalPlan: subscription.plan,
+                        newPlan: planFromStripe,
+                        resolvedReferenceId: resolvedSubscription.referenceId,
+                      }
+                    )
+                  }
                 } catch (orgError) {
                   logger.error(
                     '[onSubscriptionUpdate] Failed to ensure organization for team subscription',
                     {
                       subscriptionId: subscription.id,
                       referenceId: subscription.referenceId,
-                      plan: subscription.plan,
+                      dbPlan: subscription.plan,
+                      planFromStripe,
+                      isUpgradeToTeam,
                       error: orgError instanceof Error ? orgError.message : String(orgError),
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
@@ -2717,9 +2775,8 @@ export const auth = betterAuth({
                   })
                 }
 
-                if (resolvedSubscription.plan === 'team') {
+                if (effectivePlanForTeamFeatures === 'team') {
                   try {
-                    const stripeSubscription = event.data.object as Stripe.Subscription
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
 
                     const result = await syncSeatsFromStripeQuantity(
