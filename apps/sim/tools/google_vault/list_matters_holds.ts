@@ -23,8 +23,8 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
     matterId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The matter ID',
+      visibility: 'user-or-llm',
+      description: 'The matter ID (e.g., "12345678901234567890")',
     },
     pageSize: {
       type: 'number',
@@ -41,8 +41,8 @@ export const listMattersHoldsTool: ToolConfig<GoogleVaultListMattersHoldsParams>
     holdId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Optional hold ID to fetch a specific hold',
+      visibility: 'user-or-llm',
+      description: 'Optional hold ID to fetch a specific hold (e.g., "holdId123456")',
     },
   },
 

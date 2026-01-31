@@ -24,13 +24,13 @@ export const deleteFeatureFlagTool: ToolConfig<DeleteFeatureFlagParams, DeleteFe
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The PostHog project ID',
+        description: 'The PostHog project ID (e.g., "12345" or project UUID)',
       },
       flagId: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The feature flag ID to delete',
+        description: 'The feature flag ID to delete (e.g., "42")',
       },
       region: {
         type: 'string',

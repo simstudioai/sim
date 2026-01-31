@@ -26,14 +26,14 @@ export const telegramDeleteMessageTool: ToolConfig<
     chatId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Target Telegram chat ID',
+      visibility: 'user-or-llm',
+      description: 'Telegram chat ID (numeric, can be negative for groups)',
     },
     messageId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Message ID to delete',
+      description: 'Telegram message ID (numeric identifier of the message to delete)',
     },
   },
 

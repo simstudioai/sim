@@ -43,7 +43,7 @@ export const evaluateFlagsTool: ToolConfig<EvaluateFlagsParams, EvaluateFlagsRes
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The distinct ID of the user to evaluate flags for',
+      description: 'The distinct ID of the user to evaluate flags for (e.g., "user123" or email)',
     },
     groups: {
       type: 'string',

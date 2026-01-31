@@ -62,15 +62,15 @@ Retrieve a list of tickets from Zendesk with optional filtering
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain \(e.g., "mycompany" for mycompany.zendesk.com\) |
-| `status` | string | No | Filter by status \(new, open, pending, hold, solved, closed\) |
-| `priority` | string | No | Filter by priority \(low, normal, high, urgent\) |
-| `type` | string | No | Filter by type \(problem, incident, question, task\) |
-| `assigneeId` | string | No | Filter by assignee user ID |
-| `organizationId` | string | No | Filter by organization ID |
-| `sortBy` | string | No | Sort field \(created_at, updated_at, priority, status\) |
-| `sortOrder` | string | No | Sort order \(asc or desc\) |
-| `perPage` | string | No | Results per page \(default: 100, max: 100\) |
-| `page` | string | No | Page number |
+| `status` | string | No | Filter by status: "new", "open", "pending", "hold", "solved", or "closed" |
+| `priority` | string | No | Filter by priority: "low", "normal", "high", or "urgent" |
+| `type` | string | No | Filter by type: "problem", "incident", "question", or "task" |
+| `assigneeId` | string | No | Filter by assignee user ID as a numeric string \(e.g., "12345"\) |
+| `organizationId` | string | No | Filter by organization ID as a numeric string \(e.g., "67890"\) |
+| `sortBy` | string | No | Sort field: "created_at", "updated_at", "priority", or "status" |
+| `sortOrder` | string | No | Sort order: "asc" or "desc" |
+| `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
+| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
 
 #### Output
 
@@ -148,7 +148,7 @@ Get a single ticket by ID from Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `ticketId` | string | Yes | Ticket ID to retrieve |
+| `ticketId` | string | Yes | Ticket ID to retrieve as a numeric string \(e.g., "12345"\) |
 
 #### Output
 
@@ -221,14 +221,14 @@ Create a new ticket in Zendesk with support for custom fields
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
 | `subject` | string | No | Ticket subject \(optional - will be auto-generated if not provided\) |
-| `description` | string | Yes | Ticket description \(first comment\) |
-| `priority` | string | No | Priority \(low, normal, high, urgent\) |
-| `status` | string | No | Status \(new, open, pending, hold, solved, closed\) |
-| `type` | string | No | Type \(problem, incident, question, task\) |
-| `tags` | string | No | Comma-separated tags |
-| `assigneeId` | string | No | Assignee user ID |
-| `groupId` | string | No | Group ID |
-| `requesterId` | string | No | Requester user ID |
+| `description` | string | Yes | Ticket description text \(first comment\) |
+| `priority` | string | No | Priority: "low", "normal", "high", or "urgent" |
+| `status` | string | No | Status: "new", "open", "pending", "hold", "solved", or "closed" |
+| `type` | string | No | Type: "problem", "incident", "question", or "task" |
+| `tags` | string | No | Comma-separated tags \(e.g., "billing, urgent"\) |
+| `assigneeId` | string | No | Assignee user ID as a numeric string \(e.g., "12345"\) |
+| `groupId` | string | No | Group ID as a numeric string \(e.g., "67890"\) |
+| `requesterId` | string | No | Requester user ID as a numeric string \(e.g., "11111"\) |
 | `customFields` | string | No | Custom fields as JSON object \(e.g., \{"field_id": "value"\}\) |
 
 #### Output
@@ -301,7 +301,7 @@ Create multiple tickets in Zendesk at once (max 100)
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `tickets` | string | Yes | JSON array of ticket objects to create \(max 100\). Each ticket should have subject and comment properties. |
+| `tickets` | string | Yes | JSON array of ticket objects to create \(max 100\). Each ticket should have subject and comment properties \(e.g., \[\{"subject": "Issue 1", "comment": \{"body": "Description"\}\}\]\) |
 
 #### Output
 
@@ -335,16 +335,16 @@ Update an existing ticket in Zendesk with support for custom fields
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `ticketId` | string | Yes | Ticket ID to update |
-| `subject` | string | No | New ticket subject |
-| `comment` | string | No | Add a comment to the ticket |
-| `priority` | string | No | Priority \(low, normal, high, urgent\) |
-| `status` | string | No | Status \(new, open, pending, hold, solved, closed\) |
-| `type` | string | No | Type \(problem, incident, question, task\) |
-| `tags` | string | No | Comma-separated tags |
-| `assigneeId` | string | No | Assignee user ID |
-| `groupId` | string | No | Group ID |
-| `customFields` | string | No | Custom fields as JSON object |
+| `ticketId` | string | Yes | Ticket ID to update as a numeric string \(e.g., "12345"\) |
+| `subject` | string | No | New ticket subject text |
+| `comment` | string | No | Comment text to add to the ticket |
+| `priority` | string | No | Priority: "low", "normal", "high", or "urgent" |
+| `status` | string | No | Status: "new", "open", "pending", "hold", "solved", or "closed" |
+| `type` | string | No | Type: "problem", "incident", "question", or "task" |
+| `tags` | string | No | Comma-separated tags \(e.g., "billing, urgent"\) |
+| `assigneeId` | string | No | Assignee user ID as a numeric string \(e.g., "12345"\) |
+| `groupId` | string | No | Group ID as a numeric string \(e.g., "67890"\) |
+| `customFields` | string | No | Custom fields as JSON object \(e.g., \{"field_id": "value"\}\) |
 
 #### Output
 
@@ -416,12 +416,12 @@ Update multiple tickets in Zendesk at once (max 100)
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `ticketIds` | string | Yes | Comma-separated ticket IDs to update \(max 100\) |
-| `status` | string | No | New status for all tickets |
-| `priority` | string | No | New priority for all tickets |
-| `assigneeId` | string | No | New assignee ID for all tickets |
-| `groupId` | string | No | New group ID for all tickets |
-| `tags` | string | No | Comma-separated tags to add to all tickets |
+| `ticketIds` | string | Yes | Comma-separated ticket IDs to update \(max 100, e.g., "111, 222, 333"\) |
+| `status` | string | No | New status for all tickets: "new", "open", "pending", "hold", "solved", or "closed" |
+| `priority` | string | No | New priority for all tickets: "low", "normal", "high", or "urgent" |
+| `assigneeId` | string | No | New assignee ID for all tickets as a numeric string \(e.g., "12345"\) |
+| `groupId` | string | No | New group ID for all tickets as a numeric string \(e.g., "67890"\) |
+| `tags` | string | No | Comma-separated tags to add to all tickets \(e.g., "bulk-update, processed"\) |
 
 #### Output
 
@@ -455,7 +455,7 @@ Delete a ticket from Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `ticketId` | string | Yes | Ticket ID to delete |
+| `ticketId` | string | Yes | Ticket ID to delete as a numeric string \(e.g., "12345"\) |
 
 #### Output
 
@@ -475,9 +475,9 @@ Merge multiple tickets into a target ticket
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `targetTicketId` | string | Yes | Target ticket ID \(tickets will be merged into this one\) |
-| `sourceTicketIds` | string | Yes | Comma-separated source ticket IDs to merge |
-| `targetComment` | string | No | Comment to add to target ticket after merge |
+| `targetTicketId` | string | Yes | Target ticket ID as a numeric string \(tickets will be merged into this one, e.g., "12345"\) |
+| `sourceTicketIds` | string | Yes | Comma-separated source ticket IDs to merge \(e.g., "111, 222, 333"\) |
+| `targetComment` | string | No | Comment text to add to target ticket after merge |
 
 #### Output
 
@@ -512,10 +512,10 @@ Retrieve a list of users from Zendesk with optional filtering
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain \(e.g., "mycompany" for mycompany.zendesk.com\) |
-| `role` | string | No | Filter by role \(end-user, agent, admin\) |
-| `permissionSet` | string | No | Filter by permission set ID |
-| `perPage` | string | No | Results per page \(default: 100, max: 100\) |
-| `page` | string | No | Page number |
+| `role` | string | No | Filter by role: "end-user", "agent", or "admin" |
+| `permissionSet` | string | No | Filter by permission set ID as a numeric string \(e.g., "12345"\) |
+| `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
+| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
 
 #### Output
 
@@ -582,7 +582,7 @@ Get a single user by ID from Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `userId` | string | Yes | User ID to retrieve |
+| `userId` | string | Yes | User ID to retrieve as a numeric string \(e.g., "12345"\) |
 
 #### Output
 
@@ -703,10 +703,10 @@ Search for users in Zendesk using a query string
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `query` | string | No | Search query string |
-| `externalId` | string | No | External ID to search by |
-| `perPage` | string | No | Results per page \(default: 100, max: 100\) |
-| `page` | string | No | Page number |
+| `query` | string | No | Search query string \(e.g., user name or email\) |
+| `externalId` | string | No | External ID to search by \(your system identifier\) |
+| `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
+| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
 
 #### Output
 
@@ -773,13 +773,13 @@ Create a new user in Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `name` | string | Yes | User name |
-| `userEmail` | string | No | User email |
-| `role` | string | No | User role \(end-user, agent, admin\) |
-| `phone` | string | No | User phone number |
-| `organizationId` | string | No | Organization ID |
-| `verified` | string | No | Set to "true" to skip email verification |
-| `tags` | string | No | Comma-separated tags |
+| `name` | string | Yes | User full name \(e.g., "John Smith"\) |
+| `userEmail` | string | No | User email address \(e.g., "john@example.com"\) |
+| `role` | string | No | User role: "end-user", "agent", or "admin" |
+| `phone` | string | No | User phone number \(e.g., "+1-555-123-4567"\) |
+| `organizationId` | string | No | Organization ID as a numeric string \(e.g., "12345"\) |
+| `verified` | string | No | Set to "true" to skip email verification, or "false" otherwise |
+| `tags` | string | No | Comma-separated tags \(e.g., "vip, enterprise"\) |
 | `customFields` | string | No | Custom fields as JSON object \(e.g., \{"field_id": "value"\}\) |
 
 #### Output
@@ -841,7 +841,7 @@ Create multiple users in Zendesk using bulk import
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `users` | string | Yes | JSON array of user objects to create |
+| `users` | string | Yes | JSON array of user objects to create \(e.g., \[\{"name": "User1", "email": "user1@example.com"\}\]\) |
 
 #### Output
 
@@ -875,15 +875,15 @@ Update an existing user in Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `userId` | string | Yes | User ID to update |
-| `name` | string | No | New user name |
-| `userEmail` | string | No | New user email |
-| `role` | string | No | User role \(end-user, agent, admin\) |
-| `phone` | string | No | User phone number |
-| `organizationId` | string | No | Organization ID |
-| `verified` | string | No | Set to "true" to mark user as verified |
-| `tags` | string | No | Comma-separated tags |
-| `customFields` | string | No | Custom fields as JSON object |
+| `userId` | string | Yes | User ID to update as a numeric string \(e.g., "12345"\) |
+| `name` | string | No | New user full name \(e.g., "John Smith"\) |
+| `userEmail` | string | No | New user email address \(e.g., "john@example.com"\) |
+| `role` | string | No | User role: "end-user", "agent", or "admin" |
+| `phone` | string | No | User phone number \(e.g., "+1-555-123-4567"\) |
+| `organizationId` | string | No | Organization ID as a numeric string \(e.g., "67890"\) |
+| `verified` | string | No | Set to "true" to mark user as verified, or "false" otherwise |
+| `tags` | string | No | Comma-separated tags \(e.g., "vip, enterprise"\) |
+| `customFields` | string | No | Custom fields as JSON object \(e.g., \{"field_id": "value"\}\) |
 
 #### Output
 
@@ -944,7 +944,7 @@ Update multiple users in Zendesk using bulk update
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `users` | string | Yes | JSON array of user objects to update \(must include id field\) |
+| `users` | string | Yes | JSON array of user objects to update, each must include id field \(e.g., \[\{"id": "123", "name": "New Name"\}\]\) |
 
 #### Output
 
@@ -978,7 +978,7 @@ Delete a user from Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `userId` | string | Yes | User ID to delete |
+| `userId` | string | Yes | User ID to delete as a numeric string \(e.g., "12345"\) |
 
 #### Output
 
@@ -998,8 +998,8 @@ Retrieve a list of organizations from Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain \(e.g., "mycompany" for mycompany.zendesk.com\) |
-| `perPage` | string | No | Results per page \(default: 100, max: 100\) |
-| `page` | string | No | Page number |
+| `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
+| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
 
 #### Output
 
@@ -1039,7 +1039,7 @@ Get a single organization by ID from Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `organizationId` | string | Yes | Organization ID to retrieve |
+| `organizationId` | string | Yes | Organization ID to retrieve as a numeric string \(e.g., "12345"\) |
 
 #### Output
 
@@ -1073,9 +1073,9 @@ Autocomplete organizations in Zendesk by name prefix (for name matching/autocomp
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `name` | string | Yes | Organization name to search for |
-| `perPage` | string | No | Results per page \(default: 100, max: 100\) |
-| `page` | string | No | Page number |
+| `name` | string | Yes | Organization name prefix to search for \(e.g., "Acme"\) |
+| `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
+| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
 
 #### Output
 
@@ -1115,11 +1115,11 @@ Create a new organization in Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `name` | string | Yes | Organization name |
-| `domainNames` | string | No | Comma-separated domain names |
-| `details` | string | No | Organization details |
-| `notes` | string | No | Organization notes |
-| `tags` | string | No | Comma-separated tags |
+| `name` | string | Yes | Organization name \(e.g., "Acme Corporation"\) |
+| `domainNames` | string | No | Comma-separated domain names \(e.g., "acme.com, acme.org"\) |
+| `details` | string | No | Organization details text |
+| `notes` | string | No | Organization notes text |
+| `tags` | string | No | Comma-separated tags \(e.g., "enterprise, priority"\) |
 | `customFields` | string | No | Custom fields as JSON object \(e.g., \{"field_id": "value"\}\) |
 
 #### Output
@@ -1154,7 +1154,7 @@ Create multiple organizations in Zendesk using bulk import
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `organizations` | string | Yes | JSON array of organization objects to create |
+| `organizations` | string | Yes | JSON array of organization objects to create \(e.g., \[\{"name": "Org1"\}, \{"name": "Org2"\}\]\) |
 
 #### Output
 
@@ -1188,13 +1188,13 @@ Update an existing organization in Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `organizationId` | string | Yes | Organization ID to update |
-| `name` | string | No | New organization name |
-| `domainNames` | string | No | Comma-separated domain names |
-| `details` | string | No | Organization details |
-| `notes` | string | No | Organization notes |
-| `tags` | string | No | Comma-separated tags |
-| `customFields` | string | No | Custom fields as JSON object |
+| `organizationId` | string | Yes | Organization ID to update as a numeric string \(e.g., "12345"\) |
+| `name` | string | No | New organization name \(e.g., "Acme Corporation"\) |
+| `domainNames` | string | No | Comma-separated domain names \(e.g., "acme.com, acme.org"\) |
+| `details` | string | No | Organization details text |
+| `notes` | string | No | Organization notes text |
+| `tags` | string | No | Comma-separated tags \(e.g., "enterprise, priority"\) |
+| `customFields` | string | No | Custom fields as JSON object \(e.g., \{"field_id": "value"\}\) |
 
 #### Output
 
@@ -1228,7 +1228,7 @@ Delete an organization from Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `organizationId` | string | Yes | Organization ID to delete |
+| `organizationId` | string | Yes | Organization ID to delete as a numeric string \(e.g., "12345"\) |
 
 #### Output
 
@@ -1248,11 +1248,11 @@ Unified search across tickets, users, and organizations in Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `query` | string | Yes | Search query string |
-| `sortBy` | string | No | Sort field \(relevance, created_at, updated_at, priority, status, ticket_type\) |
-| `sortOrder` | string | No | Sort order \(asc or desc\) |
-| `perPage` | string | No | Results per page \(default: 100, max: 100\) |
-| `page` | string | No | Page number |
+| `query` | string | Yes | Search query string using Zendesk search syntax \(e.g., "type:ticket status:open"\) |
+| `sortBy` | string | No | Sort field: "relevance", "created_at", "updated_at", "priority", "status", or "ticket_type" |
+| `sortOrder` | string | No | Sort order: "asc" or "desc" |
+| `perPage` | string | No | Results per page as a number string \(default: "100", max: "100"\) |
+| `page` | string | No | Page number as a string \(e.g., "1", "2"\) |
 
 #### Output
 
@@ -1278,7 +1278,7 @@ Count the number of search results matching a query in Zendesk
 | `email` | string | Yes | Your Zendesk email address |
 | `apiToken` | string | Yes | Zendesk API token |
 | `subdomain` | string | Yes | Your Zendesk subdomain |
-| `query` | string | Yes | Search query string |
+| `query` | string | Yes | Search query string using Zendesk search syntax \(e.g., "type:ticket status:open"\) |
 
 #### Output
 

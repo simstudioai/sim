@@ -22,8 +22,8 @@ export const asanaGetProjectsTool: ToolConfig<AsanaGetProjectsParams, AsanaGetPr
     workspace: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Workspace GID to retrieve projects from',
+      visibility: 'user-or-llm',
+      description: 'Asana workspace GID (numeric string) to retrieve projects from',
     },
   },
 

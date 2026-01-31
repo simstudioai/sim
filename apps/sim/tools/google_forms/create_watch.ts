@@ -30,8 +30,8 @@ export const createWatchTool: ToolConfig<
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Google Form to watch',
+      visibility: 'user-or-llm',
+      description: 'Google Forms form ID to watch',
     },
     eventType: {
       type: 'string',

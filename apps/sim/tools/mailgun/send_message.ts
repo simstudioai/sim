@@ -18,25 +18,26 @@ export const mailgunSendMessageTool: ToolConfig<SendMessageParams, SendMessageRe
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Mailgun domain (e.g., mg.example.com)',
+      description: 'Mailgun sending domain (e.g., mg.example.com)',
     },
     from: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Sender email address',
+      description: 'Sender email address (e.g., sender@example.com or "Name <sender@example.com>")',
     },
     to: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Recipient email address (comma-separated for multiple)',
+      description:
+        'Recipient email address (e.g., user@example.com). Use comma-separated values for multiple recipients',
     },
     subject: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Email subject',
+      description: 'Email subject line',
     },
     text: {
       type: 'string',
@@ -48,19 +49,21 @@ export const mailgunSendMessageTool: ToolConfig<SendMessageParams, SendMessageRe
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'HTML body of the email',
+      description: 'HTML body of the email (e.g., "<h1>Hello</h1><p>Message content</p>")',
     },
     cc: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'CC email address (comma-separated for multiple)',
+      description:
+        'CC recipient email address (e.g., cc@example.com). Use comma-separated values for multiple recipients',
     },
     bcc: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'BCC email address (comma-separated for multiple)',
+      description:
+        'BCC recipient email address (e.g., bcc@example.com). Use comma-separated values for multiple recipients',
     },
     tags: {
       type: 'string',

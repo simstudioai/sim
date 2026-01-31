@@ -23,8 +23,8 @@ export const discordCreateChannelTool: ToolConfig<
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord server ID (guild ID)',
+      visibility: 'user-or-llm',
+      description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
     name: {
       type: 'string',
@@ -47,8 +47,8 @@ export const discordCreateChannelTool: ToolConfig<
     parentId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Parent category ID for the channel',
+      visibility: 'user-or-llm',
+      description: 'Parent category ID for the channel, e.g., 123456789012345678',
     },
   },
 

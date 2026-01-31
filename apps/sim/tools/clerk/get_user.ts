@@ -28,7 +28,7 @@ export const clerkGetUserTool: ToolConfig<ClerkGetUserParams, ClerkGetUserRespon
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the user to retrieve',
+      description: 'The ID of the user to retrieve (e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC)',
     },
   },
 

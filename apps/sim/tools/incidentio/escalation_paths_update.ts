@@ -24,13 +24,13 @@ export const escalationPathsUpdateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the escalation path to update',
+      description: 'The ID of the escalation path to update (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     name: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New name for the escalation path',
+      description: 'New name for the escalation path (e.g., "Critical Incident Path")',
     },
     path: {
       type: 'json',

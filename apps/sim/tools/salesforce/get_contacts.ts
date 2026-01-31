@@ -30,26 +30,27 @@ export const salesforceGetContactsTool: ToolConfig<
     contactId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Contact ID (if provided, returns single contact)',
+      visibility: 'user-or-llm',
+      description:
+        'Salesforce Contact ID (18-character string starting with 003) to get a single contact',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results (default: 100, max: 2000). Only for list query.',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results (default: 100, max: 2000). Only for list query.',
     },
     fields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated fields (e.g., "Id,FirstName,LastName,Email,Phone")',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated field API names (e.g., "Id,FirstName,LastName,Email,Phone")',
     },
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Order by field (e.g., "LastName ASC"). Only for list query.',
+      visibility: 'user-or-llm',
+      description: 'Field and direction for sorting (e.g., "LastName ASC"). Only for list query.',
     },
   },
 

@@ -11,8 +11,8 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Thread ID to get context from',
+      visibility: 'user-or-llm',
+      description: 'Thread ID to get context from (e.g., "thread_abc123")',
     },
     mode: {
       type: 'string',

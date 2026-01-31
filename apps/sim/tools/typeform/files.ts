@@ -11,14 +11,14 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Typeform form ID',
+      visibility: 'user-or-llm',
+      description: 'Typeform form ID (e.g., "abc123XYZ")',
     },
     responseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Response ID containing the files',
+      visibility: 'user-or-llm',
+      description: 'Response ID containing the files (e.g., "resp_xyz789")',
     },
     fieldId: {
       type: 'string',

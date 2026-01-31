@@ -18,20 +18,20 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
     organizationSlug: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The slug of the organization',
+      visibility: 'user-or-llm',
+      description: 'The slug of the organization (e.g., "my-org")',
     },
     projectSlug: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The slug of the project',
+      visibility: 'user-or-llm',
+      description: 'The slug of the project (e.g., "my-project")',
     },
     eventId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The unique ID of the event to retrieve',
+      description: 'The unique ID of the event to retrieve (e.g., "abc123def456")',
     },
   },
 

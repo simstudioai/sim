@@ -18,7 +18,7 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Mailgun domain',
+      description: 'Mailgun domain for retrieving messages (e.g., mg.example.com)',
     },
     messageKey: {
       type: 'string',

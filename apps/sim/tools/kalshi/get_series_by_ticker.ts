@@ -27,7 +27,7 @@ export const kalshiGetSeriesByTickerTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Series ticker',
+      description: 'Series ticker identifier (e.g., "KXBTC", "INX", "FED-RATE")',
     },
   },
 
@@ -116,7 +116,7 @@ export const kalshiGetSeriesByTickerV2Tool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Series ticker',
+      description: 'Series ticker identifier (e.g., "KXBTC", "INX", "FED-RATE")',
     },
     includeVolume: {
       type: 'string',

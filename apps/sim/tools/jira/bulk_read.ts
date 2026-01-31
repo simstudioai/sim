@@ -28,14 +28,15 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     projectId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Jira project ID',
+      visibility: 'user-or-llm',
+      description: 'Jira project key (e.g., PROJ)',
     },
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Jira cloud ID',
+      visibility: 'hidden',
+      description:
+        'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 

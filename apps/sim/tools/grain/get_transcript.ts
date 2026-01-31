@@ -21,7 +21,7 @@ export const grainGetTranscriptTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The recording UUID',
+      description: 'The recording UUID (e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890")',
     },
   },
 

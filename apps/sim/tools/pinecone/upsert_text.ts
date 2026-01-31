@@ -15,14 +15,14 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
     indexHost: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Full Pinecone index host URL',
+      visibility: 'user-or-llm',
+      description: 'Full Pinecone index host URL (e.g., "https://my-index-abc123.svc.pinecone.io")',
     },
     namespace: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Namespace to upsert records into',
+      visibility: 'user-or-llm',
+      description: 'Namespace to upsert records into (e.g., "documents", "embeddings")',
     },
     records: {
       type: 'array',

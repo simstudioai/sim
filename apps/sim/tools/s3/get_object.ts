@@ -29,8 +29,8 @@ export const s3GetObjectTool: ToolConfig = {
     s3Uri: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'S3 Object URL',
+      visibility: 'user-or-llm',
+      description: 'S3 Object URL (e.g., https://bucket.s3.region.amazonaws.com/path/to/file)',
     },
   },
 

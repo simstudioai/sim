@@ -32,8 +32,8 @@ export const mailchimpPublishLandingPageTool: ToolConfig<
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the landing page',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the landing page (e.g., "abc123def4")',
     },
   },
 

@@ -29,8 +29,8 @@ export const mailchimpDeleteAudienceTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list to delete',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list to delete (e.g., "abc123def4")',
     },
   },
 

@@ -16,21 +16,21 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID to search memories for',
+      visibility: 'user-or-llm',
+      description: 'User ID to search memories for (e.g., "user_123", "alice@example.com")',
     },
     query: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Search query to find relevant memories',
+      description: 'Search query to find relevant memories (e.g., "What are my favorite foods?")',
     },
     limit: {
       type: 'number',
       required: false,
       default: 10,
-      visibility: 'user-only',
-      description: 'Maximum number of results to return',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (e.g., 10, 50, 100)',
     },
     apiKey: {
       type: 'string',

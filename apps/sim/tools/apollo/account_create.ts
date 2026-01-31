@@ -21,7 +21,7 @@ export const apolloAccountCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Company name',
+      description: 'Company name (e.g., "Acme Corporation")',
     },
     website_url: {
       type: 'string',

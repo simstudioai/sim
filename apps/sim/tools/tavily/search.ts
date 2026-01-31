@@ -17,37 +17,38 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The search query to execute',
+      description: 'The search query to execute (e.g., "latest AI research papers 2024")',
     },
     max_results: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of results (1-20)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results (1-20, e.g., 5)',
     },
     topic: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Category type: general, news, or finance (default: general)',
+      visibility: 'user-or-llm',
+      description: 'Category type: general, news, or finance (e.g., "news")',
     },
     search_depth: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Search scope: basic (1 credit) or advanced (2 credits) (default: basic)',
+      visibility: 'user-or-llm',
+      description: 'Search scope: basic (1 credit) or advanced (2 credits) (e.g., "advanced")',
     },
     include_answer: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'LLM-generated response: true/basic for quick answer or advanced for detailed',
+      visibility: 'user-or-llm',
+      description:
+        'LLM-generated response: true/basic for quick answer or advanced for detailed (e.g., "advanced")',
     },
     include_raw_content: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Parsed HTML content: true/markdown or text format',
+      visibility: 'user-or-llm',
+      description: 'Parsed HTML content: true/markdown or text format (e.g., "markdown")',
     },
     include_images: {
       type: 'boolean',
@@ -94,14 +95,16 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
     include_domains: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of domains to whitelist (max 300)',
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of domains to whitelist (e.g., "github.com,stackoverflow.com")',
     },
     exclude_domains: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of domains to blacklist (max 150)',
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of domains to blacklist (e.g., "pinterest.com,reddit.com")',
     },
     country: {
       type: 'string',

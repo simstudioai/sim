@@ -24,8 +24,8 @@ export const createTool: ToolConfig<Neo4jCreateParams, Neo4jResponse> = {
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., "neo4j", "movies", "social")',
     },
     username: {
       type: 'string',
@@ -49,13 +49,15 @@ export const createTool: ToolConfig<Neo4jCreateParams, Neo4jResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Cypher CREATE statement to execute',
+      description:
+        'Cypher CREATE statement to execute (e.g., "CREATE (n:Person {name: $name, age: $age})", "CREATE (a)-[:KNOWS]->(b)")',
     },
     parameters: {
       type: 'object',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Parameters for the Cypher query as a JSON object',
+      description:
+        'Parameters for the Cypher query as a JSON object (e.g., {"name": "Alice", "age": 30})',
     },
   },
 

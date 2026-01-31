@@ -19,7 +19,7 @@ export const zoomDeleteMeetingTool: ToolConfig<ZoomDeleteMeetingParams, ZoomDele
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The meeting ID to delete',
+        description: 'The meeting ID to delete (e.g., "1234567890" or "85746065432")',
       },
       occurrenceId: {
         type: 'string',

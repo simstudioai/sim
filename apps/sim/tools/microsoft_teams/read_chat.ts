@@ -31,8 +31,9 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     chatId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the chat to read from',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the chat to read from (e.g., "19:abc123def456@thread.v2" - from chat listings)',
     },
     includeAttachments: {
       type: 'boolean',

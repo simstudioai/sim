@@ -31,7 +31,8 @@ export const introspectTool: ToolConfig<DynamoDBIntrospectParams, DynamoDBIntros
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional table name to get detailed schema. If not provided, lists all tables.',
+      description:
+        'Optional table name to get detailed schema (e.g., "Users", "Orders"). If not provided, lists all tables.',
     },
   },
 

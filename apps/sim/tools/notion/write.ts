@@ -22,8 +22,8 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Notion page to append content to',
+      visibility: 'user-or-llm',
+      description: 'The UUID of the Notion page to append content to',
     },
     content: {
       type: 'string',

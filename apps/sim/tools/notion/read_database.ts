@@ -28,8 +28,8 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
     databaseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Notion database to read',
+      visibility: 'user-or-llm',
+      description: 'The UUID of the Notion database to read',
     },
   },
 

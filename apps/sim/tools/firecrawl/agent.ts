@@ -25,7 +25,8 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional array of URLs to focus the agent on',
+      description:
+        'Optional array of URLs to focus the agent on (e.g., ["https://example.com", "https://docs.example.com"])',
     },
     schema: {
       type: 'json',

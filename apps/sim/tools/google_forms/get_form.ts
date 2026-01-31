@@ -27,8 +27,8 @@ export const getFormTool: ToolConfig<GoogleFormsGetFormParams, GoogleFormsGetFor
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Google Form to retrieve',
+      visibility: 'user-or-llm',
+      description: 'Google Forms form ID to retrieve',
     },
   },
 

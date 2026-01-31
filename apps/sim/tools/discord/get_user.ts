@@ -21,8 +21,8 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord user ID',
+      visibility: 'user-or-llm',
+      description: 'The Discord user ID, e.g., 123456789012345678',
     },
   },
 

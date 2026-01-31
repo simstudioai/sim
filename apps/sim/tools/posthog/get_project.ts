@@ -56,7 +56,7 @@ export const getProjectTool: ToolConfig<PostHogGetProjectParams, PostHogGetProje
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID (numeric ID or UUID)',
+      description: 'Project ID (e.g., "12345" or project UUID)',
     },
     apiKey: {
       type: 'string',

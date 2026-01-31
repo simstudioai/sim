@@ -54,7 +54,7 @@ export const getOrganizationTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Organization ID (UUID)',
+      description: 'Organization ID (e.g., "01234567-89ab-cdef-0123-456789abcdef")',
     },
     apiKey: {
       type: 'string',

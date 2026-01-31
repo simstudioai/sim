@@ -18,8 +18,8 @@ export const statusTool: ToolConfig<GreptileStatusParams, GreptileStatusResponse
     repository: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Repository in owner/repo format (e.g., "facebook/react")',
+      visibility: 'user-or-llm',
+      description: 'Repository in owner/repo format. Example: "facebook/react" or "vercel/next.js"',
     },
     branch: {
       type: 'string',

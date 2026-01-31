@@ -12,25 +12,27 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated group states to filter by: alert, warn, no data, ok',
+      description:
+        'Comma-separated group states to filter by (e.g., "alert,warn", "alert,warn,no data,ok")',
     },
     name: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter monitors by name (partial match)',
+      description: 'Filter monitors by name with partial match (e.g., "CPU", "Production")',
     },
     tags: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of tags to filter by',
+      description: 'Comma-separated list of tags to filter by (e.g., "env:prod,team:backend")',
     },
     monitorTags: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of monitor tags to filter by',
+      description:
+        'Comma-separated list of monitor tags to filter by (e.g., "service:api,priority:high")',
     },
     withDowntimes: {
       type: 'boolean',
@@ -41,14 +43,14 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
     page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Page number for pagination (0-indexed)',
+      visibility: 'user-or-llm',
+      description: 'Page number for pagination (0-indexed, e.g., 0, 1, 2)',
     },
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of monitors per page (max 1000)',
+      visibility: 'user-or-llm',
+      description: 'Number of monitors per page (e.g., 50, max: 1000)',
     },
     apiKey: {
       type: 'string',

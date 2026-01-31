@@ -29,8 +29,8 @@ export const mailchimpDeleteLandingPageTool: ToolConfig<
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the landing page to delete',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the landing page to delete (e.g., "abc123def4")',
     },
   },
 

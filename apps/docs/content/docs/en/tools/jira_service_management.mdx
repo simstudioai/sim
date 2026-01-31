@@ -46,8 +46,8 @@ Get all service desks from Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -68,9 +68,9 @@ Get request types for a service desk in Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
-| `serviceDeskId` | string | Yes | Service Desk ID to get request types for |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -91,8 +91,8 @@ Create a new service request in Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
-| `serviceDeskId` | string | Yes | Service Desk ID to create the request in |
-| `requestTypeId` | string | Yes | Request Type ID for the new request |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `requestTypeId` | string | Yes | Request Type ID \(e.g., "10", "15"\) |
 | `summary` | string | Yes | Summary/title for the service request |
 | `description` | string | No | Description for the service request |
 | `raiseOnBehalfOf` | string | No | Account ID of customer to raise request on behalf of |
@@ -138,12 +138,12 @@ Get multiple service requests from Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
-| `serviceDeskId` | string | No | Filter by service desk ID |
+| `serviceDeskId` | string | No | Filter by service desk ID \(e.g., "1", "2"\) |
 | `requestOwnership` | string | No | Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, ORGANIZATION, ALL_REQUESTS |
 | `requestStatus` | string | No | Filter by status: OPEN, CLOSED, ALL |
-| `searchTerm` | string | No | Search term to filter requests |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `searchTerm` | string | No | Search term to filter requests \(e.g., "password reset", "laptop"\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -166,7 +166,7 @@ Add a comment (public or internal) to a service request in Jira Service Manageme
 | `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
 | `body` | string | Yes | Comment body text |
-| `isPublic` | boolean | Yes | Whether the comment is public \(visible to customer\) or internal |
+| `isPublic` | boolean | Yes | Whether the comment is public \(visible to customer\) or internal \(true/false\) |
 
 #### Output
 
@@ -190,10 +190,10 @@ Get comments for a service request in Jira Service Management
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
-| `isPublic` | boolean | No | Filter to only public comments |
-| `internal` | boolean | No | Filter to only internal comments |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `isPublic` | boolean | No | Filter to only public comments \(true/false\) |
+| `internal` | boolean | No | Filter to only internal comments \(true/false\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -215,10 +215,10 @@ Get customers for a service desk in Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
-| `serviceDeskId` | string | Yes | Service Desk ID to get customers for |
-| `query` | string | No | Search query to filter customers |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `query` | string | No | Search query to filter customers \(e.g., "john", "acme"\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -239,7 +239,7 @@ Add customers to a service desk in Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
-| `serviceDeskId` | string | Yes | Service Desk ID to add customers to |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `emails` | string | Yes | Comma-separated email addresses to add as customers |
 
 #### Output
@@ -260,9 +260,9 @@ Get organizations for a service desk in Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
-| `serviceDeskId` | string | Yes | Service Desk ID to get organizations for |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -304,7 +304,7 @@ Add an organization to a service desk in Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
-| `serviceDeskId` | string | Yes | Service Desk ID to add the organization to |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
 | `organizationId` | string | Yes | Organization ID to add to the service desk |
 
 #### Output
@@ -326,10 +326,10 @@ Get queues for a service desk in Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
-| `serviceDeskId` | string | Yes | Service Desk ID to get queues for |
-| `includeCount` | boolean | No | Include issue count for each queue |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
+| `includeCount` | boolean | No | Include issue count for each queue \(true/false\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -351,8 +351,8 @@ Get SLA information for a service request in Jira Service Management
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -418,8 +418,8 @@ Get participants for a request in Jira Service Management
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 
@@ -464,8 +464,8 @@ Get approvals for a request in Jira Service Management
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
-| `start` | number | No | Start index for pagination \(default: 0\) |
-| `limit` | number | No | Maximum results to return \(default: 50\) |
+| `start` | number | No | Start index for pagination \(e.g., 0, 50, 100\) |
+| `limit` | number | No | Maximum results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 

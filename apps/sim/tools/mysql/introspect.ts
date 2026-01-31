@@ -24,8 +24,8 @@ export const introspectTool: ToolConfig<MySQLIntrospectParams, MySQLIntrospectRe
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., my_database)',
     },
     username: {
       type: 'string',

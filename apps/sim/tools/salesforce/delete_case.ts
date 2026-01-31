@@ -39,8 +39,8 @@ export const salesforceDeleteCaseTool: ToolConfig<
     caseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Case ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Case ID to delete (18-character string starting with 500)',
     },
   },
 

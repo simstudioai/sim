@@ -23,13 +23,14 @@ export const updateGroupTool: ToolConfig<GoogleGroupsUpdateParams, GoogleGroupsR
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
     name: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New display name for the group',
+      description: 'New display name for the group (e.g., Engineering Team)',
     },
     description: {
       type: 'string',
@@ -41,7 +42,7 @@ export const updateGroupTool: ToolConfig<GoogleGroupsUpdateParams, GoogleGroupsR
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New email address for the group',
+      description: 'New email address for the group (e.g., newteam@example.com)',
     },
   },
 

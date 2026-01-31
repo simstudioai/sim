@@ -23,8 +23,8 @@ export const insertTool: ToolConfig<MySQLInsertParams, MySQLResponse> = {
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., my_database)',
     },
     username: {
       type: 'string',
@@ -48,7 +48,7 @@ export const insertTool: ToolConfig<MySQLInsertParams, MySQLResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Table name to insert into',
+      description: 'Table name to insert into (e.g., users, orders)',
     },
     data: {
       type: 'object',

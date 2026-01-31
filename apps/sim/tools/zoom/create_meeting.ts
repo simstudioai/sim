@@ -19,14 +19,15 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
       userId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The user ID or email address. Use "me" for the authenticated user.',
+        visibility: 'user-or-llm',
+        description:
+          'The user ID or email address (e.g., "me", "user@example.com", or "AbcDefGHi"). Use "me" for the authenticated user.',
       },
       topic: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Meeting topic',
+        description: 'Meeting topic (e.g., "Weekly Team Standup" or "Project Review")',
       },
       type: {
         type: 'number',
@@ -45,7 +46,7 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Meeting duration in minutes',
+        description: 'Meeting duration in minutes (e.g., 30, 60, 90)',
       },
       timezone: {
         type: 'string',
@@ -63,7 +64,7 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Meeting agenda',
+        description: 'Meeting agenda or description text',
       },
       hostVideo: {
         type: 'boolean',

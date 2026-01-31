@@ -44,7 +44,7 @@ Create a new record in a ServiceNow table
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
 | `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user\) |
-| `fields` | json | Yes | Fields to set on the record \(JSON object\) |
+| `fields` | json | Yes | Fields to set on the record as JSON object \(e.g., \{"short_description": "Issue title", "priority": "1"\}\) |
 
 #### Output
 
@@ -64,12 +64,12 @@ Read records from a ServiceNow table
 | `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
-| `tableName` | string | Yes | Table name |
-| `sysId` | string | No | Specific record sys_id |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
+| `sysId` | string | No | Specific record sys_id \(e.g., 6816f79cc0a8016401c5a33be04be441\) |
 | `number` | string | No | Record number \(e.g., INC0010001\) |
 | `query` | string | No | Encoded query string \(e.g., "active=true^priority=1"\) |
-| `limit` | number | No | Maximum number of records to return |
-| `fields` | string | No | Comma-separated list of fields to return |
+| `limit` | number | No | Maximum number of records to return \(e.g., 10, 50, 100\) |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., sys_id,number,short_description,state\) |
 
 #### Output
 
@@ -89,9 +89,9 @@ Update an existing record in a ServiceNow table
 | `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
-| `tableName` | string | Yes | Table name |
-| `sysId` | string | Yes | Record sys_id to update |
-| `fields` | json | Yes | Fields to update \(JSON object\) |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
+| `sysId` | string | Yes | Record sys_id to update \(e.g., 6816f79cc0a8016401c5a33be04be441\) |
+| `fields` | json | Yes | Fields to update as JSON object \(e.g., \{"state": "2", "priority": "1"\}\) |
 
 #### Output
 
@@ -111,8 +111,8 @@ Delete a record from a ServiceNow table
 | `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
-| `tableName` | string | Yes | Table name |
-| `sysId` | string | Yes | Record sys_id to delete |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
+| `sysId` | string | Yes | Record sys_id to delete \(e.g., 6816f79cc0a8016401c5a33be04be441\) |
 
 #### Output
 

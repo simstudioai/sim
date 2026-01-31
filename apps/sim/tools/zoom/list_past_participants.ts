@@ -28,13 +28,13 @@ export const zoomListPastParticipantsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The past meeting ID or UUID',
+      description: 'The past meeting ID or UUID (e.g., "1234567890" or "4444AAABBBccccc12345==")',
     },
     pageSize: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of records per page (max 300)',
+      description: 'Number of records per page, 1-300 (e.g., 30, 50, 100)',
     },
     nextPageToken: {
       type: 'string',

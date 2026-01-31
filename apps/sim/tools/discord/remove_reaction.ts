@@ -23,14 +23,14 @@ export const discordRemoveReactionTool: ToolConfig<
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord channel ID containing the message',
+      visibility: 'user-or-llm',
+      description: 'The Discord channel ID containing the message, e.g., 123456789012345678',
     },
     messageId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the message with the reaction',
+      description: 'The ID of the message with the reaction, e.g., 123456789012345678',
     },
     emoji: {
       type: 'string',
@@ -42,13 +42,14 @@ export const discordRemoveReactionTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "The user ID whose reaction to remove (omit to remove bot's own reaction)",
+      description:
+        "The user ID whose reaction to remove (omit to remove bot's own reaction), e.g., 123456789012345678",
     },
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord server ID (guild ID)',
+      visibility: 'user-or-llm',
+      description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
   },
 

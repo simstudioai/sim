@@ -23,8 +23,8 @@ export const discordUpdateChannelTool: ToolConfig<
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord channel ID to update',
+      visibility: 'user-or-llm',
+      description: 'The Discord channel ID to update, e.g., 123456789012345678',
     },
     name: {
       type: 'string',
@@ -41,8 +41,8 @@ export const discordUpdateChannelTool: ToolConfig<
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord server ID (guild ID)',
+      visibility: 'user-or-llm',
+      description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
   },
 

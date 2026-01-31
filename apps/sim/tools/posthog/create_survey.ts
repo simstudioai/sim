@@ -72,7 +72,7 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'PostHog Project ID',
+        description: 'PostHog Project ID (e.g., "12345" or project UUID)',
       },
       region: {
         type: 'string',

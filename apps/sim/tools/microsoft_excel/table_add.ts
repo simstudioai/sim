@@ -29,20 +29,22 @@ export const tableAddTool: ToolConfig<
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet containing the table',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the spreadsheet/workbook containing the table (e.g., "01ABC123DEF456")',
     },
     tableName: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the table to add rows to',
+      description: 'The name of the table to add rows to (e.g., "Table1", "SalesTable")',
     },
     values: {
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The data to add to the table (array of arrays or array of objects)',
+      description:
+        'The data to add as a 2D array (e.g., [["Alice", 30], ["Bob", 25]]) or array of objects',
     },
   },
 

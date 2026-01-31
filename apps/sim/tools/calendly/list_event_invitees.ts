@@ -23,14 +23,15 @@ export const listEventInviteesTool: ToolConfig<
     eventUuid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Scheduled event UUID (can be full URI or just the UUID)',
+      visibility: 'user-or-llm',
+      description:
+        'Scheduled event UUID. Format: UUID (e.g., "abc123-def456") or full URI (e.g., "https://api.calendly.com/scheduled_events/abc123-def456")',
     },
     count: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results per page (default: 20, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of results per page. Format: integer (default: 20, max: 100)',
     },
     email: {
       type: 'string',
@@ -41,20 +42,22 @@ export const listEventInviteesTool: ToolConfig<
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description:
+        'Page token for pagination. Format: opaque string from previous response next_page_token',
     },
     sort: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Sort order for results (e.g., "created_at:asc", "created_at:desc")',
+      visibility: 'user-or-llm',
+      description:
+        'Sort order for results. Format: "field:direction" (e.g., "created_at:asc", "created_at:desc")',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by status ("active" or "canceled")',
+      visibility: 'user-or-llm',
+      description: 'Filter by status. Format: "active" or "canceled"',
     },
   },
 

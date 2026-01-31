@@ -26,8 +26,8 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
     tweetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the tweet to read',
+      visibility: 'user-or-llm',
+      description: 'ID of the tweet to read (e.g., 1234567890123456789)',
     },
     includeReplies: {
       type: 'boolean',

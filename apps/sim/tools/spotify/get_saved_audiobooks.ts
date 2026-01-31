@@ -43,16 +43,16 @@ export const spotifyGetSavedAudiobooksTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of audiobooks to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of first audiobook to return',
+      description: 'Index of first audiobook to return for pagination',
     },
   },
 

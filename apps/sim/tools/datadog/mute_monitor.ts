@@ -12,19 +12,21 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the monitor to mute',
+      description: 'The ID of the monitor to mute (e.g., "12345678")',
     },
     scope: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Scope to mute (e.g., "host:myhost"). If not specified, mutes all scopes.',
+      description:
+        'Scope to mute (e.g., "host:myhost", "env:prod"). If not specified, mutes all scopes.',
     },
     end: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Unix timestamp when the mute should end. If not specified, mutes indefinitely.',
+      description:
+        'Unix timestamp in seconds when the mute should end (e.g., 1705323600). If not specified, mutes indefinitely.',
     },
     apiKey: {
       type: 'string',

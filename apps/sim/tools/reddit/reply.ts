@@ -23,13 +23,14 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Thing fullname to reply to (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
+      description:
+        'Thing fullname to reply to (e.g., "t3_abc123" for post, "t1_def456" for comment)',
     },
     text: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comment text in markdown format',
+      description: 'Comment text in markdown format (e.g., "Great post! Here is my **reply**")',
     },
   },
 

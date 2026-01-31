@@ -30,14 +30,14 @@ export const mailchimpScheduleCampaignTool: ToolConfig<
     campaignId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the campaign to schedule',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the campaign to schedule (e.g., "abc123def4")',
     },
     scheduleTime: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ISO 8601 format date and time',
+      visibility: 'user-or-llm',
+      description: 'Schedule time in ISO 8601 format (e.g., "2024-12-25T10:00:00Z")',
     },
   },
 

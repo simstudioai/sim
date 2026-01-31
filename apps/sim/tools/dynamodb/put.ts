@@ -30,13 +30,14 @@ export const putTool: ToolConfig<DynamoDBPutParams, DynamoDBPutResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'DynamoDB table name',
+      description: 'DynamoDB table name (e.g., "Users", "Orders")',
     },
     item: {
       type: 'object',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Item to put into the table',
+      description:
+        'Item to put into the table (e.g., {"pk": "USER#123", "name": "John", "email": "john@example.com"})',
     },
   },
 

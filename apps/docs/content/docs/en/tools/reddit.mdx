@@ -38,9 +38,9 @@ Fetch posts from a subreddit with different sorting options
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Yes | The name of the subreddit to fetch posts from \(without the r/ prefix\) |
-| `sort` | string | No | Sort method for posts: "hot", "new", "top", or "rising" \(default: "hot"\) |
-| `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
+| `subreddit` | string | Yes | The subreddit to fetch posts from \(e.g., "technology", "news"\) |
+| `sort` | string | No | Sort method for posts \(e.g., "hot", "new", "top", "rising"\). Default: "hot" |
+| `limit` | number | No | Maximum number of posts to return \(e.g., 25\). Default: 10, max: 100 |
 | `time` | string | No | Time filter for "top" sorted posts: "day", "week", "month", "year", or "all" \(default: "day"\) |
 | `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
 | `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
@@ -75,10 +75,10 @@ Fetch comments from a specific Reddit post
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `postId` | string | Yes | The ID of the Reddit post to fetch comments from |
-| `subreddit` | string | Yes | The subreddit where the post is located \(without the r/ prefix\) |
+| `postId` | string | Yes | The ID of the Reddit post to fetch comments from \(e.g., "abc123"\) |
+| `subreddit` | string | Yes | The subreddit where the post is located \(e.g., "technology", "programming"\) |
 | `sort` | string | No | Sort method for comments: "confidence", "top", "new", "controversial", "old", "random", "qa" \(default: "confidence"\) |
-| `limit` | number | No | Maximum number of comments to return \(default: 50, max: 100\) |
+| `limit` | number | No | Maximum number of comments to return \(e.g., 25\). Default: 50, max: 100 |
 | `depth` | number | No | Maximum depth of subtrees in the thread \(controls nested comment levels\) |
 | `context` | number | No | Number of parent comments to include |
 | `showedits` | boolean | No | Show edit information for comments |
@@ -119,9 +119,9 @@ Fetch controversial posts from a subreddit
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Yes | The name of the subreddit to fetch posts from \(without the r/ prefix\) |
+| `subreddit` | string | Yes | The subreddit to fetch posts from \(e.g., "technology", "news"\) |
 | `time` | string | No | Time filter for controversial posts: "hour", "day", "week", "month", "year", or "all" \(default: "all"\) |
-| `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
+| `limit` | number | No | Maximum number of posts to return \(e.g., 25\). Default: 10, max: 100 |
 | `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
 | `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
 | `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
@@ -155,11 +155,11 @@ Search for posts within a subreddit
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Yes | The name of the subreddit to search in \(without the r/ prefix\) |
-| `query` | string | Yes | Search query text |
-| `sort` | string | No | Sort method for search results: "relevance", "hot", "top", "new", or "comments" \(default: "relevance"\) |
+| `subreddit` | string | Yes | The subreddit to search in \(e.g., "technology", "programming"\) |
+| `query` | string | Yes | Search query text \(e.g., "artificial intelligence", "machine learning tutorial"\) |
+| `sort` | string | No | Sort method for search results \(e.g., "relevance", "hot", "top", "new", "comments"\). Default: "relevance" |
 | `time` | string | No | Time filter for search results: "hour", "day", "week", "month", "year", or "all" \(default: "all"\) |
-| `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
+| `limit` | number | No | Maximum number of posts to return \(e.g., 25\). Default: 10, max: 100 |
 | `restrict_sr` | boolean | No | Restrict search to the specified subreddit only \(default: true\) |
 | `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
 | `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
@@ -193,9 +193,9 @@ Submit a new post to a subreddit (text or link)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Yes | The name of the subreddit to post to \(without the r/ prefix\) |
-| `title` | string | Yes | Title of the submission \(max 300 characters\) |
-| `text` | string | No | Text content for a self post \(markdown supported\) |
+| `subreddit` | string | Yes | The subreddit to post to \(e.g., "technology", "programming"\) |
+| `title` | string | Yes | Title of the submission \(e.g., "Check out this new AI tool"\). Max 300 characters |
+| `text` | string | No | Text content for a self post in markdown format \(e.g., "This is the **body** of my post"\) |
 | `url` | string | No | URL for a link post \(cannot be used with text\) |
 | `nsfw` | boolean | No | Mark post as NSFW |
 | `spoiler` | boolean | No | Mark post as spoiler |
@@ -221,7 +221,7 @@ Upvote, downvote, or unvote a Reddit post or comment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Yes | Thing fullname to vote on \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
+| `id` | string | Yes | Thing fullname to vote on \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
 | `dir` | number | Yes | Vote direction: 1 \(upvote\), 0 \(unvote\), or -1 \(downvote\) |
 
 #### Output
@@ -239,7 +239,7 @@ Save a Reddit post or comment to your saved items
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Yes | Thing fullname to save \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
+| `id` | string | Yes | Thing fullname to save \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
 | `category` | string | No | Category to save under \(Reddit Gold feature\) |
 
 #### Output
@@ -273,8 +273,8 @@ Add a comment reply to a Reddit post or comment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `parent_id` | string | Yes | Thing fullname to reply to \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
-| `text` | string | Yes | Comment text in markdown format |
+| `parent_id` | string | Yes | Thing fullname to reply to \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
+| `text` | string | Yes | Comment text in markdown format \(e.g., "Great post! Here is my **reply**"\) |
 
 #### Output
 
@@ -296,8 +296,8 @@ Edit the text of your own Reddit post or comment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `thing_id` | string | Yes | Thing fullname to edit \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
-| `text` | string | Yes | New text content in markdown format |
+| `thing_id` | string | Yes | Thing fullname to edit \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
+| `text` | string | Yes | New text content in markdown format \(e.g., "Updated **content** here"\) |
 
 #### Output
 
@@ -318,7 +318,7 @@ Delete your own Reddit post or comment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `id` | string | Yes | Thing fullname to delete \(e.g., t3_xxxxx for post, t1_xxxxx for comment\) |
+| `id` | string | Yes | Thing fullname to delete \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
 
 #### Output
 
@@ -335,7 +335,7 @@ Subscribe or unsubscribe from a subreddit
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Yes | The name of the subreddit \(without the r/ prefix\) |
+| `subreddit` | string | Yes | The subreddit to subscribe to or unsubscribe from \(e.g., "technology", "programming"\) |
 | `action` | string | Yes | Action to perform: "sub" to subscribe or "unsub" to unsubscribe |
 
 #### Output

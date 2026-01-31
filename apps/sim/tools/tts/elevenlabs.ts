@@ -12,13 +12,14 @@ export const elevenLabsTtsUnifiedTool: ToolConfig<ElevenLabsTtsUnifiedParams, Tt
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text to convert to speech',
+      description: 'The text content to convert to speech (e.g., "Hello, welcome to our service!")',
     },
     voiceId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the voice to use',
+      description:
+        'ElevenLabs voice identifier (e.g., "21m00Tcm4TlvDq8ikWAM", "AZnzlk1XvdvUeBnXmlld")',
     },
     apiKey: {
       type: 'string',
@@ -29,9 +30,9 @@ export const elevenLabsTtsUnifiedTool: ToolConfig<ElevenLabsTtsUnifiedParams, Tt
     modelId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Model to use (e.g., eleven_monolingual_v1, eleven_turbo_v2_5, eleven_flash_v2_5)',
+        'ElevenLabs model identifier (e.g., "eleven_turbo_v2_5", "eleven_flash_v2_5", "eleven_multilingual_v2")',
     },
     stability: {
       type: 'number',

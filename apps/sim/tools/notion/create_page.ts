@@ -23,8 +23,8 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
     parentId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the parent page',
+      visibility: 'user-or-llm',
+      description: 'The UUID of the parent Notion page where this page will be created',
     },
     title: {
       type: 'string',

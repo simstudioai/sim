@@ -28,15 +28,14 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     projectId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description:
-        'Jira project ID to update issues in. If not provided, all issues will be retrieved.',
+      visibility: 'user-or-llm',
+      description: 'Jira project key (e.g., PROJ). Optional when updating a single issue.',
     },
     issueKey: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Jira issue key to update',
+      visibility: 'user-or-llm',
+      description: 'Jira issue key to update (e.g., PROJ-123)',
     },
     summary: {
       type: 'string',
@@ -71,7 +70,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },

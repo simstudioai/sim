@@ -55,8 +55,8 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
     folderSelector: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Select the folder to upload the file to',
+      visibility: 'user-or-llm',
+      description: 'Google Drive folder ID to upload the file to (e.g., 1ABCxyz...)',
     },
     folderId: {
       type: 'string',

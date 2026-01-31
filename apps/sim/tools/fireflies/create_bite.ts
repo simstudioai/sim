@@ -24,7 +24,7 @@ export const firefliesCreateBiteTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the transcript to create the bite from',
+      description: 'ID of the transcript to create the bite from (e.g., "abc123def456")',
     },
     startTime: {
       type: 'number',

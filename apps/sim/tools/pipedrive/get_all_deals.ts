@@ -30,40 +30,42 @@ export const pipedriveGetAllDealsTool: ToolConfig<
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Only fetch deals with a specific status. Values: open, won, lost. If omitted, all not deleted deals are returned',
     },
     person_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'If supplied, only deals linked to the specified person are returned',
+      visibility: 'user-or-llm',
+      description:
+        'If supplied, only deals linked to the specified person are returned (e.g., "456")',
     },
     org_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'If supplied, only deals linked to the specified organization are returned',
+      visibility: 'user-or-llm',
+      description:
+        'If supplied, only deals linked to the specified organization are returned (e.g., "789")',
     },
     pipeline_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'If supplied, only deals in the specified pipeline are returned',
+      visibility: 'user-or-llm',
+      description: 'If supplied, only deals in the specified pipeline are returned (e.g., "1")',
     },
     updated_since: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'If set, only deals updated after this time are returned. Format: 2025-01-01T10:20:00Z',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 100, max: 500)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
     },
   },
 

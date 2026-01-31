@@ -61,11 +61,13 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
       host: {
         type: 'string',
         required: false,
+        visibility: 'user-only',
         description: 'Elasticsearch host URL (for self-hosted)',
       },
       cloudId: {
         type: 'string',
         required: false,
+        visibility: 'user-only',
         description: 'Elastic Cloud ID (for cloud deployments)',
       },
       authMethod: {
@@ -82,6 +84,7 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
       username: {
         type: 'string',
         required: false,
+        visibility: 'user-only',
         description: 'Username for basic auth',
       },
       password: {
@@ -93,7 +96,8 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
       index: {
         type: 'string',
         required: true,
-        description: 'Index name to retrieve info for',
+        visibility: 'user-or-llm',
+        description: 'Index name to retrieve info for (e.g., "products", "logs-2024")',
       },
     },
 

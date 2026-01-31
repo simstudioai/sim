@@ -26,7 +26,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the file to upload',
+      description: 'The name of the file to upload (e.g., "report.pdf", "data.xlsx")',
     },
     file: {
       type: 'file',
@@ -50,8 +50,8 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
     folderSelector: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Select the folder to upload the file to',
+      visibility: 'user-or-llm',
+      description: 'Folder ID to upload the file to (e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M")',
     },
     manualFolderId: {
       type: 'string',

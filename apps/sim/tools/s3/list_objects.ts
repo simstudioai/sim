@@ -28,26 +28,26 @@ export const s3ListObjectsTool: ToolConfig = {
     bucketName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'S3 bucket name',
+      visibility: 'user-or-llm',
+      description: 'S3 bucket name (e.g., my-bucket)',
     },
     prefix: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Prefix to filter objects (e.g., folder/)',
+      visibility: 'user-or-llm',
+      description: 'Prefix to filter objects (e.g., folder/, images/2024/)',
     },
     maxKeys: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of objects to return (default: 1000)',
     },
     continuationToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Token for pagination from previous list response',
     },
   },
 

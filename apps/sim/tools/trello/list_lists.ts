@@ -24,7 +24,7 @@ export const trelloListListsTool: ToolConfig<TrelloListListsParams, TrelloListLi
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the board to list lists from',
+      description: 'Trello board ID (24-character hex string)',
     },
   },
 

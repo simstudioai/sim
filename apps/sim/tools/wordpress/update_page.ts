@@ -21,7 +21,7 @@ export const updatePageTool: ToolConfig<WordPressUpdatePageParams, WordPressUpda
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     pageId: {
@@ -45,7 +45,7 @@ export const updatePageTool: ToolConfig<WordPressUpdatePageParams, WordPressUpda
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Page status: publish, draft, pending, private',
     },
     excerpt: {
@@ -69,7 +69,7 @@ export const updatePageTool: ToolConfig<WordPressUpdatePageParams, WordPressUpda
     featuredMedia: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Featured image media ID',
     },
     slug: {

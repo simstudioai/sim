@@ -26,14 +26,14 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
     calendarId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Calendar ID (defaults to primary)',
+      visibility: 'user-or-llm',
+      description: 'Google Calendar ID (e.g., primary or calendar@group.calendar.google.com)',
     },
     eventId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Event ID to invite attendees to',
+      visibility: 'user-or-llm',
+      description: 'Google Calendar event ID to invite attendees to',
     },
     attendees: {
       type: 'array',

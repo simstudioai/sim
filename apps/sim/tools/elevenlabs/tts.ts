@@ -12,19 +12,34 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text to convert to speech',
+      description: 'The text to convert to speech (e.g., "Hello, welcome to our service!")',
     },
     voiceId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the voice to use',
+      visibility: 'user-or-llm',
+      description: 'The ID of the voice to use (e.g., "21m00Tcm4TlvDq8ikWAM" for Rachel)',
     },
     modelId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The ID of the model to use (defaults to eleven_monolingual_v1)',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the model to use (e.g., "eleven_multilingual_v2", "eleven_turbo_v2"). Defaults to eleven_monolingual_v1',
+    },
+    stability: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Voice stability setting from 0.0 to 1.0 (e.g., 0.5 for balanced, 0.75 for more stable). Higher values produce more consistent output',
+    },
+    similarity: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Similarity boost setting from 0.0 to 1.0 (e.g., 0.75 for natural, 1.0 for maximum similarity). Higher values make the voice more similar to the original',
     },
     apiKey: {
       type: 'string',
@@ -49,6 +64,8 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       text: params.text,
       voiceId: params.voiceId,
       modelId: params.modelId || 'eleven_monolingual_v1',
+      stability: params.stability,
+      similarity: params.similarity,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,

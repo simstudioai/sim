@@ -18,7 +18,7 @@ export const grainCreateHookTool: ToolConfig<GrainCreateHookParams, GrainCreateH
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Webhook endpoint URL (must respond 2xx)',
+      description: 'Webhook endpoint URL (e.g., "https://example.com/webhooks/grain")',
     },
     hookType: {
       type: 'string',
@@ -30,13 +30,13 @@ export const grainCreateHookTool: ToolConfig<GrainCreateHookParams, GrainCreateH
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter: recordings before this date',
+      description: 'Filter: recordings before this ISO8601 date (e.g., "2024-01-15T00:00:00Z")',
     },
     filterAfterDatetime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter: recordings after this date',
+      description: 'Filter: recordings after this ISO8601 date (e.g., "2024-01-01T00:00:00Z")',
     },
     filterParticipantScope: {
       type: 'string',
@@ -47,14 +47,15 @@ export const grainCreateHookTool: ToolConfig<GrainCreateHookParams, GrainCreateH
     filterTeamId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter: specific team UUID',
+      visibility: 'user-or-llm',
+      description: 'Filter: specific team UUID (e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890")',
     },
     filterMeetingTypeId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter: specific meeting type',
+      visibility: 'user-or-llm',
+      description:
+        'Filter: specific meeting type UUID (e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890")',
     },
     includeHighlights: {
       type: 'boolean',

@@ -35,7 +35,7 @@ export const slackListMembersTool: ToolConfig<SlackListMembersParams, SlackListM
     channel: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Channel ID to list members from',
     },
     limit: {

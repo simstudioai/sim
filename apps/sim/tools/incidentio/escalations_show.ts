@@ -24,7 +24,7 @@ export const escalationsShowTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the escalation policy',
+      description: 'The ID of the escalation policy (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

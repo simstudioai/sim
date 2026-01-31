@@ -23,7 +23,8 @@ export const voteTool: ToolConfig<RedditVoteParams, RedditWriteResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Thing fullname to vote on (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
+      description:
+        'Thing fullname to vote on (e.g., "t3_abc123" for post, "t1_def456" for comment)',
     },
     dir: {
       type: 'number',

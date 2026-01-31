@@ -45,8 +45,8 @@ Send events to a Tinybird Data Source using the Events API. Supports JSON and ND
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `base_url` | string | Yes | Tinybird API base URL \(e.g., https://api.tinybird.co or https://api.us-east.tinybird.co\) |
-| `datasource` | string | Yes | Name of the Tinybird Data Source to send events to |
-| `data` | string | Yes | Data to send as NDJSON \(newline-delimited JSON\) or JSON string. Each event should be a valid JSON object. |
+| `datasource` | string | Yes | Name of the Tinybird Data Source to send events to. Example: "events_raw", "user_analytics" |
+| `data` | string | Yes | Data to send as NDJSON \(newline-delimited JSON\) or JSON string. Each event should be a valid JSON object. Example NDJSON: \{"user_id": 1, "event": "click"\}\\n\{"user_id": 2, "event": "view"\} |
 | `wait` | boolean | No | Wait for database acknowledgment before responding. Enables safer retries but introduces latency. Defaults to false. |
 | `format` | string | No | Format of the events data: "ndjson" \(default\) or "json" |
 | `compression` | string | No | Compression format: "none" \(default\) or "gzip" |
@@ -68,8 +68,8 @@ Execute SQL queries against Tinybird Pipes and Data Sources using the Query API.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `base_url` | string | Yes | Tinybird API base URL \(e.g., https://api.tinybird.co\) |
-| `query` | string | Yes | SQL query to execute. Specify your desired output format \(e.g., FORMAT JSON, FORMAT CSV, FORMAT TSV\). JSON format provides structured data, while other formats return raw text. |
-| `pipeline` | string | No | Optional pipe name. When provided, enables SELECT * FROM _ syntax |
+| `query` | string | Yes | SQL query to execute. Specify your desired output format \(e.g., FORMAT JSON, FORMAT CSV, FORMAT TSV\). JSON format provides structured data, while other formats return raw text. Example: "SELECT * FROM my_datasource LIMIT 100 FORMAT JSON" |
+| `pipeline` | string | No | Optional pipe name. When provided, enables SELECT * FROM _ syntax. Example: "my_pipe", "analytics_pipe" |
 | `token` | string | Yes | Tinybird API Token with PIPE:READ scope |
 
 #### Output

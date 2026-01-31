@@ -27,27 +27,29 @@ export const hubspotGetContactTool: ToolConfig<HubSpotGetContactParams, HubSpotG
       contactId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The ID or email of the contact to retrieve',
+        visibility: 'user-or-llm',
+        description: 'The HubSpot contact ID (numeric string) or email address to retrieve',
       },
       idProperty: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description:
           'Property to use as unique identifier (e.g., "email"). If not specified, uses record ID',
       },
       properties: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Comma-separated list of properties to return',
+        visibility: 'user-or-llm',
+        description:
+          'Comma-separated list of HubSpot property names to return (e.g., "email,firstname,lastname,phone")',
       },
       associations: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Comma-separated list of object types to retrieve associated IDs for',
+        visibility: 'user-or-llm',
+        description:
+          'Comma-separated list of object types to retrieve associated IDs for (e.g., "companies,deals")',
       },
     },
 

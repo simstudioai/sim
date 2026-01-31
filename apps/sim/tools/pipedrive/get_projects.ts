@@ -26,20 +26,21 @@ export const pipedriveGetProjectsTool: ToolConfig<
     project_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Optional: ID of a specific project to retrieve',
+      visibility: 'user-or-llm',
+      description: 'Optional: ID of a specific project to retrieve (e.g., "123")',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter by project status: open, completed, deleted (only for listing all)',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 100, max: 500, only for listing all)',
+      visibility: 'user-or-llm',
+      description:
+        'Number of results to return (e.g., "50", default: 100, max: 500, only for listing all)',
     },
   },
 

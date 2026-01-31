@@ -13,7 +13,7 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Domain to find company data for',
+      description: 'Domain to find company data for (e.g., "stripe.com", "company.io")',
     },
     apiKey: {
       type: 'string',

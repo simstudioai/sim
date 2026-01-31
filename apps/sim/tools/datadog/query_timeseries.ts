@@ -13,19 +13,20 @@ export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeser
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Datadog metrics query (e.g., "avg:system.cpu.user{*}")',
+      description:
+        'Datadog metrics query (e.g., "avg:system.cpu.user{*}", "sum:nginx.requests{env:prod}.as_count()")',
     },
     from: {
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Start time as Unix timestamp in seconds',
+      description: 'Start time as Unix timestamp in seconds (e.g., 1705320000)',
     },
     to: {
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'End time as Unix timestamp in seconds',
+      description: 'End time as Unix timestamp in seconds (e.g., 1705323600)',
     },
     apiKey: {
       type: 'string',

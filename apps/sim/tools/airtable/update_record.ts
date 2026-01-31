@@ -22,20 +22,20 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
     baseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the Airtable base',
+      visibility: 'user-or-llm',
+      description: 'Airtable base ID (starts with "app", e.g., "appXXXXXXXXXXXXXX")',
     },
     tableId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID or name of the table',
+      visibility: 'user-or-llm',
+      description: 'Table ID (starts with "tbl") or table name',
     },
     recordId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the record to update',
+      visibility: 'user-or-llm',
+      description: 'Record ID to update (starts with "rec", e.g., "recXXXXXXXXXXXXXX")',
     },
     fields: {
       type: 'json',

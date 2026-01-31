@@ -14,20 +14,22 @@ export const queryTool: ToolConfig<GreptileQueryParams, GreptileQueryResponse> =
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Natural language question about the codebase',
+      description:
+        'Natural language question about the codebase. Example: "How does authentication work?" or "Where is the payment processing logic?"',
     },
     repositories: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Comma-separated list of repositories. Format: "github:branch:owner/repo" or just "owner/repo" (defaults to github:main)',
+        'Comma-separated list of repositories. Format: "github:branch:owner/repo" or just "owner/repo" (defaults to github:main). Example: "facebook/react" or "github:main:facebook/react,github:main:facebook/relay"',
     },
     sessionId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Session ID for conversation continuity',
+      visibility: 'user-or-llm',
+      description:
+        'Session ID for conversation continuity. Use the same sessionId across multiple queries to maintain context. Example: "session-abc123"',
     },
     genius: {
       type: 'boolean',

@@ -46,8 +46,8 @@ export const jsmAddCommentTool: ToolConfig<JsmAddCommentParams, JsmAddCommentRes
     isPublic: {
       type: 'boolean',
       required: true,
-      visibility: 'user-only',
-      description: 'Whether the comment is public (visible to customer) or internal',
+      visibility: 'user-or-llm',
+      description: 'Whether the comment is public (visible to customer) or internal (true/false)',
     },
   },
 

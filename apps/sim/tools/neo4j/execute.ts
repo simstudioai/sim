@@ -23,8 +23,8 @@ export const executeTool: ToolConfig<Neo4jExecuteParams, Neo4jResponse> = {
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., "neo4j", "movies", "social")',
     },
     username: {
       type: 'string',
@@ -48,13 +48,15 @@ export const executeTool: ToolConfig<Neo4jExecuteParams, Neo4jResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Cypher query to execute (any valid Cypher statement)',
+      description:
+        'Cypher query to execute (e.g., "CALL db.labels()", "MATCH (n) RETURN count(n)", "CREATE INDEX FOR (n:Person) ON (n.name)")',
     },
     parameters: {
       type: 'object',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Parameters for the Cypher query as a JSON object',
+      description:
+        'Parameters for the Cypher query as a JSON object (e.g., {"name": "Alice", "limit": 100})',
     },
   },
 

@@ -24,14 +24,14 @@ export const getDashboardTool: ToolConfig<GrafanaGetDashboardParams, GrafanaGetD
       organizationId: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Organization ID for multi-org Grafana instances',
+        visibility: 'user-or-llm',
+        description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
       },
       dashboardUid: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The UID of the dashboard to retrieve',
+        description: 'The UID of the dashboard to retrieve (e.g., abc123def)',
       },
     },
 

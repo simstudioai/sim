@@ -28,13 +28,14 @@ export const polymarketGetHoldersTool: ToolConfig<
     market: {
       type: 'string',
       required: true,
-      description: 'Comma-separated list of condition IDs',
+      description:
+        'Comma-separated list of condition IDs (e.g., "0x1234...abcd" or "0x1234...abcd,0x5678...efgh").',
       visibility: 'user-or-llm',
     },
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of holders to return (0-20, default: 20)',
+      description: 'Number of holders to return (e.g., "10"). Range: 0-20, default: 20.',
       visibility: 'user-or-llm',
     },
     minBalance: {

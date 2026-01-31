@@ -18,20 +18,20 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
     organizationSlug: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The slug of the organization',
+      visibility: 'user-or-llm',
+      description: 'The slug of the organization (e.g., "my-org")',
     },
     projectSlug: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The slug of the project to list events from',
+      visibility: 'user-or-llm',
+      description: 'The slug of the project to list events from (e.g., "my-project")',
     },
     issueId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter events by a specific issue ID',
+      description: 'Filter events by a specific issue ID (e.g., "12345")',
     },
     query: {
       type: 'string',
@@ -43,13 +43,13 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
     cursor: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Pagination cursor for retrieving next page of results',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of events to return per page (default: 50, max: 100)',
     },
     statsPeriod: {

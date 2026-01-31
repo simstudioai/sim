@@ -39,14 +39,14 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
       projectId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'PostHog Project ID',
+        visibility: 'user-or-llm',
+        description: 'PostHog Project ID (e.g., "12345" or project UUID)',
       },
       personId: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Person ID or UUID to delete',
+        description: 'Person ID or UUID to delete (e.g., "01234567-89ab-cdef-0123-456789abcdef")',
       },
     },
 

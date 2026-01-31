@@ -28,20 +28,21 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet to write to',
+      visibility: 'user-or-llm',
+      description: 'The ID of the spreadsheet/workbook to write to (e.g., "01ABC123DEF456")',
     },
     range: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The range of cells to write to',
+      description: 'The range of cells to write to (e.g., "Sheet1!A1:B2")',
     },
     values: {
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The data to write to the spreadsheet',
+      description:
+        'The data to write as a 2D array (e.g., [["Name", "Age"], ["Alice", 30]]) or array of objects',
     },
     valueInputOption: {
       type: 'string',
@@ -206,14 +207,14 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet to write to',
+      visibility: 'user-or-llm',
+      description: 'The ID of the spreadsheet/workbook to write to (e.g., "01ABC123DEF456")',
     },
     sheetName: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the sheet/tab to write to',
+      description: 'The name of the sheet/tab to write to (e.g., "Sheet1", "Sales Data")',
     },
     cellRange: {
       type: 'string',

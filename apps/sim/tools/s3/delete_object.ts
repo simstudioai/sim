@@ -28,14 +28,14 @@ export const s3DeleteObjectTool: ToolConfig = {
     bucketName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'S3 bucket name',
+      visibility: 'user-or-llm',
+      description: 'S3 bucket name (e.g., my-bucket)',
     },
     objectKey: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Object key/path to delete',
+      visibility: 'user-or-llm',
+      description: 'Object key/path to delete (e.g., folder/file.txt)',
     },
   },
 

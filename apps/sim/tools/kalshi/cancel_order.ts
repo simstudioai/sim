@@ -38,7 +38,7 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The order ID to cancel',
+        description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
       },
     },
 
@@ -152,7 +152,7 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The order ID to cancel',
+      description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
     },
   },
 

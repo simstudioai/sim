@@ -34,8 +34,8 @@ export const salesforceGetDashboardTool: ToolConfig<
     dashboardId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Dashboard ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Dashboard ID (18-character string starting with 01Z)',
     },
   },
 

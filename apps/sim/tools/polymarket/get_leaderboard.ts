@@ -51,13 +51,14 @@ export const polymarketGetLeaderboardTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results (1-50, default: 25)',
+      description: 'Number of results to return (e.g., "10"). Range: 1-50, default: 25.',
       visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
-      description: 'Pagination offset (0-1000, default: 0)',
+      description:
+        'Number of results to skip for pagination (e.g., "25"). Range: 0-1000, default: 0.',
       visibility: 'user-or-llm',
     },
     user: {

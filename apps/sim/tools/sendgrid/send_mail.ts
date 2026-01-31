@@ -88,8 +88,8 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
     attachments: {
       type: 'file[]',
       required: false,
-      visibility: 'user-only',
-      description: 'Files to attach to the email',
+      visibility: 'user-or-llm',
+      description: 'Files to attach to the email as an array of attachment objects',
     },
     templateId: {
       type: 'string',

@@ -108,13 +108,13 @@ export const instancesTool: ToolConfig<
     calendarId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Calendar ID (defaults to primary)',
+      visibility: 'user-or-llm',
+      description: 'Google Calendar ID (e.g., primary or calendar@group.calendar.google.com)',
     },
     eventId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Recurring event ID to get instances of',
     },
     timeMin: {

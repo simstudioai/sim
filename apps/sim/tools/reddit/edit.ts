@@ -23,13 +23,13 @@ export const editTool: ToolConfig<RedditEditParams, RedditWriteResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Thing fullname to edit (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
+      description: 'Thing fullname to edit (e.g., "t3_abc123" for post, "t1_def456" for comment)',
     },
     text: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'New text content in markdown format',
+      description: 'New text content in markdown format (e.g., "Updated **content** here")',
     },
   },
 

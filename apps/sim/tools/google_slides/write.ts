@@ -23,8 +23,8 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
     presentationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the presentation to write to',
+      visibility: 'user-or-llm',
+      description: 'Google Slides presentation ID',
     },
     content: {
       type: 'string',

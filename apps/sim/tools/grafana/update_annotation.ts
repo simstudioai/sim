@@ -29,8 +29,8 @@ export const updateAnnotationTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization ID for multi-org Grafana instances',
+      visibility: 'user-or-llm',
+      description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
     },
     annotationId: {
       type: 'number',
@@ -54,13 +54,13 @@ export const updateAnnotationTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New start time in epoch milliseconds',
+      description: 'New start time in epoch milliseconds (e.g., 1704067200000)',
     },
     timeEnd: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New end time in epoch milliseconds',
+      description: 'New end time in epoch milliseconds (e.g., 1704153600000)',
     },
   },
 

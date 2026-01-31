@@ -47,9 +47,9 @@ Insert or update points in a Qdrant collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | Qdrant base URL |
-| `apiKey` | string | No | Qdrant API key \(optional\) |
-| `collection` | string | Yes | Collection name |
+| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io\) |
+| `apiKey` | string | No | Qdrant API key for authentication |
+| `collection` | string | Yes | Collection name for upsert \(e.g., "my_collection"\) |
 | `points` | array | Yes | Array of points to upsert |
 
 #### Output
@@ -69,12 +69,12 @@ Search for similar vectors in a Qdrant collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | Qdrant base URL |
-| `apiKey` | string | No | Qdrant API key \(optional\) |
-| `collection` | string | Yes | Collection name |
-| `vector` | array | Yes | Vector to search for |
-| `limit` | number | No | Number of results to return |
-| `filter` | object | No | Filter to apply to the search |
+| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io\) |
+| `apiKey` | string | No | Qdrant API key for authentication |
+| `collection` | string | Yes | Collection name to search \(e.g., "my_collection"\) |
+| `vector` | array | Yes | Query vector for similarity search \(e.g., \[0.1, 0.2, 0.3, ...\]\) |
+| `limit` | number | No | Maximum number of results to return \(e.g., 10\) |
+| `filter` | object | No | Qdrant filter object \(e.g., \{"must": \[\{"key": "field", "match": \{"value": "val"\}\}\]\}\) |
 | `search_return_data` | string | No | Data to return from search |
 | `with_payload` | boolean | No | Include payload in response |
 | `with_vector` | boolean | No | Include vector in response |
@@ -101,10 +101,10 @@ Fetch points by ID from a Qdrant collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | Qdrant base URL |
-| `apiKey` | string | No | Qdrant API key \(optional\) |
-| `collection` | string | Yes | Collection name |
-| `ids` | array | Yes | Array of point IDs to fetch |
+| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io\) |
+| `apiKey` | string | No | Qdrant API key for authentication |
+| `collection` | string | Yes | Collection name to fetch from \(e.g., "my_collection"\) |
+| `ids` | array | Yes | Array of point IDs to fetch \(e.g., \["id1", "id2"\] or \[1, 2\]\) |
 | `fetch_return_data` | string | No | Data to return from fetch |
 | `with_payload` | boolean | No | Include payload in response |
 | `with_vector` | boolean | No | Include vector in response |

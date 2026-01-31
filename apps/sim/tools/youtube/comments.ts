@@ -11,12 +11,12 @@ export const youtubeCommentsTool: ToolConfig<YouTubeCommentsParams, YouTubeComme
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'YouTube video ID',
+      description: 'YouTube video ID (11-character string, e.g., "dQw4w9WgXcQ")',
     },
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Maximum number of comments to return (1-100)',
     },
@@ -30,8 +30,8 @@ export const youtubeCommentsTool: ToolConfig<YouTubeCommentsParams, YouTubeComme
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page token for pagination (from previous response nextPageToken)',
     },
     apiKey: {
       type: 'string',

@@ -21,7 +21,7 @@ export const mailgunCreateMailingListTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Mailing list address (e.g., list@example.com)',
+      description: 'Mailing list address (e.g., newsletter@mg.example.com)',
     },
     name: {
       type: 'string',

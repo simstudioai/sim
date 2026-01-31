@@ -41,12 +41,12 @@ Perform AI-powered web searches using Tavily
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | The search query to execute |
-| `max_results` | number | No | Maximum number of results \(1-20\) |
-| `topic` | string | No | Category type: general, news, or finance \(default: general\) |
-| `search_depth` | string | No | Search scope: basic \(1 credit\) or advanced \(2 credits\) \(default: basic\) |
-| `include_answer` | string | No | LLM-generated response: true/basic for quick answer or advanced for detailed |
-| `include_raw_content` | string | No | Parsed HTML content: true/markdown or text format |
+| `query` | string | Yes | The search query to execute \(e.g., "latest AI research papers 2024"\) |
+| `max_results` | number | No | Maximum number of results \(1-20, e.g., 5\) |
+| `topic` | string | No | Category type: general, news, or finance \(e.g., "news"\) |
+| `search_depth` | string | No | Search scope: basic \(1 credit\) or advanced \(2 credits\) \(e.g., "advanced"\) |
+| `include_answer` | string | No | LLM-generated response: true/basic for quick answer or advanced for detailed \(e.g., "advanced"\) |
+| `include_raw_content` | string | No | Parsed HTML content: true/markdown or text format \(e.g., "markdown"\) |
 | `include_images` | boolean | No | Include image search results |
 | `include_image_descriptions` | boolean | No | Add descriptive text for images |
 | `include_favicon` | boolean | No | Include favicon URLs |
@@ -54,8 +54,8 @@ Perform AI-powered web searches using Tavily
 | `time_range` | string | No | Filter by recency: day/d, week/w, month/m, year/y |
 | `start_date` | string | No | Earliest publication date \(YYYY-MM-DD format\) |
 | `end_date` | string | No | Latest publication date \(YYYY-MM-DD format\) |
-| `include_domains` | string | No | Comma-separated list of domains to whitelist \(max 300\) |
-| `exclude_domains` | string | No | Comma-separated list of domains to blacklist \(max 150\) |
+| `include_domains` | string | No | Comma-separated list of domains to whitelist \(e.g., "github.com,stackoverflow.com"\) |
+| `exclude_domains` | string | No | Comma-separated list of domains to blacklist \(e.g., "pinterest.com,reddit.com"\) |
 | `country` | string | No | Boost results from specified country \(general topic only\) |
 | `auto_parameters` | boolean | No | Automatic parameter configuration based on query intent |
 | `apiKey` | string | Yes | Tavily API Key |

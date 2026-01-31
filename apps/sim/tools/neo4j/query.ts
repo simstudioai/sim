@@ -24,8 +24,8 @@ export const queryTool: ToolConfig<Neo4jQueryParams, Neo4jResponse> = {
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., "neo4j", "movies", "social")',
     },
     username: {
       type: 'string',
@@ -49,7 +49,8 @@ export const queryTool: ToolConfig<Neo4jQueryParams, Neo4jResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Cypher query to execute (typically MATCH statements)',
+      description:
+        'Cypher query to execute (e.g., "MATCH (n:Person) RETURN n LIMIT 10", "MATCH (a)-[r]->(b) WHERE a.name = $name RETURN a, r, b")',
     },
     parameters: {
       type: 'object',

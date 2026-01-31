@@ -41,11 +41,11 @@ Send an email using your own Resend API key and from address
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `fromAddress` | string | Yes | Email address to send from |
-| `to` | string | Yes | Recipient email address |
-| `subject` | string | Yes | Email subject |
-| `body` | string | Yes | Email body content |
-| `contentType` | string | No | Content type for the email body \(text or html\) |
+| `fromAddress` | string | Yes | Email address to send from \(e.g., "sender@example.com" or "Sender Name &lt;sender@example.com&gt;"\) |
+| `to` | string | Yes | Recipient email address \(e.g., "recipient@example.com" or "Recipient Name &lt;recipient@example.com&gt;"\) |
+| `subject` | string | Yes | Email subject line |
+| `body` | string | Yes | Email body content \(plain text or HTML based on contentType\) |
+| `contentType` | string | No | Content type for the email body: "text" for plain text or "html" for HTML content |
 | `resendApiKey` | string | Yes | Resend API key for sending emails |
 
 #### Output

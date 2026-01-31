@@ -29,8 +29,9 @@ export const insertTool: ToolConfig<RdsInsertParams, RdsInsertResponse> = {
     resourceArn: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ARN of the Aurora DB cluster',
+      visibility: 'user-or-llm',
+      description:
+        'ARN of the Aurora DB cluster (e.g., arn:aws:rds:us-east-1:123456789012:cluster:my-cluster)',
     },
     secretArn: {
       type: 'string',
@@ -41,8 +42,8 @@ export const insertTool: ToolConfig<RdsInsertParams, RdsInsertResponse> = {
     database: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Database name (optional)',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., mydb, production_db)',
     },
     table: {
       type: 'string',

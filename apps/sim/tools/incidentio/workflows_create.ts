@@ -18,7 +18,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the workflow',
+      description: 'Name of the workflow (e.g., "Notify on Critical Incidents")',
     },
     folder: {
       type: 'string',

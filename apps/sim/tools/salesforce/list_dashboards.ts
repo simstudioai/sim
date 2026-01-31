@@ -34,8 +34,8 @@ export const salesforceListDashboardsTool: ToolConfig<
     folderName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by folder name',
+      visibility: 'user-or-llm',
+      description: 'Filter dashboards by folder name (case-insensitive partial match)',
     },
   },
 

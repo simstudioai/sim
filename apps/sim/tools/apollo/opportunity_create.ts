@@ -24,13 +24,13 @@ export const apolloOpportunityCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the opportunity/deal',
+      description: 'Name of the opportunity/deal (e.g., "Enterprise License - Q1")',
     },
     account_id: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the account this opportunity belongs to',
+      description: 'ID of the account this opportunity belongs to (e.g., "acc_abc123")',
     },
     amount: {
       type: 'number',

@@ -11,8 +11,8 @@ export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Thread ID to delete',
+      visibility: 'user-or-llm',
+      description: 'Thread ID to delete (e.g., "thread_abc123")',
     },
     apiKey: {
       type: 'string',

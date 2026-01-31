@@ -42,7 +42,7 @@ Read content from a Wealthbox note
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `noteId` | string | No | The ID of the note to read |
+| `noteId` | string | No | The ID of the note to read \(e.g., "11111"\) |
 
 #### Output
 
@@ -66,7 +66,7 @@ Create or update a Wealthbox note
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `content` | string | Yes | The main body of the note |
-| `contactId` | string | No | ID of contact to link to this note |
+| `contactId` | string | No | ID of contact to link to this note \(e.g., "12345"\) |
 
 #### Output
 
@@ -89,7 +89,7 @@ Read content from a Wealthbox contact
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `contactId` | string | No | The ID of the contact to read |
+| `contactId` | string | No | The ID of the contact to read \(e.g., "12345"\) |
 
 #### Output
 
@@ -138,7 +138,7 @@ Read content from a Wealthbox task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `taskId` | string | No | The ID of the task to read |
+| `taskId` | string | No | The ID of the task to read \(e.g., "67890"\) |
 
 #### Output
 
@@ -163,7 +163,7 @@ Create or update a Wealthbox task
 | --------- | ---- | -------- | ----------- |
 | `title` | string | Yes | The name/title of the task |
 | `dueDate` | string | Yes | The due date and time of the task \(format: "YYYY-MM-DD HH:MM AM/PM -HHMM", e.g., "2015-05-24 11:00 AM -0400"\) |
-| `contactId` | string | No | ID of contact to link to this task |
+| `contactId` | string | No | ID of contact to link to this task \(e.g., "12345"\) |
 | `description` | string | No | Description or notes about the task |
 
 #### Output

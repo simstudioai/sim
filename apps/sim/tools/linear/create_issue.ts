@@ -18,14 +18,14 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
       teamId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'Linear team ID',
+        visibility: 'user-or-llm',
+        description: 'Linear team ID (UUID format) where the issue will be created',
       },
       projectId: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Linear project ID',
+        visibility: 'user-or-llm',
+        description: 'Linear project ID (UUID format) to associate with the issue',
       },
       title: {
         type: 'string',

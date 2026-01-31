@@ -23,16 +23,16 @@ export const listScheduledEventsTool: ToolConfig<
     user: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Return events that belong to this user (URI format). Either "user" or "organization" must be provided.',
+        'Return events that belong to this user. Either "user" or "organization" must be provided. Format: URI (e.g., "https://api.calendly.com/users/abc123-def456")',
     },
     organization: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Return events that belong to this organization (URI format). Either "user" or "organization" must be provided.',
+        'Return events that belong to this organization. Either "user" or "organization" must be provided. Format: URI (e.g., "https://api.calendly.com/organizations/abc123-def456")',
     },
     invitee_email: {
       type: 'string',
@@ -43,38 +43,42 @@ export const listScheduledEventsTool: ToolConfig<
     count: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results per page (default: 20, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of results per page. Format: integer (default: 20, max: 100)',
     },
     max_start_time: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Return events with start time before this time (ISO 8601 format)',
+      visibility: 'user-or-llm',
+      description:
+        'Return events with start time before this time. Format: ISO 8601 (e.g., "2024-01-15T09:00:00Z")',
     },
     min_start_time: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Return events with start time after this time (ISO 8601 format)',
+      visibility: 'user-or-llm',
+      description:
+        'Return events with start time after this time. Format: ISO 8601 (e.g., "2024-01-01T00:00:00Z")',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description:
+        'Page token for pagination. Format: opaque string from previous response next_page_token',
     },
     sort: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Sort order for results (e.g., "start_time:asc", "start_time:desc")',
+      visibility: 'user-or-llm',
+      description:
+        'Sort order for results. Format: "field:direction" (e.g., "start_time:asc", "start_time:desc")',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by status ("active" or "canceled")',
+      visibility: 'user-or-llm',
+      description: 'Filter by status. Format: "active" or "canceled"',
     },
   },
 

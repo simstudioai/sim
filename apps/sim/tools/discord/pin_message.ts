@@ -18,20 +18,20 @@ export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordP
       channelId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The Discord channel ID containing the message',
+        visibility: 'user-or-llm',
+        description: 'The Discord channel ID containing the message, e.g., 123456789012345678',
       },
       messageId: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The ID of the message to pin',
+        description: 'The ID of the message to pin, e.g., 123456789012345678',
       },
       serverId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The Discord server ID (guild ID)',
+        visibility: 'user-or-llm',
+        description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
       },
     },
 

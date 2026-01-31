@@ -24,7 +24,7 @@ export const incidentTimestampsShowTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the incident timestamp',
+      description: 'The ID of the incident timestamp (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

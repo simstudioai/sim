@@ -30,7 +30,7 @@ export const getSettingsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The email address of the group',
+      description: 'The email address of the group (e.g., team@example.com)',
     },
   },
 

@@ -24,7 +24,7 @@ export const firefliesDeleteTranscriptTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The transcript ID to delete',
+      description: 'The transcript ID to delete (e.g., "abc123def456")',
     },
   },
 

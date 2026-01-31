@@ -12,14 +12,15 @@ export const zepAddMessagesTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Thread ID to add messages to',
+      visibility: 'user-or-llm',
+      description: 'Thread ID to add messages to (e.g., "thread_abc123")',
     },
     messages: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of message objects with role and content',
+      description:
+        'Array of message objects with role and content (e.g., [{"role": "user", "content": "Hello"}])',
     },
     apiKey: {
       type: 'string',

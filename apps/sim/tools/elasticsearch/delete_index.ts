@@ -63,11 +63,13 @@ export const deleteIndexTool: ToolConfig<
     host: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elasticsearch host URL (for self-hosted)',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elastic Cloud ID (for cloud deployments)',
     },
     authMethod: {
@@ -84,6 +86,7 @@ export const deleteIndexTool: ToolConfig<
     username: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Username for basic auth',
     },
     password: {
@@ -95,7 +98,8 @@ export const deleteIndexTool: ToolConfig<
     index: {
       type: 'string',
       required: true,
-      description: 'Index name to delete',
+      visibility: 'user-or-llm',
+      description: 'Index name to delete (e.g., "products", "logs-2024")',
     },
   },
 

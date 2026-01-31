@@ -18,14 +18,14 @@ export const discordKickMemberTool: ToolConfig<DiscordKickMemberParams, DiscordK
       serverId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The Discord server ID (guild ID)',
+        visibility: 'user-or-llm',
+        description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
       },
       userId: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The user ID to kick',
+        description: 'The user ID to kick, e.g., 123456789012345678',
       },
       reason: {
         type: 'string',

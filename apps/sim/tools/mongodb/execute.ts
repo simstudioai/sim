@@ -23,8 +23,8 @@ export const executeTool: ToolConfig<MongoDBExecuteParams, MongoDBResponse> = {
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., "mydb")',
     },
     username: {
       type: 'string',

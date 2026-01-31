@@ -23,14 +23,15 @@ export const schedulesListTool: ToolConfig<
     page_size: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results per page (default: 25)',
+      visibility: 'user-or-llm',
+      description: 'Number of results per page (e.g., 10, 25, 50). Default: 25',
     },
     after: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Pagination cursor to fetch the next page of results',
+      visibility: 'user-or-llm',
+      description:
+        'Pagination cursor to fetch the next page of results (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

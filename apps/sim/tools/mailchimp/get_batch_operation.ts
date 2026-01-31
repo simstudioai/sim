@@ -34,8 +34,8 @@ export const mailchimpGetBatchOperationTool: ToolConfig<
     batchId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the batch operation',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the batch operation (e.g., "abc123def4")',
     },
   },
 

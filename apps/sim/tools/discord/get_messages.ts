@@ -20,13 +20,13 @@ export const discordGetMessagesTool: ToolConfig<
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord channel ID to retrieve messages from',
+      visibility: 'user-or-llm',
+      description: 'The Discord channel ID to retrieve messages from, e.g., 123456789012345678',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of messages to retrieve (default: 10, max: 100)',
     },
   },

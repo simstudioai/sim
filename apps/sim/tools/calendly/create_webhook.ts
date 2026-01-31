@@ -36,20 +36,22 @@ export const createWebhookTool: ToolConfig<
     organization: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Organization URI',
+      visibility: 'user-or-llm',
+      description:
+        'Organization URI. Format: URI (e.g., "https://api.calendly.com/organizations/abc123-def456")',
     },
     user: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'User URI (required for user-scoped webhooks)',
+      visibility: 'user-or-llm',
+      description:
+        'User URI (required for user-scoped webhooks). Format: URI (e.g., "https://api.calendly.com/users/abc123-def456")',
     },
     scope: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Webhook scope: "organization" or "user"',
+      visibility: 'user-or-llm',
+      description: 'Webhook scope. Format: "organization" or "user"',
     },
     signing_key: {
       type: 'string',

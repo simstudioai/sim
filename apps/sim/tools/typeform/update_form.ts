@@ -17,8 +17,8 @@ export const updateFormTool: ToolConfig<TypeformUpdateFormParams, TypeformUpdate
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Form unique identifier to update',
+      visibility: 'user-or-llm',
+      description: 'Form unique identifier to update (e.g., "abc123XYZ")',
     },
     operations: {
       type: 'json',

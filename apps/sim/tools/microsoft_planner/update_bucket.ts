@@ -32,8 +32,8 @@ export const updateBucketTool: ToolConfig<
     bucketId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the bucket to update',
+      visibility: 'user-or-llm',
+      description: 'The ID of the bucket to update (e.g., "hsOf2dhOJkC6Fey9VjDg1JgAC9Rq")',
     },
     name: {
       type: 'string',

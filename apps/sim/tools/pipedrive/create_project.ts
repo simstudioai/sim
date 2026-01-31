@@ -26,26 +26,26 @@ export const pipedriveCreateProjectTool: ToolConfig<
     title: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The title of the project',
+      visibility: 'user-or-llm',
+      description: 'The title of the project (e.g., "Q2 Marketing Campaign")',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Description of the project',
     },
     start_date: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Project start date in YYYY-MM-DD format',
+      visibility: 'user-or-llm',
+      description: 'Project start date in YYYY-MM-DD format (e.g., "2025-04-01")',
     },
     end_date: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Project end date in YYYY-MM-DD format',
+      visibility: 'user-or-llm',
+      description: 'Project end date in YYYY-MM-DD format (e.g., "2025-06-30")',
     },
   },
 

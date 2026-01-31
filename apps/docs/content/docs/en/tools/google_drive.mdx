@@ -54,7 +54,7 @@ List files and folders in Google Drive with complete metadata
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `folderSelector` | string | No | Select the folder to list files from |
+| `folderSelector` | string | No | Google Drive folder ID to list files from \(e.g., 1ABCxyz...\) |
 | `folderId` | string | No | The ID of the folder to list files from \(internal use\) |
 | `query` | string | No | Search term to filter files by name \(e.g. "budget" finds files with "budget" in the name\). Do NOT use Google Drive query syntax here - just provide a plain search term. |
 | `pageSize` | number | No | The maximum number of files to return \(default: 100\) |
@@ -167,7 +167,7 @@ Create a new folder in Google Drive with complete metadata returned
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | Name of the folder to create |
-| `folderSelector` | string | No | Select the parent folder to create the folder in |
+| `folderSelector` | string | No | Google Drive parent folder ID to create the folder in \(e.g., 1ABCxyz...\) |
 | `folderId` | string | No | ID of the parent folder \(internal use\) |
 
 #### Output
@@ -225,7 +225,7 @@ Upload a file to Google Drive with complete metadata returned
 | `file` | file | No | Binary file to upload \(UserFile object\) |
 | `content` | string | No | Text content to upload \(use this OR file, not both\) |
 | `mimeType` | string | No | The MIME type of the file to upload \(auto-detected from file if not provided\) |
-| `folderSelector` | string | No | Select the folder to upload the file to |
+| `folderSelector` | string | No | Google Drive folder ID to upload the file to \(e.g., 1ABCxyz...\) |
 | `folderId` | string | No | The ID of the folder to upload the file to \(internal use\) |
 
 #### Output

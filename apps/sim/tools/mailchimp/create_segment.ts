@@ -40,20 +40,21 @@ export const mailchimpCreateSegmentTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     segmentName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The name of the segment',
+      visibility: 'user-or-llm',
+      description: 'The name of the segment (e.g., "VIP Customers")',
     },
     segmentOptions: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'JSON object of segment options',
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of segment options for saved segments (e.g., {"match": "all", "conditions": [...]})',
     },
   },
 

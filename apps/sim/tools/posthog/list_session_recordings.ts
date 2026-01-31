@@ -60,7 +60,7 @@ export const listSessionRecordingsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'PostHog Project ID',
+      description: 'PostHog Project ID (e.g., "12345" or project UUID)',
     },
     region: {
       type: 'string',
@@ -72,14 +72,14 @@ export const listSessionRecordingsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 50)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (default: 50, e.g., 10, 25, 50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to skip for pagination',
+      visibility: 'user-or-llm',
+      description: 'Number of results to skip for pagination (e.g., 0, 50, 100)',
     },
   },
 

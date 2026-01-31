@@ -21,7 +21,7 @@ export const customFieldsDeleteTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Custom field ID',
+      description: 'Custom field ID (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 
