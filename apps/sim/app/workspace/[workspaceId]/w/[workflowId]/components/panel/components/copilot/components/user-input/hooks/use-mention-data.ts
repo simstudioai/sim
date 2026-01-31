@@ -1,8 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
+import { useKnowledgeBasesQuery } from '@/hooks/queries/knowledge'
+import { useRecentLogs } from '@/hooks/queries/logs'
+import { useTemplates } from '@/hooks/queries/templates'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -107,10 +110,10 @@ export interface MentionDataReturn {
 
   // Ensure loaded functions
   ensurePastChatsLoaded: () => Promise<void>
-  ensureKnowledgeLoaded: () => Promise<void>
+  ensureKnowledgeLoaded: () => void
   ensureBlocksLoaded: () => Promise<void>
-  ensureTemplatesLoaded: () => Promise<void>
-  ensureLogsLoaded: () => Promise<void>
+  ensureTemplatesLoaded: () => void
+  ensureLogsLoaded: () => void
 }
 
 /**
@@ -128,8 +131,20 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
   const [pastChats, setPastChats] = useState<PastChat[]>([])
   const [isLoadingPastChats, setIsLoadingPastChats] = useState(false)
 
-  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeItem[]>([])
-  const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false)
+  const [shouldLoadKnowledge, setShouldLoadKnowledge] = useState(false)
+  const { data: knowledgeData = [], isLoading: isLoadingKnowledge } = useKnowledgeBasesQuery(
+    workspaceId,
+    { enabled: shouldLoadKnowledge }
+  )
+
+  const knowledgeBases = useMemo<KnowledgeItem[]>(() => {
+    const sorted = [...knowledgeData].sort((a, b) => {
+      const ta = new Date(a.updatedAt || a.createdAt || 0).getTime()
+      const tb = new Date(b.updatedAt || b.createdAt || 0).getTime()
+      return tb - ta
+    })
+    return sorted.map((k) => ({ id: k.id, name: k.name || 'Untitled' }))
+  }, [knowledgeData])
 
   const [blocksList, setBlocksList] = useState<BlockItem[]>([])
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false)
@@ -138,11 +153,39 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     setBlocksList([])
   }, [config.allowedIntegrations])
 
-  const [templatesList, setTemplatesList] = useState<TemplateItem[]>([])
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
+  const [shouldLoadTemplates, setShouldLoadTemplates] = useState(false)
+  const { data: templatesData, isLoading: isLoadingTemplates } = useTemplates(
+    { limit: 50, offset: 0 },
+    { enabled: shouldLoadTemplates }
+  )
 
-  const [logsList, setLogsList] = useState<LogItem[]>([])
-  const [isLoadingLogs, setIsLoadingLogs] = useState(false)
+  const templatesList = useMemo<TemplateItem[]>(() => {
+    const items = templatesData?.data ?? []
+    return items
+      .map((t) => ({ id: t.id, name: t.name || 'Untitled Template', stars: t.stars || 0 }))
+      .sort((a, b) => b.stars - a.stars)
+  }, [templatesData])
+
+  const [shouldLoadLogs, setShouldLoadLogs] = useState(false)
+  const { data: logsData = [], isLoading: isLoadingLogs } = useRecentLogs(workspaceId, 50, {
+    enabled: shouldLoadLogs,
+  })
+
+  const logsList = useMemo<LogItem[]>(
+    () =>
+      logsData.map((l) => ({
+        id: l.id,
+        executionId: l.executionId || l.id,
+        level: l.level,
+        trigger: l.trigger || null,
+        createdAt: l.createdAt,
+        workflowName:
+          (l.workflow && (l.workflow.name || l.workflow.title)) ||
+          l.workflowName ||
+          'Untitled Workflow',
+      })),
+    [logsData]
+  )
 
   const [workflowBlocks, setWorkflowBlocks] = useState<WorkflowBlockItem[]>([])
   const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
@@ -191,7 +234,6 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
       }
 
       try {
-        // Fetch current blocks from store
         const workflowStoreBlocks = useWorkflowStore.getState().blocks
 
         const { registry: blockRegistry } = await import('@/blocks/registry')
@@ -248,25 +290,11 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
   /**
    * Ensures knowledge bases are loaded
    */
-  const ensureKnowledgeLoaded = useCallback(async () => {
-    if (isLoadingKnowledge || knowledgeBases.length > 0) return
-    try {
-      setIsLoadingKnowledge(true)
-      const resp = await fetch(`/api/knowledge?workspaceId=${workspaceId}`)
-      if (!resp.ok) throw new Error(`Failed to load knowledge bases: ${resp.status}`)
-      const data = await resp.json()
-      const items = Array.isArray(data?.data) ? data.data : []
-      const sorted = [...items].sort((a: any, b: any) => {
-        const ta = new Date(a.updatedAt || a.createdAt || 0).getTime()
-        const tb = new Date(b.updatedAt || b.createdAt || 0).getTime()
-        return tb - ta
-      })
-      setKnowledgeBases(sorted.map((k: any) => ({ id: k.id, name: k.name || 'Untitled' })))
-    } catch {
-    } finally {
-      setIsLoadingKnowledge(false)
+  const ensureKnowledgeLoaded = useCallback(() => {
+    if (!shouldLoadKnowledge) {
+      setShouldLoadKnowledge(true)
     }
-  }, [isLoadingKnowledge, knowledgeBases.length, workspaceId])
+  }, [shouldLoadKnowledge])
 
   /**
    * Ensures blocks are loaded
@@ -319,55 +347,22 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
   /**
    * Ensures templates are loaded
    */
-  const ensureTemplatesLoaded = useCallback(async () => {
-    if (isLoadingTemplates || templatesList.length > 0) return
-    try {
-      setIsLoadingTemplates(true)
-      const resp = await fetch('/api/templates?limit=50&offset=0')
-      if (!resp.ok) throw new Error(`Failed to load templates: ${resp.status}`)
-      const data = await resp.json()
-      const items = Array.isArray(data?.data) ? data.data : []
-      const mapped = items
-        .map((t: any) => ({ id: t.id, name: t.name || 'Untitled Template', stars: t.stars || 0 }))
-        .sort((a: any, b: any) => b.stars - a.stars)
-      setTemplatesList(mapped)
-    } catch {
-    } finally {
-      setIsLoadingTemplates(false)
+  const ensureTemplatesLoaded = useCallback(() => {
+    if (!shouldLoadTemplates) {
+      setShouldLoadTemplates(true)
     }
-  }, [isLoadingTemplates, templatesList.length])
+  }, [shouldLoadTemplates])
 
   /**
    * Ensures logs are loaded
    */
-  const ensureLogsLoaded = useCallback(async () => {
-    if (isLoadingLogs || logsList.length > 0) return
-    try {
-      setIsLoadingLogs(true)
-      const resp = await fetch(`/api/logs?workspaceId=${workspaceId}&limit=50&details=full`)
-      if (!resp.ok) throw new Error(`Failed to load logs: ${resp.status}`)
-      const data = await resp.json()
-      const items = Array.isArray(data?.data) ? data.data : []
-      const mapped = items.map((l: any) => ({
-        id: l.id,
-        executionId: l.executionId || l.id,
-        level: l.level,
-        trigger: l.trigger || null,
-        createdAt: l.createdAt,
-        workflowName:
-          (l.workflow && (l.workflow.name || l.workflow.title)) ||
-          l.workflowName ||
-          'Untitled Workflow',
-      }))
-      setLogsList(mapped)
-    } catch {
-    } finally {
-      setIsLoadingLogs(false)
+  const ensureLogsLoaded = useCallback(() => {
+    if (!shouldLoadLogs) {
+      setShouldLoadLogs(true)
     }
-  }, [isLoadingLogs, logsList.length, workspaceId])
+  }, [shouldLoadLogs])
 
   return {
-    // State
     pastChats,
     isLoadingPastChats,
     workflows,
@@ -382,8 +377,6 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     isLoadingLogs,
     workflowBlocks,
     isLoadingWorkflowBlocks,
-
-    // Operations
     ensurePastChatsLoaded,
     ensureKnowledgeLoaded,
     ensureBlocksLoaded,
