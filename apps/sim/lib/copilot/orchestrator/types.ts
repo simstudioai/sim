@@ -11,6 +11,8 @@ export type SSEEventType =
   | 'tool_error'
   | 'subagent_start'
   | 'subagent_end'
+  | 'structured_result'
+  | 'subagent_result'
   | 'done'
   | 'error'
   | 'start'

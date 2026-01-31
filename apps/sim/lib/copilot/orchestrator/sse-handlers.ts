@@ -26,6 +26,7 @@ const RESPOND_TOOL_SET = new Set([
   'research_respond',
   'deploy_respond',
   'superagent_respond',
+  'discovery_respond',
 ])
 
 export type SSEHandler = (
