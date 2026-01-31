@@ -54,6 +54,7 @@ type SkippedItemType =
   | 'block_not_found'
   | 'invalid_block_type'
   | 'block_not_allowed'
+  | 'block_locked'
   | 'tool_not_allowed'
   | 'invalid_edge_target'
   | 'invalid_edge_source'
@@ -618,6 +619,7 @@ function createBlockFromParams(
     subBlocks: {},
     outputs: outputs,
     data: parentId ? { parentId, extent: 'parent' as const } : {},
+    locked: false,
   }
 
   // Add validated inputs as subBlocks
@@ -1520,6 +1522,17 @@ function applyOperationsToWorkflowState(
           break
         }
 
+        // Check if block is locked
+        if (modifiedState.blocks[block_id].locked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'delete',
+            blockId: block_id,
+            reason: `Block "${block_id}" is locked and cannot be deleted`,
+          })
+          break
+        }
+
         // Find all child blocks to remove
         const blocksToRemove = new Set<string>([block_id])
         const findChildren = (parentId: string) => {
@@ -1554,6 +1567,17 @@ function applyOperationsToWorkflowState(
         }
 
         const block = modifiedState.blocks[block_id]
+
+        // Check if block is locked
+        if (block.locked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'edit',
+            blockId: block_id,
+            reason: `Block "${block_id}" is locked and cannot be edited`,
+          })
+          break
+        }
 
         // Ensure block has essential properties
         if (!block.type) {
@@ -2204,6 +2228,18 @@ function applyOperationsToWorkflowState(
             operationType: 'insert_into_subflow',
             blockId: block_id,
             reason: `Subflow block "${subflowId}" not found - block "${block_id}" not inserted`,
+            details: { subflowId },
+          })
+          break
+        }
+
+        // Check if subflow is locked
+        if (subflowBlock.locked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'insert_into_subflow',
+            blockId: block_id,
+            reason: `Subflow "${subflowId}" is locked - cannot insert block "${block_id}"`,
             details: { subflowId },
           })
           break

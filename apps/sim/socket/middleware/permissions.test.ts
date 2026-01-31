@@ -215,6 +215,12 @@ describe('checkRolePermission', () => {
       },
       { operation: 'toggle-handles', adminAllowed: true, writeAllowed: true, readAllowed: false },
       {
+        operation: 'batch-toggle-locked',
+        adminAllowed: true,
+        writeAllowed: true,
+        readAllowed: false,
+      },
+      {
         operation: 'batch-update-positions',
         adminAllowed: true,
         writeAllowed: true,

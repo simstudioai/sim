@@ -20,6 +20,7 @@ import {
   type BatchRemoveEdgesOperation,
   type BatchToggleEnabledOperation,
   type BatchToggleHandlesOperation,
+  type BatchToggleLockedOperation,
   type BatchUpdateParentOperation,
   captureLatestEdges,
   captureLatestSubBlockValues,
@@ -412,6 +413,36 @@ export function useUndoRedo() {
       useUndoRedoStore.getState().push(activeWorkflowId, userId, entry)
 
       logger.debug('Recorded batch toggle handles', { blockIds, previousStates })
+    },
+    [activeWorkflowId, userId]
+  )
+
+  const recordBatchToggleLocked = useCallback(
+    (blockIds: string[], previousStates: Record<string, boolean>) => {
+      if (!activeWorkflowId || blockIds.length === 0) return
+
+      const operation: BatchToggleLockedOperation = {
+        id: crypto.randomUUID(),
+        type: UNDO_REDO_OPERATIONS.BATCH_TOGGLE_LOCKED,
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: { blockIds, previousStates },
+      }
+
+      const inverse: BatchToggleLockedOperation = {
+        id: crypto.randomUUID(),
+        type: UNDO_REDO_OPERATIONS.BATCH_TOGGLE_LOCKED,
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: { blockIds, previousStates },
+      }
+
+      const entry = createOperationEntry(operation, inverse)
+      useUndoRedoStore.getState().push(activeWorkflowId, userId, entry)
+
+      logger.debug('Recorded batch toggle locked', { blockIds, previousStates })
     },
     [activeWorkflowId, userId]
   )
@@ -816,7 +847,9 @@ export function useUndoRedo() {
           const toggleOp = entry.inverse as BatchToggleEnabledOperation
           const { blockIds, previousStates } = toggleOp.data
 
-          const validBlockIds = blockIds.filter((id) => useWorkflowStore.getState().blocks[id])
+          // Restore all blocks in previousStates (includes children of containers)
+          const allBlockIds = Object.keys(previousStates)
+          const validBlockIds = allBlockIds.filter((id) => useWorkflowStore.getState().blocks[id])
           if (validBlockIds.length === 0) {
             logger.debug('Undo batch-toggle-enabled skipped; no blocks exist')
             break
@@ -827,14 +860,14 @@ export function useUndoRedo() {
             operation: {
               operation: BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED,
               target: OPERATION_TARGETS.BLOCKS,
-              payload: { blockIds: validBlockIds, previousStates },
+              payload: { blockIds, previousStates },
             },
             workflowId: activeWorkflowId,
             userId,
           })
 
           // Use setBlockEnabled to directly restore to previous state
-          // This is more robust than conditional toggle in collaborative scenarios
+          // This restores all affected blocks including children of containers
           validBlockIds.forEach((blockId) => {
             useWorkflowStore.getState().setBlockEnabled(blockId, previousStates[blockId])
           })
@@ -865,6 +898,36 @@ export function useUndoRedo() {
           // This is more robust than conditional toggle in collaborative scenarios
           validBlockIds.forEach((blockId) => {
             useWorkflowStore.getState().setBlockHandles(blockId, previousStates[blockId])
+          })
+          break
+        }
+        case UNDO_REDO_OPERATIONS.BATCH_TOGGLE_LOCKED: {
+          const toggleOp = entry.inverse as BatchToggleLockedOperation
+          const { blockIds, previousStates } = toggleOp.data
+
+          // Restore all blocks in previousStates (includes children of containers)
+          const allBlockIds = Object.keys(previousStates)
+          const validBlockIds = allBlockIds.filter((id) => useWorkflowStore.getState().blocks[id])
+          if (validBlockIds.length === 0) {
+            logger.debug('Undo batch-toggle-locked skipped; no blocks exist')
+            break
+          }
+
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED,
+              target: OPERATION_TARGETS.BLOCKS,
+              payload: { blockIds, previousStates },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Use setBlockLocked to directly restore to previous state
+          // This restores all affected blocks including children of containers
+          validBlockIds.forEach((blockId) => {
+            useWorkflowStore.getState().setBlockLocked(blockId, previousStates[blockId])
           })
           break
         }
@@ -1442,7 +1505,9 @@ export function useUndoRedo() {
           const toggleOp = entry.operation as BatchToggleEnabledOperation
           const { blockIds, previousStates } = toggleOp.data
 
-          const validBlockIds = blockIds.filter((id) => useWorkflowStore.getState().blocks[id])
+          // Process all blocks in previousStates (includes children of containers)
+          const allBlockIds = Object.keys(previousStates)
+          const validBlockIds = allBlockIds.filter((id) => useWorkflowStore.getState().blocks[id])
           if (validBlockIds.length === 0) {
             logger.debug('Redo batch-toggle-enabled skipped; no blocks exist')
             break
@@ -1453,7 +1518,7 @@ export function useUndoRedo() {
             operation: {
               operation: BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED,
               target: OPERATION_TARGETS.BLOCKS,
-              payload: { blockIds: validBlockIds, previousStates },
+              payload: { blockIds, previousStates },
             },
             workflowId: activeWorkflowId,
             userId,
@@ -1491,6 +1556,36 @@ export function useUndoRedo() {
           // Redo sets to !previousStates (the state after the original toggle)
           validBlockIds.forEach((blockId) => {
             useWorkflowStore.getState().setBlockHandles(blockId, !previousStates[blockId])
+          })
+          break
+        }
+        case UNDO_REDO_OPERATIONS.BATCH_TOGGLE_LOCKED: {
+          const toggleOp = entry.operation as BatchToggleLockedOperation
+          const { blockIds, previousStates } = toggleOp.data
+
+          // Process all blocks in previousStates (includes children of containers)
+          const allBlockIds = Object.keys(previousStates)
+          const validBlockIds = allBlockIds.filter((id) => useWorkflowStore.getState().blocks[id])
+          if (validBlockIds.length === 0) {
+            logger.debug('Redo batch-toggle-locked skipped; no blocks exist')
+            break
+          }
+
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED,
+              target: OPERATION_TARGETS.BLOCKS,
+              payload: { blockIds, previousStates },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Use setBlockLocked to directly set to toggled state
+          // Redo sets to !previousStates (the state after the original toggle)
+          validBlockIds.forEach((blockId) => {
+            useWorkflowStore.getState().setBlockLocked(blockId, !previousStates[blockId])
           })
           break
         }
@@ -1815,6 +1910,7 @@ export function useUndoRedo() {
     recordBatchUpdateParent,
     recordBatchToggleEnabled,
     recordBatchToggleHandles,
+    recordBatchToggleLocked,
     recordApplyDiff,
     recordAcceptDiff,
     recordRejectDiff,

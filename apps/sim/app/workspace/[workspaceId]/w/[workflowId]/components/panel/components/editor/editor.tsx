@@ -9,6 +9,7 @@ import {
   ChevronUp,
   ExternalLink,
   Loader2,
+  Lock,
   Pencil,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -46,6 +47,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
@@ -110,6 +112,14 @@ export function Editor() {
   // Get user permissions
   const userPermissions = useUserPermissionsContext()
 
+  // Check if block is locked (or inside a locked container) and compute edit permission
+  // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const parentId = currentBlock?.data?.parentId as string | undefined
+  const isParentLocked = parentId ? (blocks[parentId]?.locked ?? false) : false
+  const isLocked = (currentBlock?.locked ?? false) || isParentLocked
+  const canEditBlock = userPermissions.canEdit && !isLocked
+
   // Get active workflow ID
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
@@ -150,9 +160,7 @@ export function Editor() {
     blockSubBlockValues,
     canonicalIndex
   )
-  const displayAdvancedOptions = userPermissions.canEdit
-    ? advancedMode
-    : advancedMode || advancedValuesPresent
+  const displayAdvancedOptions = canEditBlock ? advancedMode : advancedMode || advancedValuesPresent
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
@@ -223,9 +231,9 @@ export function Editor() {
 
   // Advanced mode toggle handler
   const handleToggleAdvancedMode = useCallback(() => {
-    if (!currentBlockId || !userPermissions.canEdit) return
+    if (!currentBlockId || !canEditBlock) return
     collaborativeToggleBlockAdvancedMode(currentBlockId)
-  }, [currentBlockId, userPermissions.canEdit, collaborativeToggleBlockAdvancedMode])
+  }, [currentBlockId, canEditBlock, collaborativeToggleBlockAdvancedMode])
 
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false)
@@ -236,10 +244,10 @@ export function Editor() {
    * Handles starting the rename process.
    */
   const handleStartRename = useCallback(() => {
-    if (!userPermissions.canEdit || !currentBlock) return
+    if (!canEditBlock || !currentBlock) return
     setEditedName(currentBlock.name || '')
     setIsRenaming(true)
-  }, [userPermissions.canEdit, currentBlock])
+  }, [canEditBlock, currentBlock])
 
   /**
    * Handles saving the renamed block.
@@ -358,6 +366,19 @@ export function Editor() {
           )}
         </div>
         <div className='flex shrink-0 items-center gap-[8px]'>
+          {/* Locked indicator */}
+          {isLocked && currentBlock && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <div className='flex items-center justify-center'>
+                  <Lock className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
+                </div>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Block is locked</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
           {/* Rename button */}
           {currentBlock && (
             <Tooltip.Root>
@@ -366,7 +387,7 @@ export function Editor() {
                   variant='ghost'
                   className='p-0'
                   onClick={isRenaming ? handleSaveRename : handleStartRename}
-                  disabled={!userPermissions.canEdit}
+                  disabled={!canEditBlock}
                   aria-label={isRenaming ? 'Save name' : 'Rename block'}
                 >
                   {isRenaming ? (
@@ -434,7 +455,7 @@ export function Editor() {
           incomingConnections={incomingConnections}
           handleConnectionsResizeMouseDown={handleConnectionsResizeMouseDown}
           toggleConnectionsCollapsed={toggleConnectionsCollapsed}
-          userCanEdit={userPermissions.canEdit}
+          userCanEdit={canEditBlock}
           isConnectionsAtMinHeight={isConnectionsAtMinHeight}
         />
       ) : (
@@ -542,14 +563,14 @@ export function Editor() {
                           config={subBlock}
                           isPreview={false}
                           subBlockValues={subBlockState}
-                          disabled={!userPermissions.canEdit}
+                          disabled={!canEditBlock}
                           fieldDiffStatus={undefined}
                           allowExpandInPreview={false}
                           canonicalToggle={
                             isCanonicalSwap && canonicalMode && canonicalId
                               ? {
                                   mode: canonicalMode,
-                                  disabled: !userPermissions.canEdit,
+                                  disabled: !canEditBlock,
                                   onToggle: () => {
                                     if (!currentBlockId) return
                                     const nextMode =
@@ -579,7 +600,7 @@ export function Editor() {
                     )
                   })}
 
-                  {hasAdvancedOnlyFields && userPermissions.canEdit && (
+                  {hasAdvancedOnlyFields && canEditBlock && (
                     <div className='flex items-center gap-[10px] px-[2px] pt-[14px] pb-[12px]'>
                       <div
                         className='h-[1.25px] flex-1'
@@ -624,7 +645,7 @@ export function Editor() {
                           config={subBlock}
                           isPreview={false}
                           subBlockValues={subBlockState}
-                          disabled={!userPermissions.canEdit}
+                          disabled={!canEditBlock}
                           fieldDiffStatus={undefined}
                           allowExpandInPreview={false}
                         />

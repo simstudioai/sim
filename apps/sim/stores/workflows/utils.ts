@@ -203,6 +203,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
     advancedMode: false,
     triggerMode,
     height: 0,
+    locked: false,
   }
 }
 
@@ -481,6 +482,7 @@ export function regenerateBlockIds(
       position: newPosition,
       // Temporarily keep data as-is, we'll fix parentId in second pass
       data: block.data ? { ...block.data } : block.data,
+      // locked state is preserved via spread (same as Figma)
     }
 
     newBlocks[newId] = newBlock

@@ -39,6 +39,7 @@ export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasCo
           horizontalHandles: block?.horizontalHandles ?? false,
           parentId,
           parentType,
+          locked: block?.locked ?? false,
         }
       }),
     [blocks]

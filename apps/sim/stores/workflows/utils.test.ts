@@ -432,4 +432,104 @@ describe('regenerateBlockIds', () => {
     expect(duplicatedBlock.position).toEqual({ x: 280, y: 70 })
     expect(duplicatedBlock.data?.parentId).toBe(loopId)
   })
+
+  it('should preserve locked state when pasting a locked block', () => {
+    const blockId = 'block-1'
+
+    const blocksToCopy = {
+      [blockId]: createAgentBlock({
+        id: blockId,
+        name: 'Locked Agent',
+        position: { x: 100, y: 50 },
+        locked: true,
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+
+    const pastedBlock = newBlocks[0]
+    expect(pastedBlock.locked).toBe(true)
+  })
+
+  it('should preserve unlocked state when pasting an unlocked block', () => {
+    const blockId = 'block-1'
+
+    const blocksToCopy = {
+      [blockId]: createAgentBlock({
+        id: blockId,
+        name: 'Unlocked Agent',
+        position: { x: 100, y: 50 },
+        locked: false,
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+
+    const pastedBlock = newBlocks[0]
+    expect(pastedBlock.locked).toBe(false)
+  })
+
+  it('should preserve mixed locked states when pasting multiple blocks', () => {
+    const lockedId = 'locked-1'
+    const unlockedId = 'unlocked-1'
+
+    const blocksToCopy = {
+      [lockedId]: createAgentBlock({
+        id: lockedId,
+        name: 'Locked Agent',
+        position: { x: 100, y: 50 },
+        locked: true,
+      }),
+      [unlockedId]: createFunctionBlock({
+        id: unlockedId,
+        name: 'Unlocked Function',
+        position: { x: 200, y: 50 },
+        locked: false,
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(2)
+
+    const lockedBlock = newBlocks.find((b) => b.name.includes('Locked'))
+    const unlockedBlock = newBlocks.find((b) => b.name.includes('Unlocked'))
+
+    expect(lockedBlock?.locked).toBe(true)
+    expect(unlockedBlock?.locked).toBe(false)
+  })
 })

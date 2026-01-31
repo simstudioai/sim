@@ -128,6 +128,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           advancedMode?: boolean
           triggerMode?: boolean
           height?: number
+          locked?: boolean
         }
       ) => {
         const blockConfig = getBlock(type)
@@ -155,6 +156,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 triggerMode: blockProperties?.triggerMode ?? false,
                 height: blockProperties?.height ?? 0,
                 data: nodeData,
+                locked: blockProperties?.locked ?? false,
               },
             },
             edges: [...get().edges],
@@ -232,6 +234,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               height: blockProperties?.height ?? 0,
               layout: {},
               data: nodeData,
+              locked: blockProperties?.locked ?? false,
             },
           },
           edges: [...get().edges],
@@ -338,6 +341,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           triggerMode?: boolean
           height?: number
           data?: Record<string, any>
+          locked?: boolean
         }>,
         edges?: Edge[],
         subBlockValues?: Record<string, Record<string, unknown>>,
@@ -362,6 +366,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             triggerMode: block.triggerMode ?? false,
             height: block.height ?? 0,
             data: block.data,
+            locked: block.locked ?? false,
           }
         }
 
@@ -480,12 +485,46 @@ export const useWorkflowStore = create<WorkflowStore>()(
       },
 
       batchToggleEnabled: (ids: string[]) => {
-        const newBlocks = { ...get().blocks }
+        if (ids.length === 0) return
+
+        const currentBlocks = get().blocks
+        const newBlocks = { ...currentBlocks }
+        const blocksToToggle = new Set<string>()
+
+        // For each ID, collect blocks to toggle (skip locked blocks)
+        // If it's a container, also include non-locked children
         for (const id of ids) {
-          if (newBlocks[id]) {
-            newBlocks[id] = { ...newBlocks[id], enabled: !newBlocks[id].enabled }
+          const block = currentBlocks[id]
+          if (!block) continue
+
+          // Skip locked blocks
+          if (!block.locked) {
+            blocksToToggle.add(id)
+          }
+
+          // If it's a loop or parallel, also include non-locked children
+          if (block.type === 'loop' || block.type === 'parallel') {
+            Object.entries(currentBlocks).forEach(([blockId, b]) => {
+              if (b.data?.parentId === id && !b.locked) {
+                blocksToToggle.add(blockId)
+              }
+            })
           }
         }
+
+        // If no blocks can be toggled, exit early
+        if (blocksToToggle.size === 0) return
+
+        // Determine target enabled state based on first toggleable block
+        const firstToggleableId = Array.from(blocksToToggle)[0]
+        const firstBlock = currentBlocks[firstToggleableId]
+        const targetEnabled = !firstBlock.enabled
+
+        // Apply the enabled state to all toggleable blocks
+        for (const blockId of blocksToToggle) {
+          newBlocks[blockId] = { ...newBlocks[blockId], enabled: targetEnabled }
+        }
+
         set({ blocks: newBlocks, edges: [...get().edges] })
         get().updateLastSaved()
       },
@@ -670,6 +709,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               name: newName,
               position: offsetPosition,
               subBlocks: newSubBlocks,
+              // locked state is preserved via spread (same as Figma)
             },
           },
           edges: [...get().edges],
@@ -1276,6 +1316,70 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       getDragStartPosition: () => {
         return get().dragStartPosition || null
+      },
+
+      setBlockLocked: (id: string, locked: boolean) => {
+        const block = get().blocks[id]
+        if (!block || block.locked === locked) return
+
+        const newState = {
+          blocks: {
+            ...get().blocks,
+            [id]: {
+              ...block,
+              locked,
+            },
+          },
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
+        }
+
+        set(newState)
+        get().updateLastSaved()
+      },
+
+      batchToggleLocked: (ids: string[]) => {
+        if (ids.length === 0) return
+
+        const currentBlocks = get().blocks
+        const newBlocks = { ...currentBlocks }
+        const blocksToToggle = new Set<string>()
+
+        // For each ID, collect blocks to toggle
+        // If it's a container, also include all children
+        for (const id of ids) {
+          const block = currentBlocks[id]
+          if (!block) continue
+
+          blocksToToggle.add(id)
+
+          // If it's a loop or parallel, also include all children
+          if (block.type === 'loop' || block.type === 'parallel') {
+            Object.entries(currentBlocks).forEach(([blockId, b]) => {
+              if (b.data?.parentId === id) {
+                blocksToToggle.add(blockId)
+              }
+            })
+          }
+        }
+
+        // If no blocks found, exit early
+        if (blocksToToggle.size === 0) return
+
+        // Determine target locked state based on first block in original ids
+        const firstBlock = currentBlocks[ids[0]]
+        if (!firstBlock) return
+
+        const targetLocked = !firstBlock.locked
+
+        // Apply the locked state to all blocks
+        for (const blockId of blocksToToggle) {
+          newBlocks[blockId] = { ...newBlocks[blockId], locked: targetLocked }
+        }
+
+        set({ blocks: newBlocks, edges: [...get().edges] })
+        get().updateLastSaved()
       },
     }),
     { name: 'workflow-store' }

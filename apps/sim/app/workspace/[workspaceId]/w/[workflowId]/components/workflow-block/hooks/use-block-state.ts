@@ -18,6 +18,8 @@ export interface UseBlockStateReturn {
   diffStatus: DiffStatus
   /** Whether this is a deleted block in diff mode */
   isDeletedBlock: boolean
+  /** Whether the block is locked */
+  isLocked: boolean
 }
 
 /**
@@ -39,6 +41,11 @@ export function useBlockState(
   const isEnabled = data.isPreview
     ? (data.blockState?.enabled ?? true)
     : (currentBlock?.enabled ?? true)
+
+  // Determine if block is locked
+  const isLocked = data.isPreview
+    ? (data.blockState?.locked ?? false)
+    : (currentBlock?.locked ?? false)
 
   // Get diff status
   const diffStatus: DiffStatus =
@@ -68,5 +75,6 @@ export function useBlockState(
     isActive,
     diffStatus,
     isDeletedBlock: isDeletedBlock ?? false,
+    isLocked,
   }
 }

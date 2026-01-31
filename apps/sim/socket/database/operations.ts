@@ -529,6 +529,7 @@ async function handleBlocksOperationTx(
             advancedMode: (block.advancedMode as boolean) ?? false,
             triggerMode: (block.triggerMode as boolean) ?? false,
             height: (block.height as number) || 0,
+            locked: (block.locked as boolean) ?? false,
           }
         })
 
@@ -741,22 +742,59 @@ async function handleBlocksOperationTx(
         `Batch toggling enabled state for ${blockIds.length} blocks in workflow ${workflowId}`
       )
 
-      const blocks = await tx
-        .select({ id: workflowBlocks.id, enabled: workflowBlocks.enabled })
+      // Get all blocks in workflow to find children and check locked state
+      const allBlocks = await tx
+        .select({
+          id: workflowBlocks.id,
+          enabled: workflowBlocks.enabled,
+          locked: workflowBlocks.locked,
+          type: workflowBlocks.type,
+          data: workflowBlocks.data,
+        })
         .from(workflowBlocks)
-        .where(and(eq(workflowBlocks.workflowId, workflowId), inArray(workflowBlocks.id, blockIds)))
+        .where(eq(workflowBlocks.workflowId, workflowId))
 
-      for (const block of blocks) {
+      type BlockRecord = (typeof allBlocks)[number]
+      const blocksById: Record<string, BlockRecord> = Object.fromEntries(
+        allBlocks.map((b: BlockRecord) => [b.id, b])
+      )
+      const blocksToToggle = new Set<string>()
+
+      // Collect all blocks to toggle including children of containers
+      for (const id of blockIds) {
+        const block = blocksById[id]
+        if (!block || block.locked) continue
+
+        blocksToToggle.add(id)
+
+        // If it's a loop or parallel, also include all children
+        if (block.type === 'loop' || block.type === 'parallel') {
+          for (const b of allBlocks) {
+            const parentId = (b.data as Record<string, unknown> | null)?.parentId
+            if (parentId === id && !b.locked) {
+              blocksToToggle.add(b.id)
+            }
+          }
+        }
+      }
+
+      // Determine target enabled state based on first block
+      const firstBlock = blocksById[blockIds[0]]
+      if (!firstBlock) break
+      const targetEnabled = !firstBlock.enabled
+
+      // Update all affected blocks
+      for (const blockId of blocksToToggle) {
         await tx
           .update(workflowBlocks)
           .set({
-            enabled: !block.enabled,
+            enabled: targetEnabled,
             updatedAt: new Date(),
           })
-          .where(and(eq(workflowBlocks.id, block.id), eq(workflowBlocks.workflowId, workflowId)))
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
       }
 
-      logger.debug(`Batch toggled enabled state for ${blocks.length} blocks`)
+      logger.debug(`Batch toggled enabled state for ${blocksToToggle.size} blocks`)
       break
     }
 
@@ -784,6 +822,69 @@ async function handleBlocksOperationTx(
       }
 
       logger.debug(`Batch toggled handles for ${blocks.length} blocks`)
+      break
+    }
+
+    case BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED: {
+      const { blockIds } = payload
+      if (!Array.isArray(blockIds) || blockIds.length === 0) {
+        return
+      }
+
+      logger.info(`Batch toggling locked for ${blockIds.length} blocks in workflow ${workflowId}`)
+
+      // Get all blocks in workflow to find children
+      const allBlocks = await tx
+        .select({
+          id: workflowBlocks.id,
+          locked: workflowBlocks.locked,
+          type: workflowBlocks.type,
+          data: workflowBlocks.data,
+        })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, workflowId))
+
+      type LockedBlockRecord = (typeof allBlocks)[number]
+      const blocksById: Record<string, LockedBlockRecord> = Object.fromEntries(
+        allBlocks.map((b: LockedBlockRecord) => [b.id, b])
+      )
+      const blocksToToggle = new Set<string>()
+
+      // Collect all blocks to toggle including children of containers
+      for (const id of blockIds) {
+        const block = blocksById[id]
+        if (!block) continue
+
+        blocksToToggle.add(id)
+
+        // If it's a loop or parallel, also include all children
+        if (block.type === 'loop' || block.type === 'parallel') {
+          for (const b of allBlocks) {
+            const parentId = (b.data as Record<string, unknown> | null)?.parentId
+            if (parentId === id) {
+              blocksToToggle.add(b.id)
+            }
+          }
+        }
+      }
+
+      // Determine target locked state based on first block
+      const firstBlock = blocksById[blockIds[0]]
+      if (!firstBlock) break
+      const targetLocked = !firstBlock.locked
+
+      // Update all affected blocks
+      for (const blockId of blocksToToggle) {
+        await tx
+          .update(workflowBlocks)
+          .set({
+            locked: targetLocked,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+      }
+
+      logger.debug(`Batch toggled locked for ${blocksToToggle.size} blocks`)
       break
     }
 
@@ -1198,6 +1299,7 @@ async function handleWorkflowOperationTx(
           advancedMode: block.advancedMode ?? false,
           triggerMode: block.triggerMode ?? false,
           height: block.height || 0,
+          locked: block.locked ?? false,
         }))
 
         await tx.insert(workflowBlocks).values(blockValues)

@@ -404,6 +404,20 @@ export function useCollaborativeWorkflow() {
               logger.info('Successfully applied batch-toggle-handles from remote user')
               break
             }
+            case BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED: {
+              const { blockIds } = payload
+              logger.info('Received batch-toggle-locked from remote user', {
+                userId,
+                count: (blockIds || []).length,
+              })
+
+              if (blockIds && blockIds.length > 0) {
+                useWorkflowStore.getState().batchToggleLocked(blockIds)
+              }
+
+              logger.info('Successfully applied batch-toggle-locked from remote user')
+              break
+            }
             case BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT: {
               const { updates } = payload
               logger.info('Received batch-update-parent from remote user', {
@@ -812,14 +826,27 @@ export function useCollaborativeWorkflow() {
 
       if (ids.length === 0) return
 
+      const currentBlocks = useWorkflowStore.getState().blocks
       const previousStates: Record<string, boolean> = {}
       const validIds: string[] = []
 
+      // For each ID, collect non-locked blocks and their children for undo/redo
       for (const id of ids) {
-        const block = useWorkflowStore.getState().blocks[id]
-        if (block) {
-          previousStates[id] = block.enabled
-          validIds.push(id)
+        const block = currentBlocks[id]
+        if (!block) continue
+
+        // Skip locked blocks
+        if (block.locked) continue
+        validIds.push(id)
+        previousStates[id] = block.enabled
+
+        // If it's a loop or parallel, also capture children's previous states for undo/redo
+        if (block.type === 'loop' || block.type === 'parallel') {
+          Object.entries(currentBlocks).forEach(([blockId, b]) => {
+            if (b.data?.parentId === id && !b.locked) {
+              previousStates[blockId] = b.enabled
+            }
+          })
         }
       }
 
@@ -1010,6 +1037,58 @@ export function useCollaborativeWorkflow() {
       useWorkflowStore.getState().batchToggleHandles(validIds)
 
       undoRedo.recordBatchToggleHandles(validIds, previousStates)
+    },
+    [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
+  )
+
+  const collaborativeBatchToggleLocked = useCallback(
+    (ids: string[]) => {
+      if (isBaselineDiffView) {
+        return
+      }
+
+      if (ids.length === 0) return
+
+      const currentBlocks = useWorkflowStore.getState().blocks
+      const previousStates: Record<string, boolean> = {}
+      const validIds: string[] = []
+
+      // For each ID, collect blocks and their children for undo/redo
+      for (const id of ids) {
+        const block = currentBlocks[id]
+        if (!block) continue
+
+        validIds.push(id)
+        previousStates[id] = block.locked ?? false
+
+        // If it's a loop or parallel, also capture children's previous states for undo/redo
+        if (block.type === 'loop' || block.type === 'parallel') {
+          Object.entries(currentBlocks).forEach(([blockId, b]) => {
+            if (b.data?.parentId === id) {
+              previousStates[blockId] = b.locked ?? false
+            }
+          })
+        }
+      }
+
+      if (validIds.length === 0) return
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED,
+          target: OPERATION_TARGETS.BLOCKS,
+          payload: { blockIds: validIds, previousStates },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      useWorkflowStore.getState().batchToggleLocked(validIds)
+
+      undoRedo.recordBatchToggleLocked(validIds, previousStates)
     },
     [isBaselineDiffView, addToQueue, activeWorkflowId, session?.user?.id, undoRedo]
   )
@@ -1680,6 +1759,7 @@ export function useCollaborativeWorkflow() {
     collaborativeToggleBlockAdvancedMode,
     collaborativeSetBlockCanonicalMode,
     collaborativeBatchToggleBlockHandles,
+    collaborativeBatchToggleLocked,
     collaborativeBatchAddBlocks,
     collaborativeBatchRemoveBlocks,
     collaborativeBatchAddEdges,
