@@ -1,3 +1,4 @@
+import type Stripe from 'stripe'
 import {
   getFreeTierLimit,
   getProTierLimit,
@@ -82,7 +83,7 @@ export interface StripePlanResolution {
  * Used to get the authoritative plan from Stripe rather than relying on DB state.
  */
 export function resolvePlanFromStripeSubscription(
-  stripeSubscription: { items?: { data?: Array<{ price?: { id?: string } }> } } | null | undefined
+  stripeSubscription: Stripe.Subscription
 ): StripePlanResolution {
   const priceId = stripeSubscription?.items?.data?.[0]?.price?.id
   const plan = priceId ? getPlanByPriceId(priceId) : undefined
