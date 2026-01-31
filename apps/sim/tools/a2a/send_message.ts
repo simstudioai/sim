@@ -1,6 +1,6 @@
+import type { A2ASendMessageParams, A2ASendMessageResponse } from '@/tools/a2a/types'
+import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
-import type { A2ASendMessageParams, A2ASendMessageResponse } from './types'
-import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ASendMessageResponse> = {
   id: 'a2a_send_message',

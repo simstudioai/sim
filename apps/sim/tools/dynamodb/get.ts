@@ -30,13 +30,14 @@ export const getTool: ToolConfig<DynamoDBGetParams, DynamoDBGetResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'DynamoDB table name',
+      description: 'DynamoDB table name (e.g., "Users", "Orders")',
     },
     key: {
       type: 'object',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Primary key of the item to retrieve',
+      description:
+        'Primary key of the item to retrieve (e.g., {"pk": "USER#123"} or {"pk": "ORDER#456", "sk": "ITEM#789"})',
     },
     consistentRead: {
       type: 'boolean',

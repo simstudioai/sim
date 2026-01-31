@@ -42,8 +42,8 @@ Retrieve a single task by GID or get multiple tasks with filters
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `taskGid` | string | No | The globally unique identifier \(GID\) of the task. If not provided, will get multiple tasks. |
-| `workspace` | string | No | Workspace GID to filter tasks \(required when not using taskGid\) |
-| `project` | string | No | Project GID to filter tasks |
+| `workspace` | string | No | Asana workspace GID \(numeric string\) to filter tasks \(required when not using taskGid\) |
+| `project` | string | No | Asana project GID \(numeric string\) to filter tasks |
 | `limit` | number | No | Maximum number of tasks to return \(default: 50\) |
 
 #### Output
@@ -80,7 +80,7 @@ Create a new task in Asana
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `workspace` | string | Yes | Workspace GID where the task will be created |
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) where the task will be created |
 | `name` | string | Yes | Name of the task |
 | `notes` | string | No | Notes or description for the task |
 | `assignee` | string | No | User GID to assign the task to |
@@ -107,7 +107,7 @@ Update an existing task in Asana
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `taskGid` | string | Yes | The globally unique identifier \(GID\) of the task to update |
+| `taskGid` | string | Yes | Asana task GID \(numeric string\) of the task to update |
 | `name` | string | No | Updated name for the task |
 | `notes` | string | No | Updated notes or description for the task |
 | `assignee` | string | No | Updated assignee user GID |
@@ -134,7 +134,7 @@ Retrieve all projects from an Asana workspace
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `workspace` | string | Yes | Workspace GID to retrieve projects from |
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) to retrieve projects from |
 
 #### Output
 
@@ -155,10 +155,10 @@ Search for tasks in an Asana workspace
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `workspace` | string | Yes | Workspace GID to search tasks in |
+| `workspace` | string | Yes | Asana workspace GID \(numeric string\) to search tasks in |
 | `text` | string | No | Text to search for in task names |
 | `assignee` | string | No | Filter tasks by assignee user GID |
-| `projects` | array | No | Array of project GIDs to filter tasks by |
+| `projects` | array | No | Array of Asana project GIDs \(numeric strings\) to filter tasks by |
 | `completed` | boolean | No | Filter by completion status |
 
 #### Output
@@ -193,7 +193,7 @@ Add a comment (story) to an Asana task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `taskGid` | string | Yes | The globally unique identifier \(GID\) of the task |
+| `taskGid` | string | Yes | Asana task GID \(numeric string\) |
 | `text` | string | Yes | The text content of the comment |
 
 #### Output

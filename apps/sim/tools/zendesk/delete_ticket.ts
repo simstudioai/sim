@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
-
-const logger = createLogger('ZendeskDeleteTicket')
+import { buildZendeskUrl, handleZendeskError } from '@/tools/zendesk/types'
 
 export interface ZendeskDeleteTicketParams {
   email: string
@@ -51,8 +48,8 @@ export const zendeskDeleteTicketTool: ToolConfig<
     ticketId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Ticket ID to delete',
+      visibility: 'user-or-llm',
+      description: 'Ticket ID to delete as a numeric string (e.g., "12345")',
     },
   },
 

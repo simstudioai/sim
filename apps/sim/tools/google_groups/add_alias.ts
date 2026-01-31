@@ -1,5 +1,8 @@
+import type {
+  GoogleGroupsAddAliasParams,
+  GoogleGroupsAddAliasResponse,
+} from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsAddAliasParams, GoogleGroupsAddAliasResponse } from './types'
 
 export const addAliasTool: ToolConfig<GoogleGroupsAddAliasParams, GoogleGroupsAddAliasResponse> = {
   id: 'google_groups_add_alias',
@@ -23,7 +26,8 @@ export const addAliasTool: ToolConfig<GoogleGroupsAddAliasParams, GoogleGroupsAd
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
     alias: {
       type: 'string',

@@ -1,5 +1,5 @@
+import { PLAYBACK_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import { PLAYBACK_TRACK_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetQueueParams {
   accessToken: string

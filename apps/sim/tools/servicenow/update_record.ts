@@ -34,19 +34,19 @@ export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpda
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Table name',
+      description: 'Table name (e.g., incident, task, sys_user, change_request)',
     },
     sysId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Record sys_id to update',
+      description: 'Record sys_id to update (e.g., 6816f79cc0a8016401c5a33be04be441)',
     },
     fields: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Fields to update (JSON object)',
+      description: 'Fields to update as JSON object (e.g., {"state": "2", "priority": "1"})',
     },
   },
 

@@ -48,13 +48,13 @@ List recordings from Grain with optional filters and pagination
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
-| `cursor` | string | No | Pagination cursor for next page |
-| `beforeDatetime` | string | No | Only recordings before this ISO8601 timestamp |
-| `afterDatetime` | string | No | Only recordings after this ISO8601 timestamp |
+| `cursor` | string | No | Pagination cursor for next page \(returned from previous response\) |
+| `beforeDatetime` | string | No | Only recordings before this ISO8601 timestamp \(e.g., "2024-01-15T00:00:00Z"\) |
+| `afterDatetime` | string | No | Only recordings after this ISO8601 timestamp \(e.g., "2024-01-01T00:00:00Z"\) |
 | `participantScope` | string | No | Filter: "internal" or "external" |
-| `titleSearch` | string | No | Search term to filter by recording title |
-| `teamId` | string | No | Filter by team UUID |
-| `meetingTypeId` | string | No | Filter by meeting type UUID |
+| `titleSearch` | string | No | Search term to filter by recording title \(e.g., "weekly standup"\) |
+| `teamId` | string | No | Filter by team UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
+| `meetingTypeId` | string | No | Filter by meeting type UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 | `includeHighlights` | boolean | No | Include highlights/clips in response |
 | `includeParticipants` | boolean | No | Include participant list in response |
 | `includeAiSummary` | boolean | No | Include AI-generated summary |
@@ -87,7 +87,7 @@ Get details of a single recording by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
-| `recordingId` | string | Yes | The recording UUID |
+| `recordingId` | string | Yes | The recording UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 | `includeHighlights` | boolean | No | Include highlights/clips |
 | `includeParticipants` | boolean | No | Include participant list |
 | `includeAiSummary` | boolean | No | Include AI summary |
@@ -125,7 +125,7 @@ Get the full transcript of a recording
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
-| `recordingId` | string | Yes | The recording UUID |
+| `recordingId` | string | Yes | The recording UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 
 #### Output
 
@@ -184,13 +184,13 @@ Create a webhook to receive recording events
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
-| `hookUrl` | string | Yes | Webhook endpoint URL \(must respond 2xx\) |
+| `hookUrl` | string | Yes | Webhook endpoint URL \(e.g., "https://example.com/webhooks/grain"\) |
 | `hookType` | string | Yes | Type of webhook: "recording_added" or "upload_status" |
-| `filterBeforeDatetime` | string | No | Filter: recordings before this date |
-| `filterAfterDatetime` | string | No | Filter: recordings after this date |
+| `filterBeforeDatetime` | string | No | Filter: recordings before this ISO8601 date \(e.g., "2024-01-15T00:00:00Z"\) |
+| `filterAfterDatetime` | string | No | Filter: recordings after this ISO8601 date \(e.g., "2024-01-01T00:00:00Z"\) |
 | `filterParticipantScope` | string | No | Filter: "internal" or "external" |
-| `filterTeamId` | string | No | Filter: specific team UUID |
-| `filterMeetingTypeId` | string | No | Filter: specific meeting type |
+| `filterTeamId` | string | No | Filter: specific team UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
+| `filterMeetingTypeId` | string | No | Filter: specific meeting type UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 | `includeHighlights` | boolean | No | Include highlights in webhook payload |
 | `includeParticipants` | boolean | No | Include participants in webhook payload |
 | `includeAiSummary` | boolean | No | Include AI summary in webhook payload |
@@ -239,7 +239,7 @@ Delete a webhook by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
-| `hookId` | string | Yes | The hook UUID to delete |
+| `hookId` | string | Yes | The hook UUID to delete \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 
 #### Output
 

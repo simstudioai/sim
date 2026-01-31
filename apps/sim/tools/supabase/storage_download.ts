@@ -39,7 +39,7 @@ export const storageDownloadTool: ToolConfig<
     fileName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Optional filename override',
     },
     apiKey: {

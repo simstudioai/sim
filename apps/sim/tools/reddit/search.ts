@@ -24,20 +24,21 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the subreddit to search in (without the r/ prefix)',
+      description: 'The subreddit to search in (e.g., "technology", "programming")',
     },
     query: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Search query text',
+      description:
+        'Search query text (e.g., "artificial intelligence", "machine learning tutorial")',
     },
     sort: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Sort method for search results: "relevance", "hot", "top", "new", or "comments" (default: "relevance")',
+        'Sort method for search results (e.g., "relevance", "hot", "top", "new", "comments"). Default: "relevance"',
     },
     time: {
       type: 'string',
@@ -49,8 +50,8 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of posts to return (default: 10, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of posts to return (e.g., 25). Default: 10, max: 100',
     },
     restrict_sr: {
       type: 'boolean',

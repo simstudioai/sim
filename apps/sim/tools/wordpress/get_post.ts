@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetPostParams,
   type WordPressGetPostResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const getPostTool: ToolConfig<WordPressGetPostParams, WordPressGetPostResponse> = {
   id: 'wordpress_get_post',
@@ -21,7 +21,7 @@ export const getPostTool: ToolConfig<WordPressGetPostParams, WordPressGetPostRes
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     postId: {

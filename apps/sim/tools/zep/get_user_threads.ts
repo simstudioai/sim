@@ -12,15 +12,15 @@ export const zepGetUserThreadsTool: ToolConfig<any, ZepResponse> = {
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID to get threads for',
+      visibility: 'user-or-llm',
+      description: 'User ID to get threads for (e.g., "user_123")',
     },
     limit: {
       type: 'number',
       required: false,
       default: 10,
-      visibility: 'user-only',
-      description: 'Maximum number of threads to return',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of threads to return (e.g., 10, 25, 50)',
     },
     apiKey: {
       type: 'string',

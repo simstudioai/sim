@@ -29,26 +29,28 @@ export const sendTool: ToolConfig<SqsSendMessageParams, SqsSendMessageResponse> 
     queueUrl: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Queue URL',
+      visibility: 'user-or-llm',
+      description:
+        'SQS queue URL (e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue)',
     },
     data: {
       type: 'object',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Message body to send',
+      description:
+        'Message body to send as JSON object (e.g., { "action": "process", "payload": {...} })',
     },
     messageGroupId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Message group ID (optional)',
+      description: 'Message group ID for FIFO queues (e.g., "order-processing-group")',
     },
     messageDeduplicationId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Message deduplication ID (optional)',
+      description: 'Message deduplication ID for FIFO queues (e.g., "order-12345-v1")',
     },
   },
 

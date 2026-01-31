@@ -25,7 +25,7 @@ export const firefliesGetTranscriptTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The transcript ID to retrieve',
+      description: 'The transcript ID to retrieve (e.g., "abc123def456")',
     },
   },
 

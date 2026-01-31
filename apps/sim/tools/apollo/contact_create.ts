@@ -39,13 +39,13 @@ export const apolloContactCreateTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Job title',
+      description: 'Job title (e.g., "VP of Sales", "Software Engineer")',
     },
     account_id: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Apollo account ID to associate with',
+      description: 'Apollo account ID to associate with (e.g., "acc_abc123")',
     },
     owner_id: {
       type: 'string',

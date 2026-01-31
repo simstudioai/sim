@@ -1,5 +1,5 @@
+import type { WorkflowsDeleteParams, WorkflowsDeleteResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { WorkflowsDeleteParams, WorkflowsDeleteResponse } from './types'
 
 export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDeleteResponse> = {
   id: 'incidentio_workflows_delete',
@@ -18,7 +18,7 @@ export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDel
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the workflow to delete',
+      description: 'The ID of the workflow to delete (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

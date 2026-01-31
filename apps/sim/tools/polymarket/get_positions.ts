@@ -43,13 +43,13 @@ export const polymarketGetPositionsTool: ToolConfig<
       type: 'string',
       required: false,
       description:
-        'Condition IDs to filter positions (comma-separated, mutually exclusive with eventId)',
+        'Condition IDs to filter positions (e.g., "0x1234...abcd,0x5678...efgh"). Mutually exclusive with eventId.',
       visibility: 'user-or-llm',
     },
     eventId: {
       type: 'string',
       required: false,
-      description: 'Event ID to filter positions (mutually exclusive with market)',
+      description: 'Event ID to filter positions (e.g., "12345"). Mutually exclusive with market.',
       visibility: 'user-or-llm',
     },
     sizeThreshold: {
@@ -92,13 +92,13 @@ export const polymarketGetPositionsTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page',
+      description: 'Number of results per page (e.g., "25").',
       visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
-      description: 'Pagination offset',
+      description: 'Number of results to skip for pagination (e.g., "50").',
       visibility: 'user-or-llm',
     },
   },

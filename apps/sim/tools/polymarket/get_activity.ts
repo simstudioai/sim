@@ -43,25 +43,28 @@ export const polymarketGetActivityTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Maximum results (default: 100, max: 500)',
+      description: 'Maximum results to return (e.g., "50"). Default: 100, max: 500.',
       visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
-      description: 'Pagination offset (default: 0, max: 10000)',
+      description:
+        'Number of results to skip for pagination (e.g., "100"). Default: 0, max: 10000.',
       visibility: 'user-or-llm',
     },
     market: {
       type: 'string',
       required: false,
-      description: 'Comma-separated condition IDs (mutually exclusive with eventId)',
+      description:
+        'Comma-separated condition IDs (e.g., "0x1234...abcd,0x5678...efgh"). Mutually exclusive with eventId.',
       visibility: 'user-or-llm',
     },
     eventId: {
       type: 'string',
       required: false,
-      description: 'Comma-separated event IDs (mutually exclusive with market)',
+      description:
+        'Comma-separated event IDs (e.g., "12345,67890"). Mutually exclusive with market.',
       visibility: 'user-or-llm',
     },
     type: {

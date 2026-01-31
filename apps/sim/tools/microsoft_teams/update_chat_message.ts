@@ -27,20 +27,22 @@ export const updateChatMessageTool: ToolConfig<
     chatId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the chat containing the message',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the chat containing the message (e.g., "19:abc123def456@thread.v2" - from chat listings)',
     },
     messageId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the message to update',
+      description:
+        'The ID of the message to update (e.g., "1234567890123" - a numeric string from message responses)',
     },
     content: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The new content for the message',
+      description: 'The new content for the message (plain text or HTML formatted)',
     },
   },
 

@@ -21,7 +21,7 @@ export const apolloOpportunityGetTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the opportunity to retrieve',
+      description: 'ID of the opportunity to retrieve (e.g., "opp_abc123")',
     },
   },
 

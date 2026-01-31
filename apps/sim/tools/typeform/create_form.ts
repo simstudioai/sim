@@ -29,8 +29,8 @@ export const createFormTool: ToolConfig<TypeformCreateFormParams, TypeformCreate
     workspaceId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Workspace ID to create the form in',
+      visibility: 'user-or-llm',
+      description: 'Workspace ID to create the form in (e.g., "ws_abc123")',
     },
     fields: {
       type: 'json',

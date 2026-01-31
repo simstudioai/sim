@@ -23,8 +23,8 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
     folderSelector: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Select the folder to list files from',
+      visibility: 'user-or-llm',
+      description: 'Google Drive folder ID to list files from (e.g., 1ABCxyz...)',
     },
     folderId: {
       type: 'string',

@@ -23,13 +23,14 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the folder to create',
+      description: 'Name of the folder to create (e.g., "My Documents", "Project Files")',
     },
     folderSelector: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Select the parent folder to create the folder in',
+      visibility: 'user-or-llm',
+      description:
+        'Parent folder ID to create the folder in (e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M")',
     },
     manualFolderId: {
       type: 'string',

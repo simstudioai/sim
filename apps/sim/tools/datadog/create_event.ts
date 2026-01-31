@@ -38,13 +38,14 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Host name to associate with this event',
+      description: 'Host name to associate with this event (e.g., "web-server-01", "prod-api-1")',
     },
     tags: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of tags (e.g., "env:production,service:api")',
+      description:
+        'Comma-separated list of tags (e.g., "env:production,service:api", "team:backend,priority:high")',
     },
     aggregationKey: {
       type: 'string',
@@ -62,7 +63,8 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Unix timestamp when the event occurred (defaults to now)',
+      description:
+        'Unix timestamp in seconds when the event occurred (e.g., 1705320000, defaults to now)',
     },
     apiKey: {
       type: 'string',

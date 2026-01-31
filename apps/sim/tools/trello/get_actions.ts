@@ -24,13 +24,13 @@ export const trelloGetActionsTool: ToolConfig<TrelloGetActionsParams, TrelloGetA
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ID of the board to get actions from (either boardId or cardId required)',
+      description: 'Trello board ID (24-character hex string). Either boardId or cardId required',
     },
     cardId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ID of the card to get actions from (either boardId or cardId required)',
+      description: 'Trello card ID (24-character hex string). Either boardId or cardId required',
     },
     filter: {
       type: 'string',

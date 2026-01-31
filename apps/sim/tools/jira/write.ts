@@ -28,8 +28,8 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     projectId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Project ID for the issue',
+      visibility: 'user-or-llm',
+      description: 'Jira project key (e.g., PROJ)',
     },
     summary: {
       type: 'string',

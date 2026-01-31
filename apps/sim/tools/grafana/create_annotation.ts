@@ -29,8 +29,8 @@ export const createAnnotationTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization ID for multi-org Grafana instances',
+      visibility: 'user-or-llm',
+      description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
     },
     text: {
       type: 'string',
@@ -48,25 +48,25 @@ export const createAnnotationTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'UID of the dashboard to add the annotation to',
+      description: 'UID of the dashboard to add the annotation to (e.g., abc123def)',
     },
     panelId: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ID of the panel to add the annotation to',
+      description: 'ID of the panel to add the annotation to (e.g., 1, 2)',
     },
     time: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Start time in epoch milliseconds (defaults to now)',
+      description: 'Start time in epoch milliseconds (e.g., 1704067200000, defaults to now)',
     },
     timeEnd: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'End time in epoch milliseconds (for range annotations)',
+      description: 'End time in epoch milliseconds for range annotations (e.g., 1704153600000)',
     },
   },
 

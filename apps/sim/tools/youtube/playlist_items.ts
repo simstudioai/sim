@@ -19,20 +19,20 @@ export const youtubePlaylistItemsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'YouTube playlist ID. Use uploadsPlaylistId from channel_info to get all channel videos.',
+        'YouTube playlist ID starting with "PL" or "UU" (34-character string). Use uploadsPlaylistId from channel_info to get all channel videos.',
     },
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 10,
       description: 'Maximum number of videos to return (1-50)',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page token for pagination (from previous response nextPageToken)',
     },
     apiKey: {
       type: 'string',

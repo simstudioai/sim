@@ -32,8 +32,8 @@ export const confluenceRetrieveTool: ToolConfig<
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Confluence page ID to retrieve',
+      visibility: 'user-or-llm',
+      description: 'Confluence page ID to retrieve (numeric ID from page URL or API)',
     },
     cloudId: {
       type: 'string',

@@ -23,14 +23,14 @@ export const webflowCreateItemTool: ToolConfig<WebflowCreateItemParams, WebflowC
       siteId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'ID of the Webflow site',
+        visibility: 'user-or-llm',
+        description: 'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741")',
       },
       collectionId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'ID of the collection',
+        visibility: 'user-or-llm',
+        description: 'ID of the collection (e.g., "580e63fc8c9a982ac9b8b745")',
       },
       fieldData: {
         type: 'json',

@@ -205,6 +205,7 @@ import {
   dropboxSearchTool,
   dropboxUploadTool,
 } from '@/tools/dropbox'
+import { chainOfThoughtTool, predictTool, reactTool } from '@/tools/dspy'
 import { duckduckgoSearchTool } from '@/tools/duckduckgo'
 import {
   dynamodbDeleteTool,
@@ -545,6 +546,21 @@ import {
   googleGroupsUpdateMemberTool,
   googleGroupsUpdateSettingsTool,
 } from '@/tools/google_groups'
+import {
+  googleMapsAirQualityTool,
+  googleMapsDirectionsTool,
+  googleMapsDistanceMatrixTool,
+  googleMapsElevationTool,
+  googleMapsGeocodeTool,
+  googleMapsGeolocateTool,
+  googleMapsPlaceDetailsTool,
+  googleMapsPlacesSearchTool,
+  googleMapsReverseGeocodeTool,
+  googleMapsSnapToRoadsTool,
+  googleMapsSpeedLimitsTool,
+  googleMapsTimezoneTool,
+  googleMapsValidateAddressTool,
+} from '@/tools/google_maps'
 import {
   googleSheetsAppendTool,
   googleSheetsAppendV2Tool,
@@ -2144,6 +2160,9 @@ export const tools: Record<string, ToolConfig> = {
   dropbox_create_shared_link: dropboxCreateSharedLinkTool,
   dropbox_search: dropboxSearchTool,
   duckduckgo_search: duckduckgoSearchTool,
+  dspy_predict: predictTool,
+  dspy_chain_of_thought: chainOfThoughtTool,
+  dspy_react: reactTool,
   mongodb_query: mongodbQueryTool,
   mongodb_insert: mongodbInsertTool,
   mongodb_update: mongodbUpdateTool,
@@ -2427,6 +2446,19 @@ export const tools: Record<string, ToolConfig> = {
   google_docs_read: googleDocsReadTool,
   google_docs_write: googleDocsWriteTool,
   google_docs_create: googleDocsCreateTool,
+  google_maps_air_quality: googleMapsAirQualityTool,
+  google_maps_directions: googleMapsDirectionsTool,
+  google_maps_distance_matrix: googleMapsDistanceMatrixTool,
+  google_maps_elevation: googleMapsElevationTool,
+  google_maps_geocode: googleMapsGeocodeTool,
+  google_maps_geolocate: googleMapsGeolocateTool,
+  google_maps_place_details: googleMapsPlaceDetailsTool,
+  google_maps_places_search: googleMapsPlacesSearchTool,
+  google_maps_reverse_geocode: googleMapsReverseGeocodeTool,
+  google_maps_snap_to_roads: googleMapsSnapToRoadsTool,
+  google_maps_speed_limits: googleMapsSpeedLimitsTool,
+  google_maps_timezone: googleMapsTimezoneTool,
+  google_maps_validate_address: googleMapsValidateAddressTool,
   google_sheets_read: googleSheetsReadTool,
   google_sheets_write: googleSheetsWriteTool,
   google_sheets_update: googleSheetsUpdateTool,

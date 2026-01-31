@@ -38,13 +38,13 @@ export const slackDownloadTool: ToolConfig<SlackDownloadParams, SlackDownloadRes
     fileId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The ID of the file to download',
     },
     fileName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Optional filename override',
     },
   },

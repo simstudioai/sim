@@ -41,8 +41,9 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
     listDisplayName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Display name of the list to create',
+      visibility: 'user-or-llm',
+      description:
+        'Display name of the list to create. Example: Project Tasks or Customer Contacts',
     },
     listDescription: {
       type: 'string',

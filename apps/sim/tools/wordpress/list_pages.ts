@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressListPagesParams,
   type WordPressListPagesResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const listPagesTool: ToolConfig<WordPressListPagesParams, WordPressListPagesResponse> = {
   id: 'wordpress_list_pages',
@@ -21,49 +21,49 @@ export const listPagesTool: ToolConfig<WordPressListPagesParams, WordPressListPa
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     perPage: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of pages per request (default: 10, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of pages per request (e.g., 10, 25, 50). Default: 10, max: 100',
     },
     page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Page number for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page number for pagination (e.g., 1, 2, 3)',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Page status filter: publish, draft, pending, private',
     },
     parent: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by parent page ID',
+      visibility: 'user-or-llm',
+      description: 'Filter by parent page ID (e.g., 123)',
     },
     search: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search term to filter pages',
+      description: 'Search term to filter pages (e.g., "about", "contact")',
     },
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Order by field: date, id, title, slug, modified, menu_order',
     },
     order: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Order direction: asc or desc',
     },
   },

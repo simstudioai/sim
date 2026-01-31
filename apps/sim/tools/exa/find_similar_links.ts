@@ -21,8 +21,8 @@ export const findSimilarLinksTool: ToolConfig<
     numResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of similar links to return (default: 10, max: 25)',
+      visibility: 'user-or-llm',
+      description: 'Number of similar links to return (e.g., 5, 10, 25). Default: 10, max: 25',
     },
     text: {
       type: 'boolean',
@@ -33,14 +33,16 @@ export const findSimilarLinksTool: ToolConfig<
     includeDomains: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of domains to include in results',
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of domains to include in results (e.g., "github.com, stackoverflow.com")',
     },
     excludeDomains: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of domains to exclude from results',
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of domains to exclude from results (e.g., "reddit.com, pinterest.com")',
     },
     excludeSourceDomain: {
       type: 'boolean',

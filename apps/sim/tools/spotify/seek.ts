@@ -34,8 +34,8 @@ export const spotifySeekTool: ToolConfig<SpotifySeekParams, SpotifySeekResponse>
     device_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Device ID to target',
+      visibility: 'user-or-llm',
+      description: 'Spotify device ID to target for playback',
     },
   },
 

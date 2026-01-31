@@ -1,5 +1,5 @@
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 export interface MailchimpUnpublishLandingPageParams {
   apiKey: string
@@ -32,8 +32,8 @@ export const mailchimpUnpublishLandingPageTool: ToolConfig<
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the landing page',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the landing page (e.g., "abc123def4")',
     },
   },
 

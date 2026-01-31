@@ -23,8 +23,8 @@ export const escalationsListTool: ToolConfig<
     page_size: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results per page (default: 25)',
+      visibility: 'user-or-llm',
+      description: 'Number of results per page (e.g., 10, 25, 50). Default: 25',
     },
   },
 

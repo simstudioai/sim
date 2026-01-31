@@ -1,6 +1,6 @@
+import type { KalshiAuthParams } from '@/tools/kalshi/types'
+import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiAuthParams } from './types'
-import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetBalanceParams extends KalshiAuthParams {}
 

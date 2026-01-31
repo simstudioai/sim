@@ -1,5 +1,8 @@
+import type {
+  SpotifyCreatePlaylistParams,
+  SpotifyCreatePlaylistResponse,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyCreatePlaylistParams, SpotifyCreatePlaylistResponse } from './types'
 
 export const spotifyCreatePlaylistTool: ToolConfig<
   SpotifyCreatePlaylistParams,
@@ -32,14 +35,14 @@ export const spotifyCreatePlaylistTool: ToolConfig<
     public: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: true,
       description: 'Whether the playlist should be public',
     },
     collaborative: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: false,
       description: 'Whether the playlist should be collaborative (requires public to be false)',
     },

@@ -24,7 +24,7 @@ export const trelloAddCommentTool: ToolConfig<TrelloAddCommentParams, TrelloAddC
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the card to comment on',
+      description: 'Trello card ID (24-character hex string)',
     },
     text: {
       type: 'string',

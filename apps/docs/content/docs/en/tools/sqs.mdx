@@ -48,10 +48,10 @@ Send a message to an Amazon SQS queue
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | Queue URL |
-| `data` | object | Yes | Message body to send |
-| `messageGroupId` | string | No | Message group ID \(optional\) |
-| `messageDeduplicationId` | string | No | Message deduplication ID \(optional\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `data` | object | Yes | Message body to send as JSON object \(e.g., \{ "action": "process", "payload": \{...\} \}\) |
+| `messageGroupId` | string | No | Message group ID for FIFO queues \(e.g., "order-processing-group"\) |
+| `messageDeduplicationId` | string | No | Message deduplication ID for FIFO queues \(e.g., "order-12345-v1"\) |
 
 #### Output
 

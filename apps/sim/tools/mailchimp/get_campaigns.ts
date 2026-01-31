@@ -1,8 +1,9 @@
-import { createLogger } from '@sim/logger'
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  type MailchimpCampaign,
+} from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError, type MailchimpCampaign } from './types'
-
-const logger = createLogger('MailchimpGetCampaigns')
 
 export interface MailchimpGetCampaignsParams {
   apiKey: string
@@ -40,26 +41,27 @@ export const mailchimpGetCampaignsTool: ToolConfig<
     campaignType: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by campaign type (regular, plaintext, absplit, rss, variate)',
+      visibility: 'user-or-llm',
+      description:
+        'Filter by campaign type: "regular", "plaintext", "absplit", "rss", or "variate"',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by status (save, paused, schedule, sending, sent)',
+      visibility: 'user-or-llm',
+      description: 'Filter by status: "save", "paused", "schedule", "sending", or "sent"',
     },
     count: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results (default: 10, max: 1000)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (default: 10, max: 1000)',
     },
     offset: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to skip',
+      visibility: 'user-or-llm',
+      description: 'Number of results to skip for pagination',
     },
   },
 

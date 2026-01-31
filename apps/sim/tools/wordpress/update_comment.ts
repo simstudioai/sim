@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressUpdateCommentParams,
   type WordPressUpdateCommentResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const updateCommentTool: ToolConfig<
   WordPressUpdateCommentParams,
@@ -24,7 +24,7 @@ export const updateCommentTool: ToolConfig<
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     commentId: {
@@ -42,7 +42,7 @@ export const updateCommentTool: ToolConfig<
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Comment status: approved, hold, spam, trash',
     },
   },

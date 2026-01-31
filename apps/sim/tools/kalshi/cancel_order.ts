@@ -1,6 +1,6 @@
+import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
+import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiAuthParams, KalshiOrder } from './types'
-import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiCancelOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to cancel (required)
@@ -38,7 +38,7 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The order ID to cancel',
+        description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
       },
     },
 
@@ -152,7 +152,7 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The order ID to cancel',
+      description: 'Order ID to cancel (e.g., "abc123-def456-ghi789")',
     },
   },
 

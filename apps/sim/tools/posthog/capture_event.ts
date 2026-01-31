@@ -49,7 +49,7 @@ export const captureEventTool: ToolConfig<PostHogCaptureEventParams, PostHogCapt
         required: true,
         visibility: 'user-or-llm',
         description:
-          'Unique identifier for the user or device. Can be user ID, device ID, or anonymous ID',
+          'Unique identifier for the user or device (e.g., "user123", email, or device UUID)',
       },
       properties: {
         type: 'string',

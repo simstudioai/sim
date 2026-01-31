@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressListTagsParams,
   type WordPressListTagsResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const listTagsTool: ToolConfig<WordPressListTagsParams, WordPressListTagsResponse> = {
   id: 'wordpress_list_tags',
@@ -21,31 +21,31 @@ export const listTagsTool: ToolConfig<WordPressListTagsParams, WordPressListTags
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     perPage: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of tags per request (default: 10, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of tags per request (e.g., 10, 25, 50). Default: 10, max: 100',
     },
     page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Page number for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page number for pagination (e.g., 1, 2, 3)',
     },
     search: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search term to filter tags',
+      description: 'Search term to filter tags (e.g., "javascript", "tutorial")',
     },
     order: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Order direction: asc or desc',
     },
   },

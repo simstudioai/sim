@@ -177,13 +177,13 @@ List blog posts from WordPress.com with optional filters
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | No | Number of posts per page \(default: 10, max: 100\) |
-| `page` | number | No | Page number for pagination |
+| `perPage` | number | No | Number of posts per page \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `status` | string | No | Post status filter: publish, draft, pending, private |
-| `author` | number | No | Filter by author ID |
-| `categories` | string | No | Comma-separated category IDs to filter by |
-| `tags` | string | No | Comma-separated tag IDs to filter by |
-| `search` | string | No | Search term to filter posts |
+| `author` | number | No | Filter by author ID \(e.g., 1, 42\) |
+| `categories` | string | No | Comma-separated category IDs to filter by \(e.g., "1,2,3"\) |
+| `tags` | string | No | Comma-separated tag IDs to filter by \(e.g., "5,10,15"\) |
+| `search` | string | No | Search term to filter posts \(e.g., "tutorial", "announcement"\) |
 | `orderBy` | string | No | Order by field: date, id, title, slug, modified |
 | `order` | string | No | Order direction: asc or desc |
 
@@ -359,11 +359,11 @@ List pages from WordPress.com with optional filters
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | No | Number of pages per request \(default: 10, max: 100\) |
-| `page` | number | No | Page number for pagination |
+| `perPage` | number | No | Number of pages per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `status` | string | No | Page status filter: publish, draft, pending, private |
-| `parent` | number | No | Filter by parent page ID |
-| `search` | string | No | Search term to filter pages |
+| `parent` | number | No | Filter by parent page ID \(e.g., 123\) |
+| `search` | string | No | Search term to filter pages \(e.g., "about", "contact"\) |
 | `orderBy` | string | No | Order by field: date, id, title, slug, modified, menu_order |
 | `order` | string | No | Order direction: asc or desc |
 
@@ -461,11 +461,11 @@ List media items from the WordPress.com media library
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | No | Number of media items per request \(default: 10, max: 100\) |
-| `page` | number | No | Page number for pagination |
-| `search` | string | No | Search term to filter media |
+| `perPage` | number | No | Number of media items per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `search` | string | No | Search term to filter media \(e.g., "logo", "banner"\) |
 | `mediaType` | string | No | Filter by media type: image, video, audio, application |
-| `mimeType` | string | No | Filter by specific MIME type \(e.g., image/jpeg\) |
+| `mimeType` | string | No | Filter by specific MIME type \(e.g., image/jpeg, image/png\) |
 | `orderBy` | string | No | Order by field: date, id, title, slug |
 | `order` | string | No | Order direction: asc or desc |
 
@@ -562,11 +562,11 @@ List comments from WordPress.com with optional filters
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | No | Number of comments per request \(default: 10, max: 100\) |
-| `page` | number | No | Page number for pagination |
-| `postId` | number | No | Filter by post ID |
+| `perPage` | number | No | Number of comments per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `postId` | number | No | Filter by post ID \(e.g., 123, 456\) |
 | `status` | string | No | Filter by comment status: approved, hold, spam, trash |
-| `search` | string | No | Search term to filter comments |
+| `search` | string | No | Search term to filter comments \(e.g., "question", "feedback"\) |
 | `orderBy` | string | No | Order by field: date, id, parent |
 | `order` | string | No | Order direction: asc or desc |
 
@@ -686,9 +686,9 @@ List categories from WordPress.com
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | No | Number of categories per request \(default: 10, max: 100\) |
-| `page` | number | No | Page number for pagination |
-| `search` | string | No | Search term to filter categories |
+| `perPage` | number | No | Number of categories per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `search` | string | No | Search term to filter categories \(e.g., "news", "technology"\) |
 | `order` | string | No | Order direction: asc or desc |
 
 #### Output
@@ -742,9 +742,9 @@ List tags from WordPress.com
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | No | Number of tags per request \(default: 10, max: 100\) |
-| `page` | number | No | Page number for pagination |
-| `search` | string | No | Search term to filter tags |
+| `perPage` | number | No | Number of tags per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `search` | string | No | Search term to filter tags \(e.g., "javascript", "tutorial"\) |
 | `order` | string | No | Order direction: asc or desc |
 
 #### Output
@@ -799,10 +799,10 @@ List users from WordPress.com (requires admin privileges)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteId` | string | Yes | WordPress.com site ID or domain \(e.g., 12345678 or mysite.wordpress.com\) |
-| `perPage` | number | No | Number of users per request \(default: 10, max: 100\) |
-| `page` | number | No | Page number for pagination |
-| `search` | string | No | Search term to filter users |
-| `roles` | string | No | Comma-separated role names to filter by |
+| `perPage` | number | No | Number of users per request \(e.g., 10, 25, 50\). Default: 10, max: 100 |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `search` | string | No | Search term to filter users \(e.g., "john", "admin"\) |
+| `roles` | string | No | Comma-separated role names to filter by \(e.g., "administrator,editor"\) |
 | `order` | string | No | Order direction: asc or desc |
 
 #### Output

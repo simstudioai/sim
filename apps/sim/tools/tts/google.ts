@@ -12,7 +12,7 @@ export const googleTtsTool: ToolConfig<GoogleTtsParams, TtsBlockResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text to convert to speech',
+      description: 'The text content to convert to speech (e.g., "Hello, welcome to our service!")',
     },
     apiKey: {
       type: 'string',
@@ -24,13 +24,15 @@ export const googleTtsTool: ToolConfig<GoogleTtsParams, TtsBlockResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Voice ID (e.g., en-US-Neural2-A, en-US-Wavenet-D)',
+      description:
+        'Google Cloud voice identifier (e.g., "en-US-Neural2-A", "en-US-Wavenet-D", "en-GB-Neural2-B")',
     },
     languageCode: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Language code (e.g., en-US, es-ES, fr-FR)',
+      visibility: 'user-or-llm',
+      description:
+        'BCP-47 language code for speech synthesis (e.g., "en-US", "es-ES", "fr-FR", "de-DE")',
     },
     gender: {
       type: 'string',
@@ -47,8 +49,9 @@ export const googleTtsTool: ToolConfig<GoogleTtsParams, TtsBlockResponse> = {
     speakingRate: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Speaking rate (0.25 to 2.0, default: 1.0)',
+      visibility: 'user-or-llm',
+      description:
+        'Speaking rate multiplier from 0.25 to 2.0 (e.g., 0.5 for slower, 1.0 for normal, 1.5 for faster)',
     },
     pitch: {
       type: 'number',

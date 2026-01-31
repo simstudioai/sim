@@ -24,13 +24,13 @@ export const schedulesUpdateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the schedule to update',
+      description: 'The ID of the schedule to update (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     name: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New name for the schedule',
+      description: 'New name for the schedule (e.g., "Primary On-Call")',
     },
     timezone: {
       type: 'string',

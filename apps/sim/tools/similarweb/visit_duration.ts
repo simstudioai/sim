@@ -1,5 +1,8 @@
+import type {
+  SimilarwebVisitDurationParams,
+  SimilarwebVisitDurationResponse,
+} from '@/tools/similarweb/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SimilarwebVisitDurationParams, SimilarwebVisitDurationResponse } from './types'
 
 export const similarwebVisitDurationTool: ToolConfig<
   SimilarwebVisitDurationParams,
@@ -21,13 +24,14 @@ export const similarwebVisitDurationTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Website domain to analyze (without www or protocol)',
+      description: 'Website domain to analyze (e.g., "example.com" without www or protocol)',
     },
     country: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: '2-letter ISO country code or "world" for worldwide data',
+      description:
+        '2-letter ISO country code (e.g., "us", "gb", "de") or "world" for worldwide data',
     },
     granularity: {
       type: 'string',
@@ -39,13 +43,13 @@ export const similarwebVisitDurationTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Start date in YYYY-MM format',
+      description: 'Start date in YYYY-MM format (e.g., "2024-01")',
     },
     endDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'End date in YYYY-MM format',
+      description: 'End date in YYYY-MM format (e.g., "2024-12")',
     },
     mainDomainOnly: {
       type: 'boolean',

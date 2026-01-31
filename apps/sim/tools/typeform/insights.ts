@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { TypeformInsightsParams, TypeformInsightsResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('TypeformInsightsTool')
 
 export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsResponse> = {
   id: 'typeform_insights',
@@ -14,8 +11,8 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Typeform form ID',
+      visibility: 'user-or-llm',
+      description: 'Typeform form ID (e.g., "abc123XYZ")',
     },
     apiKey: {
       type: 'string',

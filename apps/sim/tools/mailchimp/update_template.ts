@@ -1,6 +1,6 @@
+import type { MailchimpTemplate } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpTemplate } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 export interface MailchimpUpdateTemplateParams {
   apiKey: string
@@ -37,19 +37,19 @@ export const mailchimpUpdateTemplateTool: ToolConfig<
     templateId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the template',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the template (e.g., "12345")',
     },
     templateName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The name of the template',
+      visibility: 'user-or-llm',
+      description: 'The name of the template (e.g., "Monthly Newsletter")',
     },
     templateHtml: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The HTML content for the template',
     },
   },

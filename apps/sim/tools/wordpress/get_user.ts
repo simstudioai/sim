@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetUserParams,
   type WordPressGetUserResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const getUserTool: ToolConfig<WordPressGetUserParams, WordPressGetUserResponse> = {
   id: 'wordpress_get_user',
@@ -21,7 +21,7 @@ export const getUserTool: ToolConfig<WordPressGetUserParams, WordPressGetUserRes
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     userId: {

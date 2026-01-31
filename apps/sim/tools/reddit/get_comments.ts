@@ -23,14 +23,14 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     postId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Reddit post to fetch comments from',
+      visibility: 'user-or-llm',
+      description: 'The ID of the Reddit post to fetch comments from (e.g., "abc123")',
     },
     subreddit: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The subreddit where the post is located (without the r/ prefix)',
+      description: 'The subreddit where the post is located (e.g., "technology", "programming")',
     },
     sort: {
       type: 'string',
@@ -42,8 +42,8 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of comments to return (default: 50, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of comments to return (e.g., 25). Default: 50, max: 100',
     },
     depth: {
       type: 'number',

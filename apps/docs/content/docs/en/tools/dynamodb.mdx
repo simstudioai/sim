@@ -54,8 +54,8 @@ Get an item from a DynamoDB table by primary key
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `tableName` | string | Yes | DynamoDB table name |
-| `key` | object | Yes | Primary key of the item to retrieve |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `key` | object | Yes | Primary key of the item to retrieve \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
 | `consistentRead` | boolean | No | Use strongly consistent read |
 
 #### Output
@@ -76,8 +76,8 @@ Put an item into a DynamoDB table
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `tableName` | string | Yes | DynamoDB table name |
-| `item` | object | Yes | Item to put into the table |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `item` | object | Yes | Item to put into the table \(e.g., \{"pk": "USER#123", "name": "John", "email": "john@example.com"\}\) |
 
 #### Output
 
@@ -97,13 +97,13 @@ Query items from a DynamoDB table using key conditions
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `tableName` | string | Yes | DynamoDB table name |
-| `keyConditionExpression` | string | Yes | Key condition expression \(e.g., "pk = :pk"\) |
-| `filterExpression` | string | No | Filter expression for results |
-| `expressionAttributeNames` | object | No | Attribute name mappings for reserved words |
-| `expressionAttributeValues` | object | No | Expression attribute values |
-| `indexName` | string | No | Secondary index name to query |
-| `limit` | number | No | Maximum number of items to return |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `keyConditionExpression` | string | Yes | Key condition expression \(e.g., "pk = :pk" or "pk = :pk AND sk BEGINS_WITH :prefix"\) |
+| `filterExpression` | string | No | Filter expression for results \(e.g., "age &gt; :minAge AND #status = :status"\) |
+| `expressionAttributeNames` | object | No | Attribute name mappings for reserved words \(e.g., \{"#status": "status"\}\) |
+| `expressionAttributeValues` | object | No | Expression attribute values \(e.g., \{":pk": "USER#123", ":minAge": 18\}\) |
+| `indexName` | string | No | Secondary index name to query \(e.g., "GSI1", "email-index"\) |
+| `limit` | number | No | Maximum number of items to return \(e.g., 10, 50, 100\) |
 
 #### Output
 
@@ -124,12 +124,12 @@ Scan all items in a DynamoDB table
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `tableName` | string | Yes | DynamoDB table name |
-| `filterExpression` | string | No | Filter expression for results |
-| `projectionExpression` | string | No | Attributes to retrieve |
-| `expressionAttributeNames` | object | No | Attribute name mappings for reserved words |
-| `expressionAttributeValues` | object | No | Expression attribute values |
-| `limit` | number | No | Maximum number of items to return |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `filterExpression` | string | No | Filter expression for results \(e.g., "age &gt; :minAge AND #status = :status"\) |
+| `projectionExpression` | string | No | Attributes to retrieve \(e.g., "pk, sk, #name, email"\) |
+| `expressionAttributeNames` | object | No | Attribute name mappings for reserved words \(e.g., \{"#name": "name", "#status": "status"\}\) |
+| `expressionAttributeValues` | object | No | Expression attribute values \(e.g., \{":minAge": 18, ":status": "active"\}\) |
+| `limit` | number | No | Maximum number of items to return \(e.g., 10, 50, 100\) |
 
 #### Output
 
@@ -150,12 +150,12 @@ Update an item in a DynamoDB table
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `tableName` | string | Yes | DynamoDB table name |
-| `key` | object | Yes | Primary key of the item to update |
-| `updateExpression` | string | Yes | Update expression \(e.g., "SET #name = :name"\) |
-| `expressionAttributeNames` | object | No | Attribute name mappings for reserved words |
-| `expressionAttributeValues` | object | No | Expression attribute values |
-| `conditionExpression` | string | No | Condition that must be met for the update to succeed |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `key` | object | Yes | Primary key of the item to update \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
+| `updateExpression` | string | Yes | Update expression \(e.g., "SET #name = :name, age = :age" or "SET #count = #count + :inc"\) |
+| `expressionAttributeNames` | object | No | Attribute name mappings for reserved words \(e.g., \{"#name": "name", "#count": "count"\}\) |
+| `expressionAttributeValues` | object | No | Expression attribute values \(e.g., \{":name": "John", ":age": 30, ":inc": 1\}\) |
+| `conditionExpression` | string | No | Condition that must be met for the update to succeed \(e.g., "attribute_exists\(pk\)" or "version = :expectedVersion"\) |
 
 #### Output
 
@@ -175,9 +175,9 @@ Delete an item from a DynamoDB table
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `tableName` | string | Yes | DynamoDB table name |
-| `key` | object | Yes | Primary key of the item to delete |
-| `conditionExpression` | string | No | Condition that must be met for the delete to succeed |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `key` | object | Yes | Primary key of the item to delete \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
+| `conditionExpression` | string | No | Condition that must be met for the delete to succeed \(e.g., "attribute_exists\(pk\)"\) |
 
 #### Output
 
@@ -196,7 +196,7 @@ Introspect DynamoDB to list tables or get detailed schema information for a spec
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `tableName` | string | No | Optional table name to get detailed schema. If not provided, lists all tables. |
+| `tableName` | string | No | Optional table name to get detailed schema \(e.g., "Users", "Orders"\). If not provided, lists all tables. |
 
 #### Output
 

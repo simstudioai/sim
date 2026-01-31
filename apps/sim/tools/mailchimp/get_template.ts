@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
+import type { MailchimpTemplate } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpTemplate } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpGetTemplate')
 
 export interface MailchimpGetTemplateParams {
   apiKey: string
@@ -37,8 +34,8 @@ export const mailchimpGetTemplateTool: ToolConfig<
     templateId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the template',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the template (e.g., "12345")',
     },
   },
 

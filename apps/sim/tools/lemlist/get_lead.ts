@@ -18,7 +18,8 @@ export const getLeadTool: ToolConfig<LemlistGetLeadParams, LemlistGetLeadRespons
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Lead email address or lead ID',
+      description:
+        'Lead email address (e.g., "john@example.com") or lead ID (e.g., "lea_abc123def456")',
     },
   },
 

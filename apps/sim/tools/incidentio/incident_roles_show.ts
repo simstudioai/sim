@@ -24,7 +24,7 @@ export const incidentRolesShowTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the incident role',
+      description: 'The ID of the incident role (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
+import type { MailchimpInterest } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpInterest } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpCreateInterest')
 
 export interface MailchimpCreateInterestParams {
   apiKey: string
@@ -40,20 +37,20 @@ export const mailchimpCreateInterestTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     interestCategoryId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the interest category',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the interest category (e.g., "xyz789")',
     },
     interestName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The name of the interest',
+      visibility: 'user-or-llm',
+      description: 'The name of the interest (e.g., "Weekly Updates")',
     },
   },
 

@@ -43,7 +43,7 @@ Retrieve detailed information about a specific Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `projectId` | string | No | Jira project ID \(optional; not required to retrieve a single issue\). |
+| `projectId` | string | No | Jira project key \(e.g., PROJ\). Optional when retrieving a single issue. |
 | `issueKey` | string | Yes | Jira issue key to retrieve \(e.g., PROJ-123\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
@@ -68,8 +68,8 @@ Update a Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `projectId` | string | No | Jira project ID to update issues in. If not provided, all issues will be retrieved. |
-| `issueKey` | string | Yes | Jira issue key to update |
+| `projectId` | string | No | Jira project key \(e.g., PROJ\). Optional when updating a single issue. |
+| `issueKey` | string | Yes | Jira issue key to update \(e.g., PROJ-123\) |
 | `summary` | string | No | New summary for the issue |
 | `description` | string | No | New description for the issue |
 | `status` | string | No | New status for the issue |
@@ -94,7 +94,7 @@ Write a Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `projectId` | string | Yes | Project ID for the issue |
+| `projectId` | string | Yes | Jira project key \(e.g., PROJ\) |
 | `summary` | string | Yes | Summary for the issue |
 | `description` | string | No | Description for the issue |
 | `priority` | string | No | Priority ID or name for the issue \(e.g., "10000" or "High"\) |
@@ -127,8 +127,8 @@ Retrieve multiple Jira issues in bulk
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `projectId` | string | Yes | Jira project ID |
-| `cloudId` | string | No | Jira cloud ID |
+| `projectId` | string | Yes | Jira project key \(e.g., PROJ\) |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 

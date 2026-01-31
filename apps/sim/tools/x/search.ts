@@ -27,13 +27,14 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Search query (supports X search operators)',
+      description:
+        'Search query (e.g., "AI news", "#technology", "from:username"). Supports X search operators',
     },
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of results to return (default: 10, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (e.g., 10, 25, 50). Default: 10, max: 100',
     },
     startTime: {
       type: 'string',

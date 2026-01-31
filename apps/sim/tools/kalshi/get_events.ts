@@ -1,6 +1,10 @@
+import type { KalshiEvent, KalshiPaginationParams, KalshiPagingInfo } from '@/tools/kalshi/types'
+import {
+  buildKalshiUrl,
+  handleKalshiError,
+  KALSHI_EVENT_OUTPUT_PROPERTIES,
+} from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiEvent, KalshiPaginationParams, KalshiPagingInfo } from './types'
-import { buildKalshiUrl, handleKalshiError, KALSHI_EVENT_OUTPUT_PROPERTIES } from './types'
 
 export interface KalshiGetEventsParams extends KalshiPaginationParams {
   status?: string // open, closed, settled
@@ -27,31 +31,31 @@ export const kalshiGetEventsTool: ToolConfig<KalshiGetEventsParams, KalshiGetEve
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by status (open, closed, settled)',
+      description: 'Filter by event status: "open", "closed", or "settled"',
     },
     seriesTicker: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by series ticker',
+      description: 'Filter by series ticker (e.g., "KXBTC", "INX", "FED-RATE")',
     },
     withNestedMarkets: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include nested markets in response (true/false)',
+      description: 'Include nested markets in response: "true" or "false"',
     },
     limit: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results (1-200, default: 200)',
+      description: 'Number of results to return (1-200, default: 200)',
     },
     cursor: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination cursor for next page',
+      description: 'Pagination cursor from previous response for fetching next page',
     },
   },
 
@@ -165,43 +169,43 @@ export const kalshiGetEventsV2Tool: ToolConfig<KalshiGetEventsV2Params, KalshiGe
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Filter by status (open, closed, settled)',
+        description: 'Filter by event status: "open", "closed", or "settled"',
       },
       seriesTicker: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Filter by series ticker',
+        description: 'Filter by series ticker (e.g., "KXBTC", "INX", "FED-RATE")',
       },
       withNestedMarkets: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Include nested markets in response (true/false)',
+        description: 'Include nested markets in response: "true" or "false"',
       },
       withMilestones: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Include milestones in response (true/false)',
+        description: 'Include milestones in response: "true" or "false"',
       },
       minCloseTs: {
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Minimum close timestamp (Unix seconds)',
+        description: 'Minimum close timestamp in Unix seconds (e.g., 1704067200)',
       },
       limit: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of results (1-200, default: 200)',
+        description: 'Number of results to return (1-200, default: 200)',
       },
       cursor: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Pagination cursor for next page',
+        description: 'Pagination cursor from previous response for fetching next page',
       },
     },
 

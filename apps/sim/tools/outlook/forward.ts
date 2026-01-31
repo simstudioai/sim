@@ -28,7 +28,7 @@ export const outlookForwardTool: ToolConfig<OutlookForwardParams, OutlookForward
     to: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Recipient email address(es), comma-separated',
     },
     comment: {

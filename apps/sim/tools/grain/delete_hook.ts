@@ -18,7 +18,7 @@ export const grainDeleteHookTool: ToolConfig<GrainDeleteHookParams, GrainDeleteH
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The hook UUID to delete',
+      description: 'The hook UUID to delete (e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890")',
     },
   },
 

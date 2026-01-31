@@ -16,19 +16,19 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Qdrant base URL',
+      description: 'Qdrant instance URL (e.g., https://your-cluster.qdrant.io)',
     },
     apiKey: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Qdrant API key (optional)',
+      description: 'Qdrant API key for authentication',
     },
     collection: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Collection name',
+      visibility: 'user-or-llm',
+      description: 'Collection name for upsert (e.g., "my_collection")',
     },
     points: {
       type: 'array',

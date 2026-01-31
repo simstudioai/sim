@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
-
-const logger = createLogger('ZendeskSearchCount')
+import { buildZendeskUrl, handleZendeskError } from '@/tools/zendesk/types'
 
 export interface ZendeskSearchCountParams {
   email: string
@@ -50,8 +47,9 @@ export const zendeskSearchCountTool: ToolConfig<
     query: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Search query string',
+      visibility: 'user-or-llm',
+      description:
+        'Search query string using Zendesk search syntax (e.g., "type:ticket status:open")',
     },
   },
 

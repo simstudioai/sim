@@ -25,8 +25,8 @@ export const clearV2Tool: ToolConfig<GoogleSheetsV2ClearParams, GoogleSheetsV2Cl
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet',
+      visibility: 'user-or-llm',
+      description: 'Google Sheets spreadsheet ID',
     },
     sheetName: {
       type: 'string',

@@ -1,5 +1,5 @@
+import type { GoogleGroupsDeleteParams, GoogleGroupsResponse } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsDeleteParams, GoogleGroupsResponse } from './types'
 
 export const deleteGroupTool: ToolConfig<GoogleGroupsDeleteParams, GoogleGroupsResponse> = {
   id: 'google_groups_delete_group',
@@ -23,7 +23,8 @@ export const deleteGroupTool: ToolConfig<GoogleGroupsDeleteParams, GoogleGroupsR
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID to delete',
+      description:
+        'Group identifier to delete. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
   },
 

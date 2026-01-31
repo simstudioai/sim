@@ -24,8 +24,8 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
     contactId: {
       type: 'string',
       required: false,
-      description: 'ID of contact to link to this note',
-      visibility: 'user-only',
+      description: 'ID of contact to link to this note (e.g., "12345")',
+      visibility: 'user-or-llm',
     },
   },
 

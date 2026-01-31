@@ -32,8 +32,8 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
     folderSelector: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Select the parent folder to create the folder in',
+      visibility: 'user-or-llm',
+      description: 'Google Drive parent folder ID to create the folder in (e.g., 1ABCxyz...)',
     },
     folderId: {
       type: 'string',

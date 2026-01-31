@@ -1,6 +1,6 @@
+import type { KalshiEvent } from '@/tools/kalshi/types'
+import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiEvent } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetEventParams {
   eventTicker: string // Event ticker
@@ -25,7 +25,7 @@ export const kalshiGetEventTool: ToolConfig<KalshiGetEventParams, KalshiGetEvent
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The event ticker',
+      description: 'Event ticker identifier (e.g., "KXBTC-24DEC31", "INX-25JAN03")',
     },
     withNestedMarkets: {
       type: 'string',
@@ -143,7 +143,7 @@ export const kalshiGetEventV2Tool: ToolConfig<KalshiGetEventV2Params, KalshiGetE
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The event ticker',
+      description: 'Event ticker identifier (e.g., "KXBTC-24DEC31", "INX-25JAN03")',
     },
     withNestedMarkets: {
       type: 'string',

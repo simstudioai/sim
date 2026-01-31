@@ -21,7 +21,8 @@ export const zoomDeleteRecordingTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The meeting ID or meeting UUID',
+      description:
+        'The meeting ID or meeting UUID (e.g., "1234567890" or "4444AAABBBccccc12345==")',
     },
     recordingId: {
       type: 'string',

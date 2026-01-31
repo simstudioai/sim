@@ -27,14 +27,16 @@ export const listChannelMembersTool: ToolConfig<
     teamId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the team',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the team (e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings)',
     },
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the channel',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the channel (e.g., "19:abc123def456@thread.tacv2" - from channel listings)',
     },
   },
 

@@ -1,6 +1,6 @@
+import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
+import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiAuthParams, KalshiOrder } from './types'
-import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetOrderParams extends KalshiAuthParams {
   orderId: string // Order ID to retrieve (required)
@@ -36,7 +36,7 @@ export const kalshiGetOrderTool: ToolConfig<KalshiGetOrderParams, KalshiGetOrder
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The order ID to retrieve',
+      description: 'Order ID to retrieve (e.g., "abc123-def456-ghi789")',
     },
   },
 
@@ -140,7 +140,7 @@ export const kalshiGetOrderV2Tool: ToolConfig<KalshiGetOrderV2Params, KalshiGetO
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The order ID to retrieve',
+      description: 'Order ID to retrieve (e.g., "abc123-def456-ghi789")',
     },
   },
 

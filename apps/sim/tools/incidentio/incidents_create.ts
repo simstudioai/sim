@@ -32,19 +32,20 @@ export const incidentsCreateTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Name of the incident (optional)',
+      description: 'Name of the incident (e.g., "Database connection issues")',
     },
     summary: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Brief summary of the incident',
+      description:
+        'Brief summary of the incident (e.g., "Intermittent connection failures to primary database")',
     },
     severity_id: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the severity level (required)',
+      description: 'ID of the severity level (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     incident_type_id: {
       type: 'string',

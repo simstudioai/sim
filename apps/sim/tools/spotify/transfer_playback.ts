@@ -37,7 +37,7 @@ export const spotifyTransferPlaybackTool: ToolConfig<
     play: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: true,
       description: 'Whether to start playing on the new device',
     },

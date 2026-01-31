@@ -35,9 +35,9 @@ export const spotifyFollowPlaylistTool: ToolConfig<
     public: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: true,
-      description: 'Whether the playlist will be in public playlists',
+      description: 'Whether the playlist will appear in public playlists',
     },
   },
 

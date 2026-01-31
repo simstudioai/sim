@@ -31,14 +31,14 @@ export const pipedriveGetMailMessagesTool: ToolConfig<
     folder: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter by folder: inbox, drafts, sent, archive (default: inbox)',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 50)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (e.g., "25", default: 50)',
     },
   },
 

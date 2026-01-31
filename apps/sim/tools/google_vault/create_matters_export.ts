@@ -23,8 +23,8 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
     matterId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The matter ID',
+      visibility: 'user-or-llm',
+      description: 'The matter ID (e.g., "12345678901234567890")',
     },
     exportName: {
       type: 'string',
@@ -41,32 +41,35 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
     accountEmails: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of user emails to scope export',
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of user emails to scope export (e.g., "user1@example.com, user2@example.com")',
     },
     orgUnitId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization unit ID to scope export (alternative to emails)',
+      visibility: 'user-or-llm',
+      description:
+        'Organization unit ID to scope export (e.g., "id:03ph8a2z1enx5q0", alternative to emails)',
     },
     startTime: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Start time for date filtering (ISO 8601 format, e.g., 2024-01-01T00:00:00Z)',
+      visibility: 'user-or-llm',
+      description: 'Start time for date filtering (ISO 8601 format, e.g., "2024-01-01T00:00:00Z")',
     },
     endTime: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'End time for date filtering (ISO 8601 format, e.g., 2024-12-31T23:59:59Z)',
+      visibility: 'user-or-llm',
+      description: 'End time for date filtering (ISO 8601 format, e.g., "2024-12-31T23:59:59Z")',
     },
     terms: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Search query terms to filter exported content',
+      visibility: 'user-or-llm',
+      description:
+        'Search query terms to filter exported content (e.g., "from:sender@example.com subject:invoice")',
     },
   },
 

@@ -24,8 +24,8 @@ export const updateTool: ToolConfig<Neo4jUpdateParams, Neo4jResponse> = {
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., "neo4j", "movies", "social")',
     },
     username: {
       type: 'string',
@@ -49,13 +49,15 @@ export const updateTool: ToolConfig<Neo4jUpdateParams, Neo4jResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Cypher query with MATCH and SET statements to update properties',
+      description:
+        'Cypher query with MATCH and SET statements to update properties (e.g., "MATCH (n:Person {name: $name}) SET n.age = $age", "MATCH (n) WHERE n.id = $id SET n += $props")',
     },
     parameters: {
       type: 'object',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Parameters for the Cypher query as a JSON object',
+      description:
+        'Parameters for the Cypher query as a JSON object (e.g., {"name": "Alice", "age": 31, "props": {"city": "NYC"}})',
     },
   },
 

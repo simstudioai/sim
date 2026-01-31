@@ -43,14 +43,16 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
     pageId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The ID of the page to read',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the page to read. Example: a GUID like 12345678-1234-1234-1234-123456789012',
     },
     pageName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The name of the page to read (alternative to pageId)',
+      visibility: 'user-or-llm',
+      description:
+        'The name of the page to read (alternative to pageId). Example: Home.aspx or About-Us.aspx',
     },
     maxPages: {
       type: 'number',

@@ -96,11 +96,11 @@ Read emails from Gmail. Returns API-aligned fields only.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `messageId` | string | No | ID of the message to read |
-| `folder` | string | No | Folder/label to read emails from |
-| `unreadOnly` | boolean | No | Only retrieve unread messages |
+| `messageId` | string | No | Gmail message ID to read \(e.g., 18f1a2b3c4d5e6f7\) |
+| `folder` | string | No | Folder/label to read emails from \(e.g., INBOX, SENT, DRAFT, TRASH, SPAM, or custom label name\) |
+| `unreadOnly` | boolean | No | Set to true to only retrieve unread messages |
 | `maxResults` | number | No | Maximum number of messages to retrieve \(default: 1, max: 10\) |
-| `includeAttachments` | boolean | No | Download and include email attachments |
+| `includeAttachments` | boolean | No | Set to true to download and include email attachments |
 
 #### Output
 
@@ -128,7 +128,7 @@ Search emails in Gmail. Returns API-aligned fields only.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query for emails |
-| `maxResults` | number | No | Maximum number of results to return |
+| `maxResults` | number | No | Maximum number of results to return \(e.g., 10, 25, 50\) |
 
 #### Output
 

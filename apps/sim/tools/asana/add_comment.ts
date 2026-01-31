@@ -22,8 +22,8 @@ export const asanaAddCommentTool: ToolConfig<AsanaAddCommentParams, AsanaAddComm
     taskGid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The globally unique identifier (GID) of the task',
+      visibility: 'user-or-llm',
+      description: 'Asana task GID (numeric string)',
     },
     text: {
       type: 'string',

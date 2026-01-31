@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpDeleteCampaign')
 
 export interface MailchimpDeleteCampaignParams {
   apiKey: string
@@ -32,8 +29,8 @@ export const mailchimpDeleteCampaignTool: ToolConfig<
     campaignId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the campaign to delete',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the campaign to delete (e.g., "abc123def4")',
     },
   },
 

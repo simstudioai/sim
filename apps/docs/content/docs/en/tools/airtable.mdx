@@ -40,9 +40,9 @@ Read records from an Airtable table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID of the table |
-| `maxRecords` | number | No | Maximum number of records to return |
+| `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
+| `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
+| `maxRecords` | number | No | Maximum number of records to return \(default: all records\) |
 | `filterFormula` | string | No | Formula to filter records \(e.g., "\(\{Field Name\} = \'Value\'\)"\) |
 
 #### Output
@@ -60,9 +60,9 @@ Retrieve a single record from an Airtable table by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID or name of the table |
-| `recordId` | string | Yes | ID of the record to retrieve |
+| `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
+| `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
+| `recordId` | string | Yes | Record ID to retrieve \(starts with "rec", e.g., "recXXXXXXXXXXXXXX"\) |
 
 #### Output
 
@@ -79,8 +79,8 @@ Write new records to an Airtable table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID or name of the table |
+| `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
+| `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
 | `records` | json | Yes | Array of records to create, each with a `fields` object |
 | `fields` | string | No | No description |
 
@@ -99,9 +99,9 @@ Update an existing record in an Airtable table by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID or name of the table |
-| `recordId` | string | Yes | ID of the record to update |
+| `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
+| `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
+| `recordId` | string | Yes | Record ID to update \(starts with "rec", e.g., "recXXXXXXXXXXXXXX"\) |
 | `fields` | json | Yes | An object containing the field names and their new values |
 
 #### Output
@@ -119,8 +119,8 @@ Update multiple existing records in an Airtable table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID or name of the table |
+| `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
+| `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
 | `records` | json | Yes | Array of records to update, each with an `id` and a `fields` object |
 
 #### Output

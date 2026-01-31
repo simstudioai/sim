@@ -28,13 +28,13 @@ export const clerkListUsersTool: ToolConfig<ClerkListUsersParams, ClerkListUsers
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results per page (1-500, default: 10)',
+      description: 'Number of results per page (e.g., 10, 50, 100; range: 1-500, default: 10)',
     },
     offset: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to skip for pagination',
+      description: 'Number of results to skip for pagination (e.g., 0, 10, 20)',
     },
     orderBy: {
       type: 'string',
@@ -46,7 +46,8 @@ export const clerkListUsersTool: ToolConfig<ClerkListUsersParams, ClerkListUsers
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by email address (comma-separated for multiple)',
+      description:
+        'Filter by email address (e.g., user@example.com or user1@example.com,user2@example.com)',
     },
     phoneNumber: {
       type: 'string',
@@ -70,13 +71,15 @@ export const clerkListUsersTool: ToolConfig<ClerkListUsersParams, ClerkListUsers
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by user ID (comma-separated for multiple)',
+      description:
+        'Filter by user ID (e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC or comma-separated for multiple)',
     },
     query: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search query to match across email, phone, username, and names',
+      description:
+        'Search query to match across email, phone, username, and names (e.g., john or john@example.com)',
     },
   },
 

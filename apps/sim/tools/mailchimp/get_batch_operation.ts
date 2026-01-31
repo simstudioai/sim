@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
+import type { MailchimpBatchOperation } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpBatchOperation } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpGetBatchOperation')
 
 export interface MailchimpGetBatchOperationParams {
   apiKey: string
@@ -37,8 +34,8 @@ export const mailchimpGetBatchOperationTool: ToolConfig<
     batchId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the batch operation',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the batch operation (e.g., "abc123def4")',
     },
   },
 

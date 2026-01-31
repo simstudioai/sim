@@ -30,13 +30,13 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
     audioFile: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Audio or video file to transcribe',
+      visibility: 'user-only',
+      description: 'Audio or video file to transcribe (e.g., MP3, WAV, M4A, WEBM)',
     },
     audioFileReference: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Reference to audio/video file from previous blocks',
     },
     audioUrl: {
@@ -77,6 +77,13 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       description:
         'Sampling temperature between 0 and 1. Higher values make output more random, lower values more focused and deterministic.',
     },
+    responseFormat: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Output format for the transcription (e.g., "json", "text", "srt", "verbose_json", "vtt")',
+    },
   },
 
   request: {
@@ -101,6 +108,7 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       translateToEnglish: params.translateToEnglish || false,
       prompt: (params as any).prompt,
       temperature: (params as any).temperature,
+      responseFormat: (params as any).responseFormat,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,

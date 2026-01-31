@@ -1,16 +1,16 @@
-import type { ToolConfig } from '@/tools/types'
 import type {
   KalshiAuthParams,
   KalshiOrder,
   KalshiPaginationParams,
   KalshiPagingInfo,
-} from './types'
+} from '@/tools/kalshi/types'
 import {
   buildKalshiAuthHeaders,
   buildKalshiUrl,
   handleKalshiError,
   KALSHI_ORDER_OUTPUT_PROPERTIES,
-} from './types'
+} from '@/tools/kalshi/types'
+import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiGetOrdersParams extends KalshiAuthParams, KalshiPaginationParams {
   ticker?: string
@@ -49,31 +49,32 @@ export const kalshiGetOrdersTool: ToolConfig<KalshiGetOrdersParams, KalshiGetOrd
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by market ticker',
+      description: 'Filter by market ticker (e.g., "KXBTC-24DEC31")',
     },
     eventTicker: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by event ticker (max 10 comma-separated)',
+      description:
+        'Filter by event ticker, max 10 comma-separated (e.g., "KXBTC-24DEC31,INX-25JAN03")',
     },
     status: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by status (resting, canceled, executed)',
+      description: 'Filter by order status: "resting", "canceled", or "executed"',
     },
     limit: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results (1-200, default: 100)',
+      description: 'Number of results to return (1-200, default: 100)',
     },
     cursor: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination cursor for next page',
+      description: 'Pagination cursor from previous response for fetching next page',
     },
   },
 
@@ -211,49 +212,50 @@ export const kalshiGetOrdersV2Tool: ToolConfig<KalshiGetOrdersV2Params, KalshiGe
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Filter by market ticker',
+        description: 'Filter by market ticker (e.g., "KXBTC-24DEC31")',
       },
       eventTicker: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Filter by event ticker (max 10 comma-separated)',
+        description:
+          'Filter by event ticker, max 10 comma-separated (e.g., "KXBTC-24DEC31,INX-25JAN03")',
       },
       status: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Filter by status (resting, canceled, executed)',
+        description: 'Filter by order status: "resting", "canceled", or "executed"',
       },
       minTs: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Minimum timestamp filter (Unix timestamp)',
+        description: 'Minimum timestamp filter (Unix timestamp, e.g., "1704067200")',
       },
       maxTs: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Maximum timestamp filter (Unix timestamp)',
+        description: 'Maximum timestamp filter (Unix timestamp, e.g., "1704153600")',
       },
       subaccount: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Subaccount to filter orders',
+        description: 'Subaccount identifier to filter orders',
       },
       limit: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of results (1-200, default: 100)',
+        description: 'Number of results to return (1-200, default: 100)',
       },
       cursor: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Pagination cursor for next page',
+        description: 'Pagination cursor from previous response for fetching next page',
       },
     },
 

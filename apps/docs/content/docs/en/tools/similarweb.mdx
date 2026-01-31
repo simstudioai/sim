@@ -41,7 +41,7 @@ Get comprehensive website analytics including traffic, rankings, engagement, and
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | SimilarWeb API key |
-| `domain` | string | Yes | Website domain to analyze \(without www or protocol\) |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
 
 #### Output
 
@@ -61,12 +61,12 @@ Get comprehensive website analytics including traffic, rankings, engagement, and
 |   ↳ `country` | string | Country code |
 |   ↳ `share` | number | Traffic share \(0-1\) |
 | `trafficSources` | json | Traffic source breakdown |
-| ↳ `direct` | number | Direct traffic share |
-| ↳ `referrals` | number | Referral traffic share |
-| ↳ `search` | number | Search traffic share |
-| ↳ `social` | number | Social traffic share |
-| ↳ `mail` | number | Email traffic share |
-| ↳ `paidReferrals` | number | Paid referral traffic share |
+|   ↳ `direct` | number | Direct traffic share |
+|   ↳ `referrals` | number | Referral traffic share |
+|   ↳ `search` | number | Search traffic share |
+|   ↳ `social` | number | Social traffic share |
+|   ↳ `mail` | number | Email traffic share |
+|   ↳ `paidReferrals` | number | Paid referral traffic share |
 
 ### `similarweb_traffic_visits`
 
@@ -77,11 +77,11 @@ Get total website visits over time (desktop and mobile combined)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | SimilarWeb API key |
-| `domain` | string | Yes | Website domain to analyze \(without www or protocol\) |
-| `country` | string | Yes | 2-letter ISO country code or "world" for worldwide data |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
 | `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
-| `startDate` | string | No | Start date in YYYY-MM format |
-| `endDate` | string | No | End date in YYYY-MM format |
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
 | `mainDomainOnly` | boolean | No | Exclude subdomains from results |
 
 #### Output
@@ -105,11 +105,11 @@ Get website bounce rate over time (desktop and mobile combined)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | SimilarWeb API key |
-| `domain` | string | Yes | Website domain to analyze \(without www or protocol\) |
-| `country` | string | Yes | 2-letter ISO country code or "world" for worldwide data |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
 | `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
-| `startDate` | string | No | Start date in YYYY-MM format |
-| `endDate` | string | No | End date in YYYY-MM format |
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
 | `mainDomainOnly` | boolean | No | Exclude subdomains from results |
 
 #### Output
@@ -133,11 +133,11 @@ Get average pages per visit over time (desktop and mobile combined)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | SimilarWeb API key |
-| `domain` | string | Yes | Website domain to analyze \(without www or protocol\) |
-| `country` | string | Yes | 2-letter ISO country code or "world" for worldwide data |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
 | `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
-| `startDate` | string | No | Start date in YYYY-MM format |
-| `endDate` | string | No | End date in YYYY-MM format |
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
 | `mainDomainOnly` | boolean | No | Exclude subdomains from results |
 
 #### Output
@@ -161,11 +161,11 @@ Get average desktop visit duration over time (in seconds)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | SimilarWeb API key |
-| `domain` | string | Yes | Website domain to analyze \(without www or protocol\) |
-| `country` | string | Yes | 2-letter ISO country code or "world" for worldwide data |
+| `domain` | string | Yes | Website domain to analyze \(e.g., "example.com" without www or protocol\) |
+| `country` | string | Yes | 2-letter ISO country code \(e.g., "us", "gb", "de"\) or "world" for worldwide data |
 | `granularity` | string | Yes | Data granularity: daily, weekly, or monthly |
-| `startDate` | string | No | Start date in YYYY-MM format |
-| `endDate` | string | No | End date in YYYY-MM format |
+| `startDate` | string | No | Start date in YYYY-MM format \(e.g., "2024-01"\) |
+| `endDate` | string | No | End date in YYYY-MM format \(e.g., "2024-12"\) |
 | `mainDomainOnly` | boolean | No | Exclude subdomains from results |
 
 #### Output

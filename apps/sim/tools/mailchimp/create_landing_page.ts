@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
+import type { MailchimpLandingPage } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpLandingPage } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpCreateLandingPage')
 
 export interface MailchimpCreateLandingPageParams {
   apiKey: string
@@ -39,14 +36,14 @@ export const mailchimpCreateLandingPageTool: ToolConfig<
     landingPageType: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The type of landing page (signup)',
+      visibility: 'user-or-llm',
+      description: 'The type of landing page: "signup"',
     },
     landingPageTitle: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The title of the landing page',
+      visibility: 'user-or-llm',
+      description: 'The title of the landing page (e.g., "Join Our Newsletter")',
     },
   },
 

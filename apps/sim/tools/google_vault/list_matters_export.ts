@@ -23,8 +23,8 @@ export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParam
     matterId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The matter ID',
+      visibility: 'user-or-llm',
+      description: 'The matter ID (e.g., "12345678901234567890")',
     },
     pageSize: {
       type: 'number',
@@ -41,8 +41,8 @@ export const listMattersExportTool: ToolConfig<GoogleVaultListMattersExportParam
     exportId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Optional export ID to fetch a specific export',
+      visibility: 'user-or-llm',
+      description: 'Optional export ID to fetch a specific export (e.g., "exportId123456")',
     },
   },
 

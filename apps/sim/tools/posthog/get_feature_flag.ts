@@ -38,13 +38,13 @@ export const getFeatureFlagTool: ToolConfig<GetFeatureFlagParams, GetFeatureFlag
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The PostHog project ID',
+      description: 'The PostHog project ID (e.g., "12345" or project UUID)',
     },
     flagId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The feature flag ID',
+      description: 'The feature flag ID (e.g., "42")',
     },
     region: {
       type: 'string',

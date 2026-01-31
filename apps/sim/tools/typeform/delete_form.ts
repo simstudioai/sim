@@ -17,8 +17,8 @@ export const deleteFormTool: ToolConfig<TypeformDeleteFormParams, TypeformDelete
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Form unique identifier to delete',
+      visibility: 'user-or-llm',
+      description: 'Form unique identifier to delete (e.g., "abc123XYZ")',
     },
   },
 

@@ -11,20 +11,20 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
     indexHost: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Full Pinecone index host URL',
+      visibility: 'user-or-llm',
+      description: 'Full Pinecone index host URL (e.g., "https://my-index-abc123.svc.pinecone.io")',
     },
     ids: {
       type: 'array',
       required: true,
-      visibility: 'user-only',
-      description: 'Array of vector IDs to fetch',
+      visibility: 'user-or-llm',
+      description: 'Array of vector IDs to fetch (e.g., ["vec-001", "vec-002"])',
     },
     namespace: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Namespace to fetch vectors from',
+      visibility: 'user-or-llm',
+      description: 'Namespace to fetch vectors from (e.g., "documents", "embeddings")',
     },
     apiKey: {
       type: 'string',

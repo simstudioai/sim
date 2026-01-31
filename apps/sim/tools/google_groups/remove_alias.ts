@@ -1,5 +1,8 @@
+import type {
+  GoogleGroupsRemoveAliasParams,
+  GoogleGroupsRemoveAliasResponse,
+} from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsRemoveAliasParams, GoogleGroupsRemoveAliasResponse } from './types'
 
 export const removeAliasTool: ToolConfig<
   GoogleGroupsRemoveAliasParams,
@@ -26,7 +29,8 @@ export const removeAliasTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
     alias: {
       type: 'string',

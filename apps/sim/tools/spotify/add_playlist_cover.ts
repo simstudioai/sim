@@ -35,8 +35,8 @@ export const spotifyAddPlaylistCoverTool: ToolConfig<
     imageBase64: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Base64-encoded JPEG image (max 256KB)',
+      visibility: 'user-or-llm',
+      description: 'Base64-encoded JPEG image data (max 256KB)',
     },
   },
 

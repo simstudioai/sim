@@ -26,7 +26,7 @@ export const clerkDeleteUserTool: ToolConfig<ClerkDeleteUserParams, ClerkDeleteU
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the user to delete',
+      description: 'The ID of the user to delete (e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC)',
     },
   },
 

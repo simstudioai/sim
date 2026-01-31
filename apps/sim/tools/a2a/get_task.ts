@@ -1,6 +1,6 @@
+import type { A2AGetTaskParams, A2AGetTaskResponse } from '@/tools/a2a/types'
+import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
-import type { A2AGetTaskParams, A2AGetTaskResponse } from './types'
-import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2AGetTaskResponse> = {
   id: 'a2a_get_task',

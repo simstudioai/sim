@@ -15,14 +15,15 @@ export const mem0AddMemoriesTool: ToolConfig = {
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID associated with the memory',
+      visibility: 'user-or-llm',
+      description: 'User ID associated with the memory (e.g., "user_123", "alice@example.com")',
     },
     messages: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of message objects with role and content',
+      description:
+        'Array of message objects with role and content (e.g., [{"role": "user", "content": "Hello"}])',
     },
     apiKey: {
       type: 'string',

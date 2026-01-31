@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from './types'
+import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskUpdateUser')
 
@@ -57,56 +57,56 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
       userId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'User ID to update',
+        visibility: 'user-or-llm',
+        description: 'User ID to update as a numeric string (e.g., "12345")',
       },
       name: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'New user name',
+        visibility: 'user-or-llm',
+        description: 'New user full name (e.g., "John Smith")',
       },
       userEmail: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'New user email',
+        visibility: 'user-or-llm',
+        description: 'New user email address (e.g., "john@example.com")',
       },
       role: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'User role (end-user, agent, admin)',
+        visibility: 'user-or-llm',
+        description: 'User role: "end-user", "agent", or "admin"',
       },
       phone: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'User phone number',
+        visibility: 'user-or-llm',
+        description: 'User phone number (e.g., "+1-555-123-4567")',
       },
       organizationId: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Organization ID',
+        visibility: 'user-or-llm',
+        description: 'Organization ID as a numeric string (e.g., "67890")',
       },
       verified: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Set to "true" to mark user as verified',
+        visibility: 'user-or-llm',
+        description: 'Set to "true" to mark user as verified, or "false" otherwise',
       },
       tags: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Comma-separated tags',
+        visibility: 'user-or-llm',
+        description: 'Comma-separated tags (e.g., "vip, enterprise")',
       },
       customFields: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Custom fields as JSON object',
+        visibility: 'user-or-llm',
+        description: 'Custom fields as JSON object (e.g., {"field_id": "value"})',
       },
     },
 

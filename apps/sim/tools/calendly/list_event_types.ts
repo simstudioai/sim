@@ -23,32 +23,36 @@ export const listEventTypesTool: ToolConfig<
     user: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Return only event types that belong to this user (URI format)',
+      visibility: 'user-or-llm',
+      description:
+        'Return only event types that belong to this user. Format: URI (e.g., "https://api.calendly.com/users/abc123-def456")',
     },
     organization: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Return only event types that belong to this organization (URI format)',
+      visibility: 'user-or-llm',
+      description:
+        'Return only event types that belong to this organization. Format: URI (e.g., "https://api.calendly.com/organizations/abc123-def456")',
     },
     count: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results per page (default: 20, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of results per page. Format: integer (default: 20, max: 100)',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description:
+        'Page token for pagination. Format: opaque string from previous response next_page_token',
     },
     sort: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Sort order for results (e.g., "name:asc", "name:desc")',
+      visibility: 'user-or-llm',
+      description:
+        'Sort order for results. Format: "field:direction" (e.g., "name:asc", "name:desc")',
     },
     active: {
       type: 'boolean',

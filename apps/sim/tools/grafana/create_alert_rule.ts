@@ -29,8 +29,8 @@ export const createAlertRuleTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization ID for multi-org Grafana instances',
+      visibility: 'user-or-llm',
+      description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
     },
     title: {
       type: 'string',
@@ -42,7 +42,7 @@ export const createAlertRuleTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The UID of the folder to create the alert in',
+      description: 'The UID of the folder to create the alert in (e.g., folder-abc123)',
     },
     ruleGroup: {
       type: 'string',

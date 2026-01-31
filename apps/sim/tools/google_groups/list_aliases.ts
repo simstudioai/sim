@@ -1,5 +1,8 @@
+import type {
+  GoogleGroupsListAliasesParams,
+  GoogleGroupsListAliasesResponse,
+} from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsListAliasesParams, GoogleGroupsListAliasesResponse } from './types'
 
 export const listAliasesTool: ToolConfig<
   GoogleGroupsListAliasesParams,
@@ -26,7 +29,8 @@ export const listAliasesTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
   },
 

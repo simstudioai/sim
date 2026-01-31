@@ -27,8 +27,8 @@ export const salesforceDeleteOpportunityTool: ToolConfig<
     opportunityId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Opportunity ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Opportunity ID to delete (18-character string starting with 006)',
     },
   },
 

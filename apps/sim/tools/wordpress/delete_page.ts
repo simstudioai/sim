@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeletePageParams,
   type WordPressDeletePageResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const deletePageTool: ToolConfig<WordPressDeletePageParams, WordPressDeletePageResponse> = {
   id: 'wordpress_delete_page',
@@ -21,7 +21,7 @@ export const deletePageTool: ToolConfig<WordPressDeletePageParams, WordPressDele
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     pageId: {

@@ -18,7 +18,7 @@ export const firefliesGetUserTool: ToolConfig<FirefliesGetUserParams, FirefliesG
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'User ID to retrieve (optional, defaults to API key owner)',
+      description: 'User ID to retrieve (e.g., "user_abc123", defaults to API key owner)',
     },
   },
 

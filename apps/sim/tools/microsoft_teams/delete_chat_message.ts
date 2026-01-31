@@ -27,14 +27,16 @@ export const deleteChatMessageTool: ToolConfig<
     chatId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the chat containing the message',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the chat containing the message (e.g., "19:abc123def456@thread.v2" - from chat listings)',
     },
     messageId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the message to delete',
+      description:
+        'The ID of the message to delete (e.g., "1234567890123" - a numeric string from message responses)',
     },
   },
 

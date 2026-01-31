@@ -17,8 +17,8 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
     taskId: {
       type: 'string',
       required: false,
-      description: 'The ID of the task to read',
-      visibility: 'user-only',
+      description: 'The ID of the task to read (e.g., "67890")',
+      visibility: 'user-or-llm',
     },
   },
 

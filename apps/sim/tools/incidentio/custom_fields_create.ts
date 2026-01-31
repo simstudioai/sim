@@ -21,7 +21,7 @@ export const customFieldsCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the custom field',
+      description: 'Name of the custom field (e.g., "Affected Service")',
     },
     description: {
       type: 'string',

@@ -1,6 +1,9 @@
+import type {
+  SpotifyGetSavedTracksParams,
+  SpotifyGetSavedTracksResponse,
+} from '@/tools/spotify/types'
+import { TRACK_LIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetSavedTracksParams, SpotifyGetSavedTracksResponse } from './types'
-import { TRACK_LIST_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetSavedTracksTool: ToolConfig<
   SpotifyGetSavedTracksParams,
@@ -21,22 +24,22 @@ export const spotifyGetSavedTracksTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of tracks to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of the first track to return',
+      description: 'Index of the first track to return for pagination',
     },
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO 3166-1 alpha-2 country code',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
   },
 

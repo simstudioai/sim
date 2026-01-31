@@ -13,20 +13,20 @@ export const topPagesTool: ToolConfig<AhrefsTopPagesParams, AhrefsTopPagesRespon
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The target domain to analyze',
+      description: 'The target domain to analyze. Example: "example.com"',
     },
     country: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Country code for traffic data (e.g., us, gb, de). Default: us',
+      visibility: 'user-or-llm',
+      description: 'Country code for traffic data. Example: "us", "gb", "de" (default: "us")',
     },
     mode: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains)',
+        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains). Example: "domain"',
     },
     date: {
       type: 'string',
@@ -37,14 +37,14 @@ export const topPagesTool: ToolConfig<AhrefsTopPagesParams, AhrefsTopPagesRespon
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of results to return (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return. Example: 50 (default: 100)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to skip for pagination',
+      visibility: 'user-or-llm',
+      description: 'Number of results to skip for pagination. Example: 100',
     },
     select: {
       type: 'string',

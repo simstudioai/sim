@@ -1,5 +1,5 @@
+import type { GoogleGroupsAddMemberParams, GoogleGroupsResponse } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsAddMemberParams, GoogleGroupsResponse } from './types'
 
 export const addMemberTool: ToolConfig<GoogleGroupsAddMemberParams, GoogleGroupsResponse> = {
   id: 'google_groups_add_member',
@@ -23,19 +23,20 @@ export const addMemberTool: ToolConfig<GoogleGroupsAddMemberParams, GoogleGroups
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
     email: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Email address of the member to add',
+      description: 'Email address of the member to add (e.g., user@example.com)',
     },
     role: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Role for the member (MEMBER, MANAGER, or OWNER). Defaults to MEMBER.',
+      description: 'Role for the member: MEMBER, MANAGER, or OWNER. Defaults to MEMBER',
     },
   },
 

@@ -30,37 +30,41 @@ export const updateTool: ToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'DynamoDB table name',
+      description: 'DynamoDB table name (e.g., "Users", "Orders")',
     },
     key: {
       type: 'object',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Primary key of the item to update',
+      description:
+        'Primary key of the item to update (e.g., {"pk": "USER#123"} or {"pk": "ORDER#456", "sk": "ITEM#789"})',
     },
     updateExpression: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Update expression (e.g., "SET #name = :name")',
+      description:
+        'Update expression (e.g., "SET #name = :name, age = :age" or "SET #count = #count + :inc")',
     },
     expressionAttributeNames: {
       type: 'object',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Attribute name mappings for reserved words',
+      description:
+        'Attribute name mappings for reserved words (e.g., {"#name": "name", "#count": "count"})',
     },
     expressionAttributeValues: {
       type: 'object',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Expression attribute values',
+      description: 'Expression attribute values (e.g., {":name": "John", ":age": 30, ":inc": 1})',
     },
     conditionExpression: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Condition that must be met for the update to succeed',
+      description:
+        'Condition that must be met for the update to succeed (e.g., "attribute_exists(pk)" or "version = :expectedVersion")',
     },
   },
 

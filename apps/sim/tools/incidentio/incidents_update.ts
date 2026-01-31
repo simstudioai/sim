@@ -25,31 +25,32 @@ export const incidentsUpdateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the incident to update',
+      description: 'ID of the incident to update (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     name: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated name of the incident',
+      description: 'Updated name of the incident (e.g., "Database connection issues")',
     },
     summary: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated summary of the incident',
+      description:
+        'Updated summary of the incident (e.g., "Intermittent connection failures to primary database")',
     },
     severity_id: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated severity ID for the incident',
+      description: 'Updated severity ID for the incident (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     incident_status_id: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated status ID for the incident',
+      description: 'Updated status ID for the incident (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     incident_type_id: {
       type: 'string',

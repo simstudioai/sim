@@ -1,5 +1,5 @@
+import type { WorkflowsListParams, WorkflowsListResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { WorkflowsListParams, WorkflowsListResponse } from './types'
 
 export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListResponse> = {
   id: 'incidentio_workflows_list',
@@ -17,14 +17,15 @@ export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListRes
     page_size: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of workflows to return per page',
+      visibility: 'user-or-llm',
+      description: 'Number of workflows to return per page (e.g., 10, 25, 50)',
     },
     after: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Pagination cursor to fetch the next page of results',
+      visibility: 'user-or-llm',
+      description:
+        'Pagination cursor to fetch the next page of results (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

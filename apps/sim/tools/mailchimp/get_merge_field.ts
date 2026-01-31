@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpGetMergeField')
 
 export interface MailchimpGetMergeFieldParams {
   apiKey: string
@@ -37,14 +34,14 @@ export const mailchimpGetMergeFieldTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     mergeId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the merge field',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the merge field (e.g., "1" or "FNAME")',
     },
   },
 

@@ -34,8 +34,8 @@ export const salesforceGetReportTool: ToolConfig<
     reportId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Report ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Report ID (18-character string starting with 00O)',
     },
   },
 

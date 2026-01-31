@@ -33,15 +33,15 @@ export const worksheetAddTool: ToolConfig<
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Excel workbook to add the worksheet to',
+      visibility: 'user-or-llm',
+      description: 'The ID of the Excel workbook to add the worksheet to (e.g., "01ABC123DEF456")',
     },
     worksheetName: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'The name of the new worksheet. Must be unique within the workbook and cannot exceed 31 characters',
+        'The name of the new worksheet (e.g., "Sales Q1", "Data"). Must be unique within the workbook and cannot exceed 31 characters',
     },
   },
 

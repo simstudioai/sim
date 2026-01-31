@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpRemoveMemberTags')
 
@@ -37,20 +37,21 @@ export const mailchimpRemoveMemberTagsTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     subscriberEmail: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Member email address or MD5 hash',
+      visibility: 'user-or-llm',
+      description: 'Member email address or MD5 hash of the lowercase email',
     },
     tags: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'JSON array of tags with inactive status',
+      visibility: 'user-or-llm',
+      description:
+        'JSON array of tag objects with inactive status (e.g., [{"name": "VIP", "status": "inactive"}])',
     },
   },
 

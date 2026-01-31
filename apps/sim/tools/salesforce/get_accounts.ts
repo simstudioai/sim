@@ -44,20 +44,20 @@ export const salesforceGetAccountsTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 100, max: 2000)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results (default: 100, max: 2000)',
     },
     fields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of fields to return (e.g., "Id,Name,Industry,Phone")',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated field API names (e.g., "Id,Name,Industry,Phone")',
     },
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Field to order by (e.g., "Name ASC" or "CreatedDate DESC")',
+      visibility: 'user-or-llm',
+      description: 'Field and direction for sorting (e.g., "Name ASC" or "CreatedDate DESC")',
     },
   },
 

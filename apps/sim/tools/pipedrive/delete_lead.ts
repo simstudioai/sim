@@ -31,8 +31,8 @@ export const pipedriveDeleteLeadTool: ToolConfig<
     lead_id: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the lead to delete',
+      visibility: 'user-or-llm',
+      description: 'The ID of the lead to delete (e.g., "abc123-def456-ghi789")',
     },
   },
 

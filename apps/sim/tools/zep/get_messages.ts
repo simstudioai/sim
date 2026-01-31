@@ -12,14 +12,14 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Thread ID to get messages from',
+      visibility: 'user-or-llm',
+      description: 'Thread ID to get messages from (e.g., "thread_abc123")',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of messages to return',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of messages to return (e.g., 10, 50, 100)',
     },
     cursor: {
       type: 'string',
@@ -30,7 +30,7 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
     lastn: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of most recent messages to return (overrides limit and cursor)',
     },
     apiKey: {

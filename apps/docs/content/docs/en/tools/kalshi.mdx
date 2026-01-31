@@ -42,11 +42,11 @@ Retrieve a list of prediction markets from Kalshi with all filtering options (V2
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `status` | string | No | Filter by status \(unopened, open, closed, settled\) |
-| `seriesTicker` | string | No | Filter by series ticker |
-| `eventTicker` | string | No | Filter by event ticker |
-| `limit` | string | No | Number of results \(1-1000, default: 100\) |
-| `cursor` | string | No | Pagination cursor for next page |
+| `status` | string | No | Filter by market status: "unopened", "open", "closed", or "settled" |
+| `seriesTicker` | string | No | Filter by series ticker \(e.g., "KXBTC", "INX", "FED-RATE"\) |
+| `eventTicker` | string | No | Filter by event ticker \(e.g., "KXBTC-24DEC31", "INX-25JAN03"\) |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
 #### Output
 
@@ -90,7 +90,7 @@ Retrieve details of a specific prediction market by ticker (V2 - full API respon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `ticker` | string | Yes | The market ticker \(e.g., "KXBTC-24DEC31"\) |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
 
 #### Output
 
@@ -157,11 +157,11 @@ Retrieve a list of events from Kalshi with optional filtering (V2 - exact API re
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `status` | string | No | Filter by status \(open, closed, settled\) |
-| `seriesTicker` | string | No | Filter by series ticker |
-| `withNestedMarkets` | string | No | Include nested markets in response \(true/false\) |
-| `limit` | string | No | Number of results \(1-200, default: 200\) |
-| `cursor` | string | No | Pagination cursor for next page |
+| `status` | string | No | Filter by event status: "open", "closed", or "settled" |
+| `seriesTicker` | string | No | Filter by series ticker \(e.g., "KXBTC", "INX", "FED-RATE"\) |
+| `withNestedMarkets` | string | No | Include nested markets in response: "true" or "false" |
+| `limit` | string | No | Number of results to return \(1-200, default: 200\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
 #### Output
 
@@ -191,7 +191,7 @@ Retrieve details of a specific event by ticker (V2 - exact API response)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `eventTicker` | string | Yes | The event ticker |
+| `eventTicker` | string | Yes | Event ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03"\) |
 | `withNestedMarkets` | string | No | Include nested markets in response \(true/false\) |
 
 #### Output
@@ -241,11 +241,11 @@ Retrieve your open positions from Kalshi (V2 - exact API response)
 | --------- | ---- | -------- | ----------- |
 | `keyId` | string | Yes | Your Kalshi API Key ID |
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
-| `ticker` | string | No | Filter by market ticker |
-| `eventTicker` | string | No | Filter by event ticker \(max 10 comma-separated\) |
-| `settlementStatus` | string | No | Filter by settlement status \(all, unsettled, settled\). Default: unsettled |
-| `limit` | string | No | Number of results \(1-1000, default: 100\) |
-| `cursor` | string | No | Pagination cursor for next page |
+| `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
+| `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
+| `settlementStatus` | string | No | Filter by settlement status: "all", "unsettled", or "settled" \(default: "unsettled"\) |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
 #### Output
 
@@ -279,11 +279,11 @@ Retrieve your orders from Kalshi with optional filtering (V2 with full API respo
 | --------- | ---- | -------- | ----------- |
 | `keyId` | string | Yes | Your Kalshi API Key ID |
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
-| `ticker` | string | No | Filter by market ticker |
-| `eventTicker` | string | No | Filter by event ticker \(max 10 comma-separated\) |
-| `status` | string | No | Filter by status \(resting, canceled, executed\) |
-| `limit` | string | No | Number of results \(1-200, default: 100\) |
-| `cursor` | string | No | Pagination cursor for next page |
+| `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
+| `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
+| `status` | string | No | Filter by order status: "resting", "canceled", or "executed" |
+| `limit` | string | No | Number of results to return \(1-200, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
 #### Output
 
@@ -320,7 +320,7 @@ Retrieve details of a specific order by ID from Kalshi (V2 with full API respons
 | --------- | ---- | -------- | ----------- |
 | `keyId` | string | Yes | Your Kalshi API Key ID |
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
-| `orderId` | string | Yes | The order ID to retrieve |
+| `orderId` | string | Yes | Order ID to retrieve \(e.g., "abc123-def456-ghi789"\) |
 
 #### Output
 
@@ -369,7 +369,7 @@ Retrieve the orderbook (yes and no bids) for a specific market (V2 - includes de
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `ticker` | string | Yes | Market ticker \(e.g., KXBTC-24DEC31\) |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
 
 #### Output
 
@@ -392,8 +392,8 @@ Retrieve recent trades with additional filtering options (V2 - includes trade_id
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Number of results \(1-1000, default: 100\) |
-| `cursor` | string | No | Pagination cursor for next page |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
 #### Output
 
@@ -416,11 +416,11 @@ Retrieve OHLC candlestick data for a specific market (V2 - full API response)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `seriesTicker` | string | Yes | Series ticker |
-| `ticker` | string | Yes | Market ticker \(e.g., KXBTC-24DEC31\) |
-| `startTs` | number | Yes | Start timestamp \(Unix seconds\) |
-| `endTs` | number | Yes | End timestamp \(Unix seconds\) |
-| `periodInterval` | number | Yes | Period interval: 1 \(1min\), 60 \(1hour\), or 1440 \(1day\) |
+| `seriesTicker` | string | Yes | Series ticker identifier \(e.g., "KXBTC", "INX", "FED-RATE"\) |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
+| `startTs` | number | Yes | Start timestamp in Unix seconds \(e.g., 1704067200\) |
+| `endTs` | number | Yes | End timestamp in Unix seconds \(e.g., 1704153600\) |
+| `periodInterval` | number | Yes | Period interval: 1 \(1 minute\), 60 \(1 hour\), or 1440 \(1 day\) |
 
 #### Output
 
@@ -439,12 +439,12 @@ Retrieve your portfolio
 | --------- | ---- | -------- | ----------- |
 | `keyId` | string | Yes | Your Kalshi API Key ID |
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
-| `ticker` | string | No | Filter by market ticker |
-| `orderId` | string | No | Filter by order ID |
-| `minTs` | number | No | Minimum timestamp \(Unix milliseconds\) |
-| `maxTs` | number | No | Maximum timestamp \(Unix milliseconds\) |
-| `limit` | string | No | Number of results \(1-1000, default: 100\) |
-| `cursor` | string | No | Pagination cursor for next page |
+| `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
+| `orderId` | string | No | Filter by order ID \(e.g., "abc123-def456-ghi789"\) |
+| `minTs` | number | No | Minimum timestamp in Unix milliseconds \(e.g., 1704067200000\) |
+| `maxTs` | number | No | Maximum timestamp in Unix milliseconds \(e.g., 1704153600000\) |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
 #### Output
 
@@ -471,7 +471,7 @@ Retrieve details of a specific market series by ticker (V2 - exact API response)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `seriesTicker` | string | Yes | Series ticker |
+| `seriesTicker` | string | Yes | Series ticker identifier \(e.g., "KXBTC", "INX", "FED-RATE"\) |
 
 #### Output
 
@@ -520,11 +520,11 @@ Create a new order on a Kalshi prediction market (V2 with full API response)
 | --------- | ---- | -------- | ----------- |
 | `keyId` | string | Yes | Your Kalshi API Key ID |
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
-| `ticker` | string | Yes | Market ticker \(e.g., KXBTC-24DEC31\) |
-| `side` | string | Yes | Side of the order: 'yes' or 'no' |
-| `action` | string | Yes | Action type: 'buy' or 'sell' |
-| `count` | string | Yes | Number of contracts \(minimum 1\) |
-| `type` | string | No | Order type: 'limit' or 'market' \(default: limit\) |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
+| `side` | string | Yes | Side of the order: "yes" or "no" |
+| `action` | string | Yes | Action type: "buy" or "sell" |
+| `count` | string | Yes | Number of contracts to trade \(e.g., "10", "100"\) |
+| `type` | string | No | Order type: "limit" or "market" \(default: "limit"\) |
 | `yesPrice` | string | No | Yes price in cents \(1-99\) |
 | `noPrice` | string | No | No price in cents \(1-99\) |
 | `yesPriceDollars` | string | No | Yes price in dollars \(e.g., "0.56"\) |
@@ -587,7 +587,7 @@ Cancel an existing order on Kalshi (V2 with full API response)
 | --------- | ---- | -------- | ----------- |
 | `keyId` | string | Yes | Your Kalshi API Key ID |
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
-| `orderId` | string | Yes | The order ID to cancel |
+| `orderId` | string | Yes | Order ID to cancel \(e.g., "abc123-def456-ghi789"\) |
 
 #### Output
 
@@ -640,13 +640,13 @@ Modify the price or quantity of an existing order on Kalshi (V2 with full API re
 | --------- | ---- | -------- | ----------- |
 | `keyId` | string | Yes | Your Kalshi API Key ID |
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
-| `orderId` | string | Yes | The order ID to amend |
-| `ticker` | string | Yes | Market ticker |
-| `side` | string | Yes | Side of the order: 'yes' or 'no' |
-| `action` | string | Yes | Action type: 'buy' or 'sell' |
-| `clientOrderId` | string | Yes | The original client-specified order ID |
-| `updatedClientOrderId` | string | Yes | The new client-specified order ID after amendment |
-| `count` | string | No | Updated quantity for the order |
+| `orderId` | string | Yes | Order ID to amend \(e.g., "abc123-def456-ghi789"\) |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
+| `side` | string | Yes | Side of the order: "yes" or "no" |
+| `action` | string | Yes | Action type: "buy" or "sell" |
+| `clientOrderId` | string | Yes | Original client-specified order ID |
+| `updatedClientOrderId` | string | Yes | New client-specified order ID after amendment |
+| `count` | string | No | Updated quantity for the order \(e.g., "10", "100"\) |
 | `yesPrice` | string | No | Updated yes price in cents \(1-99\) |
 | `noPrice` | string | No | Updated no price in cents \(1-99\) |
 | `yesPriceDollars` | string | No | Updated yes price in dollars \(e.g., "0.56"\) |

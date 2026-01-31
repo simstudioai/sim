@@ -11,14 +11,14 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
     indexHost: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Full Pinecone index host URL',
+      visibility: 'user-or-llm',
+      description: 'Full Pinecone index host URL (e.g., "https://my-index-abc123.svc.pinecone.io")',
     },
     namespace: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Namespace to search in',
+      visibility: 'user-or-llm',
+      description: 'Namespace to search in (e.g., "documents", "embeddings")',
     },
     vector: {
       type: 'array',
@@ -29,14 +29,15 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
     topK: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (e.g., 10, 25)',
     },
     filter: {
       type: 'object',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter to apply to the search',
+      visibility: 'user-or-llm',
+      description:
+        'Filter to apply to the search (e.g., {"category": "tech", "year": {"$gte": 2020}})',
     },
     includeValues: {
       type: 'boolean',
@@ -47,8 +48,8 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
     includeMetadata: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
-      description: 'Include metadata in response',
+      visibility: 'user-or-llm',
+      description: 'Include metadata in response (true/false)',
     },
     apiKey: {
       type: 'string',

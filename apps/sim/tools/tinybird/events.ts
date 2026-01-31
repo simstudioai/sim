@@ -25,14 +25,15 @@ export const eventsTool: ToolConfig<TinybirdEventsParams, TinybirdEventsResponse
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the Tinybird Data Source to send events to',
+      description:
+        'Name of the Tinybird Data Source to send events to. Example: "events_raw", "user_analytics"',
     },
     data: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Data to send as NDJSON (newline-delimited JSON) or JSON string. Each event should be a valid JSON object.',
+        'Data to send as NDJSON (newline-delimited JSON) or JSON string. Each event should be a valid JSON object. Example NDJSON: {"user_id": 1, "event": "click"}\\n{"user_id": 2, "event": "view"}',
     },
     wait: {
       type: 'boolean',

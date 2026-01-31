@@ -20,8 +20,8 @@ export const discordCreateThreadTool: ToolConfig<
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord channel ID to create the thread in',
+      visibility: 'user-or-llm',
+      description: 'The Discord channel ID to create the thread in, e.g., 123456789012345678',
     },
     name: {
       type: 'string',
@@ -33,19 +33,20 @@ export const discordCreateThreadTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The message ID to create a thread from (if creating from existing message)',
+      description:
+        'The message ID to create a thread from (if creating from existing message), e.g., 123456789012345678',
     },
     autoArchiveDuration: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Duration in minutes to auto-archive the thread (60, 1440, 4320, 10080)',
     },
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord server ID (guild ID)',
+      visibility: 'user-or-llm',
+      description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
   },
 

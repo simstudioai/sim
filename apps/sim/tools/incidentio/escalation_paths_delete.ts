@@ -24,7 +24,7 @@ export const escalationPathsDeleteTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the escalation path to delete',
+      description: 'The ID of the escalation path to delete (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

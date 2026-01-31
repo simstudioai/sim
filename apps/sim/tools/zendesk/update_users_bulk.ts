@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from './types'
+import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskUpdateUsersBulk')
 
@@ -51,8 +51,9 @@ export const zendeskUpdateUsersBulkTool: ToolConfig<
     users: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'JSON array of user objects to update (must include id field)',
+      visibility: 'user-or-llm',
+      description:
+        'JSON array of user objects to update, each must include id field (e.g., [{"id": "123", "name": "New Name"}])',
     },
   },
 

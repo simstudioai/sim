@@ -31,8 +31,8 @@ export const getTaskDetailsTool: ToolConfig<
     taskId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the task',
+      visibility: 'user-or-llm',
+      description: 'The ID of the task (e.g., "pbT5K2OVkkO1M7r5bfsJ6JgAGD5m")',
     },
   },
 

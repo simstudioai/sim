@@ -25,14 +25,14 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
     organizationId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization ID for multi-org Grafana instances',
+      visibility: 'user-or-llm',
+      description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
     },
     dashboardUid: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The UID of the dashboard to update',
+      description: 'The UID of the dashboard to update (e.g., abc123def)',
     },
     title: {
       type: 'string',
@@ -44,7 +44,7 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New folder UID to move the dashboard to',
+      description: 'New folder UID to move the dashboard to (e.g., folder-abc123)',
     },
     tags: {
       type: 'string',

@@ -36,19 +36,19 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
     query: {
       type: 'string',
       required: true,
-      description: 'Search query term',
+      description: 'Search query term (e.g., "presidential election", "bitcoin price").',
       visibility: 'user-or-llm',
     },
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page (max 50)',
+      description: 'Number of results per page (e.g., "25"). Max: 50.',
       visibility: 'user-or-llm',
     },
     page: {
       type: 'string',
       required: false,
-      description: 'Page number for pagination (1-indexed)',
+      description: 'Page number for pagination (e.g., "2"). 1-indexed.',
       visibility: 'user-or-llm',
     },
     cache: {

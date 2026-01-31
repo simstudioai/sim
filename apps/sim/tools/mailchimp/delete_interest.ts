@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpDeleteInterest')
 
 export interface MailchimpDeleteInterestParams {
   apiKey: string
@@ -34,20 +31,20 @@ export const mailchimpDeleteInterestTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     interestCategoryId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the interest category',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the interest category (e.g., "xyz789")',
     },
     interestId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the interest to delete',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the interest to delete (e.g., "def456")',
     },
   },
 

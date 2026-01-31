@@ -34,14 +34,14 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
     serviceDeskId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Service Desk ID to create the request in',
+      visibility: 'user-or-llm',
+      description: 'Service Desk ID (e.g., "1", "2")',
     },
     requestTypeId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Request Type ID for the new request',
+      visibility: 'user-or-llm',
+      description: 'Request Type ID (e.g., "10", "15")',
     },
     summary: {
       type: 'string',

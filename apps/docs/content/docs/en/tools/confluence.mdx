@@ -42,7 +42,7 @@ Retrieve content from Confluence pages using the Confluence API.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
-| `pageId` | string | Yes | Confluence page ID to retrieve |
+| `pageId` | string | Yes | Confluence page ID to retrieve \(numeric ID from page URL or API\) |
 | `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -63,7 +63,7 @@ Update a Confluence page using the Confluence API.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
-| `pageId` | string | Yes | Confluence page ID to update |
+| `pageId` | string | Yes | Confluence page ID to update \(numeric ID from page URL or API\) |
 | `title` | string | No | New title for the page |
 | `content` | string | No | New content for the page in Confluence storage format |
 | `version` | number | No | Version number of the page \(required for preventing conflicts\) |

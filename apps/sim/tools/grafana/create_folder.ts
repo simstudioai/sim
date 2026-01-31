@@ -24,8 +24,8 @@ export const createFolderTool: ToolConfig<GrafanaCreateFolderParams, GrafanaCrea
       organizationId: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Organization ID for multi-org Grafana instances',
+        visibility: 'user-or-llm',
+        description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
       },
       title: {
         type: 'string',

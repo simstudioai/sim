@@ -1,6 +1,6 @@
+import type { KalshiOrderbook } from '@/tools/kalshi/types'
+import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiOrderbook } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetOrderbookParams {
   ticker: string
@@ -27,7 +27,7 @@ export const kalshiGetOrderbookTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Market ticker (e.g., KXBTC-24DEC31)',
+      description: 'Market ticker identifier (e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99")',
     },
   },
 
@@ -104,13 +104,13 @@ export const kalshiGetOrderbookV2Tool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Market ticker (e.g., KXBTC-24DEC31)',
+      description: 'Market ticker identifier (e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99")',
     },
     depth: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of price levels to return (default: all)',
+      description: 'Number of price levels to return (e.g., 10, 20). Default: all levels',
     },
   },
 

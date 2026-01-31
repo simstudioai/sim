@@ -1,5 +1,5 @@
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 export interface MailchimpPauseAutomationParams {
   apiKey: string
@@ -32,8 +32,8 @@ export const mailchimpPauseAutomationTool: ToolConfig<
     workflowId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the automation workflow',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the automation workflow (e.g., "abc123def4")',
     },
   },
 

@@ -29,14 +29,14 @@ export const getDataSourceTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization ID for multi-org Grafana instances',
+      visibility: 'user-or-llm',
+      description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
     },
     dataSourceId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID or UID of the data source to retrieve',
+      description: 'The ID or UID of the data source to retrieve (e.g., prometheus, P1234AB5678)',
     },
   },
 

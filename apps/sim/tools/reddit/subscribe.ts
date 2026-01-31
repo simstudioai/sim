@@ -24,7 +24,8 @@ export const subscribeTool: ToolConfig<RedditSubscribeParams, RedditWriteRespons
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the subreddit (without the r/ prefix)',
+      description:
+        'The subreddit to subscribe to or unsubscribe from (e.g., "technology", "programming")',
     },
     action: {
       type: 'string',

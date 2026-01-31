@@ -1,5 +1,5 @@
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 export interface MailchimpUnscheduleCampaignParams {
   apiKey: string
@@ -32,8 +32,8 @@ export const mailchimpUnscheduleCampaignTool: ToolConfig<
     campaignId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the campaign to unschedule',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the campaign to unschedule (e.g., "abc123def4")',
     },
   },
 

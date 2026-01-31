@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
+import type { MailchimpMergeField } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpMergeField } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpGetMergeFields')
 
 export interface MailchimpGetMergeFieldsParams {
   apiKey: string
@@ -40,20 +37,20 @@ export const mailchimpGetMergeFieldsTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     count: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results (default: 10, max: 1000)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (default: 10, max: 1000)',
     },
     offset: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to skip',
+      visibility: 'user-or-llm',
+      description: 'Number of results to skip for pagination',
     },
   },
 

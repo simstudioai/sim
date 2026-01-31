@@ -50,7 +50,7 @@ Extract structured content from web pages with comprehensive metadata support. C
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | The URL to scrape content from |
+| `url` | string | Yes | The URL to scrape content from \(e.g., "https://example.com/page"\) |
 | `scrapeOptions` | json | No | Options for content scraping |
 | `apiKey` | string | Yes | Firecrawl API key |
 
@@ -115,8 +115,12 @@ Crawl entire websites and extract structured content from all accessible pages
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | The website URL to crawl |
-| `limit` | number | No | Maximum number of pages to crawl \(default: 100\) |
+| `url` | string | Yes | The website URL to crawl \(e.g., "https://example.com" or "https://docs.example.com/guide"\) |
+| `limit` | number | No | Maximum number of pages to crawl \(e.g., 50, 100, 500\). Default: 100 |
+| `maxDepth` | number | No | Maximum depth to crawl from the starting URL \(e.g., 1, 2, 3\). Controls how many levels deep to follow links |
+| `formats` | json | No | Output formats for scraped content \(e.g., \["markdown"\], \["markdown", "html"\], \["markdown", "links"\]\) |
+| `excludePaths` | json | No | URL paths to exclude from crawling \(e.g., \["/blog/*", "/admin/*", "/*.pdf"\]\) |
+| `includePaths` | json | No | URL paths to include in crawling \(e.g., \["/docs/*", "/api/*"\]\). Only these paths will be crawled |
 | `onlyMainContent` | boolean | No | Extract only main content from pages |
 | `apiKey` | string | Yes | Firecrawl API Key |
 
@@ -148,12 +152,12 @@ Get a complete list of URLs from any website quickly and reliably. Useful for di
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | The base URL to map and discover links from |
+| `url` | string | Yes | The base URL to map and discover links from \(e.g., "https://example.com"\) |
 | `search` | string | No | Filter results by relevance to a search term \(e.g., "blog"\) |
 | `sitemap` | string | No | Controls sitemap usage: "skip", "include" \(default\), or "only" |
 | `includeSubdomains` | boolean | No | Whether to include URLs from subdomains \(default: true\) |
 | `ignoreQueryParameters` | boolean | No | Exclude URLs containing query strings \(default: true\) |
-| `limit` | number | No | Maximum number of links to return \(max: 100,000, default: 5,000\) |
+| `limit` | number | No | Maximum number of links to return \(e.g., 100, 1000, 5000\). Max: 100,000, default: 5,000 |
 | `timeout` | number | No | Request timeout in milliseconds |
 | `location` | json | No | Geographic context for proxying \(country, languages\) |
 | `apiKey` | string | Yes | Firecrawl API key |
@@ -173,7 +177,7 @@ Extract structured data from entire webpages using natural language prompts and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `urls` | json | Yes | Array of URLs to extract data from \(supports glob format\) |
+| `urls` | json | Yes | Array of URLs to extract data from \(e.g., \["https://example.com/page1", "https://example.com/page2"\] or \["https://example.com/*"\]\) |
 | `prompt` | string | No | Natural language guidance for the extraction process |
 | `schema` | json | No | JSON Schema defining the structure of data to extract |
 | `enableWebSearch` | boolean | No | Enable web search to find supplementary information \(default: false\) |
@@ -200,7 +204,7 @@ Autonomous web data extraction agent. Searches and gathers information based on 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `prompt` | string | Yes | Natural language description of the data to extract \(max 10,000 characters\) |
-| `urls` | json | No | Optional array of URLs to focus the agent on |
+| `urls` | json | No | Optional array of URLs to focus the agent on \(e.g., \["https://example.com", "https://docs.example.com"\]\) |
 | `schema` | json | No | JSON Schema defining the structure of data to extract |
 | `maxCredits` | number | No | Maximum credits to spend on this agent task |
 | `strictConstrainToURLs` | boolean | No | If true, agent will only visit URLs provided in the urls array |

@@ -1,5 +1,5 @@
+import type { SpotifyGetTopArtistsResponse, SpotifyGetTopItemsParams } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetTopArtistsResponse, SpotifyGetTopItemsParams } from './types'
 
 export const spotifyGetTopArtistsTool: ToolConfig<
   SpotifyGetTopItemsParams,
@@ -27,16 +27,16 @@ export const spotifyGetTopArtistsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of artists to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of the first artist to return',
+      description: 'Index of the first artist to return for pagination',
     },
   },
 

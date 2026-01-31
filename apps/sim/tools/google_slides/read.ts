@@ -22,8 +22,8 @@ export const readTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesReadRespon
     presentationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the presentation to read',
+      visibility: 'user-or-llm',
+      description: 'Google Slides presentation ID',
     },
   },
 

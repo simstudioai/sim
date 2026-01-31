@@ -60,13 +60,13 @@ export const getSurveyTool: ToolConfig<PostHogGetSurveyParams, PostHogGetSurveyR
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'PostHog Project ID',
+      description: 'PostHog Project ID (e.g., "12345" or project UUID)',
     },
     surveyId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Survey ID to retrieve',
+      description: 'Survey ID to retrieve (e.g., "01234567-89ab-cdef-0123-456789abcdef")',
     },
     region: {
       type: 'string',

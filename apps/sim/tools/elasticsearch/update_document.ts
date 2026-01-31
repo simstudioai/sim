@@ -63,11 +63,13 @@ export const updateDocumentTool: ToolConfig<
     host: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elasticsearch host URL (for self-hosted)',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elastic Cloud ID (for cloud deployments)',
     },
     authMethod: {
@@ -84,6 +86,7 @@ export const updateDocumentTool: ToolConfig<
     username: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Username for basic auth',
     },
     password: {
@@ -95,12 +98,14 @@ export const updateDocumentTool: ToolConfig<
     index: {
       type: 'string',
       required: true,
-      description: 'Index name',
+      visibility: 'user-or-llm',
+      description: 'Index name (e.g., "products", "logs-2024")',
     },
     documentId: {
       type: 'string',
       required: true,
-      description: 'Document ID to update',
+      visibility: 'user-or-llm',
+      description: 'Document ID to update (e.g., "abc123", "user_456")',
     },
     document: {
       type: 'string',

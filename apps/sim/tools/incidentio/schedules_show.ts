@@ -24,7 +24,7 @@ export const schedulesShowTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the schedule',
+      description: 'The ID of the schedule (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

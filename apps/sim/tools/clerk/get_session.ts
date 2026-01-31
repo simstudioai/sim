@@ -26,7 +26,7 @@ export const clerkGetSessionTool: ToolConfig<ClerkGetSessionParams, ClerkGetSess
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the session to retrieve',
+      description: 'The ID of the session to retrieve (e.g., sess_2NNEqL2nrIRdJ194ndJqAHwEfxC)',
     },
   },
 

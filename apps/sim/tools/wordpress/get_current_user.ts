@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetCurrentUserParams,
   type WordPressGetCurrentUserResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const getCurrentUserTool: ToolConfig<
   WordPressGetCurrentUserParams,
@@ -24,7 +24,7 @@ export const getCurrentUserTool: ToolConfig<
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
   },

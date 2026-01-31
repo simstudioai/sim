@@ -1,5 +1,9 @@
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  type MailchimpCampaignContent,
+} from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError, type MailchimpCampaignContent } from './types'
 
 export interface MailchimpSetCampaignContentParams {
   apiKey: string
@@ -36,26 +40,26 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
     campaignId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the campaign',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the campaign (e.g., "abc123def4")',
     },
     html: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The HTML content for the campaign',
     },
     plainText: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The plain-text content for the campaign',
     },
     templateId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The ID of the template to use',
+      visibility: 'user-or-llm',
+      description: 'The unique ID of the template to use (e.g., "12345")',
     },
   },
 

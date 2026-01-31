@@ -24,7 +24,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     destinationType: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Destination type: channel or dm',
     },
     botToken: {
@@ -42,14 +42,14 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     channel: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Target Slack channel (e.g., #general)',
+      visibility: 'user-or-llm',
+      description: 'Slack channel ID (e.g., C1234567890)',
     },
     dmUserId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Target Slack user for direct messages',
+      visibility: 'user-or-llm',
+      description: 'Slack user ID for direct messages (e.g., U1234567890)',
     },
     text: {
       type: 'string',

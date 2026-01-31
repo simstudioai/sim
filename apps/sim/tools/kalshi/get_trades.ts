@@ -1,6 +1,10 @@
+import type { KalshiPaginationParams, KalshiPagingInfo, KalshiTrade } from '@/tools/kalshi/types'
+import {
+  buildKalshiUrl,
+  handleKalshiError,
+  KALSHI_TRADE_OUTPUT_PROPERTIES,
+} from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiPaginationParams, KalshiPagingInfo, KalshiTrade } from './types'
-import { buildKalshiUrl, handleKalshiError, KALSHI_TRADE_OUTPUT_PROPERTIES } from './types'
 
 export interface KalshiGetTradesParams extends KalshiPaginationParams {}
 
@@ -23,13 +27,13 @@ export const kalshiGetTradesTool: ToolConfig<KalshiGetTradesParams, KalshiGetTra
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results (1-1000, default: 100)',
+      description: 'Number of results to return (1-1000, default: 100)',
     },
     cursor: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination cursor for next page',
+      description: 'Pagination cursor from previous response for fetching next page',
     },
   },
 
@@ -124,31 +128,31 @@ export const kalshiGetTradesV2Tool: ToolConfig<KalshiGetTradesV2Params, KalshiGe
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Filter by market ticker',
+        description: 'Filter by market ticker (e.g., "KXBTC-24DEC31")',
       },
       minTs: {
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Minimum timestamp (Unix seconds)',
+        description: 'Minimum timestamp in Unix seconds (e.g., 1704067200)',
       },
       maxTs: {
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Maximum timestamp (Unix seconds)',
+        description: 'Maximum timestamp in Unix seconds (e.g., 1704153600)',
       },
       limit: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of results (1-1000, default: 100)',
+        description: 'Number of results to return (1-1000, default: 100)',
       },
       cursor: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Pagination cursor for next page',
+        description: 'Pagination cursor from previous response for fetching next page',
       },
     },
 

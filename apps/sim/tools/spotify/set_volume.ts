@@ -1,5 +1,5 @@
+import type { SpotifySetVolumeParams, SpotifySetVolumeResponse } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifySetVolumeParams, SpotifySetVolumeResponse } from './types'
 
 export const spotifySetVolumeTool: ToolConfig<SpotifySetVolumeParams, SpotifySetVolumeResponse> = {
   id: 'spotify_set_volume',

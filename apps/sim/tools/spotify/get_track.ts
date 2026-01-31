@@ -1,6 +1,9 @@
+import type { SpotifyGetTrackParams, SpotifyGetTrackResponse } from '@/tools/spotify/types'
+import {
+  SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetTrackParams, SpotifyGetTrackResponse } from './types'
-import { SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES, SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTrackResponse> = {
   id: 'spotify_get_track',
@@ -23,8 +26,8 @@ export const spotifyGetTrackTool: ToolConfig<SpotifyGetTrackParams, SpotifyGetTr
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO 3166-1 alpha-2 country code for track availability',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code for track availability (e.g., "US", "GB")',
     },
   },
 

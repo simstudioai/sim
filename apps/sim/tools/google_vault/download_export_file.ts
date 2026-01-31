@@ -23,8 +23,8 @@ export const downloadExportFileTool: ToolConfig<GoogleVaultDownloadExportFilePar
     matterId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The matter ID',
+      visibility: 'user-or-llm',
+      description: 'The matter ID (e.g., "12345678901234567890")',
     },
     bucketName: {
       type: 'string',

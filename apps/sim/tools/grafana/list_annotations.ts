@@ -29,32 +29,32 @@ export const listAnnotationsTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization ID for multi-org Grafana instances',
+      visibility: 'user-or-llm',
+      description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
     },
     from: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Start time in epoch milliseconds',
+      description: 'Start time in epoch milliseconds (e.g., 1704067200000)',
     },
     to: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'End time in epoch milliseconds',
+      description: 'End time in epoch milliseconds (e.g., 1704153600000)',
     },
     dashboardUid: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Dashboard UID to query annotations from',
+      description: 'Dashboard UID to query annotations from (e.g., abc123def)',
     },
     panelId: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by panel ID',
+      description: 'Filter by panel ID (e.g., 1, 2)',
     },
     tags: {
       type: 'string',

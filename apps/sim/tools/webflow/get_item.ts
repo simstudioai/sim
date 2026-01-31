@@ -22,20 +22,20 @@ export const webflowGetItemTool: ToolConfig<WebflowGetItemParams, WebflowGetItem
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the Webflow site',
+      visibility: 'user-or-llm',
+      description: 'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741")',
     },
     collectionId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the collection',
+      visibility: 'user-or-llm',
+      description: 'ID of the collection (e.g., "580e63fc8c9a982ac9b8b745")',
     },
     itemId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the item to retrieve',
+      visibility: 'user-or-llm',
+      description: 'ID of the item to retrieve (e.g., "580e64008c9a982ac9b8b754")',
     },
   },
 

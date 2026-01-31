@@ -63,13 +63,14 @@ export const getSessionRecordingTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'PostHog Project ID',
+      description: 'PostHog Project ID (e.g., "12345" or project UUID)',
     },
     recordingId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Session recording ID to retrieve',
+      description:
+        'Session recording ID to retrieve (e.g., "01234567-89ab-cdef-0123-456789abcdef")',
     },
     region: {
       type: 'string',

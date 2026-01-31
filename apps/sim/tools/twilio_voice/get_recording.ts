@@ -15,7 +15,7 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Recording SID to retrieve',
+      description: 'Recording SID to retrieve (e.g., RExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)',
     },
     accountSid: {
       type: 'string',

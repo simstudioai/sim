@@ -19,7 +19,7 @@ export const zoomGetMeetingTool: ToolConfig<ZoomGetMeetingParams, ZoomGetMeeting
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The meeting ID',
+      description: 'The meeting ID (e.g., "1234567890" or "85746065432")',
     },
     occurrenceId: {
       type: 'string',

@@ -1,5 +1,5 @@
+import { SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import { SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetSavedAlbumsParams {
   accessToken: string
@@ -46,22 +46,22 @@ export const spotifyGetSavedAlbumsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of albums to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of first album to return',
+      description: 'Index of first album to return for pagination',
     },
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO country code for market',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
   },
 

@@ -15,7 +15,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The URL to scrape content from',
+      description: 'The URL to scrape content from (e.g., "https://example.com/page")',
     },
     scrapeOptions: {
       type: 'json',

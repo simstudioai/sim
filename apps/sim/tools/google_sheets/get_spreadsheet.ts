@@ -28,8 +28,8 @@ export const getSpreadsheetV2Tool: ToolConfig<
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet',
+      visibility: 'user-or-llm',
+      description: 'Google Sheets spreadsheet ID',
     },
     includeGridData: {
       type: 'boolean',

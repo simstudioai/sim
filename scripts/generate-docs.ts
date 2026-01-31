@@ -1243,9 +1243,42 @@ function extractToolInfo(
       let paramMatch
       const paramPositions: Array<{ name: string; start: number; content: string }> = []
 
+      /**
+       * Checks if a position in the string is inside a quoted string.
+       * This prevents matching patterns like "Example: {" inside description strings.
+       */
+      const isInsideString = (content: string, position: number): boolean => {
+        let inSingleQuote = false
+        let inDoubleQuote = false
+        let inBacktick = false
+
+        for (let i = 0; i < position; i++) {
+          const char = content[i]
+          const prevChar = i > 0 ? content[i - 1] : ''
+
+          // Skip escaped quotes
+          if (prevChar === '\\') continue
+
+          if (char === "'" && !inDoubleQuote && !inBacktick) {
+            inSingleQuote = !inSingleQuote
+          } else if (char === '"' && !inSingleQuote && !inBacktick) {
+            inDoubleQuote = !inDoubleQuote
+          } else if (char === '`' && !inSingleQuote && !inDoubleQuote) {
+            inBacktick = !inBacktick
+          }
+        }
+
+        return inSingleQuote || inDoubleQuote || inBacktick
+      }
+
       while ((paramMatch = paramBlocksRegex.exec(paramsContent)) !== null) {
         const paramName = paramMatch[1]
         const startPos = paramMatch.index + paramMatch[0].length - 1
+
+        // Skip matches that are inside string literals (e.g., "Example: {" in descriptions)
+        if (isInsideString(paramsContent, paramMatch.index)) {
+          continue
+        }
 
         let braceCount = 1
         let endPos = startPos + 1

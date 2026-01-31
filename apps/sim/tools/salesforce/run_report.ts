@@ -34,20 +34,20 @@ export const salesforceRunReportTool: ToolConfig<
     reportId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Report ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Report ID (18-character string starting with 00O)',
     },
     includeDetails: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Include detail rows (true/false, default: true)',
     },
     filters: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'JSON string of report filters to apply',
+      visibility: 'user-or-llm',
+      description: 'JSON array of report filter objects to apply',
     },
   },
 

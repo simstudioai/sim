@@ -1,5 +1,8 @@
+import type {
+  IncidentioUsersListParams,
+  IncidentioUsersListResponse,
+} from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { IncidentioUsersListParams, IncidentioUsersListResponse } from './types'
 
 export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUsersListResponse> = {
   id: 'incidentio_users_list',
@@ -18,8 +21,8 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
     page_size: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return per page (default: 25)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return per page (e.g., 10, 25, 50). Default: 25',
     },
   },
 

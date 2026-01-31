@@ -23,7 +23,7 @@ export const saveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Thing fullname to save (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
+      description: 'Thing fullname to save (e.g., "t3_abc123" for post, "t1_def456" for comment)',
     },
     category: {
       type: 'string',
@@ -117,7 +117,7 @@ export const unsaveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Thing fullname to unsave (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
+      description: 'Thing fullname to unsave (e.g., "t3_abc123" for post, "t1_def456" for comment)',
     },
   },
 

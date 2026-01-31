@@ -23,8 +23,8 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
     documentId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the document to read',
+      visibility: 'user-or-llm',
+      description: 'Google Docs document ID',
     },
   },
 

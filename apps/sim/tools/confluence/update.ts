@@ -28,8 +28,8 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Confluence page ID to update',
+      visibility: 'user-or-llm',
+      description: 'Confluence page ID to update (numeric ID from page URL or API)',
     },
     title: {
       type: 'string',

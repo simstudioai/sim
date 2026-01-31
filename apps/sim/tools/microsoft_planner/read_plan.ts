@@ -31,8 +31,8 @@ export const readPlanTool: ToolConfig<
     planId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the plan to retrieve',
+      visibility: 'user-or-llm',
+      description: 'The ID of the plan to retrieve (e.g., "xqQg5FS2LkCe54tAMV_v2ZgADW2J")',
     },
   },
 

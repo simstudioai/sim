@@ -53,8 +53,8 @@ Search Apollo
 | `person_seniorities` | array | No | Seniority levels \(e.g., \["senior", "executive", "manager"\]\) |
 | `organization_names` | array | No | Company names to search within |
 | `q_keywords` | string | No | Keywords to search for |
-| `page` | number | No | Page number for pagination \(default: 1\) |
-| `per_page` | number | No | Results per page \(default: 25, max: 100\) |
+| `page` | number | No | Page number for pagination, default 1 \(e.g., 1, 2, 3\) |
+| `per_page` | number | No | Results per page, default 25, max 100 \(e.g., 25, 50, 100\) |
 
 #### Output
 
@@ -78,7 +78,7 @@ Enrich data for a single person using Apollo
 | `last_name` | string | No | Last name of the person |
 | `email` | string | No | Email address of the person |
 | `organization_name` | string | No | Company name where the person works |
-| `domain` | string | No | Company domain \(e.g., apollo.io\) |
+| `domain` | string | No | Company domain \(e.g., "apollo.io", "acme.com"\) |
 | `linkedin_url` | string | No | LinkedIn profile URL |
 | `reveal_personal_emails` | boolean | No | Reveal personal email addresses \(uses credits\) |
 | `reveal_phone_number` | boolean | No | Reveal phone numbers \(uses credits\) |
@@ -123,9 +123,9 @@ Search Apollo
 | `organization_locations` | array | No | Company locations to search |
 | `organization_num_employees_ranges` | array | No | Employee count ranges \(e.g., \["1-10", "11-50"\]\) |
 | `q_organization_keyword_tags` | array | No | Industry or keyword tags |
-| `q_organization_name` | string | No | Organization name to search for |
-| `page` | number | No | Page number for pagination |
-| `per_page` | number | No | Results per page \(max: 100\) |
+| `q_organization_name` | string | No | Organization name to search for \(e.g., "Acme", "TechCorp"\) |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
 #### Output
 
@@ -145,8 +145,8 @@ Enrich data for a single organization using Apollo
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `organization_name` | string | No | Name of the organization \(at least one of organization_name or domain is required\) |
-| `domain` | string | No | Company domain \(e.g., apollo.io\) \(at least one of domain or organization_name is required\) |
+| `organization_name` | string | No | Name of the organization \(e.g., "Acme Corporation"\) - at least one of organization_name or domain is required |
+| `domain` | string | No | Company domain \(e.g., "apollo.io", "acme.com"\) - at least one of domain or organization_name is required |
 
 #### Output
 
@@ -186,8 +186,8 @@ Create a new contact in your Apollo database
 | `first_name` | string | Yes | First name of the contact |
 | `last_name` | string | Yes | Last name of the contact |
 | `email` | string | No | Email address of the contact |
-| `title` | string | No | Job title |
-| `account_id` | string | No | Apollo account ID to associate with |
+| `title` | string | No | Job title \(e.g., "VP of Sales", "Software Engineer"\) |
+| `account_id` | string | No | Apollo account ID to associate with \(e.g., "acc_abc123"\) |
 | `owner_id` | string | No | User ID of the contact owner |
 
 #### Output
@@ -206,12 +206,12 @@ Update an existing contact in your Apollo database
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `contact_id` | string | Yes | ID of the contact to update |
+| `contact_id` | string | Yes | ID of the contact to update \(e.g., "con_abc123"\) |
 | `first_name` | string | No | First name of the contact |
 | `last_name` | string | No | Last name of the contact |
 | `email` | string | No | Email address |
-| `title` | string | No | Job title |
-| `account_id` | string | No | Apollo account ID |
+| `title` | string | No | Job title \(e.g., "VP of Sales", "Software Engineer"\) |
+| `account_id` | string | No | Apollo account ID \(e.g., "acc_abc123"\) |
 | `owner_id` | string | No | User ID of the contact owner |
 
 #### Output
@@ -232,8 +232,8 @@ Search your team
 | `apiKey` | string | Yes | Apollo API key |
 | `q_keywords` | string | No | Keywords to search for |
 | `contact_stage_ids` | array | No | Filter by contact stage IDs |
-| `page` | number | No | Page number for pagination |
-| `per_page` | number | No | Results per page \(max: 100\) |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
 #### Output
 
@@ -294,7 +294,7 @@ Create a new account (company) in your Apollo database
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `name` | string | Yes | Company name |
+| `name` | string | Yes | Company name \(e.g., "Acme Corporation"\) |
 | `website_url` | string | No | Company website URL |
 | `phone` | string | No | Company phone number |
 | `owner_id` | string | No | User ID of the account owner |
@@ -315,8 +315,8 @@ Update an existing account in your Apollo database
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `account_id` | string | Yes | ID of the account to update |
-| `name` | string | No | Company name |
+| `account_id` | string | Yes | ID of the account to update \(e.g., "acc_abc123"\) |
+| `name` | string | No | Company name \(e.g., "Acme Corporation"\) |
 | `website_url` | string | No | Company website URL |
 | `phone` | string | No | Company phone number |
 | `owner_id` | string | No | User ID of the account owner |
@@ -340,8 +340,8 @@ Search your team
 | `q_keywords` | string | No | Keywords to search for in account data |
 | `owner_id` | string | No | Filter by account owner user ID |
 | `account_stage_ids` | array | No | Filter by account stage IDs |
-| `page` | number | No | Page number for pagination |
-| `per_page` | number | No | Results per page \(max: 100\) |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
 #### Output
 
@@ -401,8 +401,8 @@ Create a new deal for an account in your Apollo database (master key required)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `name` | string | Yes | Name of the opportunity/deal |
-| `account_id` | string | Yes | ID of the account this opportunity belongs to |
+| `name` | string | Yes | Name of the opportunity/deal \(e.g., "Enterprise License - Q1"\) |
+| `account_id` | string | Yes | ID of the account this opportunity belongs to \(e.g., "acc_abc123"\) |
 | `amount` | number | No | Monetary value of the opportunity |
 | `stage_id` | string | No | ID of the deal stage |
 | `owner_id` | string | No | User ID of the opportunity owner |
@@ -426,11 +426,11 @@ Search and list all deals/opportunities in your team
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
 | `q_keywords` | string | No | Keywords to search for in opportunity names |
-| `account_ids` | array | No | Filter by specific account IDs |
+| `account_ids` | array | No | Filter by specific account IDs \(e.g., \["acc_123", "acc_456"\]\) |
 | `stage_ids` | array | No | Filter by deal stage IDs |
 | `owner_ids` | array | No | Filter by opportunity owner IDs |
-| `page` | number | No | Page number for pagination |
-| `per_page` | number | No | Results per page \(max: 100\) |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
 #### Output
 
@@ -450,7 +450,7 @@ Retrieve complete details of a specific deal/opportunity by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `opportunity_id` | string | Yes | ID of the opportunity to retrieve |
+| `opportunity_id` | string | Yes | ID of the opportunity to retrieve \(e.g., "opp_abc123"\) |
 
 #### Output
 
@@ -468,8 +468,8 @@ Update an existing deal/opportunity in your Apollo database
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `opportunity_id` | string | Yes | ID of the opportunity to update |
-| `name` | string | No | Name of the opportunity/deal |
+| `opportunity_id` | string | Yes | ID of the opportunity to update \(e.g., "opp_abc123"\) |
+| `name` | string | No | Name of the opportunity/deal \(e.g., "Enterprise License - Q1"\) |
 | `amount` | number | No | Monetary value of the opportunity |
 | `stage_id` | string | No | ID of the deal stage |
 | `owner_id` | string | No | User ID of the opportunity owner |
@@ -492,10 +492,10 @@ Search for sequences/campaigns in your team
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `q_name` | string | No | Search sequences by name |
+| `q_name` | string | No | Search sequences by name \(e.g., "Outbound Q1", "Follow-up"\) |
 | `active` | boolean | No | Filter by active status \(true for active sequences, false for inactive\) |
-| `page` | number | No | Page number for pagination |
-| `per_page` | number | No | Results per page \(max: 100\) |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
 #### Output
 
@@ -515,8 +515,8 @@ Add contacts to an Apollo sequence
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `sequence_id` | string | Yes | ID of the sequence to add contacts to |
-| `contact_ids` | array | Yes | Array of contact IDs to add to the sequence |
+| `sequence_id` | string | Yes | ID of the sequence to add contacts to \(e.g., "seq_abc123"\) |
+| `contact_ids` | array | Yes | Array of contact IDs to add to the sequence \(e.g., \["con_abc123", "con_def456"\]\) |
 | `emailer_campaign_id` | string | No | Optional emailer campaign ID |
 | `send_email_from_user_id` | string | No | User ID to send emails from |
 
@@ -538,8 +538,8 @@ Create a new task in Apollo
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
 | `note` | string | Yes | Task note/description |
-| `contact_id` | string | No | Contact ID to associate with |
-| `account_id` | string | No | Account ID to associate with |
+| `contact_id` | string | No | Contact ID to associate with \(e.g., "con_abc123"\) |
+| `account_id` | string | No | Account ID to associate with \(e.g., "acc_abc123"\) |
 | `due_at` | string | No | Due date in ISO format |
 | `priority` | string | No | Task priority |
 | `type` | string | No | Task type |
@@ -560,11 +560,11 @@ Search for tasks in Apollo
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `contact_id` | string | No | Filter by contact ID |
-| `account_id` | string | No | Filter by account ID |
+| `contact_id` | string | No | Filter by contact ID \(e.g., "con_abc123"\) |
+| `account_id` | string | No | Filter by account ID \(e.g., "acc_abc123"\) |
 | `completed` | boolean | No | Filter by completion status |
-| `page` | number | No | Page number for pagination |
-| `per_page` | number | No | Results per page \(max: 100\) |
+| `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
+| `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
 #### Output
 

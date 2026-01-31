@@ -12,13 +12,14 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the monitor to retrieve',
+      description: 'The ID of the monitor to retrieve (e.g., "12345678")',
     },
     groupStates: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated group states to include: alert, warn, no data, ok',
+      description:
+        'Comma-separated group states to include (e.g., "alert,warn", "alert,warn,no data,ok")',
     },
     withDowntimes: {
       type: 'boolean',

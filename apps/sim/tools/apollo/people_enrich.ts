@@ -45,7 +45,7 @@ export const apolloPeopleEnrichTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company domain (e.g., apollo.io)',
+      description: 'Company domain (e.g., "apollo.io", "acme.com")',
     },
     linkedin_url: {
       type: 'string',

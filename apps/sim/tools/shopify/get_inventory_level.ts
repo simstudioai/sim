@@ -1,6 +1,9 @@
+import type {
+  ShopifyGetInventoryLevelParams,
+  ShopifyInventoryResponse,
+} from '@/tools/shopify/types'
+import { INVENTORY_LEVEL_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ShopifyGetInventoryLevelParams, ShopifyInventoryResponse } from './types'
-import { INVENTORY_LEVEL_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyGetInventoryLevelTool: ToolConfig<
   ShopifyGetInventoryLevelParams,

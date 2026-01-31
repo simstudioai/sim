@@ -41,8 +41,9 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
     listId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'The ID of the list to retrieve',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the list to retrieve. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012',
     },
   },
 

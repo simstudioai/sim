@@ -24,7 +24,7 @@ export const schedulesCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the schedule',
+      description: 'Name of the schedule (e.g., "Primary On-Call")',
     },
     timezone: {
       type: 'string',

@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressListCommentsParams,
   type WordPressListCommentsResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const listCommentsTool: ToolConfig<
   WordPressListCommentsParams,
@@ -24,49 +24,49 @@ export const listCommentsTool: ToolConfig<
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     perPage: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of comments per request (default: 10, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of comments per request (e.g., 10, 25, 50). Default: 10, max: 100',
     },
     page: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Page number for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page number for pagination (e.g., 1, 2, 3)',
     },
     postId: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by post ID',
+      visibility: 'user-or-llm',
+      description: 'Filter by post ID (e.g., 123, 456)',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter by comment status: approved, hold, spam, trash',
     },
     search: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search term to filter comments',
+      description: 'Search term to filter comments (e.g., "question", "feedback")',
     },
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Order by field: date, id, parent',
     },
     order: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Order direction: asc or desc',
     },
   },

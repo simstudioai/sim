@@ -41,8 +41,8 @@ export const salesforceDeleteAccountTool: ToolConfig<
     accountId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Account ID to delete (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Account ID to delete (18-character string starting with 001)',
     },
   },
 

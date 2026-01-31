@@ -26,26 +26,26 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
     pipeline_id: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the pipeline',
+      visibility: 'user-or-llm',
+      description: 'The ID of the pipeline (e.g., "1")',
     },
     stage_id: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by specific stage within the pipeline',
+      visibility: 'user-or-llm',
+      description: 'Filter by specific stage within the pipeline (e.g., "2")',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter by deal status: open, won, lost',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 100, max: 500)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
     },
   },
 
