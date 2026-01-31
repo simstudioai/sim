@@ -361,15 +361,15 @@ Snap GPS coordinates to the nearest road segment
 
 ### `google_maps_speed_limits`
 
-Get speed limits for road segments
+Get speed limits for road segments. Requires either path coordinates or placeIds.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Google Maps API key with Roads API enabled |
-| `path` | string | No | Pipe-separated list of lat,lng coordinates \(e.g., "60.170880,24.942795\|60.170879,24.942796"\) |
-| `placeIds` | array | No | Array of Place IDs for road segments \(alternative to path\) |
+| `path` | string | No | Pipe-separated list of lat,lng coordinates \(required if placeIds not provided\) |
+| `placeIds` | array | No | Array of Place IDs for road segments \(required if path not provided\) |
 
 #### Output
 

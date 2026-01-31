@@ -10,7 +10,7 @@ export const googleMapsSpeedLimitsTool: ToolConfig<
 > = {
   id: 'google_maps_speed_limits',
   name: 'Google Maps Speed Limits',
-  description: 'Get speed limits for road segments',
+  description: 'Get speed limits for road segments. Requires either path coordinates or placeIds.',
   version: '1.0.0',
 
   params: {
@@ -24,28 +24,36 @@ export const googleMapsSpeedLimitsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Pipe-separated list of lat,lng coordinates (e.g., "60.170880,24.942795|60.170879,24.942796")',
+      description: 'Pipe-separated list of lat,lng coordinates (required if placeIds not provided)',
     },
     placeIds: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Array of Place IDs for road segments (alternative to path)',
+      description: 'Array of Place IDs for road segments (required if path not provided)',
     },
   },
 
   request: {
     url: (params) => {
+      const hasPath = params.path && params.path.trim().length > 0
+      const hasPlaceIds = params.placeIds && params.placeIds.length > 0
+
+      if (!hasPath && !hasPlaceIds) {
+        throw new Error(
+          'Speed Limits requires either a path (coordinates) or placeIds. Please provide at least one.'
+        )
+      }
+
       const url = new URL('https://roads.googleapis.com/v1/speedLimits')
       url.searchParams.set('key', params.apiKey.trim())
 
-      if (params.path) {
-        url.searchParams.set('path', params.path.trim())
+      if (hasPath) {
+        url.searchParams.set('path', params.path!.trim())
       }
 
-      if (params.placeIds && params.placeIds.length > 0) {
-        for (const placeId of params.placeIds) {
+      if (hasPlaceIds) {
+        for (const placeId of params.placeIds!) {
           url.searchParams.append('placeId', placeId.trim())
         }
       }
