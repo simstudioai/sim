@@ -21,7 +21,7 @@ export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUp
       siteId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
       },
       file: {

@@ -21,7 +21,7 @@ export const getMediaTool: ToolConfig<WordPressGetMediaParams, WordPressGetMedia
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     mediaId: {

@@ -50,7 +50,6 @@ Execute MATCH queries to read nodes and relationships from Neo4j graph database.
 | `encryption` | string | No | Connection encryption mode \(enabled, disabled\) |
 | `cypherQuery` | string | Yes | Cypher query to execute \(e.g., "MATCH \(n:Person\) RETURN n LIMIT 10", "MATCH \(a\)-\[r\]-&gt;\(b\) WHERE a.name = $name RETURN a, r, b"\) |
 | `parameters` | object | No | Parameters for the Cypher query as a JSON object. Use for any dynamic values including LIMIT \(e.g., query: "MATCH \(n\) RETURN n LIMIT $limit", parameters: \{limit: 100\}\). |
-| `parameters` | string | No | No description |
 
 #### Output
 

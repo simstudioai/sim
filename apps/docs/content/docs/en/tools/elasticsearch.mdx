@@ -51,7 +51,6 @@ Search documents in Elasticsearch using Query DSL. Returns matching documents wi
 | `password` | string | No | Password for basic auth |
 | `index` | string | Yes | Index name to search \(e.g., "products", "logs-2024"\) |
 | `query` | string | No | Query DSL as JSON string. Example: \{"match":\{"title":"search term"\}\} or \{"bool":\{"must":\[...\]\}\} |
-| `Example` | string | No | No description |
 | `from` | number | No | Starting offset for pagination \(e.g., 0, 10, 20\). Default: 0 |
 | `size` | number | No | Number of results to return \(e.g., 10, 25, 100\). Default: 10 |
 | `sort` | string | No | Sort specification as JSON string. Example: \[\{"created_at":"desc"\}\] or \[\{"_score":"desc"\},\{"name":"asc"\}\] |
@@ -201,7 +200,6 @@ Perform multiple index, create, delete, or update operations in a single request
 | `password` | string | No | Password for basic auth |
 | `index` | string | No | Default index for operations \(e.g., "products", "logs-2024"\) |
 | `operations` | string | Yes | Bulk operations as NDJSON string. Each operation is two lines: action metadata and optional document. Example: \{"index":\{"_index":"products","_id":"1"\}\}\\n\{"name":"Widget"\}\\n |
-| `Example` | string | No | No description |
 | `refresh` | string | No | Refresh policy: true, false, or wait_for |
 
 #### Output
@@ -229,7 +227,6 @@ Count documents matching a query in Elasticsearch.
 | `password` | string | No | Password for basic auth |
 | `index` | string | Yes | Index name to count documents in \(e.g., "products", "logs-2024"\) |
 | `query` | string | No | Query DSL to filter documents \(JSON string\). Example: \{"match":\{"status":"active"\}\} |
-| `Example` | string | No | No description |
 
 #### Output
 

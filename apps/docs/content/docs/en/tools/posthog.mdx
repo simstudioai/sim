@@ -162,9 +162,7 @@ Execute a HogQL query in PostHog. HogQL is PostHog
 | `region` | string | No | PostHog region: us \(default\) or eu |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `query` | string | Yes | HogQL query to execute. Example: \{"kind": "HogQLQuery", "query": "SELECT event, count\(\) FROM events WHERE timestamp &gt; now\(\) - INTERVAL 1 DAY GROUP BY event"\} |
-| `Example` | string | No | No description |
 | `values` | string | No | Optional JSON string of parameter values for parameterized queries. Example: \{"user_id": "123"\} |
-| `Example` | string | No | No description |
 
 #### Output
 
