@@ -99,7 +99,6 @@ export function collectBlockData(
   const blockNameMapping: Record<string, string> = {}
   const blockOutputSchemas: Record<string, OutputSchema> = {}
 
-  // Determine if we're in a parallel branch context
   const branchIndex =
     currentNodeId && isBranchNodeId(currentNodeId) ? extractBranchIndex(currentNodeId) : null
 
@@ -107,14 +106,10 @@ export function collectBlockData(
     if (state.output !== undefined) {
       blockData[id] = state.output
 
-      // If we're in a parallel branch and this state is from the same branch,
-      // also map it under the base block ID so references like <BlockName.field>
-      // resolve correctly within the same branch context
       if (branchIndex !== null && isBranchNodeId(id)) {
         const stateBranchIndex = extractBranchIndex(id)
         if (stateBranchIndex === branchIndex) {
           const baseId = extractBaseBlockId(id)
-          // Only set if not already set (prefer branch-specific data)
           if (blockData[baseId] === undefined) {
             blockData[baseId] = state.output
           }

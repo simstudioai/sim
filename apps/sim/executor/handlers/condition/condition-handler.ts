@@ -20,11 +20,6 @@ const CONDITION_TIMEOUT_MS = 5000
  * Evaluates a single condition expression.
  * Variable resolution is handled consistently with the function block via the function_execute tool.
  * Returns true if condition is met, false otherwise.
- *
- * @param ctx - Execution context
- * @param conditionExpression - The condition expression to evaluate
- * @param providedEvalContext - Optional evaluation context with variables
- * @param currentNodeId - Optional current node ID for parallel branch context resolution
  */
 export async function evaluateConditionExpression(
   ctx: ExecutionContext,
@@ -95,15 +90,12 @@ export class ConditionBlockHandler implements BlockHandler {
   ): Promise<BlockOutput> {
     const conditions = this.parseConditions(inputs.conditions)
 
-    // In parallel branches, block.id is virtual (e.g., "condition₍0₎") but connections
-    // use original IDs (e.g., "condition"). Extract the base ID for connection lookups.
     const baseBlockId = extractBaseBlockId(block.id)
     const branchIndex = isBranchNodeId(block.id) ? extractBranchIndex(block.id) : null
 
     const sourceConnection = ctx.workflow?.connections.find((conn) => conn.target === baseBlockId)
     let sourceBlockId = sourceConnection?.source
 
-    // If we're in a parallel branch, look up the virtual source block ID for the same branch
     if (sourceBlockId && branchIndex !== null) {
       const virtualSourceId = buildBranchNodeId(sourceBlockId, branchIndex)
       if (ctx.blockStates.has(virtualSourceId)) {
