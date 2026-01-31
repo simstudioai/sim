@@ -4,7 +4,7 @@ import { Badge, Button, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { WorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import type { WorkspacePermissions } from '@/hooks/queries/workspace'
 import { PermissionSelector } from './permission-selector'
 import { PermissionsTableSkeleton } from './permissions-table-skeleton'
 import type { UserPermissions } from './types'
@@ -14,7 +14,7 @@ export interface PermissionsTableProps {
   onPermissionChange: (userId: string, permissionType: PermissionType) => void
   onRemoveMember?: (userId: string, email: string) => void
   onRemoveInvitation?: (invitationId: string, email: string) => void
-  onResendInvitation?: (invitationId: string, email: string) => void
+  onResendInvitation?: (invitationId: string) => void
   disabled?: boolean
   existingUserPermissionChanges: Record<string, Partial<UserPermissions>>
   isSaving?: boolean
@@ -143,7 +143,6 @@ export const PermissionsTable = ({
         <div>
           {allUsers.map((user) => {
             const isCurrentUser = user.isCurrentUser === true
-            const isExistingUser = filteredExistingUsers.some((eu) => eu.email === user.email)
             const isPendingInvitation = user.isPendingInvitation === true
             const userIdentifier = user.userId || user.email
             const originalPermission = workspacePermissions?.users?.find(
@@ -205,7 +204,7 @@ export const PermissionsTable = ({
                             <span className='inline-flex'>
                               <Button
                                 variant='ghost'
-                                onClick={() => onResendInvitation(user.invitationId!, user.email)}
+                                onClick={() => onResendInvitation(user.invitationId!)}
                                 disabled={
                                   disabled ||
                                   isSaving ||

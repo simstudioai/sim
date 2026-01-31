@@ -1,5 +1,8 @@
+import type {
+  GoogleGroupsRemoveAliasParams,
+  GoogleGroupsRemoveAliasResponse,
+} from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsRemoveAliasParams, GoogleGroupsRemoveAliasResponse } from './types'
 
 export const removeAliasTool: ToolConfig<
   GoogleGroupsRemoveAliasParams,

@@ -1,6 +1,6 @@
+import type { MailchimpInterestCategory } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpInterestCategory } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 export interface MailchimpUpdateInterestCategoryParams {
   apiKey: string

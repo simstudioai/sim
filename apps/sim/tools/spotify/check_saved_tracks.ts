@@ -1,5 +1,8 @@
+import type {
+  SpotifyCheckSavedTracksParams,
+  SpotifyCheckSavedTracksResponse,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyCheckSavedTracksParams, SpotifyCheckSavedTracksResponse } from './types'
 
 export const spotifyCheckSavedTracksTool: ToolConfig<
   SpotifyCheckSavedTracksParams,

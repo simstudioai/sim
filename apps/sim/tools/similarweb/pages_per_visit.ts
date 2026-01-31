@@ -1,5 +1,8 @@
+import type {
+  SimilarwebPagesPerVisitParams,
+  SimilarwebPagesPerVisitResponse,
+} from '@/tools/similarweb/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SimilarwebPagesPerVisitParams, SimilarwebPagesPerVisitResponse } from './types'
 
 export const similarwebPagesPerVisitTool: ToolConfig<
   SimilarwebPagesPerVisitParams,

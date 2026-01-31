@@ -1,6 +1,9 @@
+import type {
+  A2ADeletePushNotificationParams,
+  A2ADeletePushNotificationResponse,
+} from '@/tools/a2a/types'
+import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
-import type { A2ADeletePushNotificationParams, A2ADeletePushNotificationResponse } from './types'
-import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aDeletePushNotificationTool: ToolConfig<
   A2ADeletePushNotificationParams,

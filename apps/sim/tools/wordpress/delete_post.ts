@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeletePostParams,
   type WordPressDeletePostResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const deletePostTool: ToolConfig<WordPressDeletePostParams, WordPressDeletePostResponse> = {
   id: 'wordpress_delete_post',

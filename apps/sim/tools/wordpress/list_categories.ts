@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressListCategoriesParams,
   type WordPressListCategoriesResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const listCategoriesTool: ToolConfig<
   WordPressListCategoriesParams,

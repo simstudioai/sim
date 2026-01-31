@@ -1,5 +1,5 @@
+import type { ShopifyDeleteProductParams, ShopifyDeleteResponse } from '@/tools/shopify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ShopifyDeleteProductParams, ShopifyDeleteResponse } from './types'
 
 export const shopifyDeleteProductTool: ToolConfig<
   ShopifyDeleteProductParams,

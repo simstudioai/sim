@@ -1,8 +1,10 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, METADATA_OUTPUT, PAGING_OUTPUT } from './types'
-
-const logger = createLogger('ZendeskSearch')
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  METADATA_OUTPUT,
+  PAGING_OUTPUT,
+} from '@/tools/zendesk/types'
 
 export interface ZendeskSearchParams {
   email: string

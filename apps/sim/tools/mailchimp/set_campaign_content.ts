@@ -1,5 +1,9 @@
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  type MailchimpCampaignContent,
+} from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError, type MailchimpCampaignContent } from './types'
 
 export interface MailchimpSetCampaignContentParams {
   apiKey: string

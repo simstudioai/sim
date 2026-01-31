@@ -1,6 +1,6 @@
+import type { A2AGetAgentCardParams, A2AGetAgentCardResponse } from '@/tools/a2a/types'
+import { A2A_OUTPUT_PROPERTIES } from '@/tools/a2a/types'
 import type { ToolConfig } from '@/tools/types'
-import type { A2AGetAgentCardParams, A2AGetAgentCardResponse } from './types'
-import { A2A_OUTPUT_PROPERTIES } from './types'
 
 export const a2aGetAgentCardTool: ToolConfig<A2AGetAgentCardParams, A2AGetAgentCardResponse> = {
   id: 'a2a_get_agent_card',

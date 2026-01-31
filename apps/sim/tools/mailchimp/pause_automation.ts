@@ -1,5 +1,5 @@
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 export interface MailchimpPauseAutomationParams {
   apiKey: string

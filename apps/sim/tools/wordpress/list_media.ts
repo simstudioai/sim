@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressListMediaParams,
   type WordPressListMediaResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const listMediaTool: ToolConfig<WordPressListMediaParams, WordPressListMediaResponse> = {
   id: 'wordpress_list_media',

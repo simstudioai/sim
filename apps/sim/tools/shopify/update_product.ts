@@ -1,6 +1,6 @@
+import type { ShopifyProductResponse, ShopifyUpdateProductParams } from '@/tools/shopify/types'
+import { PRODUCT_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ShopifyProductResponse, ShopifyUpdateProductParams } from './types'
-import { PRODUCT_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyUpdateProductTool: ToolConfig<
   ShopifyUpdateProductParams,

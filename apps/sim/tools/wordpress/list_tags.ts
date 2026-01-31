@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressListTagsParams,
   type WordPressListTagsResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const listTagsTool: ToolConfig<WordPressListTagsParams, WordPressListTagsResponse> = {
   id: 'wordpress_list_tags',

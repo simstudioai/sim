@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetPostParams,
   type WordPressGetPostResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const getPostTool: ToolConfig<WordPressGetPostParams, WordPressGetPostResponse> = {
   id: 'wordpress_get_post',

@@ -1,6 +1,10 @@
+import type { KalshiEvent, KalshiPaginationParams, KalshiPagingInfo } from '@/tools/kalshi/types'
+import {
+  buildKalshiUrl,
+  handleKalshiError,
+  KALSHI_EVENT_OUTPUT_PROPERTIES,
+} from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiEvent, KalshiPaginationParams, KalshiPagingInfo } from './types'
-import { buildKalshiUrl, handleKalshiError, KALSHI_EVENT_OUTPUT_PROPERTIES } from './types'
 
 export interface KalshiGetEventsParams extends KalshiPaginationParams {
   status?: string // open, closed, settled

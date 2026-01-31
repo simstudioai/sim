@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from './types'
+import { buildZendeskUrl, handleZendeskError, USER_OUTPUT_PROPERTIES } from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskUpdateUser')
 

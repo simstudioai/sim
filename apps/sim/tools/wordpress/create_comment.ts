@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreateCommentParams,
   type WordPressCreateCommentResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const createCommentTool: ToolConfig<
   WordPressCreateCommentParams,

@@ -1,5 +1,5 @@
+import type { WorkflowsListParams, WorkflowsListResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { WorkflowsListParams, WorkflowsListResponse } from './types'
 
 export const workflowsListTool: ToolConfig<WorkflowsListParams, WorkflowsListResponse> = {
   id: 'incidentio_workflows_list',

@@ -1,6 +1,6 @@
+import type { MailchimpTemplate } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpTemplate } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 export interface MailchimpUpdateTemplateParams {
   apiKey: string

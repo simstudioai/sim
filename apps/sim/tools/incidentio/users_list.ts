@@ -1,5 +1,8 @@
+import type {
+  IncidentioUsersListParams,
+  IncidentioUsersListResponse,
+} from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { IncidentioUsersListParams, IncidentioUsersListResponse } from './types'
 
 export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUsersListResponse> = {
   id: 'incidentio_users_list',

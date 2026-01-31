@@ -1,11 +1,11 @@
-import type { ToolConfig } from '@/tools/types'
-import type { KalshiMarket, KalshiPaginationParams, KalshiPagingInfo } from './types'
+import type { KalshiMarket, KalshiPaginationParams, KalshiPagingInfo } from '@/tools/kalshi/types'
 import {
   buildKalshiUrl,
   handleKalshiError,
   KALSHI_MARKET_OUTPUT_PROPERTIES,
   KALSHI_PAGING_OUTPUT_PROPERTIES,
-} from './types'
+} from '@/tools/kalshi/types'
+import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiGetMarketsParams extends KalshiPaginationParams {
   status?: string // unopened, open, closed, settled

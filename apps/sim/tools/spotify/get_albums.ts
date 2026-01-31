@@ -1,5 +1,5 @@
+import { SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import { SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetAlbumsParams {
   accessToken: string

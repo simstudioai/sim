@@ -1,6 +1,6 @@
+import type { KalshiMarket } from '@/tools/kalshi/types'
+import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiMarket } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetMarketParams {
   ticker: string // Market ticker

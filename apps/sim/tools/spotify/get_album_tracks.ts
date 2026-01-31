@@ -1,5 +1,5 @@
+import { ALBUM_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import { ALBUM_TRACK_OUTPUT_PROPERTIES } from './types'
 
 interface SpotifyGetAlbumTracksParams {
   accessToken: string
