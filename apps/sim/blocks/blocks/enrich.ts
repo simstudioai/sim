@@ -271,7 +271,6 @@ export const EnrichBlock: BlockConfig = {
       type: 'code',
       placeholder: '[12345, 67890]',
       condition: { field: 'operation', value: 'search_company_employees' },
-      required: { field: 'operation', value: 'search_company_employees' },
     },
     {
       id: 'country',
@@ -311,10 +310,28 @@ export const EnrichBlock: BlockConfig = {
       condition: { field: 'operation', value: 'search_similar_companies' },
     },
     {
+      id: 'employeeSizeType',
+      title: 'Employee Size Filter Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Range', id: 'RANGE' },
+        { label: 'Exact', id: 'EXACT' },
+      ],
+      condition: { field: 'operation', value: 'search_similar_companies' },
+      mode: 'advanced',
+    },
+    {
       id: 'employeeSizeRange',
       title: 'Employee Size Range (JSON)',
       type: 'code',
       placeholder: '[{"start": 50, "end": 200}]',
+      condition: { field: 'operation', value: 'search_similar_companies' },
+    },
+    {
+      id: 'num',
+      title: 'Results Per Page',
+      type: 'short-input',
+      placeholder: '10',
       condition: { field: 'operation', value: 'search_similar_companies' },
     },
 
@@ -418,6 +435,14 @@ export const EnrichBlock: BlockConfig = {
       condition: { field: 'operation', value: 'search_company_activities' },
       required: { field: 'operation', value: 'search_company_activities' },
     },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'search_company_activities' },
+      mode: 'advanced',
+    },
 
     {
       id: 'hash',
@@ -446,6 +471,7 @@ export const EnrichBlock: BlockConfig = {
           'search_post_comments',
         ],
       },
+      required: { field: 'operation', value: 'sales_pointer_people' },
     },
     {
       id: 'pageSize',
@@ -502,70 +528,7 @@ export const EnrichBlock: BlockConfig = {
       'enrich_search_logo',
     ],
     config: {
-      tool: (params) => {
-        switch (params.operation) {
-          case 'check_credits':
-            return 'enrich_check_credits'
-          case 'email_to_profile':
-            return 'enrich_email_to_profile'
-          case 'email_to_person_lite':
-            return 'enrich_email_to_person_lite'
-          case 'linkedin_profile':
-            return 'enrich_linkedin_profile'
-          case 'find_email':
-            return 'enrich_find_email'
-          case 'linkedin_to_work_email':
-            return 'enrich_linkedin_to_work_email'
-          case 'linkedin_to_personal_email':
-            return 'enrich_linkedin_to_personal_email'
-          case 'phone_finder':
-            return 'enrich_phone_finder'
-          case 'email_to_phone':
-            return 'enrich_email_to_phone'
-          case 'verify_email':
-            return 'enrich_verify_email'
-          case 'disposable_email_check':
-            return 'enrich_disposable_email_check'
-          case 'email_to_ip':
-            return 'enrich_email_to_ip'
-          case 'ip_to_company':
-            return 'enrich_ip_to_company'
-          case 'company_lookup':
-            return 'enrich_company_lookup'
-          case 'company_funding':
-            return 'enrich_company_funding'
-          case 'company_revenue':
-            return 'enrich_company_revenue'
-          case 'search_people':
-            return 'enrich_search_people'
-          case 'search_company':
-            return 'enrich_search_company'
-          case 'search_company_employees':
-            return 'enrich_search_company_employees'
-          case 'search_similar_companies':
-            return 'enrich_search_similar_companies'
-          case 'sales_pointer_people':
-            return 'enrich_sales_pointer_people'
-          case 'search_posts':
-            return 'enrich_search_posts'
-          case 'get_post_details':
-            return 'enrich_get_post_details'
-          case 'search_post_reactions':
-            return 'enrich_search_post_reactions'
-          case 'search_post_comments':
-            return 'enrich_search_post_comments'
-          case 'search_people_activities':
-            return 'enrich_search_people_activities'
-          case 'search_company_activities':
-            return 'enrich_search_company_activities'
-          case 'reverse_hash_lookup':
-            return 'enrich_reverse_hash_lookup'
-          case 'search_logo':
-            return 'enrich_search_logo'
-          default:
-            throw new Error(`Invalid Enrich operation: ${params.operation}`)
-        }
-      },
+      tool: (params) => `enrich_${params.operation}`,
       params: (params) => {
         const { operation, ...rest } = params
         const parsedParams: Record<string, any> = { ...rest }
@@ -631,8 +594,18 @@ export const EnrichBlock: BlockConfig = {
           parsedParams.url = rest.domain
         }
 
-        if (parsedParams.page) parsedParams.page = Number(parsedParams.page)
+        if (parsedParams.page) {
+          const pageNum = Number(parsedParams.page)
+          if (operation === 'search_people' || operation === 'search_company') {
+            parsedParams.currentPage = pageNum
+            parsedParams.page = undefined
+          } else {
+            parsedParams.page = pageNum
+          }
+        }
         if (parsedParams.pageSize) parsedParams.pageSize = Number(parsedParams.pageSize)
+        if (parsedParams.num) parsedParams.num = Number(parsedParams.num)
+        if (parsedParams.offset) parsedParams.offset = Number(parsedParams.offset)
         if (parsedParams.staffCountMin)
           parsedParams.staffCountMin = Number(parsedParams.staffCountMin)
         if (parsedParams.staffCountMax)

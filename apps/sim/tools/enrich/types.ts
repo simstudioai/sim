@@ -75,7 +75,9 @@ export interface EnrichEmailToPersonLiteResponse extends ToolResponse {
     title: string | null
     location: string | null
     company: string | null
+    companyLocation: string | null
     companyLinkedIn: string | null
+    profileId: string | null
     schoolName: string | null
     schoolUrl: string | null
     linkedInUrl: string | null
@@ -448,7 +450,7 @@ export interface EnrichSearchCompanyResponse extends ToolResponse {
 }
 
 export interface EnrichSearchCompanyEmployeesParams extends EnrichBaseParams {
-  companyIds: number[]
+  companyIds?: number[]
   country?: string
   city?: string
   state?: string
@@ -620,7 +622,7 @@ export interface EnrichSearchPostReactionsResponse extends ToolResponse {
 
 export interface EnrichSearchPostCommentsParams extends EnrichBaseParams {
   postUrn: string
-  page: number
+  page?: number
 }
 
 export interface EnrichSearchPostCommentsResponse extends ToolResponse {
@@ -667,6 +669,12 @@ export interface EnrichSearchPeopleActivitiesResponse extends ToolResponse {
       commentary: string | null
       linkedInUrl: string | null
       timeElapsed: string | null
+      numReactions: number | null
+      author: {
+        name: string | null
+        profileId: string | null
+        profilePicture: string | null
+      } | null
       reactionBreakdown: {
         likes: number
         empathy: number

@@ -22,7 +22,7 @@ export const searchCompanyEmployeesTool: ToolConfig<
     },
     companyIds: {
       type: 'json',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Array of company IDs to search within',
     },
@@ -72,10 +72,9 @@ export const searchCompanyEmployeesTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: Record<string, any> = {
-        companyIds: params.companyIds,
-      }
+      const body: Record<string, any> = {}
 
+      if (params.companyIds) body.companyIds = params.companyIds
       if (params.country) body.country = params.country
       if (params.city) body.city = params.city
       if (params.state) body.state = params.state

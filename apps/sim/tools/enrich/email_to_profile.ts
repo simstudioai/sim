@@ -51,22 +51,28 @@ export const emailToProfileTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    // API returns positions nested under data.positions.positionHistory
     const positionHistory =
-      data.positionHistory?.map((pos: any) => ({
+      data.positions?.positionHistory?.map((pos: any) => ({
         title: pos.title ?? '',
-        company: pos.companyName ?? pos.company ?? '',
-        startDate: pos.startDate ?? null,
-        endDate: pos.endDate ?? null,
-        location: pos.location ?? null,
+        company: pos.company?.companyName ?? '',
+        startDate: pos.startEndDate?.start
+          ? `${pos.startEndDate.start.year}-${pos.startEndDate.start.month ?? 1}`
+          : null,
+        endDate: pos.startEndDate?.end
+          ? `${pos.startEndDate.end.year}-${pos.startEndDate.end.month ?? 1}`
+          : null,
+        location: pos.company?.companyLocation ?? null,
       })) ?? []
 
+    // API returns education nested under data.schools.educationHistory
     const education =
-      data.schools?.map((edu: any) => ({
-        school: edu.schoolName ?? edu.school ?? '',
-        degree: edu.degree ?? null,
+      data.schools?.educationHistory?.map((edu: any) => ({
+        school: edu.school?.schoolName ?? '',
+        degree: edu.degreeName ?? null,
         fieldOfStudy: edu.fieldOfStudy ?? null,
-        startDate: edu.startDate ?? null,
-        endDate: edu.endDate ?? null,
+        startDate: edu.startEndDate?.start?.year ? String(edu.startEndDate.start.year) : null,
+        endDate: edu.startEndDate?.end?.year ? String(edu.startEndDate.end.year) : null,
       })) ?? []
 
     const certifications =

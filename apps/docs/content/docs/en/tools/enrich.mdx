@@ -123,7 +123,9 @@ Retrieve basic LinkedIn profile information from an email address. A lighter ver
 | `title` | string | Job title |
 | `location` | string | Location |
 | `company` | string | Current company |
+| `companyLocation` | string | Company location |
 | `companyLinkedIn` | string | Company LinkedIn URL |
+| `profileId` | string | LinkedIn profile ID |
 | `schoolName` | string | School name |
 | `schoolUrl` | string | School URL |
 | `linkedInUrl` | string | LinkedIn profile URL |
@@ -597,7 +599,7 @@ Search for employees within specific companies by location and job title.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Enrich API key |
-| `companyIds` | json | Yes | Array of company IDs to search within |
+| `companyIds` | json | No | Array of company IDs to search within |
 | `country` | string | No | Country filter \(e.g., United States\) |
 | `city` | string | No | City filter \(e.g., San Francisco\) |
 | `state` | string | No | State filter \(e.g., California\) |
@@ -788,7 +790,7 @@ Get comments on a LinkedIn post.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Enrich API key |
 | `postUrn` | string | Yes | LinkedIn activity URN \(e.g., urn:li:activity:7191163324208705536\) |
-| `page` | number | Yes | Page number \(starts at 1\) |
+| `page` | number | No | Page number \(starts at 1, default: 1\) |
 
 #### Output
 
@@ -840,6 +842,11 @@ Get a person
 |   ↳ `commentary` | string | Activity text content |
 |   ↳ `linkedInUrl` | string | Link to activity |
 |   ↳ `timeElapsed` | string | Time elapsed since activity |
+|   ↳ `numReactions` | number | Total number of reactions |
+|   ↳ `author` | object | Activity author info |
+|     ↳ `name` | string | Author name |
+|     ↳ `profileId` | string | Profile ID |
+|     ↳ `profilePicture` | string | Profile picture URL |
 |   ↳ `reactionBreakdown` | object | Reactions |
 |     ↳ `likes` | number | Likes |
 |     ↳ `empathy` | number | Empathy reactions |

@@ -67,6 +67,15 @@ export const searchPeopleActivitiesTool: ToolConfig<
         commentary: activity.commentary ?? null,
         linkedInUrl: activity.li_url ?? activity.linkedInUrl ?? null,
         timeElapsed: activity.time_elapsed ?? activity.timeElapsed ?? null,
+        numReactions: activity.num_reactions ?? activity.numReactions ?? null,
+        author: activity.author
+          ? {
+              name: activity.author.name ?? null,
+              profileId: String(activity.author.profile_id ?? activity.author.profileId ?? ''),
+              profilePicture:
+                activity.author.profile_picture ?? activity.author.profilePicture ?? null,
+            }
+          : null,
         reactionBreakdown: {
           likes: activity.reaction_breakdown?.likes ?? activity.reactionBreakdown?.likes ?? 0,
           empathy: activity.reaction_breakdown?.empathy ?? activity.reactionBreakdown?.empathy ?? 0,
@@ -105,6 +114,16 @@ export const searchPeopleActivitiesTool: ToolConfig<
           commentary: { type: 'string', description: 'Activity text content' },
           linkedInUrl: { type: 'string', description: 'Link to activity' },
           timeElapsed: { type: 'string', description: 'Time elapsed since activity' },
+          numReactions: { type: 'number', description: 'Total number of reactions' },
+          author: {
+            type: 'object',
+            description: 'Activity author info',
+            properties: {
+              name: { type: 'string', description: 'Author name' },
+              profileId: { type: 'string', description: 'Profile ID' },
+              profilePicture: { type: 'string', description: 'Profile picture URL' },
+            },
+          },
           reactionBreakdown: {
             type: 'object',
             description: 'Reactions',

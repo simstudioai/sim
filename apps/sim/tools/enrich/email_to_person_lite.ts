@@ -55,7 +55,9 @@ export const emailToPersonLiteTool: ToolConfig<
         title: data.title ?? null,
         location: data.location ?? null,
         company: data.company ?? null,
+        companyLocation: data.company_location ?? data.companyLocation ?? null,
         companyLinkedIn: data.company_linkedin ?? data.companyLinkedIn ?? null,
+        profileId: data.profile_id ?? data.profileId ?? null,
         schoolName: data.school_name ?? data.schoolName ?? null,
         schoolUrl: data.school_url ?? data.schoolUrl ?? null,
         linkedInUrl: data.linkedin_url ?? data.linkedInUrl ?? null,
@@ -106,9 +108,19 @@ export const emailToPersonLiteTool: ToolConfig<
       description: 'Current company',
       optional: true,
     },
+    companyLocation: {
+      type: 'string',
+      description: 'Company location',
+      optional: true,
+    },
     companyLinkedIn: {
       type: 'string',
       description: 'Company LinkedIn URL',
+      optional: true,
+    },
+    profileId: {
+      type: 'string',
+      description: 'LinkedIn profile ID',
       optional: true,
     },
     schoolName: {

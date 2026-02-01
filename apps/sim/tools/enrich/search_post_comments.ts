@@ -28,9 +28,9 @@ export const searchPostCommentsTool: ToolConfig<
     },
     page: {
       type: 'number',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Page number (starts at 1)',
+      description: 'Page number (starts at 1, default: 1)',
     },
   },
 
@@ -38,7 +38,9 @@ export const searchPostCommentsTool: ToolConfig<
     url: (params) => {
       const url = new URL('https://api.enrich.so/v1/api/search-comments')
       url.searchParams.append('post_urn', params.postUrn.trim())
-      url.searchParams.append('page', String(params.page))
+      if (params.page !== undefined) {
+        url.searchParams.append('page', String(params.page))
+      }
       return url.toString()
     },
     method: 'GET',
