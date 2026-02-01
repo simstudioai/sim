@@ -55,6 +55,7 @@ import {
   clearDragHighlights,
   computeClampedPositionUpdates,
   estimateBlockDimensions,
+  filterProtectedBlocks,
   getClampedPositionForNode,
   isInEditableElement,
   resolveParentChildSelectionConflicts,
@@ -1069,14 +1070,11 @@ const WorkflowContent = React.memo(() => {
   }, [contextMenuBlocks, copyBlocks, executePasteOperation])
 
   const handleContextDelete = useCallback(() => {
-    let blockIds = contextMenuBlocks.map((b) => b.id)
-    // Filter out locked blocks and blocks inside locked containers
-    const protectedBlockIds = contextMenuBlocks
-      .filter((b) => b.locked || (b.parentId && blocks[b.parentId]?.locked))
-      .map((b) => b.id)
-    if (protectedBlockIds.length > 0) {
-      blockIds = blockIds.filter((id) => !protectedBlockIds.includes(id))
-      if (protectedBlockIds.length === contextMenuBlocks.length) {
+    const blockIds = contextMenuBlocks.map((b) => b.id)
+    const { deletableIds, protectedIds, allProtected } = filterProtectedBlocks(blockIds, blocks)
+
+    if (protectedIds.length > 0) {
+      if (allProtected) {
         addNotification({
           level: 'info',
           message: 'Cannot delete locked blocks or blocks inside locked containers',
@@ -1086,12 +1084,12 @@ const WorkflowContent = React.memo(() => {
       }
       addNotification({
         level: 'info',
-        message: `Skipped ${protectedBlockIds.length} protected block(s)`,
+        message: `Skipped ${protectedIds.length} protected block(s)`,
         workflowId: activeWorkflowId || undefined,
       })
     }
-    if (blockIds.length > 0) {
-      collaborativeBatchRemoveBlocks(blockIds)
+    if (deletableIds.length > 0) {
+      collaborativeBatchRemoveBlocks(deletableIds)
     }
   }, [contextMenuBlocks, collaborativeBatchRemoveBlocks, addNotification, activeWorkflowId, blocks])
 
@@ -3499,16 +3497,14 @@ const WorkflowContent = React.memo(() => {
       }
 
       event.preventDefault()
-      let selectedIds = selectedNodes.map((node) => node.id)
-      // Filter out locked blocks and blocks inside locked containers
-      const protectedIds = selectedIds.filter(
-        (id) =>
-          blocks[id]?.locked ||
-          (blocks[id]?.data?.parentId && blocks[blocks[id]?.data?.parentId]?.locked)
+      const selectedIds = selectedNodes.map((node) => node.id)
+      const { deletableIds, protectedIds, allProtected } = filterProtectedBlocks(
+        selectedIds,
+        blocks
       )
+
       if (protectedIds.length > 0) {
-        selectedIds = selectedIds.filter((id) => !protectedIds.includes(id))
-        if (protectedIds.length === selectedNodes.length) {
+        if (allProtected) {
           addNotification({
             level: 'info',
             message: 'Cannot delete locked blocks or blocks inside locked containers',
@@ -3522,8 +3518,8 @@ const WorkflowContent = React.memo(() => {
           workflowId: activeWorkflowId || undefined,
         })
       }
-      if (selectedIds.length > 0) {
-        collaborativeBatchRemoveBlocks(selectedIds)
+      if (deletableIds.length > 0) {
+        collaborativeBatchRemoveBlocks(deletableIds)
       }
     }
 
