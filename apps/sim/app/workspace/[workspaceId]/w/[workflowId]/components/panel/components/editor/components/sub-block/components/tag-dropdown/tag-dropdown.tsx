@@ -1746,7 +1746,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           mergedSubBlocks
         )
 
-        if (fieldType === 'files' || fieldType === 'file[]' || fieldType === 'array') {
+        if (fieldType === 'file' || fieldType === 'file[]' || fieldType === 'array') {
           const blockName = parts[0]
           const remainingPath = parts.slice(2).join('.')
           processedTag = `${blockName}.${arrayFieldName}[0].${remainingPath}`

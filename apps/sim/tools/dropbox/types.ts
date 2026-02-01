@@ -1,4 +1,4 @@
-import type { ToolResponse } from '@/tools/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 // ===== Core Types =====
 
@@ -91,8 +91,9 @@ export interface DropboxDownloadParams extends DropboxBaseParams {
 
 export interface DropboxDownloadResponse extends ToolResponse {
   output: {
-    file?: DropboxFileMetadata
+    file?: ToolFileData
     content?: string // Base64 encoded file content
+    metadata?: DropboxFileMetadata
     temporaryLink?: string
   }
 }

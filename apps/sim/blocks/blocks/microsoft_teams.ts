@@ -462,7 +462,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     messages: { type: 'json', description: 'Array of message objects' },
     totalAttachments: { type: 'number', description: 'Total number of attachments' },
     attachmentTypes: { type: 'json', description: 'Array of attachment content types' },
-    attachments: { type: 'array', description: 'Downloaded message attachments' },
+    attachments: { type: 'file[]', description: 'Downloaded message attachments' },
     updatedContent: {
       type: 'boolean',
       description: 'Whether content was successfully updated/sent',

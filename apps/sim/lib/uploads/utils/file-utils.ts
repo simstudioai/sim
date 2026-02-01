@@ -458,17 +458,23 @@ function isCompleteUserFile(file: RawFileInput): file is UserFile {
 
 /**
  * Converts a single raw file object to UserFile format
- * @param file - Raw file object
+ * @param file - Raw file object (must be a single file, not an array)
  * @param requestId - Request ID for logging
  * @param logger - Logger instance
  * @returns UserFile object
- * @throws Error if file has no storage key
+ * @throws Error if file is an array or has no storage key
  */
 export function processSingleFileToUserFile(
   file: RawFileInput,
   requestId: string,
   logger: Logger
 ): UserFile {
+  if (Array.isArray(file)) {
+    const errorMsg = `Expected a single file but received an array with ${file.length} file(s). Use a file input that accepts multiple files, or select a specific file from the array (e.g., {{block.files[0]}}).`
+    logger.error(`[${requestId}] ${errorMsg}`)
+    throw new Error(errorMsg)
+  }
+
   if (isCompleteUserFile(file)) {
     return file
   }
@@ -495,21 +501,51 @@ export function processSingleFileToUserFile(
 
 /**
  * Converts raw file objects (from file-upload or variable references) to UserFile format
- * @param files - Array of raw file objects
+ * Accepts either a single file or an array of files and normalizes to array output
+ * @param files - Single file or array of raw file objects
  * @param requestId - Request ID for logging
  * @param logger - Logger instance
  * @returns Array of UserFile objects
  */
 export function processFilesToUserFiles(
-  files: RawFileInput[],
+  files: RawFileInput | RawFileInput[],
   requestId: string,
   logger: Logger
 ): UserFile[] {
+  const filesArray = Array.isArray(files) ? files : [files]
   const userFiles: UserFile[] = []
 
-  for (const file of files) {
+  for (const file of filesArray) {
     try {
-      const userFile = processSingleFileToUserFile(file, requestId, logger)
+      if (Array.isArray(file)) {
+        logger.warn(`[${requestId}] Skipping nested array in file input`)
+        continue
+      }
+
+      if (isCompleteUserFile(file)) {
+        userFiles.push(file)
+        continue
+      }
+
+      const storageKey = file.key || (file.path ? extractStorageKey(file.path) : null)
+
+      if (!storageKey) {
+        logger.warn(`[${requestId}] Skipping file without storage key: ${file.name || 'unknown'}`)
+        continue
+      }
+
+      const userFile: UserFile = {
+        id: file.id || `file-${Date.now()}`,
+        name: file.name,
+        url: file.url || file.path || '',
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        key: storageKey,
+      }
+
+      logger.info(
+        `[${requestId}] Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`
+      )
       userFiles.push(userFile)
     } catch (error) {
       logger.warn(

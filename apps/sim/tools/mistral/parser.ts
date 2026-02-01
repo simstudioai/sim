@@ -3,6 +3,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import type {
   MistralParserInput,
   MistralParserOutput,
+  MistralParserV2Input,
   MistralParserV2Output,
 } from '@/tools/mistral/types'
 import type { ToolConfig } from '@/tools/types'
@@ -420,14 +421,84 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
   },
 }
 
-export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2Output> = {
+const mistralParserV2Params = {
+  fileData: {
+    type: 'object',
+    required: false,
+    visibility: 'hidden',
+    description: 'File data from a previous block',
+  },
+  filePath: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'File path or URL (legacy)',
+  },
+  resultType: mistralParserTool.params.resultType,
+  includeImageBase64: mistralParserTool.params.includeImageBase64,
+  pages: mistralParserTool.params.pages,
+  imageLimit: mistralParserTool.params.imageLimit,
+  imageMinSize: mistralParserTool.params.imageMinSize,
+  apiKey: mistralParserTool.params.apiKey,
+} satisfies ToolConfig['params']
+
+export const mistralParserV2Tool: ToolConfig<MistralParserV2Input, MistralParserV2Output> = {
   id: 'mistral_parser_v2',
   name: 'Mistral PDF Parser',
   description: 'Parse PDF documents using Mistral OCR API',
   version: '2.0.0',
 
-  params: mistralParserTool.params,
-  request: mistralParserTool.request,
+  params: mistralParserV2Params,
+  request: {
+    url: '/api/tools/mistral/parse',
+    method: 'POST',
+    headers: (params) => {
+      return {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${params.apiKey}`,
+      }
+    },
+    body: (params) => {
+      if (!params || typeof params !== 'object') {
+        throw new Error('Invalid parameters: Parameters must be provided as an object')
+      }
+      if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
+        throw new Error('Missing or invalid API key: A valid Mistral API key is required')
+      }
+
+      const fileData = params.fileData ?? params.filePath
+      if (!fileData) {
+        throw new Error('File input is required')
+      }
+
+      const requestBody: Record<string, unknown> = {
+        apiKey: params.apiKey,
+        resultType: params.resultType || 'markdown',
+      }
+
+      if (typeof fileData === 'string') {
+        requestBody.filePath = fileData.trim()
+      } else {
+        requestBody.fileData = fileData
+      }
+
+      if (params.pages) {
+        requestBody.pages = params.pages
+      }
+      if (params.includeImageBase64 !== undefined) {
+        requestBody.includeImageBase64 = params.includeImageBase64
+      }
+      if (params.imageLimit !== undefined) {
+        requestBody.imageLimit = params.imageLimit
+      }
+      if (params.imageMinSize !== undefined) {
+        requestBody.imageMinSize = params.imageMinSize
+      }
+
+      return requestBody
+    },
+  },
 
   transformResponse: async (response: Response) => {
     let ocrResult

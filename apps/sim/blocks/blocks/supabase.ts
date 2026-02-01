@@ -675,9 +675,9 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     {
       id: 'fileContent',
       title: 'File Content',
-      type: 'code',
+      type: 'short-input',
       canonicalParamId: 'fileData',
-      placeholder: 'Base64 encoded for binary files, or plain text',
+      placeholder: 'File reference from previous block',
       condition: { field: 'operation', value: 'storage_upload' },
       mode: 'advanced',
       required: true,
@@ -1173,7 +1173,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       description: 'Row count for count operations',
     },
     file: {
-      type: 'files',
+      type: 'file',
       description: 'Downloaded file stored in execution files',
     },
     publicUrl: {

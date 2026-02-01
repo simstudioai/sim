@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface TelegramMessage {
@@ -116,7 +117,7 @@ export interface TelegramSendAnimationParams extends TelegramAuthParams {
 }
 
 export interface TelegramSendDocumentParams extends TelegramAuthParams {
-  files?: any
+  files?: UserFile[]
   caption?: string
 }
 

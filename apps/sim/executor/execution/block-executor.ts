@@ -137,7 +137,7 @@ export class BlockExecutor {
         normalizedOutput = this.normalizeOutput(output)
       }
 
-      if (ctx.includeFileBase64 && containsUserFileWithMetadata(normalizedOutput)) {
+      if (containsUserFileWithMetadata(normalizedOutput)) {
         normalizedOutput = (await hydrateUserFilesWithBase64(normalizedOutput, {
           requestId: ctx.metadata.requestId,
           executionId: ctx.executionId,

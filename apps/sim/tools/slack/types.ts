@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -516,7 +517,7 @@ export interface SlackMessageParams extends SlackBaseParams {
   userId?: string
   text: string
   thread_ts?: string
-  files?: any[]
+  files?: UserFile[]
 }
 
 export interface SlackCanvasParams extends SlackBaseParams {

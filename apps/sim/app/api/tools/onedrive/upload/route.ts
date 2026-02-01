@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import {
   getExtensionFromMimeType,
   processSingleFileToUserFile,
@@ -29,7 +30,7 @@ const ExcelValuesSchema = z.union([
 const OneDriveUploadSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   fileName: z.string().min(1, 'File name is required'),
-  file: z.any().optional(),
+  file: RawFileInputSchema.optional(),
   folderId: z.string().optional().nullable(),
   mimeType: z.string().nullish(),
   values: ExcelValuesSchema.optional().nullable(),
@@ -88,25 +89,9 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      let fileToProcess
-      if (Array.isArray(rawFile)) {
-        if (rawFile.length === 0) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'No file provided',
-            },
-            { status: 400 }
-          )
-        }
-        fileToProcess = rawFile[0]
-      } else {
-        fileToProcess = rawFile
-      }
-
       let userFile
       try {
-        userFile = processSingleFileToUserFile(fileToProcess, requestId, logger)
+        userFile = processSingleFileToUserFile(rawFile, requestId, logger)
       } catch (error) {
         return NextResponse.json(
           {

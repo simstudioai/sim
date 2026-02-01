@@ -859,7 +859,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
     // slack_download outputs
     file: {
-      type: 'json',
+      type: 'file',
       description: 'Downloaded file stored in execution files',
     },
 

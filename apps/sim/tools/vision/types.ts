@@ -1,9 +1,10 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface VisionParams {
   apiKey: string
   imageUrl?: string
-  imageFile?: any
+  imageFile?: UserFile
   model?: string
   prompt?: string
 }

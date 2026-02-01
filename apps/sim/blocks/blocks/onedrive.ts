@@ -393,7 +393,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     deleted: { type: 'boolean', description: 'Whether the file was deleted' },
     fileId: { type: 'string', description: 'The ID of the deleted file' },
     file: {
-      type: 'json',
+      type: 'file',
       description: 'The OneDrive file object, including details such as id, name, size, and more.',
     },
     files: {

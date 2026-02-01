@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { convertMarkdownToHTML } from '@/tools/telegram/utils'
@@ -14,7 +15,7 @@ const logger = createLogger('TelegramSendDocumentAPI')
 const TelegramSendDocumentSchema = z.object({
   botToken: z.string().min(1, 'Bot token is required'),
   chatId: z.string().min(1, 'Chat ID is required'),
-  files: z.array(z.any()).optional().nullable(),
+  files: RawFileInputArraySchema.optional().nullable(),
   caption: z.string().optional().nullable(),
 })
 

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
@@ -16,7 +17,7 @@ const SharepointUploadSchema = z.object({
   driveId: z.string().optional().nullable(),
   folderPath: z.string().optional().nullable(),
   fileName: z.string().optional().nullable(),
-  files: z.array(z.any()).optional().nullable(),
+  files: RawFileInputArraySchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {

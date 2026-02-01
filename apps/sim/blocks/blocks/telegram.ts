@@ -66,38 +66,90 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       condition: { field: 'operation', value: 'telegram_message' },
     },
     {
+      id: 'photoFile',
+      title: 'Photo',
+      type: 'file-upload',
+      canonicalParamId: 'photo',
+      placeholder: 'Upload photo',
+      mode: 'basic',
+      multiple: false,
+      required: true,
+      acceptedTypes: '.jpg,.jpeg,.png,.gif,.webp',
+      condition: { field: 'operation', value: 'telegram_send_photo' },
+    },
+    {
       id: 'photo',
       title: 'Photo',
       type: 'short-input',
-      placeholder: 'Enter photo URL or file_id',
-      description: 'Photo to send. Pass a file_id or HTTP URL',
+      canonicalParamId: 'photo',
+      placeholder: 'Reference photo from previous blocks or enter URL/file_id',
+      mode: 'advanced',
       required: true,
       condition: { field: 'operation', value: 'telegram_send_photo' },
+    },
+    {
+      id: 'videoFile',
+      title: 'Video',
+      type: 'file-upload',
+      canonicalParamId: 'video',
+      placeholder: 'Upload video',
+      mode: 'basic',
+      multiple: false,
+      required: true,
+      acceptedTypes: '.mp4,.mov,.avi,.mkv,.webm',
+      condition: { field: 'operation', value: 'telegram_send_video' },
     },
     {
       id: 'video',
       title: 'Video',
       type: 'short-input',
-      placeholder: 'Enter video URL or file_id',
-      description: 'Video to send. Pass a file_id or HTTP URL',
+      canonicalParamId: 'video',
+      placeholder: 'Reference video from previous blocks or enter URL/file_id',
+      mode: 'advanced',
       required: true,
       condition: { field: 'operation', value: 'telegram_send_video' },
+    },
+    {
+      id: 'audioFile',
+      title: 'Audio',
+      type: 'file-upload',
+      canonicalParamId: 'audio',
+      placeholder: 'Upload audio',
+      mode: 'basic',
+      multiple: false,
+      required: true,
+      acceptedTypes: '.mp3,.m4a,.wav,.ogg,.flac',
+      condition: { field: 'operation', value: 'telegram_send_audio' },
     },
     {
       id: 'audio',
       title: 'Audio',
       type: 'short-input',
-      placeholder: 'Enter audio URL or file_id',
-      description: 'Audio file to send. Pass a file_id or HTTP URL',
+      canonicalParamId: 'audio',
+      placeholder: 'Reference audio from previous blocks or enter URL/file_id',
+      mode: 'advanced',
       required: true,
       condition: { field: 'operation', value: 'telegram_send_audio' },
+    },
+    {
+      id: 'animationFile',
+      title: 'Animation',
+      type: 'file-upload',
+      canonicalParamId: 'animation',
+      placeholder: 'Upload animation (GIF)',
+      mode: 'basic',
+      multiple: false,
+      required: true,
+      acceptedTypes: '.gif,.mp4',
+      condition: { field: 'operation', value: 'telegram_send_animation' },
     },
     {
       id: 'animation',
       title: 'Animation',
       type: 'short-input',
-      placeholder: 'Enter animation URL or file_id',
-      description: 'Animation (GIF) to send. Pass a file_id or HTTP URL',
+      canonicalParamId: 'animation',
+      placeholder: 'Reference animation from previous blocks or enter URL/file_id',
+      mode: 'advanced',
       required: true,
       condition: { field: 'operation', value: 'telegram_send_animation' },
     },
@@ -215,42 +267,50 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
               ...commonParams,
               messageId: params.messageId,
             }
-          case 'telegram_send_photo':
-            if (!params.photo) {
-              throw new Error('Photo URL or file_id is required.')
+          case 'telegram_send_photo': {
+            const photoSource = params.photoFile || params.photo
+            if (!photoSource) {
+              throw new Error('Photo is required.')
             }
             return {
               ...commonParams,
-              photo: params.photo,
+              photo: photoSource,
               caption: params.caption,
             }
-          case 'telegram_send_video':
-            if (!params.video) {
-              throw new Error('Video URL or file_id is required.')
+          }
+          case 'telegram_send_video': {
+            const videoSource = params.videoFile || params.video
+            if (!videoSource) {
+              throw new Error('Video is required.')
             }
             return {
               ...commonParams,
-              video: params.video,
+              video: videoSource,
               caption: params.caption,
             }
-          case 'telegram_send_audio':
-            if (!params.audio) {
-              throw new Error('Audio URL or file_id is required.')
+          }
+          case 'telegram_send_audio': {
+            const audioSource = params.audioFile || params.audio
+            if (!audioSource) {
+              throw new Error('Audio is required.')
             }
             return {
               ...commonParams,
-              audio: params.audio,
+              audio: audioSource,
               caption: params.caption,
             }
-          case 'telegram_send_animation':
-            if (!params.animation) {
-              throw new Error('Animation URL or file_id is required.')
+          }
+          case 'telegram_send_animation': {
+            const animationSource = params.animationFile || params.animation
+            if (!animationSource) {
+              throw new Error('Animation is required.')
             }
             return {
               ...commonParams,
-              animation: params.animation,
+              animation: animationSource,
               caption: params.caption,
             }
+          }
           case 'telegram_send_document': {
             // Handle file upload
             const fileParam = params.attachmentFiles || params.files
@@ -274,10 +334,14 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
     botToken: { type: 'string', description: 'Telegram bot token' },
     chatId: { type: 'string', description: 'Chat identifier' },
     text: { type: 'string', description: 'Message text' },
-    photo: { type: 'string', description: 'Photo URL or file_id' },
-    video: { type: 'string', description: 'Video URL or file_id' },
-    audio: { type: 'string', description: 'Audio URL or file_id' },
-    animation: { type: 'string', description: 'Animation URL or file_id' },
+    photoFile: { type: 'json', description: 'Uploaded photo (UserFile)' },
+    photo: { type: 'json', description: 'Photo reference or URL/file_id' },
+    videoFile: { type: 'json', description: 'Uploaded video (UserFile)' },
+    video: { type: 'json', description: 'Video reference or URL/file_id' },
+    audioFile: { type: 'json', description: 'Uploaded audio (UserFile)' },
+    audio: { type: 'json', description: 'Audio reference or URL/file_id' },
+    animationFile: { type: 'json', description: 'Uploaded animation (UserFile)' },
+    animation: { type: 'json', description: 'Animation reference or URL/file_id' },
     attachmentFiles: {
       type: 'json',
       description: 'Files to attach (UI upload)',

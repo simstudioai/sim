@@ -2341,7 +2341,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     cycles: { type: 'json', description: 'Cycles list' },
     // Attachment outputs
     attachment: { type: 'json', description: 'Attachment data' },
-    attachments: { type: 'json', description: 'Attachments list' },
+    attachments: { type: 'file[]', description: 'Attachments list' },
     // Relation outputs
     relation: { type: 'json', description: 'Issue relation data' },
     relations: { type: 'json', description: 'Issue relations list' },

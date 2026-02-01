@@ -440,7 +440,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     sentDateTime: { type: 'string', description: 'Email sent timestamp' },
     hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
     attachments: {
-      type: 'json',
+      type: 'file[]',
       description: 'Email attachments (if includeAttachments is enabled)',
     },
     isRead: { type: 'boolean', description: 'Whether email is read' },

@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -137,8 +138,19 @@ export const MISTRAL_PARSER_METADATA_OUTPUT: OutputProperty = {
 
 export interface MistralParserInput {
   filePath: string
-  fileUpload?: any
+  fileUpload?: UserFile
   _internalFilePath?: string
+  apiKey: string
+  resultType?: 'markdown' | 'text' | 'json'
+  includeImageBase64?: boolean
+  pages?: number[]
+  imageLimit?: number
+  imageMinSize?: number
+}
+
+export interface MistralParserV2Input {
+  fileData?: UserFile | string
+  filePath?: string
   apiKey: string
   resultType?: 'markdown' | 'text' | 'json'
   includeImageBase64?: boolean

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
@@ -15,7 +16,7 @@ const DiscordSendMessageSchema = z.object({
   botToken: z.string().min(1, 'Bot token is required'),
   channelId: z.string().min(1, 'Channel ID is required'),
   content: z.string().optional().nullable(),
-  files: z.array(z.any()).optional().nullable(),
+  files: RawFileInputArraySchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {

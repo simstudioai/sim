@@ -44,7 +44,7 @@ export const ImapBlock: BlockConfig = {
     bodyHtml: { type: 'string', description: 'HTML email body' },
     mailbox: { type: 'string', description: 'Mailbox/folder where email was received' },
     hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
-    attachments: { type: 'json', description: 'Array of email attachments' },
+    attachments: { type: 'file[]', description: 'Array of email attachments' },
     timestamp: { type: 'string', description: 'Event timestamp' },
   },
   triggers: {

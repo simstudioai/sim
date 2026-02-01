@@ -418,6 +418,7 @@ export const S3Block: BlockConfig<S3Response> = {
       type: 'string',
       description: 'S3 URI (s3://bucket/key) for use with other AWS services',
     },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     objects: { type: 'json', description: 'List of objects (for list operation)' },
     deleted: { type: 'boolean', description: 'Deletion status' },
     metadata: { type: 'json', description: 'Operation metadata' },

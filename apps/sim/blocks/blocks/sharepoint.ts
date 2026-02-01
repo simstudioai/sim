@@ -522,7 +522,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       description: 'Array of SharePoint list items with fields',
     },
     uploadedFiles: {
-      type: 'json',
+      type: 'file[]',
       description: 'Array of uploaded file objects with id, name, webUrl, size',
     },
     fileCount: {

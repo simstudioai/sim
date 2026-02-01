@@ -861,7 +861,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
     permissionId: { type: 'string', description: 'Permission ID to remove' },
   },
   outputs: {
-    file: { type: 'json', description: 'File metadata or downloaded file data' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     files: { type: 'json', description: 'List of files' },
     metadata: { type: 'json', description: 'Complete file metadata (from download)' },
     content: { type: 'string', description: 'File content as text' },

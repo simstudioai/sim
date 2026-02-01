@@ -52,7 +52,7 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
         apiKey: params.apiKey,
         imageUrl: params.imageUrl || null,
         imageFile: params.imageFile || null,
-        model: params.model || 'gpt-4o',
+        model: params.model || 'gpt-5.2',
         prompt: params.prompt || null,
       }
     },

@@ -1049,7 +1049,7 @@ Return ONLY the comment text - no explanations.`,
 
     // jira_get_attachments outputs
     attachments: {
-      type: 'json',
+      type: 'file[]',
       description: 'Array of attachments with id, filename, size, mimeType, created, author',
     },
 

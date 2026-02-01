@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface MicrosoftTeamsAttachment {
@@ -71,7 +72,7 @@ export interface MicrosoftTeamsToolParams {
   teamId?: string
   content?: string
   includeAttachments?: boolean
-  files?: any[] // UserFile array for attachments
+  files?: UserFile[]
   reactionType?: string // For reaction operations
 }
 

@@ -239,7 +239,7 @@ import {
   exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
-import { fileParserV2Tool, fileParseTool } from '@/tools/file'
+import { fileParserV2Tool, fileParserV3Tool, fileParseTool } from '@/tools/file'
 import {
   firecrawlAgentTool,
   firecrawlCrawlTool,
@@ -1778,6 +1778,7 @@ export const tools: Record<string, ToolConfig> = {
   vision_tool: visionTool,
   file_parser: fileParseTool,
   file_parser_v2: fileParserV2Tool,
+  file_parser_v3: fileParserV3Tool,
   firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,
   firecrawl_crawl: firecrawlCrawlTool,

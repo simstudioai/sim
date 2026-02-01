@@ -803,7 +803,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   outputs: {
     deals: { type: 'json', description: 'Array of deal objects' },
     deal: { type: 'json', description: 'Single deal object' },
-    files: { type: 'json', description: 'Array of file objects' },
+    files: { type: 'file[]', description: 'Array of file objects' },
     messages: { type: 'json', description: 'Array of mail message objects' },
     pipelines: { type: 'json', description: 'Array of pipeline objects' },
     projects: { type: 'json', description: 'Array of project objects' },

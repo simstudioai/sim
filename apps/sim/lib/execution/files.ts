@@ -163,7 +163,7 @@ export async function processInputFileFields(
   }
 
   const inputFormat = extractInputFormatFromBlock(startBlock)
-  const fileFields = inputFormat.filter((field) => field.type === 'files')
+  const fileFields = inputFormat.filter((field) => field.type === 'file[]')
 
   if (fileFields.length === 0) {
     return input

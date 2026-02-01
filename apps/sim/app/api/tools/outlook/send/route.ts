@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
@@ -20,7 +21,7 @@ const OutlookSendSchema = z.object({
   bcc: z.string().optional().nullable(),
   replyToMessageId: z.string().optional().nullable(),
   conversationId: z.string().optional().nullable(),
-  attachments: z.array(z.any()).optional().nullable(),
+  attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {

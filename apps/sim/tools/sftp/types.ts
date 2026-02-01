@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface SftpConnectionConfig {
@@ -12,7 +13,7 @@ export interface SftpConnectionConfig {
 // Upload file params
 export interface SftpUploadParams extends SftpConnectionConfig {
   remotePath: string
-  files?: any[] // UserFile array from file-upload component
+  files?: UserFile[]
   fileContent?: string // Direct content for text files
   fileName?: string // File name when using direct content
   overwrite?: boolean

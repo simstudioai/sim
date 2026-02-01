@@ -34,6 +34,17 @@ export interface FileParserOutput extends ToolResponse {
   output: FileParserOutputData
 }
 
+export interface FileParserV3OutputData {
+  /** Array of parsed files as UserFile objects */
+  files: UserFile[]
+  /** Combined text content from all files */
+  combinedContent: string
+}
+
+export interface FileParserV3Output extends ToolResponse {
+  output: FileParserV3OutputData
+}
+
 /** API response structure for single file parse */
 export interface FileParseApiResponse {
   success: boolean

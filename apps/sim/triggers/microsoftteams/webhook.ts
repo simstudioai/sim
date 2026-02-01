@@ -98,7 +98,7 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
     },
     message: {
       raw: {
-        attachments: { type: 'array', description: 'Array of attachments' },
+        attachments: { type: 'file[]', description: 'Array of attachments' },
         channelData: {
           team: { id: { type: 'string', description: 'Team ID' } },
           tenant: { id: { type: 'string', description: 'Tenant ID' } },

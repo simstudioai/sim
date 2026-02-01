@@ -18,7 +18,8 @@ const logger = createLogger('MistralParseAPI')
 
 const MistralParseSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().min(1, 'File path is required'),
+  filePath: z.string().min(1, 'File path is required').optional(),
+  fileData: z.unknown().optional(),
   resultType: z.string().optional(),
   pages: z.array(z.number()).optional(),
   includeImageBase64: z.boolean().optional(),
@@ -49,66 +50,96 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = MistralParseSchema.parse(body)
 
+    const fileData = validatedData.fileData
+    const filePath = typeof fileData === 'string' ? fileData : validatedData.filePath
+
+    if (!fileData && (!filePath || filePath.trim() === '')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'File input is required',
+        },
+        { status: 400 }
+      )
+    }
+
     logger.info(`[${requestId}] Mistral parse request`, {
-      filePath: validatedData.filePath,
-      isWorkspaceFile: isInternalFileUrl(validatedData.filePath),
+      hasFileData: Boolean(fileData),
+      filePath,
+      isWorkspaceFile: filePath ? isInternalFileUrl(filePath) : false,
       userId,
     })
 
-    let fileUrl = validatedData.filePath
+    const mistralBody: any = {
+      model: 'mistral-ocr-latest',
+    }
 
-    if (isInternalFileUrl(validatedData.filePath)) {
-      try {
-        const storageKey = extractStorageKey(validatedData.filePath)
-
-        const context = inferContextFromKey(storageKey)
-
-        const hasAccess = await verifyFileAccess(
-          storageKey,
-          userId,
-          undefined, // customConfig
-          context, // context
-          false // isLocal
-        )
-
-        if (!hasAccess) {
-          logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
-            userId,
-            key: storageKey,
-            context,
-          })
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'File not found',
-            },
-            { status: 404 }
-          )
-        }
-
-        fileUrl = await StorageService.generatePresignedDownloadUrl(storageKey, context, 5 * 60)
-        logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to generate presigned URL:`, error)
+    if (fileData && typeof fileData === 'object') {
+      const base64 = (fileData as { base64?: string }).base64
+      const mimeType = (fileData as { type?: string }).type || 'application/pdf'
+      if (!base64) {
         return NextResponse.json(
           {
             success: false,
-            error: 'Failed to generate file access URL',
+            error: 'File base64 content is required',
           },
-          { status: 500 }
+          { status: 400 }
         )
       }
-    } else if (validatedData.filePath?.startsWith('/')) {
-      const baseUrl = getBaseUrl()
-      fileUrl = `${baseUrl}${validatedData.filePath}`
-    }
+      const base64Payload = base64.startsWith('data:')
+        ? base64
+        : `data:${mimeType};base64,${base64}`
+      mistralBody.document = {
+        type: 'document_base64',
+        document_base64: base64Payload,
+      }
+    } else if (filePath) {
+      let fileUrl = filePath
 
-    const mistralBody: any = {
-      model: 'mistral-ocr-latest',
-      document: {
+      if (isInternalFileUrl(filePath)) {
+        try {
+          const storageKey = extractStorageKey(filePath)
+
+          const context = inferContextFromKey(storageKey)
+
+          const hasAccess = await verifyFileAccess(storageKey, userId, undefined, context, false)
+
+          if (!hasAccess) {
+            logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
+              userId,
+              key: storageKey,
+              context,
+            })
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'File not found',
+              },
+              { status: 404 }
+            )
+          }
+
+          fileUrl = await StorageService.generatePresignedDownloadUrl(storageKey, context, 5 * 60)
+          logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
+        } catch (error) {
+          logger.error(`[${requestId}] Failed to generate presigned URL:`, error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Failed to generate file access URL',
+            },
+            { status: 500 }
+          )
+        }
+      } else if (filePath.startsWith('/')) {
+        const baseUrl = getBaseUrl()
+        fileUrl = `${baseUrl}${filePath}`
+      }
+
+      mistralBody.document = {
         type: 'document_url',
         document_url: fileUrl,
-      },
+      }
     }
 
     if (validatedData.pages) {

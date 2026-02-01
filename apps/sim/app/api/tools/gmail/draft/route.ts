@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import {
@@ -28,7 +29,7 @@ const GmailDraftSchema = z.object({
   replyToMessageId: z.string().optional().nullable(),
   cc: z.string().optional().nullable(),
   bcc: z.string().optional().nullable(),
-  attachments: z.array(z.any()).optional().nullable(),
+  attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {

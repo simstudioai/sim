@@ -28,7 +28,7 @@ import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock } from '@/blocks/blocks/exa'
-import { FileBlock, FileV2Block } from '@/blocks/blocks/file'
+import { FileBlock, FileV2Block, FileV3Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
 import { FirefliesBlock } from '@/blocks/blocks/fireflies'
 import { FunctionBlock } from '@/blocks/blocks/function'
@@ -139,7 +139,7 @@ import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { VideoGeneratorBlock, VideoGeneratorV2Block } from '@/blocks/blocks/video_generator'
-import { VisionBlock } from '@/blocks/blocks/vision'
+import { VisionBlock, VisionV2Block } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
 import { WebflowBlock } from '@/blocks/blocks/webflow'
@@ -192,6 +192,7 @@ export const registry: Record<string, BlockConfig> = {
   exa: ExaBlock,
   file: FileBlock,
   file_v2: FileV2Block,
+  file_v3: FileV3Block,
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   function: FunctionBlock,
@@ -314,6 +315,7 @@ export const registry: Record<string, BlockConfig> = {
   video_generator: VideoGeneratorBlock,
   video_generator_v2: VideoGeneratorV2Block,
   vision: VisionBlock,
+  vision_v2: VisionV2Block,
   wait: WaitBlock,
   wealthbox: WealthboxBlock,
   webflow: WebflowBlock,

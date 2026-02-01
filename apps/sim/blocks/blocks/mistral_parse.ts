@@ -159,14 +159,16 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
       placeholder: 'Upload a PDF document',
       mode: 'basic',
       maxSize: 50,
+      required: true,
     },
     {
       id: 'filePath',
-      title: 'PDF Document',
+      title: 'File Reference',
       type: 'short-input' as SubBlockType,
       canonicalParamId: 'document',
-      placeholder: 'Document URL',
+      placeholder: 'File reference from previous block',
       mode: 'advanced',
+      required: true,
     },
     {
       id: 'resultType',
@@ -216,7 +218,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
           throw new Error('PDF document is required')
         }
         if (typeof documentInput === 'object') {
-          parameters.fileUpload = documentInput
+          parameters.fileData = documentInput
         } else if (typeof documentInput === 'string') {
           parameters.filePath = documentInput.trim()
         }
@@ -254,8 +256,8 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
     },
   },
   inputs: {
-    document: { type: 'json', description: 'Document input (file upload or URL reference)' },
-    filePath: { type: 'string', description: 'PDF document URL (advanced mode)' },
+    document: { type: 'json', description: 'Document input (file upload or file reference)' },
+    filePath: { type: 'string', description: 'File reference (advanced mode)' },
     fileUpload: { type: 'json', description: 'Uploaded PDF file (basic mode)' },
     apiKey: { type: 'string', description: 'Mistral API key' },
     resultType: { type: 'string', description: 'Output format type' },

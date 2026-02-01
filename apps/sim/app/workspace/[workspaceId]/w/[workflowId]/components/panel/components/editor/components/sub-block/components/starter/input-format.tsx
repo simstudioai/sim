@@ -26,7 +26,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 interface Field {
   id: string
   name: string
-  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
+  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
   value?: string
   description?: string
   collapsed?: boolean
@@ -57,7 +57,7 @@ const TYPE_OPTIONS: ComboboxOption[] = [
   { label: 'Boolean', value: 'boolean' },
   { label: 'Object', value: 'object' },
   { label: 'Array', value: 'array' },
-  { label: 'Files', value: 'files' },
+  { label: 'Files', value: 'file[]' },
 ]
 
 /**
@@ -448,7 +448,7 @@ export function FieldFormat({
       )
     }
 
-    if (field.type === 'files') {
+    if (field.type === 'file[]') {
       const lineCount = fieldValue.split('\n').length
       const gutterWidth = calculateGutterWidth(lineCount)
 

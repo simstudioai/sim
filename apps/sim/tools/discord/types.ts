@@ -1,3 +1,5 @@
+import type { UserFile } from '@/executor/types'
+
 export interface DiscordMessage {
   id: string
   content: string
@@ -58,7 +60,7 @@ export interface DiscordSendMessageParams extends DiscordAuthParams {
     description?: string
     color?: string | number
   }
-  files?: any[]
+  files?: UserFile[]
 }
 
 export interface DiscordGetMessagesParams extends DiscordAuthParams {

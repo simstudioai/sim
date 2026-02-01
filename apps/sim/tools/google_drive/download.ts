@@ -224,14 +224,8 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
 
   outputs: {
     file: {
-      type: 'object',
-      description: 'Downloaded file data',
-      properties: {
-        name: { type: 'string', description: 'File name' },
-        mimeType: { type: 'string', description: 'MIME type of the file' },
-        data: { type: 'string', description: 'File content as base64-encoded string' },
-        size: { type: 'number', description: 'File size in bytes' },
-      },
+      type: 'file',
+      description: 'Downloaded file stored in execution files',
     },
     metadata: {
       type: 'object',

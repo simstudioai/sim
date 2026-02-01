@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { DocumentIcon } from '@/components/icons'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
-import type { FileParserOutput } from '@/tools/file/types'
+import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
 
@@ -116,7 +116,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   },
   outputs: {
     files: {
-      type: 'json',
+      type: 'file[]',
       description: 'Array of parsed file objects with content, metadata, and file properties',
     },
     combinedContent: {
@@ -124,7 +124,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       description: 'All file contents merged into a single text string',
     },
     processedFiles: {
-      type: 'files',
+      type: 'file[]',
       description: 'Array of UserFile objects for downstream use (attachments, uploads, etc.)',
     },
   },
@@ -133,9 +133,9 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
 export const FileV2Block: BlockConfig<FileParserOutput> = {
   ...FileBlock,
   type: 'file_v2',
-  name: 'File',
+  name: 'File (Legacy)',
   description: 'Read and parse multiple files',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'file',
@@ -209,8 +209,115 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
   },
   outputs: {
     files: {
-      type: 'json',
+      type: 'file[]',
       description: 'Array of parsed file objects with content, metadata, and file properties',
+    },
+    combinedContent: {
+      type: 'string',
+      description: 'All file contents merged into a single text string',
+    },
+  },
+}
+
+export const FileV3Block: BlockConfig<FileParserV3Output> = {
+  type: 'file_v3',
+  name: 'File',
+  description: 'Read and parse multiple files',
+  longDescription: 'Upload files or reference files from previous blocks to extract text content.',
+  docsLink: 'https://docs.sim.ai/tools/file',
+  category: 'tools',
+  bgColor: '#40916C',
+  icon: DocumentIcon,
+  subBlocks: [
+    {
+      id: 'file',
+      title: 'Files',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'fileInput',
+      acceptedTypes:
+        '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf',
+      placeholder: 'Upload files to process',
+      multiple: true,
+      mode: 'basic',
+      maxSize: 100,
+      required: true,
+    },
+    {
+      id: 'fileRef',
+      title: 'Files',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'fileInput',
+      placeholder: 'File reference from previous block',
+      mode: 'advanced',
+      required: true,
+    },
+  ],
+  tools: {
+    access: ['file_parser_v3'],
+    config: {
+      tool: () => 'file_parser_v3',
+      params: (params) => {
+        const fileInput = params.fileInput ?? params.file ?? params.filePath
+        if (!fileInput) {
+          logger.error('No file input provided')
+          throw new Error('File input is required')
+        }
+
+        if (typeof fileInput === 'string') {
+          return {
+            filePath: fileInput.trim(),
+            fileType: params.fileType || 'auto',
+            workspaceId: params._context?.workspaceId,
+            workflowId: params._context?.workflowId,
+            executionId: params._context?.executionId,
+          }
+        }
+
+        if (Array.isArray(fileInput)) {
+          const filePaths = fileInput
+            .map((file) => (file as { url?: string; path?: string }).url || file.path)
+            .filter((path): path is string => Boolean(path))
+          if (filePaths.length === 0) {
+            logger.error('No valid file paths found in file input array')
+            throw new Error('File input is required')
+          }
+          return {
+            filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
+            fileType: params.fileType || 'auto',
+            workspaceId: params._context?.workspaceId,
+            workflowId: params._context?.workflowId,
+            executionId: params._context?.executionId,
+          }
+        }
+
+        if (typeof fileInput === 'object') {
+          const filePath = (fileInput as { url?: string; path?: string }).url || fileInput.path
+          if (!filePath) {
+            logger.error('File input object missing path or url')
+            throw new Error('File input is required')
+          }
+          return {
+            filePath,
+            fileType: params.fileType || 'auto',
+            workspaceId: params._context?.workspaceId,
+            workflowId: params._context?.workflowId,
+            executionId: params._context?.executionId,
+          }
+        }
+
+        logger.error('Invalid file input format')
+        throw new Error('File input is required')
+      },
+    },
+  },
+  inputs: {
+    fileInput: { type: 'json', description: 'File input (upload or UserFile reference)' },
+    fileType: { type: 'string', description: 'File type' },
+  },
+  outputs: {
+    files: {
+      type: 'file[]',
+      description: 'Parsed files as UserFile objects',
     },
     combinedContent: {
       type: 'string',
