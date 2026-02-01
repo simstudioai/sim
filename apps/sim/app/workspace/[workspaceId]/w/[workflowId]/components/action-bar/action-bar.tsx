@@ -225,17 +225,24 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled) {
+                  // Can't unlock a block if its parent container is locked
+                  if (!disabled && !(isLocked && isParentLocked)) {
                     collaborativeBatchToggleLocked([blockId])
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled}
+                disabled={disabled || (isLocked && isParentLocked)}
               >
                 {isLocked ? <Unlock className={ICON_SIZE} /> : <Lock className={ICON_SIZE} />}
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>{isLocked ? 'Unlock Block' : 'Lock Block'}</Tooltip.Content>
+            <Tooltip.Content side='top'>
+              {isLocked && isParentLocked
+                ? 'Parent container is locked'
+                : isLocked
+                  ? 'Unlock Block'
+                  : 'Lock Block'}
+            </Tooltip.Content>
           </Tooltip.Root>
         )}
 
