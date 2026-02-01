@@ -42,6 +42,7 @@ export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasCo
           parentType,
           locked: block?.locked ?? false,
           isParentLocked: parentBlock?.locked ?? false,
+          isParentDisabled: parentBlock ? !parentBlock.enabled : false,
         }
       }),
     [blocks]

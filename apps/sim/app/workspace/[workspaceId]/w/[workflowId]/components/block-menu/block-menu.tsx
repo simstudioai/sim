@@ -22,6 +22,7 @@ export interface BlockInfo {
   parentType?: string
   locked?: boolean
   isParentLocked?: boolean
+  isParentDisabled?: boolean
 }
 
 /**
@@ -101,6 +102,8 @@ export function BlockMenu({
   const allUnlocked = selectedBlocks.every((b) => !b.locked)
   // Can't unlock blocks that have locked parents
   const hasBlockWithLockedParent = selectedBlocks.some((b) => b.locked && b.isParentLocked)
+  // Can't enable blocks that have disabled parents
+  const hasBlockWithDisabledParent = selectedBlocks.some((b) => !b.enabled && b.isParentDisabled)
 
   const hasSingletonBlock = selectedBlocks.some(
     (b) =>
@@ -186,13 +189,15 @@ export function BlockMenu({
         {!allNoteBlocks && <PopoverDivider />}
         {!allNoteBlocks && (
           <PopoverItem
-            disabled={disableEdit}
+            disabled={disableEdit || hasBlockWithDisabledParent}
             onClick={() => {
-              onToggleEnabled()
-              onClose()
+              if (!disableEdit && !hasBlockWithDisabledParent) {
+                onToggleEnabled()
+                onClose()
+              }
             }}
           >
-            {getToggleEnabledLabel()}
+            {hasBlockWithDisabledParent ? 'Parent is disabled' : getToggleEnabledLabel()}
           </PopoverItem>
         )}
         {!allNoteBlocks && !isSubflow && (

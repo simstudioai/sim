@@ -85,25 +85,33 @@ export const ActionBar = memo(
       )
     }, [blockId, addNotification, collaborativeBatchAddBlocks, setPendingSelection])
 
-    const { isEnabled, horizontalHandles, parentId, parentType, isLocked, isParentLocked } =
-      useWorkflowStore(
-        useCallback(
-          (state) => {
-            const block = state.blocks[blockId]
-            const parentId = block?.data?.parentId
-            const parentBlock = parentId ? state.blocks[parentId] : undefined
-            return {
-              isEnabled: block?.enabled ?? true,
-              horizontalHandles: block?.horizontalHandles ?? false,
-              parentId,
-              parentType: parentBlock?.type,
-              isLocked: block?.locked ?? false,
-              isParentLocked: parentBlock?.locked ?? false,
-            }
-          },
-          [blockId]
-        )
+    const {
+      isEnabled,
+      horizontalHandles,
+      parentId,
+      parentType,
+      isLocked,
+      isParentLocked,
+      isParentDisabled,
+    } = useWorkflowStore(
+      useCallback(
+        (state) => {
+          const block = state.blocks[blockId]
+          const parentId = block?.data?.parentId
+          const parentBlock = parentId ? state.blocks[parentId] : undefined
+          return {
+            isEnabled: block?.enabled ?? true,
+            horizontalHandles: block?.horizontalHandles ?? false,
+            parentId,
+            parentType: parentBlock?.type,
+            isLocked: block?.locked ?? false,
+            isParentLocked: parentBlock?.locked ?? false,
+            isParentDisabled: parentBlock ? !parentBlock.enabled : false,
+          }
+        },
+        [blockId]
       )
+    )
 
     const { activeWorkflowId } = useWorkflowRegistry()
     const { isExecuting, getLastExecutionSnapshot } = useExecutionStore()
@@ -200,12 +208,16 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled && !isLocked && !isParentLocked) {
+                  // Can't enable if parent is disabled (must enable parent first)
+                  const cantEnable = !isEnabled && isParentDisabled
+                  if (!disabled && !isLocked && !isParentLocked && !cantEnable) {
                     collaborativeBatchToggleBlockEnabled([blockId])
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled || isLocked || isParentLocked}
+                disabled={
+                  disabled || isLocked || isParentLocked || (!isEnabled && isParentDisabled)
+                }
               >
                 {isEnabled ? <Circle className={ICON_SIZE} /> : <CircleOff className={ICON_SIZE} />}
               </Button>
@@ -213,7 +225,9 @@ export const ActionBar = memo(
             <Tooltip.Content side='top'>
               {isLocked || isParentLocked
                 ? 'Block is locked'
-                : getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
+                : !isEnabled && isParentDisabled
+                  ? 'Parent container is disabled'
+                  : getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
