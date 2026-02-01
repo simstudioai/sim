@@ -1291,6 +1291,74 @@ describe('workflow store', () => {
         expect(blocks[duplicatedId].locked).toBeFalsy()
       }
     })
+
+    it('should place duplicate outside locked container when duplicating block inside locked loop', () => {
+      const { batchToggleLocked, duplicateBlock } = useWorkflowStore.getState()
+
+      // Create a loop with a child block
+      addBlock('loop-1', 'loop', 'My Loop', { x: 0, y: 0 }, { loopType: 'for', count: 3 })
+      addBlock(
+        'child-1',
+        'function',
+        'Child',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+
+      // Lock the loop (which cascades to the child)
+      batchToggleLocked(['loop-1'])
+      expect(useWorkflowStore.getState().blocks['child-1'].locked).toBe(true)
+
+      // Duplicate the child block
+      duplicateBlock('child-1')
+
+      const { blocks } = useWorkflowStore.getState()
+      const blockIds = Object.keys(blocks)
+
+      expect(blockIds.length).toBe(3) // loop, original child, duplicate
+
+      const duplicatedId = blockIds.find((id) => id !== 'loop-1' && id !== 'child-1')
+      expect(duplicatedId).toBeDefined()
+
+      if (duplicatedId) {
+        // Duplicate should be unlocked
+        expect(blocks[duplicatedId].locked).toBe(false)
+        // Duplicate should NOT have a parentId (placed outside the locked container)
+        expect(blocks[duplicatedId].data?.parentId).toBeUndefined()
+        // Original should still be inside the loop
+        expect(blocks['child-1'].data?.parentId).toBe('loop-1')
+      }
+    })
+
+    it('should keep duplicate inside unlocked container when duplicating block inside unlocked loop', () => {
+      const { duplicateBlock } = useWorkflowStore.getState()
+
+      // Create a loop with a child block (not locked)
+      addBlock('loop-1', 'loop', 'My Loop', { x: 0, y: 0 }, { loopType: 'for', count: 3 })
+      addBlock(
+        'child-1',
+        'function',
+        'Child',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+
+      // Duplicate the child block (loop is NOT locked)
+      duplicateBlock('child-1')
+
+      const { blocks } = useWorkflowStore.getState()
+      const blockIds = Object.keys(blocks)
+      const duplicatedId = blockIds.find((id) => id !== 'loop-1' && id !== 'child-1')
+
+      if (duplicatedId) {
+        // Duplicate should still be inside the loop since it's not locked
+        expect(blocks[duplicatedId].data?.parentId).toBe('loop-1')
+      }
+    })
   })
 
   describe('updateBlockName', () => {

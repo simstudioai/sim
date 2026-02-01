@@ -563,9 +563,33 @@ export const useWorkflowStore = create<WorkflowStore>()(
         if (!block) return
 
         const newId = crypto.randomUUID()
-        const offsetPosition = {
-          x: block.position.x + DEFAULT_DUPLICATE_OFFSET.x,
-          y: block.position.y + DEFAULT_DUPLICATE_OFFSET.y,
+
+        // Check if block is inside a locked container - if so, place duplicate outside
+        const parentId = block.data?.parentId
+        const parentBlock = parentId ? get().blocks[parentId] : undefined
+        const isParentLocked = parentBlock?.locked ?? false
+
+        // If parent is locked, calculate position outside the container
+        let offsetPosition: Position
+        const newData = block.data ? { ...block.data } : undefined
+
+        if (isParentLocked && parentBlock) {
+          // Place duplicate outside the locked container (to the right of it)
+          const containerWidth = parentBlock.data?.width ?? 400
+          offsetPosition = {
+            x: parentBlock.position.x + containerWidth + 50,
+            y: parentBlock.position.y,
+          }
+          // Remove parent relationship since we're placing outside
+          if (newData) {
+            newData.parentId = undefined
+            newData.extent = undefined
+          }
+        } else {
+          offsetPosition = {
+            x: block.position.x + DEFAULT_DUPLICATE_OFFSET.x,
+            y: block.position.y + DEFAULT_DUPLICATE_OFFSET.y,
+          }
         }
 
         const newName = getUniqueBlockName(block.name, get().blocks)
@@ -594,6 +618,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               position: offsetPosition,
               subBlocks: newSubBlocks,
               locked: false,
+              data: newData,
             },
           },
           edges: [...get().edges],
