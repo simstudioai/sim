@@ -3,6 +3,7 @@ import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
+import { hasActiveSubscription } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -65,16 +66,9 @@ async function cleanupOrganizationSubscription(organizationId: string): Promise<
   // Check if other active subscriptions still point to this org
   // Note: The subscription being deleted is already marked as 'canceled' by better-auth
   // before this handler runs, so we only find truly active ones
-  const otherActiveSubscriptions = await db
-    .select({ id: subscription.id })
-    .from(subscription)
-    .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
-    .limit(1)
-
-  if (otherActiveSubscriptions.length > 0) {
+  if (await hasActiveSubscription(organizationId)) {
     logger.info('Skipping organization deletion - other active subscriptions exist', {
       organizationId,
-      otherActiveSubId: otherActiveSubscriptions[0].id,
     })
 
     // Still sync limits for members since this subscription was deleted
