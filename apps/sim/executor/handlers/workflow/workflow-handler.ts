@@ -212,11 +212,11 @@ export class WorkflowBlockHandler implements BlockHandler {
   /**
    * Parses a potentially nested workflow error message to extract:
    * - The chain of workflow names
-   * - The actual root error message (preserving the block prefix for the failing block)
+   * - The actual root error message (preserving the block name prefix for the failing block)
    *
    * Handles formats like:
    * - "workflow-name" failed: error
-   * - [block_type] Block Name: "workflow-name" failed: error
+   * - Block Name: "workflow-name" failed: error
    * - Workflow chain: A → B | error
    */
   private parseNestedWorkflowError(message: string): { chain: string[]; rootError: string } {
@@ -234,8 +234,8 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     // Extract workflow names from patterns like:
     // - "workflow-name" failed:
-    // - [block_type] Block Name: "workflow-name" failed:
-    const workflowPattern = /(?:\[[^\]]+\]\s*[^:]+:\s*)?"([^"]+)"\s*failed:\s*/g
+    // - Block Name: "workflow-name" failed:
+    const workflowPattern = /(?:\[[^\]]+\]\s*)?(?:[^:]+:\s*)?"([^"]+)"\s*failed:\s*/g
     let match: RegExpExecArray | null
     let lastIndex = 0
 
@@ -247,7 +247,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
 
     // The root error is everything after the last match
-    // Keep the block prefix (e.g., [function] Function 1:) so we know which block failed
+    // Keep the block name prefix (e.g., Function 1:) so we know which block failed
     const rootError = lastIndex > 0 ? remaining.slice(lastIndex) : remaining
 
     return { chain, rootError: rootError.trim() || 'Unknown error' }
