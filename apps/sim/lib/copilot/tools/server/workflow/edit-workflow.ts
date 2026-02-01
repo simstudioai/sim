@@ -2296,6 +2296,17 @@ function applyOperationsToWorkflowState(
             break
           }
 
+          // Check if existing block is locked
+          if (existingBlock.locked) {
+            logSkippedItem(skippedItems, {
+              type: 'block_locked',
+              operationType: 'insert_into_subflow',
+              blockId: block_id,
+              reason: `Block "${block_id}" is locked and cannot be moved into a subflow`,
+            })
+            break
+          }
+
           // Moving existing block into subflow - just update parent
           existingBlock.data = {
             ...existingBlock.data,
@@ -2437,6 +2448,30 @@ function applyOperationsToWorkflowState(
             operationType: 'extract_from_subflow',
             blockId: block_id,
             reason: `Block "${block_id}" not found for extraction`,
+          })
+          break
+        }
+
+        // Check if block is locked
+        if (block.locked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'extract_from_subflow',
+            blockId: block_id,
+            reason: `Block "${block_id}" is locked and cannot be extracted from subflow`,
+          })
+          break
+        }
+
+        // Check if parent subflow is locked
+        const parentSubflow = modifiedState.blocks[subflowId]
+        if (parentSubflow?.locked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'extract_from_subflow',
+            blockId: block_id,
+            reason: `Subflow "${subflowId}" is locked - cannot extract block "${block_id}"`,
+            details: { subflowId },
           })
           break
         }
