@@ -888,7 +888,7 @@ describe('workflow store', () => {
   })
 
   describe('duplicateBlock with locked', () => {
-    it('should preserve locked state when duplicating a locked block', () => {
+    it('should unlock duplicate when duplicating a locked block', () => {
       const { addBlock, setBlockLocked, duplicateBlock } = useWorkflowStore.getState()
 
       addBlock('original', 'agent', 'Original Agent', { x: 0, y: 0 })
@@ -909,12 +909,12 @@ describe('workflow store', () => {
       if (duplicatedId) {
         // Original should still be locked
         expect(blocks.original.locked).toBe(true)
-        // Duplicate should also be locked (preserves state like Figma)
-        expect(blocks[duplicatedId].locked).toBe(true)
+        // Duplicate should be unlocked so users can edit it
+        expect(blocks[duplicatedId].locked).toBe(false)
       }
     })
 
-    it('should preserve unlocked state when duplicating an unlocked block', () => {
+    it('should create unlocked duplicate when duplicating an unlocked block', () => {
       const { addBlock, duplicateBlock } = useWorkflowStore.getState()
 
       addBlock('original', 'agent', 'Original Agent', { x: 0, y: 0 })

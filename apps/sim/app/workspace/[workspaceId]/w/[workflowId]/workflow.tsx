@@ -2980,11 +2980,12 @@ const WorkflowContent = React.memo(() => {
       // Don't process parent changes if the node hasn't actually changed parent or is being moved within same parent
       if (potentialParentId === dragStartParentId) return
 
-      // Prevent moving blocks out of locked containers
-      if (dragStartParentId && blocks[dragStartParentId]?.locked) {
+      // Prevent moving locked blocks out of locked containers
+      // Unlocked blocks (e.g., duplicates) can be moved out freely
+      if (dragStartParentId && blocks[dragStartParentId]?.locked && blocks[node.id]?.locked) {
         addNotification({
           level: 'info',
-          message: 'Cannot move blocks out of locked containers',
+          message: 'Cannot move locked blocks out of locked containers',
           workflowId: activeWorkflowId || undefined,
         })
         setPotentialParentId(dragStartParentId) // Reset to original parent

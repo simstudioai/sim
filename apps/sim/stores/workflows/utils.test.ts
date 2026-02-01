@@ -433,7 +433,7 @@ describe('regenerateBlockIds', () => {
     expect(duplicatedBlock.data?.parentId).toBe(loopId)
   })
 
-  it('should preserve locked state when pasting a locked block', () => {
+  it('should unlock pasted block when source is locked', () => {
     const blockId = 'block-1'
 
     const blocksToCopy = {
@@ -459,11 +459,12 @@ describe('regenerateBlockIds', () => {
     const newBlocks = Object.values(result.blocks)
     expect(newBlocks).toHaveLength(1)
 
+    // Pasted blocks are always unlocked so users can edit them
     const pastedBlock = newBlocks[0]
-    expect(pastedBlock.locked).toBe(true)
+    expect(pastedBlock.locked).toBe(false)
   })
 
-  it('should preserve unlocked state when pasting an unlocked block', () => {
+  it('should keep pasted block unlocked when source is unlocked', () => {
     const blockId = 'block-1'
 
     const blocksToCopy = {
@@ -493,20 +494,20 @@ describe('regenerateBlockIds', () => {
     expect(pastedBlock.locked).toBe(false)
   })
 
-  it('should preserve mixed locked states when pasting multiple blocks', () => {
+  it('should unlock all pasted blocks regardless of source locked state', () => {
     const lockedId = 'locked-1'
     const unlockedId = 'unlocked-1'
 
     const blocksToCopy = {
       [lockedId]: createAgentBlock({
         id: lockedId,
-        name: 'Locked Agent',
+        name: 'Originally Locked Agent',
         position: { x: 100, y: 50 },
         locked: true,
       }),
       [unlockedId]: createFunctionBlock({
         id: unlockedId,
-        name: 'Unlocked Function',
+        name: 'Originally Unlocked Function',
         position: { x: 200, y: 50 },
         locked: false,
       }),
@@ -526,10 +527,9 @@ describe('regenerateBlockIds', () => {
     const newBlocks = Object.values(result.blocks)
     expect(newBlocks).toHaveLength(2)
 
-    const lockedBlock = newBlocks.find((b) => b.name.includes('Locked'))
-    const unlockedBlock = newBlocks.find((b) => b.name.includes('Unlocked'))
-
-    expect(lockedBlock?.locked).toBe(true)
-    expect(unlockedBlock?.locked).toBe(false)
+    // All pasted blocks should be unlocked so users can edit them
+    for (const block of newBlocks) {
+      expect(block.locked).toBe(false)
+    }
   })
 })

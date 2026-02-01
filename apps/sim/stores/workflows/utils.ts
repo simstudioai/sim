@@ -482,7 +482,8 @@ export function regenerateBlockIds(
       position: newPosition,
       // Temporarily keep data as-is, we'll fix parentId in second pass
       data: block.data ? { ...block.data } : block.data,
-      // locked state is preserved via spread (same as Figma)
+      // Duplicated blocks are always unlocked so users can edit them
+      locked: false,
     }
 
     newBlocks[newId] = newBlock

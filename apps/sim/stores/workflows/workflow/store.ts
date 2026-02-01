@@ -709,7 +709,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               name: newName,
               position: offsetPosition,
               subBlocks: newSubBlocks,
-              // locked state is preserved via spread (same as Figma)
+              locked: false,
             },
           },
           edges: [...get().edges],
