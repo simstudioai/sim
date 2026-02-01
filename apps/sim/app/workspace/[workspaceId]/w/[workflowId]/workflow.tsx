@@ -57,7 +57,6 @@ import {
   estimateBlockDimensions,
   filterProtectedBlocks,
   getClampedPositionForNode,
-  hasProtectedBlocks,
   isBlockProtected,
   isEdgeProtected,
   isInEditableElement,
@@ -3606,10 +3605,7 @@ const WorkflowContent = React.memo(() => {
               canRunFromBlock={runFromBlockState.canRun}
               disableEdit={
                 !effectivePermissions.canEdit ||
-                hasProtectedBlocks(
-                  contextMenuBlocks.map((b) => b.id),
-                  blocks
-                )
+                contextMenuBlocks.some((b) => b.locked || b.isParentLocked)
               }
               userCanEdit={effectivePermissions.canEdit}
               isExecuting={isExecuting}
