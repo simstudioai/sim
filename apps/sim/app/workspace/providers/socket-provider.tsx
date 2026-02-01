@@ -49,6 +49,7 @@ interface SocketContextType {
   socket: Socket | null
   isConnected: boolean
   isConnecting: boolean
+  isReconnecting: boolean
   authFailed: boolean
   currentWorkflowId: string | null
   currentSocketId: string | null
@@ -66,9 +67,16 @@ interface SocketContextType {
     blockId: string,
     subblockId: string,
     value: any,
-    operationId?: string
+    operationId: string | undefined,
+    workflowId: string
   ) => void
-  emitVariableUpdate: (variableId: string, field: string, value: any, operationId?: string) => void
+  emitVariableUpdate: (
+    variableId: string,
+    field: string,
+    value: any,
+    operationId: string | undefined,
+    workflowId: string
+  ) => void
 
   emitCursorUpdate: (cursor: { x: number; y: number } | null) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
@@ -88,6 +96,7 @@ const SocketContext = createContext<SocketContextType>({
   socket: null,
   isConnected: false,
   isConnecting: false,
+  isReconnecting: false,
   authFailed: false,
   currentWorkflowId: null,
   currentSocketId: null,
@@ -122,6 +131,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [isReconnecting, setIsReconnecting] = useState(false)
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [currentSocketId, setCurrentSocketId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
@@ -236,20 +246,19 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setCurrentWorkflowId(null)
           setPresenceUsers([])
 
-          logger.info('Socket disconnected', {
-            reason,
-          })
+          // socket.active indicates if auto-reconnect will happen
+          if (socketInstance.active) {
+            setIsReconnecting(true)
+            logger.info('Socket disconnected, will auto-reconnect', { reason })
+          } else {
+            setIsReconnecting(false)
+            logger.info('Socket disconnected, no auto-reconnect', { reason })
+          }
         })
 
-        socketInstance.on('connect_error', (error: any) => {
+        socketInstance.on('connect_error', (error: Error) => {
           setIsConnecting(false)
-          logger.error('Socket connection error:', {
-            message: error.message,
-            stack: error.stack,
-            description: error.description,
-            type: error.type,
-            transport: error.transport,
-          })
+          logger.error('Socket connection error:', { message: error.message })
 
           // Check if this is an authentication failure
           const isAuthError =
@@ -261,43 +270,41 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             logger.warn(
               'Authentication failed - stopping reconnection attempts. User may need to refresh/re-login.'
             )
-            // Stop reconnection attempts to prevent infinite loop
             socketInstance.disconnect()
-            // Reset state to allow re-initialization when session is restored
             setSocket(null)
             setAuthFailed(true)
+            setIsReconnecting(false)
             initializedRef.current = false
+          } else if (socketInstance.active) {
+            // Temporary failure, will auto-reconnect
+            setIsReconnecting(true)
           }
         })
 
-        socketInstance.on('reconnect', (attemptNumber) => {
+        // Reconnection events are on the Manager (socket.io), not the socket itself
+        socketInstance.io.on('reconnect', (attemptNumber) => {
           setIsConnected(true)
+          setIsReconnecting(false)
           setCurrentSocketId(socketInstance.id ?? null)
           logger.info('Socket reconnected successfully', {
             attemptNumber,
             socketId: socketInstance.id,
             transport: socketInstance.io.engine?.transport?.name,
           })
-          // Note: join-workflow is handled by the useEffect watching isConnected
         })
 
-        socketInstance.on('reconnect_attempt', (attemptNumber) => {
-          logger.info('Socket reconnection attempt (fresh token will be generated)', {
-            attemptNumber,
-            timestamp: new Date().toISOString(),
-          })
+        socketInstance.io.on('reconnect_attempt', (attemptNumber) => {
+          setIsReconnecting(true)
+          logger.info('Socket reconnection attempt', { attemptNumber })
         })
 
-        socketInstance.on('reconnect_error', (error: any) => {
-          logger.error('Socket reconnection error:', {
-            message: error.message,
-            attemptNumber: error.attemptNumber,
-            type: error.type,
-          })
+        socketInstance.io.on('reconnect_error', (error: Error) => {
+          logger.error('Socket reconnection error:', { message: error.message })
         })
 
-        socketInstance.on('reconnect_failed', () => {
+        socketInstance.io.on('reconnect_failed', () => {
           logger.error('Socket reconnection failed - all attempts exhausted')
+          setIsReconnecting(false)
           setIsConnecting(false)
         })
 
@@ -629,6 +636,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         if (commit) {
           socket.emit('workflow-operation', {
+            workflowId: currentWorkflowId,
             operation,
             target,
             payload,
@@ -645,6 +653,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         }
 
         pendingPositionUpdates.current.set(blockId, {
+          workflowId: currentWorkflowId,
           operation,
           target,
           payload,
@@ -666,6 +675,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         }
       } else {
         socket.emit('workflow-operation', {
+          workflowId: currentWorkflowId,
           operation,
           target,
           payload,
@@ -678,47 +688,51 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   )
 
   const emitSubblockUpdate = useCallback(
-    (blockId: string, subblockId: string, value: any, operationId?: string) => {
-      if (socket && currentWorkflowId) {
-        socket.emit('subblock-update', {
-          blockId,
-          subblockId,
-          value,
-          timestamp: Date.now(),
-          operationId,
-        })
-      } else {
-        logger.warn('Cannot emit subblock update: no socket connection or workflow room', {
-          hasSocket: !!socket,
-          currentWorkflowId,
-          blockId,
-          subblockId,
-        })
+    (
+      blockId: string,
+      subblockId: string,
+      value: any,
+      operationId: string | undefined,
+      workflowId: string
+    ) => {
+      if (!socket) {
+        logger.warn('Cannot emit subblock update: no socket connection', { workflowId, blockId })
+        return
       }
+      socket.emit('subblock-update', {
+        workflowId,
+        blockId,
+        subblockId,
+        value,
+        timestamp: Date.now(),
+        operationId,
+      })
     },
-    [socket, currentWorkflowId]
+    [socket]
   )
 
   const emitVariableUpdate = useCallback(
-    (variableId: string, field: string, value: any, operationId?: string) => {
-      if (socket && currentWorkflowId) {
-        socket.emit('variable-update', {
-          variableId,
-          field,
-          value,
-          timestamp: Date.now(),
-          operationId,
-        })
-      } else {
-        logger.warn('Cannot emit variable update: no socket connection or workflow room', {
-          hasSocket: !!socket,
-          currentWorkflowId,
-          variableId,
-          field,
-        })
+    (
+      variableId: string,
+      field: string,
+      value: any,
+      operationId: string | undefined,
+      workflowId: string
+    ) => {
+      if (!socket) {
+        logger.warn('Cannot emit variable update: no socket connection', { workflowId, variableId })
+        return
       }
+      socket.emit('variable-update', {
+        workflowId,
+        variableId,
+        field,
+        value,
+        timestamp: Date.now(),
+        operationId,
+      })
     },
-    [socket, currentWorkflowId]
+    [socket]
   )
 
   const lastCursorEmit = useRef(0)
@@ -794,6 +808,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       socket,
       isConnected,
       isConnecting,
+      isReconnecting,
       authFailed,
       currentWorkflowId,
       currentSocketId,
@@ -820,6 +835,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       socket,
       isConnected,
       isConnecting,
+      isReconnecting,
       authFailed,
       currentWorkflowId,
       currentSocketId,

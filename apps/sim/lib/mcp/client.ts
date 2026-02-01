@@ -199,10 +199,11 @@ export class McpClient {
         protocolVersion: this.getNegotiatedVersion(),
       })
 
-      const sdkResult = await this.client.callTool({
-        name: toolCall.name,
-        arguments: toolCall.arguments,
-      })
+      const sdkResult = await this.client.callTool(
+        { name: toolCall.name, arguments: toolCall.arguments },
+        undefined,
+        { timeout: 600000 } // 10 minutes - override SDK's 60s default
+      )
 
       return sdkResult as McpToolResult
     } catch (error) {

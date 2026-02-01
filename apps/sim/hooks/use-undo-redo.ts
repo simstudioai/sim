@@ -30,7 +30,6 @@ import {
   useUndoRedoStore,
 } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -535,47 +534,9 @@ export function useUndoRedo() {
             userId,
           })
 
-          blocksToAdd.forEach((block) => {
-            useWorkflowStore
-              .getState()
-              .addBlock(
-                block.id,
-                block.type,
-                block.name,
-                block.position,
-                block.data,
-                block.data?.parentId,
-                block.data?.extent,
-                {
-                  enabled: block.enabled,
-                  horizontalHandles: block.horizontalHandles,
-                  advancedMode: block.advancedMode,
-                  triggerMode: block.triggerMode,
-                  height: block.height,
-                }
-              )
-          })
-
-          if (subBlockValues && Object.keys(subBlockValues).length > 0) {
-            useSubBlockStore.setState((state) => ({
-              workflowValues: {
-                ...state.workflowValues,
-                [activeWorkflowId]: {
-                  ...state.workflowValues[activeWorkflowId],
-                  ...subBlockValues,
-                },
-              },
-            }))
-          }
-
-          if (edgeSnapshots && edgeSnapshots.length > 0) {
-            const edgesToAdd = edgeSnapshots.filter(
-              (edge) => !useWorkflowStore.getState().edges.find((e) => e.id === edge.id)
-            )
-            if (edgesToAdd.length > 0) {
-              useWorkflowStore.getState().batchAddEdges(edgesToAdd)
-            }
-          }
+          useWorkflowStore
+            .getState()
+            .batchAddBlocks(blocksToAdd, edgeSnapshots || [], subBlockValues || {})
           break
         }
         case UNDO_REDO_OPERATIONS.BATCH_REMOVE_EDGES: {
@@ -1148,47 +1109,9 @@ export function useUndoRedo() {
             userId,
           })
 
-          blocksToAdd.forEach((block) => {
-            useWorkflowStore
-              .getState()
-              .addBlock(
-                block.id,
-                block.type,
-                block.name,
-                block.position,
-                block.data,
-                block.data?.parentId,
-                block.data?.extent,
-                {
-                  enabled: block.enabled,
-                  horizontalHandles: block.horizontalHandles,
-                  advancedMode: block.advancedMode,
-                  triggerMode: block.triggerMode,
-                  height: block.height,
-                }
-              )
-          })
-
-          if (subBlockValues && Object.keys(subBlockValues).length > 0) {
-            useSubBlockStore.setState((state) => ({
-              workflowValues: {
-                ...state.workflowValues,
-                [activeWorkflowId]: {
-                  ...state.workflowValues[activeWorkflowId],
-                  ...subBlockValues,
-                },
-              },
-            }))
-          }
-
-          if (edgeSnapshots && edgeSnapshots.length > 0) {
-            const edgesToAdd = edgeSnapshots.filter(
-              (edge) => !useWorkflowStore.getState().edges.find((e) => e.id === edge.id)
-            )
-            if (edgesToAdd.length > 0) {
-              useWorkflowStore.getState().batchAddEdges(edgesToAdd)
-            }
-          }
+          useWorkflowStore
+            .getState()
+            .batchAddBlocks(blocksToAdd, edgeSnapshots || [], subBlockValues || {})
           break
         }
         case UNDO_REDO_OPERATIONS.BATCH_REMOVE_BLOCKS: {

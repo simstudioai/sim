@@ -3,8 +3,6 @@ import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -112,138 +110,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
         set({ needsRedeployment })
-      },
-
-      addBlock: (
-        id: string,
-        type: string,
-        name: string,
-        position: Position,
-        data?: Record<string, any>,
-        parentId?: string,
-        extent?: 'parent',
-        blockProperties?: {
-          enabled?: boolean
-          horizontalHandles?: boolean
-          advancedMode?: boolean
-          triggerMode?: boolean
-          height?: number
-          locked?: boolean
-        }
-      ) => {
-        const blockConfig = getBlock(type)
-        // For custom nodes like loop and parallel that don't use BlockConfig
-        if (!blockConfig && (type === 'loop' || type === 'parallel')) {
-          // Merge parentId and extent into data if provided
-          const nodeData = {
-            ...data,
-            ...(parentId && { parentId, extent: extent || 'parent' }),
-          }
-
-          const newState = {
-            blocks: {
-              ...get().blocks,
-              [id]: {
-                id,
-                type,
-                name,
-                position,
-                subBlocks: {},
-                outputs: {},
-                enabled: blockProperties?.enabled ?? true,
-                horizontalHandles: blockProperties?.horizontalHandles ?? true,
-                advancedMode: blockProperties?.advancedMode ?? false,
-                triggerMode: blockProperties?.triggerMode ?? false,
-                height: blockProperties?.height ?? 0,
-                data: nodeData,
-                locked: blockProperties?.locked ?? false,
-              },
-            },
-            edges: [...get().edges],
-            loops: get().generateLoopBlocks(),
-            parallels: get().generateParallelBlocks(),
-          }
-
-          set(newState)
-          get().updateLastSaved()
-          return
-        }
-
-        if (!blockConfig) return
-
-        // Merge parentId and extent into data for regular blocks
-        const nodeData = {
-          ...data,
-          ...(parentId && { parentId, extent: extent || 'parent' }),
-        }
-
-        const subBlocks: Record<string, SubBlockState> = {}
-        const subBlockStore = useSubBlockStore.getState()
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-
-        blockConfig.subBlocks.forEach((subBlock) => {
-          const subBlockId = subBlock.id
-          const initialValue = resolveInitialSubblockValue(subBlock)
-          const normalizedValue =
-            initialValue !== undefined && initialValue !== null ? initialValue : null
-
-          subBlocks[subBlockId] = {
-            id: subBlockId,
-            type: subBlock.type,
-            value: normalizedValue as SubBlockState['value'],
-          }
-
-          if (activeWorkflowId) {
-            try {
-              const valueToStore =
-                initialValue !== undefined ? cloneInitialSubblockValue(initialValue) : null
-              subBlockStore.setValue(id, subBlockId, valueToStore)
-            } catch (error) {
-              logger.warn('Failed to seed sub-block store value during block creation', {
-                blockId: id,
-                subBlockId,
-                error: error instanceof Error ? error.message : String(error),
-              })
-            }
-          } else {
-            logger.warn('Cannot seed sub-block store value: activeWorkflowId not available', {
-              blockId: id,
-              subBlockId,
-            })
-          }
-        })
-
-        // Get outputs based on trigger mode
-        const triggerMode = blockProperties?.triggerMode ?? false
-        const outputs = getBlockOutputs(type, subBlocks, triggerMode)
-
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [id]: {
-              id,
-              type,
-              name,
-              position,
-              subBlocks,
-              outputs,
-              enabled: blockProperties?.enabled ?? true,
-              horizontalHandles: blockProperties?.horizontalHandles ?? true,
-              advancedMode: blockProperties?.advancedMode ?? false,
-              triggerMode: triggerMode,
-              height: blockProperties?.height ?? 0,
-              layout: {},
-              data: nodeData,
-              locked: blockProperties?.locked ?? false,
-            },
-          },
-          edges: [...get().edges],
-          loops: get().generateLoopBlocks(),
-          parallels: get().generateParallelBlocks(),
-        }
-
-        set(newState)
-        get().updateLastSaved()
       },
 
       updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
@@ -391,11 +257,27 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }
 
+        // Only regenerate loops/parallels if we're adding blocks that affect them:
+        // - Adding a loop/parallel container block
+        // - Adding a block as a child of a loop/parallel (has parentId pointing to one)
+        const needsLoopRegeneration = blocks.some(
+          (block) =>
+            block.type === 'loop' ||
+            (block.data?.parentId && newBlocks[block.data.parentId]?.type === 'loop')
+        )
+        const needsParallelRegeneration = blocks.some(
+          (block) =>
+            block.type === 'parallel' ||
+            (block.data?.parentId && newBlocks[block.data.parentId]?.type === 'parallel')
+        )
+
         set({
           blocks: newBlocks,
           edges: newEdges,
-          loops: generateLoopBlocks(newBlocks),
-          parallels: generateParallelBlocks(newBlocks),
+          loops: needsLoopRegeneration ? generateLoopBlocks(newBlocks) : { ...get().loops },
+          parallels: needsParallelRegeneration
+            ? generateParallelBlocks(newBlocks)
+            : { ...get().parallels },
         })
 
         if (subBlockValues && Object.keys(subBlockValues).length > 0) {
@@ -568,8 +450,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set({
           blocks: { ...blocks },
           edges: newEdges,
-          loops: generateLoopBlocks(blocks),
-          parallels: generateParallelBlocks(blocks),
+          // Edges don't affect loop/parallel structure (determined by parentId), skip regeneration
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
         })
 
         get().updateLastSaved()
@@ -583,8 +466,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set({
           blocks: { ...blocks },
           edges: newEdges,
-          loops: generateLoopBlocks(blocks),
-          parallels: generateParallelBlocks(blocks),
+          // Edges don't affect loop/parallel structure (determined by parentId), skip regeneration
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
         })
 
         get().updateLastSaved()

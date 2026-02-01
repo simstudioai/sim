@@ -27,16 +27,16 @@ All API responses include information about your workflow execution limits and u
 "limits": {
   "workflowExecutionRateLimit": {
     "sync": {
-      "requestsPerMinute": 60,  // Sustained rate limit per minute
-      "maxBurst": 120,          // Maximum burst capacity
-      "remaining": 118,         // Current tokens available (up to maxBurst)
-      "resetAt": "..."          // When tokens next refill
+      "requestsPerMinute": 150,  // Sustained rate limit per minute
+      "maxBurst": 300,           // Maximum burst capacity
+      "remaining": 298,          // Current tokens available (up to maxBurst)
+      "resetAt": "..."           // When tokens next refill
     },
     "async": {
-      "requestsPerMinute": 200, // Sustained rate limit per minute
-      "maxBurst": 400,          // Maximum burst capacity
-      "remaining": 398,         // Current tokens available
-      "resetAt": "..."          // When tokens next refill
+      "requestsPerMinute": 1000, // Sustained rate limit per minute
+      "maxBurst": 2000,          // Maximum burst capacity
+      "remaining": 1998,         // Current tokens available
+      "resetAt": "..."           // When tokens next refill
     }
   },
   "usage": {
@@ -107,28 +107,28 @@ Query workflow execution logs with extensive filtering options.
         }
       ],
       "nextCursor": "eyJzIjoiMjAyNS0wMS0wMVQxMjozNDo1Ni43ODlaIiwiaWQiOiJsb2dfYWJjMTIzIn0",
-      "limits": {
-        "workflowExecutionRateLimit": {
-          "sync": {
-            "requestsPerMinute": 60,
-            "maxBurst": 120,
-            "remaining": 118,
-            "resetAt": "2025-01-01T12:35:56.789Z"
+"limits": {
+          "workflowExecutionRateLimit": {
+            "sync": {
+              "requestsPerMinute": 150,
+              "maxBurst": 300,
+              "remaining": 298,
+              "resetAt": "2025-01-01T12:35:56.789Z"
+            },
+            "async": {
+              "requestsPerMinute": 1000,
+              "maxBurst": 2000,
+              "remaining": 1998,
+              "resetAt": "2025-01-01T12:35:56.789Z"
+            }
           },
-          "async": {
-            "requestsPerMinute": 200,
-            "maxBurst": 400,
-            "remaining": 398,
-            "resetAt": "2025-01-01T12:35:56.789Z"
+          "usage": {
+            "currentPeriodCost": 1.234,
+            "limit": 10,
+            "plan": "pro",
+            "isExceeded": false
           }
-        },
-        "usage": {
-          "currentPeriodCost": 1.234,
-          "limit": 10,
-          "plan": "pro",
-          "isExceeded": false
         }
-      }
     }
     ```
   </Tab>
@@ -188,15 +188,15 @@ Retrieve detailed information about a specific log entry.
         "limits": {
           "workflowExecutionRateLimit": {
             "sync": {
-              "requestsPerMinute": 60,
-              "maxBurst": 120,
-              "remaining": 118,
+              "requestsPerMinute": 150,
+              "maxBurst": 300,
+              "remaining": 298,
               "resetAt": "2025-01-01T12:35:56.789Z"
             },
             "async": {
-              "requestsPerMinute": 200,
-              "maxBurst": 400,
-              "remaining": 398,
+              "requestsPerMinute": 1000,
+              "maxBurst": 2000,
+              "remaining": 1998,
               "resetAt": "2025-01-01T12:35:56.789Z"
             }
           },
@@ -477,10 +477,10 @@ The API uses a **token bucket algorithm** for rate limiting, providing fair usag
 
 | Plan | Requests/Minute | Burst Capacity |
 |------|-----------------|----------------|
-| Free | 10 | 20 |
-| Pro | 30 | 60 |
-| Team | 60 | 120 |
-| Enterprise | 120 | 240 |
+| Free | 30 | 60 |
+| Pro | 100 | 200 |
+| Team | 200 | 400 |
+| Enterprise | 500 | 1000 |
 
 **How it works:**
 - Tokens refill at `requestsPerMinute` rate
