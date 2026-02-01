@@ -1170,8 +1170,6 @@ export function useCollaborativeWorkflow() {
 
       const operationId = crypto.randomUUID()
 
-      const currentActiveWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-
       addToQueue({
         id: operationId,
         operation: {
@@ -1179,7 +1177,7 @@ export function useCollaborativeWorkflow() {
           target: OPERATION_TARGETS.SUBBLOCK,
           payload: { blockId, subblockId, value },
         },
-        workflowId: currentActiveWorkflowId || '',
+        workflowId: activeWorkflowId,
         userId: session?.user?.id || 'unknown',
       })
     },
