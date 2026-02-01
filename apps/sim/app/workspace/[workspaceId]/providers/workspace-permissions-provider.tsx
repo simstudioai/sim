@@ -75,6 +75,13 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
       removeNotification(reconnectingNotificationIdRef.current)
       reconnectingNotificationIdRef.current = null
     }
+
+    return () => {
+      if (reconnectingNotificationIdRef.current) {
+        removeNotification(reconnectingNotificationIdRef.current)
+        reconnectingNotificationIdRef.current = null
+      }
+    }
   }, [isReconnecting, isOfflineMode, addNotification, removeNotification])
 
   useEffect(() => {

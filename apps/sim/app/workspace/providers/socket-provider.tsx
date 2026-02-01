@@ -67,9 +67,16 @@ interface SocketContextType {
     blockId: string,
     subblockId: string,
     value: any,
-    operationId?: string
+    operationId: string | undefined,
+    workflowId: string
   ) => void
-  emitVariableUpdate: (variableId: string, field: string, value: any, operationId?: string) => void
+  emitVariableUpdate: (
+    variableId: string,
+    field: string,
+    value: any,
+    operationId: string | undefined,
+    workflowId: string
+  ) => void
 
   emitCursorUpdate: (cursor: { x: number; y: number } | null) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
@@ -685,13 +692,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       blockId: string,
       subblockId: string,
       value: any,
-      operationId?: string,
-      workflowId?: string
+      operationId: string | undefined,
+      workflowId: string
     ) => {
-      if (!workflowId) {
-        logger.error('emitSubblockUpdate called without workflowId', { blockId, subblockId })
-        return
-      }
       if (!socket) {
         logger.warn('Cannot emit subblock update: no socket connection', { workflowId, blockId })
         return
@@ -709,11 +712,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   )
 
   const emitVariableUpdate = useCallback(
-    (variableId: string, field: string, value: any, operationId?: string, workflowId?: string) => {
-      if (!workflowId) {
-        logger.error('emitVariableUpdate called without workflowId', { variableId, field })
-        return
-      }
+    (
+      variableId: string,
+      field: string,
+      value: any,
+      operationId: string | undefined,
+      workflowId: string
+    ) => {
       if (!socket) {
         logger.warn('Cannot emit variable update: no socket connection', { workflowId, variableId })
         return
