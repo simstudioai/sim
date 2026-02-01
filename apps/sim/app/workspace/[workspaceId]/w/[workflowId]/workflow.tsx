@@ -57,6 +57,9 @@ import {
   estimateBlockDimensions,
   filterProtectedBlocks,
   getClampedPositionForNode,
+  hasProtectedBlocks,
+  isBlockProtected,
+  isEdgeProtected,
   isInEditableElement,
   resolveParentChildSelectionConflicts,
   validateTriggerPaste,
@@ -2519,21 +2522,10 @@ const WorkflowContent = React.memo(() => {
         .filter((change: any) => change.type === 'remove')
         .map((change: any) => change.id)
         .filter((edgeId: string) => {
-          // Prevent removing edges connected to locked blocks or blocks inside locked containers
+          // Prevent removing edges connected to protected blocks
           const edge = edges.find((e) => e.id === edgeId)
           if (!edge) return true
-          const sourceBlock = blocks[edge.source]
-          const targetBlock = blocks[edge.target]
-          const sourceParentLocked =
-            sourceBlock?.data?.parentId && blocks[sourceBlock.data.parentId]?.locked
-          const targetParentLocked =
-            targetBlock?.data?.parentId && blocks[targetBlock.data.parentId]?.locked
-          return (
-            !sourceBlock?.locked &&
-            !targetBlock?.locked &&
-            !sourceParentLocked &&
-            !targetParentLocked
-          )
+          return !isEdgeProtected(edge, blocks)
         })
 
       if (edgeIdsToRemove.length > 0) {
@@ -2602,19 +2594,8 @@ const WorkflowContent = React.memo(() => {
 
         if (!sourceNode || !targetNode) return
 
-        // Prevent connections to/from locked blocks or blocks inside locked containers
-        const sourceBlock = blocks[connection.source]
-        const targetBlock = blocks[connection.target]
-        const sourceParentLocked =
-          sourceBlock?.data?.parentId && blocks[sourceBlock.data.parentId]?.locked
-        const targetParentLocked =
-          targetBlock?.data?.parentId && blocks[targetBlock.data.parentId]?.locked
-        if (
-          sourceBlock?.locked ||
-          targetBlock?.locked ||
-          sourceParentLocked ||
-          targetParentLocked
-        ) {
+        // Prevent connections to/from protected blocks
+        if (isEdgeProtected(connection, blocks)) {
           addNotification({
             level: 'info',
             message: 'Cannot connect to locked blocks or blocks inside locked containers',
@@ -2875,9 +2856,8 @@ const WorkflowContent = React.memo(() => {
   /** Captures initial parent ID and position when drag starts. */
   const onNodeDragStart = useCallback(
     (_event: React.MouseEvent, node: any) => {
-      // Prevent dragging locked blocks
-      const block = blocks[node.id]
-      if (block?.locked) {
+      // Prevent dragging protected blocks
+      if (isBlockProtected(node.id, blocks)) {
         return
       }
 
@@ -3386,28 +3366,15 @@ const WorkflowContent = React.memo(() => {
   /** Stable delete handler to avoid creating new function references per edge. */
   const handleEdgeDelete = useCallback(
     (edgeId: string) => {
-      // Prevent removing edges connected to locked blocks or blocks inside locked containers
+      // Prevent removing edges connected to protected blocks
       const edge = edges.find((e) => e.id === edgeId)
-      if (edge) {
-        const sourceBlock = blocks[edge.source]
-        const targetBlock = blocks[edge.target]
-        const sourceParentLocked =
-          sourceBlock?.data?.parentId && blocks[sourceBlock.data.parentId]?.locked
-        const targetParentLocked =
-          targetBlock?.data?.parentId && blocks[targetBlock.data.parentId]?.locked
-        if (
-          sourceBlock?.locked ||
-          targetBlock?.locked ||
-          sourceParentLocked ||
-          targetParentLocked
-        ) {
-          addNotification({
-            level: 'info',
-            message: 'Cannot remove connections from locked blocks',
-            workflowId: activeWorkflowId || undefined,
-          })
-          return
-        }
+      if (edge && isEdgeProtected(edge, blocks)) {
+        addNotification({
+          level: 'info',
+          message: 'Cannot remove connections from locked blocks',
+          workflowId: activeWorkflowId || undefined,
+        })
+        return
       }
       removeEdge(edgeId)
       // Remove this edge from selection (find by edge ID value)
@@ -3462,22 +3429,11 @@ const WorkflowContent = React.memo(() => {
 
       // Handle edge deletion first (edges take priority if selected)
       if (selectedEdges.size > 0) {
-        // Get all selected edge IDs and filter out edges connected to locked blocks or blocks inside locked containers
+        // Get all selected edge IDs and filter out edges connected to protected blocks
         const edgeIds = Array.from(selectedEdges.values()).filter((edgeId) => {
           const edge = edges.find((e) => e.id === edgeId)
           if (!edge) return true
-          const sourceBlock = blocks[edge.source]
-          const targetBlock = blocks[edge.target]
-          const sourceParentLocked =
-            sourceBlock?.data?.parentId && blocks[sourceBlock.data.parentId]?.locked
-          const targetParentLocked =
-            targetBlock?.data?.parentId && blocks[targetBlock.data.parentId]?.locked
-          return (
-            !sourceBlock?.locked &&
-            !targetBlock?.locked &&
-            !sourceParentLocked &&
-            !targetParentLocked
-          )
+          return !isEdgeProtected(edge, blocks)
         })
         if (edgeIds.length > 0) {
           collaborativeBatchRemoveEdges(edgeIds)
@@ -3657,8 +3613,10 @@ const WorkflowContent = React.memo(() => {
               canRunFromBlock={runFromBlockState.canRun}
               disableEdit={
                 !effectivePermissions.canEdit ||
-                contextMenuBlocks.some((b) => b.locked) ||
-                contextMenuBlocks.some((b) => b.parentId && blocks[b.parentId]?.locked)
+                hasProtectedBlocks(
+                  contextMenuBlocks.map((b) => b.id),
+                  blocks
+                )
               }
               userCanEdit={effectivePermissions.canEdit}
               isExecuting={isExecuting}

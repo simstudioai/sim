@@ -13,12 +13,12 @@ export interface FilterProtectedBlocksResult {
 }
 
 /**
- * Checks if a block is protected from deletion.
+ * Checks if a block is protected from editing/deletion.
  * A block is protected if it is locked or if its parent container is locked.
  *
  * @param blockId - The ID of the block to check
  * @param blocks - Record of all blocks in the workflow
- * @returns True if the block is protected from deletion
+ * @returns True if the block is protected
  */
 export function isBlockProtected(blockId: string, blocks: Record<string, BlockState>): boolean {
   const block = blocks[blockId]
@@ -32,6 +32,21 @@ export function isBlockProtected(blockId: string, blocks: Record<string, BlockSt
   if (parentId && blocks[parentId]?.locked) return true
 
   return false
+}
+
+/**
+ * Checks if an edge is protected from modification.
+ * An edge is protected if either its source or target block is protected.
+ *
+ * @param edge - The edge to check (must have source and target)
+ * @param blocks - Record of all blocks in the workflow
+ * @returns True if the edge is protected
+ */
+export function isEdgeProtected(
+  edge: { source: string; target: string },
+  blocks: Record<string, BlockState>
+): boolean {
+  return isBlockProtected(edge.source, blocks) || isBlockProtected(edge.target, blocks)
 }
 
 /**
@@ -54,4 +69,33 @@ export function filterProtectedBlocks(
     protectedIds,
     allProtected: protectedIds.length === blockIds.length && blockIds.length > 0,
   }
+}
+
+/**
+ * Filters edges to only include those that are not protected.
+ *
+ * @param edges - Array of edges to filter
+ * @param blocks - Record of all blocks in the workflow
+ * @returns Array of edges that can be modified (not protected)
+ */
+export function filterUnprotectedEdges<T extends { source: string; target: string }>(
+  edges: T[],
+  blocks: Record<string, BlockState>
+): T[] {
+  return edges.filter((edge) => !isEdgeProtected(edge, blocks))
+}
+
+/**
+ * Checks if any blocks in the selection are protected.
+ * Useful for determining if edit actions should be disabled.
+ *
+ * @param blockIds - Array of block IDs to check
+ * @param blocks - Record of all blocks in the workflow
+ * @returns True if any block is protected
+ */
+export function hasProtectedBlocks(
+  blockIds: string[],
+  blocks: Record<string, BlockState>
+): boolean {
+  return blockIds.some((id) => isBlockProtected(id, blocks))
 }
