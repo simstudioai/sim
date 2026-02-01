@@ -200,18 +200,18 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled && !isLocked) {
+                  if (!disabled && !isLocked && !isParentLocked) {
                     collaborativeBatchToggleBlockEnabled([blockId])
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled || isLocked}
+                disabled={disabled || isLocked || isParentLocked}
               >
                 {isEnabled ? <Circle className={ICON_SIZE} /> : <CircleOff className={ICON_SIZE} />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              {isLocked
+              {isLocked || isParentLocked
                 ? 'Block is locked'
                 : getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
             </Tooltip.Content>
@@ -274,12 +274,12 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled && !isLocked) {
+                  if (!disabled && !isLocked && !isParentLocked) {
                     collaborativeBatchToggleBlockHandles([blockId])
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled || isLocked}
+                disabled={disabled || isLocked || isParentLocked}
               >
                 {horizontalHandles ? (
                   <ArrowLeftRight className={ICON_SIZE} />
@@ -289,7 +289,7 @@ export const ActionBar = memo(
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              {isLocked
+              {isLocked || isParentLocked
                 ? 'Block is locked'
                 : getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
             </Tooltip.Content>

@@ -21,6 +21,7 @@ export interface BlockInfo {
   parentId?: string
   parentType?: string
   locked?: boolean
+  isParentLocked?: boolean
 }
 
 /**
@@ -98,6 +99,8 @@ export function BlockMenu({
   const allDisabled = selectedBlocks.every((b) => !b.enabled)
   const allLocked = selectedBlocks.every((b) => b.locked)
   const allUnlocked = selectedBlocks.every((b) => !b.locked)
+  // Can't unlock blocks that have locked parents
+  const hasBlockWithLockedParent = selectedBlocks.some((b) => b.locked && b.isParentLocked)
 
   const hasSingletonBlock = selectedBlocks.some(
     (b) =>
@@ -216,12 +219,15 @@ export function BlockMenu({
         )}
         {canAdmin && onToggleLocked && (
           <PopoverItem
+            disabled={hasBlockWithLockedParent}
             onClick={() => {
-              onToggleLocked()
-              onClose()
+              if (!hasBlockWithLockedParent) {
+                onToggleLocked()
+                onClose()
+              }
             }}
           >
-            {getToggleLockedLabel()}
+            {hasBlockWithLockedParent ? 'Parent is locked' : getToggleLockedLabel()}
           </PopoverItem>
         )}
 
