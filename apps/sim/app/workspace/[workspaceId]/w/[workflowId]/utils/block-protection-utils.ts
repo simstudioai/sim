@@ -72,20 +72,6 @@ export function filterProtectedBlocks(
 }
 
 /**
- * Filters edges to only include those that are not protected.
- *
- * @param edges - Array of edges to filter
- * @param blocks - Record of all blocks in the workflow
- * @returns Array of edges that can be modified (not protected)
- */
-export function filterUnprotectedEdges<T extends { source: string; target: string }>(
-  edges: T[],
-  blocks: Record<string, BlockState>
-): T[] {
-  return edges.filter((edge) => !isEdgeProtected(edge, blocks))
-}
-
-/**
  * Checks if any blocks in the selection are protected.
  * Useful for determining if edit actions should be disabled.
  *

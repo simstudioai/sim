@@ -373,16 +373,16 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const newBlocks = { ...currentBlocks }
         const blocksToToggle = new Set<string>()
 
-        // For each ID, collect blocks to toggle (skip locked blocks)
+        // For each ID, collect blocks to toggle (skip locked blocks entirely)
         // If it's a container, also include non-locked children
         for (const id of ids) {
           const block = currentBlocks[id]
           if (!block) continue
 
-          // Skip locked blocks
-          if (!block.locked) {
-            blocksToToggle.add(id)
-          }
+          // Skip locked blocks entirely (including their children)
+          if (block.locked) continue
+
+          blocksToToggle.add(id)
 
           // If it's a loop or parallel, also include non-locked children
           if (block.type === 'loop' || block.type === 'parallel') {

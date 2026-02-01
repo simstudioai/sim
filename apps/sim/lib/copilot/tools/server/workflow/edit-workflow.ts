@@ -2146,6 +2146,19 @@ function applyOperationsToWorkflowState(
 
         // Handle nested nodes (for loops/parallels created from scratch)
         if (params.nestedNodes) {
+          // Defensive check: verify parent is not locked before adding children
+          // (Parent was just created with locked: false, but check for consistency)
+          const parentBlock = modifiedState.blocks[block_id]
+          if (parentBlock?.locked) {
+            logSkippedItem(skippedItems, {
+              type: 'block_locked',
+              operationType: 'add_nested_nodes',
+              blockId: block_id,
+              reason: `Container "${block_id}" is locked - cannot add nested nodes`,
+            })
+            break
+          }
+
           Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
             // Validate childId is a valid string
             if (!isValidKey(childId)) {
