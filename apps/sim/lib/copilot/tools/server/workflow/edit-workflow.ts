@@ -1522,13 +1522,20 @@ function applyOperationsToWorkflowState(
           break
         }
 
-        // Check if block is locked
-        if (modifiedState.blocks[block_id].locked) {
+        // Check if block is locked or inside a locked container
+        const deleteBlock = modifiedState.blocks[block_id]
+        const deleteParentId = deleteBlock.data?.parentId as string | undefined
+        const deleteParentLocked = deleteParentId
+          ? modifiedState.blocks[deleteParentId]?.locked
+          : false
+        if (deleteBlock.locked || deleteParentLocked) {
           logSkippedItem(skippedItems, {
             type: 'block_locked',
             operationType: 'delete',
             blockId: block_id,
-            reason: `Block "${block_id}" is locked and cannot be deleted`,
+            reason: deleteParentLocked
+              ? `Block "${block_id}" is inside locked container "${deleteParentId}" and cannot be deleted`
+              : `Block "${block_id}" is locked and cannot be deleted`,
           })
           break
         }
@@ -1568,13 +1575,17 @@ function applyOperationsToWorkflowState(
 
         const block = modifiedState.blocks[block_id]
 
-        // Check if block is locked
-        if (block.locked) {
+        // Check if block is locked or inside a locked container
+        const editParentId = block.data?.parentId as string | undefined
+        const editParentLocked = editParentId ? modifiedState.blocks[editParentId]?.locked : false
+        if (block.locked || editParentLocked) {
           logSkippedItem(skippedItems, {
             type: 'block_locked',
             operationType: 'edit',
             blockId: block_id,
-            reason: `Block "${block_id}" is locked and cannot be edited`,
+            reason: editParentLocked
+              ? `Block "${block_id}" is inside locked container "${editParentId}" and cannot be edited`
+              : `Block "${block_id}" is locked and cannot be edited`,
           })
           break
         }
