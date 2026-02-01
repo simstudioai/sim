@@ -2495,6 +2495,61 @@ export const auth = betterAuth({
           },
         },
 
+        // TikTok provider
+        {
+          providerId: 'tiktok',
+          clientId: env.TIKTOK_CLIENT_ID as string,
+          clientSecret: env.TIKTOK_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.tiktok.com/v2/auth/authorize/',
+          tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
+          scopes: ['user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list'],
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/tiktok`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching TikTok user profile')
+
+              const response = await fetch(
+                'https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name',
+                {
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                }
+              )
+
+              if (!response.ok) {
+                logger.error('Failed to fetch TikTok user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const data = await response.json()
+              const profile = data.data?.user
+
+              if (!profile) {
+                logger.error('No user data in TikTok response')
+                return null
+              }
+
+              return {
+                id: `${profile.open_id}-${crypto.randomUUID()}`,
+                name: profile.display_name || 'TikTok User',
+                email: `${profile.open_id}@tiktok.user`,
+                emailVerified: false,
+                image: profile.avatar_url || undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in TikTok getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
         // WordPress.com provider
         {
           providerId: 'wordpress',

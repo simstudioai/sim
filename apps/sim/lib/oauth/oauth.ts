@@ -32,6 +32,7 @@ import {
   ShopifyIcon,
   SlackIcon,
   SpotifyIcon,
+  TikTokIcon,
   TrelloIcon,
   VertexIcon,
   WealthboxIcon,
@@ -796,6 +797,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'spotify',
   },
+  tiktok: {
+    name: 'TikTok',
+    icon: TikTokIcon,
+    services: {
+      tiktok: {
+        name: 'TikTok',
+        description: 'Access TikTok user profiles and videos.',
+        providerId: 'tiktok',
+        icon: TikTokIcon,
+        baseProviderIcon: TikTokIcon,
+        scopes: ['user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list'],
+      },
+    },
+    defaultService: 'tiktok',
+  },
 }
 
 interface ProviderAuthConfig {
@@ -1133,6 +1149,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'tiktok': {
+      const { clientId, clientSecret } = getCredentials(
+        env.TIKTOK_CLIENT_ID,
+        env.TIKTOK_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://open.tiktokapis.com/v2/oauth/token/',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     default:
