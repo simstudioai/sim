@@ -11,6 +11,7 @@ import {
   Loader2,
   Lock,
   Pencil,
+  Unlock,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -227,6 +228,7 @@ export function Editor() {
     collaborativeSetBlockCanonicalMode,
     collaborativeUpdateBlockName,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeBatchToggleLocked,
   } = useCollaborativeWorkflow()
 
   // Advanced mode toggle handler
@@ -366,16 +368,27 @@ export function Editor() {
           )}
         </div>
         <div className='flex shrink-0 items-center gap-[8px]'>
-          {/* Locked indicator */}
+          {/* Locked indicator - clickable to unlock if user has admin permissions */}
           {isLocked && currentBlock && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <div className='flex items-center justify-center'>
-                  <Lock className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
-                </div>
+                {userPermissions.canAdmin ? (
+                  <Button
+                    variant='ghost'
+                    className='p-0'
+                    onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
+                    aria-label='Unlock block'
+                  >
+                    <Unlock className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
+                  </Button>
+                ) : (
+                  <div className='flex items-center justify-center'>
+                    <Lock className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
+                  </div>
+                )}
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
-                <p>Block is locked</p>
+                <p>{userPermissions.canAdmin ? 'Unlock block' : 'Block is locked'}</p>
               </Tooltip.Content>
             </Tooltip.Root>
           )}
