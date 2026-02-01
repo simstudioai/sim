@@ -2889,14 +2889,7 @@ const WorkflowContent = React.memo(() => {
         }
       })
     },
-    [
-      blocks,
-      setDragStartPosition,
-      getNodes,
-      potentialParentId,
-      setPotentialParentId,
-      effectivePermissions.canAdmin,
-    ]
+    [blocks, setDragStartPosition, getNodes, setPotentialParentId]
   )
 
   /** Handles node drag stop to establish parent-child relationships. */

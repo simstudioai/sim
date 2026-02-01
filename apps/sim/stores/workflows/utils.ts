@@ -511,14 +511,15 @@ export function regenerateBlockIds(
           parentId: newParentId,
           extent: 'parent',
         }
-      } else if (existingBlockNames[oldParentId]) {
-        // Parent exists in existing workflow - keep original parentId (block stays in same subflow)
+      } else if (existingBlockNames[oldParentId] && !existingBlockNames[oldParentId].locked) {
+        // Parent exists in existing workflow and is not locked - keep original parentId
         block.data = {
           ...block.data,
           parentId: oldParentId,
           extent: 'parent',
         }
       } else {
+        // Parent doesn't exist anywhere OR parent is locked - clear the relationship
         // Parent doesn't exist anywhere - clear the relationship
         block.data = { ...block.data, parentId: undefined, extent: undefined }
       }
