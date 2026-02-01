@@ -14,7 +14,10 @@ import {
 
 const logger = createLogger('SocketPermissions')
 
-// All write operations (admin and write roles have same permissions)
+// Admin-only operations (require admin role)
+const ADMIN_ONLY_OPERATIONS: string[] = [BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED]
+
+// Write operations (admin and write roles both have these permissions)
 const WRITE_OPERATIONS: string[] = [
   // Block operations
   BLOCK_OPERATIONS.UPDATE_POSITION,
@@ -30,7 +33,6 @@ const WRITE_OPERATIONS: string[] = [
   BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS,
   BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED,
   BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES,
-  BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED,
   BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT,
   // Edge operations
   EDGE_OPERATIONS.ADD,
@@ -52,7 +54,7 @@ const READ_OPERATIONS: string[] = [
 
 // Define operation permissions based on role
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  admin: WRITE_OPERATIONS,
+  admin: [...ADMIN_ONLY_OPERATIONS, ...WRITE_OPERATIONS],
   write: WRITE_OPERATIONS,
   read: READ_OPERATIONS,
 }

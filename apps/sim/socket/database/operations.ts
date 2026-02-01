@@ -625,44 +625,74 @@ async function handleBlocksOperationTx(
 
       logger.info(`Batch removing ${ids.length} blocks from workflow ${workflowId}`)
 
+      // Fetch all blocks to check lock status and filter out protected blocks
+      const allBlocks = await tx
+        .select({
+          id: workflowBlocks.id,
+          type: workflowBlocks.type,
+          locked: workflowBlocks.locked,
+          data: workflowBlocks.data,
+        })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, workflowId))
+
+      type BlockRecord = (typeof allBlocks)[number]
+      const blocksById: Record<string, BlockRecord> = Object.fromEntries(
+        allBlocks.map((b: BlockRecord) => [b.id, b])
+      )
+
+      // Helper to check if a block is protected (locked or inside locked parent)
+      const isProtected = (blockId: string): boolean => {
+        const block = blocksById[blockId]
+        if (!block) return false
+        if (block.locked) return true
+        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
+        if (parentId && blocksById[parentId]?.locked) return true
+        return false
+      }
+
+      // Filter out protected blocks from deletion request
+      const deletableIds = ids.filter((id) => !isProtected(id))
+      if (deletableIds.length === 0) {
+        logger.info('All requested blocks are protected, skipping deletion')
+        return
+      }
+
+      if (deletableIds.length < ids.length) {
+        logger.info(
+          `Filtered out ${ids.length - deletableIds.length} protected blocks from deletion`
+        )
+      }
+
       // Collect all block IDs including children of subflows
-      const allBlocksToDelete = new Set<string>(ids)
+      const allBlocksToDelete = new Set<string>(deletableIds)
 
-      for (const id of ids) {
-        const blockToRemove = await tx
-          .select({ type: workflowBlocks.type })
-          .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
-          .limit(1)
-
-        if (blockToRemove.length > 0 && isSubflowBlockType(blockToRemove[0].type)) {
-          const childBlocks = await tx
-            .select({ id: workflowBlocks.id })
-            .from(workflowBlocks)
-            .where(
-              and(
-                eq(workflowBlocks.workflowId, workflowId),
-                sql`${workflowBlocks.data}->>'parentId' = ${id}`
-              )
-            )
-
-          childBlocks.forEach((child: { id: string }) => allBlocksToDelete.add(child.id))
+      for (const id of deletableIds) {
+        const block = blocksById[id]
+        if (block && isSubflowBlockType(block.type)) {
+          // Include all children of the subflow (they should be deleted with parent)
+          for (const b of allBlocks) {
+            const parentId = (b.data as Record<string, unknown> | null)?.parentId
+            if (parentId === id) {
+              allBlocksToDelete.add(b.id)
+            }
+          }
         }
       }
 
       const blockIdsArray = Array.from(allBlocksToDelete)
 
-      // Collect parent IDs BEFORE deleting blocks
+      // Collect parent IDs BEFORE deleting blocks (use blocksById, already fetched)
       const parentIds = new Set<string>()
-      for (const id of ids) {
-        const parentInfo = await tx
-          .select({ parentId: sql<string | null>`${workflowBlocks.data}->>'parentId'` })
-          .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
-          .limit(1)
-
-        if (parentInfo.length > 0 && parentInfo[0].parentId) {
-          parentIds.add(parentInfo[0].parentId)
+      for (const id of deletableIds) {
+        const block = blocksById[id]
+        const parentId = (block?.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
+        if (parentId) {
+          parentIds.add(parentId)
         }
       }
 

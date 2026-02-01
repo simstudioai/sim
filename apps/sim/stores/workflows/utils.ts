@@ -520,7 +520,6 @@ export function regenerateBlockIds(
         }
       } else {
         // Parent doesn't exist anywhere OR parent is locked - clear the relationship
-        // Parent doesn't exist anywhere - clear the relationship
         block.data = { ...block.data, parentId: undefined, extent: undefined }
       }
     }
