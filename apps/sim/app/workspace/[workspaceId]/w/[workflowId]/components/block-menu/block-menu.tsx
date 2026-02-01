@@ -164,7 +164,7 @@ export function BlockMenu({
         </PopoverItem>
         <PopoverItem
           className='group'
-          disabled={disableEdit || !hasClipboard}
+          disabled={!userCanEdit || !hasClipboard}
           onClick={() => {
             onPaste()
             onClose()
