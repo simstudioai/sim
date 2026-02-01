@@ -217,7 +217,7 @@ describe('checkRolePermission', () => {
       {
         operation: 'batch-toggle-locked',
         adminAllowed: true,
-        writeAllowed: true,
+        writeAllowed: false, // Admin-only operation
         readAllowed: false,
       },
       {
