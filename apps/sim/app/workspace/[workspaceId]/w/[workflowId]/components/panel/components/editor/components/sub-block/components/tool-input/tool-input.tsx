@@ -1227,6 +1227,40 @@ export const ToolInput = memo(function ToolInput({
   }
 
   /**
+   * Checks if an MCP tool is already selected.
+   *
+   * @param mcpToolId - The MCP tool identifier to check
+   * @returns `true` if the MCP tool is already selected
+   */
+  const isMcpToolAlreadySelected = (mcpToolId: string): boolean => {
+    return selectedTools.some((tool) => tool.type === 'mcp' && tool.toolId === mcpToolId)
+  }
+
+  /**
+   * Checks if a custom tool is already selected.
+   *
+   * @param customToolId - The custom tool identifier to check
+   * @returns `true` if the custom tool is already selected
+   */
+  const isCustomToolAlreadySelected = (customToolId: string): boolean => {
+    return selectedTools.some(
+      (tool) => tool.type === 'custom-tool' && tool.customToolId === customToolId
+    )
+  }
+
+  /**
+   * Checks if a workflow is already selected.
+   *
+   * @param workflowId - The workflow identifier to check
+   * @returns `true` if the workflow is already selected
+   */
+  const isWorkflowAlreadySelected = (workflowId: string): boolean => {
+    return selectedTools.some(
+      (tool) => tool.type === 'workflow_input' && tool.params?.workflowId === workflowId
+    )
+  }
+
+  /**
    * Checks if a block supports multiple operations.
    *
    * @param blockType - The block type to check
@@ -1745,24 +1779,29 @@ export const ToolInput = memo(function ToolInput({
     if (!permissionConfig.disableCustomTools && customTools.length > 0) {
       groups.push({
         section: 'Custom Tools',
-        items: customTools.map((customTool) => ({
-          label: customTool.title,
-          value: `custom-${customTool.id}`,
-          iconElement: createToolIcon('#3B82F6', WrenchIcon),
-          onSelect: () => {
-            const newTool: StoredTool = {
-              type: 'custom-tool',
-              customToolId: customTool.id,
-              usageControl: 'auto',
-              isExpanded: true,
-            }
-            setStoreValue([
-              ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
-              newTool,
-            ])
-            setOpen(false)
-          },
-        })),
+        items: customTools.map((customTool) => {
+          const alreadySelected = isCustomToolAlreadySelected(customTool.id)
+          return {
+            label: customTool.title,
+            value: `custom-${customTool.id}`,
+            iconElement: createToolIcon('#3B82F6', WrenchIcon),
+            disabled: isPreview || alreadySelected,
+            onSelect: () => {
+              if (alreadySelected) return
+              const newTool: StoredTool = {
+                type: 'custom-tool',
+                customToolId: customTool.id,
+                usageControl: 'auto',
+                isExpanded: true,
+              }
+              setStoreValue([
+                ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
+                newTool,
+              ])
+              setOpen(false)
+            },
+          }
+        }),
       })
     }
 
@@ -1772,11 +1811,13 @@ export const ToolInput = memo(function ToolInput({
         section: 'MCP Tools',
         items: availableMcpTools.map((mcpTool) => {
           const server = mcpServers.find((s) => s.id === mcpTool.serverId)
+          const alreadySelected = isMcpToolAlreadySelected(mcpTool.id)
           return {
             label: mcpTool.name,
             value: `mcp-${mcpTool.id}`,
             iconElement: createToolIcon(mcpTool.bgColor || '#6366F1', mcpTool.icon || McpIcon),
             onSelect: () => {
+              if (alreadySelected) return
               const newTool: StoredTool = {
                 type: 'mcp',
                 title: mcpTool.name,
@@ -1796,7 +1837,7 @@ export const ToolInput = memo(function ToolInput({
               }
               handleMcpToolSelect(newTool, true)
             },
-            disabled: isPreview || disabled,
+            disabled: isPreview || disabled || alreadySelected,
           }
         }),
       })
@@ -1810,12 +1851,17 @@ export const ToolInput = memo(function ToolInput({
     if (builtInTools.length > 0) {
       groups.push({
         section: 'Built-in Tools',
-        items: builtInTools.map((block) => ({
-          label: block.name,
-          value: `builtin-${block.type}`,
-          iconElement: createToolIcon(block.bgColor, block.icon),
-          onSelect: () => handleSelectTool(block),
-        })),
+        items: builtInTools.map((block) => {
+          const toolId = getToolIdForOperation(block.type, undefined)
+          const alreadySelected = toolId ? isToolAlreadySelected(toolId, block.type) : false
+          return {
+            label: block.name,
+            value: `builtin-${block.type}`,
+            iconElement: createToolIcon(block.bgColor, block.icon),
+            disabled: isPreview || alreadySelected,
+            onSelect: () => handleSelectTool(block),
+          }
+        }),
       })
     }
 
@@ -1823,12 +1869,17 @@ export const ToolInput = memo(function ToolInput({
     if (integrations.length > 0) {
       groups.push({
         section: 'Integrations',
-        items: integrations.map((block) => ({
-          label: block.name,
-          value: `builtin-${block.type}`,
-          iconElement: createToolIcon(block.bgColor, block.icon),
-          onSelect: () => handleSelectTool(block),
-        })),
+        items: integrations.map((block) => {
+          const toolId = getToolIdForOperation(block.type, undefined)
+          const alreadySelected = toolId ? isToolAlreadySelected(toolId, block.type) : false
+          return {
+            label: block.name,
+            value: `builtin-${block.type}`,
+            iconElement: createToolIcon(block.bgColor, block.icon),
+            disabled: isPreview || alreadySelected,
+            onSelect: () => handleSelectTool(block),
+          }
+        }),
       })
     }
 
@@ -1836,29 +1887,33 @@ export const ToolInput = memo(function ToolInput({
     if (availableWorkflows.length > 0) {
       groups.push({
         section: 'Workflows',
-        items: availableWorkflows.map((workflow) => ({
-          label: workflow.name,
-          value: `workflow-${workflow.id}`,
-          iconElement: createToolIcon('#6366F1', WorkflowIcon),
-          onSelect: () => {
-            const newTool: StoredTool = {
-              type: 'workflow_input',
-              title: 'Workflow',
-              toolId: 'workflow_executor',
-              params: {
-                workflowId: workflow.id,
-              },
-              isExpanded: true,
-              usageControl: 'auto',
-            }
-            setStoreValue([
-              ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
-              newTool,
-            ])
-            setOpen(false)
-          },
-          disabled: isPreview || disabled,
-        })),
+        items: availableWorkflows.map((workflow) => {
+          const alreadySelected = isWorkflowAlreadySelected(workflow.id)
+          return {
+            label: workflow.name,
+            value: `workflow-${workflow.id}`,
+            iconElement: createToolIcon('#6366F1', WorkflowIcon),
+            onSelect: () => {
+              if (alreadySelected) return
+              const newTool: StoredTool = {
+                type: 'workflow_input',
+                title: 'Workflow',
+                toolId: 'workflow_executor',
+                params: {
+                  workflowId: workflow.id,
+                },
+                isExpanded: true,
+                usageControl: 'auto',
+              }
+              setStoreValue([
+                ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
+                newTool,
+              ])
+              setOpen(false)
+            },
+            disabled: isPreview || disabled || alreadySelected,
+          }
+        }),
       })
     }
 
@@ -1877,6 +1932,11 @@ export const ToolInput = memo(function ToolInput({
     permissionConfig.disableCustomTools,
     permissionConfig.disableMcpTools,
     availableWorkflows,
+    getToolIdForOperation,
+    isToolAlreadySelected,
+    isMcpToolAlreadySelected,
+    isCustomToolAlreadySelected,
+    isWorkflowAlreadySelected,
   ])
 
   const toolRequiresOAuth = (toolId: string): boolean => {
