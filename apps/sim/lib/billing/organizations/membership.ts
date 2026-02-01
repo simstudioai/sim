@@ -15,12 +15,69 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 
 const logger = createLogger('OrganizationMembership')
+
+export type BillingBlockReason = 'payment_failed' | 'dispute'
+
+/**
+ * Get all member user IDs for an organization
+ */
+export async function getOrgMemberIds(organizationId: string): Promise<string[]> {
+  const members = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, organizationId))
+
+  return members.map((m) => m.userId)
+}
+
+/**
+ * Block all members of an organization for billing reasons
+ */
+export async function blockOrgMembers(
+  organizationId: string,
+  reason: BillingBlockReason
+): Promise<number> {
+  const memberIds = await getOrgMemberIds(organizationId)
+
+  if (memberIds.length === 0) {
+    return 0
+  }
+
+  await db
+    .update(userStats)
+    .set({ billingBlocked: true, billingBlockedReason: reason })
+    .where(inArray(userStats.userId, memberIds))
+
+  return memberIds.length
+}
+
+/**
+ * Unblock all members of an organization blocked for a specific reason
+ * Only unblocks members blocked for the specified reason (not other reasons)
+ */
+export async function unblockOrgMembers(
+  organizationId: string,
+  reason: BillingBlockReason
+): Promise<number> {
+  const memberIds = await getOrgMemberIds(organizationId)
+
+  if (memberIds.length === 0) {
+    return 0
+  }
+
+  await db
+    .update(userStats)
+    .set({ billingBlocked: false, billingBlockedReason: null })
+    .where(and(inArray(userStats.userId, memberIds), eq(userStats.billingBlockedReason, reason)))
+
+  return memberIds.length
+}
 
 export interface RestoreProResult {
   restored: boolean

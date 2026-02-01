@@ -1,15 +1,32 @@
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { hasActiveSubscription } from '@/lib/billing'
+
+const logger = createLogger('BillingAuthorization')
 
 /**
  * Check if a user is authorized to manage billing for a given reference ID
  * Reference ID can be either a user ID (individual subscription) or organization ID (team subscription)
+ *
+ * This function also performs duplicate subscription validation:
+ * - Rejects if the referenceId already has an active subscription (prevents duplicates)
  */
 export async function authorizeSubscriptionReference(
   userId: string,
   referenceId: string
 ): Promise<boolean> {
+  // Check for existing active subscriptions on this referenceId
+  // This prevents creating duplicate subscriptions for the same entity
+  if (await hasActiveSubscription(referenceId)) {
+    logger.warn('Blocking checkout - active subscription already exists for referenceId', {
+      userId,
+      referenceId,
+    })
+    return false
+  }
+
   // User can always manage their own subscriptions
   if (referenceId === userId) {
     return true

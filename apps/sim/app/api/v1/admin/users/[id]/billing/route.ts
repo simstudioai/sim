@@ -203,6 +203,10 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       }
 
       updateData.billingBlocked = body.billingBlocked
+      // Clear the reason when unblocking
+      if (body.billingBlocked === false) {
+        updateData.billingBlockedReason = null
+      }
       updated.push('billingBlocked')
     }
 

@@ -52,14 +52,44 @@ async function restoreMemberProSubscriptions(organizationId: string): Promise<nu
 
 /**
  * Cleanup organization when team/enterprise subscription is deleted.
+ * - Checks if other active subscriptions point to this org (skip deletion if so)
  * - Restores member Pro subscriptions
- * - Deletes the organization
+ * - Deletes the organization (only if no other active subs)
  * - Syncs usage limits for former members (resets to free or Pro tier)
  */
 async function cleanupOrganizationSubscription(organizationId: string): Promise<{
   restoredProCount: number
   membersSynced: number
+  organizationDeleted: boolean
 }> {
+  // Check if other active subscriptions still point to this org
+  // Note: The subscription being deleted is already marked as 'canceled' by better-auth
+  // before this handler runs, so we only find truly active ones
+  const otherActiveSubscriptions = await db
+    .select({ id: subscription.id })
+    .from(subscription)
+    .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+    .limit(1)
+
+  if (otherActiveSubscriptions.length > 0) {
+    logger.info('Skipping organization deletion - other active subscriptions exist', {
+      organizationId,
+      otherActiveSubId: otherActiveSubscriptions[0].id,
+    })
+
+    // Still sync limits for members since this subscription was deleted
+    const memberUserIds = await db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(eq(member.organizationId, organizationId))
+
+    for (const m of memberUserIds) {
+      await syncUsageLimitsFromSubscription(m.userId)
+    }
+
+    return { restoredProCount: 0, membersSynced: memberUserIds.length, organizationDeleted: false }
+  }
+
   // Get member userIds before deletion (needed for limit syncing after org deletion)
   const memberUserIds = await db
     .select({ userId: member.userId })
@@ -75,7 +105,7 @@ async function cleanupOrganizationSubscription(organizationId: string): Promise<
     await syncUsageLimitsFromSubscription(m.userId)
   }
 
-  return { restoredProCount, membersSynced: memberUserIds.length }
+  return { restoredProCount, membersSynced: memberUserIds.length, organizationDeleted: true }
 }
 
 /**
@@ -172,15 +202,14 @@ export async function handleSubscriptionDeleted(subscription: {
         referenceId: subscription.referenceId,
       })
 
-      const { restoredProCount, membersSynced } = await cleanupOrganizationSubscription(
-        subscription.referenceId
-      )
+      const { restoredProCount, membersSynced, organizationDeleted } =
+        await cleanupOrganizationSubscription(subscription.referenceId)
 
       logger.info('Successfully processed enterprise subscription cancellation', {
         subscriptionId: subscription.id,
         stripeSubscriptionId,
         restoredProCount,
-        organizationDeleted: true,
+        organizationDeleted,
         membersSynced,
       })
       return
@@ -297,7 +326,7 @@ export async function handleSubscriptionDeleted(subscription: {
       const cleanup = await cleanupOrganizationSubscription(subscription.referenceId)
       restoredProCount = cleanup.restoredProCount
       membersSynced = cleanup.membersSynced
-      organizationDeleted = true
+      organizationDeleted = cleanup.organizationDeleted
     } else if (subscription.plan === 'pro') {
       await syncUsageLimitsFromSubscription(subscription.referenceId)
       membersSynced = 1
