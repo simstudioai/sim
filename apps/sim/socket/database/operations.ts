@@ -778,8 +778,10 @@ async function handleBlocksOperationTx(
         }
       }
 
-      // Determine target enabled state based on first block
-      const firstBlock = blocksById[blockIds[0]]
+      // Determine target enabled state based on first toggleable block
+      if (blocksToToggle.size === 0) break
+      const firstToggleableId = Array.from(blocksToToggle)[0]
+      const firstBlock = blocksById[firstToggleableId]
       if (!firstBlock) break
       const targetEnabled = !firstBlock.enabled
 

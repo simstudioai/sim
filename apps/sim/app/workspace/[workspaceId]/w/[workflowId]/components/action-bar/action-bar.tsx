@@ -225,9 +225,12 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  collaborativeBatchToggleLocked([blockId])
+                  if (!disabled) {
+                    collaborativeBatchToggleLocked([blockId])
+                  }
                 }}
                 className={ACTION_BUTTON_STYLES}
+                disabled={disabled}
               >
                 {isLocked ? <Unlock className={ICON_SIZE} /> : <Lock className={ICON_SIZE} />}
               </Button>
@@ -319,18 +322,18 @@ export const ActionBar = memo(
               variant='ghost'
               onClick={(e) => {
                 e.stopPropagation()
-                if (!disabled && !isLocked) {
+                if (!disabled && !isLocked && !isParentLocked) {
                   collaborativeBatchRemoveBlocks([blockId])
                 }
               }}
               className={ACTION_BUTTON_STYLES}
-              disabled={disabled || isLocked}
+              disabled={disabled || isLocked || isParentLocked}
             >
               <Trash2 className={ICON_SIZE} />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
-            {isLocked ? 'Block is locked' : getTooltipMessage('Delete Block')}
+            {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Delete Block')}
           </Tooltip.Content>
         </Tooltip.Root>
       </div>

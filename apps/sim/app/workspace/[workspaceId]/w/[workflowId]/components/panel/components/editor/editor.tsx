@@ -368,11 +368,11 @@ export function Editor() {
           )}
         </div>
         <div className='flex shrink-0 items-center gap-[8px]'>
-          {/* Locked indicator - clickable to unlock if user has admin permissions */}
+          {/* Locked indicator - clickable to unlock if user has admin permissions and block itself is locked */}
           {isLocked && currentBlock && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                {userPermissions.canAdmin ? (
+                {userPermissions.canAdmin && currentBlock.locked ? (
                   <Button
                     variant='ghost'
                     className='p-0'
@@ -388,7 +388,13 @@ export function Editor() {
                 )}
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
-                <p>{userPermissions.canAdmin ? 'Unlock block' : 'Block is locked'}</p>
+                <p>
+                  {userPermissions.canAdmin && currentBlock.locked
+                    ? 'Unlock block'
+                    : isParentLocked
+                      ? 'Parent container is locked'
+                      : 'Block is locked'}
+                </p>
               </Tooltip.Content>
             </Tooltip.Root>
           )}
