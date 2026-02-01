@@ -175,22 +175,6 @@ export interface WorkflowState {
 }
 
 export interface WorkflowActions {
-  addBlock: (
-    id: string,
-    type: string,
-    name: string,
-    position: Position,
-    data?: Record<string, any>,
-    parentId?: string,
-    extent?: 'parent',
-    blockProperties?: {
-      enabled?: boolean
-      horizontalHandles?: boolean
-      advancedMode?: boolean
-      triggerMode?: boolean
-      height?: number
-    }
-  ) => void
   updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
   batchUpdateBlocksWithParent: (
     updates: Array<{

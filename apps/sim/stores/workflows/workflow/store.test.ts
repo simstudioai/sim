@@ -26,6 +26,49 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
+/**
+ * Helper function to add a single block using batchAddBlocks.
+ * Provides a simpler interface for tests.
+ */
+function addBlock(
+  id: string,
+  type: string,
+  name: string,
+  position: { x: number; y: number },
+  data?: Record<string, unknown>,
+  parentId?: string,
+  extent?: 'parent',
+  blockProperties?: {
+    enabled?: boolean
+    horizontalHandles?: boolean
+    advancedMode?: boolean
+    triggerMode?: boolean
+    height?: number
+  }
+) {
+  const blockData = {
+    ...data,
+    ...(parentId && { parentId, extent: extent || 'parent' }),
+  }
+
+  useWorkflowStore.getState().batchAddBlocks([
+    {
+      id,
+      type,
+      name,
+      position,
+      subBlocks: {},
+      outputs: {},
+      enabled: blockProperties?.enabled ?? true,
+      horizontalHandles: blockProperties?.horizontalHandles ?? true,
+      advancedMode: blockProperties?.advancedMode ?? false,
+      triggerMode: blockProperties?.triggerMode ?? false,
+      height: blockProperties?.height ?? 0,
+      data: blockData,
+    },
+  ])
+}
+
 describe('workflow store', () => {
   beforeEach(() => {
     const localStorageMock = createMockStorage()
@@ -39,10 +82,8 @@ describe('workflow store', () => {
     })
   })
 
-  describe('addBlock', () => {
+  describe('batchAddBlocks (via addBlock helper)', () => {
     it('should add a block with correct default properties', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       addBlock('agent-1', 'agent', 'My Agent', { x: 100, y: 200 })
 
       const { blocks } = useWorkflowStore.getState()
@@ -53,8 +94,6 @@ describe('workflow store', () => {
     })
 
     it('should add a block with parent relationship for containers', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       addBlock('loop-1', 'loop', 'My Loop', { x: 0, y: 0 }, { loopType: 'for', count: 3 })
       addBlock(
         'child-1',
@@ -73,8 +112,6 @@ describe('workflow store', () => {
     })
 
     it('should add multiple blocks correctly', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'agent', 'Agent', { x: 200, y: 0 })
       addBlock('block-3', 'function', 'Function', { x: 400, y: 0 })
@@ -87,8 +124,6 @@ describe('workflow store', () => {
     })
 
     it('should create a block with default properties when no blockProperties provided', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       addBlock('agent1', 'agent', 'Test Agent', { x: 100, y: 200 })
 
       const state = useWorkflowStore.getState()
@@ -105,8 +140,6 @@ describe('workflow store', () => {
     })
 
     it('should create a block with custom blockProperties for regular blocks', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       addBlock(
         'agent1',
         'agent',
@@ -134,8 +167,6 @@ describe('workflow store', () => {
     })
 
     it('should create a loop block with custom blockProperties', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       addBlock(
         'loop1',
         'loop',
@@ -163,8 +194,6 @@ describe('workflow store', () => {
     })
 
     it('should create a parallel block with custom blockProperties', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       addBlock(
         'parallel1',
         'parallel',
@@ -192,8 +221,6 @@ describe('workflow store', () => {
     })
 
     it('should handle partial blockProperties (only some properties provided)', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       addBlock(
         'agent1',
         'agent',
@@ -216,8 +243,6 @@ describe('workflow store', () => {
     })
 
     it('should handle blockProperties with parent relationships', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       addBlock('loop1', 'loop', 'Parent Loop', { x: 0, y: 0 })
 
       addBlock(
@@ -249,7 +274,7 @@ describe('workflow store', () => {
 
   describe('batchRemoveBlocks', () => {
     it('should remove a block', () => {
-      const { addBlock, batchRemoveBlocks } = useWorkflowStore.getState()
+      const { batchRemoveBlocks } = useWorkflowStore.getState()
 
       addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
       batchRemoveBlocks(['block-1'])
@@ -259,7 +284,7 @@ describe('workflow store', () => {
     })
 
     it('should remove connected edges when block is removed', () => {
-      const { addBlock, batchAddEdges, batchRemoveBlocks } = useWorkflowStore.getState()
+      const { batchAddEdges, batchRemoveBlocks } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'Middle', { x: 200, y: 0 })
@@ -286,7 +311,7 @@ describe('workflow store', () => {
 
   describe('batchAddEdges', () => {
     it('should add an edge between two blocks', () => {
-      const { addBlock, batchAddEdges } = useWorkflowStore.getState()
+      const { batchAddEdges } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
@@ -298,7 +323,7 @@ describe('workflow store', () => {
     })
 
     it('should not add duplicate connections', () => {
-      const { addBlock, batchAddEdges } = useWorkflowStore.getState()
+      const { batchAddEdges } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
@@ -313,7 +338,7 @@ describe('workflow store', () => {
 
   describe('batchRemoveEdges', () => {
     it('should remove an edge by id', () => {
-      const { addBlock, batchAddEdges, batchRemoveEdges } = useWorkflowStore.getState()
+      const { batchAddEdges, batchRemoveEdges } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
@@ -335,7 +360,7 @@ describe('workflow store', () => {
 
   describe('clear', () => {
     it('should clear all blocks and edges', () => {
-      const { addBlock, batchAddEdges, clear } = useWorkflowStore.getState()
+      const { batchAddEdges, clear } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
@@ -351,7 +376,7 @@ describe('workflow store', () => {
 
   describe('batchToggleEnabled', () => {
     it('should toggle block enabled state', () => {
-      const { addBlock, batchToggleEnabled } = useWorkflowStore.getState()
+      const { batchToggleEnabled } = useWorkflowStore.getState()
 
       addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
 
@@ -367,7 +392,7 @@ describe('workflow store', () => {
 
   describe('duplicateBlock', () => {
     it('should duplicate a block', () => {
-      const { addBlock, duplicateBlock } = useWorkflowStore.getState()
+      const { duplicateBlock } = useWorkflowStore.getState()
 
       addBlock('original', 'agent', 'Original Agent', { x: 0, y: 0 })
 
@@ -391,7 +416,7 @@ describe('workflow store', () => {
 
   describe('batchUpdatePositions', () => {
     it('should update block position', () => {
-      const { addBlock, batchUpdatePositions } = useWorkflowStore.getState()
+      const { batchUpdatePositions } = useWorkflowStore.getState()
 
       addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
 
@@ -404,7 +429,7 @@ describe('workflow store', () => {
 
   describe('loop management', () => {
     it('should regenerate loops when updateLoopCount is called', () => {
-      const { addBlock, updateLoopCount } = useWorkflowStore.getState()
+      const { updateLoopCount } = useWorkflowStore.getState()
 
       addBlock(
         'loop1',
@@ -428,7 +453,7 @@ describe('workflow store', () => {
     })
 
     it('should regenerate loops when updateLoopType is called', () => {
-      const { addBlock, updateLoopType } = useWorkflowStore.getState()
+      const { updateLoopType } = useWorkflowStore.getState()
 
       addBlock(
         'loop1',
@@ -453,7 +478,7 @@ describe('workflow store', () => {
     })
 
     it('should regenerate loops when updateLoopCollection is called', () => {
-      const { addBlock, updateLoopCollection } = useWorkflowStore.getState()
+      const { updateLoopCollection } = useWorkflowStore.getState()
 
       addBlock(
         'loop1',
@@ -476,7 +501,7 @@ describe('workflow store', () => {
     })
 
     it('should clamp loop count between 1 and 1000', () => {
-      const { addBlock, updateLoopCount } = useWorkflowStore.getState()
+      const { updateLoopCount } = useWorkflowStore.getState()
 
       addBlock(
         'loop1',
@@ -502,7 +527,7 @@ describe('workflow store', () => {
 
   describe('parallel management', () => {
     it('should regenerate parallels when updateParallelCount is called', () => {
-      const { addBlock, updateParallelCount } = useWorkflowStore.getState()
+      const { updateParallelCount } = useWorkflowStore.getState()
 
       addBlock(
         'parallel1',
@@ -525,7 +550,7 @@ describe('workflow store', () => {
     })
 
     it('should regenerate parallels when updateParallelCollection is called', () => {
-      const { addBlock, updateParallelCollection } = useWorkflowStore.getState()
+      const { updateParallelCollection } = useWorkflowStore.getState()
 
       addBlock(
         'parallel1',
@@ -552,7 +577,7 @@ describe('workflow store', () => {
     })
 
     it('should clamp parallel count between 1 and 20', () => {
-      const { addBlock, updateParallelCount } = useWorkflowStore.getState()
+      const { updateParallelCount } = useWorkflowStore.getState()
 
       addBlock(
         'parallel1',
@@ -575,7 +600,7 @@ describe('workflow store', () => {
     })
 
     it('should regenerate parallels when updateParallelType is called', () => {
-      const { addBlock, updateParallelType } = useWorkflowStore.getState()
+      const { updateParallelType } = useWorkflowStore.getState()
 
       addBlock(
         'parallel1',
@@ -601,7 +626,7 @@ describe('workflow store', () => {
 
   describe('mode switching', () => {
     it('should toggle advanced mode on a block', () => {
-      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
+      const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
 
       addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
 
@@ -618,7 +643,7 @@ describe('workflow store', () => {
     })
 
     it('should preserve systemPrompt and userPrompt when switching modes', () => {
-      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
+      const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
       const { setState: setSubBlockState } = useSubBlockStore
       useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
       addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
@@ -651,7 +676,7 @@ describe('workflow store', () => {
     })
 
     it('should preserve memories when switching from advanced to basic mode', () => {
-      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
+      const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
       const { setState: setSubBlockState } = useSubBlockStore
 
       useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
@@ -691,7 +716,7 @@ describe('workflow store', () => {
     })
 
     it('should handle mode switching when no subblock values exist', () => {
-      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
+      const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
 
       useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
 
@@ -753,7 +778,7 @@ describe('workflow store', () => {
 
   describe('replaceWorkflowState', () => {
     it('should replace entire workflow state', () => {
-      const { addBlock, replaceWorkflowState } = useWorkflowStore.getState()
+      const { replaceWorkflowState } = useWorkflowStore.getState()
 
       addBlock('old-1', 'function', 'Old', { x: 0, y: 0 })
 
@@ -769,7 +794,7 @@ describe('workflow store', () => {
 
   describe('getWorkflowState', () => {
     it('should return current workflow state', () => {
-      const { addBlock, getWorkflowState } = useWorkflowStore.getState()
+      const { getWorkflowState } = useWorkflowStore.getState()
 
       addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
       addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
@@ -784,8 +809,6 @@ describe('workflow store', () => {
 
   describe('loop/parallel regeneration optimization', () => {
     it('should NOT regenerate loops when adding a regular block without parentId', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       // Add a loop first
       addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
 
@@ -803,8 +826,6 @@ describe('workflow store', () => {
     })
 
     it('should regenerate loops when adding a child to a loop', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       // Add a loop
       addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
 
@@ -829,8 +850,6 @@ describe('workflow store', () => {
     })
 
     it('should NOT regenerate parallels when adding a child to a loop', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       // Add both a loop and a parallel
       addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
       addBlock('parallel-1', 'parallel', 'Parallel 1', { x: 300, y: 0 }, { count: 3 })
@@ -858,8 +877,6 @@ describe('workflow store', () => {
     })
 
     it('should regenerate parallels when adding a child to a parallel', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       // Add a parallel
       addBlock('parallel-1', 'parallel', 'Parallel 1', { x: 0, y: 0 }, { count: 3 })
 
@@ -884,8 +901,6 @@ describe('workflow store', () => {
     })
 
     it('should handle adding blocks in any order and produce correct final state', () => {
-      const { addBlock } = useWorkflowStore.getState()
-
       // Add child BEFORE the loop (simulating undo-redo edge case)
       // Note: The child's parentId points to a loop that doesn't exist yet
       addBlock(
@@ -1069,7 +1084,7 @@ describe('workflow store', () => {
 
   describe('edge operations should not affect loops/parallels', () => {
     it('should preserve loops when adding edges', () => {
-      const { addBlock, batchAddEdges } = useWorkflowStore.getState()
+      const { batchAddEdges } = useWorkflowStore.getState()
 
       // Create a loop with a child
       addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
@@ -1100,7 +1115,7 @@ describe('workflow store', () => {
     })
 
     it('should preserve loops when removing edges', () => {
-      const { addBlock, batchAddEdges, batchRemoveEdges } = useWorkflowStore.getState()
+      const { batchAddEdges, batchRemoveEdges } = useWorkflowStore.getState()
 
       // Create a loop with a child and an edge
       addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
@@ -1137,8 +1152,6 @@ describe('workflow store', () => {
         loops: {},
         parallels: {},
       })
-
-      const { addBlock } = useWorkflowStore.getState()
 
       addBlock('block1', 'agent', 'Column AD', { x: 0, y: 0 })
       addBlock('block2', 'function', 'Employee Length', { x: 100, y: 0 })
