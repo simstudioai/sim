@@ -507,7 +507,37 @@ async function handleBlocksOperationTx(
       })
 
       if (blocks && blocks.length > 0) {
-        const blockValues = blocks.map((block: Record<string, unknown>) => {
+        // Fetch existing blocks to check for locked parents
+        const existingBlocks = await tx
+          .select({ id: workflowBlocks.id, locked: workflowBlocks.locked })
+          .from(workflowBlocks)
+          .where(eq(workflowBlocks.workflowId, workflowId))
+
+        type ExistingBlockRecord = (typeof existingBlocks)[number]
+        const lockedParentIds = new Set(
+          existingBlocks
+            .filter((b: ExistingBlockRecord) => b.locked)
+            .map((b: ExistingBlockRecord) => b.id)
+        )
+
+        // Filter out blocks being added to locked parents
+        const allowedBlocks = (blocks as Array<Record<string, unknown>>).filter((block) => {
+          const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+            | string
+            | undefined
+          if (parentId && lockedParentIds.has(parentId)) {
+            logger.info(`Skipping block ${block.id} - parent ${parentId} is locked`)
+            return false
+          }
+          return true
+        })
+
+        if (allowedBlocks.length === 0) {
+          logger.info('All blocks filtered out due to locked parents, skipping add')
+          break
+        }
+
+        const blockValues = allowedBlocks.map((block: Record<string, unknown>) => {
           const blockId = block.id as string
           const mergedSubBlocks = mergeSubBlockValues(
             block.subBlocks as Record<string, unknown>,
@@ -538,7 +568,7 @@ async function handleBlocksOperationTx(
         // Create subflow entries for loop/parallel blocks (skip if already in payload)
         const loopIds = new Set(loops ? Object.keys(loops) : [])
         const parallelIds = new Set(parallels ? Object.keys(parallels) : [])
-        for (const block of blocks) {
+        for (const block of allowedBlocks) {
           const blockId = block.id as string
           if (block.type === 'loop' && !loopIds.has(blockId)) {
             await tx.insert(workflowSubflows).values({
@@ -567,7 +597,7 @@ async function handleBlocksOperationTx(
 
         // Update parent subflow node lists
         const parentIds = new Set<string>()
-        for (const block of blocks) {
+        for (const block of allowedBlocks) {
           const parentId = (block.data as Record<string, unknown>)?.parentId as string | undefined
           if (parentId) {
             parentIds.add(parentId)
@@ -838,22 +868,53 @@ async function handleBlocksOperationTx(
 
       logger.info(`Batch toggling handles for ${blockIds.length} blocks in workflow ${workflowId}`)
 
-      const blocks = await tx
-        .select({ id: workflowBlocks.id, horizontalHandles: workflowBlocks.horizontalHandles })
+      // Fetch all blocks to check lock status and filter out protected blocks
+      const allBlocks = await tx
+        .select({
+          id: workflowBlocks.id,
+          horizontalHandles: workflowBlocks.horizontalHandles,
+          locked: workflowBlocks.locked,
+          data: workflowBlocks.data,
+        })
         .from(workflowBlocks)
-        .where(and(eq(workflowBlocks.workflowId, workflowId), inArray(workflowBlocks.id, blockIds)))
+        .where(eq(workflowBlocks.workflowId, workflowId))
 
-      for (const block of blocks) {
+      type HandleBlockRecord = (typeof allBlocks)[number]
+      const blocksById: Record<string, HandleBlockRecord> = Object.fromEntries(
+        allBlocks.map((b: HandleBlockRecord) => [b.id, b])
+      )
+
+      // Helper to check if a block is protected (locked or inside locked parent)
+      const isProtected = (blockId: string): boolean => {
+        const block = blocksById[blockId]
+        if (!block) return false
+        if (block.locked) return true
+        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
+        if (parentId && blocksById[parentId]?.locked) return true
+        return false
+      }
+
+      // Filter to only toggle handles on unprotected blocks
+      const blocksToToggle = blockIds.filter((id) => blocksById[id] && !isProtected(id))
+      if (blocksToToggle.length === 0) {
+        logger.info('All requested blocks are protected, skipping handles toggle')
+        break
+      }
+
+      for (const blockId of blocksToToggle) {
+        const block = blocksById[blockId]
         await tx
           .update(workflowBlocks)
           .set({
             horizontalHandles: !block.horizontalHandles,
             updatedAt: new Date(),
           })
-          .where(and(eq(workflowBlocks.id, block.id), eq(workflowBlocks.workflowId, workflowId)))
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
       }
 
-      logger.debug(`Batch toggled handles for ${blocks.length} blocks`)
+      logger.debug(`Batch toggled handles for ${blocksToToggle.length} blocks`)
       break
     }
 
@@ -930,19 +991,54 @@ async function handleBlocksOperationTx(
 
       logger.info(`Batch updating parent for ${updates.length} blocks in workflow ${workflowId}`)
 
+      // Fetch all blocks to check lock status
+      const allBlocks = await tx
+        .select({
+          id: workflowBlocks.id,
+          locked: workflowBlocks.locked,
+          data: workflowBlocks.data,
+        })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, workflowId))
+
+      type ParentBlockRecord = (typeof allBlocks)[number]
+      const blocksById: Record<string, ParentBlockRecord> = Object.fromEntries(
+        allBlocks.map((b: ParentBlockRecord) => [b.id, b])
+      )
+
+      // Helper to check if a block is protected (locked or inside locked parent)
+      const isProtected = (blockId: string): boolean => {
+        const block = blocksById[blockId]
+        if (!block) return false
+        if (block.locked) return true
+        const currentParentId = (block.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
+        if (currentParentId && blocksById[currentParentId]?.locked) return true
+        return false
+      }
+
       for (const update of updates) {
         const { id, parentId, position } = update
         if (!id) continue
 
+        // Skip protected blocks (locked or inside locked container)
+        if (isProtected(id)) {
+          logger.info(`Skipping block ${id} parent update - block is protected`)
+          continue
+        }
+
+        // Skip if trying to move into a locked container
+        if (parentId && blocksById[parentId]?.locked) {
+          logger.info(`Skipping block ${id} parent update - target parent ${parentId} is locked`)
+          continue
+        }
+
         // Fetch current parent to update subflow node lists
-        const [existing] = await tx
-          .select({
-            id: workflowBlocks.id,
-            parentId: sql<string | null>`${workflowBlocks.data}->>'parentId'`,
-          })
-          .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
-          .limit(1)
+        const existing = blocksById[id]
+        const existingParentId = (existing?.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
 
         if (!existing) {
           logger.warn(`Block ${id} not found for batch-update-parent`)
@@ -987,8 +1083,8 @@ async function handleBlocksOperationTx(
           await updateSubflowNodeList(tx, workflowId, parentId)
         }
         // If the block had a previous parent, update that parent's node list as well
-        if (existing?.parentId && existing.parentId !== parentId) {
-          await updateSubflowNodeList(tx, workflowId, existing.parentId)
+        if (existingParentId && existingParentId !== parentId) {
+          await updateSubflowNodeList(tx, workflowId, existingParentId)
         }
       }
 

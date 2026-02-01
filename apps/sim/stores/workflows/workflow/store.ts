@@ -412,13 +412,24 @@ export const useWorkflowStore = create<WorkflowStore>()(
       },
 
       batchToggleHandles: (ids: string[]) => {
-        const newBlocks = { ...get().blocks }
+        const currentBlocks = get().blocks
+        const newBlocks = { ...currentBlocks }
+
+        // Helper to check if a block is protected (locked or inside locked parent)
+        const isProtected = (blockId: string): boolean => {
+          const block = currentBlocks[blockId]
+          if (!block) return false
+          if (block.locked) return true
+          const parentId = block.data?.parentId
+          if (parentId && currentBlocks[parentId]?.locked) return true
+          return false
+        }
+
         for (const id of ids) {
-          if (newBlocks[id]) {
-            newBlocks[id] = {
-              ...newBlocks[id],
-              horizontalHandles: !newBlocks[id].horizontalHandles,
-            }
+          if (!newBlocks[id] || isProtected(id)) continue
+          newBlocks[id] = {
+            ...newBlocks[id],
+            horizontalHandles: !newBlocks[id].horizontalHandles,
           }
         }
         set({ blocks: newBlocks, edges: [...get().edges] })

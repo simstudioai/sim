@@ -1019,12 +1019,25 @@ export function useCollaborativeWorkflow() {
 
       if (ids.length === 0) return
 
+      const blocks = useWorkflowStore.getState().blocks
+
+      // Helper to check if a block is protected (locked or inside locked parent)
+      const isProtected = (blockId: string): boolean => {
+        const block = blocks[blockId]
+        if (!block) return false
+        if (block.locked) return true
+        const parentId = block.data?.parentId
+        if (parentId && blocks[parentId]?.locked) return true
+        return false
+      }
+
       const previousStates: Record<string, boolean> = {}
       const validIds: string[] = []
 
       for (const id of ids) {
-        const block = useWorkflowStore.getState().blocks[id]
-        if (block) {
+        const block = blocks[id]
+        // Skip locked blocks and blocks inside locked containers
+        if (block && !isProtected(id)) {
           previousStates[id] = block.horizontalHandles ?? false
           validIds.push(id)
         }
