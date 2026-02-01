@@ -39,16 +39,23 @@ export function cleanupPendingSubblocksForSocket(socketId: string): void {
 
 export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('subblock-update', async (data) => {
-    const { blockId, subblockId, value, timestamp, operationId } = data
+    const {
+      workflowId: payloadWorkflowId,
+      blockId,
+      subblockId,
+      value,
+      timestamp,
+      operationId,
+    } = data
 
     try {
-      const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      const sessionWorkflowId = await roomManager.getWorkflowIdForSocket(socket.id)
       const session = await roomManager.getUserSession(socket.id)
 
-      if (!workflowId || !session) {
+      if (!sessionWorkflowId || !session) {
         logger.debug(`Ignoring subblock update: socket not connected to any workflow room`, {
           socketId: socket.id,
-          hasWorkflowId: !!workflowId,
+          hasWorkflowId: !!sessionWorkflowId,
           hasSession: !!session,
         })
         socket.emit('operation-forbidden', {
@@ -57,6 +64,24 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
         })
         if (operationId) {
           socket.emit('operation-failed', { operationId, error: 'Session expired' })
+        }
+        return
+      }
+
+      const workflowId = payloadWorkflowId || sessionWorkflowId
+
+      if (payloadWorkflowId && payloadWorkflowId !== sessionWorkflowId) {
+        logger.warn('Workflow ID mismatch in subblock update', {
+          payloadWorkflowId,
+          sessionWorkflowId,
+          socketId: socket.id,
+        })
+        if (operationId) {
+          socket.emit('operation-failed', {
+            operationId,
+            error: 'Workflow ID mismatch',
+            retryable: true,
+          })
         }
         return
       }
@@ -182,20 +207,17 @@ async function flushSubblockUpdate(
     if (updateSuccessful) {
       // Broadcast to room excluding all senders (works cross-pod via Redis adapter)
       const senderSocketIds = [...pending.opToSocket.values()]
+      const broadcastPayload = {
+        workflowId,
+        blockId,
+        subblockId,
+        value,
+        timestamp,
+      }
       if (senderSocketIds.length > 0) {
-        io.to(workflowId).except(senderSocketIds).emit('subblock-update', {
-          blockId,
-          subblockId,
-          value,
-          timestamp,
-        })
+        io.to(workflowId).except(senderSocketIds).emit('subblock-update', broadcastPayload)
       } else {
-        io.to(workflowId).emit('subblock-update', {
-          blockId,
-          subblockId,
-          value,
-          timestamp,
-        })
+        io.to(workflowId).emit('subblock-update', broadcastPayload)
       }
 
       // Confirm all coalesced operationIds (io.to(socketId) works cross-pod)

@@ -28,24 +28,24 @@ function createBucketConfig(ratePerMinute: number, burstMultiplier = 2): TokenBu
 
 export const RATE_LIMITS: Record<SubscriptionPlan, RateLimitConfig> = {
   free: {
-    sync: createBucketConfig(Number.parseInt(env.RATE_LIMIT_FREE_SYNC) || 10),
-    async: createBucketConfig(Number.parseInt(env.RATE_LIMIT_FREE_ASYNC) || 50),
-    apiEndpoint: createBucketConfig(10),
-  },
-  pro: {
-    sync: createBucketConfig(Number.parseInt(env.RATE_LIMIT_PRO_SYNC) || 25),
-    async: createBucketConfig(Number.parseInt(env.RATE_LIMIT_PRO_ASYNC) || 200),
+    sync: createBucketConfig(Number.parseInt(env.RATE_LIMIT_FREE_SYNC) || 50),
+    async: createBucketConfig(Number.parseInt(env.RATE_LIMIT_FREE_ASYNC) || 200),
     apiEndpoint: createBucketConfig(30),
   },
+  pro: {
+    sync: createBucketConfig(Number.parseInt(env.RATE_LIMIT_PRO_SYNC) || 150),
+    async: createBucketConfig(Number.parseInt(env.RATE_LIMIT_PRO_ASYNC) || 1000),
+    apiEndpoint: createBucketConfig(100),
+  },
   team: {
-    sync: createBucketConfig(Number.parseInt(env.RATE_LIMIT_TEAM_SYNC) || 75),
-    async: createBucketConfig(Number.parseInt(env.RATE_LIMIT_TEAM_ASYNC) || 500),
-    apiEndpoint: createBucketConfig(60),
+    sync: createBucketConfig(Number.parseInt(env.RATE_LIMIT_TEAM_SYNC) || 300),
+    async: createBucketConfig(Number.parseInt(env.RATE_LIMIT_TEAM_ASYNC) || 2500),
+    apiEndpoint: createBucketConfig(200),
   },
   enterprise: {
-    sync: createBucketConfig(Number.parseInt(env.RATE_LIMIT_ENTERPRISE_SYNC) || 150),
-    async: createBucketConfig(Number.parseInt(env.RATE_LIMIT_ENTERPRISE_ASYNC) || 1000),
-    apiEndpoint: createBucketConfig(120),
+    sync: createBucketConfig(Number.parseInt(env.RATE_LIMIT_ENTERPRISE_SYNC) || 600),
+    async: createBucketConfig(Number.parseInt(env.RATE_LIMIT_ENTERPRISE_ASYNC) || 5000),
+    apiEndpoint: createBucketConfig(500),
   },
 }
 

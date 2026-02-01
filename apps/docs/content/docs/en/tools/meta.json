@@ -24,6 +24,7 @@
     "dynamodb",
     "elasticsearch",
     "elevenlabs",
+    "enrich",
     "exa",
     "file",
     "firecrawl",

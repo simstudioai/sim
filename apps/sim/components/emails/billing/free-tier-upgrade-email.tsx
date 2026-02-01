@@ -13,8 +13,8 @@ interface FreeTierUpgradeEmailProps {
 
 const proFeatures = [
   { label: '$20/month', desc: 'in credits included' },
-  { label: '25 runs/min', desc: 'sync executions' },
-  { label: '200 runs/min', desc: 'async executions' },
+  { label: '150 runs/min', desc: 'sync executions' },
+  { label: '1,000 runs/min', desc: 'async executions' },
   { label: '50GB storage', desc: 'for files & assets' },
   { label: 'Unlimited', desc: 'workspaces & invites' },
 ]
