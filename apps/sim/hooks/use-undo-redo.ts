@@ -1447,10 +1447,12 @@ export function useUndoRedo() {
             userId,
           })
 
-          // Use setBlockEnabled to directly set to toggled state
-          // Redo sets to !previousStates (the state after the original toggle)
+          // Compute target state the same way batchToggleEnabled does:
+          // use !firstBlock.enabled, where firstBlock is blockIds[0]
+          const firstBlockId = blockIds[0]
+          const targetEnabled = !previousStates[firstBlockId]
           validBlockIds.forEach((blockId) => {
-            useWorkflowStore.getState().setBlockEnabled(blockId, !previousStates[blockId])
+            useWorkflowStore.getState().setBlockEnabled(blockId, targetEnabled)
           })
           break
         }
@@ -1505,10 +1507,12 @@ export function useUndoRedo() {
             userId,
           })
 
-          // Use setBlockLocked to directly set to toggled state
-          // Redo sets to !previousStates (the state after the original toggle)
+          // Compute target state the same way batchToggleLocked does:
+          // use !firstBlock.locked, where firstBlock is blockIds[0]
+          const firstBlockId = blockIds[0]
+          const targetLocked = !previousStates[firstBlockId]
           validBlockIds.forEach((blockId) => {
-            useWorkflowStore.getState().setBlockLocked(blockId, !previousStates[blockId])
+            useWorkflowStore.getState().setBlockLocked(blockId, targetLocked)
           })
           break
         }
