@@ -28,8 +28,8 @@ let emitSubblockUpdate:
       blockId: string,
       subblockId: string,
       value: any,
-      operationId?: string,
-      workflowId?: string
+      operationId: string | undefined,
+      workflowId: string
     ) => void)
   | null = null
 let emitVariableUpdate:
@@ -37,8 +37,8 @@ let emitVariableUpdate:
       variableId: string,
       field: string,
       value: any,
-      operationId?: string,
-      workflowId?: string
+      operationId: string | undefined,
+      workflowId: string
     ) => void)
   | null = null
 
@@ -48,15 +48,15 @@ export function registerEmitFunctions(
     blockId: string,
     subblockId: string,
     value: any,
-    operationId?: string,
-    workflowId?: string
+    operationId: string | undefined,
+    workflowId: string
   ) => void,
   variableEmit: (
     variableId: string,
     field: string,
     value: any,
-    operationId?: string,
-    workflowId?: string
+    operationId: string | undefined,
+    workflowId: string
   ) => void,
   workflowId: string | null
 ) {
