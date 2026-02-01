@@ -2156,7 +2156,7 @@ const WorkflowContent = React.memo(() => {
           parentId: block.data?.parentId,
           extent: block.data?.extent || undefined,
           dragHandle: '.workflow-drag-handle',
-          draggable: !block.locked,
+          draggable: !isBlockProtected(block.id, blocks),
           data: {
             ...block.data,
             name: block.name,
@@ -2192,7 +2192,7 @@ const WorkflowContent = React.memo(() => {
         position,
         parentId: block.data?.parentId,
         dragHandle,
-        draggable: !block.locked,
+        draggable: !isBlockProtected(block.id, blocks),
         extent: (() => {
           // Clamp children to subflow body (exclude header)
           const parentId = block.data?.parentId as string | undefined
