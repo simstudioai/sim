@@ -784,11 +784,36 @@ async function handleSubagentToolCall(
     }
   )
 
+  // When a respond tool (plan_respond, edit_respond, etc.) was used,
+  // return only the structured result - not the full result with all internal tool calls.
+  // This provides clean output for MCP consumers.
+  let responseData: unknown
+  if (result.structuredResult) {
+    responseData = {
+      success: result.structuredResult.success ?? result.success,
+      type: result.structuredResult.type,
+      summary: result.structuredResult.summary,
+      data: result.structuredResult.data,
+    }
+  } else if (result.error) {
+    responseData = {
+      success: false,
+      error: result.error,
+      errors: result.errors,
+    }
+  } else {
+    // Fallback: return content if no structured result
+    responseData = {
+      success: result.success,
+      content: result.content,
+    }
+  }
+
   const response: CallToolResult = {
     content: [
       {
         type: 'text',
-        text: JSON.stringify(result, null, 2),
+        text: JSON.stringify(responseData, null, 2),
       },
     ],
     isError: !result.success,
