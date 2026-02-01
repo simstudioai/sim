@@ -629,7 +629,8 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
   // Regenerate blocks with updated references
   Object.entries(state.blocks || {}).forEach(([oldId, block]) => {
     const newId = blockIdMapping.get(oldId)!
-    const newBlock: BlockState = { ...block, id: newId }
+    // Duplicated blocks are always unlocked so users can edit them
+    const newBlock: BlockState = { ...block, id: newId, locked: false }
 
     // Update parentId reference if it exists
     if (newBlock.data?.parentId) {
