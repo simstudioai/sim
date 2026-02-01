@@ -161,14 +161,14 @@ export const env = createEnv({
     // Rate Limiting Configuration
     RATE_LIMIT_WINDOW_MS:                  z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)
     MANUAL_EXECUTION_LIMIT:                z.string().optional().default('999999'),// Manual execution bypass value (effectively unlimited)
-    RATE_LIMIT_FREE_SYNC:                  z.string().optional().default('10'),    // Free tier sync API executions per minute
-    RATE_LIMIT_FREE_ASYNC:                 z.string().optional().default('50'),    // Free tier async API executions per minute
-    RATE_LIMIT_PRO_SYNC:                   z.string().optional().default('25'),    // Pro tier sync API executions per minute
-    RATE_LIMIT_PRO_ASYNC:                  z.string().optional().default('200'),   // Pro tier async API executions per minute
-    RATE_LIMIT_TEAM_SYNC:                  z.string().optional().default('75'),    // Team tier sync API executions per minute
-    RATE_LIMIT_TEAM_ASYNC:                 z.string().optional().default('500'),   // Team tier async API executions per minute
-    RATE_LIMIT_ENTERPRISE_SYNC:            z.string().optional().default('150'),   // Enterprise tier sync API executions per minute
-    RATE_LIMIT_ENTERPRISE_ASYNC:           z.string().optional().default('1000'),  // Enterprise tier async API executions per minute
+    RATE_LIMIT_FREE_SYNC:                  z.string().optional().default('50'),    // Free tier sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC:                 z.string().optional().default('200'),   // Free tier async API executions per minute
+    RATE_LIMIT_PRO_SYNC:                   z.string().optional().default('150'),   // Pro tier sync API executions per minute
+    RATE_LIMIT_PRO_ASYNC:                  z.string().optional().default('1000'),  // Pro tier async API executions per minute
+    RATE_LIMIT_TEAM_SYNC:                  z.string().optional().default('300'),   // Team tier sync API executions per minute
+    RATE_LIMIT_TEAM_ASYNC:                 z.string().optional().default('2500'),  // Team tier async API executions per minute
+    RATE_LIMIT_ENTERPRISE_SYNC:            z.string().optional().default('600'),   // Enterprise tier sync API executions per minute
+    RATE_LIMIT_ENTERPRISE_ASYNC:           z.string().optional().default('5000'),  // Enterprise tier async API executions per minute
 
     // Knowledge Base Processing Configuration - Shared across all processing methods
     KB_CONFIG_MAX_DURATION:                z.number().optional().default(600),     // Max processing duration in seconds (10 minutes)

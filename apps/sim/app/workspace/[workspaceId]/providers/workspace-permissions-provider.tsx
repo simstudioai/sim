@@ -1,10 +1,11 @@
 'use client'
 
 import type React from 'react'
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import { useSocket } from '@/app/workspace/providers/socket-provider'
 import {
   useWorkspacePermissionsQuery,
   type WorkspacePermissions,
@@ -57,12 +58,40 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   const [hasShownOfflineNotification, setHasShownOfflineNotification] = useState(false)
   const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)
   const addNotification = useNotificationStore((state) => state.addNotification)
+  const removeNotification = useNotificationStore((state) => state.removeNotification)
+  const { isReconnecting } = useSocket()
+  const reconnectingNotificationIdRef = useRef<string | null>(null)
 
   const isOfflineMode = hasOperationError
 
   useEffect(() => {
+    if (isReconnecting && !reconnectingNotificationIdRef.current && !isOfflineMode) {
+      const id = addNotification({
+        level: 'error',
+        message: 'Reconnecting...',
+      })
+      reconnectingNotificationIdRef.current = id
+    } else if (!isReconnecting && reconnectingNotificationIdRef.current) {
+      removeNotification(reconnectingNotificationIdRef.current)
+      reconnectingNotificationIdRef.current = null
+    }
+
+    return () => {
+      if (reconnectingNotificationIdRef.current) {
+        removeNotification(reconnectingNotificationIdRef.current)
+        reconnectingNotificationIdRef.current = null
+      }
+    }
+  }, [isReconnecting, isOfflineMode, addNotification, removeNotification])
+
+  useEffect(() => {
     if (!isOfflineMode || hasShownOfflineNotification) {
       return
+    }
+
+    if (reconnectingNotificationIdRef.current) {
+      removeNotification(reconnectingNotificationIdRef.current)
+      reconnectingNotificationIdRef.current = null
     }
 
     try {
@@ -78,7 +107,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     } catch (error) {
       logger.error('Failed to add offline notification', { error })
     }
-  }, [addNotification, hasShownOfflineNotification, isOfflineMode])
+  }, [addNotification, removeNotification, hasShownOfflineNotification, isOfflineMode])
 
   const {
     data: workspacePermissions,

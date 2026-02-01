@@ -24,16 +24,40 @@ let emitWorkflowOperation:
   | ((operation: string, target: string, payload: any, operationId?: string) => void)
   | null = null
 let emitSubblockUpdate:
-  | ((blockId: string, subblockId: string, value: any, operationId?: string) => void)
+  | ((
+      blockId: string,
+      subblockId: string,
+      value: any,
+      operationId: string | undefined,
+      workflowId: string
+    ) => void)
   | null = null
 let emitVariableUpdate:
-  | ((variableId: string, field: string, value: any, operationId?: string) => void)
+  | ((
+      variableId: string,
+      field: string,
+      value: any,
+      operationId: string | undefined,
+      workflowId: string
+    ) => void)
   | null = null
 
 export function registerEmitFunctions(
   workflowEmit: (operation: string, target: string, payload: any, operationId?: string) => void,
-  subblockEmit: (blockId: string, subblockId: string, value: any, operationId?: string) => void,
-  variableEmit: (variableId: string, field: string, value: any, operationId?: string) => void,
+  subblockEmit: (
+    blockId: string,
+    subblockId: string,
+    value: any,
+    operationId: string | undefined,
+    workflowId: string
+  ) => void,
+  variableEmit: (
+    variableId: string,
+    field: string,
+    value: any,
+    operationId: string | undefined,
+    workflowId: string
+  ) => void,
   workflowId: string | null
 ) {
   emitWorkflowOperation = workflowEmit
@@ -196,14 +220,16 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     }
 
     if (!retryable) {
-      logger.debug('Operation marked as non-retryable, removing from queue', { operationId })
+      logger.error(
+        'Operation failed with non-retryable error - state out of sync, triggering offline mode',
+        {
+          operationId,
+          operation: operation.operation.operation,
+          target: operation.operation.target,
+        }
+      )
 
-      set((state) => ({
-        operations: state.operations.filter((op) => op.id !== operationId),
-        isProcessing: false,
-      }))
-
-      get().processNextOperation()
+      get().triggerOfflineMode()
       return
     }
 
@@ -305,11 +331,23 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     const { operation: op, target, payload } = nextOperation.operation
     if (op === 'subblock-update' && target === 'subblock') {
       if (emitSubblockUpdate) {
-        emitSubblockUpdate(payload.blockId, payload.subblockId, payload.value, nextOperation.id)
+        emitSubblockUpdate(
+          payload.blockId,
+          payload.subblockId,
+          payload.value,
+          nextOperation.id,
+          nextOperation.workflowId
+        )
       }
     } else if (op === 'variable-update' && target === 'variable') {
       if (emitVariableUpdate) {
-        emitVariableUpdate(payload.variableId, payload.field, payload.value, nextOperation.id)
+        emitVariableUpdate(
+          payload.variableId,
+          payload.field,
+          payload.value,
+          nextOperation.id,
+          nextOperation.workflowId
+        )
       }
     } else {
       if (emitWorkflowOperation) {
