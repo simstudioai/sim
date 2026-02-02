@@ -116,6 +116,26 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
         suffix: '_v2',
         fallbackToolId: 'vision_tool_v2',
       }),
+      params: (params) => {
+        let imageInput = params.imageFile || params.imageFileReference
+        if (imageInput && typeof imageInput === 'string') {
+          try {
+            imageInput = JSON.parse(imageInput)
+          } catch {
+            throw new Error('Image file must be a valid file reference')
+          }
+        }
+        if (imageInput && Array.isArray(imageInput)) {
+          throw new Error(
+            'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
+          )
+        }
+        return {
+          ...params,
+          imageFile: imageInput,
+          imageFileReference: undefined,
+        }
+      },
     },
   },
   subBlocks: [

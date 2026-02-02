@@ -1,33 +1,15 @@
 import { FirefliesIcon } from '@/components/icons'
+import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { FirefliesResponse } from '@/tools/fireflies/types'
 import { getTrigger } from '@/triggers'
 
-const resolveHttpsUrlFromFileInput = (fileInput: unknown): string | null => {
-  if (!fileInput || typeof fileInput !== 'object') {
-    return null
-  }
-
-  const record = fileInput as Record<string, unknown>
-  const url =
-    typeof record.url === 'string'
-      ? record.url.trim()
-      : typeof record.path === 'string'
-        ? record.path.trim()
-        : ''
-
-  if (!url || !url.startsWith('https://')) {
-    return null
-  }
-
-  return url
-}
-
 export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   type: 'fireflies',
-  name: 'Fireflies',
+  name: 'Fireflies (Legacy)',
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',
+  hideFromToolbar: true,
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
   longDescription:
@@ -618,9 +600,9 @@ const firefliesV2Inputs = FirefliesBlock.inputs
 export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
   ...FirefliesBlock,
   type: 'fireflies_v2',
-  name: 'Fireflies (File Only)',
+  name: 'Fireflies',
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',
-  hideFromToolbar: true,
+  hideFromToolbar: false,
   subBlocks: firefliesV2SubBlocks,
   tools: {
     ...FirefliesBlock.tools,

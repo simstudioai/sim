@@ -451,14 +451,36 @@ function isCompleteUserFile(file: RawFileInput): file is UserFile {
     typeof file.url === 'string' &&
     typeof file.size === 'number' &&
     typeof file.type === 'string' &&
-    typeof file.key === 'string' &&
-    typeof file.uploadedAt === 'string' &&
-    typeof file.expiresAt === 'string'
+    typeof file.key === 'string'
   )
 }
 
 function isUrlLike(value: string): boolean {
   return value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')
+}
+
+/**
+ * Extracts HTTPS URL from a file input object (UserFile or RawFileInput)
+ * Returns null if no valid HTTPS URL is found
+ */
+export function resolveHttpsUrlFromFileInput(fileInput: unknown): string | null {
+  if (!fileInput || typeof fileInput !== 'object') {
+    return null
+  }
+
+  const record = fileInput as Record<string, unknown>
+  const url =
+    typeof record.url === 'string'
+      ? record.url.trim()
+      : typeof record.path === 'string'
+        ? record.path.trim()
+        : ''
+
+  if (!url || !url.startsWith('https://')) {
+    return null
+  }
+
+  return url
 }
 
 function resolveStorageKeyFromRawFile(file: RawFileInput): string | null {
@@ -484,45 +506,26 @@ function resolveInternalFileUrl(file: RawFileInput): string {
   if (file.url && isInternalFileUrl(file.url)) {
     return file.url
   }
-
   if (file.path && isInternalFileUrl(file.path)) {
     return file.path
   }
-
   return ''
 }
 
 /**
- * Converts a single raw file object to UserFile format
- * @param file - Raw file object (must be a single file, not an array)
- * @param requestId - Request ID for logging
- * @param logger - Logger instance
- * @returns UserFile object
- * @throws Error if file is an array or has no storage key
+ * Core conversion logic from RawFileInput to UserFile
  */
-export function processSingleFileToUserFile(
-  file: RawFileInput,
-  requestId: string,
-  logger: Logger
-): UserFile {
-  if (Array.isArray(file)) {
-    const errorMsg = `Expected a single file but received an array with ${file.length} file(s). Use a file input that accepts multiple files, or select a specific file from the array (e.g., {{block.files[0]}}).`
-    logger.error(`[${requestId}] ${errorMsg}`)
-    throw new Error(errorMsg)
-  }
-
+function convertToUserFile(file: RawFileInput, requestId: string, logger: Logger): UserFile | null {
   if (isCompleteUserFile(file)) {
     return {
       ...file,
-      url: resolveInternalFileUrl(file),
+      url: resolveInternalFileUrl(file) || file.url,
     }
   }
 
   const storageKey = resolveStorageKeyFromRawFile(file)
-
   if (!storageKey) {
-    logger.warn(`[${requestId}] File has no storage key: ${file.name || 'unknown'}`)
-    throw new Error(`File has no storage key: ${file.name || 'unknown'}`)
+    return null
   }
 
   const userFile: UserFile = {
@@ -541,12 +544,32 @@ export function processSingleFileToUserFile(
 }
 
 /**
- * Converts raw file objects (from file-upload or variable references) to UserFile format
- * Accepts either a single file or an array of files and normalizes to array output
- * @param files - Single file or array of raw file objects
- * @param requestId - Request ID for logging
- * @param logger - Logger instance
- * @returns Array of UserFile objects
+ * Converts a single raw file object to UserFile format
+ * @throws Error if file is an array or has no storage key
+ */
+export function processSingleFileToUserFile(
+  file: RawFileInput,
+  requestId: string,
+  logger: Logger
+): UserFile {
+  if (Array.isArray(file)) {
+    const errorMsg = `Expected a single file but received an array with ${file.length} file(s). Use a file input that accepts multiple files, or select a specific file from the array (e.g., {{block.files[0]}}).`
+    logger.error(`[${requestId}] ${errorMsg}`)
+    throw new Error(errorMsg)
+  }
+
+  const userFile = convertToUserFile(file, requestId, logger)
+  if (!userFile) {
+    const errorMsg = `File has no storage key: ${file.name || 'unknown'}`
+    logger.warn(`[${requestId}] ${errorMsg}`)
+    throw new Error(errorMsg)
+  }
+
+  return userFile
+}
+
+/**
+ * Converts raw file objects to UserFile format, accepting single or array input
  */
 export function processFilesToUserFiles(
   files: RawFileInput | RawFileInput[],
@@ -557,46 +580,16 @@ export function processFilesToUserFiles(
   const userFiles: UserFile[] = []
 
   for (const file of filesArray) {
-    try {
-      if (Array.isArray(file)) {
-        logger.warn(`[${requestId}] Skipping nested array in file input`)
-        continue
-      }
+    if (Array.isArray(file)) {
+      logger.warn(`[${requestId}] Skipping nested array in file input`)
+      continue
+    }
 
-      if (isCompleteUserFile(file)) {
-        userFiles.push({
-          ...file,
-          url: resolveInternalFileUrl(file),
-        })
-        continue
-      }
-
-      const storageKey = resolveStorageKeyFromRawFile(file)
-
-      if (!storageKey) {
-        logger.warn(`[${requestId}] Skipping file without storage key: ${file.name || 'unknown'}`)
-        continue
-      }
-
-      const userFile: UserFile = {
-        id: file.id || `file-${Date.now()}`,
-        name: file.name,
-        url: resolveInternalFileUrl(file),
-        size: file.size,
-        type: file.type || 'application/octet-stream',
-        key: storageKey,
-        context: file.context,
-        base64: file.base64,
-      }
-
-      logger.info(
-        `[${requestId}] Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`
-      )
+    const userFile = convertToUserFile(file, requestId, logger)
+    if (userFile) {
       userFiles.push(userFile)
-    } catch (error) {
-      logger.warn(
-        `[${requestId}] Skipping file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+    } else {
+      logger.warn(`[${requestId}] Skipping file without storage key: ${file.name || 'unknown'}`)
     }
   }
 

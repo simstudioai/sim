@@ -388,21 +388,36 @@ export const SttV2Block: BlockConfig<SttBlockResponse> = {
         suffix: '_v2',
         fallbackToolId: 'stt_whisper_v2',
       }),
-      params: (params) => ({
-        provider: params.provider,
-        apiKey: params.apiKey,
-        model: params.model,
-        audioFile: params.audioFile,
-        audioFileReference: params.audioFileReference,
-        language: params.language,
-        timestamps: params.timestamps,
-        diarization: params.diarization,
-        translateToEnglish: params.translateToEnglish,
-        sentiment: params.sentiment,
-        entityDetection: params.entityDetection,
-        piiRedaction: params.piiRedaction,
-        summarization: params.summarization,
-      }),
+      params: (params) => {
+        let audioInput = params.audioFile || params.audioFileReference
+        if (audioInput && typeof audioInput === 'string') {
+          try {
+            audioInput = JSON.parse(audioInput)
+          } catch {
+            throw new Error('Audio file must be a valid file reference')
+          }
+        }
+        if (audioInput && Array.isArray(audioInput)) {
+          throw new Error(
+            'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
+          )
+        }
+        return {
+          provider: params.provider,
+          apiKey: params.apiKey,
+          model: params.model,
+          audioFile: audioInput,
+          audioFileReference: undefined,
+          language: params.language,
+          timestamps: params.timestamps,
+          diarization: params.diarization,
+          translateToEnglish: params.translateToEnglish,
+          sentiment: params.sentiment,
+          entityDetection: params.entityDetection,
+          piiRedaction: params.piiRedaction,
+          summarization: params.summarization,
+        }
+      },
     },
   },
   inputs: sttV2Inputs,

@@ -1,32 +1,14 @@
 import { GoogleSlidesIcon } from '@/components/icons'
+import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
 
-const resolveHttpsUrlFromFileInput = (fileInput: unknown): string | null => {
-  if (!fileInput || typeof fileInput !== 'object') {
-    return null
-  }
-
-  const record = fileInput as Record<string, unknown>
-  const url =
-    typeof record.url === 'string'
-      ? record.url.trim()
-      : typeof record.path === 'string'
-        ? record.path.trim()
-        : ''
-
-  if (!url || !url.startsWith('https://')) {
-    return null
-  }
-
-  return url
-}
-
 export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
   type: 'google_slides',
-  name: 'Google Slides',
+  name: 'Google Slides (Legacy)',
   description: 'Read, write, and create presentations',
+  hideFromToolbar: true,
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Google Slides into the workflow. Can read, write, create presentations, replace text, add slides, add images, get thumbnails, get page details, delete objects, duplicate objects, reorder slides, create tables, create shapes, and insert text.',
@@ -963,9 +945,9 @@ const googleSlidesV2Inputs = GoogleSlidesBlock.inputs
 export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
   ...GoogleSlidesBlock,
   type: 'google_slides_v2',
-  name: 'Google Slides (File Only)',
+  name: 'Google Slides',
   description: 'Read, write, and create presentations',
-  hideFromToolbar: true,
+  hideFromToolbar: false,
   subBlocks: googleSlidesV2SubBlocks,
   tools: {
     ...GoogleSlidesBlock.tools,
