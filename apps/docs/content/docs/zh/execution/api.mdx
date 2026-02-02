@@ -14,7 +14,7 @@ Sim 提供了一个全面的外部 API，用于查询工作流执行日志，并
 
 ```bash
 curl -H "x-api-key: YOUR_API_KEY" \
-  https://sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID
+  https://api.sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID
 ```
 
 您可以在 Sim 仪表板的用户设置中生成 API 密钥。
@@ -528,7 +528,7 @@ async function pollLogs() {
   }
   
   const response = await fetch(
-    `https://sim.ai/api/v1/logs?${params}`,
+    `https://api.sim.ai/api/v1/logs?${params}`,
     {
       headers: {
         'x-api-key': 'YOUR_API_KEY'

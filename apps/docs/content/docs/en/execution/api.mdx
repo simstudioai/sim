@@ -14,7 +14,7 @@ All API requests require an API key passed in the `x-api-key` header:
 
 ```bash
 curl -H "x-api-key: YOUR_API_KEY" \
-  https://sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID
+  https://api.sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID
 ```
 
 You can generate API keys from your user settings in the Sim dashboard.
@@ -513,7 +513,7 @@ async function pollLogs() {
   }
   
   const response = await fetch(
-    `https://sim.ai/api/v1/logs?${params}`,
+    `https://api.sim.ai/api/v1/logs?${params}`,
     {
       headers: {
         'x-api-key': 'YOUR_API_KEY'

@@ -20,7 +20,7 @@ import { SimStudioClient } from 'simstudio-ts-sdk';
 // Initialize the client
 const client = new SimStudioClient({
   apiKey: 'your-api-key-here',
-  baseUrl: 'https://sim.ai' // optional, defaults to https://sim.ai
+  baseUrl: 'https://api.sim.ai' // optional, defaults to https://api.sim.ai
 });
 
 // Execute a workflow
@@ -43,7 +43,7 @@ new SimStudioClient(config: SimStudioConfig)
 ```
 
 - `config.apiKey` (string): Your Sim API key
-- `config.baseUrl` (string, optional): Base URL for the Sim API (defaults to `https://sim.ai`)
+- `config.baseUrl` (string, optional): Base URL for the Sim API (defaults to `https://api.sim.ai`)
 
 #### Methods
 

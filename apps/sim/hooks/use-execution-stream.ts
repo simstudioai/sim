@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { getApiUrl } from '@/lib/core/utils/urls'
 import type {
   BlockCompletedData,
   BlockErrorData,
@@ -151,7 +152,8 @@ export function useExecutionStream() {
     currentExecutionRef.current = null
 
     try {
-      const response = await fetch(`/api/workflows/${workflowId}/execute`, {
+      const apiUrl = getApiUrl()
+      const response = await fetch(`${apiUrl}/api/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -211,7 +213,8 @@ export function useExecutionStream() {
     currentExecutionRef.current = null
 
     try {
-      const response = await fetch(`/api/workflows/${workflowId}/execute-from-block`, {
+      const apiUrl = getApiUrl()
+      const response = await fetch(`${apiUrl}/api/workflows/${workflowId}/execute-from-block`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -266,9 +269,13 @@ export function useExecutionStream() {
   const cancel = useCallback(() => {
     const execution = currentExecutionRef.current
     if (execution) {
-      fetch(`/api/workflows/${execution.workflowId}/executions/${execution.executionId}/cancel`, {
-        method: 'POST',
-      }).catch(() => {})
+      const apiUrl = getApiUrl()
+      fetch(
+        `${apiUrl}/api/workflows/${execution.workflowId}/executions/${execution.executionId}/cancel`,
+        {
+          method: 'POST',
+        }
+      ).catch(() => {})
     }
 
     if (abortControllerRef.current) {

@@ -54,3 +54,22 @@ export function getEmailDomain(): string {
     return isProd ? 'sim.ai' : 'localhost:3000'
   }
 }
+
+/**
+ * Returns the API URL for workflow executions.
+ * Uses NEXT_PUBLIC_API_URL if configured, otherwise falls back to NEXT_PUBLIC_APP_URL.
+ * @returns The API URL string (e.g., 'https://api.sim.ai' or 'https://example.com')
+ */
+export function getApiUrl(): string {
+  const apiUrl = getEnv('NEXT_PUBLIC_API_URL')
+
+  if (apiUrl) {
+    if (apiUrl.startsWith('http://') || apiUrl.startsWith('https://')) {
+      return apiUrl
+    }
+    const protocol = isProd ? 'https://' : 'http://'
+    return `${protocol}${apiUrl}`
+  }
+
+  return getBaseUrl()
+}

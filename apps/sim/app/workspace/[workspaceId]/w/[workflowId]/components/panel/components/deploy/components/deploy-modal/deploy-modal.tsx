@@ -16,7 +16,7 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
 } from '@/components/emcn'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getApiUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/api-keys/components'
@@ -201,7 +201,7 @@ export function DeployModal({
       return null
     }
 
-    const endpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
+    const endpoint = `${getApiUrl()}/api/workflows/${workflowId}/execute`
     const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
     const placeholderKey = getApiHeaderPlaceholder()
 

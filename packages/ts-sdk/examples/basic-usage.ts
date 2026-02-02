@@ -4,7 +4,7 @@ import { SimStudioClient, SimStudioError } from '../src/index'
 async function basicExample() {
   const client = new SimStudioClient({
     apiKey: process.env.SIM_API_KEY!,
-    baseUrl: 'https://sim.ai',
+    baseUrl: 'https://api.sim.ai',
   })
 
   try {

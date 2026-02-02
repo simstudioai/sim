@@ -6,7 +6,7 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { registerToolUIConfig } from '@/lib/copilot/tools/client/ui-config'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getApiUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample } from '@/lib/workflows/operations/deployment-utils'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -230,8 +230,8 @@ export class DeployApiClientTool extends BaseClientTool {
       }
 
       if (action === 'deploy') {
-        const appUrl = getBaseUrl()
-        const apiEndpoint = `${appUrl}/api/workflows/${workflowId}/execute`
+        const apiUrl = getApiUrl()
+        const apiEndpoint = `${apiUrl}/api/workflows/${workflowId}/execute`
         const apiKeyPlaceholder = '$SIM_API_KEY'
 
         const inputExample = getInputFormatExample(false)

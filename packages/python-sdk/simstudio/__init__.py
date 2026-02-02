@@ -87,10 +87,10 @@ class SimStudioClient:
     
     Args:
         api_key: Your Sim API key
-        base_url: Base URL for the Sim API (defaults to https://sim.ai)
+        base_url: Base URL for the Sim API (defaults to https://api.sim.ai)
     """
-    
-    def __init__(self, api_key: str, base_url: str = "https://sim.ai"):
+
+    def __init__(self, api_key: str, base_url: str = "https://api.sim.ai"):
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
         self._session = requests.Session()

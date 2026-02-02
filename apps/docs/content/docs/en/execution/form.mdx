@@ -82,7 +82,7 @@ Submit forms programmatically:
 <Tabs items={['cURL', 'TypeScript']}>
   <Tab value="cURL">
 ```bash
-curl -X POST https://sim.ai/api/form/your-identifier \
+curl -X POST https://api.sim.ai/api/form/your-identifier \
   -H "Content-Type: application/json" \
   -d '{
     "formData": {
@@ -94,7 +94,7 @@ curl -X POST https://sim.ai/api/form/your-identifier \
   </Tab>
   <Tab value="TypeScript">
 ```typescript
-const response = await fetch('https://sim.ai/api/form/your-identifier', {
+const response = await fetch('https://api.sim.ai/api/form/your-identifier', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -115,14 +115,14 @@ const result = await response.json();
 
 For password-protected forms:
 ```bash
-curl -X POST https://sim.ai/api/form/your-identifier \
+curl -X POST https://api.sim.ai/api/form/your-identifier \
   -H "Content-Type: application/json" \
   -d '{ "password": "secret", "formData": { "name": "John" } }'
 ```
 
 For email-protected forms:
 ```bash
-curl -X POST https://sim.ai/api/form/your-identifier \
+curl -X POST https://api.sim.ai/api/form/your-identifier \
   -H "Content-Type: application/json" \
   -d '{ "email": "allowed@example.com", "formData": { "name": "John" } }'
 ```

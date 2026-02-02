@@ -17,7 +17,7 @@ from simstudio import SimStudioClient
 # Initialize the client
 client = SimStudioClient(
     api_key=os.getenv("SIM_API_KEY", "your-api-key-here"),
-    base_url="https://sim.ai"  # optional, defaults to https://sim.ai
+    base_url="https://api.sim.ai"  # optional, defaults to https://api.sim.ai
 )
 
 # Execute a workflow
@@ -35,11 +35,11 @@ except Exception as error:
 #### Constructor
 
 ```python
-SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
+SimStudioClient(api_key: str, base_url: str = "https://api.sim.ai")
 ```
 
 - `api_key` (str): Your Sim API key
-- `base_url` (str, optional): Base URL for the Sim API (defaults to `https://sim.ai`)
+- `base_url` (str, optional): Base URL for the Sim API (defaults to `https://api.sim.ai`)
 
 #### Methods
 
@@ -364,7 +364,7 @@ from simstudio import SimStudioClient
 # Using environment variables
 client = SimStudioClient(
     api_key=os.getenv("SIM_API_KEY"),
-    base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
+    base_url=os.getenv("SIM_BASE_URL", "https://api.sim.ai")
 )
 ```
 

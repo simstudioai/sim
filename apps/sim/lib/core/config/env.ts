@@ -307,6 +307,7 @@ export const env = createEnv({
   client: {
     // Core Application URLs - Required for frontend functionality
     NEXT_PUBLIC_APP_URL:                   z.string().url(),                       // Base URL of the application (e.g., https://www.sim.ai)
+    NEXT_PUBLIC_API_URL:                   z.string().url().optional(),            // API URL for workflow executions (e.g., https://api.sim.ai)
 
     // Client-side Services
     NEXT_PUBLIC_SOCKET_URL:                z.string().url().optional(),            // WebSocket server URL for real-time features
@@ -357,6 +358,7 @@ export const env = createEnv({
 
   experimental__runtimeEnv: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_BILLING_ENABLED: process.env.NEXT_PUBLIC_BILLING_ENABLED,
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
     NEXT_PUBLIC_BRAND_NAME: process.env.NEXT_PUBLIC_BRAND_NAME,

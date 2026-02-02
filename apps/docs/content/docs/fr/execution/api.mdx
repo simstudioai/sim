@@ -14,7 +14,7 @@ Toutes les requêtes API nécessitent une clé API transmise dans l'en-tête `x-
 
 ```bash
 curl -H "x-api-key: YOUR_API_KEY" \
-  https://sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID
+  https://api.sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID
 ```
 
 Vous pouvez générer des clés API depuis vos paramètres utilisateur dans le tableau de bord Sim.
@@ -528,7 +528,7 @@ async function pollLogs() {
   }
   
   const response = await fetch(
-    `https://sim.ai/api/v1/logs?${params}`,
+    `https://api.sim.ai/api/v1/logs?${params}`,
     {
       headers: {
         'x-api-key': 'YOUR_API_KEY'

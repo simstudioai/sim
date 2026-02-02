@@ -18,7 +18,7 @@ def test_simstudio_client_default_base_url():
     """Test SimStudioClient with default base URL."""
     client = SimStudioClient(api_key="test-api-key")
     assert client.api_key == "test-api-key"
-    assert client.base_url == "https://sim.ai"
+    assert client.base_url == "https://api.sim.ai"
 
 
 def test_set_api_key():
@@ -51,7 +51,7 @@ def test_validate_workflow_returns_false_on_error(mock_get):
     result = client.validate_workflow("test-workflow-id")
     
     assert result is False
-    mock_get.assert_called_once_with("https://sim.ai/api/workflows/test-workflow-id/status")
+    mock_get.assert_called_once_with("https://api.sim.ai/api/workflows/test-workflow-id/status")
 
 
 def test_simstudio_error():

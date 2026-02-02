@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { getApiUrl } from '@/lib/core/utils/urls'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface CheckDeploymentStatusArgs {
@@ -103,11 +104,12 @@ export class CheckDeploymentStatusClientTool extends BaseClientTool {
 
       // API deployment details
       const isApiDeployed = apiDeploy?.isDeployed || false
+      const apiUrl = getApiUrl()
       const appUrl = typeof window !== 'undefined' ? window.location.origin : ''
       const apiDetails: ApiDeploymentDetails = {
         isDeployed: isApiDeployed,
         deployedAt: apiDeploy?.deployedAt || null,
-        endpoint: isApiDeployed ? `${appUrl}/api/workflows/${workflowId}/execute` : null,
+        endpoint: isApiDeployed ? `${apiUrl}/api/workflows/${workflowId}/execute` : null,
         apiKey: apiDeploy?.apiKey || null,
         needsRedeployment: apiDeploy?.needsRedeployment === true,
       }

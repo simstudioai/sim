@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
+import { getApiUrl } from '@/lib/core/utils/urls'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution'
 import { useTerminalConsoleStore } from '@/stores/terminal'
@@ -41,7 +42,8 @@ export async function executeWorkflowWithFullLogging(
     isClientSession: true,
   }
 
-  const response = await fetch(`/api/workflows/${activeWorkflowId}/execute`, {
+  const apiUrl = getApiUrl()
+  const response = await fetch(`${apiUrl}/api/workflows/${activeWorkflowId}/execute`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -656,7 +656,7 @@ def stream_workflow():
 
     def generate():
         response = requests.post(
-            'https://sim.ai/api/workflows/WORKFLOW_ID/execute',
+            'https://api.sim.ai/api/workflows/WORKFLOW_ID/execute',
             headers={
                 'Content-Type': 'application/json',
                 'X-API-Key': os.getenv('SIM_API_KEY')
