@@ -64,7 +64,7 @@ export const airweaveSearchTool: ToolConfig<AirweaveSearchParams, AirweaveSearch
     url: (params) => `https://api.airweave.ai/collections/${params.collectionId}/search`,
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      'X-API-Key': params.apiKey,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
