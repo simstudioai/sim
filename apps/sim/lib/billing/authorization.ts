@@ -10,26 +10,26 @@ const logger = createLogger('BillingAuthorization')
  * Check if a user is authorized to manage billing for a given reference ID
  * Reference ID can be either a user ID (individual subscription) or organization ID (team subscription)
  *
- * This function also performs duplicate subscription validation:
- * - Rejects if the referenceId already has an active subscription (prevents duplicates)
+ * This function also performs duplicate subscription validation for organizations:
+ * - Rejects if an organization already has an active subscription (prevents duplicates)
+ * - Personal subscriptions (referenceId === userId) skip this check to allow upgrades
  */
 export async function authorizeSubscriptionReference(
   userId: string,
   referenceId: string
 ): Promise<boolean> {
-  // Check for existing active subscriptions on this referenceId
-  // This prevents creating duplicate subscriptions for the same entity
+  // User can always manage their own subscriptions (Pro upgrades, etc.)
+  if (referenceId === userId) {
+    return true
+  }
+
+  // For organizations: check for existing active subscriptions to prevent duplicates
   if (await hasActiveSubscription(referenceId)) {
-    logger.warn('Blocking checkout - active subscription already exists for referenceId', {
+    logger.warn('Blocking checkout - active subscription already exists for organization', {
       userId,
       referenceId,
     })
     return false
-  }
-
-  // User can always manage their own subscriptions
-  if (referenceId === userId) {
-    return true
   }
 
   // Check if referenceId is an organizationId the user has admin rights to
