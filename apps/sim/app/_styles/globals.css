@@ -14,7 +14,7 @@
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
-  --terminal-height: 155px; /* TERMINAL_HEIGHT.DEFAULT */
+  --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
 }
 
 .sidebar-container {

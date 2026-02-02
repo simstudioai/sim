@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
+import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskCreateOrganizationsBulk')
 
@@ -51,8 +51,9 @@ export const zendeskCreateOrganizationsBulkTool: ToolConfig<
     organizations: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'JSON array of organization objects to create',
+      visibility: 'user-or-llm',
+      description:
+        'JSON array of organization objects to create (e.g., [{"name": "Org1"}, {"name": "Org2"}])',
     },
   },
 
@@ -97,7 +98,7 @@ export const zendeskCreateOrganizationsBulkTool: ToolConfig<
   },
 
   outputs: {
-    job_status: { type: 'object', description: 'Job status object' },
+    job_status: JOB_STATUS_OUTPUT,
     job_id: { type: 'string', description: 'The bulk operation job ID' },
   },
 }

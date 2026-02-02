@@ -20,14 +20,14 @@ export const discordUpdateMemberTool: ToolConfig<
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord server ID (guild ID)',
+      visibility: 'user-or-llm',
+      description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
     userId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The user ID to update',
+      description: 'The user ID to update, e.g., 123456789012345678',
     },
     nick: {
       type: 'string',

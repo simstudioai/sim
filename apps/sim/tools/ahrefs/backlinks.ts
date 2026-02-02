@@ -13,14 +13,15 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The target domain or URL to analyze',
+      description:
+        'The target domain or URL to analyze. Example: "example.com" or "https://example.com/page"',
     },
     mode: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match)',
+        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match). Example: "domain"',
     },
     date: {
       type: 'string',
@@ -31,14 +32,14 @@ export const backlinksTool: ToolConfig<AhrefsBacklinksParams, AhrefsBacklinksRes
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of results to return (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return. Example: 50 (default: 100)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to skip for pagination',
+      visibility: 'user-or-llm',
+      description: 'Number of results to skip for pagination. Example: 100',
     },
     apiKey: {
       type: 'string',

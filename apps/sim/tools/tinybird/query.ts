@@ -32,13 +32,14 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
       required: true,
       visibility: 'user-or-llm',
       description:
-        'SQL query to execute. Specify your desired output format (e.g., FORMAT JSON, FORMAT CSV, FORMAT TSV). JSON format provides structured data, while other formats return raw text.',
+        'SQL query to execute. Specify your desired output format (e.g., FORMAT JSON, FORMAT CSV, FORMAT TSV). JSON format provides structured data, while other formats return raw text. Example: "SELECT * FROM my_datasource LIMIT 100 FORMAT JSON"',
     },
     pipeline: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional pipe name. When provided, enables SELECT * FROM _ syntax',
+      description:
+        'Optional pipe name. When provided, enables SELECT * FROM _ syntax. Example: "my_pipe", "analytics_pipe"',
     },
     token: {
       type: 'string',

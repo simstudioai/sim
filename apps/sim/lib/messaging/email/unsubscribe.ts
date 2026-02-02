@@ -38,7 +38,6 @@ export function verifyUnsubscribeToken(
     const parts = token.split(':')
     if (parts.length < 2) return { valid: false }
 
-    // Handle legacy tokens (without email type)
     if (parts.length === 2) {
       const [salt, expectedHash] = parts
       const hash = createHash('sha256')
@@ -48,7 +47,6 @@ export function verifyUnsubscribeToken(
       return { valid: hash === expectedHash, emailType: 'marketing' }
     }
 
-    // Handle new tokens (with email type)
     const [salt, expectedHash, emailType] = parts
     if (!salt || !expectedHash || !emailType) return { valid: false }
 
@@ -101,7 +99,6 @@ export async function updateEmailPreferences(
   preferences: EmailPreferences
 ): Promise<boolean> {
   try {
-    // First, find the user
     const userResult = await db
       .select({ id: user.id })
       .from(user)
@@ -115,7 +112,6 @@ export async function updateEmailPreferences(
 
     const userId = userResult[0].id
 
-    // Get existing email preferences
     const existingSettings = await db
       .select({ emailPreferences: settings.emailPreferences })
       .from(settings)
@@ -127,13 +123,11 @@ export async function updateEmailPreferences(
       currentEmailPreferences = (existingSettings[0].emailPreferences as EmailPreferences) || {}
     }
 
-    // Merge email preferences
     const updatedEmailPreferences = {
       ...currentEmailPreferences,
       ...preferences,
     }
 
-    // Upsert settings
     await db
       .insert(settings)
       .values({
@@ -168,10 +162,8 @@ export async function isUnsubscribed(
     const preferences = await getEmailPreferences(email)
     if (!preferences) return false
 
-    // Check unsubscribe all first
     if (preferences.unsubscribeAll) return true
 
-    // Check specific type
     switch (emailType) {
       case 'marketing':
         return preferences.unsubscribeMarketing || false

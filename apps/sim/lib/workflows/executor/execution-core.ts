@@ -6,7 +6,6 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
-import { parseResponseFormatSafely } from '@/lib/core/utils/response-format'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -15,6 +14,7 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
+import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
@@ -23,11 +23,12 @@ import type {
   ContextExtensions,
   ExecutionCallbacks,
   IterationContext,
+  SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
-import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import { hasExecutionResult } from '@/executor/utils/errors'
+import { buildParallelSentinelEndId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
 import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
 const logger = createLogger('ExecutionCore')
 
@@ -37,12 +38,16 @@ export interface ExecuteWorkflowCoreOptions {
   snapshot: ExecutionSnapshot
   callbacks: ExecutionCallbacks
   loggingSession: LoggingSession
-  skipLogCreation?: boolean // For resume executions - reuse existing log entry
-  /**
-   * AbortSignal for cancellation support.
-   * When aborted (e.g., client disconnects from SSE), execution stops gracefully.
-   */
+  skipLogCreation?: boolean
   abortSignal?: AbortSignal
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
+  stopAfterBlockId?: string
+  /** Run-from-block mode: execute starting from a specific block using cached upstream outputs */
+  runFromBlock?: {
+    startBlockId: string
+    sourceSnapshot: SerializableExecutionState
+  }
 }
 
 function parseVariableValueByType(value: unknown, type: string): unknown {
@@ -109,7 +114,17 @@ function parseVariableValueByType(value: unknown, type: string): unknown {
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
-  const { snapshot, callbacks, loggingSession, skipLogCreation, abortSignal } = options
+  const {
+    snapshot,
+    callbacks,
+    loggingSession,
+    skipLogCreation,
+    abortSignal,
+    includeFileBase64,
+    base64MaxBytes,
+    stopAfterBlockId,
+    runFromBlock,
+  } = options
   const { metadata, workflow, input, workflowVariables, selectedOutputs } = snapshot
   const { requestId, workflowId, userId, triggerType, executionId, triggerBlockId, useDraftState } =
     metadata
@@ -167,8 +182,7 @@ export async function executeWorkflowCore(
       logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
     }
 
-    // Merge block states
-    const mergedStates = mergeSubblockState(blocks)
+    const mergedStates = mergeSubblockStateWithValues(blocks)
 
     const personalEnvUserId =
       metadata.isClientSession && metadata.sessionUserId
@@ -195,50 +209,6 @@ export async function executeWorkflowCore(
       skipLogCreation,
       deploymentVersionId,
     })
-
-    // Process block states with env var substitution using pre-decrypted values
-    const currentBlockStates = Object.entries(mergedStates).reduce(
-      (acc, [id, block]) => {
-        acc[id] = Object.entries(block.subBlocks).reduce(
-          (subAcc, [key, subBlock]) => {
-            let value = subBlock.value
-
-            if (typeof value === 'string') {
-              value = resolveEnvVarReferences(value, decryptedEnvVars, {
-                resolveExactMatch: false,
-                trimKeys: false,
-                onMissing: 'keep',
-                deep: false,
-              }) as string
-            }
-
-            subAcc[key] = value
-            return subAcc
-          },
-          {} as Record<string, any>
-        )
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
-
-    // Process response format
-    const processedBlockStates = Object.entries(currentBlockStates).reduce(
-      (acc, [blockId, blockState]) => {
-        const responseFormatValue = blockState.responseFormat
-        if (responseFormatValue === undefined || responseFormatValue === null) {
-          acc[blockId] = blockState
-          return acc
-        }
-
-        const responseFormat = parseResponseFormatSafely(responseFormatValue, blockId, {
-          allowReferences: true,
-        })
-        acc[blockId] = { ...blockState, responseFormat: responseFormat ?? undefined }
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
 
     // Use edges directly - trigger-to-trigger edges are prevented at creation time
     const filteredEdges = edges
@@ -286,6 +256,16 @@ export async function executeWorkflowCore(
 
     processedInput = input || {}
 
+    // Resolve stopAfterBlockId for loop/parallel containers to their sentinel-end IDs
+    let resolvedStopAfterBlockId = stopAfterBlockId
+    if (stopAfterBlockId) {
+      if (serializedWorkflow.loops?.[stopAfterBlockId]) {
+        resolvedStopAfterBlockId = buildSentinelEndId(stopAfterBlockId)
+      } else if (serializedWorkflow.parallels?.[stopAfterBlockId]) {
+        resolvedStopAfterBlockId = buildParallelSentinelEndId(stopAfterBlockId)
+      }
+    }
+
     // Create and execute workflow with callbacks
     if (resumeFromSnapshot) {
       logger.info(`[${requestId}] Resume execution detected`, {
@@ -303,7 +283,13 @@ export async function executeWorkflowCore(
       blockId: string,
       blockName: string,
       blockType: string,
-      output: { input?: unknown; output: NormalizedBlockOutput; executionTime: number },
+      output: {
+        input?: unknown
+        output: NormalizedBlockOutput
+        executionTime: number
+        startedAt: string
+        endedAt: string
+      },
       iterationContext?: IterationContext
     ) => {
       await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
@@ -334,11 +320,13 @@ export async function executeWorkflowCore(
       snapshotState: snapshot.state,
       metadata,
       abortSignal,
+      includeFileBase64,
+      base64MaxBytes,
+      stopAfterBlockId: resolvedStopAfterBlockId,
     }
 
     const executorInstance = new Executor({
       workflow: serializedWorkflow,
-      currentBlockStates: processedBlockStates,
       envVarValues: decryptedEnvVars,
       workflowInput: processedInput,
       workflowVariables,
@@ -357,10 +345,13 @@ export async function executeWorkflowCore(
       }
     }
 
-    const result = (await executorInstance.execute(
-      workflowId,
-      resolvedTriggerBlockId
-    )) as ExecutionResult
+    const result = runFromBlock
+      ? ((await executorInstance.executeFromBlock(
+          workflowId,
+          runFromBlock.startBlockId,
+          runFromBlock.sourceSnapshot
+        )) as ExecutionResult)
+      : ((await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult)
 
     // Build trace spans for logging from the full execution result
     const { traceSpans, totalDuration } = buildTraceSpans(result)
@@ -422,20 +413,15 @@ export async function executeWorkflowCore(
   } catch (error: unknown) {
     logger.error(`[${requestId}] Execution failed:`, error)
 
-    const errorWithResult = error as {
-      executionResult?: ExecutionResult
-      message?: string
-      stack?: string
-    }
-    const executionResult = errorWithResult?.executionResult
+    const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
     const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
       totalDurationMs: executionResult?.metadata?.duration || 0,
       error: {
-        message: errorWithResult?.message || 'Execution failed',
-        stackTrace: errorWithResult?.stack,
+        message: error instanceof Error ? error.message : 'Execution failed',
+        stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,
     })

@@ -8,6 +8,17 @@ const logger = createLogger('EmbeddingUtils')
 
 const MAX_TOKENS_PER_REQUEST = 8000
 const MAX_CONCURRENT_BATCHES = env.KB_CONFIG_CONCURRENCY_LIMIT || 50
+const EMBEDDING_DIMENSIONS = 1536
+
+/**
+ * Check if the model supports custom dimensions.
+ * text-embedding-3-* models support the dimensions parameter.
+ * Checks for 'embedding-3' to handle Azure deployments with custom naming conventions.
+ */
+function supportsCustomDimensions(modelName: string): boolean {
+  const name = modelName.toLowerCase()
+  return name.includes('embedding-3') && !name.includes('ada')
+}
 
 export class EmbeddingAPIError extends Error {
   public status: number
@@ -93,15 +104,19 @@ async function getEmbeddingConfig(
 async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Promise<number[][]> {
   return retryWithExponentialBackoff(
     async () => {
+      const useDimensions = supportsCustomDimensions(config.modelName)
+
       const requestBody = config.useAzure
         ? {
             input: inputs,
             encoding_format: 'float',
+            ...(useDimensions && { dimensions: EMBEDDING_DIMENSIONS }),
           }
         : {
             input: inputs,
             model: config.modelName,
             encoding_format: 'float',
+            ...(useDimensions && { dimensions: EMBEDDING_DIMENSIONS }),
           }
 
       const response = await fetch(config.apiUrl, {

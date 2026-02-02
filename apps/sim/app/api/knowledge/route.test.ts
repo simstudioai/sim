@@ -16,6 +16,10 @@ mockKnowledgeSchemas()
 mockDrizzleOrm()
 mockConsoleLogger()
 
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: vi.fn().mockResolvedValue({ role: 'owner' }),
+}))
+
 describe('Knowledge Base API Route', () => {
   const mockAuth$ = mockAuth()
 
@@ -86,6 +90,7 @@ describe('Knowledge Base API Route', () => {
     const validKnowledgeBaseData = {
       name: 'Test Knowledge Base',
       description: 'Test description',
+      workspaceId: 'test-workspace-id',
       chunkingConfig: {
         maxSize: 1024,
         minSize: 100,
@@ -133,11 +138,25 @@ describe('Knowledge Base API Route', () => {
       expect(data.details).toBeDefined()
     })
 
+    it('should require workspaceId', async () => {
+      mockAuth$.mockAuthenticatedUser()
+
+      const req = createMockRequest('POST', { name: 'Test KB' })
+      const { POST } = await import('@/app/api/knowledge/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('Invalid request data')
+      expect(data.details).toBeDefined()
+    })
+
     it('should validate chunking config constraints', async () => {
       mockAuth$.mockAuthenticatedUser()
 
       const invalidData = {
         name: 'Test KB',
+        workspaceId: 'test-workspace-id',
         chunkingConfig: {
           maxSize: 100, // 100 tokens = 400 characters
           minSize: 500, // Invalid: minSize (500 chars) > maxSize (400 chars)
@@ -157,7 +176,7 @@ describe('Knowledge Base API Route', () => {
     it('should use default values for optional fields', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      const minimalData = { name: 'Test KB' }
+      const minimalData = { name: 'Test KB', workspaceId: 'test-workspace-id' }
       const req = createMockRequest('POST', minimalData)
       const { POST } = await import('@/app/api/knowledge/route')
       const response = await POST(req)

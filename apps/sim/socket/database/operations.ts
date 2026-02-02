@@ -337,10 +337,11 @@ async function handleBlockOperationTx(
       const currentData = currentBlock?.data || {}
 
       // Update data with parentId and extent
+      const { parentId: _removedParentId, extent: _removedExtent, ...restData } = currentData
       const updatedData = isRemovingFromParent
-        ? {} // Clear data entirely when removing from parent
+        ? restData
         : {
-            ...currentData,
+            ...restData,
             ...(payload.parentId ? { parentId: payload.parentId } : {}),
             ...(payload.extent ? { extent: payload.extent } : {}),
           }
@@ -828,10 +829,11 @@ async function handleBlocksOperationTx(
 
         const currentData = currentBlock?.data || {}
 
+        const { parentId: _removedParentId, extent: _removedExtent, ...restData } = currentData
         const updatedData = isRemovingFromParent
-          ? {}
+          ? restData
           : {
-              ...currentData,
+              ...restData,
               ...(parentId ? { parentId, extent: 'parent' } : {}),
             }
 

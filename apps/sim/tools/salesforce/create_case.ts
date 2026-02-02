@@ -2,6 +2,7 @@ import type {
   SalesforceCreateCaseParams,
   SalesforceCreateCaseResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,44 +39,44 @@ export const salesforceCreateCaseTool: ToolConfig<
     subject: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Case subject (required)',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Status (e.g., New, Working, Escalated)',
     },
     priority: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Priority (e.g., Low, Medium, High)',
     },
     origin: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Origin (e.g., Phone, Email, Web)',
     },
     contactId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Contact ID',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Contact ID (18-character string starting with 003)',
     },
     accountId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Account ID',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Account ID (18-character string starting with 001)',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Description',
+      visibility: 'user-or-llm',
+      description: 'Case description',
     },
   },
 
@@ -117,11 +118,7 @@ export const salesforceCreateCaseTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Created case data',
-      properties: {
-        id: { type: 'string', description: 'Created case ID' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-        created: { type: 'boolean', description: 'Whether case was created' },
-      },
+      properties: SOBJECT_CREATE_OUTPUT_PROPERTIES,
     },
   },
 }

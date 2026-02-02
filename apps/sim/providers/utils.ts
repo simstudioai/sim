@@ -8,6 +8,7 @@ import {
   getComputerUseModels,
   getEmbeddingModelPricing,
   getHostedModels as getHostedModelsFromDefinitions,
+  getMaxOutputTokensForModel as getMaxOutputTokensForModelFromDefinitions,
   getMaxTemperature as getMaxTempFromDefinitions,
   getModelPricing as getModelPricingFromDefinitions,
   getModelsWithReasoningEffort,
@@ -28,11 +29,55 @@ import {
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useProvidersStore } from '@/stores/providers/store'
 import { mergeToolParameters } from '@/tools/params'
 
 const logger = createLogger('ProviderUtils')
+
+/**
+ * Checks if a workflow description is a default/placeholder description
+ */
+function isDefaultWorkflowDescription(
+  description: string | null | undefined,
+  name?: string
+): boolean {
+  if (!description) return true
+  const normalizedDesc = description.toLowerCase().trim()
+  return (
+    description === name ||
+    normalizedDesc === 'new workflow' ||
+    normalizedDesc === 'your first workflow - start building here!'
+  )
+}
+
+/**
+ * Fetches workflow metadata (name and description) from the API
+ */
+async function fetchWorkflowMetadata(
+  workflowId: string
+): Promise<{ name: string; description: string | null } | null> {
+  try {
+    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+
+    const headers = await buildAuthHeaders()
+    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+
+    const response = await fetch(url.toString(), { headers })
+    if (!response.ok) {
+      logger.warn(`Failed to fetch workflow metadata for ${workflowId}`)
+      return null
+    }
+
+    const { data } = await response.json()
+    return {
+      name: data?.name || 'Workflow',
+      description: data?.description || null,
+    }
+  } catch (error) {
+    logger.error('Error fetching workflow metadata:', error)
+    return null
+  }
+}
 
 /**
  * Client-safe provider metadata.
@@ -375,38 +420,6 @@ export function extractAndParseJSON(content: string): any {
 }
 
 /**
- * Transforms a custom tool schema into a provider tool config
- */
-export function transformCustomTool(customTool: any): ProviderToolConfig {
-  const schema = customTool.schema
-
-  if (!schema || !schema.function) {
-    throw new Error('Invalid custom tool schema')
-  }
-
-  return {
-    id: `custom_${customTool.id}`,
-    name: schema.function.name,
-    description: schema.function.description || '',
-    params: {},
-    parameters: {
-      type: schema.function.parameters.type,
-      properties: schema.function.parameters.properties,
-      required: schema.function.parameters.required || [],
-    },
-  }
-}
-
-/**
- * Gets all available custom tools as provider tool configs
- */
-export function getCustomTools(): ProviderToolConfig[] {
-  const customTools = useCustomToolsStore.getState().getAllTools()
-
-  return customTools.map(transformCustomTool)
-}
-
-/**
  * Transforms a block tool into a provider tool config with operation selection
  *
  * @param block The block to transform
@@ -479,16 +492,30 @@ export async function transformBlockTool(
   const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
 
   let uniqueToolId = toolConfig.id
+  let toolName = toolConfig.name
+  let toolDescription = toolConfig.description
+
   if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
+
+    const workflowMetadata = await fetchWorkflowMetadata(userProvidedParams.workflowId)
+    if (workflowMetadata) {
+      toolName = workflowMetadata.name || toolConfig.name
+      if (
+        workflowMetadata.description &&
+        !isDefaultWorkflowDescription(workflowMetadata.description, workflowMetadata.name)
+      ) {
+        toolDescription = workflowMetadata.description
+      }
+    }
   } else if (toolId.startsWith('knowledge_') && userProvidedParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
   }
 
   return {
     id: uniqueToolId,
-    name: toolConfig.name,
-    description: toolConfig.description,
+    name: toolName,
+    description: toolDescription,
     params: userProvidedParams,
     parameters: llmSchema,
   }
@@ -964,6 +991,18 @@ export function getVerbosityValuesForModel(model: string): string[] | null {
  */
 export function getThinkingLevelsForModel(model: string): string[] | null {
   return getThinkingLevelsForModelFromDefinitions(model)
+}
+
+/**
+ * Get max output tokens for a specific model
+ * Returns the model's maxOutputTokens capability for streaming requests,
+ * or a conservative default (8192) for non-streaming requests to avoid timeout issues.
+ *
+ * @param model - The model ID
+ * @param streaming - Whether the request is streaming (default: false)
+ */
+export function getMaxOutputTokensForModel(model: string, streaming = false): number {
+  return getMaxOutputTokensForModelFromDefinitions(model, streaming)
 }
 
 /**

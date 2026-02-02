@@ -1,7 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 
-// Get User Context Tool - Retrieve user context with mode (Zep v3)
 export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_context',
   name: 'Get User Context',
@@ -12,8 +11,8 @@ export const zepGetContextTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Thread ID to get context from',
+      visibility: 'user-or-llm',
+      description: 'Thread ID to get context from (e.g., "thread_abc123")',
     },
     mode: {
       type: 'string',

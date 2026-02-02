@@ -18,20 +18,20 @@ export const discordRemoveRoleTool: ToolConfig<DiscordRemoveRoleParams, DiscordR
       serverId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'The Discord server ID (guild ID)',
+        visibility: 'user-or-llm',
+        description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
       },
       userId: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The user ID to remove the role from',
+        description: 'The user ID to remove the role from, e.g., 123456789012345678',
       },
       roleId: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The role ID to remove',
+        description: 'The role ID to remove, e.g., 123456789012345678',
       },
     },
 

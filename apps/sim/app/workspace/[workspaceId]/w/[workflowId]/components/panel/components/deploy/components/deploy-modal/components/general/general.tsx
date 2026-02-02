@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -17,11 +17,7 @@ import {
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
-import {
-  BlockDetailsSidebar,
-  getLeftmostBlockId,
-  WorkflowPreview,
-} from '@/app/workspace/[workspaceId]/w/components/preview'
+import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
@@ -36,7 +32,6 @@ interface GeneralDeployProps {
   versionsLoading: boolean
   onPromoteToLive: (version: number) => Promise<void>
   onLoadDeploymentComplete: () => void
-  fetchVersions: () => Promise<void>
 }
 
 type PreviewMode = 'active' | 'selected'
@@ -52,15 +47,12 @@ export function GeneralDeploy({
   versionsLoading,
   onPromoteToLive,
   onLoadDeploymentComplete,
-  fetchVersions,
 }: GeneralDeployProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [previewMode, setPreviewMode] = useState<PreviewMode>('active')
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
   const [showExpandedPreview, setShowExpandedPreview] = useState(false)
-  const [expandedSelectedBlockId, setExpandedSelectedBlockId] = useState<string | null>(null)
-  const hasAutoSelectedRef = useRef(false)
   const [versionToLoad, setVersionToLoad] = useState<number | null>(null)
   const [versionToPromote, setVersionToPromote] = useState<number | null>(null)
 
@@ -135,19 +127,6 @@ export function GeneralDeploy({
   const hasDeployedData = deployedState && Object.keys(deployedState.blocks || {}).length > 0
   const showLoadingSkeleton = isLoadingDeployedState && !hasDeployedData
 
-  // Auto-select the leftmost block once when expanded preview opens
-  useEffect(() => {
-    if (showExpandedPreview && workflowToShow && !hasAutoSelectedRef.current) {
-      hasAutoSelectedRef.current = true
-      const leftmostId = getLeftmostBlockId(workflowToShow)
-      setExpandedSelectedBlockId(leftmostId)
-    }
-    // Reset when modal closes
-    if (!showExpandedPreview) {
-      hasAutoSelectedRef.current = false
-    }
-  }, [showExpandedPreview, workflowToShow])
-
   if (showLoadingSkeleton) {
     return (
       <div className='space-y-[12px]'>
@@ -205,7 +184,7 @@ export function GeneralDeploy({
             {workflowToShow ? (
               <>
                 <div className='[&_*]:!cursor-default h-full w-full cursor-default'>
-                  <WorkflowPreview
+                  <PreviewWorkflow
                     workflowState={workflowToShow}
                     height='100%'
                     width='100%'
@@ -248,7 +227,6 @@ export function GeneralDeploy({
             onSelectVersion={handleSelectVersion}
             onPromoteToLive={handlePromoteToLive}
             onLoadDeployment={handleLoadDeployment}
-            fetchVersions={fetchVersions}
           />
         </div>
       </div>
@@ -283,7 +261,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Promote to live</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to promote{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToPromoteInfo?.name || `v${versionToPromote}`}
@@ -306,46 +284,15 @@ export function GeneralDeploy({
       </Modal>
 
       {workflowToShow && (
-        <Modal
-          open={showExpandedPreview}
-          onOpenChange={(open) => {
-            if (!open) {
-              setExpandedSelectedBlockId(null)
-            }
-            setShowExpandedPreview(open)
-          }}
-        >
+        <Modal open={showExpandedPreview} onOpenChange={setShowExpandedPreview}>
           <ModalContent size='full' className='flex h-[90vh] flex-col'>
             <ModalHeader>
               {previewMode === 'selected' && selectedVersionInfo
                 ? selectedVersionInfo.name || `v${selectedVersion}`
                 : 'Live Workflow'}
             </ModalHeader>
-            <ModalBody className='!p-0 min-h-0 flex-1'>
-              <div className='flex h-full w-full overflow-hidden'>
-                <div className='h-full flex-1'>
-                  <WorkflowPreview
-                    workflowState={workflowToShow}
-                    isPannable={true}
-                    defaultPosition={{ x: 0, y: 0 }}
-                    defaultZoom={0.6}
-                    onNodeClick={(blockId) => {
-                      setExpandedSelectedBlockId(blockId)
-                    }}
-                    onPaneClick={() => setExpandedSelectedBlockId(null)}
-                    selectedBlockId={expandedSelectedBlockId}
-                  />
-                </div>
-                {expandedSelectedBlockId && workflowToShow.blocks?.[expandedSelectedBlockId] && (
-                  <BlockDetailsSidebar
-                    block={workflowToShow.blocks[expandedSelectedBlockId]}
-                    workflowVariables={workflowToShow.variables}
-                    loops={workflowToShow.loops}
-                    parallels={workflowToShow.parallels}
-                    onClose={() => setExpandedSelectedBlockId(null)}
-                  />
-                )}
-              </div>
+            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
+              <Preview workflowState={workflowToShow} autoSelectLeftmost />
             </ModalBody>
           </ModalContent>
         </Modal>

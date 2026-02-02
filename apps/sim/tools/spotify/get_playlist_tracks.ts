@@ -1,5 +1,9 @@
+import type {
+  SpotifyGetPlaylistTracksParams,
+  SpotifyGetPlaylistTracksResponse,
+} from '@/tools/spotify/types'
+import { TRACK_LIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetPlaylistTracksParams, SpotifyGetPlaylistTracksResponse } from './types'
 
 export const spotifyGetPlaylistTracksTool: ToolConfig<
   SpotifyGetPlaylistTracksParams,
@@ -25,22 +29,22 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 50,
       description: 'Maximum number of tracks to return (1-100)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of the first track to return',
+      description: 'Index of the first track to return for pagination',
     },
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO 3166-1 alpha-2 country code for track availability',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code for track availability (e.g., "US", "GB")',
     },
   },
 
@@ -103,7 +107,11 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
         properties: {
           added_at: { type: 'string', description: 'When the track was added' },
           added_by: { type: 'string', description: 'User ID who added the track' },
-          track: { type: 'object', description: 'Track information' },
+          track: {
+            type: 'object',
+            description: 'Track information',
+            properties: TRACK_LIST_OUTPUT_PROPERTIES,
+          },
         },
       },
     },

@@ -10,6 +10,7 @@ export const SYSTEM_SUBBLOCK_IDS: string[] = [
   'webhookUrlDisplay', // Webhook URL display
   'samplePayload', // Example payload display
   'setupScript', // Setup script code (e.g., Apps Script)
+  'scheduleInfo', // Schedule status display (next run, last run)
 ]
 
 /**

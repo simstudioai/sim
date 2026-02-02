@@ -17,8 +17,9 @@ export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCanc
     eventUuid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Scheduled event UUID to cancel (can be full URI or just the UUID)',
+      visibility: 'user-or-llm',
+      description:
+        'Scheduled event UUID to cancel. Format: UUID (e.g., "abc123-def456") or full URI (e.g., "https://api.calendly.com/scheduled_events/abc123-def456")',
     },
     reason: {
       type: 'string',

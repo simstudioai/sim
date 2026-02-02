@@ -86,7 +86,13 @@ describe('SnapshotService', () => {
             type: 'agent',
             position: { x: 100, y: 200 },
 
-            subBlocks: {},
+            subBlocks: {
+              prompt: {
+                id: 'prompt',
+                type: 'short-input',
+                value: 'Hello world',
+              },
+            },
             outputs: {},
             enabled: true,
             horizontalHandles: true,
@@ -104,8 +110,14 @@ describe('SnapshotService', () => {
         blocks: {
           block1: {
             ...baseState.blocks.block1,
-            // Different block state - we can change outputs to make it different
-            outputs: { response: { type: 'string', description: 'different result' } },
+            // Different subBlock value - this is a meaningful change
+            subBlocks: {
+              prompt: {
+                id: 'prompt',
+                type: 'short-input',
+                value: 'Different prompt',
+              },
+            },
           },
         },
       }

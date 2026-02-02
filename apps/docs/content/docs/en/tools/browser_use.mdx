@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="browser_use"
-  color="#E0E0E0"
+  color="#181C1E"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -43,10 +43,10 @@ Runs a browser automation task using BrowserUse
 | --------- | ---- | -------- | ----------- |
 | `task` | string | Yes | What should the browser agent do |
 | `variables` | json | No | Optional variables to use as secrets \(format: \{key: value\}\) |
-| `format` | string | No | No description |
 | `save_browser_data` | boolean | No | Whether to save browser data |
 | `model` | string | No | LLM model to use \(default: gpt-4o\) |
 | `apiKey` | string | Yes | API key for BrowserUse API |
+| `profile_id` | string | No | Browser profile ID for persistent sessions \(cookies, login state\) |
 
 #### Output
 

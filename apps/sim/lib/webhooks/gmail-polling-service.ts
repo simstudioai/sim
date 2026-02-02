@@ -161,7 +161,7 @@ export async function pollGmailWebhooks() {
         const metadata = webhookData.providerConfig as any
         const credentialId: string | undefined = metadata?.credentialId
         const userId: string | undefined = metadata?.userId
-        const credentialSetId: string | undefined = metadata?.credentialSetId
+        const credentialSetId: string | undefined = webhookData.credentialSetId ?? undefined
 
         if (!credentialId && !userId) {
           logger.error(`[${requestId}] Missing credential info for webhook ${webhookId}`)
@@ -697,7 +697,6 @@ async function processEmails(
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-Webhook-Secret': webhookData.secret || '',
               'User-Agent': 'Sim/1.0',
             },
             body: JSON.stringify(payload),
@@ -766,17 +765,21 @@ async function markEmailAsRead(accessToken: string, messageId: string) {
 }
 
 async function updateWebhookLastChecked(webhookId: string, timestamp: string, historyId?: string) {
-  const result = await db.select().from(webhook).where(eq(webhook.id, webhookId))
-  const existingConfig = (result[0]?.providerConfig as Record<string, any>) || {}
-  await db
-    .update(webhook)
-    .set({
-      providerConfig: {
-        ...existingConfig,
-        lastCheckedTimestamp: timestamp,
-        ...(historyId ? { historyId } : {}),
-      } as any,
-      updatedAt: new Date(),
-    })
-    .where(eq(webhook.id, webhookId))
+  try {
+    const result = await db.select().from(webhook).where(eq(webhook.id, webhookId))
+    const existingConfig = (result[0]?.providerConfig as Record<string, any>) || {}
+    await db
+      .update(webhook)
+      .set({
+        providerConfig: {
+          ...existingConfig,
+          lastCheckedTimestamp: timestamp,
+          ...(historyId ? { historyId } : {}),
+        } as any,
+        updatedAt: new Date(),
+      })
+      .where(eq(webhook.id, webhookId))
+  } catch (error) {
+    logger.error(`Error updating webhook ${webhookId} last checked timestamp:`, error)
+  }
 }

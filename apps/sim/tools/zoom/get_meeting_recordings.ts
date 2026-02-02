@@ -3,6 +3,7 @@ import type {
   ZoomGetMeetingRecordingsParams,
   ZoomGetMeetingRecordingsResponse,
 } from '@/tools/zoom/types'
+import { RECORDING_OUTPUT_PROPERTIES } from '@/tools/zoom/types'
 
 export const zoomGetMeetingRecordingsTool: ToolConfig<
   ZoomGetMeetingRecordingsParams,
@@ -24,7 +25,8 @@ export const zoomGetMeetingRecordingsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The meeting ID or meeting UUID',
+      description:
+        'The meeting ID or meeting UUID (e.g., "1234567890" or "4444AAABBBccccc12345==")',
     },
     includeFolderItems: {
       type: 'boolean',
@@ -116,16 +118,7 @@ export const zoomGetMeetingRecordingsTool: ToolConfig<
     recording: {
       type: 'object',
       description: 'The meeting recording with all files',
-      properties: {
-        uuid: { type: 'string', description: 'Meeting UUID' },
-        id: { type: 'number', description: 'Meeting ID' },
-        topic: { type: 'string', description: 'Meeting topic' },
-        start_time: { type: 'string', description: 'Meeting start time' },
-        duration: { type: 'number', description: 'Meeting duration in minutes' },
-        total_size: { type: 'number', description: 'Total size of recordings in bytes' },
-        share_url: { type: 'string', description: 'URL to share recordings' },
-        recording_files: { type: 'array', description: 'List of recording files' },
-      },
+      properties: RECORDING_OUTPUT_PROPERTIES,
     },
   },
 }

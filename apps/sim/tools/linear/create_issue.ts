@@ -1,4 +1,5 @@
 import type { LinearCreateIssueParams, LinearCreateIssueResponse } from '@/tools/linear/types'
+import { ISSUE_EXTENDED_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCreateIssueResponse> =
@@ -17,14 +18,14 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
       teamId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
-        description: 'Linear team ID',
+        visibility: 'user-or-llm',
+        description: 'Linear team ID (UUID format) where the issue will be created',
       },
       projectId: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Linear project ID',
+        visibility: 'user-or-llm',
+        description: 'Linear project ID (UUID format) to associate with the issue',
       },
       title: {
         type: 'string',
@@ -267,27 +268,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
       issue: {
         type: 'object',
         description: 'The created issue with all its properties',
-        properties: {
-          id: { type: 'string', description: 'Issue ID' },
-          title: { type: 'string', description: 'Issue title' },
-          description: { type: 'string', description: 'Issue description' },
-          priority: { type: 'number', description: 'Issue priority' },
-          estimate: { type: 'number', description: 'Issue estimate' },
-          url: { type: 'string', description: 'Issue URL' },
-          dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
-          state: { type: 'object', description: 'Issue state' },
-          assignee: { type: 'object', description: 'Assigned user' },
-          teamId: { type: 'string', description: 'Team ID' },
-          projectId: { type: 'string', description: 'Project ID' },
-          cycleId: { type: 'string', description: 'Cycle ID' },
-          cycleNumber: { type: 'number', description: 'Cycle number' },
-          cycleName: { type: 'string', description: 'Cycle name' },
-          parentId: { type: 'string', description: 'Parent issue ID' },
-          parentTitle: { type: 'string', description: 'Parent issue title' },
-          projectMilestoneId: { type: 'string', description: 'Project milestone ID' },
-          projectMilestoneName: { type: 'string', description: 'Project milestone name' },
-          labels: { type: 'array', description: 'Issue labels' },
-        },
+        properties: ISSUE_EXTENDED_OUTPUT_PROPERTIES,
       },
     },
   }

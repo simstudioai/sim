@@ -10,19 +10,20 @@ export const youtubeChannelVideosTool: ToolConfig<
 > = {
   id: 'youtube_channel_videos',
   name: 'YouTube Channel Videos',
-  description: 'Get all videos from a specific YouTube channel, with sorting options.',
-  version: '1.0.0',
+  description:
+    'Search for videos from a specific YouTube channel with sorting options. For complete channel video list, use channel_info to get uploadsPlaylistId, then use playlist_items.',
+  version: '1.1.0',
   params: {
     channelId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'YouTube channel ID to get videos from',
+      description: 'YouTube channel ID starting with "UC" (24-character string) to get videos from',
     },
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 10,
       description: 'Maximum number of videos to return (1-50)',
     },
@@ -30,13 +31,14 @@ export const youtubeChannelVideosTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort order: "date" (newest first), "rating", "relevance", "title", "viewCount"',
+      description:
+        'Sort order: "date" (newest first, default), "rating", "relevance", "title", "viewCount"',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page token for pagination (from previous response nextPageToken)',
     },
     apiKey: {
       type: 'string',
@@ -52,11 +54,9 @@ export const youtubeChannelVideosTool: ToolConfig<
         params.channelId
       )}&key=${params.apiKey}`
       url += `&maxResults=${Number(params.maxResults || 10)}`
-      if (params.order) {
-        url += `&order=${params.order}`
-      }
+      url += `&order=${params.order || 'date'}`
       if (params.pageToken) {
-        url += `&pageToken=${params.pageToken}`
+        url += `&pageToken=${encodeURIComponent(params.pageToken)}`
       }
       return url
     },
@@ -68,23 +68,38 @@ export const youtubeChannelVideosTool: ToolConfig<
 
   transformResponse: async (response: Response): Promise<YouTubeChannelVideosResponse> => {
     const data = await response.json()
+
+    if (data.error) {
+      return {
+        success: false,
+        output: {
+          items: [],
+          totalResults: 0,
+          nextPageToken: null,
+        },
+        error: data.error.message || 'Failed to fetch channel videos',
+      }
+    }
+
     const items = (data.items || []).map((item: any) => ({
-      videoId: item.id?.videoId,
-      title: item.snippet?.title,
-      description: item.snippet?.description,
+      videoId: item.id?.videoId ?? '',
+      title: item.snippet?.title ?? '',
+      description: item.snippet?.description ?? '',
       thumbnail:
         item.snippet?.thumbnails?.medium?.url ||
         item.snippet?.thumbnails?.default?.url ||
         item.snippet?.thumbnails?.high?.url ||
         '',
-      publishedAt: item.snippet?.publishedAt || '',
+      publishedAt: item.snippet?.publishedAt ?? '',
+      channelTitle: item.snippet?.channelTitle ?? '',
     }))
+
     return {
       success: true,
       output: {
         items,
-        totalResults: data.pageInfo?.totalResults || 0,
-        nextPageToken: data.nextPageToken,
+        totalResults: data.pageInfo?.totalResults || items.length,
+        nextPageToken: data.nextPageToken ?? null,
       },
     }
   },
@@ -101,6 +116,7 @@ export const youtubeChannelVideosTool: ToolConfig<
           description: { type: 'string', description: 'Video description' },
           thumbnail: { type: 'string', description: 'Video thumbnail URL' },
           publishedAt: { type: 'string', description: 'Video publish date' },
+          channelTitle: { type: 'string', description: 'Channel name' },
         },
       },
     },

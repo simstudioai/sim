@@ -71,20 +71,21 @@ export const moveTool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMoveRe
     calendarId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Source calendar ID (defaults to primary)',
+      visibility: 'user-or-llm',
+      description:
+        'Source Google Calendar ID (e.g., primary or calendar@group.calendar.google.com)',
     },
     eventId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Event ID to move',
+      visibility: 'user-or-llm',
+      description: 'Google Calendar event ID to move',
     },
     destinationCalendarId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Destination calendar ID',
+      visibility: 'user-or-llm',
+      description: 'Destination Google Calendar ID',
     },
     sendUpdates: {
       type: 'string',

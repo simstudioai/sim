@@ -3,6 +3,7 @@ import type {
   SalesforceCreateContactParams,
   SalesforceCreateContactResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -26,74 +27,74 @@ export const salesforceCreateContactTool: ToolConfig<
     lastName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Last name (required)',
     },
     firstName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'First name',
     },
     email: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Email address',
     },
     phone: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Phone number',
     },
     accountId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Account ID to associate contact with',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Account ID (18-character string starting with 001)',
     },
-    title: { type: 'string', required: false, visibility: 'user-only', description: 'Job title' },
+    title: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Job title' },
     department: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Department',
     },
     mailingStreet: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing street',
     },
     mailingCity: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing city',
     },
     mailingState: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing state',
     },
     mailingPostalCode: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing postal code',
     },
     mailingCountry: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing country',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Contact description',
     },
   },
@@ -151,11 +152,7 @@ export const salesforceCreateContactTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Created contact data',
-      properties: {
-        id: { type: 'string', description: 'Created contact ID' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-        created: { type: 'boolean', description: 'Whether contact was created' },
-      },
+      properties: SOBJECT_CREATE_OUTPUT_PROPERTIES,
     },
   },
 }

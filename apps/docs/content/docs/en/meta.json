@@ -3,6 +3,7 @@
   "pages": [
     "./introduction/index",
     "./getting-started/index",
+    "./quick-reference/index",
     "triggers",
     "blocks",
     "tools",

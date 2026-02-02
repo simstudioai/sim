@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  type MailchimpMember,
+} from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import { buildMailchimpUrl, handleMailchimpError, type MailchimpMember } from './types'
 
 const logger = createLogger('MailchimpAddMember')
 
@@ -41,32 +45,33 @@ export const mailchimpAddMemberTool: ToolConfig<
     listId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The unique ID for the list',
+      visibility: 'user-or-llm',
+      description: 'The unique ID for the audience/list (e.g., "abc123def4")',
     },
     emailAddress: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Member email address',
+      visibility: 'user-or-llm',
+      description: 'Member email address (e.g., "user@example.com")',
     },
     status: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Subscriber status',
+      visibility: 'user-or-llm',
+      description:
+        'Subscriber status: "subscribed", "unsubscribed", "cleaned", "pending", or "transactional"',
     },
     mergeFields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'JSON object of merge fields',
+      visibility: 'user-or-llm',
+      description: 'JSON object of merge fields (e.g., {"FNAME": "John", "LNAME": "Doe"})',
     },
     interests: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'JSON object of interests',
+      visibility: 'user-or-llm',
+      description: 'JSON object of interest IDs and their boolean values (e.g., {"abc123": true})',
     },
   },
 

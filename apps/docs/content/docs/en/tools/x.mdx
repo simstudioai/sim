@@ -43,8 +43,8 @@ Post new tweets, reply to tweets, or create polls on X (Twitter)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text content of your tweet |
-| `replyTo` | string | No | ID of the tweet to reply to |
+| `text` | string | Yes | The text content of your tweet \(max 280 characters\) |
+| `replyTo` | string | No | ID of the tweet to reply to \(e.g., 1234567890123456789\) |
 | `mediaIds` | array | No | Array of media IDs to attach to the tweet |
 | `poll` | object | No | Poll configuration for the tweet |
 
@@ -53,16 +53,14 @@ Post new tweets, reply to tweets, or create polls on X (Twitter)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tweet` | object | The newly created tweet data |
-| ↳ `id` | string | Tweet ID |
-| ↳ `text` | string | Tweet content text |
-| ↳ `createdAt` | string | Tweet creation timestamp |
-| ↳ `authorId` | string | ID of the tweet author |
-| ↳ `conversationId` | string | Conversation thread ID |
-| ↳ `attachments` | object | Media or poll attachments |
-|   ↳ `mediaKeys` | array | Media attachment keys |
-|   ↳ `pollId` | string | Poll ID if poll attached |
-| ↳ `mediaKeys` | array | Media attachment keys |
-| ↳ `pollId` | string | Poll ID if poll attached |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet content text |
+|   ↳ `createdAt` | string | Tweet creation timestamp |
+|   ↳ `authorId` | string | ID of the tweet author |
+|   ↳ `conversationId` | string | Conversation thread ID |
+|   ↳ `attachments` | object | Media or poll attachments |
+|     ↳ `mediaKeys` | array | Media attachment keys |
+|     ↳ `pollId` | string | Poll ID if poll attached |
 
 ### `x_read`
 
@@ -72,7 +70,7 @@ Read tweet details, including replies and conversation context
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tweetId` | string | Yes | ID of the tweet to read |
+| `tweetId` | string | Yes | ID of the tweet to read \(e.g., 1234567890123456789\) |
 | `includeReplies` | boolean | No | Whether to include replies to the tweet |
 
 #### Output
@@ -80,10 +78,10 @@ Read tweet details, including replies and conversation context
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tweet` | object | The main tweet data |
-| ↳ `id` | string | Tweet ID |
-| ↳ `text` | string | Tweet content text |
-| ↳ `createdAt` | string | Tweet creation timestamp |
-| ↳ `authorId` | string | ID of the tweet author |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet content text |
+|   ↳ `createdAt` | string | Tweet creation timestamp |
+|   ↳ `authorId` | string | ID of the tweet author |
 | `context` | object | Conversation context including parent and root tweets |
 
 ### `x_search`
@@ -94,8 +92,8 @@ Search for tweets using keywords, hashtags, or advanced queries
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Search query \(supports X search operators\) |
-| `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 100\) |
+| `query` | string | Yes | Search query \(e.g., "AI news", "#technology", "from:username"\). Supports X search operators |
+| `maxResults` | number | No | Maximum number of results to return \(e.g., 10, 25, 50\). Default: 10, max: 100 |
 | `startTime` | string | No | Start time for search \(ISO 8601 format\) |
 | `endTime` | string | No | End time for search \(ISO 8601 format\) |
 | `sortOrder` | string | No | Sort order for results \(recency or relevancy\) |
@@ -111,9 +109,9 @@ Search for tweets using keywords, hashtags, or advanced queries
 |   ↳ `authorId` | string | Author user ID |
 | `includes` | object | Additional data including user profiles and media |
 | `meta` | object | Search metadata including result count and pagination tokens |
-| ↳ `resultCount` | number | Number of results returned |
-| ↳ `newestId` | string | ID of the newest tweet |
-| ↳ `oldestId` | string | ID of the oldest tweet |
+|   ↳ `resultCount` | number | Number of results returned |
+|   ↳ `newestId` | string | ID of the newest tweet |
+|   ↳ `oldestId` | string | ID of the oldest tweet |
 
 ### `x_user`
 
@@ -123,24 +121,21 @@ Get user profile information
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `username` | string | Yes | Username to look up \(without @ symbol\) |
+| `username` | string | Yes | Username to look up without @ symbol \(e.g., elonmusk, openai\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `user` | object | X user profile information |
-| ↳ `id` | string | User ID |
-| ↳ `username` | string | Username without @ symbol |
-| ↳ `name` | string | Display name |
-| ↳ `description` | string | User bio/description |
-| ↳ `verified` | boolean | Whether the user is verified |
-| ↳ `metrics` | object | User statistics |
-|   ↳ `followersCount` | number | Number of followers |
-|   ↳ `followingCount` | number | Number of users following |
-|   ↳ `tweetCount` | number | Total number of tweets |
-| ↳ `followersCount` | number | Number of followers |
-| ↳ `followingCount` | number | Number of users following |
-| ↳ `tweetCount` | number | Total number of tweets |
+|   ↳ `id` | string | User ID |
+|   ↳ `username` | string | Username without @ symbol |
+|   ↳ `name` | string | Display name |
+|   ↳ `description` | string | User bio/description |
+|   ↳ `verified` | boolean | Whether the user is verified |
+|   ↳ `metrics` | object | User statistics |
+|     ↳ `followersCount` | number | Number of followers |
+|     ↳ `followingCount` | number | Number of users following |
+|     ↳ `tweetCount` | number | Total number of tweets |
 
 

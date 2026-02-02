@@ -133,9 +133,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const finalWorkflowData = {
         ...workflowData,
         state: {
-          // Default values for expected properties
           deploymentStatuses: {},
-          // Data from normalized tables
           blocks: normalizedData.blocks,
           edges: normalizedData.edges,
           loops: normalizedData.loops,
@@ -143,8 +141,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           lastSaved: Date.now(),
           isDeployed: workflowData.isDeployed || false,
           deployedAt: workflowData.deployedAt,
+          metadata: {
+            name: workflowData.name,
+            description: workflowData.description,
+          },
         },
-        // Include workflow variables
         variables: workflowData.variables || {},
       }
 
@@ -166,6 +167,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         lastSaved: Date.now(),
         isDeployed: workflowData.isDeployed || false,
         deployedAt: workflowData.deployedAt,
+        metadata: {
+          name: workflowData.name,
+          description: workflowData.description,
+        },
       },
       variables: workflowData.variables || {},
     }
@@ -356,7 +361,10 @@ export async function DELETE(
       const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
       const socketResponse = await fetch(`${socketUrl}/api/workflow-deleted`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': env.INTERNAL_API_SECRET,
+        },
         body: JSON.stringify({ workflowId }),
       })
 

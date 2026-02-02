@@ -1,3 +1,4 @@
+import { ALBUM_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetAlbumTracksParams {
@@ -50,16 +51,16 @@ export const spotifyGetAlbumTracksTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of tracks to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of first track to return',
+      description: 'Index of first track to return for pagination',
     },
   },
 
@@ -105,7 +106,11 @@ export const spotifyGetAlbumTracksTool: ToolConfig<
   },
 
   outputs: {
-    tracks: { type: 'json', description: 'List of tracks' },
+    tracks: {
+      type: 'array',
+      description: 'List of tracks',
+      items: { type: 'object', properties: ALBUM_TRACK_OUTPUT_PROPERTIES },
+    },
     total: { type: 'number', description: 'Total number of tracks' },
     next: { type: 'string', description: 'URL for next page', optional: true },
   },

@@ -3,6 +3,7 @@ import type {
   SalesforceGetContactsParams,
   SalesforceGetContactsResponse,
 } from '@/tools/salesforce/types'
+import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -29,26 +30,27 @@ export const salesforceGetContactsTool: ToolConfig<
     contactId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Contact ID (if provided, returns single contact)',
+      visibility: 'user-or-llm',
+      description:
+        'Salesforce Contact ID (18-character string starting with 003) to get a single contact',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results (default: 100, max: 2000). Only for list query.',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results (default: 100, max: 2000). Only for list query.',
     },
     fields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated fields (e.g., "Id,FirstName,LastName,Email,Phone")',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated field API names (e.g., "Id,FirstName,LastName,Email,Phone")',
     },
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Order by field (e.g., "LastName ASC"). Only for list query.',
+      visibility: 'user-or-llm',
+      description: 'Field and direction for sorting (e.g., "LastName ASC"). Only for list query.',
     },
   },
 
@@ -130,27 +132,8 @@ export const salesforceGetContactsTool: ToolConfig<
       properties: {
         contacts: { type: 'array', description: 'Array of contacts (list query)' },
         contact: { type: 'object', description: 'Single contact (by ID)' },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-          properties: {
-            nextRecordsUrl: {
-              type: 'string',
-              description: 'URL for next page of results',
-              optional: true,
-            },
-            totalSize: { type: 'number', description: 'Total number of records' },
-            done: { type: 'boolean', description: 'Whether all records returned' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Response metadata',
-          properties: {
-            totalReturned: { type: 'number', description: 'Number of contacts returned' },
-            hasMore: { type: 'boolean', description: 'Whether more records exist' },
-          },
-        },
+        paging: QUERY_PAGING_OUTPUT,
+        metadata: RESPONSE_METADATA_OUTPUT,
         singleContact: { type: 'boolean', description: 'Whether single contact was returned' },
         success: { type: 'boolean', description: 'Salesforce operation success' },
       },

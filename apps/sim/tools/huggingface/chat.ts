@@ -34,8 +34,9 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
     model: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Model to use for chat completions (e.g., deepseek/deepseek-v3-0324)',
+      visibility: 'user-or-llm',
+      description:
+        'Model to use for chat completions (e.g., "deepseek/deepseek-v3-0324", "meta-llama/Llama-3.3-70B-Instruct")',
     },
     maxTokens: {
       type: 'number',

@@ -23,8 +23,9 @@ export const getEventTypeTool: ToolConfig<
     eventTypeUuid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Event type UUID (can be full URI or just the UUID)',
+      visibility: 'user-or-llm',
+      description:
+        'Event type UUID. Format: UUID (e.g., "abc123-def456") or full URI (e.g., "https://api.calendly.com/event_types/abc123-def456")',
     },
   },
 

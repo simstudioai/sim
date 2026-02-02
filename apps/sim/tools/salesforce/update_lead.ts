@@ -2,6 +2,7 @@ import type {
   SalesforceUpdateLeadParams,
   SalesforceUpdateLeadResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -26,42 +27,57 @@ export const salesforceUpdateLeadTool: ToolConfig<
     leadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Lead ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Lead ID to update (18-character string starting with 00Q)',
     },
     lastName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Last name',
     },
-    company: { type: 'string', required: false, visibility: 'user-only', description: 'Company' },
+    company: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Company name',
+    },
     firstName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'First name',
     },
-    email: { type: 'string', required: false, visibility: 'user-only', description: 'Email' },
-    phone: { type: 'string', required: false, visibility: 'user-only', description: 'Phone' },
+    email: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Email address',
+    },
+    phone: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Phone number',
+    },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Lead status',
+      visibility: 'user-or-llm',
+      description: 'Lead status (e.g., Open, Working, Closed)',
     },
     leadSource: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Lead source',
+      visibility: 'user-or-llm',
+      description: 'Lead source (e.g., Web, Referral, Campaign)',
     },
-    title: { type: 'string', required: false, visibility: 'user-only', description: 'Title' },
+    title: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Job title' },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Description',
+      visibility: 'user-or-llm',
+      description: 'Lead description',
     },
   },
 
@@ -107,10 +123,7 @@ export const salesforceUpdateLeadTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated lead data',
-      properties: {
-        id: { type: 'string', description: 'Updated lead ID' },
-        updated: { type: 'boolean', description: 'Whether lead was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

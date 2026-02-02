@@ -2,6 +2,7 @@ import type {
   LinearCreateCustomerStatusParams,
   LinearCreateCustomerStatusResponse,
 } from '@/tools/linear/types'
+import { CUSTOMER_STATUS_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateCustomerStatusTool: ToolConfig<
@@ -136,6 +137,7 @@ export const linearCreateCustomerStatusTool: ToolConfig<
     customerStatus: {
       type: 'object',
       description: 'The created customer status',
+      properties: CUSTOMER_STATUS_OUTPUT_PROPERTIES,
     },
   },
 }

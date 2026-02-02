@@ -23,8 +23,8 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
     matterId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The matter ID',
+      visibility: 'user-or-llm',
+      description: 'The matter ID (e.g., "12345678901234567890")',
     },
     holdName: {
       type: 'string',
@@ -41,32 +41,37 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
     accountEmails: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of user emails to put on hold',
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of user emails to put on hold (e.g., "user1@example.com, user2@example.com")',
     },
     orgUnitId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization unit ID to put on hold (alternative to accounts)',
+      visibility: 'user-or-llm',
+      description:
+        'Organization unit ID to put on hold (e.g., "id:03ph8a2z1enx5q0", alternative to accounts)',
     },
     terms: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Search terms to filter held content (for MAIL and GROUPS corpus)',
+      visibility: 'user-or-llm',
+      description:
+        'Search terms to filter held content (e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus)',
     },
     startTime: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Start time for date filtering (ISO 8601 format, for MAIL and GROUPS corpus)',
+      visibility: 'user-or-llm',
+      description:
+        'Start time for date filtering (ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus)',
     },
     endTime: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'End time for date filtering (ISO 8601 format, for MAIL and GROUPS corpus)',
+      visibility: 'user-or-llm',
+      description:
+        'End time for date filtering (ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus)',
     },
     includeSharedDrives: {
       type: 'boolean',

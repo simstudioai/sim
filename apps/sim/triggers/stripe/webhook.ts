@@ -186,7 +186,7 @@ export const stripeWebhookTrigger: TriggerConfig = {
         'Click "Create Destination" to save',
         'After creating the endpoint, click "Reveal" next to "Signing secret" and copy it',
         'Paste the signing secret into the <strong>Webhook Signing Secret</strong> field above',
-        'Click "Save" to activate your webhook trigger',
+        'Deploy your workflow to activate the webhook trigger',
       ]
         .map(
           (instruction, index) =>
@@ -220,7 +220,8 @@ export const stripeWebhookTrigger: TriggerConfig = {
     },
     data: {
       type: 'json',
-      description: 'Event data containing the affected Stripe object',
+      description:
+        'Event data containing the affected Stripe object. Structure varies by event type - access via data.object for the resource (PaymentIntent, Customer, Invoice, etc.)',
     },
     livemode: {
       type: 'boolean',
@@ -232,7 +233,8 @@ export const stripeWebhookTrigger: TriggerConfig = {
     },
     request: {
       type: 'json',
-      description: 'Information about the request that triggered this event',
+      description:
+        'Information about the API request that triggered this event (id, idempotency_key)',
     },
   },
 

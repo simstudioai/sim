@@ -1,4 +1,142 @@
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
+
+/**
+ * Shared output property definitions for Tavily API responses.
+ * Based on Tavily API documentation: https://docs.tavily.com/documentation/api-reference
+ */
+
+/**
+ * Output definition for search result items
+ */
+export const TAVILY_SEARCH_RESULT_OUTPUT_PROPERTIES = {
+  title: { type: 'string', description: 'Result title' },
+  url: { type: 'string', description: 'Result URL' },
+  content: { type: 'string', description: 'Brief description or content snippet' },
+  score: { type: 'number', description: 'Relevance score', optional: true },
+  raw_content: {
+    type: 'string',
+    description: 'Full parsed HTML content (if requested)',
+    optional: true,
+  },
+  favicon: { type: 'string', description: 'Favicon URL for the domain', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete search result output definition
+ */
+export const TAVILY_SEARCH_RESULT_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Search result item',
+  properties: TAVILY_SEARCH_RESULT_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for image items in search results
+ */
+export const TAVILY_IMAGE_OUTPUT_PROPERTIES = {
+  url: { type: 'string', description: 'Image URL' },
+  description: { type: 'string', description: 'Image description', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete image output definition
+ */
+export const TAVILY_IMAGE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Image result',
+  properties: TAVILY_IMAGE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for usage statistics
+ */
+export const TAVILY_USAGE_OUTPUT_PROPERTIES = {
+  credits: { type: 'number', description: 'Number of credits consumed' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete usage output definition
+ */
+export const TAVILY_USAGE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Credit usage details',
+  properties: TAVILY_USAGE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for extract result items
+ */
+export const TAVILY_EXTRACT_RESULT_OUTPUT_PROPERTIES = {
+  url: { type: 'string', description: 'The source URL' },
+  raw_content: { type: 'string', description: 'Full extracted content from the page' },
+  images: {
+    type: 'array',
+    description: 'Image URLs (when include_images is true)',
+    optional: true,
+    items: { type: 'string' },
+  },
+  favicon: { type: 'string', description: 'Favicon URL for the result', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete extract result output definition
+ */
+export const TAVILY_EXTRACT_RESULT_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Extracted content from URL',
+  properties: TAVILY_EXTRACT_RESULT_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for failed extraction items
+ */
+export const TAVILY_FAILED_RESULT_OUTPUT_PROPERTIES = {
+  url: { type: 'string', description: 'The URL that failed extraction' },
+  error: { type: 'string', description: 'Error message describing why extraction failed' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete failed result output definition
+ */
+export const TAVILY_FAILED_RESULT_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Failed extraction result',
+  properties: TAVILY_FAILED_RESULT_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for crawl result items
+ */
+export const TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES = {
+  url: { type: 'string', description: 'The crawled page URL' },
+  raw_content: { type: 'string', description: 'Full extracted page content' },
+  favicon: { type: 'string', description: 'Favicon URL for the result', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete crawl result output definition
+ */
+export const TAVILY_CRAWL_RESULT_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Crawled page result',
+  properties: TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for map result items
+ */
+export const TAVILY_MAP_RESULT_OUTPUT_PROPERTIES = {
+  url: { type: 'string', description: 'Discovered URL' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete map result output definition
+ */
+export const TAVILY_MAP_RESULT_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Mapped URL result',
+  properties: TAVILY_MAP_RESULT_OUTPUT_PROPERTIES,
+}
 
 export interface TavilySearchResult {
   title: string

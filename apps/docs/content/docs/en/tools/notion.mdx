@@ -10,6 +10,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#181C1E"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+The Notion tool integration enables your agents to read, create, and manage Notion pages and databases directly within your workflows. This allows you to automate the retrieval and updating of structured content, notes, documents, and more from your Notion workspace.
+
+With the Notion tool, you can:
+
+- **Read pages or databases**: Extract rich content or metadata from specified Notion pages or entire databases
+- **Create new content**: Programmatically create new pages or databases for dynamic content generation
+- **Append content**: Add new blocks or properties to existing pages and databases
+- **Query databases**: Run advanced filters and searches on structured Notion data for custom workflows
+- **Search your workspace**: Locate pages and databases across your Notion workspace automatically
+
+This tool is ideal for scenarios where agents need to synchronize information, generate reports, or maintain structured notes within Notion. By bringing Notion's capabilities into automated workflows, you empower your agents to interface with knowledge, documentation, and project management data programmatically and seamlessly.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.
@@ -26,17 +41,17 @@ Read content from a Notion page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `pageId` | string | Yes | The ID of the Notion page to read |
+| `pageId` | string | Yes | The UUID of the Notion page to read |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `url` | string | Notion page URL |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `content` | string | Page content in markdown format |
 | `title` | string | Page title |
-| `url` | string | Page URL |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
 
 ### `notion_read_database`
 
@@ -46,18 +61,18 @@ Read database information and structure from Notion
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `databaseId` | string | Yes | The ID of the Notion database to read |
+| `databaseId` | string | Yes | The UUID of the Notion database to read |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Database ID |
-| `title` | string | Database title |
-| `url` | string | Database URL |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
+| `id` | string | Database UUID |
+| `url` | string | Notion database URL |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `properties` | object | Database properties schema |
+| `title` | string | Database title |
 
 ### `notion_write`
 
@@ -67,7 +82,7 @@ Append content to a Notion page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `pageId` | string | Yes | The ID of the Notion page to append content to |
+| `pageId` | string | Yes | The UUID of the Notion page to append content to |
 | `content` | string | Yes | The content to append to the page |
 
 #### Output
@@ -84,7 +99,7 @@ Create a new page in Notion
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `parentId` | string | Yes | ID of the parent page |
+| `parentId` | string | Yes | The UUID of the parent Notion page where this page will be created |
 | `title` | string | No | Title of the new page |
 | `content` | string | No | Optional content to add to the page upon creation |
 
@@ -92,11 +107,11 @@ Create a new page in Notion
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Page ID |
+| `id` | string | Page UUID |
+| `url` | string | Notion page URL |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `title` | string | Page title |
-| `url` | string | Page URL |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
 
 ### `notion_query_database`
 
@@ -106,7 +121,7 @@ Query and filter Notion database entries with advanced filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `databaseId` | string | Yes | The ID of the database to query |
+| `databaseId` | string | Yes | The UUID of the Notion database to query |
 | `filter` | string | No | Filter conditions as JSON \(optional\) |
 | `sorts` | string | No | Sort criteria as JSON array \(optional\) |
 | `pageSize` | number | No | Number of results to return \(default: 100, max: 100\) |
@@ -115,13 +130,43 @@ Query and filter Notion database entries with advanced filtering
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | array | Array of Notion page objects from the database |
-|   ↳ `id` | string | Page ID |
-|   ↳ `created_time` | string | Creation timestamp |
-|   ↳ `last_edited_time` | string | Last edit timestamp |
-|   ↳ `url` | string | Page URL |
+| `results` | array | Array of page objects from the database |
+|   ↳ `object` | string | Always "page" |
+|   ↳ `id` | string | Page UUID |
+|   ↳ `created_time` | string | ISO 8601 creation timestamp |
+|   ↳ `last_edited_time` | string | ISO 8601 last edit timestamp |
+|   ↳ `created_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `last_edited_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `archived` | boolean | Whether the page is archived |
+|   ↳ `in_trash` | boolean | Whether the page is in trash |
+|   ↳ `url` | string | Notion page URL |
+|   ↳ `public_url` | string | Public web URL if shared, null otherwise |
+|   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
+|     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
+|     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
+|     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
+|     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
+|     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `icon` | object | Page/database icon \(emoji, custom_emoji, or file\) |
+|     ↳ `url` | string | Authenticated URL valid for one hour |
+|     ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|   ↳ `cover` | object | Page/database cover image |
+|     ↳ `type` | string | File type: "file", "file_upload", or "external" |
+|     ↳ `file` | object | Notion-hosted file object \(when type is "file"\) |
+|       ↳ `url` | string | Authenticated URL valid for one hour |
+|       ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|     ↳ `file_upload` | object | API-uploaded file object \(when type is "file_upload"\) |
+|       ↳ `id` | string | File upload UUID |
+|     ↳ `external` | object | External file object \(when type is "external"\) |
+|       ↳ `url` | string | External file URL \(never expires\) |
+|   ↳ `properties` | object | Page property values \(structure depends on parent type - database properties or title only\) |
 | `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
+| `next_cursor` | string | Cursor for next page of results |
 | `total_results` | number | Number of results returned |
 
 ### `notion_search`
@@ -132,22 +177,39 @@ Search across all pages and databases in Notion workspace
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | No | Search terms \(leave empty to get all pages\) |
-| `filterType` | string | No | Filter by object type: page, database, or leave empty for all |
+| `query` | string | No | Search terms to find pages and databases \(leave empty to get all pages\) |
+| `filterType` | string | No | Filter by object type: "page", "database", or leave empty for all |
 | `pageSize` | number | No | Number of results to return \(default: 100, max: 100\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | array | Array of search results \(pages and databases\) |
-|   ↳ `id` | string | Object ID |
-|   ↳ `object` | string | Object type \(page or database\) |
+| `results` | array | Array of search results \(pages and/or databases\) |
+|   ↳ `object` | string | Object type: "page" or "database" |
+|   ↳ `id` | string | Object UUID |
+|   ↳ `created_time` | string | ISO 8601 creation timestamp |
+|   ↳ `last_edited_time` | string | ISO 8601 last edit timestamp |
+|   ↳ `created_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `last_edited_by` | object | Partial user object |
+|     ↳ `object` | string | Always "user" |
+|     ↳ `id` | string | User UUID |
+|   ↳ `archived` | boolean | Whether the object is archived |
+|   ↳ `in_trash` | boolean | Whether the object is in trash |
 |   ↳ `url` | string | Object URL |
-|   ↳ `created_time` | string | Creation timestamp |
-|   ↳ `last_edited_time` | string | Last edit timestamp |
+|   ↳ `public_url` | string | Public web URL if shared |
+|   ↳ `parent` | object | Parent object specifying hierarchical relationship |
+|     ↳ `type` | string | Parent type: "database_id", "data_source_id", "page_id", "workspace", or "block_id" |
+|     ↳ `database_id` | string | Parent database UUID \(if type is database_id\) |
+|     ↳ `data_source_id` | string | Parent data source UUID \(if type is data_source_id\) |
+|     ↳ `page_id` | string | Parent page UUID \(if type is page_id\) |
+|     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
+|     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
+|   ↳ `properties` | object | Object properties |
 | `has_more` | boolean | Whether more results are available |
-| `next_cursor` | string | Cursor for pagination |
+| `next_cursor` | string | Cursor for next page of results |
 | `total_results` | number | Number of results returned |
 
 ### `notion_create_database`
@@ -166,11 +228,11 @@ Create a new database in Notion with custom properties
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Database ID |
-| `title` | string | Database title |
-| `url` | string | Database URL |
-| `created_time` | string | Creation timestamp |
+| `id` | string | Database UUID |
+| `url` | string | Notion database URL |
+| `created_time` | string | ISO 8601 creation timestamp |
 | `properties` | object | Database properties schema |
+| `title` | string | Database title |
 
 ### `notion_add_database_row`
 
@@ -187,10 +249,10 @@ Add a new row to a Notion database with specified properties
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Page/row ID |
-| `url` | string | Page/row URL |
+| `id` | string | Page UUID |
+| `url` | string | Notion page URL |
+| `created_time` | string | ISO 8601 creation timestamp |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `title` | string | Row title |
-| `created_time` | string | Creation timestamp |
-| `last_edited_time` | string | Last edit timestamp |
 
 

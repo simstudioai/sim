@@ -24,13 +24,13 @@ export const followUpsListTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter follow-ups by incident ID',
+      description: 'Filter follow-ups by incident ID (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     page_size: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of follow-ups to return per page',
+      visibility: 'user-or-llm',
+      description: 'Number of follow-ups to return per page (e.g., 10, 25, 50)',
     },
   },
 

@@ -239,5 +239,3 @@ export const WorkflowOperationSchema = z.union([
   VariableOperationSchema,
   WorkflowStateOperationSchema,
 ])
-
-export { PositionSchema, AutoConnectEdgeSchema }

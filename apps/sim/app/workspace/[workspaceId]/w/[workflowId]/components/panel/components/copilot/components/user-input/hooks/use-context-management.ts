@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  escapeRegex,
   filterOutContext,
   isContextAlreadySelected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
@@ -22,9 +23,6 @@ interface UseContextManagementProps {
 export function useContextManagement({ message, initialContexts }: UseContextManagementProps) {
   const [selectedContexts, setSelectedContexts] = useState<ChatContext[]>(initialContexts ?? [])
   const initializedRef = useRef(false)
-  const escapeRegex = useCallback((value: string) => {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  }, [])
 
   // Initialize with initial contexts when they're first provided (for edit mode)
   useEffect(() => {

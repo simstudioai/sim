@@ -1,8 +1,8 @@
-import type { ToolConfig } from '@/tools/types'
 import type {
   IncidentioIncidentStatusesListParams,
   IncidentioIncidentStatusesListResponse,
-} from './types'
+} from '@/tools/incidentio/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const incidentStatusesListTool: ToolConfig<
   IncidentioIncidentStatusesListParams,

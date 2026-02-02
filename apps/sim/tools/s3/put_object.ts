@@ -28,13 +28,13 @@ export const s3PutObjectTool: ToolConfig = {
     bucketName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'S3 bucket name',
+      visibility: 'user-or-llm',
+      description: 'S3 bucket name (e.g., my-bucket)',
     },
     objectKey: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Object key/path in S3 (e.g., folder/filename.ext)',
     },
     file: {
@@ -102,6 +102,7 @@ export const s3PutObjectTool: ToolConfig = {
       success: true,
       output: {
         url: data.output.url,
+        uri: data.output.uri,
         metadata: {
           etag: data.output.etag,
           location: data.output.location,
@@ -116,6 +117,10 @@ export const s3PutObjectTool: ToolConfig = {
     url: {
       type: 'string',
       description: 'URL of the uploaded S3 object',
+    },
+    uri: {
+      type: 'string',
+      description: 'S3 URI of the uploaded object (s3://bucket/key)',
     },
     metadata: {
       type: 'object',

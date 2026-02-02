@@ -3,6 +3,7 @@ import type {
   SalesforceUpdateAccountParams,
   SalesforceUpdateAccountResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceUpdateAccount')
@@ -40,86 +41,86 @@ export const salesforceUpdateAccountTool: ToolConfig<
     accountId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Account ID to update (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Account ID to update (18-character string starting with 001)',
     },
     name: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Account name',
     },
     type: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Account type',
+      visibility: 'user-or-llm',
+      description: 'Account type (e.g., Customer, Partner, Prospect)',
     },
     industry: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Industry',
+      visibility: 'user-or-llm',
+      description: 'Industry (e.g., Technology, Healthcare, Finance)',
     },
     phone: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Phone number',
     },
     website: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Website URL',
     },
     billingStreet: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Billing street address',
     },
     billingCity: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Billing city',
     },
     billingState: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Billing state/province',
     },
     billingPostalCode: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Billing postal code',
     },
     billingCountry: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Billing country',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Account description',
     },
     annualRevenue: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Annual revenue (number)',
+      visibility: 'user-or-llm',
+      description: 'Annual revenue as a number',
     },
     numberOfEmployees: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of employees (number)',
+      visibility: 'user-or-llm',
+      description: 'Number of employees as an integer',
     },
   },
 
@@ -215,10 +216,7 @@ export const salesforceUpdateAccountTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated account data',
-      properties: {
-        id: { type: 'string', description: 'Updated account ID' },
-        updated: { type: 'boolean', description: 'Whether account was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

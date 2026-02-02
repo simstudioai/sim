@@ -36,6 +36,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
 import type { ChunkData } from '@/lib/knowledge/types'
 import {
   ChunkContextMenu,
@@ -48,58 +49,15 @@ import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/componen
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
-import { knowledgeKeys, useDocumentChunkSearchQuery } from '@/hooks/queries/knowledge'
+import {
+  knowledgeKeys,
+  useBulkChunkOperation,
+  useDeleteDocument,
+  useDocumentChunkSearchQuery,
+  useUpdateChunk,
+} from '@/hooks/queries/knowledge'
 
 const logger = createLogger('Document')
-
-/**
- * Formats a date string to relative time (e.g., "2h ago", "3d ago")
- */
-function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (diffInSeconds < 60) {
-    return 'just now'
-  }
-  if (diffInSeconds < 3600) {
-    const minutes = Math.floor(diffInSeconds / 60)
-    return `${minutes}m ago`
-  }
-  if (diffInSeconds < 86400) {
-    const hours = Math.floor(diffInSeconds / 3600)
-    return `${hours}h ago`
-  }
-  if (diffInSeconds < 604800) {
-    const days = Math.floor(diffInSeconds / 86400)
-    return `${days}d ago`
-  }
-  if (diffInSeconds < 2592000) {
-    const weeks = Math.floor(diffInSeconds / 604800)
-    return `${weeks}w ago`
-  }
-  if (diffInSeconds < 31536000) {
-    const months = Math.floor(diffInSeconds / 2592000)
-    return `${months}mo ago`
-  }
-  const years = Math.floor(diffInSeconds / 31536000)
-  return `${years}y ago`
-}
-
-/**
- * Formats a date string to absolute format for tooltip display
- */
-function formatAbsoluteDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 interface DocumentProps {
   knowledgeBaseId: string
@@ -298,7 +256,6 @@ export function Document({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
 
   const {
     chunks: initialChunks,
@@ -338,7 +295,6 @@ export function Document({
     const handler = setTimeout(() => {
       startTransition(() => {
         setDebouncedSearchQuery(searchQuery)
-        setIsSearching(searchQuery.trim().length > 0)
       })
     }, 200)
 
@@ -347,6 +303,7 @@ export function Document({
     }
   }, [searchQuery])
 
+  const isSearching = debouncedSearchQuery.trim().length > 0
   const showingSearch = isSearching && searchQuery.trim().length > 0 && searchResults.length > 0
   const SEARCH_PAGE_SIZE = 50
   const maxSearchPages = Math.ceil(searchResults.length / SEARCH_PAGE_SIZE)
@@ -403,10 +360,12 @@ export function Document({
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [showDeleteDocumentDialog, setShowDeleteDocumentDialog] = useState(false)
-  const [isDeletingDocument, setIsDeletingDocument] = useState(false)
   const [contextMenuChunk, setContextMenuChunk] = useState<ChunkData | null>(null)
+
+  const { mutate: updateChunkMutation } = useUpdateChunk()
+  const { mutate: deleteDocumentMutation, isPending: isDeletingDocument } = useDeleteDocument()
+  const { mutate: bulkChunkMutation, isPending: isBulkOperating } = useBulkChunkOperation()
 
   const {
     isOpen: isContextMenuOpen,
@@ -440,36 +399,23 @@ export function Document({
     setSelectedChunk(null)
   }
 
-  const handleToggleEnabled = async (chunkId: string) => {
+  const handleToggleEnabled = (chunkId: string) => {
     const chunk = displayChunks.find((c) => c.id === chunkId)
     if (!chunk) return
 
-    try {
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunkId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            enabled: !chunk.enabled,
-          }),
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to update chunk')
+    updateChunkMutation(
+      {
+        knowledgeBaseId,
+        documentId,
+        chunkId,
+        enabled: !chunk.enabled,
+      },
+      {
+        onSuccess: () => {
+          updateChunk(chunkId, { enabled: !chunk.enabled })
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        updateChunk(chunkId, { enabled: !chunk.enabled })
-      }
-    } catch (err) {
-      logger.error('Error updating chunk:', err)
-    }
+    )
   }
 
   const handleDeleteChunk = (chunkId: string) => {
@@ -515,107 +461,65 @@ export function Document({
   /**
    * Handles deleting the document
    */
-  const handleDeleteDocument = async () => {
+  const handleDeleteDocument = () => {
     if (!documentData) return
 
-    try {
-      setIsDeletingDocument(true)
-
-      const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete document')
+    deleteDocumentMutation(
+      { knowledgeBaseId, documentId },
+      {
+        onSuccess: () => {
+          router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        await queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.detail(knowledgeBaseId),
-        })
-
-        router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
-      } else {
-        throw new Error(result.error || 'Failed to delete document')
-      }
-    } catch (err) {
-      logger.error('Error deleting document:', err)
-      setIsDeletingDocument(false)
-    }
+    )
   }
 
-  const performBulkChunkOperation = async (
+  const performBulkChunkOperation = (
     operation: 'enable' | 'disable' | 'delete',
     chunks: ChunkData[]
   ) => {
     if (chunks.length === 0) return
 
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            operation,
-            chunkIds: chunks.map((chunk) => chunk.id),
-          }),
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error(`Failed to ${operation} chunks`)
+    bulkChunkMutation(
+      {
+        knowledgeBaseId,
+        documentId,
+        operation,
+        chunkIds: chunks.map((chunk) => chunk.id),
+      },
+      {
+        onSuccess: (result) => {
+          if (operation === 'delete' || result.errorCount > 0) {
+            refreshChunks()
+          } else {
+            chunks.forEach((chunk) => {
+              updateChunk(chunk.id, { enabled: operation === 'enable' })
+            })
+          }
+          logger.info(`Successfully ${operation}d ${result.successCount} chunks`)
+          setSelectedChunks(new Set())
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        if (operation === 'delete') {
-          await refreshChunks()
-        } else {
-          result.data.results.forEach((opResult: any) => {
-            if (opResult.operation === operation) {
-              opResult.chunkIds.forEach((chunkId: string) => {
-                updateChunk(chunkId, { enabled: operation === 'enable' })
-              })
-            }
-          })
-        }
-
-        logger.info(`Successfully ${operation}d ${result.data.successCount} chunks`)
-      }
-
-      setSelectedChunks(new Set())
-    } catch (err) {
-      logger.error(`Error ${operation}ing chunks:`, err)
-    } finally {
-      setIsBulkOperating(false)
-    }
+    )
   }
 
-  const handleBulkEnable = async () => {
+  const handleBulkEnable = () => {
     const chunksToEnable = displayChunks.filter(
       (chunk) => selectedChunks.has(chunk.id) && !chunk.enabled
     )
-    await performBulkChunkOperation('enable', chunksToEnable)
+    performBulkChunkOperation('enable', chunksToEnable)
   }
 
-  const handleBulkDisable = async () => {
+  const handleBulkDisable = () => {
     const chunksToDisable = displayChunks.filter(
       (chunk) => selectedChunks.has(chunk.id) && chunk.enabled
     )
-    await performBulkChunkOperation('disable', chunksToDisable)
+    performBulkChunkOperation('disable', chunksToDisable)
   }
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     const chunksToDelete = displayChunks.filter((chunk) => selectedChunks.has(chunk.id))
-    await performBulkChunkOperation('delete', chunksToDelete)
+    performBulkChunkOperation('delete', chunksToDelete)
   }
 
   const selectedChunksList = displayChunks.filter((chunk) => selectedChunks.has(chunk.id))

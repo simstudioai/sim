@@ -34,6 +34,17 @@ export interface ModelCapabilities {
   toolUsageControl?: boolean
   computerUse?: boolean
   nativeStructuredOutputs?: boolean
+  /**
+   * Max output tokens configuration for Anthropic SDK's streaming timeout workaround.
+   * The Anthropic SDK throws an error for non-streaming requests that may take >10 minutes.
+   * This only applies to direct Anthropic API calls, not Bedrock (which uses AWS SDK).
+   */
+  maxOutputTokens?: {
+    /** Maximum tokens for streaming requests */
+    max: number
+    /** Safe default for non-streaming requests (to avoid Anthropic SDK timeout errors) */
+    default: number
+  }
   reasoningEffort?: {
     values: string[]
   }
@@ -613,6 +624,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -627,6 +639,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -640,6 +653,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -654,6 +668,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -668,6 +683,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -681,6 +697,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: { max: 64000, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -695,6 +712,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           computerUse: true,
+          maxOutputTokens: { max: 8192, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -709,6 +727,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           computerUse: true,
+          maxOutputTokens: { max: 8192, default: 8192 },
         },
         contextWindow: 200000,
       },
@@ -1116,7 +1135,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'cerebras',
     name: 'Cerebras',
     description: 'Cerebras Cloud LLMs',
-    defaultModel: 'cerebras/llama-3.3-70b',
+    defaultModel: 'cerebras/gpt-oss-120b',
     modelPatterns: [/^cerebras/],
     icon: CerebrasIcon,
     capabilities: {
@@ -1124,44 +1143,64 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
-        id: 'cerebras/llama-3.1-8b',
+        id: 'cerebras/gpt-oss-120b',
+        pricing: {
+          input: 0.35,
+          output: 0.75,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131000,
+      },
+      {
+        id: 'cerebras/llama3.1-8b',
         pricing: {
           input: 0.1,
           output: 0.1,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 32000,
       },
       {
-        id: 'cerebras/llama-3.1-70b',
-        pricing: {
-          input: 0.6,
-          output: 0.6,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 128000,
-      },
-      {
         id: 'cerebras/llama-3.3-70b',
         pricing: {
-          input: 0.6,
-          output: 0.6,
-          updatedAt: '2025-10-11',
+          input: 0.85,
+          output: 1.2,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 128000,
       },
       {
-        id: 'cerebras/llama-4-scout-17b-16e-instruct',
+        id: 'cerebras/qwen-3-32b',
         pricing: {
-          input: 0.11,
-          output: 0.34,
-          updatedAt: '2025-10-11',
+          input: 0.4,
+          output: 0.8,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
-        contextWindow: 10000000,
+        contextWindow: 131000,
+      },
+      {
+        id: 'cerebras/qwen-3-235b-a22b-instruct-2507',
+        pricing: {
+          input: 0.6,
+          output: 1.2,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131000,
+      },
+      {
+        id: 'cerebras/zai-glm-4.7',
+        pricing: {
+          input: 2.25,
+          output: 2.75,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131000,
       },
     ],
   },
@@ -1180,8 +1219,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'groq/openai/gpt-oss-120b',
         pricing: {
           input: 0.15,
-          output: 0.75,
-          updatedAt: '2025-10-11',
+          output: 0.6,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1189,9 +1228,29 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'groq/openai/gpt-oss-20b',
         pricing: {
-          input: 0.01,
-          output: 0.25,
-          updatedAt: '2025-10-11',
+          input: 0.075,
+          output: 0.3,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131072,
+      },
+      {
+        id: 'groq/openai/gpt-oss-safeguard-20b',
+        pricing: {
+          input: 0.075,
+          output: 0.3,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 131072,
+      },
+      {
+        id: 'groq/qwen/qwen3-32b',
+        pricing: {
+          input: 0.29,
+          output: 0.59,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1201,7 +1260,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.05,
           output: 0.08,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1211,27 +1270,17 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.59,
           output: 0.79,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
       },
       {
-        id: 'groq/llama-4-scout-17b-instruct',
+        id: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
         pricing: {
           input: 0.11,
           output: 0.34,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/llama-4-maverick-17b-instruct',
-        pricing: {
-          input: 0.5,
-          output: 0.77,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1239,9 +1288,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'groq/meta-llama/llama-4-maverick-17b-128e-instruct',
         pricing: {
-          input: 0.5,
-          output: 0.77,
-          updatedAt: '2025-10-11',
+          input: 0.2,
+          output: 0.6,
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1251,7 +1300,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.04,
           output: 0.04,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 8192,
@@ -1261,27 +1310,37 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.59,
           output: 0.79,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 128000,
       },
       {
-        id: 'groq/moonshotai/kimi-k2-instruct',
+        id: 'groq/deepseek-r1-distill-qwen-32b',
+        pricing: {
+          input: 0.69,
+          output: 0.69,
+          updatedAt: '2026-01-27',
+        },
+        capabilities: {},
+        contextWindow: 128000,
+      },
+      {
+        id: 'groq/moonshotai/kimi-k2-instruct-0905',
         pricing: {
           input: 1.0,
           output: 3.0,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
-        contextWindow: 131072,
+        contextWindow: 262144,
       },
       {
         id: 'groq/meta-llama/llama-guard-4-12b',
         pricing: {
           input: 0.2,
           output: 0.2,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-01-27',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -2332,4 +2391,32 @@ export function getModelsWithThinking(): string[] {
 export function getThinkingLevelsForModel(modelId: string): string[] | null {
   const capability = getThinkingCapability(modelId)
   return capability?.levels ?? null
+}
+
+/**
+ * Get the max output tokens for a specific model
+ * Returns the model's max capacity for streaming requests,
+ * or the model's safe default for non-streaming requests to avoid timeout issues.
+ *
+ * @param modelId - The model ID
+ * @param streaming - Whether the request is streaming (default: false)
+ */
+export function getMaxOutputTokensForModel(modelId: string, streaming = false): number {
+  const normalizedModelId = modelId.toLowerCase()
+  const STANDARD_MAX_OUTPUT_TOKENS = 4096
+
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      const baseModelId = model.id.toLowerCase()
+      if (normalizedModelId === baseModelId || normalizedModelId.startsWith(`${baseModelId}-`)) {
+        const outputTokens = model.capabilities.maxOutputTokens
+        if (outputTokens) {
+          return streaming ? outputTokens.max : outputTokens.default
+        }
+        return STANDARD_MAX_OUTPUT_TOKENS
+      }
+    }
+  }
+
+  return STANDARD_MAX_OUTPUT_TOKENS
 }

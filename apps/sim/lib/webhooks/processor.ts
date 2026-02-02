@@ -7,16 +7,28 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
 import { isProd, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
+  validateCalcomSignature,
+  validateCirclebackSignature,
+  validateFirefliesSignature,
+  validateGitHubSignature,
+  validateJiraSignature,
+  validateLinearSignature,
   validateMicrosoftTeamsSignature,
+  validateTwilioSignature,
+  validateTypeformSignature,
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import { isGitHubEventMatch } from '@/triggers/github/utils'
+import { isHubSpotContactEventMatch } from '@/triggers/hubspot/utils'
+import { isJiraEventMatch } from '@/triggers/jira/utils'
 
 const logger = createLogger('WebhookProcessor')
 
@@ -413,13 +425,7 @@ export async function findAllWebhooksForPath(
  * @returns String with all {{VARIABLE}} references replaced
  */
 function resolveEnvVars(value: string, envVars: Record<string, string>): string {
-  return resolveEnvVarReferences(value, envVars, {
-    allowEmbedded: true,
-    resolveExactMatch: true,
-    trimKeys: true,
-    onMissing: 'keep',
-    deep: false,
-  }) as string
+  return resolveEnvVarReferences(value, envVars) as string
 }
 
 /**
@@ -457,7 +463,6 @@ export async function verifyProviderAuth(
   // Step 1: Fetch and decrypt environment variables for signature verification
   let decryptedEnvVars: Record<string, string> = {}
   try {
-    const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
     decryptedEnvVars = await getEffectiveDecryptedEnv(
       foundWorkflow.userId,
       foundWorkflow.workspaceId
@@ -559,9 +564,6 @@ export async function verifyProviderAuth(
       }
 
       const fullUrl = getExternalUrl(request)
-
-      const { validateTwilioSignature } = await import('@/lib/webhooks/utils.server')
-
       const isValidSignature = await validateTwilioSignature(authToken, signature, fullUrl, params)
 
       if (!isValidSignature) {
@@ -589,8 +591,6 @@ export async function verifyProviderAuth(
         return new NextResponse('Unauthorized - Missing Typeform signature', { status: 401 })
       }
 
-      const { validateTypeformSignature } = await import('@/lib/webhooks/utils.server')
-
       const isValidSignature = validateTypeformSignature(secret, signature, rawBody)
 
       if (!isValidSignature) {
@@ -615,8 +615,6 @@ export async function verifyProviderAuth(
         logger.warn(`[${requestId}] Linear webhook missing signature header`)
         return new NextResponse('Unauthorized - Missing Linear signature', { status: 401 })
       }
-
-      const { validateLinearSignature } = await import('@/lib/webhooks/utils.server')
 
       const isValidSignature = validateLinearSignature(secret, signature, rawBody)
 
@@ -643,8 +641,6 @@ export async function verifyProviderAuth(
         return new NextResponse('Unauthorized - Missing Circleback signature', { status: 401 })
       }
 
-      const { validateCirclebackSignature } = await import('@/lib/webhooks/utils.server')
-
       const isValidSignature = validateCirclebackSignature(secret, signature, rawBody)
 
       if (!isValidSignature) {
@@ -659,6 +655,31 @@ export async function verifyProviderAuth(
     }
   }
 
+  if (foundWebhook.provider === 'calcom') {
+    const secret = providerConfig.webhookSecret as string | undefined
+
+    if (secret) {
+      const signature = request.headers.get('X-Cal-Signature-256')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Cal.com webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Cal.com signature', { status: 401 })
+      }
+
+      const isValidSignature = validateCalcomSignature(secret, signature, rawBody)
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Cal.com signature verification failed`, {
+          signatureLength: signature.length,
+          secretLength: secret.length,
+        })
+        return new NextResponse('Unauthorized - Invalid Cal.com signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Cal.com signature verified successfully`)
+    }
+  }
+
   if (foundWebhook.provider === 'jira') {
     const secret = providerConfig.secret as string | undefined
 
@@ -669,8 +690,6 @@ export async function verifyProviderAuth(
         logger.warn(`[${requestId}] Jira webhook missing signature header`)
         return new NextResponse('Unauthorized - Missing Jira signature', { status: 401 })
       }
-
-      const { validateJiraSignature } = await import('@/lib/webhooks/utils.server')
 
       const isValidSignature = validateJiraSignature(secret, signature, rawBody)
 
@@ -700,8 +719,6 @@ export async function verifyProviderAuth(
         return new NextResponse('Unauthorized - Missing GitHub signature', { status: 401 })
       }
 
-      const { validateGitHubSignature } = await import('@/lib/webhooks/utils.server')
-
       const isValidSignature = validateGitHubSignature(secret, signature, rawBody)
 
       if (!isValidSignature) {
@@ -729,8 +746,6 @@ export async function verifyProviderAuth(
         logger.warn(`[${requestId}] Fireflies webhook missing signature header`)
         return new NextResponse('Unauthorized - Missing Fireflies signature', { status: 401 })
       }
-
-      const { validateFirefliesSignature } = await import('@/lib/webhooks/utils.server')
 
       const isValidSignature = validateFirefliesSignature(secret, signature, rawBody)
 
@@ -804,7 +819,6 @@ export async function checkWebhookPreprocessing(
       checkRateLimit: true,
       checkDeployment: true,
       workspaceId: foundWorkflow.workspaceId,
-      preflightEnvVars: isTriggerDevEnabled,
     })
 
     if (!preprocessResult.success) {
@@ -867,8 +881,6 @@ export async function queueWebhookExecution(
         const eventType = request.headers.get('x-github-event')
         const action = body.action
 
-        const { isGitHubEventMatch } = await import('@/triggers/github/utils')
-
         if (!isGitHubEventMatch(triggerId, eventType || '', action, body)) {
           logger.debug(
             `[${options.requestId}] GitHub event mismatch for trigger ${triggerId}. Event: ${eventType}, Action: ${action}. Skipping execution.`,
@@ -896,8 +908,6 @@ export async function queueWebhookExecution(
 
       if (triggerId && triggerId !== 'jira_webhook') {
         const webhookEvent = body.webhookEvent as string | undefined
-
-        const { isJiraEventMatch } = await import('@/triggers/jira/utils')
 
         if (!isJiraEventMatch(triggerId, webhookEvent || '', body)) {
           logger.debug(
@@ -927,8 +937,6 @@ export async function queueWebhookExecution(
         const firstEvent = events[0]
 
         const subscriptionType = firstEvent?.subscriptionType as string | undefined
-
-        const { isHubSpotContactEventMatch } = await import('@/triggers/hubspot/utils')
 
         if (!isHubSpotContactEventMatch(triggerId, subscriptionType || '')) {
           logger.debug(
@@ -981,7 +989,8 @@ export async function queueWebhookExecution(
     // Note: Each webhook now has its own credentialId (credential sets are fanned out at save time)
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
-    const credentialSetId = providerConfig.credentialSetId as string | undefined
+    // credentialSetId is a direct field on webhook table, not in providerConfig
+    const credentialSetId = foundWebhook.credentialSetId as string | undefined
 
     // Verify billing for credential sets
     if (credentialSetId) {

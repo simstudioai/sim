@@ -3,6 +3,7 @@ import type {
   SalesforceDeleteAccountParams,
   SalesforceDeleteAccountResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceDeleteAccount')
@@ -40,8 +41,8 @@ export const salesforceDeleteAccountTool: ToolConfig<
     accountId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Account ID to delete (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Account ID to delete (18-character string starting with 001)',
     },
   },
 
@@ -118,10 +119,7 @@ export const salesforceDeleteAccountTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Deleted account data',
-      properties: {
-        id: { type: 'string', description: 'Deleted account ID' },
-        deleted: { type: 'boolean', description: 'Whether account was deleted' },
-      },
+      properties: SOBJECT_DELETE_OUTPUT_PROPERTIES,
     },
   },
 }

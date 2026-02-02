@@ -1,4 +1,5 @@
 import type { CreateBranchParams, RefResponse } from '@/tools/github/types'
+import { GIT_REF_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const createBranchTool: ToolConfig<CreateBranchParams, RefResponse> = {
@@ -113,10 +114,5 @@ export const createBranchV2Tool: ToolConfig<CreateBranchParams, any> = {
     }
   },
 
-  outputs: {
-    ref: { type: 'string', description: 'Full reference name (refs/heads/branch)' },
-    node_id: { type: 'string', description: 'Git ref node ID' },
-    url: { type: 'string', description: 'API URL for the reference' },
-    object: { type: 'json', description: 'Git object with type and sha' },
-  },
+  outputs: GIT_REF_OUTPUT_PROPERTIES,
 }

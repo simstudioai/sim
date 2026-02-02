@@ -69,7 +69,7 @@ export interface ExecutionStatus {
 
 export interface WorkflowExecutionSnapshot {
   id: string
-  workflowId: string
+  workflowId: string | null
   stateHash: string
   stateData: WorkflowState
   createdAt: string
@@ -80,7 +80,7 @@ export type WorkflowExecutionSnapshotSelect = WorkflowExecutionSnapshot
 
 export interface WorkflowExecutionLog {
   id: string
-  workflowId: string
+  workflowId: string | null
   executionId: string
   stateSnapshotId: string
   level: 'info' | 'error'
@@ -178,6 +178,8 @@ export interface TraceSpan {
   blockId?: string
   input?: Record<string, unknown>
   output?: Record<string, unknown>
+  childWorkflowSnapshotId?: string
+  childWorkflowId?: string
   model?: string
   cost?: {
     input?: number

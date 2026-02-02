@@ -1,6 +1,7 @@
 'use server'
 
 import type { Logger } from '@sim/logger'
+import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
 import type { StorageContext } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
@@ -9,38 +10,32 @@ import type { UserFile } from '@/executor/types'
 /**
  * Download a file from a URL (internal or external)
  * For internal URLs, uses direct storage access (server-side only)
- * For external URLs, uses HTTP fetch
+ * For external URLs, validates DNS/SSRF and uses secure fetch with IP pinning
  */
 export async function downloadFileFromUrl(fileUrl: string, timeoutMs = 180000): Promise<Buffer> {
   const { isInternalFileUrl } = await import('./file-utils')
   const { parseInternalFileUrl } = await import('./file-utils')
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-  try {
-    if (isInternalFileUrl(fileUrl)) {
-      const { key, context } = parseInternalFileUrl(fileUrl)
-      const { downloadFile } = await import('@/lib/uploads/core/storage-service')
-      const buffer = await downloadFile({ key, context })
-      clearTimeout(timeoutId)
-      return buffer
-    }
-
-    const response = await fetch(fileUrl, { signal: controller.signal })
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      throw new Error(`Failed to download file: ${response.statusText}`)
-    }
-
-    return Buffer.from(await response.arrayBuffer())
-  } catch (error) {
-    clearTimeout(timeoutId)
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('File download timed out')
-    }
-    throw error
+  if (isInternalFileUrl(fileUrl)) {
+    const { key, context } = parseInternalFileUrl(fileUrl)
+    const { downloadFile } = await import('@/lib/uploads/core/storage-service')
+    return downloadFile({ key, context })
   }
+
+  const urlValidation = await validateUrlWithDNS(fileUrl, 'fileUrl')
+  if (!urlValidation.isValid) {
+    throw new Error(`Invalid file URL: ${urlValidation.error}`)
+  }
+
+  const response = await secureFetchWithPinnedIP(fileUrl, urlValidation.resolvedIP!, {
+    timeout: timeoutMs,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to download file: ${response.statusText}`)
+  }
+
+  return Buffer.from(await response.arrayBuffer())
 }
 
 /**

@@ -13,8 +13,8 @@ interface FreeTierUpgradeEmailProps {
 
 const proFeatures = [
   { label: '$20/month', desc: 'in credits included' },
-  { label: '25 runs/min', desc: 'sync executions' },
-  { label: '200 runs/min', desc: 'async executions' },
+  { label: '150 runs/min', desc: 'sync executions' },
+  { label: '1,000 runs/min', desc: 'async executions' },
   { label: '50GB storage', desc: 'for files & assets' },
   { label: 'Unlimited', desc: 'workspaces & invites' },
 ]
@@ -31,7 +31,7 @@ export function FreeTierUpgradeEmail({
   const previewText = `${brand.name}: You've used ${percentUsed}% of your free credits`
 
   return (
-    <EmailLayout preview={previewText}>
+    <EmailLayout preview={previewText} showUnsubscribe={true}>
       <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
         {userName ? `Hi ${userName},` : 'Hi,'}
       </Text>

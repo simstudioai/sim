@@ -49,7 +49,7 @@ export const spotifyUpdatePlaylistTool: ToolConfig<
     public: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Whether the playlist should be public',
     },
   },

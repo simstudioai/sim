@@ -32,6 +32,7 @@ import {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
+import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('Knowledge')
@@ -51,9 +52,11 @@ export function Knowledge() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { knowledgeBases, isLoading, error, removeKnowledgeBase, updateKnowledgeBase } =
-    useKnowledgeBasesList(workspaceId)
+  const { knowledgeBases, isLoading, error } = useKnowledgeBasesList(workspaceId)
   const userPermissions = useUserPermissionsContext()
+
+  const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
+  const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
@@ -112,29 +115,13 @@ export function Knowledge() {
    */
   const handleUpdateKnowledgeBase = useCallback(
     async (id: string, name: string, description: string) => {
-      const response = await fetch(`/api/knowledge/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name, description }),
+      await updateKnowledgeBaseMutation({
+        knowledgeBaseId: id,
+        updates: { name, description },
       })
-
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to update knowledge base')
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        logger.info(`Knowledge base updated: ${id}`)
-        updateKnowledgeBase(id, { name, description })
-      } else {
-        throw new Error(result.error || 'Failed to update knowledge base')
-      }
+      logger.info(`Knowledge base updated: ${id}`)
     },
-    [updateKnowledgeBase]
+    [updateKnowledgeBaseMutation]
   )
 
   /**
@@ -142,25 +129,10 @@ export function Knowledge() {
    */
   const handleDeleteKnowledgeBase = useCallback(
     async (id: string) => {
-      const response = await fetch(`/api/knowledge/${id}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to delete knowledge base')
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        logger.info(`Knowledge base deleted: ${id}`)
-        removeKnowledgeBase(id)
-      } else {
-        throw new Error(result.error || 'Failed to delete knowledge base')
-      }
+      await deleteKnowledgeBaseMutation({ knowledgeBaseId: id })
+      logger.info(`Knowledge base deleted: ${id}`)
     },
-    [removeKnowledgeBase]
+    [deleteKnowledgeBaseMutation]
   )
 
   /**

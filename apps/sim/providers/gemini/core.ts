@@ -19,6 +19,7 @@ import {
   convertToGeminiFormat,
   convertUsageMetadata,
   createReadableStreamFromGeminiStream,
+  ensureStructResponse,
   extractFunctionCallPart,
   extractTextContent,
   mapToThinkingLevel,
@@ -99,12 +100,12 @@ async function executeToolCall(
 
   try {
     const { toolParams, executionParams } = prepareToolExecution(tool, functionCall.args, request)
-    const result = await executeTool(toolName, executionParams, true)
+    const result = await executeTool(toolName, executionParams)
     const toolCallEndTime = Date.now()
     const duration = toolCallEndTime - toolCallStartTime
 
     const resultContent: Record<string, unknown> = result.success
-      ? (result.output as Record<string, unknown>)
+      ? ensureStructResponse(result.output)
       : { error: true, message: result.error || 'Tool execution failed', tool: toolName }
 
     const toolCall: FunctionCallResponse = {
@@ -348,7 +349,7 @@ export async function executeGeminiRequest(
     if (request.temperature !== undefined) {
       geminiConfig.temperature = request.temperature
     }
-    if (request.maxTokens !== undefined) {
+    if (request.maxTokens != null) {
       geminiConfig.maxOutputTokens = request.maxTokens
     }
     if (systemInstruction) {

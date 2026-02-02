@@ -18,7 +18,7 @@ export const mailgunGetDomainTool: ToolConfig<GetDomainParams, GetDomainResult> 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Domain name',
+      description: 'Domain name to retrieve details for (e.g., mg.example.com)',
     },
   },
 

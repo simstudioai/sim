@@ -41,8 +41,8 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
     pageName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The name of the page to create',
+      visibility: 'user-or-llm',
+      description: 'The name of the page to create. Example: My-New-Page.aspx or Report-2024.aspx',
     },
     pageTitle: {
       type: 'string',

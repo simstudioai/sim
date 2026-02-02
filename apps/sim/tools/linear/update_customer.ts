@@ -1,4 +1,5 @@
 import type { LinearUpdateCustomerParams, LinearUpdateCustomerResponse } from '@/tools/linear/types'
+import { CUSTOMER_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateCustomerTool: ToolConfig<
@@ -175,6 +176,7 @@ export const linearUpdateCustomerTool: ToolConfig<
     customer: {
       type: 'object',
       description: 'The updated customer',
+      properties: CUSTOMER_OUTPUT_PROPERTIES,
     },
   },
 }

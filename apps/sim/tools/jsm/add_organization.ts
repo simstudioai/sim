@@ -37,8 +37,8 @@ export const jsmAddOrganizationTool: ToolConfig<
     serviceDeskId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Service Desk ID to add the organization to',
+      visibility: 'user-or-llm',
+      description: 'Service Desk ID (e.g., "1", "2")',
     },
     organizationId: {
       type: 'string',

@@ -45,9 +45,9 @@ Generate completions using Perplexity AI chat models
 | --------- | ---- | -------- | ----------- |
 | `systemPrompt` | string | No | System prompt to guide the model behavior |
 | `content` | string | Yes | The user message content to send to the model |
-| `model` | string | Yes | Model to use for chat completions \(e.g., sonar, mistral\) |
-| `max_tokens` | number | No | Maximum number of tokens to generate |
-| `temperature` | number | No | Sampling temperature between 0 and 1 |
+| `model` | string | Yes | Model to use for chat completions \(e.g., "sonar", "sonar-pro", "sonar-reasoning"\) |
+| `max_tokens` | number | No | Maximum number of tokens to generate \(e.g., 1024, 2048, 4096\) |
+| `temperature` | number | No | Sampling temperature between 0 and 1 \(e.g., 0.0 for deterministic, 0.7 for creative\) |
 | `apiKey` | string | Yes | Perplexity API key |
 
 #### Output
@@ -57,9 +57,9 @@ Generate completions using Perplexity AI chat models
 | `content` | string | Generated text content |
 | `model` | string | Model used for generation |
 | `usage` | object | Token usage information |
-| ↳ `prompt_tokens` | number | Number of tokens in the prompt |
-| ↳ `completion_tokens` | number | Number of tokens in the completion |
-| ↳ `total_tokens` | number | Total number of tokens used |
+|   ↳ `prompt_tokens` | number | Number of tokens in the prompt |
+|   ↳ `completion_tokens` | number | Number of tokens in the completion |
+|   ↳ `total_tokens` | number | Total number of tokens used |
 
 ### `perplexity_search`
 
@@ -71,10 +71,10 @@ Get ranked search results from Perplexity
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | A search query or array of queries \(max 5 for multi-query search\) |
 | `max_results` | number | No | Maximum number of search results to return \(1-20, default: 10\) |
-| `search_domain_filter` | array | No | List of domains/URLs to limit search results to \(max 20\) |
+| `search_domain_filter` | array | No | List of domains/URLs to limit search results to \(e.g., \["github.com", "stackoverflow.com"\], max 20\) |
 | `max_tokens_per_page` | number | No | Maximum number of tokens retrieved from each webpage \(default: 1024\) |
 | `country` | string | No | Country code to filter search results \(e.g., US, GB, DE\) |
-| `search_recency_filter` | string | No | Filter results by recency: hour, day, week, month, or year |
+| `search_recency_filter` | string | No | Filter results by recency \(e.g., "hour", "day", "week", "month", "year"\) |
 | `search_after_date` | string | No | Include only content published after this date \(format: MM/DD/YYYY\) |
 | `search_before_date` | string | No | Include only content published before this date \(format: MM/DD/YYYY\) |
 | `apiKey` | string | Yes | Perplexity API key |
@@ -87,7 +87,7 @@ Get ranked search results from Perplexity
 |   ↳ `title` | string | Title of the search result |
 |   ↳ `url` | string | URL of the search result |
 |   ↳ `snippet` | string | Brief excerpt or summary of the content |
-|   ↳ `date` | string | Date the page was crawled and added to Perplexity |
-|   ↳ `last_updated` | string | Date the page was last updated in Perplexity |
+|   ↳ `date` | string | Date the page was crawled and added to Perplexity's index |
+|   ↳ `last_updated` | string | Date the page was last updated in Perplexity's index |
 
 

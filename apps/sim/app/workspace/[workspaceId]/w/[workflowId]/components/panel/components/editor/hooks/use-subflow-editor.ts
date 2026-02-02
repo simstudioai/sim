@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { highlight, languages } from '@/components/emcn'
 import {
   isLikelyReferenceSegment,
@@ -9,6 +10,7 @@ import { checkTagTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/co
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { normalizeName, REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
+import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -53,6 +55,9 @@ const SUBFLOW_CONFIG = {
  * @returns Subflow editor state and handlers
  */
 export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId: string | null) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
@@ -80,6 +85,13 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
   // Get accessible prefixes for tag dropdown
   const accessiblePrefixes = useAccessibleReferencePrefixes(currentBlockId || '')
+
+  // Get available env vars for highlighting validation
+  const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
+  const shouldHighlightEnvVar = useMemo(
+    () => createShouldHighlightEnvVar(availableEnvVars),
+    [availableEnvVars]
+  )
 
   // Collaborative actions
   const {
@@ -140,9 +152,13 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
       let processedCode = code
 
       processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
-        const placeholder = `__ENV_VAR_${placeholders.length}__`
-        placeholders.push({ placeholder, original: match, type: 'env' })
-        return placeholder
+        const varName = match.slice(2, -2).trim()
+        if (shouldHighlightEnvVar(varName)) {
+          const placeholder = `__ENV_VAR_${placeholders.length}__`
+          placeholders.push({ placeholder, original: match, type: 'env' })
+          return placeholder
+        }
+        return match
       })
 
       // Use [^<>]+ to prevent matching across nested brackets (e.g., "<3 <real.ref>" should match separately)
@@ -174,7 +190,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
       return highlightedCode
     },
-    [shouldHighlightReference]
+    [shouldHighlightReference, shouldHighlightEnvVar]
   )
 
   /**

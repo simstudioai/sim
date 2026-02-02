@@ -1,20 +1,18 @@
 import dns from 'dns/promises'
+import http from 'http'
+import https from 'https'
+import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import * as ipaddr from 'ipaddr.js'
 
 const logger = createLogger('InputValidation')
 
-/**
- * Result type for validation functions
- */
 export interface ValidationResult {
   isValid: boolean
   error?: string
   sanitized?: string
 }
 
-/**
- * Options for path segment validation
- */
 export interface PathSegmentOptions {
   /** Name of the parameter for error messages */
   paramName?: string
@@ -65,7 +63,6 @@ export function validatePathSegment(
     customPattern,
   } = options
 
-  // Check for null/undefined
   if (value === null || value === undefined || value === '') {
     return {
       isValid: false,
@@ -73,7 +70,6 @@ export function validatePathSegment(
     }
   }
 
-  // Check length
   if (value.length > maxLength) {
     logger.warn('Path segment exceeds maximum length', {
       paramName,
@@ -86,7 +82,6 @@ export function validatePathSegment(
     }
   }
 
-  // Check for null bytes (potential for bypass attacks)
   if (value.includes('\0') || value.includes('%00')) {
     logger.warn('Path segment contains null bytes', { paramName })
     return {
@@ -95,7 +90,6 @@ export function validatePathSegment(
     }
   }
 
-  // Check for path traversal patterns
   const pathTraversalPatterns = [
     '..',
     './',
@@ -124,7 +118,6 @@ export function validatePathSegment(
     }
   }
 
-  // Check for directory separators
   if (value.includes('/') || value.includes('\\')) {
     logger.warn('Path segment contains directory separators', { paramName })
     return {
@@ -133,7 +126,6 @@ export function validatePathSegment(
     }
   }
 
-  // Use custom pattern if provided
   if (customPattern) {
     if (!customPattern.test(value)) {
       logger.warn('Path segment failed custom pattern validation', {
@@ -148,7 +140,6 @@ export function validatePathSegment(
     return { isValid: true, sanitized: value }
   }
 
-  // Build allowed character pattern
   let pattern = '^[a-zA-Z0-9'
   if (allowHyphens) pattern += '\\-'
   if (allowUnderscores) pattern += '_'
@@ -402,42 +393,20 @@ export function validateHostname(
     }
   }
 
-  // Import the blocked IP ranges from url-validation
-  const BLOCKED_IP_RANGES = [
-    // Private IPv4 ranges (RFC 1918)
-    /^10\./,
-    /^172\.(1[6-9]|2[0-9]|3[01])\./,
-    /^192\.168\./,
-
-    // Loopback addresses
-    /^127\./,
-    /^localhost$/i,
-
-    // Link-local addresses (RFC 3927)
-    /^169\.254\./,
-
-    // Cloud metadata endpoints
-    /^169\.254\.169\.254$/,
-
-    // Broadcast and other reserved ranges
-    /^0\./,
-    /^224\./,
-    /^240\./,
-    /^255\./,
-
-    // IPv6 loopback and link-local
-    /^::1$/,
-    /^fe80:/i,
-    /^::ffff:127\./i,
-    /^::ffff:10\./i,
-    /^::ffff:172\.(1[6-9]|2[0-9]|3[01])\./i,
-    /^::ffff:192\.168\./i,
-  ]
-
   const lowerHostname = hostname.toLowerCase()
 
-  for (const pattern of BLOCKED_IP_RANGES) {
-    if (pattern.test(lowerHostname)) {
+  // Block localhost
+  if (lowerHostname === 'localhost') {
+    logger.warn('Hostname is localhost', { paramName })
+    return {
+      isValid: false,
+      error: `${paramName} cannot be a private IP address or localhost`,
+    }
+  }
+
+  // Use ipaddr.js to check if hostname is an IP and if it's private/reserved
+  if (ipaddr.isValid(lowerHostname)) {
+    if (isPrivateOrReservedIP(lowerHostname)) {
       logger.warn('Hostname matches blocked IP range', {
         paramName,
         hostname: hostname.substring(0, 100),
@@ -710,33 +679,17 @@ export function validateExternalUrl(
   // Block private IP ranges and localhost
   const hostname = parsedUrl.hostname.toLowerCase()
 
-  // Block localhost variations
-  if (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    hostname.startsWith('127.') ||
-    hostname === '0.0.0.0'
-  ) {
+  // Block localhost
+  if (hostname === 'localhost') {
     return {
       isValid: false,
       error: `${paramName} cannot point to localhost`,
     }
   }
 
-  // Block private IP ranges
-  const privateIpPatterns = [
-    /^10\./,
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-    /^192\.168\./,
-    /^169\.254\./, // Link-local
-    /^fe80:/i, // IPv6 link-local
-    /^fc00:/i, // IPv6 unique local
-    /^fd00:/i, // IPv6 unique local
-  ]
-
-  for (const pattern of privateIpPatterns) {
-    if (pattern.test(hostname)) {
+  // Use ipaddr.js to check if hostname is an IP and if it's private/reserved
+  if (ipaddr.isValid(hostname)) {
+    if (isPrivateOrReservedIP(hostname)) {
       return {
         isValid: false,
         error: `${paramName} cannot point to private IP addresses`,
@@ -791,30 +744,25 @@ export function validateProxyUrl(
 
 /**
  * Checks if an IP address is private or reserved (not routable on the public internet)
+ * Uses ipaddr.js for robust handling of all IP formats including:
+ * - Octal notation (0177.0.0.1)
+ * - Hex notation (0x7f000001)
+ * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
+ * - Various edge cases that regex patterns miss
  */
 function isPrivateOrReservedIP(ip: string): boolean {
-  const patterns = [
-    /^127\./, // Loopback
-    /^10\./, // Private Class A
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./, // Private Class B
-    /^192\.168\./, // Private Class C
-    /^169\.254\./, // Link-local
-    /^0\./, // Current network
-    /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./, // Carrier-grade NAT
-    /^192\.0\.0\./, // IETF Protocol Assignments
-    /^192\.0\.2\./, // TEST-NET-1
-    /^198\.51\.100\./, // TEST-NET-2
-    /^203\.0\.113\./, // TEST-NET-3
-    /^224\./, // Multicast
-    /^240\./, // Reserved
-    /^255\./, // Broadcast
-    /^::1$/, // IPv6 loopback
-    /^fe80:/i, // IPv6 link-local
-    /^fc00:/i, // IPv6 unique local
-    /^fd00:/i, // IPv6 unique local
-    /^::ffff:(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.)/i, // IPv4-mapped IPv6
-  ]
-  return patterns.some((pattern) => pattern.test(ip))
+  try {
+    if (!ipaddr.isValid(ip)) {
+      return true
+    }
+
+    const addr = ipaddr.process(ip)
+    const range = addr.range()
+
+    return range !== 'unicast'
+  } catch {
+    return true
+  }
 }
 
 /**
@@ -882,18 +830,196 @@ export async function validateUrlWithDNS(
     }
   }
 }
+export interface SecureFetchOptions {
+  method?: string
+  headers?: Record<string, string>
+  body?: string
+  timeout?: number
+  maxRedirects?: number
+}
+
+export class SecureFetchHeaders {
+  private headers: Map<string, string>
+
+  constructor(headers: Record<string, string>) {
+    this.headers = new Map(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]))
+  }
+
+  get(name: string): string | null {
+    return this.headers.get(name.toLowerCase()) ?? null
+  }
+
+  toRecord(): Record<string, string> {
+    const record: Record<string, string> = {}
+    for (const [key, value] of this.headers) {
+      record[key] = value
+    }
+    return record
+  }
+
+  [Symbol.iterator]() {
+    return this.headers.entries()
+  }
+}
+
+export interface SecureFetchResponse {
+  ok: boolean
+  status: number
+  statusText: string
+  headers: SecureFetchHeaders
+  text: () => Promise<string>
+  json: () => Promise<unknown>
+  arrayBuffer: () => Promise<ArrayBuffer>
+}
+
+const DEFAULT_MAX_REDIRECTS = 5
+
+function isRedirectStatus(status: number): boolean {
+  return status >= 300 && status < 400 && status !== 304
+}
+
+function resolveRedirectUrl(baseUrl: string, location: string): string {
+  try {
+    return new URL(location, baseUrl).toString()
+  } catch {
+    throw new Error(`Invalid redirect location: ${location}`)
+  }
+}
 
 /**
- * Creates a fetch URL that uses a resolved IP address to prevent DNS rebinding
- *
- * @param originalUrl - The original URL
- * @param resolvedIP - The resolved IP address to use
- * @returns The URL with IP substituted for hostname
+ * Performs a fetch with IP pinning to prevent DNS rebinding attacks.
+ * Uses the pre-resolved IP address while preserving the original hostname for TLS SNI.
+ * Follows redirects securely by validating each redirect target.
  */
-export function createPinnedUrl(originalUrl: string, resolvedIP: string): string {
-  const parsed = new URL(originalUrl)
-  const port = parsed.port ? `:${parsed.port}` : ''
-  return `${parsed.protocol}//${resolvedIP}${port}${parsed.pathname}${parsed.search}`
+export async function secureFetchWithPinnedIP(
+  url: string,
+  resolvedIP: string,
+  options: SecureFetchOptions = {},
+  redirectCount = 0
+): Promise<SecureFetchResponse> {
+  const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
+
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url)
+    const isHttps = parsed.protocol === 'https:'
+    const defaultPort = isHttps ? 443 : 80
+    const port = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort
+
+    const isIPv6 = resolvedIP.includes(':')
+    const family = isIPv6 ? 6 : 4
+
+    const lookup: LookupFunction = (_hostname, options, callback) => {
+      if (options.all) {
+        callback(null, [{ address: resolvedIP, family }])
+      } else {
+        callback(null, resolvedIP, family)
+      }
+    }
+
+    const agentOptions: http.AgentOptions = { lookup }
+
+    const agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
+
+    // Remove accept-encoding since Node.js http/https doesn't auto-decompress
+    // Headers are lowercase due to Web Headers API normalization in executeToolRequest
+    const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
+
+    const requestOptions: http.RequestOptions = {
+      hostname: parsed.hostname,
+      port,
+      path: parsed.pathname + parsed.search,
+      method: options.method || 'GET',
+      headers: sanitizedHeaders,
+      agent,
+      timeout: options.timeout || 300000, // Default 5 minutes
+    }
+
+    const protocol = isHttps ? https : http
+    const req = protocol.request(requestOptions, (res) => {
+      const statusCode = res.statusCode || 0
+      const location = res.headers.location
+
+      if (isRedirectStatus(statusCode) && location && redirectCount < maxRedirects) {
+        res.resume()
+        const redirectUrl = resolveRedirectUrl(url, location)
+
+        validateUrlWithDNS(redirectUrl, 'redirectUrl')
+          .then((validation) => {
+            if (!validation.isValid) {
+              reject(new Error(`Redirect blocked: ${validation.error}`))
+              return
+            }
+            return secureFetchWithPinnedIP(
+              redirectUrl,
+              validation.resolvedIP!,
+              options,
+              redirectCount + 1
+            )
+          })
+          .then((response) => {
+            if (response) resolve(response)
+          })
+          .catch(reject)
+        return
+      }
+
+      if (isRedirectStatus(statusCode) && location && redirectCount >= maxRedirects) {
+        res.resume()
+        reject(new Error(`Too many redirects (max: ${maxRedirects})`))
+        return
+      }
+
+      const chunks: Buffer[] = []
+
+      res.on('data', (chunk: Buffer) => chunks.push(chunk))
+
+      res.on('error', (error) => {
+        reject(error)
+      })
+
+      res.on('end', () => {
+        const bodyBuffer = Buffer.concat(chunks)
+        const body = bodyBuffer.toString('utf-8')
+        const headersRecord: Record<string, string> = {}
+        for (const [key, value] of Object.entries(res.headers)) {
+          if (typeof value === 'string') {
+            headersRecord[key.toLowerCase()] = value
+          } else if (Array.isArray(value)) {
+            headersRecord[key.toLowerCase()] = value.join(', ')
+          }
+        }
+
+        resolve({
+          ok: statusCode >= 200 && statusCode < 300,
+          status: statusCode,
+          statusText: res.statusMessage || '',
+          headers: new SecureFetchHeaders(headersRecord),
+          text: async () => body,
+          json: async () => JSON.parse(body),
+          arrayBuffer: async () =>
+            bodyBuffer.buffer.slice(
+              bodyBuffer.byteOffset,
+              bodyBuffer.byteOffset + bodyBuffer.byteLength
+            ),
+        })
+      })
+    })
+
+    req.on('error', (error) => {
+      reject(error)
+    })
+
+    req.on('timeout', () => {
+      req.destroy()
+      reject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
+    })
+
+    if (options.body) {
+      req.write(options.body)
+    }
+
+    req.end()
+  })
 }
 
 /**
@@ -941,6 +1067,138 @@ export function validateAirtableId(
     return {
       isValid: false,
       error: `${paramName} must be a valid Airtable ID starting with "${expectedPrefix}"`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates an AWS region identifier
+ *
+ * Supported region formats:
+ * - Standard: us-east-1, eu-west-2, ap-southeast-1, sa-east-1, af-south-1
+ * - GovCloud: us-gov-east-1, us-gov-west-1
+ * - China: cn-north-1, cn-northwest-1
+ * - Israel: il-central-1
+ * - ISO partitions: us-iso-east-1, us-isob-east-1
+ *
+ * @param value - The AWS region to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateAwsRegion(region, 'region')
+ * if (!result.isValid) {
+ *   return NextResponse.json({ error: result.error }, { status: 400 })
+ * }
+ * ```
+ */
+export function validateAwsRegion(
+  value: string | null | undefined,
+  paramName = 'region'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  // AWS region patterns:
+  // - Standard: af|ap|ca|eu|me|sa|us|il followed by direction and number
+  // - GovCloud: us-gov-east-1, us-gov-west-1
+  // - China: cn-north-1, cn-northwest-1
+  // - ISO: us-iso-east-1, us-iso-west-1, us-isob-east-1
+  const awsRegionPattern =
+    /^(af|ap|ca|cn|eu|il|me|sa|us|us-gov|us-iso|us-isob)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
+
+  if (!awsRegionPattern.test(value)) {
+    logger.warn('Invalid AWS region format', {
+      paramName,
+      value: value.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid AWS region (e.g., us-east-1, eu-west-2, us-gov-west-1)`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates an S3 bucket name according to AWS naming rules
+ *
+ * S3 bucket names must:
+ * - Be 3-63 characters long
+ * - Start and end with a letter or number
+ * - Contain only lowercase letters, numbers, and hyphens
+ * - Not contain consecutive periods
+ * - Not be formatted as an IP address
+ *
+ * @param value - The S3 bucket name to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateS3BucketName(bucket, 'bucket')
+ * if (!result.isValid) {
+ *   return NextResponse.json({ error: result.error }, { status: 400 })
+ * }
+ * ```
+ */
+export function validateS3BucketName(
+  value: string | null | undefined,
+  paramName = 'bucket'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  if (value.length < 3 || value.length > 63) {
+    logger.warn('S3 bucket name length invalid', {
+      paramName,
+      length: value.length,
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be between 3 and 63 characters`,
+    }
+  }
+
+  const bucketNamePattern = /^[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/
+
+  if (!bucketNamePattern.test(value)) {
+    logger.warn('Invalid S3 bucket name format', {
+      paramName,
+      value: value.substring(0, 63),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must start and end with a letter or number, and contain only lowercase letters, numbers, hyphens, and periods`,
+    }
+  }
+
+  if (value.includes('..')) {
+    logger.warn('S3 bucket name contains consecutive periods', { paramName })
+    return {
+      isValid: false,
+      error: `${paramName} cannot contain consecutive periods`,
+    }
+  }
+
+  const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/
+  if (ipPattern.test(value)) {
+    logger.warn('S3 bucket name formatted as IP address', { paramName })
+    return {
+      isValid: false,
+      error: `${paramName} cannot be formatted as an IP address`,
     }
   }
 

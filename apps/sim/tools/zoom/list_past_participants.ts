@@ -3,6 +3,10 @@ import type {
   ZoomListPastParticipantsParams,
   ZoomListPastParticipantsResponse,
 } from '@/tools/zoom/types'
+import {
+  PARTICIPANT_OUTPUT_PROPERTIES,
+  PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES,
+} from '@/tools/zoom/types'
 
 export const zoomListPastParticipantsTool: ToolConfig<
   ZoomListPastParticipantsParams,
@@ -24,13 +28,13 @@ export const zoomListPastParticipantsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The past meeting ID or UUID',
+      description: 'The past meeting ID or UUID (e.g., "1234567890" or "4444AAABBBccccc12345==")',
     },
     pageSize: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of records per page (max 300)',
+      description: 'Number of records per page, 1-300 (e.g., 30, 50, 100)',
     },
     nextPageToken: {
       type: 'string',
@@ -113,15 +117,15 @@ export const zoomListPastParticipantsTool: ToolConfig<
     participants: {
       type: 'array',
       description: 'List of meeting participants',
+      items: {
+        type: 'object',
+        properties: PARTICIPANT_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
-      properties: {
-        pageSize: { type: 'number', description: 'Number of records per page' },
-        totalRecords: { type: 'number', description: 'Total number of records' },
-        nextPageToken: { type: 'string', description: 'Token for next page' },
-      },
+      properties: PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { FirecrawlCrawlParams, FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
+import { CRAWLED_PAGE_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FirecrawlCrawlTool')
@@ -17,13 +18,41 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The website URL to crawl',
+      description:
+        'The website URL to crawl (e.g., "https://example.com" or "https://docs.example.com/guide")',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of pages to crawl (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of pages to crawl (e.g., 50, 100, 500). Default: 100',
+    },
+    maxDepth: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Maximum depth to crawl from the starting URL (e.g., 1, 2, 3). Controls how many levels deep to follow links',
+    },
+    formats: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Output formats for scraped content (e.g., ["markdown"], ["markdown", "html"], ["markdown", "links"])',
+    },
+    excludePaths: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'URL paths to exclude from crawling (e.g., ["/blog/*", "/admin/*", "/*.pdf"])',
+    },
+    includePaths: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'URL paths to include in crawling (e.g., ["/docs/*", "/api/*"]). Only these paths will be crawled',
     },
     onlyMainContent: {
       type: 'boolean',
@@ -50,12 +79,13 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
         url: params.url,
         limit: Number(params.limit) || 100,
         scrapeOptions: params.scrapeOptions || {
-          formats: ['markdown'],
+          formats: params.formats || ['markdown'],
           onlyMainContent: params.onlyMainContent || false,
         },
       }
 
       if (params.prompt) body.prompt = params.prompt
+      if (params.maxDepth) body.maxDiscoveryDepth = Number(params.maxDepth)
       if (params.maxDiscoveryDepth) body.maxDiscoveryDepth = Number(params.maxDiscoveryDepth)
       if (params.sitemap) body.sitemap = params.sitemap
       if (typeof params.crawlEntireDomain === 'boolean')
@@ -165,21 +195,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       description: 'Array of crawled pages with their content and metadata',
       items: {
         type: 'object',
-        properties: {
-          markdown: { type: 'string', description: 'Page content in markdown format' },
-          html: { type: 'string', description: 'Page HTML content' },
-          metadata: {
-            type: 'object',
-            description: 'Page metadata',
-            properties: {
-              title: { type: 'string', description: 'Page title' },
-              description: { type: 'string', description: 'Page description' },
-              language: { type: 'string', description: 'Page language' },
-              sourceURL: { type: 'string', description: 'Source URL of the page' },
-              statusCode: { type: 'number', description: 'HTTP status code' },
-            },
-          },
-        },
+        properties: CRAWLED_PAGE_OUTPUT_PROPERTIES,
       },
     },
     total: { type: 'number', description: 'Total number of pages found during crawl' },

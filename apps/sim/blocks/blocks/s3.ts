@@ -414,6 +414,10 @@ export const S3Block: BlockConfig<S3Response> = {
   },
   outputs: {
     url: { type: 'string', description: 'URL of S3 object' },
+    uri: {
+      type: 'string',
+      description: 'S3 URI (s3://bucket/key) for use with other AWS services',
+    },
     objects: { type: 'json', description: 'List of objects (for list operation)' },
     deleted: { type: 'boolean', description: 'Deletion status' },
     metadata: { type: 'json', description: 'Operation metadata' },

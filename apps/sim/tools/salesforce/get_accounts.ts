@@ -3,6 +3,7 @@ import type {
   SalesforceGetAccountsParams,
   SalesforceGetAccountsResponse,
 } from '@/tools/salesforce/types'
+import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceGetAccounts')
@@ -43,20 +44,20 @@ export const salesforceGetAccountsTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 100, max: 2000)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results (default: 100, max: 2000)',
     },
     fields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of fields to return (e.g., "Id,Name,Industry,Phone")',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated field API names (e.g., "Id,Name,Industry,Phone")',
     },
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Field to order by (e.g., "Name ASC" or "CreatedDate DESC")',
+      visibility: 'user-or-llm',
+      description: 'Field and direction for sorting (e.g., "Name ASC" or "CreatedDate DESC")',
     },
   },
 
@@ -158,27 +159,8 @@ export const salesforceGetAccountsTool: ToolConfig<
       description: 'Accounts data',
       properties: {
         accounts: { type: 'array', description: 'Array of account objects' },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-          properties: {
-            nextRecordsUrl: {
-              type: 'string',
-              description: 'URL for next page of results',
-              optional: true,
-            },
-            totalSize: { type: 'number', description: 'Total number of records' },
-            done: { type: 'boolean', description: 'Whether all records returned' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Response metadata',
-          properties: {
-            totalReturned: { type: 'number', description: 'Number of accounts returned' },
-            hasMore: { type: 'boolean', description: 'Whether more records exist' },
-          },
-        },
+        paging: QUERY_PAGING_OUTPUT,
+        metadata: RESPONSE_METADATA_OUTPUT,
         success: { type: 'boolean', description: 'Salesforce operation success' },
       },
     },

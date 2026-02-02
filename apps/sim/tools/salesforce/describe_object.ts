@@ -3,6 +3,7 @@ import type {
   SalesforceDescribeObjectParams,
   SalesforceDescribeObjectResponse,
 } from '@/tools/salesforce/types'
+import { DESCRIBE_OBJECT_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -33,8 +34,8 @@ export const salesforceDescribeObjectTool: ToolConfig<
     objectName: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'API name of the object (e.g., Account, Contact, Lead, Custom_Object__c)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce object API name (e.g., Account, Contact, Lead, Custom_Object__c)',
     },
   },
 
@@ -92,25 +93,7 @@ export const salesforceDescribeObjectTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Object metadata',
-      properties: {
-        objectName: { type: 'string', description: 'API name of the object' },
-        label: { type: 'string', description: 'Display label' },
-        labelPlural: { type: 'string', description: 'Plural display label' },
-        fields: { type: 'array', description: 'Array of field definitions' },
-        keyPrefix: {
-          type: 'string',
-          description: 'ID prefix for this object type',
-          optional: true,
-        },
-        queryable: { type: 'boolean', description: 'Whether object can be queried' },
-        createable: { type: 'boolean', description: 'Whether records can be created' },
-        updateable: { type: 'boolean', description: 'Whether records can be updated' },
-        deletable: { type: 'boolean', description: 'Whether records can be deleted' },
-        childRelationships: { type: 'array', description: 'Child relationship definitions' },
-        recordTypeInfos: { type: 'array', description: 'Record type information' },
-        fieldCount: { type: 'number', description: 'Number of fields in the object' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-      },
+      properties: DESCRIBE_OBJECT_OUTPUT_PROPERTIES,
     },
   },
 }

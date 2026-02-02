@@ -1,4 +1,5 @@
 import type { SlackGetThreadParams, SlackGetThreadResponse } from '@/tools/slack/types'
+import { MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackGetThreadTool: ToolConfig<SlackGetThreadParams, SlackGetThreadResponse> = {
@@ -35,7 +36,7 @@ export const slackGetThreadTool: ToolConfig<SlackGetThreadParams, SlackGetThread
     channel: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Slack channel ID (e.g., C1234567890)',
     },
     threadTs: {
@@ -152,65 +153,23 @@ export const slackGetThreadTool: ToolConfig<SlackGetThreadParams, SlackGetThread
     parentMessage: {
       type: 'object',
       description: 'The thread parent message',
-      properties: {
-        type: { type: 'string', description: 'Message type' },
-        ts: { type: 'string', description: 'Message timestamp' },
-        text: { type: 'string', description: 'Message text content' },
-        user: { type: 'string', description: 'User ID who sent the message' },
-        bot_id: { type: 'string', description: 'Bot ID if sent by a bot', optional: true },
-        username: { type: 'string', description: 'Display username', optional: true },
-        reply_count: { type: 'number', description: 'Total number of thread replies' },
-        reply_users_count: { type: 'number', description: 'Number of users who replied' },
-        latest_reply: { type: 'string', description: 'Timestamp of latest reply' },
-        reactions: {
-          type: 'array',
-          description: 'Array of reactions on the parent message',
-          items: {
-            type: 'object',
-            properties: {
-              name: { type: 'string', description: 'Emoji name' },
-              count: { type: 'number', description: 'Number of reactions' },
-              users: {
-                type: 'array',
-                description: 'User IDs who reacted',
-                items: { type: 'string' },
-              },
-            },
-          },
-        },
-        files: {
-          type: 'array',
-          description: 'Files attached to the parent message',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'File ID' },
-              name: { type: 'string', description: 'File name' },
-              mimetype: { type: 'string', description: 'MIME type' },
-              size: { type: 'number', description: 'File size in bytes' },
-            },
-          },
-        },
-      },
+      properties: MESSAGE_OUTPUT_PROPERTIES,
     },
     replies: {
       type: 'array',
       description: 'Array of reply messages in the thread (excluding the parent)',
       items: {
         type: 'object',
-        properties: {
-          ts: { type: 'string', description: 'Message timestamp' },
-          text: { type: 'string', description: 'Message text content' },
-          user: { type: 'string', description: 'User ID who sent the reply' },
-          reactions: { type: 'array', description: 'Reactions on the reply' },
-          files: { type: 'array', description: 'Files attached to the reply' },
-        },
+        properties: MESSAGE_OUTPUT_PROPERTIES,
       },
     },
     messages: {
       type: 'array',
       description: 'All messages in the thread (parent + replies) in chronological order',
-      items: { type: 'object' },
+      items: {
+        type: 'object',
+        properties: MESSAGE_OUTPUT_PROPERTIES,
+      },
     },
     replyCount: {
       type: 'number',

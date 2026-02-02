@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import {
   CONTAINER_PADDING,
   DEFAULT_HORIZONTAL_SPACING,
@@ -14,11 +13,10 @@ import {
   isContainerType,
   prepareContainerDimensions,
   shouldSkipAutoLayout,
+  snapPositionToGrid,
 } from '@/lib/workflows/autolayout/utils'
 import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-
-const logger = createLogger('AutoLayout:Targeted')
 
 export interface TargetedLayoutOptions extends LayoutOptions {
   changedBlockIds: string[]
@@ -39,6 +37,7 @@ export function applyTargetedLayout(
     changedBlockIds,
     verticalSpacing = DEFAULT_VERTICAL_SPACING,
     horizontalSpacing = DEFAULT_HORIZONTAL_SPACING,
+    gridSize,
   } = options
 
   if (!changedBlockIds || changedBlockIds.length === 0) {
@@ -48,19 +47,17 @@ export function applyTargetedLayout(
   const changedSet = new Set(changedBlockIds)
   const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
 
-  // Pre-calculate container dimensions by laying out their children (bottom-up)
-  // This ensures accurate widths/heights before root-level layout
   prepareContainerDimensions(
     blocksCopy,
     edges,
     layoutBlocksCore,
     horizontalSpacing,
-    verticalSpacing
+    verticalSpacing,
+    gridSize
   )
 
   const groups = getBlocksByParent(blocksCopy)
 
-  // Calculate subflow depths before layout to properly position blocks after subflow ends
   const subflowDepths = calculateSubflowDepths(blocksCopy, edges, assignLayers)
 
   layoutGroup(
@@ -71,7 +68,8 @@ export function applyTargetedLayout(
     changedSet,
     verticalSpacing,
     horizontalSpacing,
-    subflowDepths
+    subflowDepths,
+    gridSize
   )
 
   for (const [parentId, childIds] of groups.children.entries()) {
@@ -83,7 +81,8 @@ export function applyTargetedLayout(
       changedSet,
       verticalSpacing,
       horizontalSpacing,
-      subflowDepths
+      subflowDepths,
+      gridSize
     )
   }
 
@@ -101,7 +100,8 @@ function layoutGroup(
   changedSet: Set<string>,
   verticalSpacing: number,
   horizontalSpacing: number,
-  subflowDepths: Map<string, number>
+  subflowDepths: Map<string, number>,
+  gridSize?: number
 ): void {
   if (childIds.length === 0) return
 
@@ -116,7 +116,6 @@ function layoutGroup(
     return
   }
 
-  // Determine which blocks need repositioning
   const requestedLayout = layoutEligibleChildIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
@@ -141,7 +140,6 @@ function layoutGroup(
     return
   }
 
-  // Store old positions for anchor calculation
   const oldPositions = new Map<string, { x: number; y: number }>()
   for (const id of layoutEligibleChildIds) {
     const block = blocks[id]
@@ -149,8 +147,6 @@ function layoutGroup(
     oldPositions.set(id, { ...block.position })
   }
 
-  // Compute layout positions using core function
-  // Only pass subflowDepths for root-level layout (not inside containers)
   const layoutPositions = computeLayoutPositions(
     layoutEligibleChildIds,
     blocks,
@@ -158,7 +154,8 @@ function layoutGroup(
     parentBlock,
     horizontalSpacing,
     verticalSpacing,
-    parentId === null ? subflowDepths : undefined
+    parentId === null ? subflowDepths : undefined,
+    gridSize
   )
 
   if (layoutPositions.size === 0) {
@@ -168,7 +165,6 @@ function layoutGroup(
     return
   }
 
-  // Find anchor block (unchanged block with a layout position)
   let offsetX = 0
   let offsetY = 0
 
@@ -185,20 +181,16 @@ function layoutGroup(
     }
   }
 
-  // Apply new positions only to blocks that need layout
   for (const id of needsLayout) {
     const block = blocks[id]
     const newPos = layoutPositions.get(id)
     if (!block || !newPos) continue
-    block.position = {
-      x: newPos.x + offsetX,
-      y: newPos.y + offsetY,
-    }
+    block.position = snapPositionToGrid({ x: newPos.x + offsetX, y: newPos.y + offsetY }, gridSize)
   }
 }
 
 /**
- * Computes layout positions for a subset of blocks using the core layout
+ * Computes layout positions for a subset of blocks using the core layout function
  */
 function computeLayoutPositions(
   childIds: string[],
@@ -207,7 +199,8 @@ function computeLayoutPositions(
   parentBlock: BlockState | undefined,
   horizontalSpacing: number,
   verticalSpacing: number,
-  subflowDepths?: Map<string, number>
+  subflowDepths?: Map<string, number>,
+  gridSize?: number
 ): Map<string, { x: number; y: number }> {
   const subsetBlocks: Record<string, BlockState> = {}
   for (const id of childIds) {
@@ -228,11 +221,11 @@ function computeLayoutPositions(
     layoutOptions: {
       horizontalSpacing: isContainer ? horizontalSpacing * 0.85 : horizontalSpacing,
       verticalSpacing,
+      gridSize,
     },
     subflowDepths,
   })
 
-  // Update parent container dimensions if applicable
   if (parentBlock) {
     parentBlock.data = {
       ...parentBlock.data,
@@ -241,7 +234,6 @@ function computeLayoutPositions(
     }
   }
 
-  // Convert nodes to position map
   const positions = new Map<string, { x: number; y: number }>()
   for (const node of nodes.values()) {
     positions.set(node.id, { x: node.position.x, y: node.position.y })

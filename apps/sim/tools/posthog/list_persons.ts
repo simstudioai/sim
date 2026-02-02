@@ -51,21 +51,21 @@ export const listPersonsTool: ToolConfig<PostHogListPersonsParams, PostHogListPe
     projectId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'PostHog Project ID',
+      visibility: 'user-or-llm',
+      description: 'PostHog Project ID (e.g., "12345" or project UUID)',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of persons to return (default: 100, max: 100)',
       default: 100,
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of persons to skip for pagination',
+      visibility: 'user-or-llm',
+      description: 'Number of persons to skip for pagination (e.g., 0, 100, 200)',
     },
     search: {
       type: 'string',

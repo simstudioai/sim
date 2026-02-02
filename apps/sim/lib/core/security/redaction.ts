@@ -2,9 +2,15 @@
  * Centralized redaction utilities for sensitive data
  */
 
+import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file'
+
 export const REDACTED_MARKER = '[REDACTED]'
+export const TRUNCATED_MARKER = '[TRUNCATED]'
 
 const BYPASS_REDACTION_KEYS = new Set(['nextPageToken'])
+
+/** Keys that contain large binary/encoded data that should be truncated in logs */
+const LARGE_DATA_KEYS = new Set(['base64'])
 
 const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /^api[_-]?key$/i,
@@ -88,6 +94,10 @@ export function redactSensitiveValues(value: string): string {
   return result
 }
 
+export function isLargeDataKey(key: string): boolean {
+  return LARGE_DATA_KEYS.has(key)
+}
+
 export function redactApiKeys(obj: any): any {
   if (obj === null || obj === undefined) {
     return obj
@@ -101,11 +111,26 @@ export function redactApiKeys(obj: any): any {
     return obj.map((item) => redactApiKeys(item))
   }
 
+  if (isUserFile(obj)) {
+    const filtered = filterUserFileForDisplay(obj)
+    const result: Record<string, any> = {}
+    for (const [key, value] of Object.entries(filtered)) {
+      if (isLargeDataKey(key) && typeof value === 'string') {
+        result[key] = TRUNCATED_MARKER
+      } else {
+        result[key] = value
+      }
+    }
+    return result
+  }
+
   const result: Record<string, any> = {}
 
   for (const [key, value] of Object.entries(obj)) {
     if (isSensitiveKey(key)) {
       result[key] = REDACTED_MARKER
+    } else if (isLargeDataKey(key) && typeof value === 'string') {
+      result[key] = TRUNCATED_MARKER
     } else if (typeof value === 'object' && value !== null) {
       result[key] = redactApiKeys(value)
     } else {

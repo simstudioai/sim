@@ -1,5 +1,8 @@
+import type {
+  SpotifyGetArtistAlbumsParams,
+  SpotifyGetArtistAlbumsResponse,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetArtistAlbumsParams, SpotifyGetArtistAlbumsResponse } from './types'
 
 export const spotifyGetArtistAlbumsTool: ToolConfig<
   SpotifyGetArtistAlbumsParams,
@@ -31,22 +34,22 @@ export const spotifyGetArtistAlbumsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Maximum number of albums to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of the first album to return',
+      description: 'Index of the first album to return for pagination',
     },
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO 3166-1 alpha-2 country code',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
   },
 

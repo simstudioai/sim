@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       cost: workflowExecutionLogs.cost,
       executionData: workflowExecutionLogs.executionData,
-      workflowName: workflow.name,
+      workflowName: sql<string>`COALESCE(${workflow.name}, 'Deleted Workflow')`,
     }
 
     const workspaceCondition = eq(workflowExecutionLogs.workspaceId, params.workspaceId)
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
             const rows = await db
               .select(selectColumns)
               .from(workflowExecutionLogs)
-              .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+              .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
               .innerJoin(
                 permissions,
                 and(

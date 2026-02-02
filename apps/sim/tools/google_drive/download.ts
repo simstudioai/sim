@@ -37,7 +37,7 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
     fileId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The ID of the file to download',
     },
     mimeType: {
@@ -49,7 +49,7 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
     fileName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Optional filename override',
     },
     includeRevisions: {

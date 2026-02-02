@@ -2,24 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import type { CopilotMessage } from '@/stores/panel'
+import type { ChatContext, CopilotMessage, MessageFileAttachment } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 
 const logger = createLogger('useMessageEditing')
 
-/**
- * Message truncation height in pixels
- */
+/** Ref interface for UserInput component */
+interface UserInputRef {
+  focus: () => void
+}
+
+/** Message truncation height in pixels */
 const MESSAGE_TRUNCATION_HEIGHT = 60
 
-/**
- * Delay before attaching click-outside listener to avoid immediate trigger
- */
+/** Delay before attaching click-outside listener to avoid immediate trigger */
 const CLICK_OUTSIDE_DELAY = 100
 
-/**
- * Delay before aborting when editing during stream
- */
+/** Delay before aborting when editing during stream */
 const ABORT_DELAY = 100
 
 interface UseMessageEditingProps {
@@ -32,8 +31,8 @@ interface UseMessageEditingProps {
   setShowCheckpointDiscardModal: (show: boolean) => void
   pendingEditRef: React.MutableRefObject<{
     message: string
-    fileAttachments?: any[]
-    contexts?: any[]
+    fileAttachments?: MessageFileAttachment[]
+    contexts?: ChatContext[]
   } | null>
   /**
    * When true, disables the internal document click-outside handler.
@@ -69,13 +68,11 @@ export function useMessageEditing(props: UseMessageEditingProps) {
 
   const editContainerRef = useRef<HTMLDivElement>(null)
   const messageContentRef = useRef<HTMLDivElement>(null)
-  const userInputRef = useRef<any>(null)
+  const userInputRef = useRef<UserInputRef>(null)
 
   const { sendMessage, isSendingMessage, abortMessage, currentChat } = useCopilotStore()
 
-  /**
-   * Checks if message content needs expansion based on height
-   */
+  /** Checks if message content needs expansion based on height */
   useEffect(() => {
     if (messageContentRef.current && message.role === 'user') {
       const scrollHeight = messageContentRef.current.scrollHeight
@@ -83,9 +80,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     }
   }, [message.content, message.role])
 
-  /**
-   * Handles entering edit mode
-   */
+  /** Enters edit mode */
   const handleEditMessage = useCallback(() => {
     setIsEditMode(true)
     setIsExpanded(false)
@@ -97,18 +92,14 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     }, 0)
   }, [message.content, onEditModeChange])
 
-  /**
-   * Handles canceling edit mode
-   */
+  /** Cancels edit mode */
   const handleCancelEdit = useCallback(() => {
     setIsEditMode(false)
     setEditedContent(message.content)
     onEditModeChange?.(false)
   }, [message.content, onEditModeChange])
 
-  /**
-   * Handles clicking on message to enter edit mode
-   */
+  /** Handles message click to enter edit mode */
   const handleMessageClick = useCallback(() => {
     if (needsExpansion && !isExpanded) {
       setIsExpanded(true)
@@ -116,12 +107,13 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     handleEditMessage()
   }, [needsExpansion, isExpanded, handleEditMessage])
 
-  /**
-   * Performs the actual edit operation
-   * Truncates messages after edited message and resends with same ID
-   */
+  /** Performs the edit operation - truncates messages after edited message and resends */
   const performEdit = useCallback(
-    async (editedMessage: string, fileAttachments?: any[], contexts?: any[]) => {
+    async (
+      editedMessage: string,
+      fileAttachments?: MessageFileAttachment[],
+      contexts?: ChatContext[]
+    ) => {
       const currentMessages = messages
       const editIndex = currentMessages.findIndex((m) => m.id === message.id)
 
@@ -134,7 +126,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
           ...message,
           content: editedMessage,
           fileAttachments: fileAttachments || message.fileAttachments,
-          contexts: contexts || (message as any).contexts,
+          contexts: contexts || message.contexts,
         }
 
         useCopilotStore.setState({ messages: [...truncatedMessages, updatedMessage] })
@@ -153,7 +145,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
                   timestamp: m.timestamp,
                   ...(m.contentBlocks && { contentBlocks: m.contentBlocks }),
                   ...(m.fileAttachments && { fileAttachments: m.fileAttachments }),
-                  ...((m as any).contexts && { contexts: (m as any).contexts }),
+                  ...(m.contexts && { contexts: m.contexts }),
                 })),
               }),
             })
@@ -164,7 +156,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
 
         await sendMessage(editedMessage, {
           fileAttachments: fileAttachments || message.fileAttachments,
-          contexts: contexts || (message as any).contexts,
+          contexts: contexts || message.contexts,
           messageId: message.id,
           queueIfBusy: false,
         })
@@ -173,12 +165,13 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     [messages, message, currentChat, sendMessage, onEditModeChange]
   )
 
-  /**
-   * Handles submitting edited message
-   * Checks for checkpoints and shows confirmation if needed
-   */
+  /** Submits edited message, checking for checkpoints first */
   const handleSubmitEdit = useCallback(
-    async (editedMessage: string, fileAttachments?: any[], contexts?: any[]) => {
+    async (
+      editedMessage: string,
+      fileAttachments?: MessageFileAttachment[],
+      contexts?: ChatContext[]
+    ) => {
       if (!editedMessage.trim()) return
 
       if (isSendingMessage) {
@@ -204,9 +197,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     ]
   )
 
-  /**
-   * Keyboard-only exit (Esc). Click-outside is optionally handled by parent.
-   */
+  /** Keyboard-only exit (Esc) */
   useEffect(() => {
     if (!isEditMode) return
 
@@ -222,9 +213,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     }
   }, [isEditMode, handleCancelEdit])
 
-  /**
-   * Optional document-level click-outside handler (disabled when parent manages it).
-   */
+  /** Optional document-level click-outside handler */
   useEffect(() => {
     if (!isEditMode || disableDocumentClickOutside) return
 

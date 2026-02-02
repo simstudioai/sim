@@ -27,6 +27,7 @@ export interface WorkflowDeploymentVersionResponse {
   id: string
   version: number
   name?: string | null
+  description?: string | null
   isActive: boolean
   createdAt: string
   createdBy?: string | null
@@ -273,6 +274,7 @@ export async function loadWorkflowFromNormalizedTables(
           forEachItems: (config as Loop).forEachItems ?? '',
           whileCondition: (config as Loop).whileCondition ?? '',
           doWhileCondition: (config as Loop).doWhileCondition ?? '',
+          enabled: migratedBlocks[subflow.id]?.enabled ?? true,
         }
         loops[subflow.id] = loop
 
@@ -301,6 +303,7 @@ export async function loadWorkflowFromNormalizedTables(
             (config as Parallel).parallelType === 'collection'
               ? (config as Parallel).parallelType
               : 'count',
+          enabled: migratedBlocks[subflow.id]?.enabled ?? true,
         }
         parallels[subflow.id] = parallel
       } else {

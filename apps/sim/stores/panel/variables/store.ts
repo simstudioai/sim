@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
+import JSON5 from 'json5'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { normalizeName } from '@/executor/constants'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { Variable, VariablesStore } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { normalizeName } from '@/stores/workflows/utils'
 
 const logger = createLogger('VariablesStore')
 
@@ -30,7 +31,7 @@ function validateVariable(variable: Variable): string | undefined {
             return 'Not a valid object format'
           }
 
-          const parsed = new Function(`return ${valueToEvaluate}`)()
+          const parsed = JSON5.parse(valueToEvaluate)
 
           if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
             return 'Not a valid object'
@@ -43,12 +44,12 @@ function validateVariable(variable: Variable): string | undefined {
         }
       case 'array':
         try {
-          const parsed = JSON.parse(String(variable.value))
+          const parsed = JSON5.parse(String(variable.value))
           if (!Array.isArray(parsed)) {
-            return 'Not a valid JSON array'
+            return 'Not a valid array'
           }
         } catch {
-          return 'Invalid JSON array syntax'
+          return 'Invalid array syntax'
         }
         break
     }

@@ -2,6 +2,10 @@ import type {
   IncidentioIncidentsListParams,
   IncidentioIncidentsListResponse,
 } from '@/tools/incidentio/types'
+import {
+  INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES,
+  INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES,
+} from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentsListTool: ToolConfig<
@@ -24,14 +28,15 @@ export const incidentsListTool: ToolConfig<
     page_size: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of incidents to return per page (default: 25)',
+      visibility: 'user-or-llm',
+      description: 'Number of incidents to return per page (e.g., 10, 25, 50). Default: 25',
     },
     after: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Pagination cursor to fetch the next page of results',
+      visibility: 'user-or-llm',
+      description:
+        'Pagination cursor to fetch the next page of results (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 
@@ -114,61 +119,14 @@ export const incidentsListTool: ToolConfig<
       description: 'List of incidents',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Incident ID' },
-          name: { type: 'string', description: 'Incident name' },
-          summary: { type: 'string', description: 'Brief summary of the incident' },
-          description: { type: 'string', description: 'Detailed description of the incident' },
-          mode: { type: 'string', description: 'Incident mode (e.g., standard, retrospective)' },
-          call_url: { type: 'string', description: 'URL for the incident call/bridge' },
-          severity: {
-            type: 'object',
-            description: 'Severity of the incident',
-            properties: {
-              id: { type: 'string', description: 'Severity ID' },
-              name: { type: 'string', description: 'Severity name' },
-              rank: { type: 'number', description: 'Severity rank' },
-            },
-          },
-          status: {
-            type: 'object',
-            description: 'Current status of the incident',
-            properties: {
-              id: { type: 'string', description: 'Status ID' },
-              name: { type: 'string', description: 'Status name' },
-              category: { type: 'string', description: 'Status category' },
-            },
-          },
-          incident_type: {
-            type: 'object',
-            description: 'Type of the incident',
-            properties: {
-              id: { type: 'string', description: 'Type ID' },
-              name: { type: 'string', description: 'Type name' },
-            },
-          },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
-          incident_url: { type: 'string', description: 'URL to the incident' },
-          slack_channel_id: { type: 'string', description: 'Associated Slack channel ID' },
-          slack_channel_name: { type: 'string', description: 'Associated Slack channel name' },
-          visibility: { type: 'string', description: 'Incident visibility' },
-        },
+        properties: INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES,
       },
     },
     pagination_meta: {
       type: 'object',
       description: 'Pagination metadata',
       optional: true,
-      properties: {
-        after: { type: 'string', description: 'Cursor for the next page', optional: true },
-        page_size: { type: 'number', description: 'Number of items per page' },
-        total_record_count: {
-          type: 'number',
-          description: 'Total number of records available',
-          optional: true,
-        },
-      },
+      properties: INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -23,32 +23,35 @@ export const listWebhooksTool: ToolConfig<
     organization: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Organization URI to list webhooks for',
+      visibility: 'user-or-llm',
+      description:
+        'Organization URI to list webhooks for. Format: URI (e.g., "https://api.calendly.com/organizations/abc123-def456")',
     },
     count: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results per page (default: 20, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of results per page. Format: integer (default: 20, max: 100)',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description:
+        'Page token for pagination. Format: opaque string from previous response next_page_token',
     },
     scope: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by scope ("organization" or "user")',
+      visibility: 'user-or-llm',
+      description: 'Filter by scope. Format: "organization" or "user"',
     },
     user: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter webhooks by user URI (for user-scoped webhooks)',
+      visibility: 'user-or-llm',
+      description:
+        'Filter webhooks by user URI (for user-scoped webhooks). Format: URI (e.g., "https://api.calendly.com/users/abc123-def456")',
     },
   },
 

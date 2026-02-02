@@ -29,13 +29,11 @@ export class DocsChunker {
   private readonly baseUrl: string
 
   constructor(options: DocsChunkerOptions = {}) {
-    // Use the existing TextChunker for chunking logic
     this.textChunker = new TextChunker({
       chunkSize: options.chunkSize ?? 300, // Max 300 tokens per chunk
       minCharactersPerChunk: options.minCharactersPerChunk ?? 1,
       chunkOverlap: options.chunkOverlap ?? 50,
     })
-    // Use localhost docs in development, production docs otherwise
     this.baseUrl = options.baseUrl ?? 'https://docs.sim.ai'
   }
 
@@ -74,24 +72,18 @@ export class DocsChunker {
     const content = await fs.readFile(filePath, 'utf-8')
     const relativePath = path.relative(basePath, filePath)
 
-    // Parse frontmatter and content
     const { data: frontmatter, content: markdownContent } = this.parseFrontmatter(content)
 
-    // Extract headers from the content
     const headers = this.extractHeaders(markdownContent)
 
-    // Generate document URL
     const documentUrl = this.generateDocumentUrl(relativePath)
 
-    // Split content into chunks
     const textChunks = await this.splitContent(markdownContent)
 
-    // Generate embeddings for all chunks at once (batch processing)
     logger.info(`Generating embeddings for ${textChunks.length} chunks in ${relativePath}`)
     const embeddings = textChunks.length > 0 ? await generateEmbeddings(textChunks) : []
     const embeddingModel = 'text-embedding-3-small'
 
-    // Convert to DocChunk objects with header context and embeddings
     const chunks: DocChunk[] = []
     let currentPosition = 0
 
@@ -100,7 +92,6 @@ export class DocsChunker {
       const chunkStart = currentPosition
       const chunkEnd = currentPosition + chunkText.length
 
-      // Find the most relevant header for this chunk
       const relevantHeader = this.findRelevantHeader(headers, chunkStart)
 
       const chunk: DocChunk = {
@@ -186,11 +177,21 @@ export class DocsChunker {
 
   /**
    * Generate document URL from relative path
+   * Handles index.mdx files specially - they are served at the parent directory path
    */
   private generateDocumentUrl(relativePath: string): string {
     // Convert file path to URL path
     // e.g., "tools/knowledge.mdx" -> "/tools/knowledge"
-    const urlPath = relativePath.replace(/\.mdx$/, '').replace(/\\/g, '/') // Handle Windows paths
+    // e.g., "triggers/index.mdx" -> "/triggers" (NOT "/triggers/index")
+    let urlPath = relativePath.replace(/\.mdx$/, '').replace(/\\/g, '/') // Handle Windows paths
+
+    // In fumadocs, index.mdx files are served at the parent directory path
+    // e.g., "triggers/index" -> "triggers"
+    if (urlPath.endsWith('/index')) {
+      urlPath = urlPath.slice(0, -6) // Remove "/index"
+    } else if (urlPath === 'index') {
+      urlPath = '' // Root index.mdx
+    }
 
     return `${this.baseUrl}/${urlPath}`
   }
@@ -201,7 +202,6 @@ export class DocsChunker {
   private findRelevantHeader(headers: HeaderInfo[], position: number): HeaderInfo | null {
     if (headers.length === 0) return null
 
-    // Find the last header that comes before this position
     let relevantHeader: HeaderInfo | null = null
 
     for (const header of headers) {
@@ -219,23 +219,18 @@ export class DocsChunker {
    * Split content into chunks using the existing TextChunker with table awareness
    */
   private async splitContent(content: string): Promise<string[]> {
-    // Clean the content first
     const cleanedContent = this.cleanContent(content)
 
-    // Detect table boundaries to avoid splitting them
     const tableBoundaries = this.detectTableBoundaries(cleanedContent)
 
-    // Use the existing TextChunker
     const chunks = await this.textChunker.chunk(cleanedContent)
 
-    // Post-process chunks to ensure tables aren't split
     const processedChunks = this.mergeTableChunks(
       chunks.map((chunk) => chunk.text),
       tableBoundaries,
       cleanedContent
     )
 
-    // Ensure no chunk exceeds 300 tokens
     const finalChunks = this.enforceSizeLimit(processedChunks)
 
     return finalChunks
@@ -273,7 +268,6 @@ export class DocsChunker {
     const [, frontmatterText, markdownContent] = match
     const data: Frontmatter = {}
 
-    // Simple YAML parsing for title and description
     const lines = frontmatterText.split('\n')
     for (const line of lines) {
       const colonIndex = line.indexOf(':')
@@ -294,7 +288,6 @@ export class DocsChunker {
    * Estimate token count (rough approximation)
    */
   private estimateTokens(text: string): number {
-    // Rough approximation: 1 token ≈ 4 characters
     return Math.ceil(text.length / 4)
   }
 
@@ -311,17 +304,13 @@ export class DocsChunker {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim()
 
-      // Detect table start (markdown table row with pipes)
       if (line.includes('|') && line.split('|').length >= 3 && !inTable) {
-        // Check if next line is table separator (contains dashes and pipes)
         const nextLine = lines[i + 1]?.trim()
         if (nextLine?.includes('|') && nextLine.includes('-')) {
           inTable = true
           tableStart = i
         }
-      }
-      // Detect table end (empty line or non-table content)
-      else if (inTable && (!line.includes('|') || line === '' || line.startsWith('#'))) {
+      } else if (inTable && (!line.includes('|') || line === '' || line.startsWith('#'))) {
         tables.push({
           start: this.getCharacterPosition(lines, tableStart),
           end: this.getCharacterPosition(lines, i - 1) + lines[i - 1]?.length || 0,
@@ -330,7 +319,6 @@ export class DocsChunker {
       }
     }
 
-    // Handle table at end of content
     if (inTable && tableStart >= 0) {
       tables.push({
         start: this.getCharacterPosition(lines, tableStart),
@@ -367,7 +355,6 @@ export class DocsChunker {
       const chunkStart = originalContent.indexOf(chunk, currentPosition)
       const chunkEnd = chunkStart + chunk.length
 
-      // Check if this chunk intersects with any table
       const intersectsTable = tableBoundaries.some(
         (table) =>
           (chunkStart >= table.start && chunkStart <= table.end) ||
@@ -376,7 +363,6 @@ export class DocsChunker {
       )
 
       if (intersectsTable) {
-        // Find which table(s) this chunk intersects with
         const affectedTables = tableBoundaries.filter(
           (table) =>
             (chunkStart >= table.start && chunkStart <= table.end) ||
@@ -384,12 +370,10 @@ export class DocsChunker {
             (chunkStart <= table.start && chunkEnd >= table.end)
         )
 
-        // Create a chunk that includes the complete table(s)
         const minStart = Math.min(chunkStart, ...affectedTables.map((t) => t.start))
         const maxEnd = Math.max(chunkEnd, ...affectedTables.map((t) => t.end))
         const completeChunk = originalContent.slice(minStart, maxEnd)
 
-        // Only add if we haven't already included this content
         if (!mergedChunks.some((existing) => existing.includes(completeChunk.trim()))) {
           mergedChunks.push(completeChunk.trim())
         }
@@ -400,7 +384,7 @@ export class DocsChunker {
       currentPosition = chunkEnd
     }
 
-    return mergedChunks.filter((chunk) => chunk.length > 50) // Filter out tiny chunks
+    return mergedChunks.filter((chunk) => chunk.length > 50)
   }
 
   /**
@@ -413,10 +397,8 @@ export class DocsChunker {
       const tokens = this.estimateTokens(chunk)
 
       if (tokens <= 300) {
-        // Chunk is within limit
         finalChunks.push(chunk)
       } else {
-        // Chunk is too large - split it
         const lines = chunk.split('\n')
         let currentChunk = ''
 
@@ -426,7 +408,6 @@ export class DocsChunker {
           if (this.estimateTokens(testChunk) <= 300) {
             currentChunk = testChunk
           } else {
-            // Adding this line would exceed limit
             if (currentChunk.trim()) {
               finalChunks.push(currentChunk.trim())
             }
@@ -434,7 +415,6 @@ export class DocsChunker {
           }
         }
 
-        // Add final chunk if it has content
         if (currentChunk.trim()) {
           finalChunks.push(currentChunk.trim())
         }

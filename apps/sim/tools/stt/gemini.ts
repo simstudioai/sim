@@ -29,13 +29,13 @@ export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
     audioFile: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Audio or video file to transcribe',
+      visibility: 'user-only',
+      description: 'Audio or video file to transcribe (e.g., MP3, WAV, M4A, WEBM)',
     },
     audioFileReference: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Reference to audio/video file from previous blocks',
     },
     audioUrl: {
@@ -59,7 +59,7 @@ export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
   },
 
   request: {
-    url: '/api/proxy/stt',
+    url: '/api/tools/stt',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

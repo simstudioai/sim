@@ -13,7 +13,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The base URL to map and discover links from',
+      description: 'The base URL to map and discover links from (e.g., "https://example.com")',
     },
     search: {
       type: 'string',
@@ -42,8 +42,9 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of links to return (max: 100,000, default: 5,000)',
+      visibility: 'user-or-llm',
+      description:
+        'Maximum number of links to return (e.g., 100, 1000, 5000). Max: 100,000, default: 5,000',
     },
     timeout: {
       type: 'number',

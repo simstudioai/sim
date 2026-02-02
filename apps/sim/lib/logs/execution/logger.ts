@@ -293,7 +293,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
 
     try {
-      const [wf] = await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId))
+      // Skip workflow lookup if workflow was deleted
+      const wf = updatedLog.workflowId
+        ? (await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId)))[0]
+        : undefined
       if (wf) {
         const [usr] = await db
           .select({ id: userTable.id, email: userTable.email, name: userTable.name })
@@ -461,7 +464,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
    * Maintains same logic as original execution logger for billing consistency
    */
   private async updateUserStats(
-    workflowId: string,
+    workflowId: string | null,
     costSummary: {
       totalCost: number
       totalInputCost: number
@@ -491,6 +494,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     if (costSummary.totalCost <= 0) {
       logger.debug('No cost to update in user stats')
+      return
+    }
+
+    if (!workflowId) {
+      logger.debug('Workflow was deleted, skipping user stats update')
       return
     }
 
@@ -542,6 +550,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
           break
         case 'chat':
           updateFields.totalChatExecutions = sql`total_chat_executions + 1`
+          break
+        case 'mcp':
+          updateFields.totalMcpExecutions = sql`total_mcp_executions + 1`
+          break
+        case 'a2a':
+          updateFields.totalA2aExecutions = sql`total_a2a_executions + 1`
           break
       }
 

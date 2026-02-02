@@ -138,18 +138,24 @@ export const Notifications = memo(function Notifications() {
             }`}
           >
             <div className='flex h-full flex-col justify-between px-[8px] pt-[6px] pb-[8px]'>
-              <div
-                className={`font-medium text-[12px] leading-[16px] ${
-                  hasAction ? 'line-clamp-2' : 'line-clamp-4'
-                }`}
-              >
+              <div className='flex items-start gap-[8px]'>
+                <div
+                  className={`min-w-0 flex-1 font-medium text-[12px] leading-[16px] ${
+                    hasAction ? 'line-clamp-2' : 'line-clamp-4'
+                  }`}
+                >
+                  {notification.level === 'error' && (
+                    <span className='mr-[6px] mb-[2.75px] inline-block h-[6px] w-[6px] rounded-[2px] bg-[var(--text-error)] align-middle' />
+                  )}
+                  {notification.message}
+                </div>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
                       variant='ghost'
                       onClick={() => removeNotification(notification.id)}
                       aria-label='Dismiss notification'
-                      className='!p-1.5 -m-1.5 float-right ml-[16px]'
+                      className='!p-1.5 -m-1.5 shrink-0'
                     >
                       <X className='h-3 w-3' />
                     </Button>
@@ -158,10 +164,6 @@ export const Notifications = memo(function Notifications() {
                     <Tooltip.Shortcut keys='⌘E'>Clear all</Tooltip.Shortcut>
                   </Tooltip.Content>
                 </Tooltip.Root>
-                {notification.level === 'error' && (
-                  <span className='mr-[6px] mb-[2.75px] inline-block h-[6px] w-[6px] rounded-[2px] bg-[var(--text-error)] align-middle' />
-                )}
-                {notification.message}
               </div>
               {hasAction && (
                 <Button

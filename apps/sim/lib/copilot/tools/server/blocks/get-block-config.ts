@@ -5,8 +5,8 @@ import {
   GetBlockConfigResult,
   type GetBlockConfigResultType,
 } from '@/lib/copilot/tools/shared/schemas'
-import { registry as blockRegistry } from '@/blocks/registry'
-import type { SubBlockConfig } from '@/blocks/types'
+import { registry as blockRegistry, getLatestBlock } from '@/blocks/registry'
+import { isHiddenFromDisplay, type SubBlockConfig } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
@@ -123,6 +123,8 @@ function resolveSubBlockOptions(sb: SubBlockConfig): string[] | undefined {
 interface OutputFieldSchema {
   type: string
   description?: string
+  properties?: Record<string, OutputFieldSchema>
+  items?: { type: string }
 }
 
 /**
@@ -257,6 +259,42 @@ function mapSubBlockTypeToSchemaType(type: string): string {
 }
 
 /**
+ * Extracts a single output field schema, including nested properties
+ */
+function extractOutputField(def: any): OutputFieldSchema {
+  if (typeof def === 'string') {
+    return { type: def }
+  }
+
+  if (typeof def !== 'object' || def === null) {
+    return { type: 'any' }
+  }
+
+  const field: OutputFieldSchema = {
+    type: def.type || 'any',
+  }
+
+  if (def.description) {
+    field.description = def.description
+  }
+
+  // Include nested properties if present
+  if (def.properties && typeof def.properties === 'object') {
+    field.properties = {}
+    for (const [propKey, propDef] of Object.entries(def.properties)) {
+      field.properties[propKey] = extractOutputField(propDef)
+    }
+  }
+
+  // Include items schema for arrays
+  if (def.items && typeof def.items === 'object') {
+    field.items = { type: def.items.type || 'any' }
+  }
+
+  return field
+}
+
+/**
  * Extracts trigger outputs from the first available trigger
  */
 function extractTriggerOutputs(blockConfig: any): Record<string, OutputFieldSchema> {
@@ -272,15 +310,8 @@ function extractTriggerOutputs(blockConfig: any): Record<string, OutputFieldSche
     const trigger = getTrigger(triggerId)
     if (trigger.outputs) {
       for (const [key, def] of Object.entries(trigger.outputs)) {
-        if (typeof def === 'string') {
-          outputs[key] = { type: def }
-        } else if (typeof def === 'object' && def !== null) {
-          const typedDef = def as { type?: string; description?: string }
-          outputs[key] = {
-            type: typedDef.type || 'any',
-            description: typedDef.description,
-          }
-        }
+        if (isHiddenFromDisplay(def)) continue
+        outputs[key] = extractOutputField(def)
       }
     }
   }
@@ -312,11 +343,8 @@ function extractOutputs(
         const tool = toolsRegistry[toolId]
         if (tool?.outputs) {
           for (const [key, def] of Object.entries(tool.outputs)) {
-            const typedDef = def as { type: string; description?: string }
-            outputs[key] = {
-              type: typedDef.type || 'any',
-              description: typedDef.description,
-            }
+            if (isHiddenFromDisplay(def)) continue
+            outputs[key] = extractOutputField(def)
           }
           return outputs
         }
@@ -329,15 +357,8 @@ function extractOutputs(
   // Use block-level outputs
   if (blockConfig.outputs) {
     for (const [key, def] of Object.entries(blockConfig.outputs)) {
-      if (typeof def === 'string') {
-        outputs[key] = { type: def }
-      } else if (typeof def === 'object' && def !== null) {
-        const typedDef = def as { type?: string; description?: string }
-        outputs[key] = {
-          type: typedDef.type || 'any',
-          description: typedDef.description,
-        }
-      }
+      if (isHiddenFromDisplay(def)) continue
+      outputs[key] = extractOutputField(def)
     }
   }
 
@@ -452,9 +473,12 @@ export const getBlockConfigServerTool: BaseServerTool<
     const inputs = extractInputsFromSubBlocks(subBlocks, operation, trigger)
     const outputs = extractOutputs(blockConfig, operation, trigger)
 
+    const latestBlock = getLatestBlock(blockType)
+    const displayName = latestBlock?.name ?? blockConfig.name
+
     const result = {
       blockType,
-      blockName: blockConfig.name,
+      blockName: displayName,
       operation,
       trigger,
       inputs,

@@ -24,8 +24,8 @@ export const keywordOverviewTool: ToolConfig<
     country: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Country code for keyword data (e.g., us, gb, de). Default: us',
+      visibility: 'user-or-llm',
+      description: 'Country code for keyword data. Example: "us", "gb", "de" (default: "us")',
     },
     apiKey: {
       type: 'string',

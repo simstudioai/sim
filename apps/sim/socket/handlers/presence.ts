@@ -1,62 +1,53 @@
 import { createLogger } from '@sim/logger'
-import type { HandlerDependencies } from '@/socket/handlers/workflow'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
-import type { RoomManager } from '@/socket/rooms/manager'
+import type { IRoomManager } from '@/socket/rooms'
 
 const logger = createLogger('PresenceHandlers')
 
-export function setupPresenceHandlers(
-  socket: AuthenticatedSocket,
-  deps: HandlerDependencies | RoomManager
-) {
-  const roomManager =
-    deps instanceof Object && 'roomManager' in deps ? deps.roomManager : (deps as RoomManager)
-  socket.on('cursor-update', ({ cursor }) => {
-    const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
-    const session = roomManager.getUserSession(socket.id)
+export function setupPresenceHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
+  socket.on('cursor-update', async ({ cursor }) => {
+    try {
+      const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      const session = await roomManager.getUserSession(socket.id)
 
-    if (!workflowId || !session) return
+      if (!workflowId || !session) return
 
-    const room = roomManager.getWorkflowRoom(workflowId)
-    if (!room) return
+      // Update cursor in room state
+      await roomManager.updateUserActivity(workflowId, socket.id, { cursor })
 
-    const userPresence = room.users.get(socket.id)
-    if (userPresence) {
-      userPresence.cursor = cursor
-      userPresence.lastActivity = Date.now()
+      // Broadcast to other users in the room
+      socket.to(workflowId).emit('cursor-update', {
+        socketId: socket.id,
+        userId: session.userId,
+        userName: session.userName,
+        avatarUrl: session.avatarUrl,
+        cursor,
+      })
+    } catch (error) {
+      logger.error(`Error handling cursor update for socket ${socket.id}:`, error)
     }
-
-    socket.to(workflowId).emit('cursor-update', {
-      socketId: socket.id,
-      userId: session.userId,
-      userName: session.userName,
-      avatarUrl: session.avatarUrl,
-      cursor,
-    })
   })
 
-  // Handle user selection (for showing what block/element a user has selected)
-  socket.on('selection-update', ({ selection }) => {
-    const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
-    const session = roomManager.getUserSession(socket.id)
+  socket.on('selection-update', async ({ selection }) => {
+    try {
+      const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      const session = await roomManager.getUserSession(socket.id)
 
-    if (!workflowId || !session) return
+      if (!workflowId || !session) return
 
-    const room = roomManager.getWorkflowRoom(workflowId)
-    if (!room) return
+      // Update selection in room state
+      await roomManager.updateUserActivity(workflowId, socket.id, { selection })
 
-    const userPresence = room.users.get(socket.id)
-    if (userPresence) {
-      userPresence.selection = selection
-      userPresence.lastActivity = Date.now()
+      // Broadcast to other users in the room
+      socket.to(workflowId).emit('selection-update', {
+        socketId: socket.id,
+        userId: session.userId,
+        userName: session.userName,
+        avatarUrl: session.avatarUrl,
+        selection,
+      })
+    } catch (error) {
+      logger.error(`Error handling selection update for socket ${socket.id}:`, error)
     }
-
-    socket.to(workflowId).emit('selection-update', {
-      socketId: socket.id,
-      userId: session.userId,
-      userName: session.userName,
-      avatarUrl: session.avatarUrl,
-      selection,
-    })
   })
 }

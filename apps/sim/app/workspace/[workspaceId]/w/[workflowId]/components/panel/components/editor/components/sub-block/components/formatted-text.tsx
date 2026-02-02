@@ -2,12 +2,12 @@
 
 import type { ReactNode } from 'react'
 import { splitReferenceSegment } from '@/lib/workflows/sanitization/references'
-import { REFERENCE } from '@/executor/constants'
+import { normalizeName, REFERENCE } from '@/executor/constants'
 import { createCombinedPattern } from '@/executor/utils/reference-validation'
-import { normalizeName } from '@/stores/workflows/utils'
 
 export interface HighlightContext {
   accessiblePrefixes?: Set<string>
+  availableEnvVars?: Set<string>
   highlightAll?: boolean
 }
 
@@ -44,9 +44,17 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
     return false
   }
 
+  const shouldHighlightEnvVar = (varName: string): boolean => {
+    if (context?.highlightAll) {
+      return true
+    }
+    if (context?.availableEnvVars === undefined) {
+      return true
+    }
+    return context.availableEnvVars.has(varName)
+  }
+
   const nodes: ReactNode[] = []
-  // Match variable references without allowing nested brackets to prevent matching across references
-  // e.g., "<3. text <real.ref>" should match "<3" and "<real.ref>", not the whole string
   const regex = createCombinedPattern()
   let lastIndex = 0
   let key = 0
@@ -66,11 +74,16 @@ export function formatDisplayText(text: string, context?: HighlightContext): Rea
     }
 
     if (matchText.startsWith(REFERENCE.ENV_VAR_START)) {
-      nodes.push(
-        <span key={key++} className='text-[var(--brand-secondary)]'>
-          {matchText}
-        </span>
-      )
+      const varName = matchText.slice(2, -2).trim()
+      if (shouldHighlightEnvVar(varName)) {
+        nodes.push(
+          <span key={key++} className='text-[var(--brand-secondary)]'>
+            {matchText}
+          </span>
+        )
+      } else {
+        nodes.push(<span key={key++}>{matchText}</span>)
+      }
     } else {
       const split = splitReferenceSegment(matchText)
 

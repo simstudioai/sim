@@ -11,13 +11,23 @@ interface EmailLayoutProps {
   children: React.ReactNode
   /** Optional: hide footer for internal emails */
   hideFooter?: boolean
+  /**
+   * Whether to show unsubscribe link in footer.
+   * Set to false for transactional emails where unsubscribe doesn't apply.
+   */
+  showUnsubscribe: boolean
 }
 
 /**
  * Shared email layout wrapper providing consistent structure.
  * Includes Html, Head, Body, Container with logo header, and Footer.
  */
-export function EmailLayout({ preview, children, hideFooter = false }: EmailLayoutProps) {
+export function EmailLayout({
+  preview,
+  children,
+  hideFooter = false,
+  showUnsubscribe,
+}: EmailLayoutProps) {
   const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
 
@@ -43,7 +53,7 @@ export function EmailLayout({ preview, children, hideFooter = false }: EmailLayo
         </Container>
 
         {/* Footer in gray section */}
-        {!hideFooter && <EmailFooter baseUrl={baseUrl} />}
+        {!hideFooter && <EmailFooter baseUrl={baseUrl} showUnsubscribe={showUnsubscribe} />}
       </Body>
     </Html>
   )

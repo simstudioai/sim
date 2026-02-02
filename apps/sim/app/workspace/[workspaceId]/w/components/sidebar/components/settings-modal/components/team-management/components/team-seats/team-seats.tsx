@@ -64,7 +64,7 @@ export function TeamSeats({
       <ModalContent size='sm'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-muted)]'>{description}</p>
+          <p className='text-[12px] text-[var(--text-secondary)]'>{description}</p>
 
           <div className='mt-[16px] flex flex-col gap-[4px]'>
             <Label htmlFor='seats' className='text-[12px]'>

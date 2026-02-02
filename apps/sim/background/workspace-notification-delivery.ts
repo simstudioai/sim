@@ -66,7 +66,10 @@ function generateSignature(secret: string, timestamp: number, body: string): str
 async function buildPayload(
   log: WorkflowExecutionLog,
   subscription: typeof workspaceNotificationSubscription.$inferSelect
-): Promise<NotificationPayload> {
+): Promise<NotificationPayload | null> {
+  // Skip notifications for deleted workflows
+  if (!log.workflowId) return null
+
   const workflowData = await db
     .select({ name: workflowTable.name, userId: workflowTable.userId })
     .from(workflowTable)
@@ -525,6 +528,13 @@ export async function executeNotificationDelivery(params: NotificationDeliveryPa
 
     const attempts = claimed[0].attempts
     const payload = await buildPayload(log, subscription)
+
+    // Skip delivery for deleted workflows
+    if (!payload) {
+      await updateDeliveryStatus(deliveryId, 'failed', 'Workflow was deleted')
+      logger.info(`Skipping delivery ${deliveryId} - workflow was deleted`)
+      return
+    }
 
     let result: { success: boolean; status?: number; error?: string }
 

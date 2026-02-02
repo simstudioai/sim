@@ -20,14 +20,14 @@ export const discordAddReactionTool: ToolConfig<
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord channel ID containing the message',
+      visibility: 'user-or-llm',
+      description: 'The Discord channel ID containing the message, e.g., 123456789012345678',
     },
     messageId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the message to react to',
+      description: 'The ID of the message to react to, e.g., 123456789012345678',
     },
     emoji: {
       type: 'string',
@@ -38,8 +38,8 @@ export const discordAddReactionTool: ToolConfig<
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The Discord server ID (guild ID)',
+      visibility: 'user-or-llm',
+      description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
   },
 

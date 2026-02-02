@@ -1,4 +1,5 @@
 import type { SlackGetMessageParams, SlackGetMessageResponse } from '@/tools/slack/types'
+import { MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMessageResponse> = {
@@ -35,7 +36,7 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
     channel: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Slack channel ID (e.g., C1234567890)',
     },
     timestamp: {
@@ -134,80 +135,7 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
     message: {
       type: 'object',
       description: 'The retrieved message object',
-      properties: {
-        type: { type: 'string', description: 'Message type' },
-        ts: { type: 'string', description: 'Message timestamp' },
-        text: { type: 'string', description: 'Message text content' },
-        user: { type: 'string', description: 'User ID who sent the message' },
-        bot_id: { type: 'string', description: 'Bot ID if sent by a bot', optional: true },
-        username: { type: 'string', description: 'Display username', optional: true },
-        channel: { type: 'string', description: 'Channel ID', optional: true },
-        team: { type: 'string', description: 'Team ID', optional: true },
-        thread_ts: { type: 'string', description: 'Thread parent timestamp', optional: true },
-        parent_user_id: { type: 'string', description: 'User ID of thread parent', optional: true },
-        reply_count: { type: 'number', description: 'Number of thread replies', optional: true },
-        reply_users_count: {
-          type: 'number',
-          description: 'Number of users who replied',
-          optional: true,
-        },
-        latest_reply: { type: 'string', description: 'Timestamp of latest reply', optional: true },
-        subtype: { type: 'string', description: 'Message subtype', optional: true },
-        reactions: {
-          type: 'array',
-          description: 'Array of reactions on this message',
-          items: {
-            type: 'object',
-            properties: {
-              name: { type: 'string', description: 'Emoji name' },
-              count: { type: 'number', description: 'Number of reactions' },
-              users: {
-                type: 'array',
-                description: 'User IDs who reacted',
-                items: { type: 'string' },
-              },
-            },
-          },
-        },
-        is_starred: { type: 'boolean', description: 'Whether message is starred', optional: true },
-        pinned_to: {
-          type: 'array',
-          description: 'Channel IDs where message is pinned',
-          items: { type: 'string' },
-          optional: true,
-        },
-        files: {
-          type: 'array',
-          description: 'Files attached to message',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'File ID' },
-              name: { type: 'string', description: 'File name' },
-              mimetype: { type: 'string', description: 'MIME type' },
-              size: { type: 'number', description: 'File size in bytes' },
-              url_private: { type: 'string', description: 'Private download URL' },
-              permalink: { type: 'string', description: 'Permanent link to file' },
-            },
-          },
-        },
-        attachments: {
-          type: 'array',
-          description: 'Legacy attachments',
-          items: { type: 'object' },
-        },
-        blocks: { type: 'array', description: 'Block Kit blocks', items: { type: 'object' } },
-        edited: {
-          type: 'object',
-          description: 'Edit information if message was edited',
-          properties: {
-            user: { type: 'string', description: 'User ID who edited' },
-            ts: { type: 'string', description: 'Edit timestamp' },
-          },
-          optional: true,
-        },
-        permalink: { type: 'string', description: 'Permanent link to message', optional: true },
-      },
+      properties: MESSAGE_OUTPUT_PROPERTIES,
     },
   },
 }

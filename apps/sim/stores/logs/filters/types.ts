@@ -102,7 +102,7 @@ export interface TraceSpan {
 
 export interface WorkflowLog {
   id: string
-  workflowId: string
+  workflowId: string | null
   executionId?: string | null
   deploymentVersion?: number | null
   deploymentVersionName?: string | null
@@ -172,7 +172,14 @@ export type TimeRange =
   | 'All time'
   | 'Custom range'
 
-export type LogLevel = 'error' | 'info' | 'running' | 'pending' | 'all' | (string & {})
+export type LogLevel =
+  | 'error'
+  | 'info'
+  | 'running'
+  | 'pending'
+  | 'cancelled'
+  | 'all'
+  | (string & {})
 /** Core trigger types for workflow execution */
 export const CORE_TRIGGER_TYPES = [
   'manual',

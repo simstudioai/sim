@@ -1,4 +1,5 @@
 import type { HunterDomainSearchParams, HunterDomainSearchResponse } from '@/tools/hunter/types'
+import { EMAILS_OUTPUT } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomainSearchResponse> = {
@@ -12,37 +13,38 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Domain name to search for email addresses',
+      description: 'Domain name to search for email addresses (e.g., "stripe.com", "company.io")',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum email addresses to return (default: 10)',
+      visibility: 'user-or-llm',
+      description: 'Maximum email addresses to return (e.g., 10, 25, 50). Default: 10',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'hidden',
-      description: 'Number of email addresses to skip',
+      visibility: 'user-or-llm',
+      description: 'Number of email addresses to skip for pagination (e.g., 0, 10, 20)',
     },
     type: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter for personal or generic emails',
+      visibility: 'user-or-llm',
+      description: 'Filter for personal or generic emails (e.g., "personal", "generic", "all")',
     },
     seniority: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by seniority level: junior, senior, or executive',
+      visibility: 'user-or-llm',
+      description: 'Filter by seniority level (e.g., "junior", "senior", "executive")',
     },
     department: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by specific departments (e.g., sales, marketing)',
+      description:
+        'Filter by specific department (e.g., "sales", "marketing", "engineering", "hr")',
     },
     apiKey: {
       type: 'string',
@@ -125,23 +127,23 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
     },
     disposable: {
       type: 'boolean',
-      description: 'Whether the domain accepts disposable email addresses',
+      description: 'Whether the domain is a disposable email service',
     },
     webmail: {
       type: 'boolean',
-      description: 'Whether the domain is a webmail provider',
+      description: 'Whether the domain is a webmail provider (e.g., Gmail)',
     },
     accept_all: {
       type: 'boolean',
-      description: 'Whether the domain accepts all email addresses',
+      description: 'Whether the server accepts all email addresses (may cause false positives)',
     },
     pattern: {
       type: 'string',
-      description: 'The email pattern used by the organization',
+      description: 'The email pattern used by the organization (e.g., {first}, {first}.{last})',
     },
     organization: {
       type: 'string',
-      description: 'The organization name',
+      description: 'The organization/company name',
     },
     description: {
       type: 'string',
@@ -149,19 +151,19 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
     },
     industry: {
       type: 'string',
-      description: 'Industry of the organization',
+      description: 'Industry classification of the organization',
     },
     twitter: {
       type: 'string',
-      description: 'Twitter profile of the organization',
+      description: 'Twitter handle of the organization',
     },
     facebook: {
       type: 'string',
-      description: 'Facebook profile of the organization',
+      description: 'Facebook page URL of the organization',
     },
     linkedin: {
       type: 'string',
-      description: 'LinkedIn profile of the organization',
+      description: 'LinkedIn company page URL',
     },
     instagram: {
       type: 'string',
@@ -173,15 +175,19 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
     },
     technologies: {
       type: 'array',
-      description: 'Array of technologies used by the organization',
+      description: 'Technologies used by the organization',
+      items: {
+        type: 'string',
+        description: 'Technology name',
+      },
     },
     country: {
       type: 'string',
-      description: 'Country where the organization is located',
+      description: 'Country where the organization is headquartered',
     },
     state: {
       type: 'string',
-      description: 'State where the organization is located',
+      description: 'State/province where the organization is located',
     },
     city: {
       type: 'string',
@@ -195,10 +201,6 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
       type: 'string',
       description: 'Street address of the organization',
     },
-    emails: {
-      type: 'array',
-      description:
-        'Array of email addresses found for the domain, each containing value, type, confidence, sources, and person details',
-    },
+    emails: EMAILS_OUTPUT,
   },
 }

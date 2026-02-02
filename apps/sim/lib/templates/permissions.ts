@@ -1,18 +1,41 @@
 import { db } from '@sim/db'
-import { member, templateCreators, templates, user } from '@sim/db/schema'
+import { member, settings, templateCreators, templates, user } from '@sim/db/schema'
 import { and, eq, or } from 'drizzle-orm'
 
 export type CreatorPermissionLevel = 'member' | 'admin'
 
 /**
- * Verifies if a user is a super user.
+ * Verifies if a user is an effective super user (database flag AND settings toggle).
+ * This should be used for features that can be disabled by the user's settings toggle.
  *
  * @param userId - The ID of the user to check
- * @returns Object with isSuperUser boolean
+ * @returns Object with effectiveSuperUser boolean and component values
  */
-export async function verifySuperUser(userId: string): Promise<{ isSuperUser: boolean }> {
-  const [currentUser] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
-  return { isSuperUser: currentUser?.isSuperUser || false }
+export async function verifyEffectiveSuperUser(userId: string): Promise<{
+  effectiveSuperUser: boolean
+  isSuperUser: boolean
+  superUserModeEnabled: boolean
+}> {
+  const [currentUser] = await db
+    .select({ isSuperUser: user.isSuperUser })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+
+  const [userSettings] = await db
+    .select({ superUserModeEnabled: settings.superUserModeEnabled })
+    .from(settings)
+    .where(eq(settings.userId, userId))
+    .limit(1)
+
+  const isSuperUser = currentUser?.isSuperUser || false
+  const superUserModeEnabled = userSettings?.superUserModeEnabled ?? false
+
+  return {
+    effectiveSuperUser: isSuperUser && superUserModeEnabled,
+    isSuperUser,
+    superUserModeEnabled,
+  }
 }
 
 /**

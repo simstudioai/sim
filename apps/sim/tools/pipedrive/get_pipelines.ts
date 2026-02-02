@@ -3,6 +3,7 @@ import type {
   PipedriveGetPipelinesParams,
   PipedriveGetPipelinesResponse,
 } from '@/tools/pipedrive/types'
+import { PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES } from '@/tools/pipedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetPipelines')
@@ -26,25 +27,25 @@ export const pipedriveGetPipelinesTool: ToolConfig<
     sort_by: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Field to sort by: id, update_time, add_time (default: id)',
     },
     sort_direction: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Sorting direction: asc, desc (default: asc)',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 100, max: 500)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
     },
     cursor: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'For pagination, the marker representing the first item on the next page',
     },
   },
@@ -96,7 +97,14 @@ export const pipedriveGetPipelinesTool: ToolConfig<
   },
 
   outputs: {
-    pipelines: { type: 'array', description: 'Array of pipeline objects from Pipedrive' },
+    pipelines: {
+      type: 'array',
+      description: 'Array of pipeline objects from Pipedrive',
+      items: {
+        type: 'object',
+        properties: PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES,
+      },
+    },
     total_items: { type: 'number', description: 'Total number of pipelines returned' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

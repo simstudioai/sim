@@ -34,13 +34,13 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Table name',
+      description: 'Table name (e.g., incident, task, sys_user, change_request)',
     },
     sysId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Specific record sys_id',
+      description: 'Specific record sys_id (e.g., 6816f79cc0a8016401c5a33be04be441)',
     },
     number: {
       type: 'string',
@@ -57,14 +57,15 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of records to return',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of records to return (e.g., 10, 50, 100)',
     },
     fields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated list of fields to return',
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of fields to return (e.g., sys_id,number,short_description,state)',
     },
   },
 

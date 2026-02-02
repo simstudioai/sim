@@ -1,14 +1,16 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
-import { parseResponseFormatSafely } from '@/lib/core/utils/response-format'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
   evaluateSubBlockCondition,
   getCanonicalValues,
+  isCanonicalPair,
   isNonEmptyValue,
   isSubBlockFeatureEnabled,
+  resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -43,7 +45,8 @@ function shouldSerializeSubBlock(
   displayAdvancedOptions: boolean,
   isTriggerContext: boolean,
   isTriggerCategory: boolean,
-  canonicalIndex: ReturnType<typeof buildCanonicalIndex>
+  canonicalIndex: ReturnType<typeof buildCanonicalIndex>,
+  canonicalModeOverrides?: CanonicalModeOverrides
 ): boolean {
   if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
 
@@ -55,6 +58,18 @@ function shouldSerializeSubBlock(
 
   const isCanonicalMember = Boolean(canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id])
   if (isCanonicalMember) {
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
+    const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+    if (group && isCanonicalPair(group)) {
+      const mode =
+        canonicalModeOverrides?.[group.canonicalId] ??
+        (displayAdvancedOptions ? 'advanced' : resolveCanonicalMode(group, values))
+      const matchesMode =
+        mode === 'advanced'
+          ? group.advancedIds.includes(subBlockConfig.id)
+          : group.basicId === subBlockConfig.id
+      return matchesMode && evaluateSubBlockCondition(subBlockConfig.condition, values)
+    }
     return evaluateSubBlockCondition(subBlockConfig.condition, values)
   }
 
@@ -275,15 +290,6 @@ export class Serializer {
       inputs,
       outputs: {
         ...block.outputs,
-        // Include response format fields if available
-        ...(params.responseFormat
-          ? {
-              responseFormat:
-                parseResponseFormatSafely(params.responseFormat, block.id, {
-                  allowReferences: true,
-                }) ?? undefined,
-            }
-          : {}),
       },
       metadata: {
         id: block.type,
@@ -337,7 +343,8 @@ export class Serializer {
             legacyAdvancedMode,
             isTriggerContext,
             isTriggerCategory,
-            canonicalIndex
+            canonicalIndex,
+            canonicalModeOverrides
           )
         )
 
@@ -361,7 +368,8 @@ export class Serializer {
           legacyAdvancedMode,
           isTriggerContext,
           isTriggerCategory,
-          canonicalIndex
+          canonicalIndex,
+          canonicalModeOverrides
         )
       ) {
         params[id] = subBlockConfig.value(params)
@@ -375,9 +383,7 @@ export class Serializer {
       const chosen = pairMode === 'advanced' ? advancedValue : basicValue
 
       const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
-      sourceIds.forEach((id) => {
-        if (id !== group.canonicalId) delete params[id]
-      })
+      sourceIds.forEach((id) => delete params[id])
 
       if (chosen !== undefined) {
         params[group.canonicalId] = chosen
@@ -430,6 +436,8 @@ export class Serializer {
     const isTriggerContext = block.triggerMode ?? false
     const isTriggerCategory = blockConfig.category === 'triggers'
     const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
+    const canonicalModeOverrides = block.data?.canonicalModes
+    const allValues = buildSubBlockValues(block.subBlocks)
 
     // Iterate through the tool's parameters, not the block's subBlocks
     Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
@@ -442,11 +450,12 @@ export class Serializer {
           shouldValidateParam = matchingConfigs.some((subBlockConfig: any) => {
             const includedByMode = shouldSerializeSubBlock(
               subBlockConfig,
-              params,
+              allValues,
               displayAdvancedOptions,
               isTriggerContext,
               isTriggerCategory,
-              canonicalIndex
+              canonicalIndex,
+              canonicalModeOverrides
             )
 
             const isRequired = (() => {
@@ -468,11 +477,12 @@ export class Serializer {
           const activeConfig = matchingConfigs.find((config: any) =>
             shouldSerializeSubBlock(
               config,
-              params,
+              allValues,
               displayAdvancedOptions,
               isTriggerContext,
               isTriggerCategory,
-              canonicalIndex
+              canonicalIndex,
+              canonicalModeOverrides
             )
           )
           const displayName = activeConfig?.title || paramId

@@ -8,7 +8,7 @@ const ivm = require('isolated-vm')
 const USER_CODE_START_LINE = 4
 const pendingFetches = new Map()
 let fetchIdCounter = 0
-const FETCH_TIMEOUT_MS = 30000
+const FETCH_TIMEOUT_MS = 300000 // 5 minutes
 
 /**
  * Extract line and column from error stack or message
@@ -130,7 +130,13 @@ async function executeCode(request) {
     await jail.set('environmentVariables', new ivm.ExternalCopy(envVars).copyInto())
 
     for (const [key, value] of Object.entries(contextVariables)) {
-      await jail.set(key, new ivm.ExternalCopy(value).copyInto())
+      if (value === undefined) {
+        await jail.set(key, undefined)
+      } else if (value === null) {
+        await jail.set(key, null)
+      } else {
+        await jail.set(key, new ivm.ExternalCopy(value).copyInto())
+      }
     }
 
     const fetchCallback = new ivm.Reference(async (url, optionsJson) => {

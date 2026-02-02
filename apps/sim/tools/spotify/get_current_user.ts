@@ -1,5 +1,8 @@
+import type {
+  SpotifyGetCurrentUserParams,
+  SpotifyGetCurrentUserResponse,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetCurrentUserParams, SpotifyGetCurrentUserResponse } from './types'
 
 export const spotifyGetCurrentUserTool: ToolConfig<
   SpotifyGetCurrentUserParams,

@@ -1,6 +1,10 @@
+import { MEMORY_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
 import type { ToolConfig } from '@/tools/types'
 
-// Get Memories Tool
+/**
+ * Get Memories Tool
+ * @see https://docs.mem0.ai/api-reference/memory/get-memories
+ */
 export const mem0GetMemoriesTool: ToolConfig = {
   id: 'mem0_get_memories',
   name: 'Get Memories',
@@ -11,33 +15,33 @@ export const mem0GetMemoriesTool: ToolConfig = {
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID to retrieve memories for',
+      visibility: 'user-or-llm',
+      description: 'User ID to retrieve memories for (e.g., "user_123", "alice@example.com")',
     },
     memoryId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Specific memory ID to retrieve',
+      visibility: 'user-or-llm',
+      description: 'Specific memory ID to retrieve (e.g., "mem_abc123")',
     },
     startDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Start date for filtering by created_at (format: YYYY-MM-DD)',
+      description: 'Start date for filtering by created_at (e.g., "2024-01-15")',
     },
     endDate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'End date for filtering by created_at (format: YYYY-MM-DD)',
+      description: 'End date for filtering by created_at (e.g., "2024-12-31")',
     },
     limit: {
       type: 'number',
       required: false,
       default: 10,
-      visibility: 'hidden',
-      description: 'Maximum number of results to return',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (e.g., 10, 50, 100)',
     },
     apiKey: {
       type: 'string',
@@ -123,10 +127,17 @@ export const mem0GetMemoriesTool: ToolConfig = {
     memories: {
       type: 'array',
       description: 'Array of retrieved memory objects',
+      items: {
+        type: 'object',
+        properties: MEMORY_OUTPUT_PROPERTIES,
+      },
     },
     ids: {
       type: 'array',
       description: 'Array of memory IDs that were retrieved',
+      items: {
+        type: 'string',
+      },
     },
   },
 }

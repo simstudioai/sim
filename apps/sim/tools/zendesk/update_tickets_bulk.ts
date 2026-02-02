@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
-
-const logger = createLogger('ZendeskUpdateTicketsBulk')
+import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from '@/tools/zendesk/types'
 
 export interface ZendeskUpdateTicketsBulkParams {
   email: string
@@ -56,38 +53,39 @@ export const zendeskUpdateTicketsBulkTool: ToolConfig<
     ticketIds: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Comma-separated ticket IDs to update (max 100)',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated ticket IDs to update (max 100, e.g., "111, 222, 333")',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'New status for all tickets',
+      visibility: 'user-or-llm',
+      description:
+        'New status for all tickets: "new", "open", "pending", "hold", "solved", or "closed"',
     },
     priority: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'New priority for all tickets',
+      visibility: 'user-or-llm',
+      description: 'New priority for all tickets: "low", "normal", "high", or "urgent"',
     },
     assigneeId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'New assignee ID for all tickets',
+      visibility: 'user-or-llm',
+      description: 'New assignee ID for all tickets as a numeric string (e.g., "12345")',
     },
     groupId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'New group ID for all tickets',
+      visibility: 'user-or-llm',
+      description: 'New group ID for all tickets as a numeric string (e.g., "67890")',
     },
     tags: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated tags to add to all tickets',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated tags to add to all tickets (e.g., "bulk-update, processed")',
     },
   },
 
@@ -135,7 +133,7 @@ export const zendeskUpdateTicketsBulkTool: ToolConfig<
   },
 
   outputs: {
-    job_status: { type: 'object', description: 'Job status object' },
+    job_status: JOB_STATUS_OUTPUT,
     job_id: { type: 'string', description: 'The bulk operation job ID' },
   },
 }

@@ -21,13 +21,13 @@ export const apolloAccountUpdateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the account to update',
+      description: 'ID of the account to update (e.g., "acc_abc123")',
     },
     name: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company name',
+      description: 'Company name (e.g., "Acme Corporation")',
     },
     website_url: {
       type: 'string',

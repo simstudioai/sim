@@ -81,7 +81,7 @@ export const deepseekProvider: ProviderConfig = {
       }
 
       if (request.temperature !== undefined) payload.temperature = request.temperature
-      if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+      if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
@@ -256,7 +256,7 @@ export const deepseekProvider: ProviderConfig = {
               if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams, true)
+              const result = await executeTool(toolName, executionParams)
               const toolCallEndTime = Date.now()
 
               return {

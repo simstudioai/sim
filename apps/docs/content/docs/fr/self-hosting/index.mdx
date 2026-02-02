@@ -10,12 +10,20 @@ Déployez Sim sur votre propre infrastructure avec Docker ou Kubernetes.
 
 ## Prérequis
 
-| Ressource | Minimum | Recommandé |
-|----------|---------|-------------|
-| CPU | 2 cœurs | 4+ cœurs |
-| RAM | 12 Go | 16+ Go |
-| Stockage | 20 Go SSD | 50+ Go SSD |
-| Docker | 20.10+ | Dernière version |
+| Ressource | Petit | Standard | Production |
+|----------|-------|----------|------------|
+| CPU | 2 cœurs | 4 cœurs | 8+ cœurs |
+| RAM | 12 Go | 16 Go | 32+ Go |
+| Stockage | 20 Go SSD | 50 Go SSD | 100+ Go SSD |
+| Docker | 20.10+ | 20.10+ | Dernière version |
+
+**Petit** : Développement, tests, utilisateur unique (1-5 utilisateurs)
+**Standard** : Équipes (5-50 utilisateurs), charges de travail modérées
+**Production** : Grandes équipes (50+ utilisateurs), haute disponibilité, exécution intensive de workflows
+
+<Callout type="info">
+Les besoins en ressources sont déterminés par l'exécution des workflows (sandboxing isolated-vm), le traitement des fichiers (analyse de documents en mémoire) et les opérations vectorielles (pgvector). La mémoire est généralement le facteur limitant, pas le CPU. La télémétrie de production montre que l'application principale utilise 4-8 Go en moyenne avec des pics jusqu'à 12 Go sous forte charge.
+</Callout>
 
 ## Démarrage rapide
 

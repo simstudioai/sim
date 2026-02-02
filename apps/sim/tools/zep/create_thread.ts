@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { THREAD_OUTPUT_PROPERTIES } from '@/tools/zep/types'
 
-// Create Thread Tool - Start a new thread (Zep v3)
 export const zepCreateThreadTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_create_thread',
   name: 'Create Thread',
@@ -12,14 +12,14 @@ export const zepCreateThreadTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Unique identifier for the thread',
+      visibility: 'user-or-llm',
+      description: 'Unique identifier for the thread (e.g., "thread_abc123")',
     },
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID associated with the thread',
+      visibility: 'user-or-llm',
+      description: 'User ID associated with the thread (e.g., "user_123")',
     },
     apiKey: {
       type: 'string',
@@ -71,25 +71,10 @@ export const zepCreateThreadTool: ToolConfig<any, ZepResponse> = {
   },
 
   outputs: {
-    threadId: {
-      type: 'string',
-      description: 'The thread ID',
-    },
-    userId: {
-      type: 'string',
-      description: 'The user ID',
-    },
-    uuid: {
-      type: 'string',
-      description: 'Internal UUID',
-    },
-    createdAt: {
-      type: 'string',
-      description: 'Creation timestamp',
-    },
-    projectUuid: {
-      type: 'string',
-      description: 'Project UUID',
-    },
+    threadId: THREAD_OUTPUT_PROPERTIES.threadId,
+    userId: THREAD_OUTPUT_PROPERTIES.userId,
+    uuid: THREAD_OUTPUT_PROPERTIES.uuid,
+    createdAt: THREAD_OUTPUT_PROPERTIES.createdAt,
+    projectUuid: THREAD_OUTPUT_PROPERTIES.projectUuid,
   },
 }

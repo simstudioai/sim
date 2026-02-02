@@ -54,15 +54,15 @@ Upload a file to Dropbox
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `file` | object | The uploaded file metadata |
-| ↳ `id` | string | Unique identifier for the file |
-| ↳ `name` | string | Name of the file |
-| ↳ `path_display` | string | Display path of the file |
-| ↳ `path_lower` | string | Lowercase path of the file |
-| ↳ `size` | number | Size of the file in bytes |
-| ↳ `client_modified` | string | Client modification time |
-| ↳ `server_modified` | string | Server modification time |
-| ↳ `rev` | string | Revision identifier |
-| ↳ `content_hash` | string | Content hash for the file |
+|   ↳ `id` | string | Unique identifier for the file |
+|   ↳ `name` | string | Name of the file |
+|   ↳ `path_display` | string | Display path of the file |
+|   ↳ `path_lower` | string | Lowercase path of the file |
+|   ↳ `size` | number | Size of the file in bytes |
+|   ↳ `client_modified` | string | Client modification time |
+|   ↳ `server_modified` | string | Server modification time |
+|   ↳ `rev` | string | Revision identifier |
+|   ↳ `content_hash` | string | Content hash for the file |
 
 ### `dropbox_download`
 
@@ -79,10 +79,10 @@ Download a file from Dropbox and get a temporary link
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `file` | object | The file metadata |
-| ↳ `id` | string | Unique identifier for the file |
-| ↳ `name` | string | Name of the file |
-| ↳ `path_display` | string | Display path of the file |
-| ↳ `size` | number | Size of the file in bytes |
+|   ↳ `id` | string | Unique identifier for the file |
+|   ↳ `name` | string | Name of the file |
+|   ↳ `path_display` | string | Display path of the file |
+|   ↳ `size` | number | Size of the file in bytes |
 | `temporaryLink` | string | Temporary link to download the file \(valid for ~4 hours\) |
 | `content` | string | Base64 encoded file content \(if fetched\) |
 
@@ -128,10 +128,10 @@ Create a new folder in Dropbox
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `folder` | object | The created folder metadata |
-| ↳ `id` | string | Unique identifier for the folder |
-| ↳ `name` | string | Name of the folder |
-| ↳ `path_display` | string | Display path of the folder |
-| ↳ `path_lower` | string | Lowercase path of the folder |
+|   ↳ `id` | string | Unique identifier for the folder |
+|   ↳ `name` | string | Name of the folder |
+|   ↳ `path_display` | string | Display path of the folder |
+|   ↳ `path_lower` | string | Lowercase path of the folder |
 
 ### `dropbox_delete`
 
@@ -148,8 +148,8 @@ Delete a file or folder in Dropbox (moves to trash)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `metadata` | object | Metadata of the deleted item |
-| ↳ `name` | string | Name of the deleted item |
-| ↳ `path_display` | string | Display path |
+|   ↳ `name` | string | Name of the deleted item |
+|   ↳ `path_display` | string | Display path |
 | `deleted` | boolean | Whether the deletion was successful |
 
 ### `dropbox_copy`
@@ -169,10 +169,10 @@ Copy a file or folder in Dropbox
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `metadata` | object | Metadata of the copied item |
-| ↳ `id` | string | Unique identifier |
-| ↳ `name` | string | Name of the copied item |
-| ↳ `path_display` | string | Display path |
-| ↳ `size` | number | Size in bytes \(files only\) |
+|   ↳ `id` | string | Unique identifier |
+|   ↳ `name` | string | Name of the copied item |
+|   ↳ `path_display` | string | Display path |
+|   ↳ `size` | number | Size in bytes \(files only\) |
 
 ### `dropbox_move`
 
@@ -191,10 +191,10 @@ Move or rename a file or folder in Dropbox
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `metadata` | object | Metadata of the moved item |
-| ↳ `id` | string | Unique identifier |
-| ↳ `name` | string | Name of the moved item |
-| ↳ `path_display` | string | Display path |
-| ↳ `size` | number | Size in bytes \(files only\) |
+|   ↳ `id` | string | Unique identifier |
+|   ↳ `name` | string | Name of the moved item |
+|   ↳ `path_display` | string | Display path |
+|   ↳ `size` | number | Size in bytes \(files only\) |
 
 ### `dropbox_get_metadata`
 
@@ -213,15 +213,15 @@ Get metadata for a file or folder in Dropbox
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `metadata` | object | Metadata for the file or folder |
-| ↳ `id` | string | Unique identifier |
-| ↳ `name` | string | Name of the item |
-| ↳ `path_display` | string | Display path |
-| ↳ `path_lower` | string | Lowercase path |
-| ↳ `size` | number | Size in bytes \(files only\) |
-| ↳ `client_modified` | string | Client modification time |
-| ↳ `server_modified` | string | Server modification time |
-| ↳ `rev` | string | Revision identifier |
-| ↳ `content_hash` | string | Content hash |
+|   ↳ `id` | string | Unique identifier |
+|   ↳ `name` | string | Name of the item |
+|   ↳ `path_display` | string | Display path |
+|   ↳ `path_lower` | string | Lowercase path |
+|   ↳ `size` | number | Size in bytes \(files only\) |
+|   ↳ `client_modified` | string | Client modification time |
+|   ↳ `server_modified` | string | Server modification time |
+|   ↳ `rev` | string | Revision identifier |
+|   ↳ `content_hash` | string | Content hash |
 
 ### `dropbox_create_shared_link`
 
@@ -241,11 +241,11 @@ Create a shareable link for a file or folder in Dropbox
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `sharedLink` | object | The created shared link |
-| ↳ `url` | string | The shared link URL |
-| ↳ `name` | string | Name of the shared item |
-| ↳ `path_lower` | string | Lowercase path of the shared item |
-| ↳ `expires` | string | Expiration date if set |
-| ↳ `link_permissions` | object | Permissions for the shared link |
+|   ↳ `url` | string | The shared link URL |
+|   ↳ `name` | string | Name of the shared item |
+|   ↳ `path_lower` | string | Lowercase path of the shared item |
+|   ↳ `expires` | string | Expiration date if set |
+|   ↳ `link_permissions` | object | Permissions for the shared link |
 
 ### `dropbox_search`
 
@@ -256,7 +256,7 @@ Search for files and folders in Dropbox
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query |
-| `path` | string | No | Limit search to a specific folder path |
+| `path` | string | No | Dropbox folder path to limit search scope \(e.g., /folder/subfolder\) |
 | `fileExtensions` | string | No | Comma-separated list of file extensions to filter by \(e.g., pdf,xlsx\) |
 | `maxResults` | number | No | Maximum number of results to return \(default: 100\) |
 

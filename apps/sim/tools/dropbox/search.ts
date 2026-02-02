@@ -22,8 +22,8 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
     path: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Limit search to a specific folder path',
+      visibility: 'user-or-llm',
+      description: 'Dropbox folder path to limit search scope (e.g., /folder/subfolder)',
     },
     fileExtensions: {
       type: 'string',
@@ -34,7 +34,7 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of results to return (default: 100)',
     },
   },

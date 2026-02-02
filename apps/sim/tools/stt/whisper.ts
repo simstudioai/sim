@@ -1,4 +1,5 @@
 import type { SttParams, SttResponse } from '@/tools/stt/types'
+import { STT_SEGMENT_OUTPUT_PROPERTIES } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
@@ -29,13 +30,13 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
     audioFile: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Audio or video file to transcribe',
+      visibility: 'user-only',
+      description: 'Audio or video file to transcribe (e.g., MP3, WAV, M4A, WEBM)',
     },
     audioFileReference: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Reference to audio/video file from previous blocks',
     },
     audioUrl: {
@@ -76,10 +77,17 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       description:
         'Sampling temperature between 0 and 1. Higher values make output more random, lower values more focused and deterministic.',
     },
+    responseFormat: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Output format for the transcription (e.g., "json", "text", "srt", "verbose_json", "vtt")',
+    },
   },
 
   request: {
-    url: '/api/proxy/stt',
+    url: '/api/tools/stt',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
@@ -100,6 +108,7 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       translateToEnglish: params.translateToEnglish || false,
       prompt: (params as any).prompt,
       temperature: (params as any).temperature,
+      responseFormat: (params as any).responseFormat,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,
@@ -132,7 +141,14 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
 
   outputs: {
     transcript: { type: 'string', description: 'Full transcribed text' },
-    segments: { type: 'array', description: 'Timestamped segments' },
+    segments: {
+      type: 'array',
+      description: 'Timestamped segments',
+      items: {
+        type: 'object',
+        properties: STT_SEGMENT_OUTPUT_PROPERTIES,
+      },
+    },
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
   },

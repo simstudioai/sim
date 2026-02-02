@@ -1,5 +1,11 @@
+import type { SpotifySearchParams, SpotifySearchResponse } from '@/tools/spotify/types'
+import {
+  SEARCH_ALBUM_OUTPUT_PROPERTIES,
+  SEARCH_ARTIST_OUTPUT_PROPERTIES,
+  SEARCH_PLAYLIST_OUTPUT_PROPERTIES,
+  SEARCH_TRACK_OUTPUT_PROPERTIES,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifySearchParams, SpotifySearchResponse } from './types'
 
 export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchResponse> = {
   id: 'spotify_search',
@@ -31,21 +37,21 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Maximum number of results to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
       description: 'Index of the first result to return for pagination',
     },
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'ISO 3166-1 alpha-2 country code to filter results (e.g., "US", "GB")',
     },
   },
@@ -127,31 +133,22 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
     tracks: {
       type: 'array',
       description: 'List of matching tracks',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Spotify track ID' },
-          name: { type: 'string', description: 'Track name' },
-          artists: { type: 'array', description: 'List of artist names' },
-          album: { type: 'string', description: 'Album name' },
-          duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
-          popularity: { type: 'number', description: 'Popularity score (0-100)' },
-          preview_url: { type: 'string', description: 'URL to 30-second preview' },
-          external_url: { type: 'string', description: 'Spotify URL' },
-        },
-      },
+      items: { type: 'object', properties: SEARCH_TRACK_OUTPUT_PROPERTIES },
     },
     artists: {
       type: 'array',
       description: 'List of matching artists',
+      items: { type: 'object', properties: SEARCH_ARTIST_OUTPUT_PROPERTIES },
     },
     albums: {
       type: 'array',
       description: 'List of matching albums',
+      items: { type: 'object', properties: SEARCH_ALBUM_OUTPUT_PROPERTIES },
     },
     playlists: {
       type: 'array',
       description: 'List of matching playlists',
+      items: { type: 'object', properties: SEARCH_PLAYLIST_OUTPUT_PROPERTIES },
     },
   },
 }

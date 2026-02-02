@@ -1,8 +1,11 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
-
-const logger = createLogger('ZendeskAutocompleteOrganizations')
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  METADATA_OUTPUT,
+  ORGANIZATIONS_ARRAY_OUTPUT,
+  PAGING_OUTPUT,
+} from '@/tools/zendesk/types'
 
 export interface ZendeskAutocompleteOrganizationsParams {
   email: string
@@ -62,20 +65,20 @@ export const zendeskAutocompleteOrganizationsTool: ToolConfig<
     name: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Organization name to search for',
+      visibility: 'user-or-llm',
+      description: 'Organization name prefix to search for (e.g., "Acme")',
     },
     perPage: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Results per page (default: 100, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Results per page as a number string (default: "100", max: "100")',
     },
     page: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page number',
+      visibility: 'user-or-llm',
+      description: 'Page number as a string (e.g., "1", "2")',
     },
   },
 
@@ -129,30 +132,8 @@ export const zendeskAutocompleteOrganizationsTool: ToolConfig<
   },
 
   outputs: {
-    organizations: { type: 'array', description: 'Array of organization objects' },
-    paging: {
-      type: 'object',
-      description: 'Pagination information',
-      properties: {
-        next_page: { type: 'string', description: 'URL for next page of results', optional: true },
-        previous_page: {
-          type: 'string',
-          description: 'URL for previous page of results',
-          optional: true,
-        },
-        count: { type: 'number', description: 'Total count of organizations' },
-      },
-    },
-    metadata: {
-      type: 'object',
-      description: 'Response metadata',
-      properties: {
-        total_returned: {
-          type: 'number',
-          description: 'Number of organizations returned in this response',
-        },
-        has_more: { type: 'boolean', description: 'Whether more organizations are available' },
-      },
-    },
+    organizations: ORGANIZATIONS_ARRAY_OUTPUT,
+    paging: PAGING_OUTPUT,
+    metadata: METADATA_OUTPUT,
   },
 }

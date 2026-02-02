@@ -11,7 +11,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
     'Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser.',
   docsLink: 'https://docs.sim.ai/tools/browser_use',
   category: 'tools',
-  bgColor: '#E0E0E0',
+  bgColor: '#181C1E',
   icon: BrowserUseIcon,
   subBlocks: [
     {
@@ -58,6 +58,12 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       placeholder: 'Save browser data',
     },
     {
+      id: 'profile_id',
+      title: 'Profile ID',
+      type: 'short-input',
+      placeholder: 'Enter browser profile ID (optional)',
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -75,6 +81,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
     variables: { type: 'json', description: 'Task variables' },
     model: { type: 'string', description: 'AI model to use' },
     save_browser_data: { type: 'boolean', description: 'Save browser data' },
+    profile_id: { type: 'string', description: 'Browser profile ID for persistent sessions' },
   },
   outputs: {
     id: { type: 'string', description: 'Task execution identifier' },

@@ -40,13 +40,13 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The PostHog project ID',
+      description: 'The PostHog project ID (e.g., "12345" or project UUID)',
     },
     experimentId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The experiment ID',
+      description: 'The experiment ID (e.g., "42")',
     },
     region: {
       type: 'string',

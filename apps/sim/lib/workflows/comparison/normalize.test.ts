@@ -21,7 +21,11 @@ describe('Workflow Normalization Utilities', () => {
       expect(normalizeValue('hello')).toBe('hello')
       expect(normalizeValue(true)).toBe(true)
       expect(normalizeValue(false)).toBe(false)
-      expect(normalizeValue(null)).toBe(null)
+    })
+
+    it.concurrent('should normalize null and undefined to undefined', () => {
+      // null and undefined are semantically equivalent in our system
+      expect(normalizeValue(null)).toBe(undefined)
       expect(normalizeValue(undefined)).toBe(undefined)
     })
 
@@ -81,7 +85,7 @@ describe('Workflow Normalization Utilities', () => {
       expect(result[0]).toBe(1)
       expect(result[1]).toBe('string')
       expect(Object.keys(result[2] as Record<string, unknown>)).toEqual(['a', 'b'])
-      expect(result[3]).toBe(null)
+      expect(result[3]).toBe(undefined) // null normalized to undefined
       expect(result[4]).toEqual([3, 2, 1]) // Array order preserved
     })
 
@@ -131,7 +135,11 @@ describe('Workflow Normalization Utilities', () => {
       expect(normalizedStringify(42)).toBe('42')
       expect(normalizedStringify('hello')).toBe('"hello"')
       expect(normalizedStringify(true)).toBe('true')
-      expect(normalizedStringify(null)).toBe('null')
+    })
+
+    it.concurrent('should treat null and undefined equivalently', () => {
+      // Both null and undefined normalize to undefined, which JSON.stringify returns as undefined
+      expect(normalizedStringify(null)).toBe(normalizedStringify(undefined))
     })
 
     it.concurrent('should produce different strings for different values', () => {
@@ -143,8 +151,9 @@ describe('Workflow Normalization Utilities', () => {
   })
 
   describe('normalizeLoop', () => {
-    it.concurrent('should return null/undefined as-is', () => {
-      expect(normalizeLoop(null)).toBe(null)
+    it.concurrent('should normalize null/undefined to undefined', () => {
+      // null and undefined are semantically equivalent
+      expect(normalizeLoop(null)).toBe(undefined)
       expect(normalizeLoop(undefined)).toBe(undefined)
     })
 
@@ -246,8 +255,9 @@ describe('Workflow Normalization Utilities', () => {
   })
 
   describe('normalizeParallel', () => {
-    it.concurrent('should return null/undefined as-is', () => {
-      expect(normalizeParallel(null)).toBe(null)
+    it.concurrent('should normalize null/undefined to undefined', () => {
+      // null and undefined are semantically equivalent
+      expect(normalizeParallel(null)).toBe(undefined)
       expect(normalizeParallel(undefined)).toBe(undefined)
     })
 
@@ -370,7 +380,7 @@ describe('Workflow Normalization Utilities', () => {
       expect(sanitizeInputFormat({} as any)).toEqual([])
     })
 
-    it.concurrent('should remove value and collapsed fields', () => {
+    it.concurrent('should remove collapsed field but keep value', () => {
       const inputFormat = [
         { id: 'input1', name: 'Name', value: 'John', collapsed: true },
         { id: 'input2', name: 'Age', value: 25, collapsed: false },
@@ -379,13 +389,13 @@ describe('Workflow Normalization Utilities', () => {
       const result = sanitizeInputFormat(inputFormat)
 
       expect(result).toEqual([
-        { id: 'input1', name: 'Name' },
-        { id: 'input2', name: 'Age' },
+        { id: 'input1', name: 'Name', value: 'John' },
+        { id: 'input2', name: 'Age', value: 25 },
         { id: 'input3', name: 'Email' },
       ])
     })
 
-    it.concurrent('should preserve all other fields', () => {
+    it.concurrent('should preserve all other fields including value', () => {
       const inputFormat = [
         {
           id: 'input1',
@@ -402,6 +412,7 @@ describe('Workflow Normalization Utilities', () => {
       expect(result[0]).toEqual({
         id: 'input1',
         name: 'Complex Input',
+        value: 'test-value',
         type: 'string',
         required: true,
         validation: { min: 0, max: 100 },

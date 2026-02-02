@@ -3,6 +3,7 @@ import type {
   SalesforceUpdateContactParams,
   SalesforceUpdateContactResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -26,81 +27,81 @@ export const salesforceUpdateContactTool: ToolConfig<
     contactId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Contact ID to update (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Contact ID to update (18-character string starting with 003)',
     },
     lastName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Last name',
     },
     firstName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'First name',
     },
     email: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Email address',
     },
     phone: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Phone number',
     },
     accountId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Account ID to associate with',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Account ID (18-character string starting with 001)',
     },
-    title: { type: 'string', required: false, visibility: 'user-only', description: 'Job title' },
+    title: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Job title' },
     department: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Department',
     },
     mailingStreet: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing street',
     },
     mailingCity: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing city',
     },
     mailingState: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing state',
     },
     mailingPostalCode: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing postal code',
     },
     mailingCountry: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Mailing country',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Description',
+      visibility: 'user-or-llm',
+      description: 'Contact description',
     },
   },
 
@@ -156,10 +157,7 @@ export const salesforceUpdateContactTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated contact data',
-      properties: {
-        id: { type: 'string', description: 'Updated contact ID' },
-        updated: { type: 'boolean', description: 'Whether contact was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -1,0 +1,112 @@
+---
+title: DSPy
+description: Run predictions using self-hosted DSPy programs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dspy"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DSPy](https://github.com/stanford-oval/dspy) is an open-source framework for programming—rather than prompting—language models. DSPy enables you to build interpretable and modular LLM-powered agents using Python functions, structured modules, and declarative signatures, making it easy to compose, debug, and reliably deploy language model applications.
+
+With DSPy in Sim, you can:
+
+- **Run custom predictions**: Connect your self-hosted DSPy server and invoke prediction endpoints for a variety of natural language tasks.
+- **Chain of Thought and ReAct reasoning**: Leverage advanced DSPy modules for step-by-step reasoning, multi-turn dialogs, and action-observation loops.
+- **Integrate with your workflows**: Automate LLM predictions and reasoning as part of any Sim automation or agent routine.
+- **Provide custom endpoints and context**: Flexibly call your own DSPy-powered APIs with custom authentication, endpoints, input fields, and context.
+
+These features let your Sim agents access modular, interpretable LLM-based programs for tasks like question answering, document analysis, decision support, and more—where you remain in control of the model, data, and logic.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate with your self-hosted DSPy programs for LLM-powered predictions. Supports Predict, Chain of Thought, and ReAct agents. DSPy is the framework for programming—not prompting—language models.
+
+
+
+## Tools
+
+### `dspy_predict`
+
+Run a prediction using a self-hosted DSPy program endpoint
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Base URL of the DSPy server \(e.g., https://your-dspy-server.com\) |
+| `apiKey` | string | No | API key for authentication \(if required by your server\) |
+| `endpoint` | string | No | API endpoint path \(defaults to /predict\) |
+| `input` | string | Yes | The input text to send to the DSPy program |
+| `inputField` | string | No | Name of the input field expected by the DSPy program \(defaults to "text"\) |
+| `context` | string | No | Additional context to provide to the DSPy program |
+| `additionalInputs` | json | No | Additional key-value pairs to include in the request body |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | string | The main output/answer from the DSPy program |
+| `reasoning` | string | The reasoning or rationale behind the answer \(if available\) |
+| `status` | string | Response status from the DSPy server \(success or error\) |
+| `rawOutput` | json | The complete raw output from the DSPy program \(result.toDict\(\)\) |
+
+### `dspy_chain_of_thought`
+
+Run a Chain of Thought prediction using a self-hosted DSPy ChainOfThought program endpoint
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Base URL of the DSPy server \(e.g., https://your-dspy-server.com\) |
+| `apiKey` | string | No | API key for authentication \(if required by your server\) |
+| `endpoint` | string | No | API endpoint path \(defaults to /predict\) |
+| `question` | string | Yes | The question to answer using chain of thought reasoning |
+| `context` | string | No | Additional context to provide for answering the question |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | string | The answer generated through chain of thought reasoning |
+| `reasoning` | string | The step-by-step reasoning that led to the answer |
+| `status` | string | Response status from the DSPy server \(success or error\) |
+| `rawOutput` | json | The complete raw output from the DSPy program \(result.toDict\(\)\) |
+
+### `dspy_react`
+
+Run a ReAct agent using a self-hosted DSPy ReAct program endpoint for multi-step reasoning and action
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Base URL of the DSPy server \(e.g., https://your-dspy-server.com\) |
+| `apiKey` | string | No | API key for authentication \(if required by your server\) |
+| `endpoint` | string | No | API endpoint path \(defaults to /predict\) |
+| `task` | string | Yes | The task or question for the ReAct agent to work on |
+| `context` | string | No | Additional context to provide for the task |
+| `maxIterations` | number | No | Maximum number of reasoning iterations \(defaults to server setting\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | string | The final answer or result from the ReAct agent |
+| `reasoning` | string | The overall reasoning summary from the agent |
+| `trajectory` | array | The step-by-step trajectory of thoughts, actions, and observations |
+|   ↳ `thought` | string | The reasoning thought at this step |
+|   ↳ `toolName` | string | The name of the tool/action called |
+|   ↳ `toolArgs` | json | Arguments passed to the tool |
+|   ↳ `observation` | string | The observation/result from the tool execution |
+| `status` | string | Response status from the DSPy server \(success or error\) |
+| `rawOutput` | json | The complete raw output from the DSPy program \(result.toDict\(\)\) |
+
+

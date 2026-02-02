@@ -8,6 +8,7 @@ import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('A2AAgentCardAPI')
 
@@ -95,6 +96,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
+    const workspaceAccess = await checkWorkspaceAccess(existingAgent.workspaceId, auth.userId)
+    if (!workspaceAccess.canWrite) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const body = await request.json()
 
     if (
@@ -160,6 +166,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
+    const workspaceAccess = await checkWorkspaceAccess(existingAgent.workspaceId, auth.userId)
+    if (!workspaceAccess.canWrite) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     await db.delete(a2aAgent).where(eq(a2aAgent.id, agentId))
 
     logger.info(`Deleted A2A agent: ${agentId}`)
@@ -192,6 +203,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
 
     if (!existingAgent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    const workspaceAccess = await checkWorkspaceAccess(existingAgent.workspaceId, auth.userId)
+    if (!workspaceAccess.canWrite) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const body = await request.json()

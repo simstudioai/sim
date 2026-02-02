@@ -163,12 +163,13 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               try {
                 const errorMessage = String(newEntry.error)
                 const blockName = newEntry.blockName || 'Unknown Block'
+                const displayMessage = `${blockName}: ${errorMessage}`
 
                 const copilotMessage = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
 
                 useNotificationStore.getState().addNotification({
                   level: 'error',
-                  message: errorMessage,
+                  message: displayMessage,
                   workflowId: entry.workflowId,
                   action: {
                     type: 'copilot',
@@ -338,9 +339,46 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                     : update.input
               }
 
+              if (update.isRunning !== undefined) {
+                updatedEntry.isRunning = update.isRunning
+              }
+
+              if (update.isCanceled !== undefined) {
+                updatedEntry.isCanceled = update.isCanceled
+              }
+
+              if (update.iterationCurrent !== undefined) {
+                updatedEntry.iterationCurrent = update.iterationCurrent
+              }
+
+              if (update.iterationTotal !== undefined) {
+                updatedEntry.iterationTotal = update.iterationTotal
+              }
+
+              if (update.iterationType !== undefined) {
+                updatedEntry.iterationType = update.iterationType
+              }
+
               return updatedEntry
             })
 
+            return { entries: updatedEntries }
+          })
+        },
+
+        cancelRunningEntries: (workflowId: string) => {
+          set((state) => {
+            const updatedEntries = state.entries.map((entry) => {
+              if (entry.workflowId === workflowId && entry.isRunning) {
+                return {
+                  ...entry,
+                  isRunning: false,
+                  isCanceled: true,
+                  endedAt: new Date().toISOString(),
+                }
+              }
+              return entry
+            })
             return { entries: updatedEntries }
           })
         },

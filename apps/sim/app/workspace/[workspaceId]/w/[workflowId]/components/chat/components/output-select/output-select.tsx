@@ -129,10 +129,6 @@ export function OutputSelect({
           ? baselineWorkflow.blocks?.[block.id]?.subBlocks?.responseFormat?.value
           : subBlockValues?.[block.id]?.responseFormat
       const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
-      const operationValue =
-        shouldUseBaseline && baselineWorkflow
-          ? baselineWorkflow.blocks?.[block.id]?.subBlocks?.operation?.value
-          : subBlockValues?.[block.id]?.operation
 
       let outputsToProcess: Record<string, unknown> = {}
 
@@ -146,10 +142,20 @@ export function OutputSelect({
           outputsToProcess = blockConfig?.outputs || {}
         }
       } else {
-        const toolOutputs =
-          blockConfig && typeof operationValue === 'string'
-            ? getToolOutputs(blockConfig, operationValue)
-            : {}
+        // Build subBlocks object for tool selector
+        const rawSubBlockValues =
+          shouldUseBaseline && baselineWorkflow
+            ? baselineWorkflow.blocks?.[block.id]?.subBlocks
+            : subBlockValues?.[block.id]
+        const subBlocks: Record<string, { value: unknown }> = {}
+        if (rawSubBlockValues && typeof rawSubBlockValues === 'object') {
+          for (const [key, val] of Object.entries(rawSubBlockValues)) {
+            // Handle both { value: ... } and raw value formats
+            subBlocks[key] = val && typeof val === 'object' && 'value' in val ? val : { value: val }
+          }
+        }
+
+        const toolOutputs = blockConfig ? getToolOutputs(blockConfig, subBlocks) : {}
         outputsToProcess =
           Object.keys(toolOutputs).length > 0 ? toolOutputs : blockConfig?.outputs || {}
       }

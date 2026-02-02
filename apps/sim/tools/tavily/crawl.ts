@@ -1,4 +1,5 @@
 import type { CrawlResponse, TavilyCrawlParams } from '@/tools/tavily/types'
+import { TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES } from '@/tools/tavily/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const crawlTool: ToolConfig<TavilyCrawlParams, CrawlResponse> = {
@@ -157,17 +158,17 @@ export const crawlTool: ToolConfig<TavilyCrawlParams, CrawlResponse> = {
     base_url: { type: 'string', description: 'The base URL that was crawled' },
     results: {
       type: 'array',
+      description: 'Array of crawled pages with extracted content',
       items: {
         type: 'object',
-        properties: {
-          url: { type: 'string', description: 'The crawled page URL' },
-          raw_content: { type: 'string', description: 'Extracted content from the page' },
-          favicon: { type: 'string', description: 'Favicon URL (if requested)' },
-        },
+        properties: TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES,
       },
-      description: 'Array of crawled pages with extracted content',
     },
     response_time: { type: 'number', description: 'Time taken for the crawl request in seconds' },
-    request_id: { type: 'string', description: 'Unique identifier for support reference' },
+    request_id: {
+      type: 'string',
+      description: 'Unique identifier for support reference',
+      optional: true,
+    },
   },
 }

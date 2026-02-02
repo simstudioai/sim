@@ -12,7 +12,7 @@ export const cartesiaTtsTool: ToolConfig<CartesiaTtsParams, TtsBlockResponse> = 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text to convert to speech',
+      description: 'The text content to convert to speech (e.g., "Hello, welcome to our service!")',
     },
     apiKey: {
       type: 'string',
@@ -23,20 +23,22 @@ export const cartesiaTtsTool: ToolConfig<CartesiaTtsParams, TtsBlockResponse> = 
     modelId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Model ID (sonic-english, sonic-multilingual)',
+      visibility: 'user-or-llm',
+      description:
+        'Cartesia model identifier (e.g., "sonic", "sonic-2", "sonic-3", "sonic-multilingual")',
     },
     voice: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Voice ID or embedding',
+      description:
+        'Cartesia voice identifier or embedding (e.g., "a0e99841-438c-4a64-b679-ae501e7d6091")',
     },
     language: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Language code (en, es, fr, de, it, pt, etc.)',
+      visibility: 'user-or-llm',
+      description: 'Language code for speech synthesis (e.g., "en", "es", "fr", "de", "it", "pt")',
     },
     outputFormat: {
       type: 'json',
@@ -47,8 +49,8 @@ export const cartesiaTtsTool: ToolConfig<CartesiaTtsParams, TtsBlockResponse> = 
     speed: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Speed multiplier',
+      visibility: 'user-or-llm',
+      description: 'Speech speed multiplier (e.g., 0.5 for slower, 1.0 for normal, 2.0 for faster)',
     },
     emotion: {
       type: 'array',
@@ -59,7 +61,7 @@ export const cartesiaTtsTool: ToolConfig<CartesiaTtsParams, TtsBlockResponse> = 
   },
 
   request: {
-    url: '/api/proxy/tts/unified',
+    url: '/api/tools/tts/unified',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

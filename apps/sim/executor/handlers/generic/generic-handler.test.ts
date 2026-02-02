@@ -95,7 +95,6 @@ describe('GenericBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'some_custom_tool',
       expectedToolParams,
-      false, // skipProxy
       false, // skipPostProcess
       mockContext // execution context
     )

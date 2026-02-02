@@ -1,5 +1,8 @@
+import type {
+  IncidentioUsersShowParams,
+  IncidentioUsersShowResponse,
+} from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { IncidentioUsersShowParams, IncidentioUsersShowResponse } from './types'
 
 export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUsersShowResponse> = {
   id: 'incidentio_users_show',
@@ -19,7 +22,8 @@ export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUser
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The unique identifier of the user to retrieve',
+      description:
+        'The unique identifier of the user to retrieve (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

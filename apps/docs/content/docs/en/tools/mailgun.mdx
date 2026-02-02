@@ -45,14 +45,14 @@ Send an email using Mailgun API
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
-| `domain` | string | Yes | Mailgun domain \(e.g., mg.example.com\) |
-| `from` | string | Yes | Sender email address |
-| `to` | string | Yes | Recipient email address \(comma-separated for multiple\) |
-| `subject` | string | Yes | Email subject |
+| `domain` | string | Yes | Mailgun sending domain \(e.g., mg.example.com\) |
+| `from` | string | Yes | Sender email address \(e.g., sender@example.com or "Name &lt;sender@example.com&gt;"\) |
+| `to` | string | Yes | Recipient email address \(e.g., user@example.com\). Use comma-separated values for multiple recipients |
+| `subject` | string | Yes | Email subject line |
 | `text` | string | No | Plain text body of the email |
-| `html` | string | No | HTML body of the email |
-| `cc` | string | No | CC email address \(comma-separated for multiple\) |
-| `bcc` | string | No | BCC email address \(comma-separated for multiple\) |
+| `html` | string | No | HTML body of the email \(e.g., "&lt;h1&gt;Hello&lt;/h1&gt;&lt;p&gt;Message content&lt;/p&gt;"\) |
+| `cc` | string | No | CC recipient email address \(e.g., cc@example.com\). Use comma-separated values for multiple recipients |
+| `bcc` | string | No | BCC recipient email address \(e.g., bcc@example.com\). Use comma-separated values for multiple recipients |
 | `tags` | string | No | Tags for the email \(comma-separated\) |
 
 #### Output
@@ -72,7 +72,7 @@ Retrieve a stored message by its key
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
-| `domain` | string | Yes | Mailgun domain |
+| `domain` | string | Yes | Mailgun domain for retrieving messages \(e.g., mg.example.com\) |
 | `messageKey` | string | Yes | Message storage key |
 
 #### Output
@@ -102,7 +102,7 @@ List events (logs) for messages sent through Mailgun
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
-| `domain` | string | Yes | Mailgun domain |
+| `domain` | string | Yes | Mailgun domain for listing events \(e.g., mg.example.com\) |
 | `event` | string | No | Filter by event type \(accepted, delivered, failed, opened, clicked, etc.\) |
 | `limit` | number | No | Maximum number of events to return \(default: 100\) |
 
@@ -123,7 +123,7 @@ Create a new mailing list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
-| `address` | string | Yes | Mailing list address \(e.g., list@example.com\) |
+| `address` | string | Yes | Mailing list address \(e.g., newsletter@mg.example.com\) |
 | `name` | string | No | Mailing list name |
 | `description` | string | No | Mailing list description |
 | `accessLevel` | string | No | Access level: readonly, members, or everyone |
@@ -145,7 +145,7 @@ Get details of a mailing list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
-| `address` | string | Yes | Mailing list address |
+| `address` | string | Yes | Mailing list address to retrieve \(e.g., newsletter@mg.example.com\) |
 
 #### Output
 
@@ -163,8 +163,8 @@ Add a member to a mailing list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
-| `listAddress` | string | Yes | Mailing list address |
-| `address` | string | Yes | Member email address |
+| `listAddress` | string | Yes | Mailing list address \(e.g., list@mg.example.com\) |
+| `address` | string | Yes | Member email address to add \(e.g., user@example.com\) |
 | `name` | string | No | Member name |
 | `vars` | string | No | JSON string of custom variables |
 | `subscribed` | boolean | No | Whether the member is subscribed |
@@ -204,7 +204,7 @@ Get details of a specific domain
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
-| `domain` | string | Yes | Domain name |
+| `domain` | string | Yes | Domain name to retrieve details for \(e.g., mg.example.com\) |
 
 #### Output
 

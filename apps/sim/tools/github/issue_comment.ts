@@ -1,4 +1,5 @@
 import type { CreateIssueCommentParams, IssueCommentResponse } from '@/tools/github/types'
+import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const issueCommentTool: ToolConfig<CreateIssueCommentParams, IssueCommentResponse> = {
@@ -125,11 +126,7 @@ export const issueCommentV2Tool: ToolConfig = {
     }
   },
   outputs: {
-    id: { type: 'number', description: 'Comment ID' },
-    body: { type: 'string', description: 'Comment body' },
-    html_url: { type: 'string', description: 'GitHub web URL' },
-    user: { type: 'json', description: 'User who created the comment' },
-    created_at: { type: 'string', description: 'Creation timestamp' },
-    updated_at: { type: 'string', description: 'Last update timestamp' },
+    ...COMMENT_OUTPUT_PROPERTIES,
+    user: USER_OUTPUT,
   },
 }

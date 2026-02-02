@@ -39,6 +39,7 @@ import {
   useRefreshMcpServer,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
+import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { FormField, McpServerSkeleton } from './components'
@@ -157,6 +158,7 @@ interface FormattedInputProps {
   scrollLeft: number
   showEnvVars: boolean
   envVarProps: EnvVarDropdownConfig
+  availableEnvVars?: Set<string>
   className?: string
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onScroll: (scrollLeft: number) => void
@@ -169,11 +171,12 @@ function FormattedInput({
   scrollLeft,
   showEnvVars,
   envVarProps,
+  availableEnvVars,
   className,
   onChange,
   onScroll,
 }: FormattedInputProps) {
-  const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
+  const handleScroll = (e: { currentTarget: HTMLInputElement }) => {
     onScroll(e.currentTarget.scrollLeft)
   }
 
@@ -190,7 +193,7 @@ function FormattedInput({
       />
       <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-[8px] py-[6px] font-medium font-sans text-sm'>
         <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
-          {formatDisplayText(value)}
+          {formatDisplayText(value, { availableEnvVars })}
         </div>
       </div>
       {showEnvVars && (
@@ -221,6 +224,7 @@ interface HeaderRowProps {
   envSearchTerm: string
   cursorPosition: number
   workspaceId: string
+  availableEnvVars?: Set<string>
   onInputChange: (field: InputFieldType, value: string, index?: number) => void
   onHeaderScroll: (key: string, scrollLeft: number) => void
   onEnvVarSelect: (value: string) => void
@@ -238,6 +242,7 @@ function HeaderRow({
   envSearchTerm,
   cursorPosition,
   workspaceId,
+  availableEnvVars,
   onInputChange,
   onHeaderScroll,
   onEnvVarSelect,
@@ -265,6 +270,7 @@ function HeaderRow({
         scrollLeft={headerScrollLeft[`key-${index}`] || 0}
         showEnvVars={isKeyActive}
         envVarProps={envVarProps}
+        availableEnvVars={availableEnvVars}
         className='flex-1'
         onChange={(e) => onInputChange('header-key', e.target.value, index)}
         onScroll={(scrollLeft) => onHeaderScroll(`key-${index}`, scrollLeft)}
@@ -276,6 +282,7 @@ function HeaderRow({
         scrollLeft={headerScrollLeft[`value-${index}`] || 0}
         showEnvVars={isValueActive}
         envVarProps={envVarProps}
+        availableEnvVars={availableEnvVars}
         className='flex-1'
         onChange={(e) => onInputChange('header-value', e.target.value, index)}
         onScroll={(scrollLeft) => onHeaderScroll(`value-${index}`, scrollLeft)}
@@ -371,6 +378,7 @@ export function MCP({ initialServerId }: MCPProps) {
   const deleteServerMutation = useDeleteMcpServer()
   const refreshServerMutation = useRefreshMcpServer()
   const { testResult, isTestingConnection, testConnection, clearTestResult } = useMcpServerTest()
+  const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
 
   const urlInputRef = useRef<HTMLInputElement>(null)
 
@@ -1061,6 +1069,7 @@ export function MCP({ initialServerId }: MCPProps) {
                     onSelect: handleEnvVarSelect,
                     onClose: resetEnvVarState,
                   }}
+                  availableEnvVars={availableEnvVars}
                   onChange={(e) => handleInputChange('url', e.target.value)}
                   onScroll={(scrollLeft) => handleUrlScroll(scrollLeft)}
                 />
@@ -1094,6 +1103,7 @@ export function MCP({ initialServerId }: MCPProps) {
                       envSearchTerm={envSearchTerm}
                       cursorPosition={cursorPosition}
                       workspaceId={workspaceId}
+                      availableEnvVars={availableEnvVars}
                       onInputChange={handleInputChange}
                       onHeaderScroll={handleHeaderScroll}
                       onEnvVarSelect={handleEnvVarSelect}

@@ -2,6 +2,7 @@ import type {
   SalesforceCreateTaskParams,
   SalesforceCreateTaskResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,44 +39,44 @@ export const salesforceCreateTaskTool: ToolConfig<
     subject: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Task subject (required)',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Status (e.g., Not Started, In Progress, Completed)',
     },
     priority: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Priority (e.g., Low, Normal, High)',
     },
     activityDate: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Due date YYYY-MM-DD',
+      visibility: 'user-or-llm',
+      description: 'Due date in YYYY-MM-DD format',
     },
     whoId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Related Contact/Lead ID',
+      visibility: 'user-or-llm',
+      description: 'Related Contact ID (003...) or Lead ID (00Q...)',
     },
     whatId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Related Account/Opportunity ID',
+      visibility: 'user-or-llm',
+      description: 'Related Account ID (001...) or Opportunity ID (006...)',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Description',
+      visibility: 'user-or-llm',
+      description: 'Task description',
     },
   },
 
@@ -117,11 +118,7 @@ export const salesforceCreateTaskTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Created task data',
-      properties: {
-        id: { type: 'string', description: 'Created task ID' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
-        created: { type: 'boolean', description: 'Whether task was created' },
-      },
+      properties: SOBJECT_CREATE_OUTPUT_PROPERTIES,
     },
   },
 }

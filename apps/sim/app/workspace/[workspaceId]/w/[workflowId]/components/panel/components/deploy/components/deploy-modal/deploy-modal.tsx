@@ -43,6 +43,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { A2aDeploy } from './components/a2a/a2a'
 import { ApiDeploy } from './components/api/api'
 import { ChatDeploy, type ExistingChat } from './components/chat/chat'
+import { ApiInfoModal } from './components/general/components/api-info-modal'
 import { GeneralDeploy } from './components/general/general'
 import { McpDeploy } from './components/mcp/mcp'
 import { TemplateDeploy } from './components/template/template'
@@ -94,6 +95,7 @@ export function DeployModal({
   const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [apiDeployError, setApiDeployError] = useState<string | null>(null)
+  const [apiDeployWarnings, setApiDeployWarnings] = useState<string[]>([])
   const [isChatFormValid, setIsChatFormValid] = useState(false)
   const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
@@ -110,6 +112,7 @@ export function DeployModal({
   const [chatSuccess, setChatSuccess] = useState(false)
 
   const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
+  const [isApiInfoModalOpen, setIsApiInfoModalOpen] = useState(false)
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig } = usePermissionConfig()
@@ -132,11 +135,9 @@ export function DeployModal({
     refetch: refetchDeploymentInfo,
   } = useDeploymentInfo(workflowId, { enabled: open && isDeployed })
 
-  const {
-    data: versionsData,
-    isLoading: versionsLoading,
-    refetch: refetchVersions,
-  } = useDeploymentVersions(workflowId, { enabled: open })
+  const { data: versionsData, isLoading: versionsLoading } = useDeploymentVersions(workflowId, {
+    enabled: open,
+  })
 
   const {
     isLoading: isLoadingChat,
@@ -225,6 +226,7 @@ export function DeployModal({
     if (open && workflowId) {
       setActiveTab('general')
       setApiDeployError(null)
+      setApiDeployWarnings([])
     }
   }, [open, workflowId])
 
@@ -280,9 +282,13 @@ export function DeployModal({
     if (!workflowId) return
 
     setApiDeployError(null)
+    setApiDeployWarnings([])
 
     try {
-      await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      const result = await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      if (result.warnings && result.warnings.length > 0) {
+        setApiDeployWarnings(result.warnings)
+      }
       await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
@@ -295,8 +301,13 @@ export function DeployModal({
     async (version: number) => {
       if (!workflowId) return
 
+      setApiDeployWarnings([])
+
       try {
-        await activateVersionMutation.mutateAsync({ workflowId, version })
+        const result = await activateVersionMutation.mutateAsync({ workflowId, version })
+        if (result.warnings && result.warnings.length > 0) {
+          setApiDeployWarnings(result.warnings)
+        }
         await refetchDeployedState()
       } catch (error) {
         logger.error('Error promoting version:', { error })
@@ -322,9 +333,13 @@ export function DeployModal({
     if (!workflowId) return
 
     setApiDeployError(null)
+    setApiDeployWarnings([])
 
     try {
-      await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      const result = await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
+      if (result.warnings && result.warnings.length > 0) {
+        setApiDeployWarnings(result.warnings)
+      }
       await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
@@ -336,6 +351,7 @@ export function DeployModal({
   const handleCloseModal = useCallback(() => {
     setChatSubmitting(false)
     setApiDeployError(null)
+    setApiDeployWarnings([])
     onOpenChange(false)
   }, [onOpenChange])
 
@@ -389,11 +405,6 @@ export function DeployModal({
     form?.requestSubmit()
   }, [])
 
-  const handleA2aFormSubmit = useCallback(() => {
-    const form = document.getElementById('a2a-deploy-form') as HTMLFormElement
-    form?.requestSubmit()
-  }, [])
-
   const handleA2aPublish = useCallback(() => {
     const form = document.getElementById('a2a-deploy-form')
     const publishTrigger = form?.querySelector('[data-a2a-publish-trigger]') as HTMLButtonElement
@@ -437,10 +448,6 @@ export function DeployModal({
     deleteTrigger?.click()
   }, [])
 
-  const handleFetchVersions = useCallback(async () => {
-    await refetchVersions()
-  }, [refetchVersions])
-
   const isSubmitting = deployMutation.isPending
   const isUndeploying = undeployMutation.isPending
 
@@ -482,6 +489,14 @@ export function DeployModal({
                   <div>{apiDeployError}</div>
                 </div>
               )}
+              {apiDeployWarnings.length > 0 && (
+                <div className='mb-3 rounded-[4px] border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 text-sm dark:text-amber-400'>
+                  <div className='font-semibold'>Deployment Warning</div>
+                  {apiDeployWarnings.map((warning, index) => (
+                    <div key={index}>{warning}</div>
+                  ))}
+                </div>
+              )}
               <ModalTabsContent value='general'>
                 <GeneralDeploy
                   workflowId={workflowId}
@@ -491,7 +506,6 @@ export function DeployModal({
                   versionsLoading={versionsLoading}
                   onPromoteToLive={handlePromoteToLive}
                   onLoadDeploymentComplete={handleCloseModal}
-                  fetchVersions={handleFetchVersions}
                 />
               </ModalTabsContent>
 
@@ -596,6 +610,9 @@ export function DeployModal({
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
+                <Button variant='default' onClick={() => setIsApiInfoModalOpen(true)}>
+                  Edit API Info
+                </Button>
                 <Button
                   variant='tertiary'
                   onClick={() => setIsCreateKeyModalOpen(true)}
@@ -880,6 +897,14 @@ export function DeployModal({
         canManageWorkspaceKeys={canManageWorkspaceKeys}
         defaultKeyType={defaultKeyType}
       />
+
+      {workflowId && (
+        <ApiInfoModal
+          open={isApiInfoModalOpen}
+          onOpenChange={setIsApiInfoModalOpen}
+          workflowId={workflowId}
+        />
+      )}
     </>
   )
 }

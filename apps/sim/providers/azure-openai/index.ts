@@ -102,7 +102,7 @@ export const azureOpenAIProvider: ProviderConfig = {
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+    if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
     if (request.reasoningEffort !== undefined) payload.reasoning_effort = request.reasoningEffort
     if (request.verbosity !== undefined) payload.verbosity = request.verbosity
@@ -301,7 +301,7 @@ export const azureOpenAIProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, true)
+            const result = await executeTool(toolName, executionParams)
             const toolCallEndTime = Date.now()
 
             return {

@@ -22,20 +22,20 @@ export const airtableGetRecordTool: ToolConfig<AirtableGetParams, AirtableGetRes
     baseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the Airtable base',
+      visibility: 'user-or-llm',
+      description: 'Airtable base ID (starts with "app", e.g., "appXXXXXXXXXXXXXX")',
     },
     tableId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID or name of the table',
+      visibility: 'user-or-llm',
+      description: 'Table ID (starts with "tbl") or table name',
     },
     recordId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the record to retrieve',
+      visibility: 'user-or-llm',
+      description: 'Record ID to retrieve (starts with "rec", e.g., "recXXXXXXXXXXXXXX")',
     },
   },
 

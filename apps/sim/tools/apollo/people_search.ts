@@ -51,13 +51,13 @@ export const apolloPeopleSearchTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number for pagination (default: 1)',
+      description: 'Page number for pagination, default 1 (e.g., 1, 2, 3)',
     },
     per_page: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Results per page (default: 25, max: 100)',
+      description: 'Results per page, default 25, max 100 (e.g., 25, 50, 100)',
     },
   },
 

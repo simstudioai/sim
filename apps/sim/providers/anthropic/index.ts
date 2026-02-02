@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
 import { createLogger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -8,6 +9,7 @@ import {
   generateToolUseId,
 } from '@/providers/anthropic/utils'
 import {
+  getMaxOutputTokensForModel,
   getProviderDefaultModel,
   getProviderModels,
   supportsNativeStructuredOutputs,
@@ -177,7 +179,9 @@ export const anthropicProvider: ProviderConfig = {
       model: request.model,
       messages,
       system: systemPrompt,
-      max_tokens: Number.parseInt(String(request.maxTokens)) || 1024,
+      max_tokens:
+        Number.parseInt(String(request.maxTokens)) ||
+        getMaxOutputTokensForModel(request.model, request.stream ?? false),
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
     }
 
@@ -185,13 +189,10 @@ export const anthropicProvider: ProviderConfig = {
       const schema = request.responseFormat.schema || request.responseFormat
 
       if (useNativeStructuredOutputs) {
-        const schemaWithConstraints = {
-          ...schema,
-          additionalProperties: false,
-        }
+        const transformedSchema = transformJSONSchema(schema)
         payload.output_format = {
           type: 'json_schema',
-          schema: schemaWithConstraints,
+          schema: transformedSchema,
         }
         logger.info(`Using native structured outputs for model: ${modelId}`)
       } else {
@@ -301,13 +302,21 @@ export const anthropicProvider: ProviderConfig = {
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
+      // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
+      // but allow users to set lower values if desired
+      const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
+      const nonStreamingMaxTokens = request.maxTokens
+        ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
+        : nonStreamingLimit
+      const intermediatePayload = { ...payload, max_tokens: nonStreamingMaxTokens }
+
       try {
         const initialCallTime = Date.now()
-        const originalToolChoice = payload.tool_choice
+        const originalToolChoice = intermediatePayload.tool_choice
         const forcedTools = preparedTools?.forcedTools || []
         let usedForcedTools: string[] = []
 
-        let currentResponse = await anthropic.messages.create(payload)
+        let currentResponse = await anthropic.messages.create(intermediatePayload)
         const firstResponseTime = Date.now() - initialCallTime
 
         let content = ''
@@ -388,7 +397,7 @@ export const anthropicProvider: ProviderConfig = {
                   toolArgs,
                   request
                 )
-                const result = await executeTool(toolName, executionParams, true)
+                const result = await executeTool(toolName, executionParams)
                 const toolCallEndTime = Date.now()
 
                 return {
@@ -490,7 +499,7 @@ export const anthropicProvider: ProviderConfig = {
             toolsTime += thisToolsTime
 
             const nextPayload = {
-              ...payload,
+              ...intermediatePayload,
               messages: currentMessages,
             }
 
@@ -673,13 +682,21 @@ export const anthropicProvider: ProviderConfig = {
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
+    // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
+    // but allow users to set lower values if desired
+    const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
+    const toolLoopMaxTokens = request.maxTokens
+      ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
+      : nonStreamingLimit
+    const toolLoopPayload = { ...payload, max_tokens: toolLoopMaxTokens }
+
     try {
       const initialCallTime = Date.now()
-      const originalToolChoice = payload.tool_choice
+      const originalToolChoice = toolLoopPayload.tool_choice
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await anthropic.messages.create(payload)
+      let currentResponse = await anthropic.messages.create(toolLoopPayload)
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = ''
@@ -866,7 +883,7 @@ export const anthropicProvider: ProviderConfig = {
           toolsTime += thisToolsTime
 
           const nextPayload = {
-            ...payload,
+            ...toolLoopPayload,
             messages: currentMessages,
           }
 

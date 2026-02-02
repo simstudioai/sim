@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AGENT, isCustomTool } from '@/executor/constants'
-import { useCustomToolsStore } from '@/stores/custom-tools'
+import { getCustomTool } from '@/hooks/queries/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
@@ -75,6 +75,7 @@ interface RequestParams {
   method: string
   headers: Record<string, string>
   body?: string
+  timeout?: number
 }
 
 /**
@@ -122,7 +123,17 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     }
   }
 
-  return { url, method, headers, body }
+  // Get timeout from params (if specified) and validate
+  // Must be a finite positive number, max 600000ms (10 minutes) as documented
+  const MAX_TIMEOUT_MS = 600000
+  const rawTimeout = params.timeout
+  const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
+  const validTimeout =
+    timeout != null && Number.isFinite(timeout) && timeout > 0
+      ? Math.min(timeout, MAX_TIMEOUT_MS)
+      : undefined
+
+  return { url, method, headers, body, timeout: validTimeout }
 }
 
 /**
@@ -320,7 +331,8 @@ export function createCustomToolRequestBody(
       workflowVariables: workflowVariables, // Workflow variables for <variable.name> resolution
       blockData: blockData, // Runtime block outputs for <block.field> resolution
       blockNameMapping: blockNameMapping, // Block name to ID mapping
-      workflowId: workflowId, // Pass workflowId for server-side context
+      workflowId: params._context?.workflowId || workflowId, // Pass workflowId for server-side context
+      userId: params._context?.userId, // Pass userId for auth context
       isCustomTool: true, // Flag to indicate this is a custom tool execution
     }
   }
@@ -335,17 +347,10 @@ export function getTool(toolId: string): ToolConfig | undefined {
   // Check if it's a custom tool
   if (isCustomTool(toolId) && typeof window !== 'undefined') {
     // Only try to use the sync version on the client
-    const customToolsStore = useCustomToolsStore.getState()
     const identifier = toolId.slice(AGENT.CUSTOM_TOOL_PREFIX.length)
 
-    // Try to find the tool directly by ID first
-    let customTool = customToolsStore.getTool(identifier)
-
-    // If not found by ID, try to find by title (for backward compatibility)
-    if (!customTool) {
-      const allTools = customToolsStore.getAllTools()
-      customTool = allTools.find((tool) => tool.title === identifier)
-    }
+    // Try to find the tool from query cache (extracts workspaceId from URL)
+    const customTool = getCustomTool(identifier)
 
     if (customTool) {
       return createToolConfig(customTool, toolId)
@@ -367,7 +372,7 @@ export async function getToolAsync(
 
   // Check if it's a custom tool
   if (isCustomTool(toolId)) {
-    return getCustomTool(toolId, workflowId)
+    return fetchCustomToolFromAPI(toolId, workflowId)
   }
 
   return undefined
@@ -411,8 +416,8 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
   }
 }
 
-// Create a tool config from a custom tool definition
-async function getCustomTool(
+// Create a tool config from a custom tool definition by fetching from API
+async function fetchCustomToolFromAPI(
   customToolId: string,
   workflowId?: string
 ): Promise<ToolConfig | undefined> {

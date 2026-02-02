@@ -31,8 +31,8 @@ export const pipedriveGetMailThreadTool: ToolConfig<
     thread_id: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the mail thread',
+      visibility: 'user-or-llm',
+      description: 'The ID of the mail thread (e.g., "12345")',
     },
   },
 

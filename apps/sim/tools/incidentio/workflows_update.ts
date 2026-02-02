@@ -1,5 +1,5 @@
+import type { WorkflowsUpdateParams, WorkflowsUpdateResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { WorkflowsUpdateParams, WorkflowsUpdateResponse } from './types'
 
 export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpdateResponse> = {
   id: 'incidentio_workflows_update',
@@ -18,13 +18,13 @@ export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpd
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the workflow to update',
+      description: 'The ID of the workflow to update (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     name: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New name for the workflow',
+      description: 'New name for the workflow (e.g., "Notify on Critical Incidents")',
     },
     state: {
       type: 'string',

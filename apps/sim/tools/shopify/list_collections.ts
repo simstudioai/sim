@@ -1,5 +1,6 @@
+import type { ShopifyBaseParams } from '@/tools/shopify/types'
+import { COLLECTION_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { ShopifyBaseParams } from './types'
 
 interface ShopifyListCollectionsParams extends ShopifyBaseParams {
   first?: number
@@ -178,10 +179,15 @@ export const shopifyListCollectionsTool: ToolConfig<
     collections: {
       type: 'array',
       description: 'List of collections with their IDs, titles, and product counts',
+      items: {
+        type: 'object',
+        properties: COLLECTION_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
+      properties: PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

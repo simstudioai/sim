@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type {
-  SupabaseColumnSchema,
-  SupabaseIntrospectParams,
-  SupabaseIntrospectResponse,
-  SupabaseTableSchema,
+import {
+  INTROSPECT_TABLE_OUTPUT_PROPERTIES,
+  type SupabaseColumnSchema,
+  type SupabaseIntrospectParams,
+  type SupabaseIntrospectResponse,
+  type SupabaseTableSchema,
 } from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -464,14 +465,7 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
       description: 'Array of table schemas with columns, keys, and indexes',
       items: {
         type: 'object',
-        properties: {
-          name: { type: 'string', description: 'Table name' },
-          schema: { type: 'string', description: 'Database schema name' },
-          columns: { type: 'array', description: 'Array of column definitions' },
-          primaryKey: { type: 'array', description: 'Array of primary key column names' },
-          foreignKeys: { type: 'array', description: 'Array of foreign key relationships' },
-          indexes: { type: 'array', description: 'Array of index definitions' },
-        },
+        properties: INTROSPECT_TABLE_OUTPUT_PROPERTIES,
       },
     },
     schemas: { type: 'array', description: 'List of schemas found in the database' },

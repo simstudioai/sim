@@ -19,7 +19,8 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of URLs to extract data from (supports glob format)',
+      description:
+        'Array of URLs to extract data from (e.g., ["https://example.com/page1", "https://example.com/page2"] or ["https://example.com/*"])',
     },
     prompt: {
       type: 'string',

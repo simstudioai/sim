@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreatePageParams,
   type WordPressCreatePageResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCreatePageResponse> = {
   id: 'wordpress_create_page',
@@ -21,7 +21,7 @@ export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCrea
     siteId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
     },
     title: {
@@ -39,7 +39,7 @@ export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCrea
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Page status: publish, draft, pending, private',
     },
     excerpt: {
@@ -63,7 +63,7 @@ export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCrea
     featuredMedia: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Featured image media ID',
     },
     slug: {

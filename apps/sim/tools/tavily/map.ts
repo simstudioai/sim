@@ -1,4 +1,5 @@
 import type { MapResponse, TavilyMapParams } from '@/tools/tavily/types'
+import { TAVILY_MAP_RESULT_OUTPUT_PROPERTIES } from '@/tools/tavily/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
@@ -129,15 +130,17 @@ export const mapTool: ToolConfig<TavilyMapParams, MapResponse> = {
     base_url: { type: 'string', description: 'The base URL that was mapped' },
     results: {
       type: 'array',
+      description: 'Array of discovered URLs during mapping',
       items: {
         type: 'object',
-        properties: {
-          url: { type: 'string', description: 'Discovered URL' },
-        },
+        properties: TAVILY_MAP_RESULT_OUTPUT_PROPERTIES,
       },
-      description: 'Array of discovered URLs during mapping',
     },
     response_time: { type: 'number', description: 'Time taken for the map request in seconds' },
-    request_id: { type: 'string', description: 'Unique identifier for support reference' },
+    request_id: {
+      type: 'string',
+      description: 'Unique identifier for support reference',
+      optional: true,
+    },
   },
 }

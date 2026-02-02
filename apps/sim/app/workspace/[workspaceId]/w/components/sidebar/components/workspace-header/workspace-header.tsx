@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowDown, Plus } from 'lucide-react'
+import { ArrowDown, MoreHorizontal, Plus } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -202,12 +202,9 @@ export function WorkspaceHeader({
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
 
   /**
-   * Handle right-click context menu
+   * Opens the context menu for a workspace at the specified position
    */
-  const handleContextMenu = (e: React.MouseEvent, workspace: Workspace) => {
-    e.preventDefault()
-    e.stopPropagation()
-
+  const openContextMenuAt = (workspace: Workspace, x: number, y: number) => {
     isContextMenuOpeningRef.current = true
     contextMenuClosedRef.current = false
 
@@ -216,8 +213,17 @@ export function WorkspaceHeader({
       name: workspace.name,
       permissions: workspace.permissions,
     }
-    setContextMenuPosition({ x: e.clientX, y: e.clientY })
+    setContextMenuPosition({ x, y })
     setIsContextMenuOpen(true)
+  }
+
+  /**
+   * Handle right-click context menu
+   */
+  const handleContextMenu = (e: React.MouseEvent, workspace: Workspace) => {
+    e.preventDefault()
+    e.stopPropagation()
+    openContextMenuAt(workspace, e.clientX, e.clientY)
   }
 
   /**
@@ -459,6 +465,7 @@ export function WorkspaceHeader({
                               value={editingName}
                               onChange={(e) => setEditingName(e.target.value)}
                               onKeyDown={async (e) => {
+                                e.stopPropagation()
                                 if (e.key === 'Enter') {
                                   e.preventDefault()
                                   setIsListRenaming(true)
@@ -500,11 +507,25 @@ export function WorkspaceHeader({
                           </div>
                         ) : (
                           <PopoverItem
+                            className='group'
                             active={workspace.id === workspaceId}
                             onClick={() => onWorkspaceSwitch(workspace)}
                             onContextMenu={(e) => handleContextMenu(e, workspace)}
                           >
                             <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
+                            <button
+                              type='button'
+                              aria-label='Workspace options'
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                openContextMenuAt(workspace, rect.right, rect.top)
+                              }}
+                              className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+                            >
+                              <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+                            </button>
                           </PopoverItem>
                         )}
                       </div>

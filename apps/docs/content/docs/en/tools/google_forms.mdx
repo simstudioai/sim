@@ -43,8 +43,8 @@ Retrieve a single response or list responses from a Google Form
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Yes | The ID of the Google Form |
-| `responseId` | string | No | If provided, returns this specific response |
+| `formId` | string | Yes | Google Forms form ID |
+| `responseId` | string | No | Response ID - if provided, returns this specific response |
 | `pageSize` | number | No | Maximum number of responses to return \(service may return fewer\). Defaults to 5000. |
 
 #### Output
@@ -57,10 +57,10 @@ Retrieve a single response or list responses from a Google Form
 |   ↳ `lastSubmittedTime` | string | When the response was last submitted |
 |   ↳ `answers` | json | Map of question IDs to answer values |
 | `response` | object | Single form response \(when responseId is provided\) |
-| ↳ `responseId` | string | Unique response ID |
-| ↳ `createTime` | string | When the response was created |
-| ↳ `lastSubmittedTime` | string | When the response was last submitted |
-| ↳ `answers` | json | Map of question IDs to answer values |
+|   ↳ `responseId` | string | Unique response ID |
+|   ↳ `createTime` | string | When the response was created |
+|   ↳ `lastSubmittedTime` | string | When the response was last submitted |
+|   ↳ `answers` | json | Map of question IDs to answer values |
 | `raw` | json | Raw API response data |
 
 ### `google_forms_get_form`
@@ -71,7 +71,7 @@ Retrieve a form structure including its items, settings, and metadata
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Yes | The ID of the Google Form to retrieve |
+| `formId` | string | Yes | Google Forms form ID to retrieve |
 
 #### Output
 
@@ -121,7 +121,7 @@ Apply multiple updates to a form (add items, update info, change settings, etc.)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Yes | The ID of the Google Form to update |
+| `formId` | string | Yes | Google Forms form ID |
 | `requests` | json | Yes | Array of update requests \(updateFormInfo, updateSettings, createItem, updateItem, moveItem, deleteItem\) |
 | `includeFormInResponse` | boolean | No | Whether to return the updated form in the response |
 
@@ -131,47 +131,25 @@ Apply multiple updates to a form (add items, update info, change settings, etc.)
 | --------- | ---- | ----------- |
 | `replies` | array | The replies from each update request |
 | `writeControl` | object | Write control information with revision IDs |
-| ↳ `requiredRevisionId` | string | Required revision ID for conflict detection |
-| ↳ `targetRevisionId` | string | Target revision ID |
+|   ↳ `requiredRevisionId` | string | Required revision ID for conflict detection |
+|   ↳ `targetRevisionId` | string | Target revision ID |
 | `form` | object | The updated form \(if includeFormInResponse was true\) |
-| ↳ `formId` | string | The form ID |
-| ↳ `info` | object | Form info containing title and description |
-|   ↳ `title` | string | The form title visible to responders |
-|   ↳ `description` | string | The form description |
-|   ↳ `documentTitle` | string | The document title visible in Drive |
-| ↳ `title` | string | Item title |
-| ↳ `description` | string | Item description |
-| ↳ `documentTitle` | string | The document title visible in Drive |
-| ↳ `settings` | object | Form settings |
-|   ↳ `quizSettings` | object | Quiz settings |
-|   ↳ `isQuiz` | boolean | Whether the form is a quiz |
-|   ↳ `isQuiz` | boolean | Whether the form is a quiz |
-|   ↳ `emailCollectionType` | string | Email collection type |
-| ↳ `quizSettings` | object | Quiz settings |
-|   ↳ `isQuiz` | boolean | Whether the form is a quiz |
-| ↳ `isQuiz` | boolean | Whether the form is a quiz |
-| ↳ `emailCollectionType` | string | Email collection type |
-| ↳ `itemId` | string | Item ID |
-| ↳ `questionItem` | json | Question item configuration |
-| ↳ `questionGroupItem` | json | Question group configuration |
-| ↳ `pageBreakItem` | json | Page break configuration |
-| ↳ `textItem` | json | Text item configuration |
-| ↳ `imageItem` | json | Image item configuration |
-| ↳ `videoItem` | json | Video item configuration |
-| ↳ `revisionId` | string | The revision ID of the form |
-| ↳ `responderUri` | string | The URI to share with responders |
-| ↳ `linkedSheetId` | string | The ID of the linked Google Sheet |
-| ↳ `publishSettings` | object | Form publish settings |
-|   ↳ `publishState` | object | Current publish state |
-|   ↳ `isPublished` | boolean | Whether the form is published |
-|   ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
-|   ↳ `isPublished` | boolean | Whether the form is published |
-|   ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
-| ↳ `publishState` | object | Current publish state |
-|   ↳ `isPublished` | boolean | Whether the form is published |
-|   ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
-| ↳ `isPublished` | boolean | Whether the form is published |
-| ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
+|   ↳ `formId` | string | The form ID |
+|   ↳ `info` | object | Form info containing title and description |
+|     ↳ `title` | string | The form title visible to responders |
+|     ↳ `description` | string | The form description |
+|     ↳ `documentTitle` | string | The document title visible in Drive |
+|   ↳ `settings` | object | Form settings |
+|     ↳ `quizSettings` | object | Quiz settings |
+|       ↳ `isQuiz` | boolean | Whether the form is a quiz |
+|     ↳ `emailCollectionType` | string | Email collection type |
+|   ↳ `revisionId` | string | The revision ID of the form |
+|   ↳ `responderUri` | string | The URI to share with responders |
+|   ↳ `linkedSheetId` | string | The ID of the linked Google Sheet |
+|   ↳ `publishSettings` | object | Form publish settings |
+|     ↳ `publishState` | object | Current publish state |
+|       ↳ `isPublished` | boolean | Whether the form is published |
+|       ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
 
 ### `google_forms_set_publish_settings`
 
@@ -181,7 +159,7 @@ Update the publish settings of a form (publish/unpublish, accept responses)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Yes | The ID of the Google Form |
+| `formId` | string | Yes | Google Forms form ID |
 | `isPublished` | boolean | Yes | Whether the form is published and visible to others |
 | `isAcceptingResponses` | boolean | No | Whether the form accepts responses \(forced to false if isPublished is false\) |
 
@@ -191,11 +169,9 @@ Update the publish settings of a form (publish/unpublish, accept responses)
 | --------- | ---- | ----------- |
 | `formId` | string | The form ID |
 | `publishSettings` | json | The updated publish settings |
-| ↳ `publishState` | object | The publish state |
-|   ↳ `isPublished` | boolean | Whether the form is published |
-|   ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
-| ↳ `isPublished` | boolean | Whether the form is published |
-| ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
+|   ↳ `publishState` | object | The publish state |
+|     ↳ `isPublished` | boolean | Whether the form is published |
+|     ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
 
 ### `google_forms_create_watch`
 
@@ -205,7 +181,7 @@ Create a notification watch for form changes (schema changes or new responses)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Yes | The ID of the Google Form to watch |
+| `formId` | string | Yes | Google Forms form ID to watch |
 | `eventType` | string | Yes | Event type to watch: SCHEMA \(form changes\) or RESPONSES \(new submissions\) |
 | `topicName` | string | Yes | The Cloud Pub/Sub topic name \(format: projects/\{project\}/topics/\{topic\}\) |
 | `watchId` | string | No | Custom watch ID \(4-63 chars, lowercase letters, numbers, hyphens\) |
@@ -229,7 +205,7 @@ List all notification watches for a form
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Yes | The ID of the Google Form |
+| `formId` | string | Yes | Google Forms form ID |
 
 #### Output
 
@@ -250,8 +226,8 @@ Delete a notification watch from a form
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Yes | The ID of the Google Form |
-| `watchId` | string | Yes | The ID of the watch to delete |
+| `formId` | string | Yes | Google Forms form ID |
+| `watchId` | string | Yes | Watch ID to delete |
 
 #### Output
 
@@ -267,8 +243,8 @@ Renew a notification watch for another 7 days
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `formId` | string | Yes | The ID of the Google Form |
-| `watchId` | string | Yes | The ID of the watch to renew |
+| `formId` | string | Yes | Google Forms form ID |
+| `watchId` | string | Yes | Watch ID to renew |
 
 #### Output
 

@@ -30,7 +30,7 @@ import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
-import { getPlans } from '@/lib/billing/plans'
+import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
@@ -63,6 +63,8 @@ import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
 import { SSO_TRUSTED_PROVIDERS } from './sso/constants'
 
 const logger = createLogger('Auth')
+
+import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
 
 const validStripeKey = env.STRIPE_SECRET_KEY
 
@@ -187,6 +189,10 @@ export const auth = betterAuth({
               }
             }
 
+            const refreshTokenExpiresAt = isMicrosoftProvider(account.providerId)
+              ? getMicrosoftRefreshTokenExpiry()
+              : account.refreshTokenExpiresAt
+
             await db
               .update(schema.account)
               .set({
@@ -195,7 +201,7 @@ export const auth = betterAuth({
                 refreshToken: account.refreshToken,
                 idToken: account.idToken,
                 accessTokenExpiresAt: account.accessTokenExpiresAt,
-                refreshTokenExpiresAt: account.refreshTokenExpiresAt,
+                refreshTokenExpiresAt,
                 scope: scopeToStore,
                 updatedAt: new Date(),
               })
@@ -250,6 +256,17 @@ export const auth = betterAuth({
           return { data: account }
         },
         after: async (account) => {
+          try {
+            const { ensureUserStatsExists } = await import('@/lib/billing/core/usage')
+            await ensureUserStatsExists(account.userId)
+          } catch (error) {
+            logger.error('[databaseHooks.account.create.after] Failed to ensure user stats', {
+              userId: account.userId,
+              accountId: account.id,
+              error,
+            })
+          }
+
           if (account.providerId === 'salesforce') {
             const updates: {
               accessTokenExpiresAt?: Date
@@ -290,6 +307,13 @@ export const auth = betterAuth({
             if (Object.keys(updates).length > 0) {
               await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
             }
+          }
+
+          if (isMicrosoftProvider(account.providerId)) {
+            await db
+              .update(schema.account)
+              .set({ refreshTokenExpiresAt: getMicrosoftRefreshTokenExpiry() })
+              .where(eq(schema.account.id, account.id))
           }
 
           // Sync webhooks for credential sets after connecting a new credential
@@ -387,7 +411,6 @@ export const auth = betterAuth({
       enabled: true,
       allowDifferentEmails: true,
       trustedProviders: [
-        // Standard OAuth providers
         'google',
         'github',
         'email-password',
@@ -403,8 +426,33 @@ export const auth = betterAuth({
         'hubspot',
         'linkedin',
         'spotify',
-
-        // Common SSO provider patterns
+        'google-email',
+        'google-calendar',
+        'google-drive',
+        'google-docs',
+        'google-sheets',
+        'google-forms',
+        'google-vault',
+        'google-groups',
+        'vertex-ai',
+        'github-repo',
+        'microsoft-teams',
+        'microsoft-excel',
+        'microsoft-planner',
+        'outlook',
+        'onedrive',
+        'sharepoint',
+        'jira',
+        'airtable',
+        'dropbox',
+        'salesforce',
+        'wealthbox',
+        'zoom',
+        'wordpress',
+        'linear',
+        'shopify',
+        'trello',
+        'calcom',
         ...SSO_TRUSTED_PROVIDERS,
       ],
     },
@@ -426,7 +474,6 @@ export const auth = betterAuth({
   },
   emailVerification: {
     autoSignInAfterVerification: true,
-    // onEmailVerification is called by the emailOTP plugin when email is verified via OTP
     onEmailVerification: async (user) => {
       if (isHosted && user.email) {
         try {
@@ -2495,6 +2542,55 @@ export const auth = betterAuth({
             }
           },
         },
+
+        // Cal.com provider
+        {
+          providerId: 'calcom',
+          clientId: env.CALCOM_CLIENT_ID as string,
+          authorizationUrl: 'https://app.cal.com/auth/oauth2/authorize',
+          tokenUrl: 'https://app.cal.com/api/auth/oauth/token',
+          scopes: [],
+          responseType: 'code',
+          pkce: true,
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/calcom`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching Cal.com user profile')
+
+              const response = await fetch('https://api.cal.com/v2/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  'cal-api-version': '2024-08-13',
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Failed to fetch Cal.com user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const data = await response.json()
+              const profile = data.data || data
+
+              return {
+                id: `${profile.id?.toString()}-${crypto.randomUUID()}`,
+                name: profile.name || 'Cal.com User',
+                email: profile.email || `${profile.id}@cal.com`,
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in Cal.com getUserInfo:', { error })
+              return null
+            }
+          },
+        },
       ],
     }),
     // Include SSO plugin when enabled
@@ -2545,29 +2641,42 @@ export const auth = betterAuth({
                 }
               },
               onSubscriptionComplete: async ({
+                stripeSubscription,
                 subscription,
               }: {
                 event: Stripe.Event
                 stripeSubscription: Stripe.Subscription
                 subscription: any
               }) => {
+                const { priceId, planFromStripe, isTeamPlan } =
+                  resolvePlanFromStripeSubscription(stripeSubscription)
+
                 logger.info('[onSubscriptionComplete] Subscription created', {
                   subscriptionId: subscription.id,
                   referenceId: subscription.referenceId,
-                  plan: subscription.plan,
+                  dbPlan: subscription.plan,
+                  planFromStripe,
+                  priceId,
                   status: subscription.status,
                 })
 
+                const subscriptionForOrgCreation = isTeamPlan
+                  ? { ...subscription, plan: 'team' }
+                  : subscription
+
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
+                    subscriptionForOrgCreation
+                  )
                 } catch (orgError) {
                   logger.error(
                     '[onSubscriptionComplete] Failed to ensure organization for team subscription',
                     {
                       subscriptionId: subscription.id,
                       referenceId: subscription.referenceId,
-                      plan: subscription.plan,
+                      dbPlan: subscription.plan,
+                      planFromStripe,
                       error: orgError instanceof Error ? orgError.message : String(orgError),
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
@@ -2588,22 +2697,67 @@ export const auth = betterAuth({
                 event: Stripe.Event
                 subscription: any
               }) => {
+                const stripeSubscription = event.data.object as Stripe.Subscription
+                const { priceId, planFromStripe, isTeamPlan } =
+                  resolvePlanFromStripeSubscription(stripeSubscription)
+
+                if (priceId && !planFromStripe) {
+                  logger.warn(
+                    '[onSubscriptionUpdate] Could not determine plan from Stripe price ID',
+                    {
+                      subscriptionId: subscription.id,
+                      priceId,
+                      dbPlan: subscription.plan,
+                    }
+                  )
+                }
+
+                const isUpgradeToTeam =
+                  isTeamPlan &&
+                  subscription.plan !== 'team' &&
+                  !subscription.referenceId.startsWith('org_')
+
+                const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
+
                 logger.info('[onSubscriptionUpdate] Subscription updated', {
                   subscriptionId: subscription.id,
                   status: subscription.status,
-                  plan: subscription.plan,
+                  dbPlan: subscription.plan,
+                  planFromStripe,
+                  isUpgradeToTeam,
+                  referenceId: subscription.referenceId,
                 })
+
+                const subscriptionForOrgCreation = isUpgradeToTeam
+                  ? { ...subscription, plan: 'team' }
+                  : subscription
 
                 let resolvedSubscription = subscription
                 try {
-                  resolvedSubscription = await ensureOrganizationForTeamSubscription(subscription)
+                  resolvedSubscription = await ensureOrganizationForTeamSubscription(
+                    subscriptionForOrgCreation
+                  )
+
+                  if (isUpgradeToTeam) {
+                    logger.info(
+                      '[onSubscriptionUpdate] Detected Pro -> Team upgrade, ensured organization creation',
+                      {
+                        subscriptionId: subscription.id,
+                        originalPlan: subscription.plan,
+                        newPlan: planFromStripe,
+                        resolvedReferenceId: resolvedSubscription.referenceId,
+                      }
+                    )
+                  }
                 } catch (orgError) {
                   logger.error(
                     '[onSubscriptionUpdate] Failed to ensure organization for team subscription',
                     {
                       subscriptionId: subscription.id,
                       referenceId: subscription.referenceId,
-                      plan: subscription.plan,
+                      dbPlan: subscription.plan,
+                      planFromStripe,
+                      isUpgradeToTeam,
                       error: orgError instanceof Error ? orgError.message : String(orgError),
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
@@ -2621,9 +2775,8 @@ export const auth = betterAuth({
                   })
                 }
 
-                if (resolvedSubscription.plan === 'team') {
+                if (effectivePlanForTeamFeatures === 'team') {
                   try {
-                    const stripeSubscription = event.data.object as Stripe.Subscription
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
 
                     const result = await syncSeatsFromStripeQuantity(

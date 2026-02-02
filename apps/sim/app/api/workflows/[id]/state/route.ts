@@ -33,6 +33,7 @@ const BlockDataSchema = z.object({
   doWhileCondition: z.string().optional(),
   parallelType: z.enum(['collection', 'count']).optional(),
   type: z.string().optional(),
+  canonicalModes: z.record(z.enum(['basic', 'advanced'])).optional(),
 })
 
 const SubBlockStateSchema = z.object({
@@ -253,7 +254,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
       const notifyResponse = await fetch(`${socketUrl}/api/workflow-updated`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': env.INTERNAL_API_SECRET,
+        },
         body: JSON.stringify({ workflowId }),
       })
 

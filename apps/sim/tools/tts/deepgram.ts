@@ -12,7 +12,7 @@ export const deepgramTtsTool: ToolConfig<DeepgramTtsParams, TtsBlockResponse> = 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text to convert to speech',
+      description: 'The text content to convert to speech (e.g., "Hello, welcome to our service!")',
     },
     apiKey: {
       type: 'string',
@@ -23,14 +23,16 @@ export const deepgramTtsTool: ToolConfig<DeepgramTtsParams, TtsBlockResponse> = 
     model: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Deepgram model/voice (e.g., aura-asteria-en, aura-luna-en)',
+      visibility: 'user-or-llm',
+      description:
+        'Deepgram model/voice identifier (e.g., "aura-asteria-en", "aura-luna-en", "aura-2-luna-en")',
     },
     voice: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Voice identifier (alternative to model param)',
+      description:
+        'Deepgram voice identifier, alternative to model param (e.g., "aura-asteria-en", "aura-orion-en")',
     },
     encoding: {
       type: 'string',
@@ -59,7 +61,7 @@ export const deepgramTtsTool: ToolConfig<DeepgramTtsParams, TtsBlockResponse> = 
   },
 
   request: {
-    url: '/api/proxy/tts/unified',
+    url: '/api/tools/tts/unified',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

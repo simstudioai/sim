@@ -29,6 +29,23 @@ export interface EnvVarResolveOptions {
 }
 
 /**
+ * Standard defaults for env var resolution across all contexts.
+ *
+ * - `resolveExactMatch: true` - Resolves `{{VAR}}` when it's the entire value
+ * - `allowEmbedded: true` - Resolves `{{VAR}}` embedded in strings like `https://{{HOST}}/api`
+ * - `trimKeys: true` - `{{ VAR }}` works the same as `{{VAR}}` (whitespace tolerant)
+ * - `onMissing: 'keep'` - Unknown patterns pass through (e.g., Grafana's `{{instance}}`)
+ * - `deep: false` - Only processes strings by default; set `true` for nested objects
+ */
+export const ENV_VAR_RESOLVE_DEFAULTS: Required<Omit<EnvVarResolveOptions, 'missingKeys'>> = {
+  resolveExactMatch: true,
+  allowEmbedded: true,
+  trimKeys: true,
+  onMissing: 'keep',
+  deep: false,
+} as const
+
+/**
  * Resolve {{ENV_VAR}} references in values using provided env vars.
  */
 export function resolveEnvVarReferences(
@@ -37,11 +54,11 @@ export function resolveEnvVarReferences(
   options: EnvVarResolveOptions = {}
 ): unknown {
   const {
-    allowEmbedded = true,
-    resolveExactMatch = true,
-    trimKeys = false,
-    onMissing = 'keep',
-    deep = true,
+    allowEmbedded = ENV_VAR_RESOLVE_DEFAULTS.allowEmbedded,
+    resolveExactMatch = ENV_VAR_RESOLVE_DEFAULTS.resolveExactMatch,
+    trimKeys = ENV_VAR_RESOLVE_DEFAULTS.trimKeys,
+    onMissing = ENV_VAR_RESOLVE_DEFAULTS.onMissing,
+    deep = ENV_VAR_RESOLVE_DEFAULTS.deep,
   } = options
 
   if (typeof value === 'string') {

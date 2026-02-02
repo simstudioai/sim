@@ -104,17 +104,11 @@ export async function POST(req: NextRequest) {
     })
 
     // Build execution params starting with LLM-provided arguments
-    // Resolve all {{ENV_VAR}} references in the arguments
+    // Resolve all {{ENV_VAR}} references in the arguments (deep for nested objects)
     const executionParams: Record<string, any> = resolveEnvVarReferences(
       toolArgs,
       decryptedEnvVars,
-      {
-        resolveExactMatch: true,
-        allowEmbedded: true,
-        trimKeys: true,
-        onMissing: 'keep',
-        deep: true,
-      }
+      { deep: true }
     ) as Record<string, any>
 
     logger.info(`[${tracker.requestId}] Resolved env var references in arguments`, {
@@ -224,7 +218,7 @@ export async function POST(req: NextRequest) {
       hasApiKey: !!executionParams.apiKey,
     })
 
-    const result = await executeTool(resolvedToolName, executionParams, true)
+    const result = await executeTool(resolvedToolName, executionParams)
 
     logger.info(`[${tracker.requestId}] Tool execution complete`, {
       toolName,

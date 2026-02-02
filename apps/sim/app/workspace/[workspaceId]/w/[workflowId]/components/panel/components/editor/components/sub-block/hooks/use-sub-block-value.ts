@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { isEqual } from 'lodash'
 import { useShallow } from 'zustand/react/shallow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -58,7 +59,8 @@ export function useSubBlockValue<T = any>(
   const streamingValueRef = useRef<T | null>(null)
   const wasStreamingRef = useRef<boolean>(false)
 
-  const storeValue = useSubBlockStore(
+  const storeValue = useStoreWithEqualityFn(
+    useSubBlockStore,
     useCallback(
       (state) => {
         // If the active workflow ID isn't available yet, return undefined so we can fall back to initialValue
@@ -92,7 +94,8 @@ export function useSubBlockValue<T = any>(
 
   // Always call this hook unconditionally - don't wrap it in a condition
   // Optimized: only re-render if model value actually changes
-  const modelSubBlockValue = useSubBlockStore(
+  const modelSubBlockValue = useStoreWithEqualityFn(
+    useSubBlockStore,
     useCallback((state) => (blockId ? state.getValue(blockId, 'model') : null), [blockId]),
     (a, b) => a === b
   )

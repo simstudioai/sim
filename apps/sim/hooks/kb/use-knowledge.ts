@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChunkData, DocumentData, KnowledgeBaseData } from '@/lib/knowledge/types'
 import {
@@ -67,12 +67,17 @@ export function useKnowledgeBaseDocuments(
     sortBy?: string
     sortOrder?: string
     enabled?: boolean
-    refetchInterval?: number | false
+    refetchInterval?:
+      | number
+      | false
+      | ((data: KnowledgeDocumentsResponse | undefined) => number | false)
+    enabledFilter?: 'all' | 'enabled' | 'disabled'
   }
 ) {
   const queryClient = useQueryClient()
   const requestLimit = options?.limit ?? DEFAULT_PAGE_SIZE
   const requestOffset = options?.offset ?? 0
+  const enabledFilter = options?.enabledFilter ?? 'all'
   const paramsKey = serializeDocumentParams({
     knowledgeBaseId,
     limit: requestLimit,
@@ -80,7 +85,18 @@ export function useKnowledgeBaseDocuments(
     search: options?.search,
     sortBy: options?.sortBy,
     sortOrder: options?.sortOrder,
+    enabledFilter,
   })
+
+  const refetchIntervalFn = useMemo(() => {
+    if (typeof options?.refetchInterval === 'function') {
+      const userFn = options.refetchInterval
+      return (query: { state: { data?: KnowledgeDocumentsResponse } }) => {
+        return userFn(query.state.data)
+      }
+    }
+    return options?.refetchInterval
+  }, [options?.refetchInterval])
 
   const query = useKnowledgeDocumentsQuery(
     {
@@ -90,10 +106,11 @@ export function useKnowledgeBaseDocuments(
       search: options?.search,
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
+      enabledFilter,
     },
     {
       enabled: (options?.enabled ?? true) && Boolean(knowledgeBaseId),
-      refetchInterval: options?.refetchInterval,
+      refetchInterval: refetchIntervalFn,
     }
   )
 
@@ -104,6 +121,14 @@ export function useKnowledgeBaseDocuments(
     offset: requestOffset,
     hasMore: false,
   }
+
+  const hasProcessingDocs = useMemo(
+    () =>
+      documents.some(
+        (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
+      ),
+    [documents]
+  )
 
   const refreshDocuments = useCallback(async () => {
     await queryClient.invalidateQueries({
@@ -136,6 +161,7 @@ export function useKnowledgeBaseDocuments(
     isFetching: query.isFetching,
     isPlaceholderData: query.isPlaceholderData,
     error: query.error instanceof Error ? query.error.message : null,
+    hasProcessingDocuments: hasProcessingDocs,
     refreshDocuments,
     updateDocument,
   }
@@ -233,8 +259,8 @@ export function useDocumentChunks(
   const hasPrevPage = currentPage > 1
 
   const goToPage = useCallback(
-    async (newPage: number) => {
-      if (newPage < 1 || newPage > totalPages) return
+    (newPage: number): boolean => {
+      return newPage >= 1 && newPage <= totalPages
     },
     [totalPages]
   )

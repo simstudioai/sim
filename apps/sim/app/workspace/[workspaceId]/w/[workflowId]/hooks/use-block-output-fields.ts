@@ -2,13 +2,15 @@
 
 import { useMemo } from 'react'
 import { extractFieldsFromSchema } from '@/lib/core/utils/response-format'
-import { getBlockOutputPaths, getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import {
+  getBlockOutputPaths,
+  getBlockOutputs,
+  getToolOutputs,
+} from '@/lib/workflows/blocks/block-outputs'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import type { SchemaField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import { getBlock } from '@/blocks'
-import type { BlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getTool } from '@/tools/utils'
 
 const RESERVED_KEYS = new Set(['type', 'description'])
 
@@ -22,64 +24,6 @@ const isObject = (prop: any): boolean => prop && typeof prop === 'object'
  */
 const getSubBlockValue = (blockId: string, property: string): any => {
   return useSubBlockStore.getState().getValue(blockId, property)
-}
-
-/**
- * Generates output paths for a tool-based block
- */
-const generateToolOutputPaths = (blockConfig: BlockConfig, operation: string): string[] => {
-  if (!blockConfig?.tools?.config?.tool) return []
-
-  try {
-    const toolId = blockConfig.tools.config.tool({ operation })
-    if (!toolId) return []
-
-    const toolConfig = getTool(toolId)
-    if (!toolConfig?.outputs) return []
-
-    return generateOutputPaths(toolConfig.outputs)
-  } catch {
-    return []
-  }
-}
-
-/**
- * Recursively generates all output paths from an outputs schema
- */
-const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
-  const paths: string[] = []
-
-  for (const [key, value] of Object.entries(outputs)) {
-    const currentPath = prefix ? `${prefix}.${key}` : key
-
-    if (typeof value === 'string') {
-      paths.push(currentPath)
-    } else if (typeof value === 'object' && value !== null) {
-      if ('type' in value && typeof value.type === 'string') {
-        paths.push(currentPath)
-        // Handle nested objects and arrays
-        if (value.type === 'object' && value.properties) {
-          paths.push(...generateOutputPaths(value.properties, currentPath))
-        } else if (value.type === 'array' && value.items?.properties) {
-          paths.push(...generateOutputPaths(value.items.properties, currentPath))
-        } else if (
-          value.type === 'array' &&
-          value.items &&
-          typeof value.items === 'object' &&
-          !('type' in value.items)
-        ) {
-          paths.push(...generateOutputPaths(value.items, currentPath))
-        }
-      } else {
-        const subPaths = generateOutputPaths(value, currentPath)
-        paths.push(...subPaths)
-      }
-    } else {
-      paths.push(currentPath)
-    }
-  }
-
-  return paths
 }
 
 /**
@@ -153,26 +97,6 @@ const createFieldFromOutput = (
   }
 
   return field
-}
-
-/**
- * Gets tool outputs for a block's operation
- */
-const getToolOutputs = (
-  blockConfig: BlockConfig | null,
-  operation?: string
-): Record<string, any> => {
-  if (!blockConfig?.tools?.config?.tool || !operation) return {}
-
-  try {
-    const toolId = blockConfig.tools.config.tool({ operation })
-    if (!toolId) return {}
-
-    const toolConfig = getTool(toolId)
-    return toolConfig?.outputs || {}
-  } catch {
-    return {}
-  }
 }
 
 interface UseBlockOutputFieldsParams {
@@ -299,14 +223,11 @@ export function useBlockOutputFields({
       baseOutputs = getBlockOutputs(blockType, mergedSubBlocks)
     } else {
       // For tool-based blocks, try to get tool outputs first
-      const operationValue =
-        operation ?? mergedSubBlocks?.operation?.value ?? getSubBlockValue(blockId, 'operation')
-      const toolOutputs = operationValue ? getToolOutputs(blockConfig, operationValue) : {}
+      const toolOutputs = blockConfig ? getToolOutputs(blockConfig, mergedSubBlocks) : {}
 
       if (Object.keys(toolOutputs).length > 0) {
         baseOutputs = toolOutputs
       } else {
-        // Use getBlockOutputs which handles inputFormat merging
         baseOutputs = getBlockOutputs(blockType, mergedSubBlocks, triggerMode)
       }
     }

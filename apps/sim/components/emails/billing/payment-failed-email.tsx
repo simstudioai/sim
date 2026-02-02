@@ -25,7 +25,7 @@ export function PaymentFailedEmail({
   const previewText = `${brand.name}: Payment Failed - Action Required`
 
   return (
-    <EmailLayout preview={previewText}>
+    <EmailLayout preview={previewText} showUnsubscribe={false}>
       <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
         {userName ? `Hi ${userName},` : 'Hi,'}
       </Text>

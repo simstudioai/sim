@@ -23,6 +23,7 @@ interface SelectorComboboxProps {
   readOnly?: boolean
   onOptionChange?: (value: string) => void
   allowSearch?: boolean
+  missingOptionLabel?: string
 }
 
 export function SelectorCombobox({
@@ -37,6 +38,7 @@ export function SelectorCombobox({
   readOnly,
   onOptionChange,
   allowSearch = true,
+  missingOptionLabel,
 }: SelectorComboboxProps) {
   const [storeValueRaw, setStoreValue] = useSubBlockValue<string | null | undefined>(
     blockId,
@@ -60,7 +62,16 @@ export function SelectorCombobox({
     detailId: activeValue,
   })
   const optionMap = useSelectorOptionMap(options, detailOption ?? undefined)
-  const selectedLabel = activeValue ? (optionMap.get(activeValue)?.label ?? activeValue) : ''
+  const hasMissingOption =
+    Boolean(activeValue) &&
+    Boolean(missingOptionLabel) &&
+    !isLoading &&
+    !optionMap.get(activeValue!)
+  const selectedLabel = activeValue
+    ? hasMissingOption
+      ? missingOptionLabel
+      : (optionMap.get(activeValue)?.label ?? activeValue)
+    : ''
   const [inputValue, setInputValue] = useState(selectedLabel)
   const previousActiveValue = useRef<string | undefined>(activeValue)
 

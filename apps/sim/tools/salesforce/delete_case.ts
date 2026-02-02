@@ -2,6 +2,7 @@ import type {
   SalesforceDeleteCaseParams,
   SalesforceDeleteCaseResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,8 +39,8 @@ export const salesforceDeleteCaseTool: ToolConfig<
     caseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Case ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Case ID to delete (18-character string starting with 500)',
     },
   },
 
@@ -71,10 +72,7 @@ export const salesforceDeleteCaseTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Deleted case data',
-      properties: {
-        id: { type: 'string', description: 'Deleted case ID' },
-        deleted: { type: 'boolean', description: 'Whether case was deleted' },
-      },
+      properties: SOBJECT_DELETE_OUTPUT_PROPERTIES,
     },
   },
 }

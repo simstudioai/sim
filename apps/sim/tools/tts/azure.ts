@@ -12,7 +12,7 @@ export const azureTtsTool: ToolConfig<AzureTtsParams, TtsBlockResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text to convert to speech',
+      description: 'The text content to convert to speech (e.g., "Hello, welcome to our service!")',
     },
     apiKey: {
       type: 'string',
@@ -24,7 +24,8 @@ export const azureTtsTool: ToolConfig<AzureTtsParams, TtsBlockResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Voice ID (e.g., en-US-JennyNeural, en-US-GuyNeural)',
+      description:
+        'Azure voice identifier (e.g., "en-US-JennyNeural", "en-US-GuyNeural", "en-GB-SoniaNeural")',
     },
     region: {
       type: 'string',
@@ -71,7 +72,7 @@ export const azureTtsTool: ToolConfig<AzureTtsParams, TtsBlockResponse> = {
   },
 
   request: {
-    url: '/api/proxy/tts/unified',
+    url: '/api/tools/tts/unified',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

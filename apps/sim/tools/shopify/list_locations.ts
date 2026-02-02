@@ -1,5 +1,6 @@
+import type { ShopifyBaseParams } from '@/tools/shopify/types'
+import { LOCATION_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { ShopifyBaseParams } from './types'
 
 interface ShopifyListLocationsParams extends ShopifyBaseParams {
   first?: number
@@ -157,10 +158,15 @@ export const shopifyListLocationsTool: ToolConfig<
     locations: {
       type: 'array',
       description: 'List of locations with their IDs, names, and addresses',
+      items: {
+        type: 'object',
+        properties: LOCATION_OUTPUT_PROPERTIES,
+      },
     },
     pageInfo: {
       type: 'object',
       description: 'Pagination information',
+      properties: PAGE_INFO_OUTPUT_PROPERTIES,
     },
   },
 }

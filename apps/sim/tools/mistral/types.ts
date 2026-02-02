@@ -1,98 +1,215 @@
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
- * Input parameters for the Mistral OCR parser tool
+ * Shared output property definitions for Mistral OCR API responses.
+ * Based on Mistral API documentation: https://docs.mistral.ai/api/endpoint/ocr
  */
+
+/**
+ * Output definition for OCR image bounding box objects
+ */
+export const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Image identifier (e.g., img-0.jpeg)' },
+  top_left_x: { type: 'number', description: 'Top-left X coordinate in pixels' },
+  top_left_y: { type: 'number', description: 'Top-left Y coordinate in pixels' },
+  bottom_right_x: { type: 'number', description: 'Bottom-right X coordinate in pixels' },
+  bottom_right_y: { type: 'number', description: 'Bottom-right Y coordinate in pixels' },
+  image_base64: {
+    type: 'string',
+    description: 'Base64-encoded image data (when include_image_base64=true)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete OCR image output definition
+ */
+export const MISTRAL_OCR_IMAGE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Extracted image with bounding box',
+  properties: MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for page dimension objects
+ */
+export const MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES = {
+  dpi: { type: 'number', description: 'Dots per inch' },
+  height: { type: 'number', description: 'Page height in pixels' },
+  width: { type: 'number', description: 'Page width in pixels' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete page dimensions output definition
+ */
+export const MISTRAL_OCR_DIMENSIONS_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Page dimensions',
+  properties: MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for OCR page objects
+ */
+export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
+  index: { type: 'number', description: 'Page index (zero-based)' },
+  markdown: { type: 'string', description: 'Extracted markdown content' },
+  images: {
+    type: 'array',
+    description: 'Images extracted from this page with bounding boxes',
+    items: {
+      type: 'object',
+      properties: MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES,
+    },
+  },
+  dimensions: MISTRAL_OCR_DIMENSIONS_OUTPUT,
+  tables: {
+    type: 'array',
+    description: 'Extracted tables as HTML/markdown (when table_format is set)',
+  },
+  hyperlinks: {
+    type: 'array',
+    description: 'Array of URL strings detected in the page',
+    items: { type: 'string', description: 'URL or mailto link' },
+  },
+  header: {
+    type: 'string',
+    description: 'Page header content (when extract_header=true)',
+    optional: true,
+  },
+  footer: {
+    type: 'string',
+    description: 'Page footer content (when extract_footer=true)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete OCR page output definition
+ */
+export const MISTRAL_OCR_PAGE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'OCR processed page',
+  properties: MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for usage info objects
+ */
+export const MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES = {
+  pages_processed: { type: 'number', description: 'Total number of pages processed' },
+  doc_size_bytes: { type: 'number', description: 'Document file size in bytes', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete usage info output definition
+ */
+export const MISTRAL_OCR_USAGE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Usage and processing statistics',
+  properties: MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES,
+}
+
+/**
+ * Output definition for parser metadata objects
+ */
+export const MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES = {
+  jobId: { type: 'string', description: 'Unique job identifier' },
+  fileType: { type: 'string', description: 'File type (e.g., pdf)' },
+  fileName: { type: 'string', description: 'Original file name' },
+  source: { type: 'string', description: 'Source type (url)' },
+  pageCount: { type: 'number', description: 'Number of pages processed' },
+  model: { type: 'string', description: 'Mistral model used' },
+  resultType: { type: 'string', description: 'Output format (markdown, text, json)' },
+  processedAt: { type: 'string', description: 'Processing timestamp' },
+  sourceUrl: { type: 'string', description: 'Source URL if applicable', optional: true },
+  usageInfo: MISTRAL_OCR_USAGE_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete parser metadata output definition
+ */
+export const MISTRAL_PARSER_METADATA_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Processing metadata',
+  properties: MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES,
+}
+
 export interface MistralParserInput {
-  /** URL to a PDF document to be processed */
   filePath: string
-
-  /** File upload data (from file-upload component) */
   fileUpload?: any
-
-  /** Internal file path flag (for presigned URL conversion) */
   _internalFilePath?: string
-
-  /** Mistral API key for authentication */
   apiKey: string
-
-  /** Output format for the extracted content (default: 'markdown') */
   resultType?: 'markdown' | 'text' | 'json'
-
-  /** Whether to include base64-encoded images in the response */
   includeImageBase64?: boolean
-
-  /** Specific pages to process (zero-indexed) */
   pages?: number[]
-
-  /** Maximum number of images to extract from the PDF */
   imageLimit?: number
-
-  /** Minimum height and width (in pixels) for images to extract */
   imageMinSize?: number
 }
 
-/**
- * Usage information returned by the Mistral OCR API
- */
 export interface MistralOcrUsageInfo {
-  /** Number of pages processed in the document */
   pagesProcessed: number
-
-  /** Size of the document in bytes */
   docSizeBytes: number | null
 }
 
-/**
- * Metadata about the processed document
- */
 export interface MistralParserMetadata {
-  /** Unique identifier for this OCR job */
   jobId: string
-
-  /** File type of the document (typically 'pdf') */
   fileType: string
-
-  /** Filename extracted from the document URL */
   fileName: string
-
-  /** Source type (always 'url' for now) */
   source: 'url'
-
-  /** Original URL to the document (only included for user-provided URLs) */
   sourceUrl?: string
-
-  /** Total number of pages in the document */
   pageCount: number
-
-  /** Usage statistics from the OCR processing */
   usageInfo?: MistralOcrUsageInfo
-
-  /** The Mistral OCR model used for processing */
   model: string
-
-  /** The output format that was requested */
   resultType?: 'markdown' | 'text' | 'json'
-
-  /** ISO timestamp when the document was processed */
   processedAt: string
 }
 
-/**
- * Output data structure from the Mistral OCR parser
- */
 export interface MistralParserOutputData {
-  /** Extracted content in the requested format */
   content: string
-
-  /** Metadata about the parsed document and processing */
   metadata: MistralParserMetadata
 }
 
-/**
- * Complete response from the Mistral OCR parser tool
- */
 export interface MistralParserOutput extends ToolResponse {
-  /** The output data containing content and metadata */
   output: MistralParserOutputData
+}
+
+export interface MistralOcrImage {
+  id: string
+  top_left_x: number
+  top_left_y: number
+  bottom_right_x: number
+  bottom_right_y: number
+  image_base64?: string
+}
+
+export interface MistralOcrDimensions {
+  dpi: number
+  height: number
+  width: number
+}
+
+export interface MistralOcrPage {
+  index: number
+  markdown: string
+  images: MistralOcrImage[]
+  dimensions: MistralOcrDimensions
+  tables: unknown[]
+  hyperlinks: unknown[]
+  header: string | null
+  footer: string | null
+}
+
+export interface MistralOcrUsageInfoRaw {
+  pages_processed: number
+  doc_size_bytes: number | null
+}
+
+export interface MistralParserV2Output extends ToolResponse {
+  output: {
+    pages: MistralOcrPage[]
+    model: string
+    usage_info: MistralOcrUsageInfoRaw
+    document_annotation: string | null
+  }
 }

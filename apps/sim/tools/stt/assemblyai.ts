@@ -1,4 +1,9 @@
 import type { SttParams, SttResponse } from '@/tools/stt/types'
+import {
+  STT_ENTITY_OUTPUT_PROPERTIES,
+  STT_SEGMENT_OUTPUT_PROPERTIES,
+  STT_SENTIMENT_OUTPUT_PROPERTIES,
+} from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
@@ -29,13 +34,13 @@ export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
     audioFile: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Audio or video file to transcribe',
+      visibility: 'user-only',
+      description: 'Audio or video file to transcribe (e.g., MP3, WAV, M4A, WEBM)',
     },
     audioFileReference: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Reference to audio/video file from previous blocks',
     },
     audioUrl: {
@@ -89,7 +94,7 @@ export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
   },
 
   request: {
-    url: '/api/proxy/stt',
+    url: '/api/tools/stt',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
@@ -148,12 +153,33 @@ export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
 
   outputs: {
     transcript: { type: 'string', description: 'Full transcribed text' },
-    segments: { type: 'array', description: 'Timestamped segments with speaker labels' },
+    segments: {
+      type: 'array',
+      description: 'Timestamped segments with speaker labels',
+      items: {
+        type: 'object',
+        properties: STT_SEGMENT_OUTPUT_PROPERTIES,
+      },
+    },
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
     confidence: { type: 'number', description: 'Overall confidence score' },
-    sentiment: { type: 'array', description: 'Sentiment analysis results' },
-    entities: { type: 'array', description: 'Detected entities' },
+    sentiment: {
+      type: 'array',
+      description: 'Sentiment analysis results',
+      items: {
+        type: 'object',
+        properties: STT_SENTIMENT_OUTPUT_PROPERTIES,
+      },
+    },
+    entities: {
+      type: 'array',
+      description: 'Detected entities',
+      items: {
+        type: 'object',
+        properties: STT_ENTITY_OUTPUT_PROPERTIES,
+      },
+    },
     summary: { type: 'string', description: 'Auto-generated summary' },
   },
 }

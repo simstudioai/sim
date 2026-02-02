@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ChevronDown, LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -15,7 +14,7 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
-import { knowledgeKeys } from '@/hooks/queries/knowledge'
+import { useUpdateKnowledgeBase } from '@/hooks/queries/knowledge'
 
 const logger = createLogger('KnowledgeHeader')
 
@@ -54,14 +53,13 @@ interface Workspace {
 }
 
 export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) {
-  const queryClient = useQueryClient()
   const [isActionsPopoverOpen, setIsActionsPopoverOpen] = useState(false)
   const [isWorkspacePopoverOpen, setIsWorkspacePopoverOpen] = useState(false)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false)
-  const [isUpdatingWorkspace, setIsUpdatingWorkspace] = useState(false)
 
-  // Fetch available workspaces
+  const updateKnowledgeBase = useUpdateKnowledgeBase()
+
   useEffect(() => {
     if (!options?.knowledgeBaseId) return
 
@@ -76,7 +74,6 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
 
         const data = await response.json()
 
-        // Filter workspaces where user has write/admin permissions
         const availableWorkspaces = data.workspaces
           .filter((ws: any) => ws.permissions === 'write' || ws.permissions === 'admin')
           .map((ws: any) => ({
@@ -97,47 +94,27 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
   }, [options?.knowledgeBaseId])
 
   const handleWorkspaceChange = async (workspaceId: string | null) => {
-    if (isUpdatingWorkspace || !options?.knowledgeBaseId) return
+    if (updateKnowledgeBase.isPending || !options?.knowledgeBaseId) return
 
-    try {
-      setIsUpdatingWorkspace(true)
-      setIsWorkspacePopoverOpen(false)
+    setIsWorkspacePopoverOpen(false)
 
-      const response = await fetch(`/api/knowledge/${options.knowledgeBaseId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+    updateKnowledgeBase.mutate(
+      {
+        knowledgeBaseId: options.knowledgeBaseId,
+        updates: { workspaceId },
+      },
+      {
+        onSuccess: () => {
+          logger.info(
+            `Knowledge base workspace updated: ${options.knowledgeBaseId} -> ${workspaceId}`
+          )
+          options.onWorkspaceChange?.(workspaceId)
         },
-        body: JSON.stringify({
-          workspaceId,
-        }),
-      })
-
-      if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to update workspace')
+        onError: (err) => {
+          logger.error('Error updating workspace:', err)
+        },
       }
-
-      const result = await response.json()
-
-      if (result.success) {
-        logger.info(
-          `Knowledge base workspace updated: ${options.knowledgeBaseId} -> ${workspaceId}`
-        )
-
-        await queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.detail(options.knowledgeBaseId),
-        })
-
-        await options.onWorkspaceChange?.(workspaceId)
-      } else {
-        throw new Error(result.error || 'Failed to update workspace')
-      }
-    } catch (err) {
-      logger.error('Error updating workspace:', err)
-    } finally {
-      setIsUpdatingWorkspace(false)
-    }
+    )
   }
 
   const currentWorkspace = workspaces.find((ws) => ws.id === options?.currentWorkspaceId)
@@ -147,7 +124,6 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
     <div className={HEADER_STYLES.container}>
       <div className={HEADER_STYLES.breadcrumbs}>
         {breadcrumbs.map((breadcrumb, index) => {
-          // Use unique identifier when available, fallback to content-based key
           const key = breadcrumb.id || `${breadcrumb.label}-${breadcrumb.href || index}`
 
           return (
@@ -189,13 +165,13 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                 <PopoverTrigger asChild>
                   <Button
                     variant='outline'
-                    disabled={isLoadingWorkspaces || isUpdatingWorkspace}
+                    disabled={isLoadingWorkspaces || updateKnowledgeBase.isPending}
                     className={filterButtonClass}
                   >
                     <span className='truncate'>
                       {isLoadingWorkspaces
                         ? 'Loading...'
-                        : isUpdatingWorkspace
+                        : updateKnowledgeBase.isPending
                           ? 'Updating...'
                           : currentWorkspace?.name || 'No workspace'}
                     </span>

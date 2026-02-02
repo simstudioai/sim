@@ -1,3 +1,4 @@
+import { CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetCurrentlyPlayingParams {
@@ -43,8 +44,8 @@ export const spotifyGetCurrentlyPlayingTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO country code for market',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
   },
 
@@ -103,6 +104,11 @@ export const spotifyGetCurrentlyPlayingTool: ToolConfig<
   outputs: {
     is_playing: { type: 'boolean', description: 'Whether playback is active' },
     progress_ms: { type: 'number', description: 'Current position in track (ms)', optional: true },
-    track: { type: 'json', description: 'Currently playing track', optional: true },
+    track: {
+      type: 'object',
+      description: 'Currently playing track',
+      optional: true,
+      properties: CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES,
+    },
   },
 }

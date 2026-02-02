@@ -41,9 +41,11 @@ Convert TTS using ElevenLabs voices
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | The text to convert to speech |
-| `voiceId` | string | Yes | The ID of the voice to use |
-| `modelId` | string | No | The ID of the model to use \(defaults to eleven_monolingual_v1\) |
+| `text` | string | Yes | The text to convert to speech \(e.g., "Hello, welcome to our service!"\) |
+| `voiceId` | string | Yes | The ID of the voice to use \(e.g., "21m00Tcm4TlvDq8ikWAM" for Rachel\) |
+| `modelId` | string | No | The ID of the model to use \(e.g., "eleven_multilingual_v2", "eleven_turbo_v2"\). Defaults to eleven_monolingual_v1 |
+| `stability` | number | No | Voice stability setting from 0.0 to 1.0 \(e.g., 0.5 for balanced, 0.75 for more stable\). Higher values produce more consistent output |
+| `similarity` | number | No | Similarity boost setting from 0.0 to 1.0 \(e.g., 0.75 for natural, 1.0 for maximum similarity\). Higher values make the voice more similar to the original |
 | `apiKey` | string | Yes | Your ElevenLabs API key |
 
 #### Output

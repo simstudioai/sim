@@ -1,4 +1,5 @@
 import type { Executor } from '@/executor'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
 
 /**
@@ -18,16 +19,9 @@ export interface ExecutionState {
   pendingBlocks: string[]
   executor: Executor | null
   debugContext: ExecutionContext | null
-  /**
-   * Tracks blocks from the last execution run and their success/error status.
-   * Cleared when a new run starts. Used to show run path indicators (rings on blocks).
-   */
   lastRunPath: Map<string, BlockRunStatus>
-  /**
-   * Tracks edges from the last execution run and their success/error status.
-   * Cleared when a new run starts. Used to show run path indicators on edges.
-   */
   lastRunEdges: Map<string, EdgeRunStatus>
+  lastExecutionSnapshots: Map<string, SerializableExecutionState>
 }
 
 export interface ExecutionActions {
@@ -41,6 +35,9 @@ export interface ExecutionActions {
   setEdgeRunStatus: (edgeId: string, status: EdgeRunStatus) => void
   clearRunPath: () => void
   reset: () => void
+  setLastExecutionSnapshot: (workflowId: string, snapshot: SerializableExecutionState) => void
+  getLastExecutionSnapshot: (workflowId: string) => SerializableExecutionState | undefined
+  clearLastExecutionSnapshot: (workflowId: string) => void
 }
 
 export const initialState: ExecutionState = {
@@ -52,4 +49,5 @@ export const initialState: ExecutionState = {
   debugContext: null,
   lastRunPath: new Map(),
   lastRunEdges: new Map(),
+  lastExecutionSnapshots: new Map(),
 }

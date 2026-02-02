@@ -12,6 +12,10 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import {
+  cleanupExecutionBase64Cache,
+  hydrateUserFilesWithBase64,
+} from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -25,7 +29,8 @@ import type { WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
-import type { StreamingExecution } from '@/executor/types'
+import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -38,6 +43,8 @@ const ExecuteWorkflowSchema = z.object({
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
   isClientSession: z.boolean().optional(),
+  includeFileBase64: z.boolean().optional().default(true),
+  base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: z
     .object({
       blocks: z.record(z.any()),
@@ -46,6 +53,7 @@ const ExecuteWorkflowSchema = z.object({
       parallels: z.record(z.any()).optional(),
     })
     .optional(),
+  stopAfterBlockId: z.string().optional(),
 })
 
 export const runtime = 'nodejs'
@@ -110,7 +118,6 @@ type AsyncExecutionParams = {
   userId: string
   input: any
   triggerType: CoreTriggerType
-  preflighted?: boolean
 }
 
 /**
@@ -133,7 +140,6 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     userId,
     input,
     triggerType,
-    preflighted: params.preflighted,
   }
 
   try {
@@ -214,7 +220,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       useDraftState,
       input: validatedInput,
       isClientSession = false,
+      includeFileBase64,
+      base64MaxBytes,
       workflowStateOverride,
+      stopAfterBlockId,
     } = validation.data
 
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
@@ -227,7 +236,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               triggerType,
               stream,
               useDraftState,
+              includeFileBase64,
+              base64MaxBytes,
               workflowStateOverride,
+              stopAfterBlockId: _stopAfterBlockId,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               ...rest
             } = body
@@ -266,7 +278,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       requestId
     )
 
-    const shouldPreflightEnvVars = isAsyncMode && isTriggerDevEnabled
     const preprocessResult = await preprocessExecution({
       workflowId,
       userId,
@@ -275,9 +286,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       requestId,
       checkDeployment: !shouldUseDraftState,
       loggingSession,
-      preflightEnvVars: shouldPreflightEnvVars,
       useDraftState: shouldUseDraftState,
-      envUserId: isClientSession ? userId : undefined,
     })
 
     if (!preprocessResult.success) {
@@ -309,7 +318,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         userId: actorUserId,
         input,
         triggerType: loggingTriggerType,
-        preflighted: shouldPreflightEnvVars,
       })
     }
 
@@ -427,16 +435,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           snapshot,
           callbacks: {},
           loggingSession,
+          includeFileBase64,
+          base64MaxBytes,
+          stopAfterBlockId,
         })
 
-        const hasResponseBlock = workflowHasResponseBlock(result)
+        const outputWithBase64 = includeFileBase64
+          ? ((await hydrateUserFilesWithBase64(result.output, {
+              requestId,
+              executionId,
+              maxBytes: base64MaxBytes,
+            })) as NormalizedBlockOutput)
+          : result.output
+
+        const resultWithBase64 = { ...result, output: outputWithBase64 }
+
+        // Cleanup base64 cache for this execution
+        await cleanupExecutionBase64Cache(executionId)
+
+        const hasResponseBlock = workflowHasResponseBlock(resultWithBase64)
         if (hasResponseBlock) {
-          return createHttpResponseFromBlock(result)
+          return createHttpResponseFromBlock(resultWithBase64)
         }
 
         const filteredResult = {
           success: result.success,
-          output: result.output,
+          output: outputWithBase64,
           error: result.error,
           metadata: result.metadata
             ? {
@@ -448,17 +472,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         return NextResponse.json(filteredResult)
-      } catch (error: any) {
-        const errorMessage = error.message || 'Unknown error'
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         logger.error(`[${requestId}] Non-SSE execution failed: ${errorMessage}`)
 
-        const executionResult = error.executionResult
+        const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
         return NextResponse.json(
           {
             success: false,
             output: executionResult?.output,
-            error: executionResult?.error || error.message || 'Execution failed',
+            error: executionResult?.error || errorMessage || 'Execution failed',
             metadata: executionResult?.metadata
               ? {
                   duration: executionResult.metadata.duration,
@@ -498,6 +522,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           selectedOutputs: resolvedSelectedOutputs,
           isSecureMode: false,
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+          includeFileBase64,
+          base64MaxBytes,
         },
         executionId,
       })
@@ -590,6 +616,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   input: callbackData.input,
                   error: callbackData.output.error,
                   durationMs: callbackData.executionTime || 0,
+                  startedAt: callbackData.startedAt,
+                  endedAt: callbackData.endedAt,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,
                     iterationTotal: iterationContext.iterationTotal,
@@ -615,6 +643,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   input: callbackData.input,
                   output: callbackData.output,
                   durationMs: callbackData.executionTime || 0,
+                  startedAt: callbackData.startedAt,
+                  endedAt: callbackData.endedAt,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,
                     iterationTotal: iterationContext.iterationTotal,
@@ -698,6 +728,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
             loggingSession,
             abortSignal: abortController.signal,
+            includeFileBase64,
+            base64MaxBytes,
+            stopAfterBlockId,
           })
 
           if (result.status === 'paused') {
@@ -750,17 +783,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             workflowId,
             data: {
               success: result.success,
-              output: result.output,
+              output: includeFileBase64
+                ? await hydrateUserFilesWithBase64(result.output, {
+                    requestId,
+                    executionId,
+                    maxBytes: base64MaxBytes,
+                  })
+                : result.output,
               duration: result.metadata?.duration || 0,
               startTime: result.metadata?.startTime || startTime.toISOString(),
               endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
-        } catch (error: any) {
-          const errorMessage = error.message || 'Unknown error'
+
+          // Cleanup base64 cache for this execution
+          await cleanupExecutionBase64Cache(executionId)
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`)
 
-          const executionResult = error.executionResult
+          const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
           sendEvent({
             type: 'execution:error',

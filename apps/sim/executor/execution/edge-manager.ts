@@ -8,6 +8,7 @@ const logger = createLogger('EdgeManager')
 
 export class EdgeManager {
   private deactivatedEdges = new Set<string>()
+  private nodesWithActivatedEdge = new Set<string>()
 
   constructor(private dag: DAG) {}
 
@@ -20,21 +21,13 @@ export class EdgeManager {
     const activatedTargets: string[] = []
     const edgesToDeactivate: Array<{ target: string; handle?: string }> = []
 
-    // First pass: categorize edges as activating or deactivating
-    // Don't modify incomingEdges yet - we need the original state for deactivation checks
-    for (const [edgeId, edge] of node.outgoingEdges) {
+    for (const [, edge] of node.outgoingEdges) {
       if (skipBackwardsEdge && this.isBackwardsEdge(edge.sourceHandle)) {
         continue
       }
 
-      const shouldActivate = this.shouldActivateEdge(edge, output)
-      if (!shouldActivate) {
-        const isLoopEdge =
-          edge.sourceHandle === EDGE.LOOP_CONTINUE ||
-          edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT ||
-          edge.sourceHandle === EDGE.LOOP_EXIT
-
-        if (!isLoopEdge) {
+      if (!this.shouldActivateEdge(edge, output)) {
+        if (!this.isLoopEdge(edge.sourceHandle)) {
           edgesToDeactivate.push({ target: edge.target, handle: edge.sourceHandle })
         }
         continue
@@ -43,13 +36,24 @@ export class EdgeManager {
       activatedTargets.push(edge.target)
     }
 
-    // Second pass: process deactivations while incomingEdges is still intact
-    // This ensures hasActiveIncomingEdges can find all potential sources
-    for (const { target, handle } of edgesToDeactivate) {
-      this.deactivateEdgeAndDescendants(node.id, target, handle)
+    // Track nodes that have received at least one activated edge
+    for (const targetId of activatedTargets) {
+      this.nodesWithActivatedEdge.add(targetId)
     }
 
-    // Third pass: update incomingEdges for activated targets
+    const cascadeTargets = new Set<string>()
+    for (const { target, handle } of edgesToDeactivate) {
+      this.deactivateEdgeAndDescendants(node.id, target, handle, cascadeTargets)
+    }
+
+    if (activatedTargets.length === 0) {
+      for (const { target } of edgesToDeactivate) {
+        if (this.isTerminalControlNode(target)) {
+          cascadeTargets.add(target)
+        }
+      }
+    }
+
     for (const targetId of activatedTargets) {
       const targetNode = this.dag.nodes.get(targetId)
       if (!targetNode) {
@@ -59,11 +63,30 @@ export class EdgeManager {
       targetNode.incomingEdges.delete(node.id)
     }
 
-    // Fourth pass: check readiness after all edge processing is complete
     for (const targetId of activatedTargets) {
-      const targetNode = this.dag.nodes.get(targetId)
-      if (targetNode && this.isNodeReady(targetNode)) {
+      if (this.isTargetReady(targetId)) {
         readyNodes.push(targetId)
+      }
+    }
+
+    for (const targetId of cascadeTargets) {
+      if (!readyNodes.includes(targetId) && !activatedTargets.includes(targetId)) {
+        if (this.isTargetReady(targetId)) {
+          readyNodes.push(targetId)
+        }
+      }
+    }
+
+    if (output.selectedRoute !== EDGE.LOOP_EXIT && output.selectedRoute !== EDGE.PARALLEL_EXIT) {
+      for (const { target } of edgesToDeactivate) {
+        if (
+          !readyNodes.includes(target) &&
+          !activatedTargets.includes(target) &&
+          this.nodesWithActivatedEdge.has(target) &&
+          this.isTargetReady(target)
+        ) {
+          readyNodes.push(target)
+        }
       }
     }
 
@@ -71,16 +94,7 @@ export class EdgeManager {
   }
 
   isNodeReady(node: DAGNode): boolean {
-    if (node.incomingEdges.size === 0) {
-      return true
-    }
-
-    const activeIncomingCount = this.countActiveIncomingEdges(node)
-    if (activeIncomingCount > 0) {
-      return false
-    }
-
-    return true
+    return node.incomingEdges.size === 0 || this.countActiveIncomingEdges(node) === 0
   }
 
   restoreIncomingEdge(targetNodeId: string, sourceNodeId: string): void {
@@ -95,17 +109,15 @@ export class EdgeManager {
 
   clearDeactivatedEdges(): void {
     this.deactivatedEdges.clear()
+    this.nodesWithActivatedEdge.clear()
   }
 
   /**
    * Clear deactivated edges for a set of nodes (used when restoring loop state for next iteration).
-   * This ensures error/success edges can be re-evaluated on each iteration.
    */
   clearDeactivatedEdgesForNodes(nodeIds: Set<string>): void {
     const edgesToRemove: string[] = []
     for (const edgeKey of this.deactivatedEdges) {
-      // Edge key format is "sourceId-targetId-handle"
-      // Check if either source or target is in the nodeIds set
       for (const nodeId of nodeIds) {
         if (edgeKey.startsWith(`${nodeId}-`) || edgeKey.includes(`-${nodeId}-`)) {
           edgesToRemove.push(edgeKey)
@@ -116,6 +128,48 @@ export class EdgeManager {
     for (const edgeKey of edgesToRemove) {
       this.deactivatedEdges.delete(edgeKey)
     }
+    // Also clear activated edge tracking for these nodes
+    for (const nodeId of nodeIds) {
+      this.nodesWithActivatedEdge.delete(nodeId)
+    }
+  }
+
+  private isTargetReady(targetId: string): boolean {
+    const targetNode = this.dag.nodes.get(targetId)
+    return targetNode ? this.isNodeReady(targetNode) : false
+  }
+
+  private isLoopEdge(handle?: string): boolean {
+    return (
+      handle === EDGE.LOOP_CONTINUE ||
+      handle === EDGE.LOOP_CONTINUE_ALT ||
+      handle === EDGE.LOOP_EXIT
+    )
+  }
+
+  private isControlEdge(handle?: string): boolean {
+    return (
+      handle === EDGE.LOOP_CONTINUE ||
+      handle === EDGE.LOOP_CONTINUE_ALT ||
+      handle === EDGE.LOOP_EXIT ||
+      handle === EDGE.PARALLEL_EXIT
+    )
+  }
+
+  private isBackwardsEdge(sourceHandle?: string): boolean {
+    return sourceHandle === EDGE.LOOP_CONTINUE || sourceHandle === EDGE.LOOP_CONTINUE_ALT
+  }
+
+  private isTerminalControlNode(nodeId: string): boolean {
+    const node = this.dag.nodes.get(nodeId)
+    if (!node || node.outgoingEdges.size === 0) return false
+
+    for (const [, edge] of node.outgoingEdges) {
+      if (!this.isControlEdge(edge.sourceHandle)) {
+        return false
+      }
+    }
+    return true
   }
 
   private shouldActivateEdge(edge: DAGEdge, output: NormalizedBlockOutput): boolean {
@@ -159,14 +213,12 @@ export class EdgeManager {
     }
   }
 
-  private isBackwardsEdge(sourceHandle?: string): boolean {
-    return sourceHandle === EDGE.LOOP_CONTINUE || sourceHandle === EDGE.LOOP_CONTINUE_ALT
-  }
-
   private deactivateEdgeAndDescendants(
     sourceId: string,
     targetId: string,
-    sourceHandle?: string
+    sourceHandle?: string,
+    cascadeTargets?: Set<string>,
+    isCascade = false
   ): void {
     const edgeKey = this.createEdgeKey(sourceId, targetId, sourceHandle)
     if (this.deactivatedEdges.has(edgeKey)) {
@@ -174,38 +226,50 @@ export class EdgeManager {
     }
 
     this.deactivatedEdges.add(edgeKey)
+
     const targetNode = this.dag.nodes.get(targetId)
     if (!targetNode) return
 
-    // Check if target has other active incoming edges
-    // Pass the specific edge key being deactivated, not just source ID,
-    // to handle multiple edges from same source to same target (e.g., condition branches)
-    const hasOtherActiveIncoming = this.hasActiveIncomingEdges(targetNode, edgeKey)
-    if (!hasOtherActiveIncoming) {
-      for (const [_, outgoingEdge] of targetNode.outgoingEdges) {
-        this.deactivateEdgeAndDescendants(targetId, outgoingEdge.target, outgoingEdge.sourceHandle)
+    if (isCascade && this.isTerminalControlNode(targetId)) {
+      cascadeTargets?.add(targetId)
+    }
+
+    // Don't cascade if node has active incoming edges OR has received an activated edge
+    if (
+      this.hasActiveIncomingEdges(targetNode, edgeKey) ||
+      this.nodesWithActivatedEdge.has(targetId)
+    ) {
+      return
+    }
+
+    for (const [, outgoingEdge] of targetNode.outgoingEdges) {
+      if (!this.isBackwardsEdge(outgoingEdge.sourceHandle)) {
+        this.deactivateEdgeAndDescendants(
+          targetId,
+          outgoingEdge.target,
+          outgoingEdge.sourceHandle,
+          cascadeTargets,
+          true
+        )
       }
     }
   }
 
   /**
    * Checks if a node has any active incoming edges besides the one being excluded.
-   * This properly handles the case where multiple edges from the same source go to
-   * the same target (e.g., multiple condition branches pointing to one block).
    */
   private hasActiveIncomingEdges(node: DAGNode, excludeEdgeKey: string): boolean {
     for (const incomingSourceId of node.incomingEdges) {
       const incomingNode = this.dag.nodes.get(incomingSourceId)
       if (!incomingNode) continue
 
-      for (const [_, incomingEdge] of incomingNode.outgoingEdges) {
+      for (const [, incomingEdge] of incomingNode.outgoingEdges) {
         if (incomingEdge.target === node.id) {
           const incomingEdgeKey = this.createEdgeKey(
             incomingSourceId,
             node.id,
             incomingEdge.sourceHandle
           )
-          // Skip the specific edge being excluded, but check other edges from same source
           if (incomingEdgeKey === excludeEdgeKey) continue
           if (!this.deactivatedEdges.has(incomingEdgeKey)) {
             return true

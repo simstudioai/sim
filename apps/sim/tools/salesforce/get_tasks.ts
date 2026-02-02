@@ -1,4 +1,5 @@
 import type { SalesforceGetTasksParams, SalesforceGetTasksResponse } from '@/tools/salesforce/types'
+import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -35,26 +36,27 @@ export const salesforceGetTasksTool: ToolConfig<
     taskId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Task ID (optional)',
+      visibility: 'user-or-llm',
+      description:
+        'Salesforce Task ID (18-character string starting with 00T) to get a single task',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Max results (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (default: 100)',
     },
     fields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated fields',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of field API names to return',
     },
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Order by field',
+      visibility: 'user-or-llm',
+      description: 'Field and direction for sorting (e.g., ActivityDate DESC)',
     },
   },
 
@@ -115,27 +117,8 @@ export const salesforceGetTasksTool: ToolConfig<
       properties: {
         task: { type: 'object', description: 'Single task object (when taskId provided)' },
         tasks: { type: 'array', description: 'Array of task objects (when listing)' },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-          properties: {
-            nextRecordsUrl: {
-              type: 'string',
-              description: 'URL for next page of results',
-              optional: true,
-            },
-            totalSize: { type: 'number', description: 'Total number of records' },
-            done: { type: 'boolean', description: 'Whether all records returned' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Response metadata',
-          properties: {
-            totalReturned: { type: 'number', description: 'Number of tasks returned' },
-            hasMore: { type: 'boolean', description: 'Whether more records exist' },
-          },
-        },
+        paging: QUERY_PAGING_OUTPUT,
+        metadata: RESPONSE_METADATA_OUTPUT,
         success: { type: 'boolean', description: 'Operation success status' },
       },
     },

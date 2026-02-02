@@ -1,8 +1,9 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError } from './types'
-
-const logger = createLogger('ZendeskGetOrganization')
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  ORGANIZATION_OUTPUT_PROPERTIES,
+} from '@/tools/zendesk/types'
 
 export interface ZendeskGetOrganizationParams {
   email: string
@@ -51,8 +52,8 @@ export const zendeskGetOrganizationTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Organization ID to retrieve',
+      visibility: 'user-or-llm',
+      description: 'Organization ID to retrieve as a numeric string (e.g., "12345")',
     },
   },
 
@@ -88,7 +89,11 @@ export const zendeskGetOrganizationTool: ToolConfig<
   },
 
   outputs: {
-    organization: { type: 'json', description: 'Organization object' },
+    organization: {
+      type: 'object',
+      description: 'Organization object',
+      properties: ORGANIZATION_OUTPUT_PROPERTIES,
+    },
     organization_id: { type: 'number', description: 'The organization ID' },
   },
 }

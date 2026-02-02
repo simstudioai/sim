@@ -74,7 +74,7 @@ export const groqProvider: ProviderConfig = {
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+    if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
     if (request.responseFormat) {
       payload.response_format = {
@@ -234,7 +234,7 @@ export const groqProvider: ProviderConfig = {
               if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams, true)
+              const result = await executeTool(toolName, executionParams)
               const toolCallEndTime = Date.now()
 
               return {

@@ -514,6 +514,12 @@ Return ONLY the JSON array.`,
       }),
     },
     {
+      id: 'maxTokens',
+      title: 'Max Output Tokens',
+      type: 'short-input',
+      placeholder: 'Enter max tokens (e.g., 4096)...',
+    },
+    {
       id: 'responseFormat',
       title: 'Response Format',
       type: 'code',
@@ -754,6 +760,7 @@ Example 3 (Array Input):
       },
     },
     temperature: { type: 'number', description: 'Response randomness level' },
+    maxTokens: { type: 'number', description: 'Maximum number of tokens in the response' },
     reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
     verbosity: { type: 'string', description: 'Verbosity level for GPT-5 models' },
     thinkingLevel: { type: 'string', description: 'Thinking level for Gemini 3 models' },
@@ -762,7 +769,12 @@ Example 3 (Array Input):
   outputs: {
     content: { type: 'string', description: 'Generated response content' },
     model: { type: 'string', description: 'Model used for generation' },
-    tokens: { type: 'any', description: 'Token usage statistics' },
-    toolCalls: { type: 'any', description: 'Tool calls made' },
+    tokens: { type: 'json', description: 'Token usage statistics' },
+    toolCalls: { type: 'json', description: 'Tool calls made' },
+    providerTiming: {
+      type: 'json',
+      description: 'Provider timing information',
+    },
+    cost: { type: 'json', description: 'Cost of the API call' },
   },
 }

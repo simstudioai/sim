@@ -11,10 +11,11 @@ import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
-import type { SubBlockConfig } from '@/blocks/types'
-import { EDGE, normalizeName } from '@/executor/constants'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { EDGE, normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { getUserPermissionConfig } from '@/executor/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
@@ -63,6 +64,7 @@ type SkippedItemType =
   | 'invalid_subflow_parent'
   | 'nested_subflow_not_allowed'
   | 'duplicate_block_name'
+  | 'reserved_block_name'
   | 'duplicate_trigger'
   | 'duplicate_single_instance_block'
 
@@ -666,9 +668,45 @@ function createBlockFromParams(
         }
       }
     })
+
+    if (validatedInputs) {
+      updateCanonicalModesForInputs(blockState, Object.keys(validatedInputs), blockConfig)
+    }
   }
 
   return blockState
+}
+
+function updateCanonicalModesForInputs(
+  block: { data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> } },
+  inputKeys: string[],
+  blockConfig: BlockConfig
+): void {
+  if (!blockConfig.subBlocks?.length) return
+
+  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+  const canonicalModeUpdates: Record<string, 'basic' | 'advanced'> = {}
+
+  for (const inputKey of inputKeys) {
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[inputKey]
+    if (!canonicalId) continue
+
+    const group = canonicalIndex.groupsById[canonicalId]
+    if (!group || !isCanonicalPair(group)) continue
+
+    const isAdvanced = group.advancedIds.includes(inputKey)
+    const existingMode = canonicalModeUpdates[canonicalId]
+
+    if (!existingMode || isAdvanced) {
+      canonicalModeUpdates[canonicalId] = isAdvanced ? 'advanced' : 'basic'
+    }
+  }
+
+  if (Object.keys(canonicalModeUpdates).length > 0) {
+    if (!block.data) block.data = {}
+    if (!block.data.canonicalModes) block.data.canonicalModes = {}
+    Object.assign(block.data.canonicalModes, canonicalModeUpdates)
+  }
 }
 
 /**
@@ -817,6 +855,8 @@ function normalizeResponseFormat(value: any): string {
 interface EdgeHandleValidationResult {
   valid: boolean
   error?: string
+  /** The normalized handle to use (e.g., simple 'if' normalized to 'condition-{uuid}') */
+  normalizedHandle?: string
 }
 
 /**
@@ -851,13 +891,6 @@ function validateSourceHandleForBlock(
       }
 
     case 'condition': {
-      if (!sourceHandle.startsWith(EDGE.CONDITION_PREFIX)) {
-        return {
-          valid: false,
-          error: `Invalid source handle "${sourceHandle}" for condition block. Must start with "${EDGE.CONDITION_PREFIX}"`,
-        }
-      }
-
       const conditionsValue = sourceBlock?.subBlocks?.conditions?.value
       if (!conditionsValue) {
         return {
@@ -866,6 +899,8 @@ function validateSourceHandleForBlock(
         }
       }
 
+      // validateConditionHandle accepts simple format (if, else-if-0, else),
+      // legacy format (condition-{blockId}-if), and internal ID format (condition-{uuid})
       return validateConditionHandle(sourceHandle, sourceBlock.id, conditionsValue)
     }
 
@@ -879,13 +914,6 @@ function validateSourceHandleForBlock(
       }
 
     case 'router_v2': {
-      if (!sourceHandle.startsWith(EDGE.ROUTER_PREFIX)) {
-        return {
-          valid: false,
-          error: `Invalid source handle "${sourceHandle}" for router_v2 block. Must start with "${EDGE.ROUTER_PREFIX}"`,
-        }
-      }
-
       const routesValue = sourceBlock?.subBlocks?.routes?.value
       if (!routesValue) {
         return {
@@ -894,6 +922,8 @@ function validateSourceHandleForBlock(
         }
       }
 
+      // validateRouterHandle accepts simple format (route-0, route-1),
+      // legacy format (router-{blockId}-route-1), and internal ID format (router-{uuid})
       return validateRouterHandle(sourceHandle, sourceBlock.id, routesValue)
     }
 
@@ -910,7 +940,12 @@ function validateSourceHandleForBlock(
 
 /**
  * Validates condition handle references a valid condition in the block.
- * Accepts both internal IDs (condition-blockId-if) and semantic keys (condition-blockId-else-if)
+ * Accepts multiple formats:
+ * - Simple format: "if", "else-if-0", "else-if-1", "else"
+ * - Legacy semantic format: "condition-{blockId}-if", "condition-{blockId}-else-if"
+ * - Internal ID format: "condition-{conditionId}"
+ *
+ * Returns the normalized handle (condition-{conditionId}) for storage.
  */
 function validateConditionHandle(
   sourceHandle: string,
@@ -943,48 +978,80 @@ function validateConditionHandle(
     }
   }
 
-  const validHandles = new Set<string>()
-  const semanticPrefix = `condition-${blockId}-`
-  let elseIfCount = 0
+  // Build a map of all valid handle formats -> normalized handle (condition-{conditionId})
+  const handleToNormalized = new Map<string, string>()
+  const legacySemanticPrefix = `condition-${blockId}-`
+  let elseIfIndex = 0
 
   for (const condition of conditions) {
-    if (condition.id) {
-      validHandles.add(`condition-${condition.id}`)
-    }
+    if (!condition.id) continue
 
+    const normalizedHandle = `condition-${condition.id}`
+    const title = condition.title?.toLowerCase()
+
+    // Always accept internal ID format
+    handleToNormalized.set(normalizedHandle, normalizedHandle)
+
+    if (title === 'if') {
+      // Simple format: "if"
+      handleToNormalized.set('if', normalizedHandle)
+      // Legacy format: "condition-{blockId}-if"
+      handleToNormalized.set(`${legacySemanticPrefix}if`, normalizedHandle)
+    } else if (title === 'else if') {
+      // Simple format: "else-if-0", "else-if-1", etc. (0-indexed)
+      handleToNormalized.set(`else-if-${elseIfIndex}`, normalizedHandle)
+      // Legacy format: "condition-{blockId}-else-if" for first, "condition-{blockId}-else-if-2" for second
+      if (elseIfIndex === 0) {
+        handleToNormalized.set(`${legacySemanticPrefix}else-if`, normalizedHandle)
+      } else {
+        handleToNormalized.set(
+          `${legacySemanticPrefix}else-if-${elseIfIndex + 1}`,
+          normalizedHandle
+        )
+      }
+      elseIfIndex++
+    } else if (title === 'else') {
+      // Simple format: "else"
+      handleToNormalized.set('else', normalizedHandle)
+      // Legacy format: "condition-{blockId}-else"
+      handleToNormalized.set(`${legacySemanticPrefix}else`, normalizedHandle)
+    }
+  }
+
+  const normalizedHandle = handleToNormalized.get(sourceHandle)
+  if (normalizedHandle) {
+    return { valid: true, normalizedHandle }
+  }
+
+  // Build list of valid simple format options for error message
+  const simpleOptions: string[] = []
+  elseIfIndex = 0
+  for (const condition of conditions) {
     const title = condition.title?.toLowerCase()
     if (title === 'if') {
-      validHandles.add(`${semanticPrefix}if`)
+      simpleOptions.push('if')
     } else if (title === 'else if') {
-      elseIfCount++
-      validHandles.add(
-        elseIfCount === 1 ? `${semanticPrefix}else-if` : `${semanticPrefix}else-if-${elseIfCount}`
-      )
+      simpleOptions.push(`else-if-${elseIfIndex}`)
+      elseIfIndex++
     } else if (title === 'else') {
-      validHandles.add(`${semanticPrefix}else`)
+      simpleOptions.push('else')
     }
-  }
-
-  if (validHandles.has(sourceHandle)) {
-    return { valid: true }
-  }
-
-  const validOptions = Array.from(validHandles).slice(0, 5)
-  const moreCount = validHandles.size - validOptions.length
-  let validOptionsStr = validOptions.join(', ')
-  if (moreCount > 0) {
-    validOptionsStr += `, ... and ${moreCount} more`
   }
 
   return {
     valid: false,
-    error: `Invalid condition handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
+    error: `Invalid condition handle "${sourceHandle}". Valid handles: ${simpleOptions.join(', ')}`,
   }
 }
 
 /**
  * Validates router handle references a valid route in the block.
- * Accepts both internal IDs (router-{routeId}) and semantic keys (router-{blockId}-route-1)
+ * Accepts multiple formats:
+ * - Simple format: "route-0", "route-1", "route-2" (0-indexed)
+ * - Legacy semantic format: "router-{blockId}-route-1" (1-indexed)
+ * - Internal ID format: "router-{routeId}"
+ *
+ * Returns the normalized handle (router-{routeId}) for storage.
  */
 function validateRouterHandle(
   sourceHandle: string,
@@ -1017,47 +1084,48 @@ function validateRouterHandle(
     }
   }
 
-  const validHandles = new Set<string>()
-  const semanticPrefix = `router-${blockId}-`
+  // Build a map of all valid handle formats -> normalized handle (router-{routeId})
+  const handleToNormalized = new Map<string, string>()
+  const legacySemanticPrefix = `router-${blockId}-`
 
   for (let i = 0; i < routes.length; i++) {
     const route = routes[i]
+    if (!route.id) continue
 
-    // Accept internal ID format: router-{uuid}
-    if (route.id) {
-      validHandles.add(`router-${route.id}`)
-    }
+    const normalizedHandle = `router-${route.id}`
 
-    // Accept 1-indexed route number format: router-{blockId}-route-1, router-{blockId}-route-2, etc.
-    validHandles.add(`${semanticPrefix}route-${i + 1}`)
+    // Always accept internal ID format: router-{uuid}
+    handleToNormalized.set(normalizedHandle, normalizedHandle)
+
+    // Simple format: route-0, route-1, etc. (0-indexed)
+    handleToNormalized.set(`route-${i}`, normalizedHandle)
+
+    // Legacy 1-indexed route number format: router-{blockId}-route-1
+    handleToNormalized.set(`${legacySemanticPrefix}route-${i + 1}`, normalizedHandle)
 
     // Accept normalized title format: router-{blockId}-{normalized-title}
-    // Normalize: lowercase, replace spaces with dashes, remove special chars
     if (route.title && typeof route.title === 'string') {
       const normalizedTitle = route.title
         .toLowerCase()
         .replace(/\s+/g, '-')
         .replace(/[^a-z0-9-]/g, '')
       if (normalizedTitle) {
-        validHandles.add(`${semanticPrefix}${normalizedTitle}`)
+        handleToNormalized.set(`${legacySemanticPrefix}${normalizedTitle}`, normalizedHandle)
       }
     }
   }
 
-  if (validHandles.has(sourceHandle)) {
-    return { valid: true }
+  const normalizedHandle = handleToNormalized.get(sourceHandle)
+  if (normalizedHandle) {
+    return { valid: true, normalizedHandle }
   }
 
-  const validOptions = Array.from(validHandles).slice(0, 5)
-  const moreCount = validHandles.size - validOptions.length
-  let validOptionsStr = validOptions.join(', ')
-  if (moreCount > 0) {
-    validOptionsStr += `, ... and ${moreCount} more`
-  }
+  // Build list of valid simple format options for error message
+  const simpleOptions = routes.map((_, i) => `route-${i}`)
 
   return {
     valid: false,
-    error: `Invalid router handle "${sourceHandle}". Valid handles: ${validOptionsStr}`,
+    error: `Invalid router handle "${sourceHandle}". Valid handles: ${simpleOptions.join(', ')}`,
   }
 }
 
@@ -1172,10 +1240,13 @@ function createValidatedEdge(
     return false
   }
 
+  // Use normalized handle if available (e.g., 'if' -> 'condition-{uuid}')
+  const finalSourceHandle = sourceValidation.normalizedHandle || sourceHandle
+
   modifiedState.edges.push({
     id: crypto.randomUUID(),
     source: sourceBlockId,
-    sourceHandle,
+    sourceHandle: finalSourceHandle,
     target: targetBlockId,
     targetHandle,
     type: 'default',
@@ -1184,7 +1255,11 @@ function createValidatedEdge(
 }
 
 /**
- * Adds connections as edges for a block
+ * Adds connections as edges for a block.
+ * Supports multiple target formats:
+ * - String: "target-block-id"
+ * - Object: { block: "target-block-id", handle?: "custom-target-handle" }
+ * - Array of strings or objects
  */
 function addConnectionsAsEdges(
   modifiedState: any,
@@ -1194,19 +1269,34 @@ function addConnectionsAsEdges(
   skippedItems?: SkippedItem[]
 ): void {
   Object.entries(connections).forEach(([sourceHandle, targets]) => {
-    const targetArray = Array.isArray(targets) ? targets : [targets]
-    targetArray.forEach((targetId: string) => {
+    if (targets === null) return
+
+    const addEdgeForTarget = (targetBlock: string, targetHandle?: string) => {
       createValidatedEdge(
         modifiedState,
         blockId,
-        targetId,
+        targetBlock,
         sourceHandle,
-        'target',
+        targetHandle || 'target',
         'add_edge',
         logger,
         skippedItems
       )
-    })
+    }
+
+    if (typeof targets === 'string') {
+      addEdgeForTarget(targets)
+    } else if (Array.isArray(targets)) {
+      targets.forEach((target: any) => {
+        if (typeof target === 'string') {
+          addEdgeForTarget(target)
+        } else if (target?.block) {
+          addEdgeForTarget(target.block, target.handle)
+        }
+      })
+    } else if (typeof targets === 'object' && targets?.block) {
+      addEdgeForTarget(targets.block, targets.handle)
+    }
   })
 }
 
@@ -1601,6 +1691,15 @@ function applyOperationsToWorkflowState(
               block.data.collection = params.inputs.collection
             }
           }
+
+          const editBlockConfig = getBlock(block.type)
+          if (editBlockConfig) {
+            updateCanonicalModesForInputs(
+              block,
+              Object.keys(validationResult.validInputs),
+              editBlockConfig
+            )
+          }
         }
 
         // Update basic properties
@@ -1631,12 +1730,21 @@ function applyOperationsToWorkflowState(
           }
         }
         if (params?.name !== undefined) {
-          if (!normalizeName(params.name)) {
+          const normalizedName = normalizeName(params.name)
+          if (!normalizedName) {
             logSkippedItem(skippedItems, {
               type: 'missing_required_params',
               operationType: 'edit',
               blockId: block_id,
               reason: `Cannot rename to empty name`,
+              details: { requestedName: params.name },
+            })
+          } else if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedName)) {
+            logSkippedItem(skippedItems, {
+              type: 'reserved_block_name',
+              operationType: 'edit',
+              blockId: block_id,
+              reason: `Cannot rename to "${params.name}" - this is a reserved name`,
               details: { requestedName: params.name },
             })
           } else {
@@ -1859,13 +1967,25 @@ function applyOperationsToWorkflowState(
       }
 
       case 'add': {
-        if (!params?.type || !params?.name || !normalizeName(params.name)) {
+        const addNormalizedName = params?.name ? normalizeName(params.name) : ''
+        if (!params?.type || !params?.name || !addNormalizedName) {
           logSkippedItem(skippedItems, {
             type: 'missing_required_params',
             operationType: 'add',
             blockId: block_id,
             reason: `Missing required params (type or name) for adding block "${block_id}"`,
             details: { hasType: !!params?.type, hasName: !!params?.name },
+          })
+          break
+        }
+
+        if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(addNormalizedName)) {
+          logSkippedItem(skippedItems, {
+            type: 'reserved_block_name',
+            operationType: 'add',
+            blockId: block_id,
+            reason: `Block name "${params.name}" is a reserved name and cannot be used`,
+            details: { requestedName: params.name },
           })
           break
         }
@@ -2182,6 +2302,15 @@ function applyOperationsToWorkflowState(
                 existingBlock.subBlocks[key].value = sanitizedValue
               }
             })
+
+            const existingBlockConfig = getBlock(existingBlock.type)
+            if (existingBlockConfig) {
+              updateCanonicalModesForInputs(
+                existingBlock,
+                Object.keys(validationResult.validInputs),
+                existingBlockConfig
+              )
+            }
           }
         } else {
           // Special container types (loop, parallel) are not in the block registry but are valid
@@ -2379,6 +2508,10 @@ async function validateWorkflowSelectorIds(
     for (const subBlockConfig of blockConfig.subBlocks) {
       if (!SELECTOR_TYPES.has(subBlockConfig.type)) continue
 
+      // Skip oauth-input - credentials are pre-validated before edit application
+      // This allows existing collaborator credentials to remain untouched
+      if (subBlockConfig.type === 'oauth-input') continue
+
       const subBlockValue = blockData.subBlocks?.[subBlockConfig.id]?.value
       if (!subBlockValue) continue
 
@@ -2416,16 +2549,17 @@ async function validateWorkflowSelectorIds(
     const result = await validateSelectorIds(selector.selectorType, selector.value, context)
 
     if (result.invalid.length > 0) {
+      // Include warning info (like available credentials) in the error message for better LLM feedback
+      const warningInfo = result.warning ? `. ${result.warning}` : ''
       errors.push({
         blockId: selector.blockId,
         blockType: selector.blockType,
         field: selector.fieldName,
         value: selector.value,
-        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} - ID(s) do not exist`,
+        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} - ID(s) do not exist or user doesn't have access${warningInfo}`,
       })
-    }
-
-    if (result.warning) {
+    } else if (result.warning) {
+      // Log warnings that don't have errors (shouldn't happen for credentials but may for other selectors)
       logger.warn(result.warning, {
         blockId: selector.blockId,
         fieldName: selector.fieldName,
@@ -2441,6 +2575,295 @@ async function validateWorkflowSelectorIds(
   }
 
   return errors
+}
+
+/**
+ * Pre-validates credential and apiKey inputs in operations before they are applied.
+ * - Validates oauth-input (credential) IDs belong to the user
+ * - Filters out apiKey inputs for hosted models when isHosted is true
+ * - Also validates credentials and apiKeys in nestedNodes (blocks inside loop/parallel)
+ * Returns validation errors for any removed inputs.
+ */
+async function preValidateCredentialInputs(
+  operations: EditWorkflowOperation[],
+  context: { userId: string },
+  workflowState?: Record<string, unknown>
+): Promise<{ filteredOperations: EditWorkflowOperation[]; errors: ValidationError[] }> {
+  const { isHosted } = await import('@/lib/core/config/feature-flags')
+  const { getHostedModels } = await import('@/providers/utils')
+
+  const logger = createLogger('PreValidateCredentials')
+  const errors: ValidationError[] = []
+
+  // Collect credential and apiKey inputs that need validation/filtering
+  const credentialInputs: Array<{
+    operationIndex: number
+    blockId: string
+    blockType: string
+    fieldName: string
+    value: string
+    nestedBlockId?: string
+  }> = []
+
+  const hostedApiKeyInputs: Array<{
+    operationIndex: number
+    blockId: string
+    blockType: string
+    model: string
+    nestedBlockId?: string
+  }> = []
+
+  const hostedModelsLower = isHosted ? new Set(getHostedModels().map((m) => m.toLowerCase())) : null
+
+  /**
+   * Collect credential inputs from a block's inputs based on its block config
+   */
+  function collectCredentialInputs(
+    blockConfig: ReturnType<typeof getBlock>,
+    inputs: Record<string, unknown>,
+    opIndex: number,
+    blockId: string,
+    blockType: string,
+    nestedBlockId?: string
+  ) {
+    if (!blockConfig) return
+
+    for (const subBlockConfig of blockConfig.subBlocks) {
+      if (subBlockConfig.type !== 'oauth-input') continue
+
+      const inputValue = inputs[subBlockConfig.id]
+      if (!inputValue || typeof inputValue !== 'string' || inputValue.trim() === '') continue
+
+      credentialInputs.push({
+        operationIndex: opIndex,
+        blockId,
+        blockType,
+        fieldName: subBlockConfig.id,
+        value: inputValue,
+        nestedBlockId,
+      })
+    }
+  }
+
+  /**
+   * Check if apiKey should be filtered for a block with the given model
+   */
+  function collectHostedApiKeyInput(
+    inputs: Record<string, unknown>,
+    modelValue: string | undefined,
+    opIndex: number,
+    blockId: string,
+    blockType: string,
+    nestedBlockId?: string
+  ) {
+    if (!hostedModelsLower || !inputs.apiKey) return
+    if (!modelValue || typeof modelValue !== 'string') return
+
+    if (hostedModelsLower.has(modelValue.toLowerCase())) {
+      hostedApiKeyInputs.push({
+        operationIndex: opIndex,
+        blockId,
+        blockType,
+        model: modelValue,
+        nestedBlockId,
+      })
+    }
+  }
+
+  operations.forEach((op, opIndex) => {
+    // Process main block inputs
+    if (op.params?.inputs && op.params?.type) {
+      const blockConfig = getBlock(op.params.type)
+      if (blockConfig) {
+        // Collect credentials from main block
+        collectCredentialInputs(
+          blockConfig,
+          op.params.inputs as Record<string, unknown>,
+          opIndex,
+          op.block_id,
+          op.params.type
+        )
+
+        // Check for apiKey inputs on hosted models
+        let modelValue = (op.params.inputs as Record<string, unknown>).model as string | undefined
+
+        // For edit operations, if model is not being changed, check existing block's model
+        if (
+          !modelValue &&
+          op.operation_type === 'edit' &&
+          (op.params.inputs as Record<string, unknown>).apiKey &&
+          workflowState
+        ) {
+          const existingBlock = (workflowState.blocks as Record<string, unknown>)?.[op.block_id] as
+            | Record<string, unknown>
+            | undefined
+          const existingSubBlocks = existingBlock?.subBlocks as Record<string, unknown> | undefined
+          const existingModelSubBlock = existingSubBlocks?.model as
+            | Record<string, unknown>
+            | undefined
+          modelValue = existingModelSubBlock?.value as string | undefined
+        }
+
+        collectHostedApiKeyInput(
+          op.params.inputs as Record<string, unknown>,
+          modelValue,
+          opIndex,
+          op.block_id,
+          op.params.type
+        )
+      }
+    }
+
+    // Process nested nodes (blocks inside loop/parallel containers)
+    const nestedNodes = op.params?.nestedNodes as
+      | Record<string, Record<string, unknown>>
+      | undefined
+    if (nestedNodes) {
+      Object.entries(nestedNodes).forEach(([childId, childBlock]) => {
+        const childType = childBlock.type as string | undefined
+        const childInputs = childBlock.inputs as Record<string, unknown> | undefined
+        if (!childType || !childInputs) return
+
+        const childBlockConfig = getBlock(childType)
+        if (!childBlockConfig) return
+
+        // Collect credentials from nested block
+        collectCredentialInputs(
+          childBlockConfig,
+          childInputs,
+          opIndex,
+          op.block_id,
+          childType,
+          childId
+        )
+
+        // Check for apiKey inputs on hosted models in nested block
+        const modelValue = childInputs.model as string | undefined
+        collectHostedApiKeyInput(childInputs, modelValue, opIndex, op.block_id, childType, childId)
+      })
+    }
+  })
+
+  const hasCredentialsToValidate = credentialInputs.length > 0
+  const hasHostedApiKeysToFilter = hostedApiKeyInputs.length > 0
+
+  if (!hasCredentialsToValidate && !hasHostedApiKeysToFilter) {
+    return { filteredOperations: operations, errors }
+  }
+
+  // Deep clone operations so we can modify them
+  const filteredOperations = structuredClone(operations)
+
+  // Filter out apiKey inputs for hosted models and add validation errors
+  if (hasHostedApiKeysToFilter) {
+    logger.info('Filtering apiKey inputs for hosted models', { count: hostedApiKeyInputs.length })
+
+    for (const apiKeyInput of hostedApiKeyInputs) {
+      const op = filteredOperations[apiKeyInput.operationIndex]
+
+      // Handle nested block apiKey filtering
+      if (apiKeyInput.nestedBlockId) {
+        const nestedNodes = op.params?.nestedNodes as
+          | Record<string, Record<string, unknown>>
+          | undefined
+        const nestedBlock = nestedNodes?.[apiKeyInput.nestedBlockId]
+        const nestedInputs = nestedBlock?.inputs as Record<string, unknown> | undefined
+        if (nestedInputs?.apiKey) {
+          nestedInputs.apiKey = undefined
+          logger.debug('Filtered apiKey for hosted model in nested block', {
+            parentBlockId: apiKeyInput.blockId,
+            nestedBlockId: apiKeyInput.nestedBlockId,
+            model: apiKeyInput.model,
+          })
+
+          errors.push({
+            blockId: apiKeyInput.nestedBlockId,
+            blockType: apiKeyInput.blockType,
+            field: 'apiKey',
+            value: '[redacted]',
+            error: `Cannot set API key for hosted model "${apiKeyInput.model}" - API keys are managed by the platform when using hosted models`,
+          })
+        }
+      } else if (op.params?.inputs?.apiKey) {
+        // Handle main block apiKey filtering
+        op.params.inputs.apiKey = undefined
+        logger.debug('Filtered apiKey for hosted model', {
+          blockId: apiKeyInput.blockId,
+          model: apiKeyInput.model,
+        })
+
+        errors.push({
+          blockId: apiKeyInput.blockId,
+          blockType: apiKeyInput.blockType,
+          field: 'apiKey',
+          value: '[redacted]',
+          error: `Cannot set API key for hosted model "${apiKeyInput.model}" - API keys are managed by the platform when using hosted models`,
+        })
+      }
+    }
+  }
+
+  // Validate credential inputs
+  if (hasCredentialsToValidate) {
+    logger.info('Pre-validating credential inputs', {
+      credentialCount: credentialInputs.length,
+      userId: context.userId,
+    })
+
+    const allCredentialIds = credentialInputs.map((c) => c.value)
+    const validationResult = await validateSelectorIds('oauth-input', allCredentialIds, context)
+    const invalidSet = new Set(validationResult.invalid)
+
+    if (invalidSet.size > 0) {
+      for (const credInput of credentialInputs) {
+        if (!invalidSet.has(credInput.value)) continue
+
+        const op = filteredOperations[credInput.operationIndex]
+
+        // Handle nested block credential removal
+        if (credInput.nestedBlockId) {
+          const nestedNodes = op.params?.nestedNodes as
+            | Record<string, Record<string, unknown>>
+            | undefined
+          const nestedBlock = nestedNodes?.[credInput.nestedBlockId]
+          const nestedInputs = nestedBlock?.inputs as Record<string, unknown> | undefined
+          if (nestedInputs?.[credInput.fieldName]) {
+            delete nestedInputs[credInput.fieldName]
+            logger.info('Removed invalid credential from nested block', {
+              parentBlockId: credInput.blockId,
+              nestedBlockId: credInput.nestedBlockId,
+              field: credInput.fieldName,
+              invalidValue: credInput.value,
+            })
+          }
+        } else if (op.params?.inputs?.[credInput.fieldName]) {
+          // Handle main block credential removal
+          delete op.params.inputs[credInput.fieldName]
+          logger.info('Removed invalid credential from operation', {
+            blockId: credInput.blockId,
+            field: credInput.fieldName,
+            invalidValue: credInput.value,
+          })
+        }
+
+        const warningInfo = validationResult.warning ? `. ${validationResult.warning}` : ''
+        const errorBlockId = credInput.nestedBlockId ?? credInput.blockId
+        errors.push({
+          blockId: errorBlockId,
+          blockType: credInput.blockType,
+          field: credInput.fieldName,
+          value: credInput.value,
+          error: `Invalid credential ID "${credInput.value}" - credential does not exist or user doesn't have access${warningInfo}`,
+        })
+      }
+
+      logger.warn('Filtered out invalid credentials', {
+        invalidCount: invalidSet.size,
+      })
+    }
+  }
+
+  return { filteredOperations, errors }
 }
 
 async function getCurrentWorkflowStateFromDb(
@@ -2527,12 +2950,29 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
     // Get permission config for the user
     const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
 
+    // Pre-validate credential and apiKey inputs before applying operations
+    // This filters out invalid credentials and apiKeys for hosted models
+    let operationsToApply = operations
+    const credentialErrors: ValidationError[] = []
+    if (context?.userId) {
+      const { filteredOperations, errors: credErrors } = await preValidateCredentialInputs(
+        operations,
+        { userId: context.userId },
+        workflowState
+      )
+      operationsToApply = filteredOperations
+      credentialErrors.push(...credErrors)
+    }
+
     // Apply operations directly to the workflow state
     const {
       state: modifiedWorkflowState,
       validationErrors,
       skippedItems,
-    } = applyOperationsToWorkflowState(workflowState, operations, permissionConfig)
+    } = applyOperationsToWorkflowState(workflowState, operationsToApply, permissionConfig)
+
+    // Add credential validation errors
+    validationErrors.push(...credentialErrors)
 
     // Get workspaceId for selector validation
     let workspaceId: string | undefined

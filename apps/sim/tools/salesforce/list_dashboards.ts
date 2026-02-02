@@ -3,6 +3,7 @@ import type {
   SalesforceListDashboardsParams,
   SalesforceListDashboardsResponse,
 } from '@/tools/salesforce/types'
+import { LIST_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -33,8 +34,8 @@ export const salesforceListDashboardsTool: ToolConfig<
     folderName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by folder name',
+      visibility: 'user-or-llm',
+      description: 'Filter dashboards by folder name (case-insensitive partial match)',
     },
   },
 
@@ -88,8 +89,7 @@ export const salesforceListDashboardsTool: ToolConfig<
       description: 'Dashboards data',
       properties: {
         dashboards: { type: 'array', description: 'Array of dashboard objects' },
-        totalReturned: { type: 'number', description: 'Number of dashboards returned' },
-        success: { type: 'boolean', description: 'Salesforce operation success' },
+        ...LIST_OUTPUT_PROPERTIES,
       },
     },
   },

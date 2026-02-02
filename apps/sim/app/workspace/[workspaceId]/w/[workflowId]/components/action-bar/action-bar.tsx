@@ -1,13 +1,15 @@
 import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-react'
-import { Button, Copy, Tooltip, Trash2 } from '@/components/emcn'
+import { Button, Copy, PlayOutline, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import { validateTriggerPaste } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useExecutionStore } from '@/stores/execution'
+import { useNotificationStore } from '@/stores/notifications'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getUniqueBlockName, prepareDuplicateBlockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const DEFAULT_DUPLICATE_OFFSET = { x: 50, y: 50 }
@@ -48,29 +50,39 @@ export const ActionBar = memo(
       collaborativeBatchToggleBlockEnabled,
       collaborativeBatchToggleBlockHandles,
     } = useCollaborativeWorkflow()
-    const { activeWorkflowId, setPendingSelection } = useWorkflowRegistry()
+    const { setPendingSelection } = useWorkflowRegistry()
+    const { handleRunFromBlock } = useWorkflowExecution()
+
+    const addNotification = useNotificationStore((s) => s.addNotification)
 
     const handleDuplicateBlock = useCallback(() => {
-      const blocks = useWorkflowStore.getState().blocks
-      const sourceBlock = blocks[blockId]
-      if (!sourceBlock) return
+      const { copyBlocks, preparePasteData, activeWorkflowId } = useWorkflowRegistry.getState()
+      const existingBlocks = useWorkflowStore.getState().blocks
+      copyBlocks([blockId])
 
-      const newId = crypto.randomUUID()
-      const newName = getUniqueBlockName(sourceBlock.name, blocks)
-      const subBlockValues =
-        useSubBlockStore.getState().workflowValues[activeWorkflowId || '']?.[blockId] || {}
+      const pasteData = preparePasteData(DEFAULT_DUPLICATE_OFFSET)
+      if (!pasteData) return
 
-      const { block, subBlockValues: filteredValues } = prepareDuplicateBlockState({
-        sourceBlock,
-        newId,
-        newName,
-        positionOffset: DEFAULT_DUPLICATE_OFFSET,
-        subBlockValues,
-      })
+      const blocks = Object.values(pasteData.blocks)
+      const validation = validateTriggerPaste(blocks, existingBlocks, 'duplicate')
+      if (!validation.isValid) {
+        addNotification({
+          level: 'error',
+          message: validation.message!,
+          workflowId: activeWorkflowId || undefined,
+        })
+        return
+      }
 
-      setPendingSelection([newId])
-      collaborativeBatchAddBlocks([block], [], {}, {}, { [newId]: filteredValues })
-    }, [blockId, activeWorkflowId, collaborativeBatchAddBlocks, setPendingSelection])
+      setPendingSelection(blocks.map((b) => b.id))
+      collaborativeBatchAddBlocks(
+        blocks,
+        pasteData.edges,
+        pasteData.loops,
+        pasteData.parallels,
+        pasteData.subBlockValues
+      )
+    }, [blockId, addNotification, collaborativeBatchAddBlocks, setPendingSelection])
 
     const { isEnabled, horizontalHandles, parentId, parentType } = useWorkflowStore(
       useCallback(
@@ -88,12 +100,39 @@ export const ActionBar = memo(
       )
     )
 
+    const { activeWorkflowId } = useWorkflowRegistry()
+    const { isExecuting, getLastExecutionSnapshot } = useExecutionStore()
     const userPermissions = useUserPermissionsContext()
+    const edges = useWorkflowStore((state) => state.edges)
 
-    const isStartBlock = isValidStartBlockType(blockType)
+    const isStartBlock = isInputDefinitionTrigger(blockType)
     const isResponseBlock = blockType === 'response'
     const isNoteBlock = blockType === 'note'
     const isSubflowBlock = blockType === 'loop' || blockType === 'parallel'
+    const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
+
+    const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
+    const incomingEdges = edges.filter((edge) => edge.target === blockId)
+    const isTriggerBlock = incomingEdges.length === 0
+
+    // Check if each source block is either executed OR is a trigger block (triggers don't need prior execution)
+    const isSourceSatisfied = (sourceId: string) => {
+      if (snapshot?.executedBlocks.includes(sourceId)) return true
+      // Check if source is a trigger (has no incoming edges itself)
+      const sourceIncomingEdges = edges.filter((edge) => edge.target === sourceId)
+      return sourceIncomingEdges.length === 0
+    }
+
+    // Non-trigger blocks need a snapshot to exist (so upstream outputs are available)
+    const dependenciesSatisfied =
+      isTriggerBlock || (snapshot && incomingEdges.every((edge) => isSourceSatisfied(edge.source)))
+    const canRunFromBlock =
+      dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
+
+    const handleRunFromBlockClick = useCallback(() => {
+      if (!activeWorkflowId || !canRunFromBlock) return
+      handleRunFromBlock(blockId, activeWorkflowId)
+    }, [blockId, activeWorkflowId, canRunFromBlock, handleRunFromBlock])
 
     /**
      * Get appropriate tooltip message based on disabled state
@@ -119,7 +158,35 @@ export const ActionBar = memo(
           'dark:border-transparent dark:bg-[var(--surface-4)]'
         )}
       >
-        {!isNoteBlock && !isSubflowBlock && (
+        {!isNoteBlock && !isInsideSubflow && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (canRunFromBlock && !disabled) {
+                    handleRunFromBlockClick()
+                  }
+                }}
+                className={ACTION_BUTTON_STYLES}
+                disabled={disabled || !canRunFromBlock}
+              >
+                <PlayOutline className={ICON_SIZE} />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {(() => {
+                if (disabled) return getTooltipMessage('Run from block')
+                if (isExecuting) return 'Execution in progress'
+                if (!dependenciesSatisfied) return 'Run upstream blocks first'
+                return 'Run from block'
+              })()}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+
+        {!isNoteBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -142,7 +209,7 @@ export const ActionBar = memo(
           </Tooltip.Root>
         )}
 
-        {!isStartBlock && !isResponseBlock && !isSubflowBlock && (
+        {!isStartBlock && !isResponseBlock && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button

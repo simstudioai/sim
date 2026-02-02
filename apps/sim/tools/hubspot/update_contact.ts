@@ -3,6 +3,7 @@ import type {
   HubSpotUpdateContactParams,
   HubSpotUpdateContactResponse,
 } from '@/tools/hubspot/types'
+import { CONTACT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotUpdateContact')
@@ -31,21 +32,22 @@ export const hubspotUpdateContactTool: ToolConfig<
     contactId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID or email of the contact to update',
+      visibility: 'user-or-llm',
+      description: 'The HubSpot contact ID (numeric string) or email of the contact to update',
     },
     idProperty: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Property to use as unique identifier (e.g., "email"). If not specified, uses record ID',
     },
     properties: {
       type: 'object',
       required: true,
-      visibility: 'user-only',
-      description: 'Contact properties to update as JSON object',
+      visibility: 'user-or-llm',
+      description:
+        'Contact properties to update as JSON object (e.g., {"firstname": "John", "phone": "+1234567890"})',
     },
   },
 
@@ -103,7 +105,7 @@ export const hubspotUpdateContactTool: ToolConfig<
   },
 
   outputs: {
-    contact: { type: 'object', description: 'Updated HubSpot contact object' },
+    contact: CONTACT_OBJECT_OUTPUT,
     contactId: { type: 'string', description: 'The updated contact ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

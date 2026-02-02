@@ -51,7 +51,7 @@ Send emails using Outlook
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `to` | string | Yes | Recipient email address |
+| `to` | string | Yes | Recipient email address \(comma-separated for multiple recipients\) |
 | `subject` | string | Yes | Email subject |
 | `body` | string | Yes | Email body content |
 | `contentType` | string | No | Content type for the email body \(text or html\) |
@@ -105,9 +105,9 @@ Read emails from Outlook
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `folder` | string | No | Folder ID to read emails from \(default: Inbox\) |
+| `folder` | string | No | Folder ID to read emails from \(e.g., "Inbox", "Drafts", or a folder ID\) |
 | `maxResults` | number | No | Maximum number of emails to retrieve \(default: 1, max: 10\) |
-| `includeAttachments` | boolean | No | Download and include email attachments |
+| `includeAttachments` | boolean | No | Whether to download and include email attachments |
 
 #### Output
 
@@ -115,6 +115,29 @@ Read emails from Outlook
 | --------- | ---- | ----------- |
 | `message` | string | Success or status message |
 | `results` | array | Array of email message objects |
+|   ↳ `id` | string | Unique message identifier |
+|   ↳ `subject` | string | Email subject |
+|   ↳ `bodyPreview` | string | Preview of the message body |
+|   ↳ `body` | object | Message body |
+|     ↳ `contentType` | string | Body content type \(text or html\) |
+|     ↳ `content` | string | Body content |
+|   ↳ `sender` | object | Sender information |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `from` | object | From address information |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `toRecipients` | array | To recipients |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `ccRecipients` | array | CC recipients |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `receivedDateTime` | string | When the message was received \(ISO 8601\) |
+|   ↳ `sentDateTime` | string | When the message was sent \(ISO 8601\) |
+|   ↳ `hasAttachments` | boolean | Whether the message has attachments |
+|   ↳ `isRead` | boolean | Whether the message has been read |
+|   ↳ `importance` | string | Message importance \(low, normal, high\) |
 | `attachments` | file[] | All email attachments flattened from all emails |
 
 ### `outlook_forward`
@@ -135,12 +158,12 @@ Forward an existing Outlook message to specified recipients
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 | `results` | object | Delivery result details |
-| ↳ `status` | string | Delivery status of the email |
-| ↳ `timestamp` | string | Timestamp when email was forwarded |
-| ↳ `httpStatus` | number | HTTP status code returned by the API |
-| ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
-| ↳ `messageId` | string | Forwarded message ID if provided by API |
-| ↳ `internetMessageId` | string | RFC 822 Message-ID if provided |
+|   ↳ `status` | string | Delivery status of the email |
+|   ↳ `timestamp` | string | Timestamp when email was forwarded |
+|   ↳ `httpStatus` | number | HTTP status code returned by the API |
+|   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
+|   ↳ `messageId` | string | Forwarded message ID if provided by API |
+|   ↳ `internetMessageId` | string | RFC 822 Message-ID if provided |
 
 ### `outlook_move`
 

@@ -1,4 +1,5 @@
 import type { SalesforceGetCasesParams, SalesforceGetCasesResponse } from '@/tools/salesforce/types'
+import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -23,26 +24,27 @@ export const salesforceGetCasesTool: ToolConfig<
     caseId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Case ID (optional)',
+      visibility: 'user-or-llm',
+      description:
+        'Salesforce Case ID (18-character string starting with 500) to get a single case',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Max results (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (default: 100)',
     },
     fields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated fields',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of field API names to return',
     },
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Order by field',
+      visibility: 'user-or-llm',
+      description: 'Field and direction for sorting (e.g., CreatedDate DESC)',
     },
   },
 
@@ -104,27 +106,8 @@ export const salesforceGetCasesTool: ToolConfig<
       properties: {
         case: { type: 'object', description: 'Single case object (when caseId provided)' },
         cases: { type: 'array', description: 'Array of case objects (when listing)' },
-        paging: {
-          type: 'object',
-          description: 'Pagination information',
-          properties: {
-            nextRecordsUrl: {
-              type: 'string',
-              description: 'URL for next page of results',
-              optional: true,
-            },
-            totalSize: { type: 'number', description: 'Total number of records' },
-            done: { type: 'boolean', description: 'Whether all records returned' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Response metadata',
-          properties: {
-            totalReturned: { type: 'number', description: 'Number of cases returned' },
-            hasMore: { type: 'boolean', description: 'Whether more records exist' },
-          },
-        },
+        paging: QUERY_PAGING_OUTPUT,
+        metadata: RESPONSE_METADATA_OUTPUT,
         success: { type: 'boolean', description: 'Operation success status' },
       },
     },

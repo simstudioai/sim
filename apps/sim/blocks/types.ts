@@ -38,6 +38,7 @@ export type GenerationType =
   | 'neo4j-cypher'
   | 'neo4j-parameters'
   | 'timestamp'
+  | 'timezone'
 
 export type SubBlockType =
   | 'short-input' // Single line input
@@ -157,7 +158,18 @@ export type OutputFieldDefinition =
        * Uses the same condition format as subBlocks.
        */
       condition?: OutputCondition
+      /**
+       * If true, this output is hidden from display in the tag dropdown and logs,
+       * but still available for resolution and execution.
+       */
+      hiddenFromDisplay?: boolean
     }
+
+export function isHiddenFromDisplay(def: unknown): boolean {
+  return Boolean(
+    def && typeof def === 'object' && 'hiddenFromDisplay' in def && def.hiddenFromDisplay
+  )
+}
 
 export interface ParamConfig {
   type: ParamType

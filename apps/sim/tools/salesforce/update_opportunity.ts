@@ -2,6 +2,7 @@ import type {
   SalesforceUpdateOpportunityParams,
   SalesforceUpdateOpportunityResponse,
 } from '@/tools/salesforce/types'
+import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -26,45 +27,50 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
     opportunityId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Opportunity ID (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Opportunity ID to update (18-character string starting with 006)',
     },
     name: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Opportunity name',
     },
     stageName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Stage name',
+      visibility: 'user-or-llm',
+      description: 'Stage name (e.g., Prospecting, Qualification, Closed Won)',
     },
     closeDate: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Close date YYYY-MM-DD',
+      visibility: 'user-or-llm',
+      description: 'Close date in YYYY-MM-DD format',
     },
     accountId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Account ID',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Account ID (18-character string starting with 001)',
     },
-    amount: { type: 'string', required: false, visibility: 'user-only', description: 'Amount' },
+    amount: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Deal amount as a number',
+    },
     probability: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Probability (0-100)',
+      visibility: 'user-or-llm',
+      description: 'Win probability as integer (0-100)',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Description',
+      visibility: 'user-or-llm',
+      description: 'Opportunity description',
     },
   },
 
@@ -108,10 +114,7 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
     output: {
       type: 'object',
       description: 'Updated opportunity data',
-      properties: {
-        id: { type: 'string', description: 'Updated opportunity ID' },
-        updated: { type: 'boolean', description: 'Whether opportunity was updated' },
-      },
+      properties: SOBJECT_UPDATE_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -28,26 +28,26 @@ export const s3CopyObjectTool: ToolConfig = {
     sourceBucket: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Source bucket name',
+      visibility: 'user-or-llm',
+      description: 'Source bucket name (e.g., my-bucket)',
     },
     sourceKey: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Source object key/path',
+      visibility: 'user-or-llm',
+      description: 'Source object key/path (e.g., folder/file.txt)',
     },
     destinationBucket: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Destination bucket name',
+      visibility: 'user-or-llm',
+      description: 'Destination bucket name (e.g., my-other-bucket)',
     },
     destinationKey: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Destination object key/path',
+      visibility: 'user-or-llm',
+      description: 'Destination object key/path (e.g., backup/file.txt)',
     },
     acl: {
       type: 'string',
@@ -95,6 +95,7 @@ export const s3CopyObjectTool: ToolConfig = {
       success: true,
       output: {
         url: data.output.url,
+        uri: data.output.uri,
         metadata: {
           copySourceVersionId: data.output.copySourceVersionId,
           versionId: data.output.versionId,
@@ -108,6 +109,10 @@ export const s3CopyObjectTool: ToolConfig = {
     url: {
       type: 'string',
       description: 'URL of the copied S3 object',
+    },
+    uri: {
+      type: 'string',
+      description: 'S3 URI of the copied object (s3://bucket/key)',
     },
     metadata: {
       type: 'object',

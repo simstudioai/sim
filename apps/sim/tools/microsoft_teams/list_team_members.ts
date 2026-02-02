@@ -27,8 +27,9 @@ export const listTeamMembersTool: ToolConfig<
     teamId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the team',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the team (e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings)',
     },
   },
 

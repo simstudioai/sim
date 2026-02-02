@@ -1,3 +1,4 @@
+import { ARTIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetFollowedArtistsParams {
@@ -41,14 +42,14 @@ export const spotifyGetFollowedArtistsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of artists to return (1-50)',
     },
     after: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Cursor for pagination (last artist ID from previous request)',
     },
   },
@@ -93,7 +94,11 @@ export const spotifyGetFollowedArtistsTool: ToolConfig<
   },
 
   outputs: {
-    artists: { type: 'json', description: 'List of followed artists' },
+    artists: {
+      type: 'array',
+      description: 'List of followed artists',
+      items: { type: 'object', properties: ARTIST_OUTPUT_PROPERTIES },
+    },
     total: { type: 'number', description: 'Total number of followed artists' },
     next: { type: 'string', description: 'Cursor for next page', optional: true },
   },

@@ -13,7 +13,11 @@ interface UseCanvasContextMenuProps {
 
 /**
  * Hook for managing workflow canvas context menus.
- * Handles right-click events, menu state, click-outside detection, and block info extraction.
+ *
+ * Handles right-click events on nodes, pane, and selections with proper multi-select behavior.
+ *
+ * @param props - Hook configuration
+ * @returns Context menu state and handlers
  */
 export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasContextMenuProps) {
   const [activeMenu, setActiveMenu] = useState<MenuType>(null)
@@ -46,19 +50,29 @@ export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasCo
       event.stopPropagation()
 
       const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
-      setNodes((nodes) =>
-        nodes.map((n) => ({
-          ...n,
-          selected: isMultiSelect ? (n.id === node.id ? true : n.selected) : n.id === node.id,
-        }))
-      )
+      const currentSelectedNodes = getNodes().filter((n) => n.selected)
+      const isClickedNodeSelected = currentSelectedNodes.some((n) => n.id === node.id)
 
-      const selectedNodes = getNodes().filter((n) => n.selected)
-      const nodesToUse = isMultiSelect
-        ? selectedNodes.some((n) => n.id === node.id)
-          ? selectedNodes
-          : [...selectedNodes, node]
-        : [node]
+      let nodesToUse: Node[]
+      if (isClickedNodeSelected) {
+        nodesToUse = currentSelectedNodes
+      } else if (isMultiSelect) {
+        nodesToUse = [...currentSelectedNodes, node]
+        setNodes((nodes) =>
+          nodes.map((n) => ({
+            ...n,
+            selected: n.id === node.id ? true : n.selected,
+          }))
+        )
+      } else {
+        nodesToUse = [node]
+        setNodes((nodes) =>
+          nodes.map((n) => ({
+            ...n,
+            selected: n.id === node.id,
+          }))
+        )
+      }
 
       setPosition({ x: event.clientX, y: event.clientY })
       setSelectedBlocks(nodesToBlockInfos(nodesToUse))

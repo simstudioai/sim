@@ -201,7 +201,6 @@ describe('ConditionBlockHandler', () => {
         },
       }),
       false,
-      false,
       mockContext
     )
   })
@@ -323,7 +322,8 @@ describe('ConditionBlockHandler', () => {
 
     await handler.execute(mockContext, mockBlock, inputs)
 
-    expect(mockCollectBlockData).toHaveBeenCalledWith(mockContext)
+    // collectBlockData is now called with the current node ID for parallel branch context
+    expect(mockCollectBlockData).toHaveBeenCalledWith(mockContext, mockBlock.id)
   })
 
   it('should handle function_execute tool failure', async () => {
@@ -619,6 +619,250 @@ describe('ConditionBlockHandler', () => {
       // Decision should be stored under virtual block ID, not actual block ID
       expect(mockContext.decisions.condition.get('virtual-block-123')).toBe('cond1')
       expect(mockContext.decisions.condition.has(mockBlock.id)).toBe(false)
+    })
+  })
+
+  describe('Parallel branch handling', () => {
+    it('should resolve connections and block data correctly when inside a parallel branch', async () => {
+      // Simulate a condition block inside a parallel branch
+      // Virtual block ID uses subscript notation: blockId₍branchIndex₎
+      const parallelConditionBlock: SerializedBlock = {
+        id: 'cond-block-1₍0₎', // Virtual ID for branch 0
+        metadata: { id: 'condition', name: 'Condition' },
+        position: { x: 0, y: 0 },
+        config: {},
+      }
+
+      // Source block also has a virtual ID in the same branch
+      const sourceBlockVirtualId = 'agent-block-1₍0₎'
+
+      // Set up workflow with connections using BASE block IDs (as they are in the workflow definition)
+      const parallelWorkflow: SerializedWorkflow = {
+        blocks: [
+          {
+            id: 'agent-block-1',
+            metadata: { id: 'agent', name: 'Agent' },
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          {
+            id: 'cond-block-1',
+            metadata: { id: 'condition', name: 'Condition' },
+            position: { x: 100, y: 0 },
+            config: {},
+          },
+          {
+            id: 'target-block-1',
+            metadata: { id: 'api', name: 'Target' },
+            position: { x: 200, y: 0 },
+            config: {},
+          },
+        ],
+        connections: [
+          // Connections use base IDs, not virtual IDs
+          { source: 'agent-block-1', target: 'cond-block-1' },
+          { source: 'cond-block-1', target: 'target-block-1', sourceHandle: 'condition-cond1' },
+        ],
+        loops: [],
+        parallels: [],
+      }
+
+      // Block states use virtual IDs (as outputs are stored per-branch)
+      const parallelBlockStates = new Map<string, BlockState>([
+        [
+          sourceBlockVirtualId,
+          { output: { response: 'hello from branch 0', success: true }, executed: true },
+        ],
+      ])
+
+      const parallelContext: ExecutionContext = {
+        workflowId: 'test-workflow-id',
+        workspaceId: 'test-workspace-id',
+        workflow: parallelWorkflow,
+        blockStates: parallelBlockStates,
+        blockLogs: [],
+        completedBlocks: new Set(),
+        decisions: {
+          router: new Map(),
+          condition: new Map(),
+        },
+        environmentVariables: {},
+        workflowVariables: {},
+      }
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.response === "hello from branch 0"' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(parallelContext, parallelConditionBlock, inputs)
+
+      // The condition should evaluate to true because:
+      // 1. Connection lookup uses base ID 'cond-block-1' (extracted from 'cond-block-1₍0₎')
+      // 2. Source block output is found at virtual ID 'agent-block-1₍0₎' (same branch)
+      // 3. The evaluation context contains { response: 'hello from branch 0' }
+      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).selectedOption).toBe('cond1')
+      expect((result as any).selectedPath).toEqual({
+        blockId: 'target-block-1',
+        blockType: 'api',
+        blockTitle: 'Target',
+      })
+    })
+
+    it('should find correct source block output in parallel branch context', async () => {
+      // Test that when multiple branches exist, the correct branch output is used
+      const parallelConditionBlock: SerializedBlock = {
+        id: 'cond-block-1₍1₎', // Virtual ID for branch 1
+        metadata: { id: 'condition', name: 'Condition' },
+        position: { x: 0, y: 0 },
+        config: {},
+      }
+
+      const parallelWorkflow: SerializedWorkflow = {
+        blocks: [
+          {
+            id: 'agent-block-1',
+            metadata: { id: 'agent', name: 'Agent' },
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          {
+            id: 'cond-block-1',
+            metadata: { id: 'condition', name: 'Condition' },
+            position: { x: 100, y: 0 },
+            config: {},
+          },
+          {
+            id: 'target-block-1',
+            metadata: { id: 'api', name: 'Target' },
+            position: { x: 200, y: 0 },
+            config: {},
+          },
+        ],
+        connections: [
+          { source: 'agent-block-1', target: 'cond-block-1' },
+          { source: 'cond-block-1', target: 'target-block-1', sourceHandle: 'condition-cond1' },
+        ],
+        loops: [],
+        parallels: [],
+      }
+
+      // Multiple branches have executed - each has different output
+      const parallelBlockStates = new Map<string, BlockState>([
+        ['agent-block-1₍0₎', { output: { value: 10 }, executed: true }],
+        ['agent-block-1₍1₎', { output: { value: 25 }, executed: true }], // Branch 1 has value 25
+        ['agent-block-1₍2₎', { output: { value: 5 }, executed: true }],
+      ])
+
+      const parallelContext: ExecutionContext = {
+        workflowId: 'test-workflow-id',
+        workspaceId: 'test-workspace-id',
+        workflow: parallelWorkflow,
+        blockStates: parallelBlockStates,
+        blockLogs: [],
+        completedBlocks: new Set(),
+        decisions: {
+          router: new Map(),
+          condition: new Map(),
+        },
+        environmentVariables: {},
+        workflowVariables: {},
+      }
+
+      // Condition checks if value > 20 - should be true for branch 1 (value=25)
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value > 20' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(parallelContext, parallelConditionBlock, inputs)
+
+      // Should evaluate using branch 1's data (value=25), not branch 0 (value=10) or branch 2 (value=5)
+      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).selectedOption).toBe('cond1')
+    })
+
+    it('should fall back to else when condition is false in parallel branch', async () => {
+      const parallelConditionBlock: SerializedBlock = {
+        id: 'cond-block-1₍2₎', // Virtual ID for branch 2
+        metadata: { id: 'condition', name: 'Condition' },
+        position: { x: 0, y: 0 },
+        config: {},
+      }
+
+      const parallelWorkflow: SerializedWorkflow = {
+        blocks: [
+          {
+            id: 'agent-block-1',
+            metadata: { id: 'agent', name: 'Agent' },
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          {
+            id: 'cond-block-1',
+            metadata: { id: 'condition', name: 'Condition' },
+            position: { x: 100, y: 0 },
+            config: {},
+          },
+          {
+            id: 'target-true',
+            metadata: { id: 'api', name: 'True Path' },
+            position: { x: 200, y: 0 },
+            config: {},
+          },
+          {
+            id: 'target-false',
+            metadata: { id: 'api', name: 'False Path' },
+            position: { x: 200, y: 100 },
+            config: {},
+          },
+        ],
+        connections: [
+          { source: 'agent-block-1', target: 'cond-block-1' },
+          { source: 'cond-block-1', target: 'target-true', sourceHandle: 'condition-cond1' },
+          { source: 'cond-block-1', target: 'target-false', sourceHandle: 'condition-else1' },
+        ],
+        loops: [],
+        parallels: [],
+      }
+
+      const parallelBlockStates = new Map<string, BlockState>([
+        ['agent-block-1₍0₎', { output: { value: 100 }, executed: true }],
+        ['agent-block-1₍1₎', { output: { value: 50 }, executed: true }],
+        ['agent-block-1₍2₎', { output: { value: 5 }, executed: true }], // Branch 2 has value 5
+      ])
+
+      const parallelContext: ExecutionContext = {
+        workflowId: 'test-workflow-id',
+        workspaceId: 'test-workspace-id',
+        workflow: parallelWorkflow,
+        blockStates: parallelBlockStates,
+        blockLogs: [],
+        completedBlocks: new Set(),
+        decisions: {
+          router: new Map(),
+          condition: new Map(),
+        },
+        environmentVariables: {},
+        workflowVariables: {},
+      }
+
+      // Condition checks if value > 20 - should be false for branch 2 (value=5)
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value > 20' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      const inputs = { conditions: JSON.stringify(conditions) }
+
+      const result = await handler.execute(parallelContext, parallelConditionBlock, inputs)
+
+      // Should fall back to else path because branch 2's value (5) is not > 20
+      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).selectedOption).toBe('else1')
+      expect((result as any).selectedPath.blockId).toBe('target-false')
     })
   })
 })

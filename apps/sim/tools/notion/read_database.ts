@@ -1,4 +1,5 @@
 import type { NotionResponse } from '@/tools/notion/types'
+import { DATABASE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface NotionReadDatabaseParams {
@@ -27,8 +28,8 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
     databaseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Notion database to read',
+      visibility: 'user-or-llm',
+      description: 'The UUID of the Notion database to read',
     },
   },
 
@@ -98,11 +99,18 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
     metadata: {
       type: 'object',
       description: 'Database metadata including title, ID, URL, timestamps, and properties schema',
+      properties: {
+        title: { type: 'string', description: 'Database title' },
+        url: DATABASE_OUTPUT_PROPERTIES.url,
+        id: DATABASE_OUTPUT_PROPERTIES.id,
+        createdTime: DATABASE_OUTPUT_PROPERTIES.created_time,
+        lastEditedTime: DATABASE_OUTPUT_PROPERTIES.last_edited_time,
+        properties: DATABASE_OUTPUT_PROPERTIES.properties,
+      },
     },
   },
 }
 
-// V2 Tool with API-aligned outputs
 interface NotionReadDatabaseV2Response {
   success: boolean
   output: {
@@ -145,11 +153,11 @@ export const notionReadDatabaseV2Tool: ToolConfig<
   },
 
   outputs: {
-    id: { type: 'string', description: 'Database ID' },
+    id: DATABASE_OUTPUT_PROPERTIES.id,
     title: { type: 'string', description: 'Database title' },
-    url: { type: 'string', description: 'Database URL' },
-    created_time: { type: 'string', description: 'Creation timestamp' },
-    last_edited_time: { type: 'string', description: 'Last edit timestamp' },
-    properties: { type: 'object', description: 'Database properties schema' },
+    url: DATABASE_OUTPUT_PROPERTIES.url,
+    created_time: DATABASE_OUTPUT_PROPERTIES.created_time,
+    last_edited_time: DATABASE_OUTPUT_PROPERTIES.last_edited_time,
+    properties: DATABASE_OUTPUT_PROPERTIES.properties,
   },
 }

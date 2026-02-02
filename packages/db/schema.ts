@@ -268,9 +268,7 @@ export const workflowExecutionSnapshots = pgTable(
   'workflow_execution_snapshots',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     stateHash: text('state_hash').notNull(),
     stateData: jsonb('state_data').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -290,9 +288,7 @@ export const workflowExecutionLogs = pgTable(
   'workflow_execution_logs',
   {
     id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
@@ -698,6 +694,8 @@ export const userStats = pgTable('user_stats', {
   totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
   totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
+  totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
+  totalA2aExecutions: integer('total_a2a_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $20 for free plan, null for team/enterprise
@@ -1632,6 +1630,7 @@ export const workflowDeploymentVersion = pgTable(
       .references(() => workflow.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
     name: text('name'),
+    description: text('description'),
     state: json('state').notNull(),
     isActive: boolean('is_active').notNull().default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -1654,20 +1653,13 @@ export const workflowDeploymentVersion = pgTable(
 export const idempotencyKey = pgTable(
   'idempotency_key',
   {
-    key: text('key').notNull(),
-    namespace: text('namespace').notNull().default('default'),
+    key: text('key').primaryKey(),
     result: json('result').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Primary key is combination of key and namespace
-    keyNamespacePk: uniqueIndex('idempotency_key_namespace_unique').on(table.key, table.namespace),
-
     // Index for cleanup operations by creation time
     createdAtIdx: index('idempotency_key_created_at_idx').on(table.createdAt),
-
-    // Index for namespace-based queries
-    namespaceIdx: index('idempotency_key_namespace_idx').on(table.namespace),
   })
 )
 

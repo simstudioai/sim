@@ -3,6 +3,7 @@ import type {
   HubSpotSearchCompaniesParams,
   HubSpotSearchCompaniesResponse,
 } from '@/tools/hubspot/types'
+import { COMPANIES_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotSearchCompanies')
@@ -31,40 +32,42 @@ export const hubspotSearchCompaniesTool: ToolConfig<
     filterGroups: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Array of filter groups. Each group contains filters with propertyName, operator, and value',
+        'Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" (e.g., "EQ", "CONTAINS"), and "value"',
     },
     sorts: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Array of sort objects with propertyName and direction ("ASCENDING" or "DESCENDING")',
+        'Array of sort objects as JSON with "propertyName" and "direction" ("ASCENDING" or "DESCENDING")',
     },
     query: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Search query string',
+      visibility: 'user-or-llm',
+      description:
+        'Search query string to match against company name, domain, and other text fields',
     },
     properties: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
-      description: 'Array of property names to return',
+      visibility: 'user-or-llm',
+      description:
+        'Array of HubSpot property names to return (e.g., ["name", "domain", "industry"])',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of results to return (max 100)',
     },
     after: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Pagination cursor for next page',
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor for next page (from previous response)',
     },
   },
 
@@ -161,10 +164,10 @@ export const hubspotSearchCompaniesTool: ToolConfig<
   },
 
   outputs: {
-    companies: { type: 'array', description: 'Array of matching HubSpot company objects' },
+    companies: COMPANIES_ARRAY_OUTPUT,
     total: { type: 'number', description: 'Total number of matching companies', optional: true },
-    paging: { type: 'object', description: 'Pagination information', optional: true },
-    metadata: { type: 'object', description: 'Metadata with totalReturned and hasMore' },
+    paging: PAGING_OUTPUT,
+    metadata: METADATA_OUTPUT,
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

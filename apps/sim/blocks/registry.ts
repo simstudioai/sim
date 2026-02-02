@@ -9,23 +9,27 @@ import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
+import { CalComBlock } from '@/blocks/blocks/calcom'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock } from '@/blocks/blocks/circleback'
 import { ClayBlock } from '@/blocks/blocks/clay'
+import { ClerkBlock } from '@/blocks/blocks/clerk'
 import { ConditionBlock } from '@/blocks/blocks/condition'
-import { ConfluenceBlock } from '@/blocks/blocks/confluence'
+import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
 import { DiscordBlock } from '@/blocks/blocks/discord'
 import { DropboxBlock } from '@/blocks/blocks/dropbox'
+import { DSPyBlock } from '@/blocks/blocks/dspy'
 import { DuckDuckGoBlock } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
 import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
+import { EnrichBlock } from '@/blocks/blocks/enrich'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock } from '@/blocks/blocks/exa'
-import { FileBlock } from '@/blocks/blocks/file'
+import { FileBlock, FileV2Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
 import { FirefliesBlock } from '@/blocks/blocks/fireflies'
 import { FunctionBlock } from '@/blocks/blocks/function'
@@ -39,6 +43,7 @@ import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 import { GoogleFormsBlock } from '@/blocks/blocks/google_forms'
 import { GoogleGroupsBlock } from '@/blocks/blocks/google_groups'
+import { GoogleMapsBlock } from '@/blocks/blocks/google_maps'
 import { GoogleSheetsBlock, GoogleSheetsV2Block } from '@/blocks/blocks/google_sheets'
 import { GoogleSlidesBlock } from '@/blocks/blocks/google_slides'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
@@ -58,7 +63,7 @@ import { IntercomBlock, IntercomV2Block } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
 import { JiraServiceManagementBlock } from '@/blocks/blocks/jira_service_management'
-import { KalshiBlock } from '@/blocks/blocks/kalshi'
+import { KalshiBlock, KalshiV2Block } from '@/blocks/blocks/kalshi'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LangsmithBlock } from '@/blocks/blocks/langsmith'
 import { LemlistBlock } from '@/blocks/blocks/lemlist'
@@ -74,7 +79,7 @@ import { MemoryBlock } from '@/blocks/blocks/memory'
 import { MicrosoftExcelBlock, MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
-import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
+import { MistralParseBlock, MistralParseV2Block } from '@/blocks/blocks/mistral_parse'
 import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
@@ -110,6 +115,7 @@ import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
+import { SimilarwebBlock } from '@/blocks/blocks/similarweb'
 import { SlackBlock } from '@/blocks/blocks/slack'
 import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SpotifyBlock } from '@/blocks/blocks/spotify'
@@ -123,6 +129,7 @@ import { SttBlock } from '@/blocks/blocks/stt'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
+import { TextractBlock } from '@/blocks/blocks/textract'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TinybirdBlock } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
@@ -132,7 +139,7 @@ import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VariablesBlock } from '@/blocks/blocks/variables'
-import { VideoGeneratorBlock } from '@/blocks/blocks/video_generator'
+import { VideoGeneratorBlock, VideoGeneratorV2Block } from '@/blocks/blocks/video_generator'
 import { VisionBlock } from '@/blocks/blocks/vision'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
@@ -163,24 +170,30 @@ export const registry: Record<string, BlockConfig> = {
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   browser_use: BrowserUseBlock,
+  calcom: CalComBlock,
   calendly: CalendlyBlock,
   chat_trigger: ChatTriggerBlock,
   circleback: CirclebackBlock,
   clay: ClayBlock,
+  clerk: ClerkBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
+  confluence_v2: ConfluenceV2Block,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
   datadog: DatadogBlock,
   discord: DiscordBlock,
   dropbox: DropboxBlock,
+  dspy: DSPyBlock,
   duckduckgo: DuckDuckGoBlock,
   dynamodb: DynamoDBBlock,
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
+  enrich: EnrichBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   file: FileBlock,
+  file_v2: FileV2Block,
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   function: FunctionBlock,
@@ -196,6 +209,7 @@ export const registry: Record<string, BlockConfig> = {
   google_drive: GoogleDriveBlock,
   google_forms: GoogleFormsBlock,
   google_groups: GoogleGroupsBlock,
+  google_maps: GoogleMapsBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   google_sheets_v2: GoogleSheetsV2Block,
@@ -219,6 +233,7 @@ export const registry: Record<string, BlockConfig> = {
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,
   kalshi: KalshiBlock,
+  kalshi_v2: KalshiV2Block,
   knowledge: KnowledgeBlock,
   langsmith: LangsmithBlock,
   lemlist: LemlistBlock,
@@ -236,6 +251,7 @@ export const registry: Record<string, BlockConfig> = {
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,
+  mistral_parse_v2: MistralParseV2Block,
   mongodb: MongoDBBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
@@ -273,6 +289,7 @@ export const registry: Record<string, BlockConfig> = {
   sftp: SftpBlock,
   sharepoint: SharepointBlock,
   shopify: ShopifyBlock,
+  similarweb: SimilarwebBlock,
   slack: SlackBlock,
   smtp: SmtpBlock,
   spotify: SpotifyBlock,
@@ -286,6 +303,7 @@ export const registry: Record<string, BlockConfig> = {
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
+  textract: TextractBlock,
   thinking: ThinkingBlock,
   tinybird: TinybirdBlock,
   translate: TranslateBlock,
@@ -296,6 +314,7 @@ export const registry: Record<string, BlockConfig> = {
   typeform: TypeformBlock,
   variables: VariablesBlock,
   video_generator: VideoGeneratorBlock,
+  video_generator_v2: VideoGeneratorV2Block,
   vision: VisionBlock,
   wait: WaitBlock,
   wealthbox: WealthboxBlock,

@@ -66,11 +66,13 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
     host: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elasticsearch host URL (for self-hosted)',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elastic Cloud ID (for cloud deployments)',
     },
     authMethod: {
@@ -87,6 +89,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
     username: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Username for basic auth',
     },
     password: {
@@ -98,27 +101,34 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
     index: {
       type: 'string',
       required: true,
-      description: 'Index name to search',
+      visibility: 'user-or-llm',
+      description: 'Index name to search (e.g., "products", "logs-2024")',
     },
     query: {
       type: 'string',
       required: false,
-      description: 'Query DSL as JSON string',
+      visibility: 'user-or-llm',
+      description:
+        'Query DSL as JSON string. Example: {"match":{"title":"search term"}} or {"bool":{"must":[...]}}',
     },
     from: {
       type: 'number',
       required: false,
-      description: 'Starting offset for pagination (default: 0)',
+      visibility: 'user-or-llm',
+      description: 'Starting offset for pagination (e.g., 0, 10, 20). Default: 0',
     },
     size: {
       type: 'number',
       required: false,
-      description: 'Number of results to return (default: 10)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (e.g., 10, 25, 100). Default: 10',
     },
     sort: {
       type: 'string',
       required: false,
-      description: 'Sort specification as JSON string',
+      visibility: 'user-or-llm',
+      description:
+        'Sort specification as JSON string. Example: [{"created_at":"desc"}] or [{"_score":"desc"},{"name":"asc"}]',
     },
     sourceIncludes: {
       type: 'string',

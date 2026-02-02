@@ -1,10 +1,17 @@
+import type { PolymarketTrade } from '@/tools/polymarket/types'
+import { buildDataUrl, handlePolymarketError } from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
-import type { PolymarketPaginationParams, PolymarketTrade } from './types'
-import { buildDataUrl, handlePolymarketError } from './types'
 
-export interface PolymarketGetTradesParams extends PolymarketPaginationParams {
-  user?: string // Optional user wallet address
-  market?: string // Optional market filter
+export interface PolymarketGetTradesParams {
+  user?: string
+  market?: string
+  eventId?: string
+  side?: string
+  takerOnly?: string
+  filterType?: string
+  filterAmount?: string
+  limit?: string
+  offset?: string
 }
 
 export interface PolymarketGetTradesResponse {
@@ -33,19 +40,50 @@ export const polymarketGetTradesTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      description: 'Market ID to filter trades',
+      description:
+        'Market/condition ID to filter trades (e.g., "0x1234...abcd"). Mutually exclusive with eventId.',
+      visibility: 'user-or-llm',
+    },
+    eventId: {
+      type: 'string',
+      required: false,
+      description: 'Event ID to filter trades (e.g., "12345"). Mutually exclusive with market.',
+      visibility: 'user-or-llm',
+    },
+    side: {
+      type: 'string',
+      required: false,
+      description: 'Trade direction filter (BUY or SELL)',
+      visibility: 'user-or-llm',
+    },
+    takerOnly: {
+      type: 'string',
+      required: false,
+      description: 'Filter for taker trades only (true/false, default: true)',
+      visibility: 'user-or-llm',
+    },
+    filterType: {
+      type: 'string',
+      required: false,
+      description: 'Filter type (CASH or TOKENS) - requires filterAmount',
+      visibility: 'user-or-llm',
+    },
+    filterAmount: {
+      type: 'string',
+      required: false,
+      description: 'Filter amount threshold - requires filterType',
       visibility: 'user-or-llm',
     },
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page (max 50)',
+      description: 'Number of results per page (e.g., "50"). Default: 100, max: 10000.',
       visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
-      description: 'Pagination offset (skip this many results)',
+      description: 'Number of results to skip for pagination (e.g., "100").',
       visibility: 'user-or-llm',
     },
   },
@@ -55,13 +93,16 @@ export const polymarketGetTradesTool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.user) queryParams.append('user', params.user)
       if (params.market) queryParams.append('market', params.market)
-      // Default limit to 50 to prevent browser crashes from large data sets
-      queryParams.append('limit', params.limit || '50')
+      if (params.eventId) queryParams.append('eventId', params.eventId)
+      if (params.side) queryParams.append('side', params.side.toUpperCase())
+      if (params.takerOnly) queryParams.append('takerOnly', params.takerOnly)
+      if (params.filterType) queryParams.append('filterType', params.filterType.toUpperCase())
+      if (params.filterAmount) queryParams.append('filterAmount', params.filterAmount)
+      if (params.limit) queryParams.append('limit', params.limit)
       if (params.offset) queryParams.append('offset', params.offset)
 
-      const query = queryParams.toString()
       const url = buildDataUrl('/trades')
-      return `${url}?${query}`
+      return `${url}?${queryParams.toString()}`
     },
     method: 'GET',
     headers: () => ({
@@ -76,8 +117,28 @@ export const polymarketGetTradesTool: ToolConfig<
       handlePolymarketError(data, response.status, 'get_trades')
     }
 
-    // Response is an array of trades
-    const trades = Array.isArray(data) ? data : []
+    const rawTrades = Array.isArray(data) ? data : []
+    const trades: PolymarketTrade[] = rawTrades.map((t: Record<string, unknown>) => ({
+      proxyWallet: (t.proxyWallet as string) ?? null,
+      side: (t.side as string) ?? '',
+      asset: (t.asset as string) ?? '',
+      conditionId: (t.conditionId as string) ?? '',
+      size: (t.size as number) ?? 0,
+      price: (t.price as number) ?? 0,
+      timestamp: (t.timestamp as number) ?? 0,
+      title: (t.title as string) ?? null,
+      slug: (t.slug as string) ?? null,
+      icon: (t.icon as string) ?? null,
+      eventSlug: (t.eventSlug as string) ?? null,
+      outcome: (t.outcome as string) ?? null,
+      outcomeIndex: (t.outcomeIndex as number) ?? null,
+      name: (t.name as string) ?? null,
+      pseudonym: (t.pseudonym as string) ?? null,
+      bio: (t.bio as string) ?? null,
+      profileImage: (t.profileImage as string) ?? null,
+      profileImageOptimized: (t.profileImageOptimized as string) ?? null,
+      transactionHash: (t.transactionHash as string) ?? null,
+    }))
 
     return {
       success: true,
@@ -91,6 +152,30 @@ export const polymarketGetTradesTool: ToolConfig<
     trades: {
       type: 'array',
       description: 'Array of trade objects',
+      items: {
+        type: 'object',
+        properties: {
+          proxyWallet: { type: 'string', description: 'Proxy wallet address' },
+          side: { type: 'string', description: 'Trade side (BUY or SELL)' },
+          asset: { type: 'string', description: 'Asset token ID' },
+          conditionId: { type: 'string', description: 'Condition ID' },
+          size: { type: 'number', description: 'Trade size' },
+          price: { type: 'number', description: 'Trade price' },
+          timestamp: { type: 'number', description: 'Unix timestamp' },
+          title: { type: 'string', description: 'Market title' },
+          slug: { type: 'string', description: 'Market slug' },
+          icon: { type: 'string', description: 'Market icon URL' },
+          eventSlug: { type: 'string', description: 'Event slug' },
+          outcome: { type: 'string', description: 'Outcome name' },
+          outcomeIndex: { type: 'number', description: 'Outcome index' },
+          name: { type: 'string', description: 'Trader name' },
+          pseudonym: { type: 'string', description: 'Trader pseudonym' },
+          bio: { type: 'string', description: 'Trader bio' },
+          profileImage: { type: 'string', description: 'Profile image URL' },
+          profileImageOptimized: { type: 'string', description: 'Optimized profile image URL' },
+          transactionHash: { type: 'string', description: 'Transaction hash' },
+        },
+      },
     },
   },
 }

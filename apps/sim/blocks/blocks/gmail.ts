@@ -242,15 +242,9 @@ Return ONLY the email body - no explanations, no extra text.`,
       id: 'messageId',
       title: 'Message ID',
       type: 'short-input',
-      placeholder: 'Enter message ID to read (optional)',
-      condition: {
-        field: 'operation',
-        value: 'read_gmail',
-        and: {
-          field: 'folder',
-          value: '',
-        },
-      },
+      placeholder: 'Read specific email by ID (overrides label/folder)',
+      condition: { field: 'operation', value: 'read_gmail' },
+      mode: 'advanced',
     },
     // Search Fields
     {
@@ -586,6 +580,18 @@ export const GmailV2Block: BlockConfig<GmailToolResponse> = {
     body: { type: 'string', description: 'Email body text (best-effort)' },
     results: { type: 'json', description: 'Search/read summary results' },
     attachments: { type: 'json', description: 'Downloaded attachments (if enabled)' },
+
+    // Draft-specific outputs
+    draftId: {
+      type: 'string',
+      description: 'Draft ID',
+      condition: { field: 'operation', value: 'draft_gmail' },
+    },
+    messageId: {
+      type: 'string',
+      description: 'Gmail message ID for the draft',
+      condition: { field: 'operation', value: 'draft_gmail' },
+    },
 
     // Trigger outputs (unchanged)
     email_id: { type: 'string', description: 'Gmail message ID' },

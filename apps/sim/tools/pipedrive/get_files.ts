@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { PipedriveGetFilesParams, PipedriveGetFilesResponse } from '@/tools/pipedrive/types'
+import { PIPEDRIVE_FILE_OUTPUT_PROPERTIES } from '@/tools/pipedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetFiles')
@@ -21,26 +22,26 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
       deal_id: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Filter files by deal ID',
+        visibility: 'user-or-llm',
+        description: 'Filter files by deal ID (e.g., "123")',
       },
       person_id: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Filter files by person ID',
+        visibility: 'user-or-llm',
+        description: 'Filter files by person ID (e.g., "456")',
       },
       org_id: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Filter files by organization ID',
+        visibility: 'user-or-llm',
+        description: 'Filter files by organization ID (e.g., "789")',
       },
       limit: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Number of results to return (default: 100, max: 500)',
+        visibility: 'user-or-llm',
+        description: 'Number of results to return (e.g., "50", default: 100, max: 500)',
       },
     },
 
@@ -91,7 +92,14 @@ export const pipedriveGetFilesTool: ToolConfig<PipedriveGetFilesParams, Pipedriv
     },
 
     outputs: {
-      files: { type: 'array', description: 'Array of file objects from Pipedrive' },
+      files: {
+        type: 'array',
+        description: 'Array of file objects from Pipedrive',
+        items: {
+          type: 'object',
+          properties: PIPEDRIVE_FILE_OUTPUT_PROPERTIES,
+        },
+      },
       total_items: { type: 'number', description: 'Total number of files returned' },
       success: { type: 'boolean', description: 'Operation success status' },
     },

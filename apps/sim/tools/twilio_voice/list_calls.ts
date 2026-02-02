@@ -26,20 +26,21 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
     to: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by calls to this phone number',
+      visibility: 'user-or-llm',
+      description: 'Filter by calls to this phone number in E.164 format (e.g., +14155551234)',
     },
     from: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by calls from this phone number',
+      visibility: 'user-or-llm',
+      description: 'Filter by calls from this phone number in E.164 format (e.g., +14155559876)',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by call status (queued, ringing, in-progress, completed, etc.)',
+      visibility: 'user-or-llm',
+      description:
+        'Filter by call status (e.g., queued, ringing, in-progress, completed, busy, failed, no-answer, canceled)',
     },
     startTimeAfter: {
       type: 'string',

@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { MESSAGES_ARRAY_OUTPUT, PAGINATION_OUTPUT_PROPERTIES } from '@/tools/zep/types'
 
-// Get Messages Tool - Retrieve messages from a thread (Zep v3)
 export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_get_messages',
   name: 'Get Messages',
@@ -12,14 +12,14 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Thread ID to get messages from',
+      visibility: 'user-or-llm',
+      description: 'Thread ID to get messages from (e.g., "thread_abc123")',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of messages to return',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of messages to return (e.g., 10, 50, 100)',
     },
     cursor: {
       type: 'string',
@@ -30,7 +30,7 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
     lastn: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of most recent messages to return (overrides limit and cursor)',
     },
     apiKey: {
@@ -77,17 +77,8 @@ export const zepGetMessagesTool: ToolConfig<any, ZepResponse> = {
   },
 
   outputs: {
-    messages: {
-      type: 'array',
-      description: 'Array of message objects',
-    },
-    rowCount: {
-      type: 'number',
-      description: 'Number of messages in this response',
-    },
-    totalCount: {
-      type: 'number',
-      description: 'Total number of messages in the thread',
-    },
+    messages: MESSAGES_ARRAY_OUTPUT,
+    rowCount: PAGINATION_OUTPUT_PROPERTIES.rowCount,
+    totalCount: PAGINATION_OUTPUT_PROPERTIES.totalCount,
   },
 }

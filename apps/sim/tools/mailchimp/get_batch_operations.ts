@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
+import type { MailchimpBatchOperation } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpBatchOperation } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
-
-const logger = createLogger('MailchimpGetBatchOperations')
 
 export interface MailchimpGetBatchOperationsParams {
   apiKey: string
@@ -39,14 +36,14 @@ export const mailchimpGetBatchOperationsTool: ToolConfig<
     count: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results (default: 10, max: 1000)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (default: 10, max: 1000)',
     },
     offset: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to skip',
+      visibility: 'user-or-llm',
+      description: 'Number of results to skip for pagination',
     },
   },
 

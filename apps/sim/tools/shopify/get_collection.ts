@@ -1,5 +1,6 @@
+import type { ShopifyBaseParams } from '@/tools/shopify/types'
+import { COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { ShopifyBaseParams } from './types'
 
 interface ShopifyGetCollectionParams extends ShopifyBaseParams {
   collectionId: string
@@ -219,6 +220,7 @@ export const shopifyGetCollectionTool: ToolConfig<
     collection: {
       type: 'object',
       description: 'The collection details including its products',
+      properties: COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -1,6 +1,7 @@
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
+import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 export interface UserFile {
@@ -11,6 +12,7 @@ export interface UserFile {
   type: string
   key: string
   context?: string
+  base64?: string
 }
 
 export interface ParallelPauseScope {
@@ -112,6 +114,12 @@ export interface BlockLog {
   loopId?: string
   parallelId?: string
   iterationIndex?: number
+  /**
+   * Child workflow trace spans for nested workflow execution.
+   * Stored separately from output to keep output clean for display
+   * while preserving data for trace-spans processing.
+   */
+  childTraceSpans?: TraceSpan[]
 }
 
 export interface ExecutionMetadata {
@@ -236,6 +244,30 @@ export interface ExecutionContext {
 
   // Dynamically added nodes that need to be scheduled (e.g., from parallel expansion)
   pendingDynamicNodes?: string[]
+
+  /**
+   * When true, UserFile objects in block outputs will be hydrated with base64 content
+   * before being stored in execution state. This ensures base64 is available for
+   * variable resolution in downstream blocks.
+   */
+  includeFileBase64?: boolean
+
+  /**
+   * Maximum file size in bytes for base64 hydration. Files larger than this limit
+   * will not have their base64 content fetched.
+   */
+  base64MaxBytes?: number
+
+  /**
+   * Context for "run from block" mode. When present, only blocks in dirtySet
+   * will be executed; others return cached outputs from the source snapshot.
+   */
+  runFromBlockContext?: RunFromBlockContext
+
+  /**
+   * Stop execution after this block completes. Used for "run until block" feature.
+   */
+  stopAfterBlockId?: string
 }
 
 export interface ExecutionResult {

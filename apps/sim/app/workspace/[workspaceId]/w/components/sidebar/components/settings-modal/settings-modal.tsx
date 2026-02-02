@@ -5,6 +5,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  Bug,
   Files,
   KeySquare,
   LogIn,
@@ -46,6 +47,7 @@ import {
   Copilot,
   CredentialSets,
   CustomTools,
+  Debug,
   EnvironmentVariables,
   FileUploads,
   General,
@@ -91,8 +93,15 @@ type SettingsSection =
   | 'mcp'
   | 'custom-tools'
   | 'workflow-mcp-servers'
+  | 'debug'
 
-type NavigationSection = 'account' | 'subscription' | 'tools' | 'system' | 'enterprise'
+type NavigationSection =
+  | 'account'
+  | 'subscription'
+  | 'tools'
+  | 'system'
+  | 'enterprise'
+  | 'superuser'
 
 type NavigationItem = {
   id: SettingsSection
@@ -104,6 +113,7 @@ type NavigationItem = {
   requiresEnterprise?: boolean
   requiresHosted?: boolean
   selfHostedOverride?: boolean
+  requiresSuperUser?: boolean
 }
 
 const sectionConfig: { key: NavigationSection; title: string }[] = [
@@ -112,6 +122,7 @@ const sectionConfig: { key: NavigationSection; title: string }[] = [
   { key: 'subscription', title: 'Subscription' },
   { key: 'system', title: 'System' },
   { key: 'enterprise', title: 'Enterprise' },
+  { key: 'superuser', title: 'Superuser' },
 ]
 
 const allNavigationItems: NavigationItem[] = [
@@ -147,7 +158,7 @@ const allNavigationItems: NavigationItem[] = [
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
   { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
   { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
-  { id: 'workflow-mcp-servers', label: 'Deployed MCPs', icon: Server, section: 'system' },
+  { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
   {
     id: 'byok',
     label: 'BYOK',
@@ -180,15 +191,24 @@ const allNavigationItems: NavigationItem[] = [
     requiresEnterprise: true,
     selfHostedOverride: isSSOEnabled,
   },
+  {
+    id: 'debug',
+    label: 'Debug',
+    icon: Bug,
+    section: 'superuser',
+    requiresSuperUser: true,
+  },
 ]
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
   const { initialSection, mcpServerId, clearInitialState } = useSettingsModalStore()
   const [pendingMcpServerId, setPendingMcpServerId] = useState<string | null>(null)
+  const [isSuperUser, setIsSuperUser] = useState(false)
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const { data: organizationsData } = useOrganizations()
+  const { data: generalSettings } = useGeneralSettings()
   const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
 
@@ -208,6 +228,23 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
   const hasOrganization = !!activeOrganization?.id
+
+  // Fetch superuser status
+  useEffect(() => {
+    const fetchSuperUserStatus = async () => {
+      if (!userId) return
+      try {
+        const response = await fetch('/api/user/super-user')
+        if (response.ok) {
+          const data = await response.json()
+          setIsSuperUser(data.isSuperUser)
+        }
+      } catch {
+        setIsSuperUser(false)
+      }
+    }
+    fetchSuperUserStatus()
+  }, [userId])
 
   // Memoize SSO provider ownership check
   const isSSOProviderOwner = useMemo(() => {
@@ -268,6 +305,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         return false
       }
 
+      // requiresSuperUser: only show if user is a superuser AND has superuser mode enabled
+      const superUserModeEnabled = generalSettings?.superUserModeEnabled ?? false
+      const effectiveSuperUser = isSuperUser && superUserModeEnabled
+      if (item.requiresSuperUser && !effectiveSuperUser) {
+        return false
+      }
+
       return true
     })
   }, [
@@ -280,6 +324,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     isOwner,
     isAdmin,
     permissionConfig,
+    isSuperUser,
+    generalSettings?.superUserModeEnabled,
   ])
 
   // Memoized callbacks to prevent infinite loops in child components
@@ -307,9 +353,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     },
     [activeSection]
   )
-
-  // React Query hook automatically loads and syncs settings
-  useGeneralSettings()
 
   // Apply initial section from store when modal opens
   useEffect(() => {
@@ -523,6 +566,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {activeSection === 'mcp' && <MCP initialServerId={pendingMcpServerId} />}
             {activeSection === 'custom-tools' && <CustomTools />}
             {activeSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
+            {activeSection === 'debug' && <Debug />}
           </SModalMainBody>
         </SModalMain>
       </SModalContent>

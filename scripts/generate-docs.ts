@@ -6,6 +6,13 @@ import { glob } from 'glob'
 
 console.log('Starting documentation generator...')
 
+/**
+ * Cache for resolved const definitions from types files.
+ * Key: "toolPrefix:constName" (e.g., "calcom:SCHEDULE_DATA_OUTPUT_PROPERTIES")
+ * Value: The resolved properties object
+ */
+const constResolutionCache = new Map<string, Record<string, any>>()
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
@@ -475,14 +482,12 @@ function extractOutputsFromContent(content: string): Record<string, any> {
         const fieldContent = outputsContent.substring(startPos + 1, endPos - 1).trim()
 
         const typeMatch = fieldContent.match(/type\s*:\s*['"](.*?)['"]/)
-        const descriptionMatch = fieldContent.match(/description\s*:\s*['"](.*?)['"]/)
+        const description = extractDescription(fieldContent)
 
         if (typeMatch) {
           outputs[field.name] = {
             type: typeMatch[1],
-            description: descriptionMatch
-              ? descriptionMatch[1]
-              : `${field.name} output from the block`,
+            description: description || `${field.name} output from the block`,
           }
         }
       }
@@ -644,14 +649,12 @@ function extractOutputs(content: string): Record<string, any> {
         const fieldContent = outputsContent.substring(startPos + 1, endPos - 1).trim()
 
         const typeMatch = fieldContent.match(/type\s*:\s*['"](.*?)['"]/)
-        const descriptionMatch = fieldContent.match(/description\s*:\s*['"](.*?)['"]/)
+        const description = extractDescription(fieldContent)
 
         if (typeMatch) {
           outputs[field.name] = {
             type: typeMatch[1],
-            description: descriptionMatch
-              ? descriptionMatch[1]
-              : `${field.name} output from the block`,
+            description: description || `${field.name} output from the block`,
           }
         }
       }
@@ -704,6 +707,443 @@ function extractToolsAccess(content: string): string[] {
   }
 
   return tools
+}
+
+/**
+ * Get the tool prefix (service name) from a tool name.
+ * e.g., "calcom_list_schedules" -> "calcom"
+ */
+function getToolPrefixFromName(toolName: string): string {
+  const parts = toolName.split('_')
+
+  // Try to find a valid tool directory
+  for (let i = parts.length - 1; i >= 1; i--) {
+    const possiblePrefix = parts.slice(0, i).join('_')
+    const toolDirPath = path.join(rootDir, `apps/sim/tools/${possiblePrefix}`)
+
+    if (fs.existsSync(toolDirPath) && fs.statSync(toolDirPath).isDirectory()) {
+      return possiblePrefix
+    }
+  }
+
+  return parts[0]
+}
+
+/**
+ * Resolve a const reference from a types file.
+ * Handles nested const references recursively.
+ *
+ * @param constName - The const name to resolve (e.g., "SCHEDULE_DATA_OUTPUT_PROPERTIES")
+ * @param toolPrefix - The tool prefix/service name (e.g., "calcom")
+ * @param depth - Recursion depth to prevent infinite loops
+ * @returns Resolved properties object or null if not found
+ */
+function resolveConstReference(
+  constName: string,
+  toolPrefix: string,
+  depth = 0
+): Record<string, any> | null {
+  // Prevent infinite recursion
+  if (depth > 10) {
+    console.warn(`Max recursion depth reached resolving const: ${constName}`)
+    return null
+  }
+
+  // Check cache first
+  const cacheKey = `${toolPrefix}:${constName}`
+  if (constResolutionCache.has(cacheKey)) {
+    return constResolutionCache.get(cacheKey)!
+  }
+
+  // Read the types file for this tool
+  const typesFilePath = path.join(rootDir, `apps/sim/tools/${toolPrefix}/types.ts`)
+  if (!fs.existsSync(typesFilePath)) {
+    // Try to find const in the tool file itself
+    return null
+  }
+
+  const typesContent = fs.readFileSync(typesFilePath, 'utf-8')
+
+  // Find the const definition
+  // Pattern: export const CONST_NAME = { ... } as const
+  const constRegex = new RegExp(
+    `export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
+    'g'
+  )
+  const constMatch = constRegex.exec(typesContent)
+
+  if (!constMatch) {
+    return null
+  }
+
+  // Extract the const content
+  const startIndex = constMatch.index + constMatch[0].length - 1
+  let braceCount = 1
+  let endIndex = startIndex + 1
+
+  while (endIndex < typesContent.length && braceCount > 0) {
+    if (typesContent[endIndex] === '{') braceCount++
+    else if (typesContent[endIndex] === '}') braceCount--
+    endIndex++
+  }
+
+  if (braceCount !== 0) {
+    return null
+  }
+
+  const constContent = typesContent.substring(startIndex + 1, endIndex - 1).trim()
+
+  // Check if this const defines a complete output field (has type property)
+  // like EVENT_TYPE_OUTPUT = { type: 'object', description: '...', properties: {...} }
+  const typeMatch = constContent.match(/^\s*type\s*:\s*['"]([^'"]+)['"]/)
+  if (typeMatch) {
+    // This is a complete output definition - use parseConstFieldContent
+    const result = parseConstFieldContent(constContent, toolPrefix, typesContent, depth + 1)
+    if (result) {
+      constResolutionCache.set(cacheKey, result)
+    }
+    return result
+  }
+
+  // Otherwise, this is a properties object - use parseConstProperties
+  const properties = parseConstProperties(constContent, toolPrefix, typesContent, depth + 1)
+
+  // Cache the result
+  constResolutionCache.set(cacheKey, properties)
+
+  return properties
+}
+
+/**
+ * Parse properties from a const definition, resolving nested const references.
+ */
+function parseConstProperties(
+  content: string,
+  toolPrefix: string,
+  typesContent: string,
+  depth: number
+): Record<string, any> {
+  const properties: Record<string, any> = {}
+
+  // First, handle spread operators (e.g., "...COMMENT_OUTPUT_PROPERTIES,")
+  const spreadRegex = /\.\.\.([A-Z][A-Z_0-9]+)\s*(?:,|$)/g
+  let spreadMatch
+  while ((spreadMatch = spreadRegex.exec(content)) !== null) {
+    const constName = spreadMatch[1]
+
+    // Check if at depth 0
+    const beforeMatch = content.substring(0, spreadMatch.index)
+    const openBraces = (beforeMatch.match(/\{/g) || []).length
+    const closeBraces = (beforeMatch.match(/\}/g) || []).length
+    if (openBraces !== closeBraces) {
+      continue
+    }
+
+    const resolvedConst = resolveConstFromTypesContent(constName, typesContent, toolPrefix, depth)
+    if (resolvedConst && typeof resolvedConst === 'object') {
+      // Spread all properties from the resolved const
+      Object.assign(properties, resolvedConst)
+    }
+  }
+
+  // Find all top-level property definitions
+  const propRegex = /(\w+)\s*:\s*(?:\{|([A-Z][A-Z_0-9]+)(?:\s*,|\s*$))/g
+  let match
+
+  while ((match = propRegex.exec(content)) !== null) {
+    const propName = match[1]
+    const constRef = match[2]
+
+    // Skip 'items' keyword (always a nested structure, never a field name)
+    if (propName === 'items') {
+      continue
+    }
+
+    // Check if this match is at depth 0 (not inside nested braces)
+    const beforeMatch = content.substring(0, match.index)
+    const openBraces = (beforeMatch.match(/\{/g) || []).length
+    const closeBraces = (beforeMatch.match(/\}/g) || []).length
+    if (openBraces !== closeBraces) {
+      continue // Skip - this is a nested property
+    }
+
+    // For 'properties' or 'type', check if it's an output field definition vs a keyword
+    // Output field definitions have 'type:' inside (e.g., { type: 'string', description: '...' })
+    if ((propName === 'properties' || propName === 'type') && !constRef) {
+      // Peek at what's inside the braces
+      const startPos = match.index + match[0].length - 1
+      let braceCount = 1
+      let endPos = startPos + 1
+      while (endPos < content.length && braceCount > 0) {
+        if (content[endPos] === '{') braceCount++
+        else if (content[endPos] === '}') braceCount--
+        endPos++
+      }
+      if (braceCount === 0) {
+        const propContent = content.substring(startPos + 1, endPos - 1).trim()
+        // If it starts with 'type:', it's an output field definition - process it
+        if (propContent.match(/^\s*type\s*:/)) {
+          const parsedProp = parseConstFieldContent(propContent, toolPrefix, typesContent, depth)
+          if (parsedProp) {
+            properties[propName] = parsedProp
+          }
+        }
+        // Otherwise, it's a keyword usage (nested properties block or type specifier) - skip it
+      }
+      continue
+    }
+
+    if (constRef) {
+      // This property references a const (e.g., "attendees: ATTENDEES_OUTPUT")
+      const resolvedConst = resolveConstFromTypesContent(constRef, typesContent, toolPrefix, depth)
+      if (resolvedConst) {
+        properties[propName] = resolvedConst
+      }
+    } else {
+      // This property has inline definition
+      const startPos = match.index + match[0].length - 1
+
+      let braceCount = 1
+      let endPos = startPos + 1
+
+      while (endPos < content.length && braceCount > 0) {
+        if (content[endPos] === '{') braceCount++
+        else if (content[endPos] === '}') braceCount--
+        endPos++
+      }
+
+      if (braceCount === 0) {
+        const propContent = content.substring(startPos + 1, endPos - 1).trim()
+        const parsedProp = parseConstFieldContent(propContent, toolPrefix, typesContent, depth)
+        if (parsedProp) {
+          properties[propName] = parsedProp
+        }
+      }
+    }
+  }
+
+  return properties
+}
+
+/**
+ * Resolve a const from the types content (for nested references within the same file).
+ */
+function resolveConstFromTypesContent(
+  constName: string,
+  typesContent: string,
+  toolPrefix: string,
+  depth: number
+): Record<string, any> | null {
+  if (depth > 10) return null
+
+  // Check cache
+  const cacheKey = `${toolPrefix}:${constName}`
+  if (constResolutionCache.has(cacheKey)) {
+    return constResolutionCache.get(cacheKey)!
+  }
+
+  // Find the const definition in typesContent
+  const constRegex = new RegExp(
+    `export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
+    'g'
+  )
+  const constMatch = constRegex.exec(typesContent)
+
+  if (!constMatch) {
+    return null
+  }
+
+  const startIndex = constMatch.index + constMatch[0].length - 1
+  let braceCount = 1
+  let endIndex = startIndex + 1
+
+  while (endIndex < typesContent.length && braceCount > 0) {
+    if (typesContent[endIndex] === '{') braceCount++
+    else if (typesContent[endIndex] === '}') braceCount--
+    endIndex++
+  }
+
+  if (braceCount !== 0) return null
+
+  const constContent = typesContent.substring(startIndex + 1, endIndex - 1).trim()
+
+  // Check if this const defines a complete output field (has type property)
+  const typeMatch = constContent.match(/^\s*type\s*:\s*['"]([^'"]+)['"]/)
+  if (typeMatch) {
+    // This is a complete output definition (like ATTENDEES_OUTPUT)
+    const result = parseConstFieldContent(constContent, toolPrefix, typesContent, depth)
+    if (result) {
+      constResolutionCache.set(cacheKey, result)
+    }
+    return result
+  }
+
+  // This is a properties object (like ATTENDEE_OUTPUT_PROPERTIES)
+  const properties = parseConstProperties(constContent, toolPrefix, typesContent, depth + 1)
+  constResolutionCache.set(cacheKey, properties)
+  return properties
+}
+
+/**
+ * Parse a field content from a const, resolving nested const references.
+ */
+/**
+ * Extract description from field content, handling quoted strings properly.
+ * Handles single quotes, double quotes, and backticks, preserving internal quotes.
+ */
+function extractDescription(fieldContent: string): string | null {
+  // Try single-quoted string (can contain double quotes)
+  const singleQuoteMatch = fieldContent.match(/description\s*:\s*'([^']*)'/)
+  if (singleQuoteMatch) return singleQuoteMatch[1]
+
+  // Try double-quoted string (can contain single quotes)
+  const doubleQuoteMatch = fieldContent.match(/description\s*:\s*"([^"]*)"/)
+  if (doubleQuoteMatch) return doubleQuoteMatch[1]
+
+  // Try backtick string
+  const backtickMatch = fieldContent.match(/description\s*:\s*`([^`]*)`/)
+  if (backtickMatch) return backtickMatch[1]
+
+  return null
+}
+
+function parseConstFieldContent(
+  fieldContent: string,
+  toolPrefix: string,
+  typesContent: string,
+  depth: number
+): any {
+  const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
+  const description = extractDescription(fieldContent)
+
+  if (!typeMatch) return null
+
+  const fieldType = typeMatch[1]
+
+  const result: any = {
+    type: fieldType,
+    description: description || '',
+  }
+
+  // Check for properties - either inline or const reference
+  if (fieldType === 'object' || fieldType === 'json') {
+    // Check for const reference first
+    const propsConstMatch = fieldContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+    if (propsConstMatch) {
+      const resolvedProps = resolveConstFromTypesContent(
+        propsConstMatch[1],
+        typesContent,
+        toolPrefix,
+        depth + 1
+      )
+      if (resolvedProps) {
+        result.properties = resolvedProps
+      }
+    } else {
+      // Check for inline properties
+      const propertiesStart = fieldContent.search(/properties\s*:\s*\{/)
+      if (propertiesStart !== -1) {
+        const braceStart = fieldContent.indexOf('{', propertiesStart)
+        let braceCount = 1
+        let braceEnd = braceStart + 1
+
+        while (braceEnd < fieldContent.length && braceCount > 0) {
+          if (fieldContent[braceEnd] === '{') braceCount++
+          else if (fieldContent[braceEnd] === '}') braceCount--
+          braceEnd++
+        }
+
+        if (braceCount === 0) {
+          const propertiesContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
+          result.properties = parseConstProperties(
+            propertiesContent,
+            toolPrefix,
+            typesContent,
+            depth + 1
+          )
+        }
+      }
+    }
+  }
+
+  // Check for items (arrays)
+  const itemsConstMatch = fieldContent.match(/items\s*:\s*([A-Z][A-Z_0-9]+)/)
+  if (itemsConstMatch) {
+    const resolvedItems = resolveConstFromTypesContent(
+      itemsConstMatch[1],
+      typesContent,
+      toolPrefix,
+      depth + 1
+    )
+    if (resolvedItems) {
+      result.items = resolvedItems
+    }
+  } else {
+    const itemsStart = fieldContent.search(/items\s*:\s*\{/)
+    if (itemsStart !== -1) {
+      const braceStart = fieldContent.indexOf('{', itemsStart)
+      let braceCount = 1
+      let braceEnd = braceStart + 1
+
+      while (braceEnd < fieldContent.length && braceCount > 0) {
+        if (fieldContent[braceEnd] === '{') braceCount++
+        else if (fieldContent[braceEnd] === '}') braceCount--
+        braceEnd++
+      }
+
+      if (braceCount === 0) {
+        const itemsContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
+        const itemsType = itemsContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
+        const itemsDesc = extractDescription(itemsContent)
+
+        result.items = {
+          type: itemsType ? itemsType[1] : 'object',
+          description: itemsDesc || '',
+        }
+
+        // Check for properties in items - either inline or const reference
+        const itemsPropsConstMatch = itemsContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+        if (itemsPropsConstMatch) {
+          const resolvedProps = resolveConstFromTypesContent(
+            itemsPropsConstMatch[1],
+            typesContent,
+            toolPrefix,
+            depth + 1
+          )
+          if (resolvedProps) {
+            result.items.properties = resolvedProps
+          }
+        } else {
+          const itemsPropsStart = itemsContent.search(/properties\s*:\s*\{/)
+          if (itemsPropsStart !== -1) {
+            const propsBraceStart = itemsContent.indexOf('{', itemsPropsStart)
+            let propsBraceCount = 1
+            let propsBraceEnd = propsBraceStart + 1
+
+            while (propsBraceEnd < itemsContent.length && propsBraceCount > 0) {
+              if (itemsContent[propsBraceEnd] === '{') propsBraceCount++
+              else if (itemsContent[propsBraceEnd] === '}') propsBraceCount--
+              propsBraceEnd++
+            }
+
+            if (propsBraceCount === 0) {
+              const itemsPropsContent = itemsContent
+                .substring(propsBraceStart + 1, propsBraceEnd - 1)
+                .trim()
+              result.items.properties = parseConstProperties(
+                itemsPropsContent,
+                toolPrefix,
+                typesContent,
+                depth + 1
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return result
 }
 
 function extractToolInfo(
@@ -803,9 +1243,42 @@ function extractToolInfo(
       let paramMatch
       const paramPositions: Array<{ name: string; start: number; content: string }> = []
 
+      /**
+       * Checks if a position in the string is inside a quoted string.
+       * This prevents matching patterns like "Example: {" inside description strings.
+       */
+      const isInsideString = (content: string, position: number): boolean => {
+        let inSingleQuote = false
+        let inDoubleQuote = false
+        let inBacktick = false
+
+        for (let i = 0; i < position; i++) {
+          const char = content[i]
+          const prevChar = i > 0 ? content[i - 1] : ''
+
+          // Skip escaped quotes
+          if (prevChar === '\\') continue
+
+          if (char === "'" && !inDoubleQuote && !inBacktick) {
+            inSingleQuote = !inSingleQuote
+          } else if (char === '"' && !inSingleQuote && !inBacktick) {
+            inDoubleQuote = !inDoubleQuote
+          } else if (char === '`' && !inSingleQuote && !inDoubleQuote) {
+            inBacktick = !inBacktick
+          }
+        }
+
+        return inSingleQuote || inDoubleQuote || inBacktick
+      }
+
       while ((paramMatch = paramBlocksRegex.exec(paramsContent)) !== null) {
         const paramName = paramMatch[1]
         const startPos = paramMatch.index + paramMatch[0].length - 1
+
+        // Skip matches that are inside string literals (e.g., "Example: {" in descriptions)
+        if (isInsideString(paramsContent, paramMatch.index)) {
+          continue
+        }
 
         let braceCount = 1
         let endPos = startPos + 1
@@ -858,22 +1331,40 @@ function extractToolInfo(
       }
     }
 
+    // Get the tool prefix for resolving const references
+    const toolPrefix = getToolPrefixFromName(toolName)
+
     let outputs: Record<string, any> = {}
-    // Use word boundary to avoid matching 'run_outputs' or similar param names
-    const outputsStart = toolContent.search(/(?<![a-zA-Z_])outputs\s*:\s*{/)
-    if (outputsStart !== -1) {
-      const openBracePos = toolContent.indexOf('{', outputsStart)
-      if (openBracePos !== -1) {
-        let braceCount = 1
-        let pos = openBracePos + 1
-        while (pos < toolContent.length && braceCount > 0) {
-          if (toolContent[pos] === '{') braceCount++
-          else if (toolContent[pos] === '}') braceCount--
-          pos++
-        }
-        if (braceCount === 0) {
-          const outputsContent = toolContent.substring(openBracePos + 1, pos - 1).trim()
-          outputs = parseToolOutputsField(outputsContent)
+
+    // Pattern 1: outputs directly assigned to a const (e.g., "outputs: GIT_REF_OUTPUT_PROPERTIES,")
+    const directConstMatch = toolContent.match(
+      /(?<![a-zA-Z_])outputs\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|\}|$)/
+    )
+    if (directConstMatch) {
+      const constName = directConstMatch[1]
+      const resolvedConst = resolveConstReference(constName, toolPrefix)
+      if (resolvedConst && typeof resolvedConst === 'object') {
+        outputs = resolvedConst
+      }
+    }
+
+    // Pattern 2: outputs is an object with properties (e.g., "outputs: { ... }")
+    if (Object.keys(outputs).length === 0) {
+      const outputsStart = toolContent.search(/(?<![a-zA-Z_])outputs\s*:\s*{/)
+      if (outputsStart !== -1) {
+        const openBracePos = toolContent.indexOf('{', outputsStart)
+        if (openBracePos !== -1) {
+          let braceCount = 1
+          let pos = openBracePos + 1
+          while (pos < toolContent.length && braceCount > 0) {
+            if (toolContent[pos] === '{') braceCount++
+            else if (toolContent[pos] === '}') braceCount--
+            pos++
+          }
+          if (braceCount === 0) {
+            const outputsContent = toolContent.substring(openBracePos + 1, pos - 1).trim()
+            outputs = parseToolOutputsField(outputsContent, toolPrefix)
+          }
         }
       }
     }
@@ -917,18 +1408,18 @@ function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): s
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
 
+    // Build prefix based on indent level - each level adds 2 spaces before the arrow
     let prefix = ''
-    if (indentLevel === 1) {
-      prefix = '↳ '
-    } else if (indentLevel >= 2) {
-      prefix = '  ↳ '
+    if (indentLevel > 0) {
+      const spaces = '  '.repeat(indentLevel)
+      prefix = `${spaces}↳ `
     }
 
     if (typeof output === 'object' && output !== null && output.type === 'array') {
       result += `| ${prefix}\`${key}\` | ${type} | ${escapedDescription} |\n`
 
       if (output.items?.properties) {
-        const arrayItemsResult = formatOutputStructure(output.items.properties, indentLevel + 2)
+        const arrayItemsResult = formatOutputStructure(output.items.properties, indentLevel + 1)
         result += arrayItemsResult
       }
     } else if (
@@ -949,8 +1440,81 @@ function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): s
   return result
 }
 
-function parseToolOutputsField(outputsContent: string): Record<string, any> {
+function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Record<string, any> {
   const outputs: Record<string, any> = {}
+
+  // First, handle top-level const references
+  // Patterns: "data: BOOKING_DATA_OUTPUT_PROPERTIES" or "pagination: PAGINATION_OUTPUT"
+  if (toolPrefix) {
+    // Pattern 1: Direct const reference
+    const constRefRegex = /(\w+)\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|$)/g
+    let constMatch
+    while ((constMatch = constRefRegex.exec(outputsContent)) !== null) {
+      const propName = constMatch[1]
+      const constName = constMatch[2]
+
+      // Check if at depth 0
+      const beforeMatch = outputsContent.substring(0, constMatch.index)
+      const openBraces = (beforeMatch.match(/\{/g) || []).length
+      const closeBraces = (beforeMatch.match(/\}/g) || []).length
+      if (openBraces !== closeBraces) {
+        continue
+      }
+
+      const resolvedConst = resolveConstReference(constName, toolPrefix)
+      if (resolvedConst) {
+        outputs[propName] = resolvedConst
+      }
+    }
+
+    // Pattern 2: Property access on const (e.g., "status: BOOKING_DATA_OUTPUT_PROPERTIES.status,")
+    const propAccessRegex = /(\w+)\s*:\s*([A-Z][A-Z_0-9]+)\.(\w+)\s*(?:,|$)/g
+    let propAccessMatch
+    while ((propAccessMatch = propAccessRegex.exec(outputsContent)) !== null) {
+      const propName = propAccessMatch[1]
+      const constName = propAccessMatch[2]
+      const accessedProp = propAccessMatch[3]
+
+      // Skip if already resolved
+      if (outputs[propName]) {
+        continue
+      }
+
+      // Check if at depth 0
+      const beforeMatch = outputsContent.substring(0, propAccessMatch.index)
+      const openBraces = (beforeMatch.match(/\{/g) || []).length
+      const closeBraces = (beforeMatch.match(/\}/g) || []).length
+      if (openBraces !== closeBraces) {
+        continue
+      }
+
+      const resolvedConst = resolveConstReference(constName, toolPrefix)
+      if (resolvedConst?.[accessedProp]) {
+        outputs[propName] = resolvedConst[accessedProp]
+      }
+    }
+
+    // Pattern 3: Spread operator (e.g., "...COMMENT_OUTPUT_PROPERTIES,")
+    const spreadRegex = /\.\.\.([A-Z][A-Z_0-9]+)\s*(?:,|$)/g
+    let spreadMatch
+    while ((spreadMatch = spreadRegex.exec(outputsContent)) !== null) {
+      const constName = spreadMatch[1]
+
+      // Check if at depth 0 (not inside nested braces)
+      const beforeMatch = outputsContent.substring(0, spreadMatch.index)
+      const openBraces = (beforeMatch.match(/\{/g) || []).length
+      const closeBraces = (beforeMatch.match(/\}/g) || []).length
+      if (openBraces !== closeBraces) {
+        continue
+      }
+
+      const resolvedConst = resolveConstReference(constName, toolPrefix)
+      if (resolvedConst && typeof resolvedConst === 'object') {
+        // Spread all properties from the resolved const
+        Object.assign(outputs, resolvedConst)
+      }
+    }
+  }
 
   const braces: Array<{ type: 'open' | 'close'; pos: number; level: number }> = []
   for (let i = 0; i < outputsContent.length; i++) {
@@ -980,6 +1544,11 @@ function parseToolOutputsField(outputsContent: string): Record<string, any> {
     const fieldName = match[1]
     const bracePos = match.index + match[0].length - 1
 
+    // Skip if already resolved as const reference
+    if (outputs[fieldName]) {
+      continue
+    }
+
     const openBrace = braces.find((b) => b.type === 'open' && b.pos === bracePos)
     if (openBrace) {
       let braceCount = 1
@@ -1008,7 +1577,7 @@ function parseToolOutputsField(outputsContent: string): Record<string, any> {
   topLevelFields.forEach((field) => {
     const fieldContent = outputsContent.substring(field.start + 1, field.end - 1).trim()
 
-    const parsedField = parseFieldContent(fieldContent)
+    const parsedField = parseFieldContent(fieldContent, toolPrefix)
     if (parsedField) {
       outputs[field.name] = parsedField
     }
@@ -1017,26 +1586,81 @@ function parseToolOutputsField(outputsContent: string): Record<string, any> {
   return outputs
 }
 
-function parseFieldContent(fieldContent: string): any {
+function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
   const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
-  const descMatch = fieldContent.match(/description\s*:\s*['"`]([^'"`\n]+)['"`]/)
+  const description = extractDescription(fieldContent)
+
+  // Check for spread operator at the start of field content (e.g., ...SUBSCRIPTION_OUTPUT)
+  // This pattern is used when a field spreads a complete output definition and optionally overrides properties
+  const spreadMatch = fieldContent.match(/^\s*\.\.\.([A-Z][A-Z_0-9]+)\s*,/)
+  if (spreadMatch && toolPrefix && !typeMatch) {
+    const constName = spreadMatch[1]
+    const resolvedConst = resolveConstReference(constName, toolPrefix)
+    if (resolvedConst && typeof resolvedConst === 'object') {
+      // Start with the resolved const and override with inline properties
+      const result: any = { ...resolvedConst }
+      // Override description if provided inline
+      if (description) {
+        result.description = description
+      }
+      return result
+    }
+  }
 
   if (!typeMatch) return null
 
   const fieldType = typeMatch[1]
-  const description = descMatch ? descMatch[1] : ''
 
   const result: any = {
     type: fieldType,
-    description: description,
+    description: description || '',
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
-    const propertiesRegex = /properties\s*:\s*{/
-    const propertiesStart = fieldContent.search(propertiesRegex)
+    // Check for const reference first (e.g., properties: SCHEDULE_DATA_OUTPUT_PROPERTIES)
+    const propsConstMatch = fieldContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+    if (propsConstMatch && toolPrefix) {
+      const resolvedProps = resolveConstReference(propsConstMatch[1], toolPrefix)
+      if (resolvedProps) {
+        result.properties = resolvedProps
+      }
+    } else {
+      // Check for inline properties
+      const propertiesRegex = /properties\s*:\s*{/
+      const propertiesStart = fieldContent.search(propertiesRegex)
 
-    if (propertiesStart !== -1) {
-      const braceStart = fieldContent.indexOf('{', propertiesStart)
+      if (propertiesStart !== -1) {
+        const braceStart = fieldContent.indexOf('{', propertiesStart)
+        let braceCount = 1
+        let braceEnd = braceStart + 1
+
+        while (braceEnd < fieldContent.length && braceCount > 0) {
+          if (fieldContent[braceEnd] === '{') braceCount++
+          else if (fieldContent[braceEnd] === '}') braceCount--
+          braceEnd++
+        }
+
+        if (braceCount === 0) {
+          const propertiesContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
+          result.properties = parsePropertiesContent(propertiesContent, toolPrefix)
+        }
+      }
+    }
+  }
+
+  // Check for items const reference (e.g., items: ATTENDEES_OUTPUT)
+  const itemsConstMatch = fieldContent.match(/items\s*:\s*([A-Z][A-Z_0-9]+)/)
+  if (itemsConstMatch && toolPrefix) {
+    const resolvedItems = resolveConstReference(itemsConstMatch[1], toolPrefix)
+    if (resolvedItems) {
+      result.items = resolvedItems
+    }
+  } else {
+    const itemsRegex = /items\s*:\s*{/
+    const itemsStart = fieldContent.search(itemsRegex)
+
+    if (itemsStart !== -1) {
+      const braceStart = fieldContent.indexOf('{', itemsStart)
       let braceCount = 1
       let braceEnd = braceStart + 1
 
@@ -1047,59 +1671,54 @@ function parseFieldContent(fieldContent: string): any {
       }
 
       if (braceCount === 0) {
-        const propertiesContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
-        result.properties = parsePropertiesContent(propertiesContent)
-      }
-    }
-  }
+        const itemsContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
+        const itemsType = itemsContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
 
-  const itemsRegex = /items\s*:\s*{/
-  const itemsStart = fieldContent.search(itemsRegex)
+        // Check for inline properties FIRST (properties: {), then const reference
+        const propertiesInlineStart = itemsContent.search(/properties\s*:\s*{/)
+        // Only match const reference if it's at the TOP level (before any {)
+        const itemsPropsConstMatch =
+          propertiesInlineStart === -1
+            ? itemsContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+            : null
+        const searchContent =
+          propertiesInlineStart >= 0
+            ? itemsContent.substring(0, propertiesInlineStart)
+            : itemsContent
+        const itemsDesc = extractDescription(searchContent)
 
-  if (itemsStart !== -1) {
-    const braceStart = fieldContent.indexOf('{', itemsStart)
-    let braceCount = 1
-    let braceEnd = braceStart + 1
-
-    while (braceEnd < fieldContent.length && braceCount > 0) {
-      if (fieldContent[braceEnd] === '{') braceCount++
-      else if (fieldContent[braceEnd] === '}') braceCount--
-      braceEnd++
-    }
-
-    if (braceCount === 0) {
-      const itemsContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
-      const itemsType = itemsContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
-
-      const propertiesStart = itemsContent.search(/properties\s*:\s*{/)
-      const searchContent =
-        propertiesStart >= 0 ? itemsContent.substring(0, propertiesStart) : itemsContent
-      const itemsDesc = searchContent.match(/description\s*:\s*['"`]([^'"`\n]+)['"`]/)
-
-      result.items = {
-        type: itemsType ? itemsType[1] : 'object',
-        description: itemsDesc ? itemsDesc[1] : '',
-      }
-
-      const itemsPropertiesRegex = /properties\s*:\s*{/
-      const itemsPropsStart = itemsContent.search(itemsPropertiesRegex)
-
-      if (itemsPropsStart !== -1) {
-        const propsBraceStart = itemsContent.indexOf('{', itemsPropsStart)
-        let propsBraceCount = 1
-        let propsBraceEnd = propsBraceStart + 1
-
-        while (propsBraceEnd < itemsContent.length && propsBraceCount > 0) {
-          if (itemsContent[propsBraceEnd] === '{') propsBraceCount++
-          else if (itemsContent[propsBraceEnd] === '}') propsBraceCount--
-          propsBraceEnd++
+        result.items = {
+          type: itemsType ? itemsType[1] : 'object',
+          description: itemsDesc || '',
         }
 
-        if (propsBraceCount === 0) {
-          const itemsPropsContent = itemsContent
-            .substring(propsBraceStart + 1, propsBraceEnd - 1)
-            .trim()
-          result.items.properties = parsePropertiesContent(itemsPropsContent)
+        if (itemsPropsConstMatch && toolPrefix) {
+          const resolvedProps = resolveConstReference(itemsPropsConstMatch[1], toolPrefix)
+          if (resolvedProps) {
+            result.items.properties = resolvedProps
+          }
+        } else if (propertiesInlineStart !== -1) {
+          const itemsPropertiesRegex = /properties\s*:\s*{/
+          const itemsPropsStart = itemsContent.search(itemsPropertiesRegex)
+
+          if (itemsPropsStart !== -1) {
+            const propsBraceStart = itemsContent.indexOf('{', itemsPropsStart)
+            let propsBraceCount = 1
+            let propsBraceEnd = propsBraceStart + 1
+
+            while (propsBraceEnd < itemsContent.length && propsBraceCount > 0) {
+              if (itemsContent[propsBraceEnd] === '{') propsBraceCount++
+              else if (itemsContent[propsBraceEnd] === '}') propsBraceCount--
+              propsBraceEnd++
+            }
+
+            if (propsBraceCount === 0) {
+              const itemsPropsContent = itemsContent
+                .substring(propsBraceStart + 1, propsBraceEnd - 1)
+                .trim()
+              result.items.properties = parsePropertiesContent(itemsPropsContent, toolPrefix)
+            }
+          }
         }
       }
     }
@@ -1108,8 +1727,94 @@ function parseFieldContent(fieldContent: string): any {
   return result
 }
 
-function parsePropertiesContent(propertiesContent: string): Record<string, any> {
+function parsePropertiesContent(
+  propertiesContent: string,
+  toolPrefix?: string
+): Record<string, any> {
   const properties: Record<string, any> = {}
+
+  // First, handle const references at the property level
+  // Patterns: "attendees: ATTENDEES_OUTPUT" or "id: BOOKING_DATA_OUTPUT_PROPERTIES.id"
+  if (toolPrefix) {
+    // Pattern 1: Direct const reference (e.g., "eventType: EVENT_TYPE_OUTPUT,")
+    const constRefRegex = /(\w+)\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|$)/g
+    let constMatch
+    while ((constMatch = constRefRegex.exec(propertiesContent)) !== null) {
+      const propName = constMatch[1]
+      const constName = constMatch[2]
+
+      // Skip keywords
+      if (propName === 'items' || propName === 'properties' || propName === 'type') {
+        continue
+      }
+
+      // Check if at depth 0
+      const beforeMatch = propertiesContent.substring(0, constMatch.index)
+      const openBraces = (beforeMatch.match(/\{/g) || []).length
+      const closeBraces = (beforeMatch.match(/\}/g) || []).length
+      if (openBraces !== closeBraces) {
+        continue
+      }
+
+      const resolvedConst = resolveConstReference(constName, toolPrefix)
+      if (resolvedConst) {
+        properties[propName] = resolvedConst
+      }
+    }
+
+    // Pattern 2: Property access on const (e.g., "id: BOOKING_DATA_OUTPUT_PROPERTIES.id,")
+    const propAccessRegex = /(\w+)\s*:\s*([A-Z][A-Z_0-9]+)\.(\w+)\s*(?:,|$)/g
+    let propAccessMatch
+    while ((propAccessMatch = propAccessRegex.exec(propertiesContent)) !== null) {
+      const propName = propAccessMatch[1]
+      const constName = propAccessMatch[2]
+      const accessedProp = propAccessMatch[3]
+
+      // Skip keywords
+      if (propName === 'items' || propName === 'properties' || propName === 'type') {
+        continue
+      }
+
+      // Skip if already resolved
+      if (properties[propName]) {
+        continue
+      }
+
+      // Check if at depth 0
+      const beforeMatch = propertiesContent.substring(0, propAccessMatch.index)
+      const openBraces = (beforeMatch.match(/\{/g) || []).length
+      const closeBraces = (beforeMatch.match(/\}/g) || []).length
+      if (openBraces !== closeBraces) {
+        continue
+      }
+
+      const resolvedConst = resolveConstReference(constName, toolPrefix)
+      if (resolvedConst?.[accessedProp]) {
+        properties[propName] = resolvedConst[accessedProp]
+      }
+    }
+
+    // Pattern 3: Spread operator (e.g., "...COMMENT_OUTPUT_PROPERTIES,")
+    const spreadRegex = /\.\.\.([A-Z][A-Z_0-9]+)\s*(?:,|$)/g
+    let spreadMatch
+    while ((spreadMatch = spreadRegex.exec(propertiesContent)) !== null) {
+      const constName = spreadMatch[1]
+
+      // Check if at depth 0
+      const beforeMatch = propertiesContent.substring(0, spreadMatch.index)
+      const openBraces = (beforeMatch.match(/\{/g) || []).length
+      const closeBraces = (beforeMatch.match(/\}/g) || []).length
+      if (openBraces !== closeBraces) {
+        continue
+      }
+
+      const resolvedConst = resolveConstReference(constName, toolPrefix)
+      if (resolvedConst && typeof resolvedConst === 'object') {
+        // Spread all properties from the resolved const
+        Object.assign(properties, resolvedConst)
+      }
+    }
+  }
 
   const propStartRegex = /(\w+)\s*:\s*{/g
   let match
@@ -1120,6 +1825,20 @@ function parsePropertiesContent(propertiesContent: string): Record<string, any> 
 
     if (propName === 'items' || propName === 'properties') {
       continue
+    }
+
+    // Skip if already resolved as const reference
+    if (properties[propName]) {
+      continue
+    }
+
+    // Check if this match is at depth 0 (not inside nested braces)
+    // Only process top-level properties, skip nested ones
+    const beforeMatch = propertiesContent.substring(0, match.index)
+    const openBraces = (beforeMatch.match(/{/g) || []).length
+    const closeBraces = (beforeMatch.match(/}/g) || []).length
+    if (openBraces !== closeBraces) {
+      continue // Skip - this is a nested property
     }
 
     const startPos = match.index + match[0].length - 1
@@ -1140,8 +1859,8 @@ function parsePropertiesContent(propertiesContent: string): Record<string, any> 
       const propContent = propertiesContent.substring(startPos + 1, endPos - 1).trim()
 
       const hasDescription = /description\s*:\s*/.test(propContent)
-      const hasProperties = /properties\s*:\s*{/.test(propContent)
-      const hasItems = /items\s*:\s*{/.test(propContent)
+      const hasProperties = /properties\s*:\s*[{A-Z]/.test(propContent)
+      const hasItems = /items\s*:\s*[{A-Z]/.test(propContent)
       const isTypeOnly =
         !hasDescription &&
         !hasProperties &&
@@ -1159,7 +1878,7 @@ function parsePropertiesContent(propertiesContent: string): Record<string, any> 
   }
 
   propPositions.forEach((prop) => {
-    const parsedProp = parseFieldContent(prop.content)
+    const parsedProp = parseFieldContent(prop.content, toolPrefix)
     if (parsedProp) {
       properties[prop.name] = parsedProp
     }

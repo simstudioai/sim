@@ -23,13 +23,13 @@ export const trelloListCardsTool: ToolConfig<TrelloListCardsParams, TrelloListCa
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the board to list cards from',
+      description: 'Trello board ID (24-character hex string)',
     },
     listId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional: Filter cards by list ID',
+      description: 'Trello list ID to filter cards (24-character hex string)',
     },
   },
 

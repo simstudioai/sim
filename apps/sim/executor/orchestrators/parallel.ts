@@ -61,11 +61,13 @@ export class ParallelOrchestrator {
 
     let items: any[] | undefined
     let branchCount: number
+    let isEmpty = false
 
     try {
-      const resolved = this.resolveBranchCount(ctx, parallelConfig)
+      const resolved = this.resolveBranchCount(ctx, parallelConfig, parallelId)
       branchCount = resolved.branchCount
       items = resolved.items
+      isEmpty = resolved.isEmpty ?? false
     } catch (error) {
       const errorMessage = `Parallel Items did not resolve: ${error instanceof Error ? error.message : String(error)}`
       logger.error(errorMessage, { parallelId, distribution: parallelConfig.distribution })
@@ -89,6 +91,34 @@ export class ParallelOrchestrator {
       })
       this.setErrorScope(ctx, parallelId, branchError)
       throw new Error(branchError)
+    }
+
+    // Handle empty distribution - skip parallel body
+    if (isEmpty || branchCount === 0) {
+      const scope: ParallelScope = {
+        parallelId,
+        totalBranches: 0,
+        branchOutputs: new Map(),
+        completedCount: 0,
+        totalExpectedNodes: 0,
+        items: [],
+        isEmpty: true,
+      }
+
+      if (!ctx.parallelExecutions) {
+        ctx.parallelExecutions = new Map()
+      }
+      ctx.parallelExecutions.set(parallelId, scope)
+
+      // Set empty output for the parallel
+      this.state.setBlockOutput(parallelId, { results: [] })
+
+      logger.info('Parallel scope initialized with empty distribution, skipping body', {
+        parallelId,
+        branchCount: 0,
+      })
+
+      return scope
     }
 
     const { entryNodes } = this.expander.expandParallel(this.dag, parallelId, branchCount, items)
@@ -127,15 +157,17 @@ export class ParallelOrchestrator {
 
   private resolveBranchCount(
     ctx: ExecutionContext,
-    config: SerializedParallel
-  ): { branchCount: number; items?: any[] } {
+    config: SerializedParallel,
+    parallelId: string
+  ): { branchCount: number; items?: any[]; isEmpty?: boolean } {
     if (config.parallelType === 'count') {
       return { branchCount: config.count ?? 1 }
     }
 
     const items = this.resolveDistributionItems(ctx, config)
     if (items.length === 0) {
-      return { branchCount: config.count ?? 1 }
+      logger.info('Parallel has empty distribution, skipping parallel body', { parallelId })
+      return { branchCount: 0, items: [], isEmpty: true }
     }
 
     return { branchCount: items.length, items }
@@ -228,9 +260,20 @@ export class ParallelOrchestrator {
       const branchOutputs = scope.branchOutputs.get(i) || []
       results.push(branchOutputs)
     }
-    this.state.setBlockOutput(parallelId, {
-      results,
-    })
+    const output = { results }
+    this.state.setBlockOutput(parallelId, output)
+
+    // Emit onBlockComplete for the parallel container so the UI can track it
+    if (this.contextExtensions?.onBlockComplete) {
+      const now = new Date().toISOString()
+      this.contextExtensions.onBlockComplete(parallelId, 'Parallel', 'parallel', {
+        output,
+        executionTime: 0,
+        startedAt: now,
+        endedAt: now,
+      })
+    }
+
     return {
       allBranchesComplete: true,
       results,

@@ -5,7 +5,6 @@ import { createLogger } from '@sim/logger'
 import { Check, Clipboard } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
-  Badge,
   Button,
   ButtonGroup,
   ButtonGroupItem,
@@ -883,14 +882,13 @@ console.log(data);`
                 <code className='text-[10px]'>&lt;start.files&gt;</code>.
               </p>
               {missingFields.any && (
-                <Badge
-                  variant='outline'
-                  className='flex-none cursor-pointer whitespace-nowrap rounded-[6px]'
+                <div
+                  className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-[2px] font-medium font-sans text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-7)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]'
                   title='Add required A2A input fields to Start block'
                   onClick={handleAddA2AInputs}
                 >
-                  <span className='whitespace-nowrap text-[12px]'>Add inputs</span>
-                </Badge>
+                  <span className='whitespace-nowrap'>Add inputs</span>
+                </div>
               )}
             </div>
           </div>

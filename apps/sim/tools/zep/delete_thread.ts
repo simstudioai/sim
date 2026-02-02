@@ -1,7 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 
-// Delete Thread Tool - Delete a thread (Zep v3)
 export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_delete_thread',
   name: 'Delete Thread',
@@ -12,8 +11,8 @@ export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Thread ID to delete',
+      visibility: 'user-or-llm',
+      description: 'Thread ID to delete (e.g., "thread_abc123")',
     },
     apiKey: {
       type: 'string',

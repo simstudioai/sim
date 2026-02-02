@@ -32,19 +32,19 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     projectId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Jira project ID (optional; not required to retrieve a single issue).',
+      visibility: 'user-or-llm',
+      description: 'Jira project key (e.g., PROJ). Optional when retrieving a single issue.',
     },
     issueKey: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Jira issue key to retrieve (e.g., PROJ-123)',
     },
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },

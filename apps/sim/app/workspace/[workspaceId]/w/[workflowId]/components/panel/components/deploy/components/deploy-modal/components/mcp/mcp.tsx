@@ -15,7 +15,7 @@ import {
 import { Skeleton } from '@/components/ui'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
-import { isValidStartBlockType } from '@/lib/workflows/triggers/start-block-types'
+import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import {
   useAddWorkflowMcpTool,
@@ -107,7 +107,7 @@ export function McpDeploy({
     for (const [blockId, block] of Object.entries(blocks)) {
       if (!block || typeof block !== 'object') continue
       const blockType = (block as { type?: string }).type
-      if (blockType && isValidStartBlockType(blockType)) {
+      if (blockType && isInputDefinitionTrigger(blockType)) {
         return blockId
       }
     }
@@ -435,7 +435,7 @@ export function McpDeploy({
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <p className='text-[13px] text-[var(--text-muted)]'>
-          Create an MCP Server in Settings → Deployed MCPs first.
+          Create an MCP Server in Settings → MCP Servers first.
         </p>
         <Button
           variant='tertiary'
@@ -511,7 +511,9 @@ export function McpDeploy({
                     <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
                       {field.name}
                     </span>
-                    <Badge size='sm'>{field.type}</Badge>
+                    <Badge variant='type' size='sm'>
+                      {field.type}
+                    </Badge>
                   </div>
                 </div>
                 <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>

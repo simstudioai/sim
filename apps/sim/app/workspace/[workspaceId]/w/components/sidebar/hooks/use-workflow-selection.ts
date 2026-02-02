@@ -24,7 +24,8 @@ export function useWorkflowSelection({ workflowIds, activeWorkflowId }: UseWorkf
   const { selectedWorkflows, selectOnly, selectRange, toggleWorkflowSelection } = useFolderStore()
 
   /**
-   * Handle workflow click with support for shift-click range selection and cmd/ctrl-click toggle
+   * Handle workflow click with support for shift-click range selection and cmd/ctrl-click toggle.
+   * Does not clear folder selection to allow unified selection of workflows and folders.
    *
    * @param workflowId - ID of clicked workflow
    * @param shiftKey - Whether shift key was pressed
@@ -44,7 +45,7 @@ export function useWorkflowSelection({ workflowIds, activeWorkflowId }: UseWorkf
       else if (shiftKey) {
         toggleWorkflowSelection(workflowId)
       }
-      // Regular click: Select only this workflow
+      // Regular click: Select only this workflow (preserves folder selection for unified multi-select)
       else {
         selectOnly(workflowId)
       }

@@ -1,5 +1,9 @@
+import type {
+  SpotifyGetNewReleasesParams,
+  SpotifyGetNewReleasesResponse,
+} from '@/tools/spotify/types'
+import { ALBUM_WITH_ARTISTS_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetNewReleasesParams, SpotifyGetNewReleasesResponse } from './types'
 
 export const spotifyGetNewReleasesTool: ToolConfig<
   SpotifyGetNewReleasesParams,
@@ -20,22 +24,22 @@ export const spotifyGetNewReleasesTool: ToolConfig<
     country: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of releases to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of first release to return',
+      description: 'Index of first release to return for pagination',
     },
   },
 
@@ -81,7 +85,11 @@ export const spotifyGetNewReleasesTool: ToolConfig<
   },
 
   outputs: {
-    albums: { type: 'json', description: 'List of new releases' },
+    albums: {
+      type: 'array',
+      description: 'List of new releases',
+      items: { type: 'object', properties: ALBUM_WITH_ARTISTS_OUTPUT_PROPERTIES },
+    },
     total: { type: 'number', description: 'Total number of new releases' },
     next: { type: 'string', description: 'URL for next page', optional: true },
   },

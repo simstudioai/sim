@@ -29,6 +29,7 @@ export type SelectorKey =
   | 'webflow.sites'
   | 'webflow.collections'
   | 'webflow.items'
+  | 'sim.workflows'
 
 export interface SelectorOption {
   id: string
@@ -52,6 +53,7 @@ export interface SelectorContext {
   siteId?: string
   collectionId?: string
   spreadsheetId?: string
+  excludeWorkflowId?: string
 }
 
 export interface SelectorQueryArgs {

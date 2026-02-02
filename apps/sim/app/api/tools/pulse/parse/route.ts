@@ -1,11 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { StorageService } from '@/lib/uploads'
-import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import {
+  extractStorageKey,
+  inferContextFromKey,
+  isInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +31,7 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Pulse parse attempt`, {
@@ -48,13 +52,13 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Pulse parse request`, {
       filePath: validatedData.filePath,
-      isWorkspaceFile: validatedData.filePath.includes('/api/files/serve/'),
+      isWorkspaceFile: isInternalFileUrl(validatedData.filePath),
       userId,
     })
 
     let fileUrl = validatedData.filePath
 
-    if (validatedData.filePath?.includes('/api/files/serve/')) {
+    if (isInternalFileUrl(validatedData.filePath)) {
       try {
         const storageKey = extractStorageKey(validatedData.filePath)
         const context = inferContextFromKey(storageKey)

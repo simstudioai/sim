@@ -257,9 +257,11 @@ export const bedrockProvider: ProviderConfig = {
 
     const systemPromptWithSchema = systemContent
 
-    const inferenceConfig = {
+    const inferenceConfig: { temperature: number; maxTokens?: number } = {
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
-      maxTokens: Number.parseInt(String(request.maxTokens)) || 4096,
+    }
+    if (request.maxTokens != null) {
+      inferenceConfig.maxTokens = Number.parseInt(String(request.maxTokens))
     }
 
     const shouldStreamToolCalls = request.streamToolCalls ?? false
@@ -481,7 +483,7 @@ export const bedrockProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, true)
+            const result = await executeTool(toolName, executionParams)
             const toolCallEndTime = Date.now()
 
             return {

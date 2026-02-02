@@ -688,7 +688,7 @@ export function AccessControl() {
             )}
           </div>
 
-          <div className='flex items-center justify-between rounded-[8px] border border-[var(--border)] px-[12px] py-[10px]'>
+          <div className='flex items-center justify-between'>
             <div className='flex flex-col gap-[2px]'>
               <span className='font-medium text-[13px] text-[var(--text-primary)]'>
                 Auto-add new members
@@ -705,7 +705,7 @@ export function AccessControl() {
           </div>
 
           <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-[16px]'>
+            <div className='flex flex-col gap-[8px]'>
               <div className='flex items-center justify-between'>
                 <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
                   Members
@@ -1072,7 +1072,7 @@ export function AccessControl() {
           <ModalContent size='sm'>
             <ModalHeader>Unsaved Changes</ModalHeader>
             <ModalBody>
-              <p className='text-[12px] text-[var(--text-tertiary)]'>
+              <p className='text-[12px] text-[var(--text-secondary)]'>
                 You have unsaved changes. Do you want to save them before closing?
               </p>
             </ModalBody>

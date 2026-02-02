@@ -1,3 +1,4 @@
+import { SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyGetAlbumsParams {
@@ -43,8 +44,8 @@ export const spotifyGetAlbumsTool: ToolConfig<SpotifyGetAlbumsParams, SpotifyGet
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO country code for market',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code (e.g., "US", "GB")',
     },
   },
 
@@ -89,6 +90,26 @@ export const spotifyGetAlbumsTool: ToolConfig<SpotifyGetAlbumsParams, SpotifyGet
   },
 
   outputs: {
-    albums: { type: 'json', description: 'List of albums' },
+    albums: {
+      type: 'array',
+      description: 'List of albums',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Spotify album ID' },
+          name: { type: 'string', description: 'Album name' },
+          artists: {
+            type: 'array',
+            description: 'List of artists',
+            items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
+          },
+          album_type: { type: 'string', description: 'Type of album (album, single, compilation)' },
+          total_tracks: { type: 'number', description: 'Total number of tracks' },
+          release_date: { type: 'string', description: 'Release date' },
+          image_url: { type: 'string', description: 'Album cover image URL', optional: true },
+          external_url: { type: 'string', description: 'Spotify URL' },
+        },
+      },
+    },
   },
 }

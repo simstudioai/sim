@@ -5,6 +5,7 @@ import {
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
+import { safeAssign } from '@/tools/safe-assign'
 import { isEmptyTagValue } from '@/tools/shared/tags'
 import type { ParameterVisibility, ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -450,7 +451,7 @@ export async function createLLMToolSchema(
       const enrichedSchema = await enrichmentConfig.enrichSchema(dependencyValue)
 
       if (enrichedSchema) {
-        Object.assign(propertySchema, enrichedSchema)
+        safeAssign(propertySchema, enrichedSchema as Record<string, unknown>)
         schema.properties[paramId] = propertySchema
 
         if (param.required) {
@@ -518,7 +519,7 @@ async function applyDynamicSchemaForWorkflow(
       for (const field of workflowInputFields) {
         propertySchema.properties[field.name] = {
           type: field.type || 'string',
-          description: `Input field: ${field.name}`,
+          description: field.description || `Input field: ${field.name}`,
         }
         propertySchema.required.push(field.name)
       }
@@ -533,11 +534,10 @@ async function applyDynamicSchemaForWorkflow(
 
 /**
  * Fetches workflow input fields from the API.
- * No local caching - relies on React Query caching on the client side.
  */
 async function fetchWorkflowInputFields(
   workflowId: string
-): Promise<Array<{ name: string; type: string }>> {
+): Promise<Array<{ name: string; type: string; description?: string }>> {
   try {
     const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
 

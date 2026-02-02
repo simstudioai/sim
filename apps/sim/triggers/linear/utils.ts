@@ -27,7 +27,7 @@ export const linearTriggerOptions = [
 export function linearSetupInstructions(eventType: string, additionalNotes?: string): string {
   const instructions = [
     '<strong>Note:</strong> You must have admin permissions in your Linear workspace to create webhooks.',
-    'In Linear, navigate to <strong>Settings > Administration > API</strong>.',
+    'In Linear, navigate to <a href="https://linear.app/settings/api" target="_blank" rel="noopener noreferrer">Settings > API</a> (or Settings > Administration > API).',
     'Scroll down to the <strong>Webhooks</strong> section and click <strong>"Create webhook"</strong>.',
     'Paste the <strong>Webhook URL</strong> from above into the URL field.',
     'Optionally, enter the <strong>Webhook Secret</strong> from above into the secret field for added security.',

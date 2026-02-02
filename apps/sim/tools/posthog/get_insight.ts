@@ -44,13 +44,13 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The PostHog project ID',
+      description: 'The PostHog project ID (e.g., "12345" or project UUID)',
     },
     insightId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The insight ID to retrieve',
+      description: 'The insight ID to retrieve (e.g., "42" or short ID like "abc123")',
     },
     region: {
       type: 'string',

@@ -19,6 +19,22 @@ import { trackForcedToolUsage } from '@/providers/utils'
 const logger = createLogger('GoogleUtils')
 
 /**
+ * Ensures a value is a valid object for Gemini's functionResponse.response field.
+ * Gemini's API requires functionResponse.response to be a google.protobuf.Struct,
+ * which must be an object with string keys. Primitive values (boolean, string,
+ * number, null) and arrays are wrapped in { value: ... }.
+ *
+ * @param value - The value to ensure is a Struct-compatible object
+ * @returns A Record<string, unknown> suitable for functionResponse.response
+ */
+export function ensureStructResponse(value: unknown): Record<string, unknown> {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  return { value }
+}
+
+/**
  * Usage metadata for Google Gemini responses
  */
 export interface GeminiUsage {
@@ -107,17 +123,21 @@ export function extractFunctionCallPart(candidate: Candidate | undefined): Part 
 }
 
 /**
- * Converts usage metadata from SDK response to our format
+ * Converts usage metadata from SDK response to our format.
+ * Per Gemini docs, total = promptTokenCount + candidatesTokenCount + toolUsePromptTokenCount + thoughtsTokenCount
+ * We include toolUsePromptTokenCount in input and thoughtsTokenCount in output for correct billing.
  */
 export function convertUsageMetadata(
   usageMetadata: GenerateContentResponseUsageMetadata | undefined
 ): GeminiUsage {
-  const promptTokenCount = usageMetadata?.promptTokenCount ?? 0
-  const candidatesTokenCount = usageMetadata?.candidatesTokenCount ?? 0
+  const thoughtsTokenCount = usageMetadata?.thoughtsTokenCount ?? 0
+  const toolUsePromptTokenCount = usageMetadata?.toolUsePromptTokenCount ?? 0
+  const promptTokenCount = (usageMetadata?.promptTokenCount ?? 0) + toolUsePromptTokenCount
+  const candidatesTokenCount = (usageMetadata?.candidatesTokenCount ?? 0) + thoughtsTokenCount
   return {
     promptTokenCount,
     candidatesTokenCount,
-    totalTokenCount: usageMetadata?.totalTokenCount ?? promptTokenCount + candidatesTokenCount,
+    totalTokenCount: usageMetadata?.totalTokenCount ?? 0,
   }
 }
 
@@ -180,7 +200,8 @@ export function convertToGeminiFormat(request: ProviderRequest): {
         }
         let responseData: Record<string, unknown>
         try {
-          responseData = JSON.parse(message.content ?? '{}')
+          const parsed = JSON.parse(message.content ?? '{}')
+          responseData = ensureStructResponse(parsed)
         } catch {
           responseData = { output: message.content }
         }

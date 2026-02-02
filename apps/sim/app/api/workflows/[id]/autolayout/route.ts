@@ -35,8 +35,7 @@ const AutoLayoutRequestSchema = z.object({
     })
     .optional()
     .default({}),
-  // Optional: if provided, use these blocks instead of loading from DB
-  // This allows using blocks with live measurements from the UI
+  gridSize: z.number().min(0).max(50).optional(),
   blocks: z.record(z.any()).optional(),
   edges: z.array(z.any()).optional(),
   loops: z.record(z.any()).optional(),
@@ -53,7 +52,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id: workflowId } = await params
 
   try {
-    // Get the session
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized autolayout attempt for workflow ${workflowId}`)
@@ -62,7 +60,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const userId = session.user.id
 
-    // Parse request body
     const body = await request.json()
     const layoutOptions = AutoLayoutRequestSchema.parse(body)
 
@@ -70,7 +67,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       userId,
     })
 
-    // Fetch the workflow to check ownership/access
     const accessContext = await getWorkflowAccessContext(workflowId, userId)
     const workflowData = accessContext?.workflow
 
@@ -79,7 +75,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    // Check if user has permission to update this workflow
     const canUpdate =
       accessContext?.isOwner ||
       (workflowData.workspaceId
@@ -94,8 +89,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Use provided blocks/edges if available (with live measurements from UI),
-    // otherwise load from database
     let currentWorkflowData: NormalizedWorkflowData | null
 
     if (layoutOptions.blocks && layoutOptions.edges) {
@@ -125,6 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         y: layoutOptions.padding?.y ?? DEFAULT_LAYOUT_PADDING.y,
       },
       alignment: layoutOptions.alignment,
+      gridSize: layoutOptions.gridSize,
     }
 
     const layoutResult = applyAutoLayout(

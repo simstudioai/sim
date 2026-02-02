@@ -1,4 +1,5 @@
 import type { NotionResponse, NotionUpdatePageParams } from '@/tools/notion/types'
+import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResponse> = {
@@ -22,8 +23,8 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
     pageId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'ID of the page to update',
+      visibility: 'user-or-llm',
+      description: 'The UUID of the Notion page to update',
     },
     properties: {
       type: 'json',
@@ -93,6 +94,16 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
     metadata: {
       type: 'object',
       description: 'Page metadata including title, page ID, URL, and update timestamps',
+      properties: {
+        title: { type: 'string', description: 'Page title' },
+        pageId: PAGE_OUTPUT_PROPERTIES.id,
+        url: PAGE_OUTPUT_PROPERTIES.url,
+        lastEditedTime: PAGE_OUTPUT_PROPERTIES.last_edited_time,
+        updatedTime: {
+          type: 'string',
+          description: 'ISO 8601 timestamp when update was performed',
+        },
+      },
     },
   },
 }
@@ -147,9 +158,9 @@ export const notionUpdatePageV2Tool: ToolConfig<
   },
 
   outputs: {
-    id: { type: 'string', description: 'Page ID' },
+    id: PAGE_OUTPUT_PROPERTIES.id,
     title: { type: 'string', description: 'Page title' },
-    url: { type: 'string', description: 'Page URL' },
-    last_edited_time: { type: 'string', description: 'Last edit timestamp' },
+    url: PAGE_OUTPUT_PROPERTIES.url,
+    last_edited_time: PAGE_OUTPUT_PROPERTIES.last_edited_time,
   },
 }

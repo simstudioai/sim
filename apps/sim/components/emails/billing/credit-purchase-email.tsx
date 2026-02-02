@@ -23,7 +23,7 @@ export function CreditPurchaseEmail({
   const previewText = `${brand.name}: $${amount.toFixed(2)} in credits added to your account`
 
   return (
-    <EmailLayout preview={previewText}>
+    <EmailLayout preview={previewText} showUnsubscribe={false}>
       <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
         {userName ? `Hi ${userName},` : 'Hi,'}
       </Text>

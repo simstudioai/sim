@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('ResponseFormatUtils')
 
-// Type definitions for component data structures
 export interface Field {
   name: string
   type: string

@@ -37,8 +37,8 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     folderSelector: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Select the folder to create the document in',
+      visibility: 'user-or-llm',
+      description: 'Google Drive folder ID to create the document in (e.g., 1ABCxyz...)',
     },
     folderId: {
       type: 'string',

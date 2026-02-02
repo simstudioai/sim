@@ -29,10 +29,10 @@ app:
   # Resource limits and requests
   resources:
     limits:
-      memory: "4Gi"
+      memory: "8Gi"
       cpu: "2000m"
     requests:
-      memory: "2Gi"
+      memory: "4Gi"
       cpu: "1000m"
 
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
@@ -77,7 +77,10 @@ app:
     # Node environment
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
-    
+
+    # Telemetry & Monitoring
+    TELEMETRY_ENDPOINT: ""                                # OTLP endpoint for traces/logs (e.g., "https://otlp-collector:4318/v1/traces")
+
     # Authentication and encryption secrets (REQUIRED for production)
     # Generate secure 32-character secrets using: openssl rand -hex 32
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
@@ -101,8 +104,12 @@ app:
     # OAuth Integration Credentials (leave empty if not using)
     GOOGLE_CLIENT_ID: ""                                  # Google OAuth client ID
     GOOGLE_CLIENT_SECRET: ""                              # Google OAuth client secret
-    GITHUB_CLIENT_ID: ""                                  # GitHub OAuth client ID  
+    GITHUB_CLIENT_ID: ""                                  # GitHub OAuth client ID
     GITHUB_CLIENT_SECRET: ""                              # GitHub OAuth client secret
+
+    # Google Vertex AI Configuration
+    VERTEX_PROJECT: ""                                    # Google Cloud project ID for Vertex AI
+    VERTEX_LOCATION: "us-central1"                        # Google Cloud region for Vertex AI (e.g., "us-central1")
     
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
@@ -118,8 +125,8 @@ app:
     
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
-    RATE_LIMIT_FREE_SYNC: "10"                            # Sync API executions per minute
-    RATE_LIMIT_FREE_ASYNC: "50"                           # Async API executions per minute
+    RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC: "200"                          # Async API executions per minute
     
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
@@ -142,6 +149,15 @@ app:
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS: ""                            # Comma-separated list of allowed email domains for login
+
+    # Admin API Configuration
+    ADMIN_API_KEY: ""                                    # Admin API key for organization/user management (generate with: openssl rand -hex 32)
+
+    # Organizations & Permission Groups
+    ACCESS_CONTROL_ENABLED: "false"                      # Enable permission groups feature ("true" to enable)
+    ORGANIZATIONS_ENABLED: "false"                       # Enable organizations feature ("true" to enable)
+    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: "false"          # Show permission groups UI ("true" to enable)
+    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: "false"           # Show organizations UI ("true" to enable)
 
     # LLM Provider/Model Restrictions (leave empty if not restricting)
     BLACKLISTED_PROVIDERS: ""                            # Comma-separated provider IDs to hide from UI (e.g., "openai,anthropic,google")
@@ -208,28 +224,32 @@ app:
     timeoutSeconds: 5
     failureThreshold: 3
 
+  # Additional volumes for app deployment (e.g., branding assets, custom configs)
+  extraVolumes: []
+  extraVolumeMounts: []
+
 # Realtime socket server configuration
 realtime:
   # Enable/disable the realtime service
   enabled: true
-  
+
   # Image configuration
   image:
     repository: simstudioai/realtime
     tag: latest
     pullPolicy: Always
-  
+
   # Number of replicas
   replicaCount: 1
-  
+
   # Resource limits and requests
   resources:
     limits:
-      memory: "2Gi"
-      cpu: "1000m"
-    requests:
       memory: "1Gi"
       cpu: "500m"
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
   
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
@@ -284,6 +304,10 @@ realtime:
     periodSeconds: 90
     timeoutSeconds: 5
     failureThreshold: 3
+
+  # Additional volumes for realtime deployment
+  extraVolumes: []
+  extraVolumeMounts: []
 
 # Database migrations job configuration
 migrations:
@@ -376,8 +400,10 @@ postgresql:
       algorithm: RSA  # RSA or ECDSA
       size: 4096  # Key size in bits
     # Issuer reference (REQUIRED if tls.enabled is true)
+    # By default, references the CA issuer created by certManager.caIssuer
+    # Make sure certManager.enabled is true, or provide your own issuer
     issuerRef:
-      name: selfsigned-cluster-issuer  # Name of your cert-manager Issuer/ClusterIssuer
+      name: sim-ca-issuer  # Name of your cert-manager Issuer/ClusterIssuer
       kind: ClusterIssuer  # ClusterIssuer or Issuer
       group: ""  # Optional: cert-manager.io (leave empty for default)
     # Additional DNS names (optional)
@@ -439,20 +465,26 @@ externalDatabase:
 ollama:
   # Enable/disable Ollama deployment
   enabled: false
-  
+
   # Image configuration
   image:
     repository: ollama/ollama
     tag: latest
     pullPolicy: Always
-  
+
   # Number of replicas
   replicaCount: 1
-  
+
   # GPU configuration
   gpu:
     enabled: false
     count: 1
+    # GPU sharing strategy: "mig" (Multi-Instance GPU) or "time-slicing"
+    # - mig: Hardware-level GPU partitioning (requires supported GPUs like A100)
+    # - time-slicing: Software-level GPU sharing (works with most NVIDIA GPUs)
+    strategy: "time-slicing"
+    # Number of time-slicing replicas (only used when strategy is "time-slicing")
+    timeSlicingReplicas: 5
   
   # Node selector for GPU workloads (adjust labels based on your cluster configuration)
   nodeSelector:
@@ -523,36 +555,74 @@ ollama:
     timeoutSeconds: 5
     failureThreshold: 3
 
+  # Additional volumes for ollama deployment
+  extraVolumes: []
+  extraVolumeMounts: []
+
 # Ingress configuration
+# When services share the same host, paths are consolidated into a single rule.
+# Path order: realtime paths, copilot paths, then app paths (most specific first).
+# Ensure specific paths (e.g., /socket.io, /copilot) come before catch-all paths (/).
 ingress:
-  # Enable/disable ingress
   enabled: false
-  
-  # Ingress class name
   className: nginx
-  
-  # Annotations
+
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-  
-  # Main application host configuration
+
+  # Main application (use / as catch-all)
   app:
     host: sim.local
     paths:
       - path: /
         pathType: Prefix
-  
-  # Realtime service host configuration
+
+  # Realtime service (use /socket.io when sharing host with app)
   realtime:
     host: sim-ws.local
     paths:
       - path: /
         pathType: Prefix
-  
-  # TLS configuration
+
+  # Copilot service (optional, use /copilot when sharing host)
+  # copilot:
+  #   host: sim.local
+  #   paths:
+  #     - path: /copilot
+  #       pathType: Prefix
+
   tls:
     enabled: false
     secretName: sim-tls-secret
+
+# Internal Ingress configuration
+# Same path ordering rules apply as above.
+ingressInternal:
+  enabled: false
+  className: nginx
+  annotations: {}
+
+  app:
+    host: sim-internal.local
+    paths:
+      - path: /
+        pathType: Prefix
+
+  realtime:
+    host: sim-internal.local
+    paths:
+      - path: /socket.io
+        pathType: Prefix
+
+  # copilot:
+  #   host: sim-internal.local
+  #   paths:
+  #     - path: /copilot
+  #       pathType: Prefix
+
+  tls:
+    enabled: false
+    secretName: sim-internal-tls-secret
 
 # Service Account configuration
 serviceAccount:
@@ -675,6 +745,32 @@ sharedStorage:
 # Additional volumes for custom configurations (advanced users)
 extraVolumes: []
 extraVolumeMounts: []
+
+# Branding configuration
+# Use this to inject custom branding assets (logos, CSS, etc.) into the application
+branding:
+  # Enable/disable branding ConfigMap
+  enabled: false
+
+  # Mount path in the container where branding files will be available
+  mountPath: "/app/public/branding"
+
+  # Text files (CSS, JSON, HTML, etc.) - values are plain text
+  # Example:
+  #   files:
+  #     custom.css: |
+  #       .logo { background-color: #ff0000; }
+  #     config.json: |
+  #       {"theme": "dark"}
+  files: {}
+
+  # Binary files (PNG, JPG, ICO, etc.) - values must be base64 encoded
+  # Generate base64 with: base64 -i logo.png | tr -d '\n'
+  # Example:
+  #   binaryFiles:
+  #     logo.png: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk..."
+  #     favicon.ico: "AAABAAEAEBAAAAEAIABoBAAAFgAAAA..."
+  binaryFiles: {}
 
 # Additional environment variables for custom integrations
 extraEnvVars: []
@@ -1098,3 +1194,52 @@ externalSecrets:
     externalDatabase:
       # Path to external database password in external store
       password: ""
+
+# cert-manager configuration
+# Prerequisites: Install cert-manager in your cluster first
+# See: https://cert-manager.io/docs/installation/
+#
+# This implements the recommended CA bootstrap pattern from cert-manager:
+# 1. Self-signed ClusterIssuer (bootstrap only - creates root CA)
+# 2. Root CA Certificate (self-signed, becomes the trust anchor)
+# 3. CA ClusterIssuer (signs application certificates using root CA)
+#
+# Reference: https://cert-manager.io/docs/configuration/selfsigned/
+certManager:
+  # Enable/disable cert-manager issuer resources
+  enabled: false
+
+  # Self-signed ClusterIssuer (used ONLY to bootstrap the root CA)
+  # Do not reference this issuer directly for application certificates
+  selfSignedIssuer:
+    name: "sim-selfsigned-bootstrap-issuer"
+
+  # Root CA Certificate configuration
+  # This certificate is signed by the self-signed issuer and used as the trust anchor
+  rootCA:
+    # Name of the Certificate resource
+    certificateName: "sim-root-ca"
+    # Namespace where the root CA certificate and secret will be created
+    # Must match cert-manager's cluster-resource-namespace (default: cert-manager)
+    namespace: "cert-manager"
+    # Common name for the root CA certificate
+    commonName: "sim-root-ca"
+    # Secret name where the root CA certificate and key will be stored
+    secretName: "sim-root-ca-secret"
+    # Certificate validity duration (default: 10 years)
+    duration: "87600h"
+    # Renew before expiry (default: 90 days)
+    renewBefore: "2160h"
+    # Private key configuration
+    privateKey:
+      algorithm: RSA
+      size: 4096
+    # Subject configuration
+    subject:
+      organizations: []
+      # If empty, defaults to the release name
+
+  # CA ClusterIssuer configuration
+  # This is the issuer that applications should reference for obtaining certificates
+  caIssuer:
+    name: "sim-ca-issuer"

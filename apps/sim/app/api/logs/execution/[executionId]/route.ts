@@ -6,10 +6,11 @@ import {
   workflowExecutionSnapshots,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 
 const logger = createLogger('LogsByExecutionIdAPI')
 
@@ -48,14 +49,15 @@ export async function GET(
         endedAt: workflowExecutionLogs.endedAt,
         totalDurationMs: workflowExecutionLogs.totalDurationMs,
         cost: workflowExecutionLogs.cost,
+        executionData: workflowExecutionLogs.executionData,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
       .innerJoin(
         permissions,
         and(
           eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workflow.workspaceId),
+          eq(permissions.entityId, workflowExecutionLogs.workspaceId),
           eq(permissions.userId, authenticatedUserId)
         )
       )
@@ -78,10 +80,42 @@ export async function GET(
       return NextResponse.json({ error: 'Workflow state snapshot not found' }, { status: 404 })
     }
 
+    const executionData = workflowLog.executionData as WorkflowExecutionLog['executionData']
+    const traceSpans = (executionData?.traceSpans as TraceSpan[]) || []
+    const childSnapshotIds = new Set<string>()
+    const collectSnapshotIds = (spans: TraceSpan[]) => {
+      spans.forEach((span) => {
+        const snapshotId = span.childWorkflowSnapshotId
+        if (typeof snapshotId === 'string') {
+          childSnapshotIds.add(snapshotId)
+        }
+        if (span.children?.length) {
+          collectSnapshotIds(span.children)
+        }
+      })
+    }
+    if (traceSpans.length > 0) {
+      collectSnapshotIds(traceSpans)
+    }
+
+    const childWorkflowSnapshots =
+      childSnapshotIds.size > 0
+        ? await db
+            .select()
+            .from(workflowExecutionSnapshots)
+            .where(inArray(workflowExecutionSnapshots.id, Array.from(childSnapshotIds)))
+        : []
+
+    const childSnapshotMap = childWorkflowSnapshots.reduce<Record<string, unknown>>((acc, snap) => {
+      acc[snap.id] = snap.stateData
+      return acc
+    }, {})
+
     const response = {
       executionId,
       workflowId: workflowLog.workflowId,
       workflowState: snapshot.stateData,
+      childWorkflowSnapshots: childSnapshotMap,
       executionMetadata: {
         trigger: workflowLog.trigger,
         startedAt: workflowLog.startedAt.toISOString(),

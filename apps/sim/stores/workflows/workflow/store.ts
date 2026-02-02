@@ -3,17 +3,15 @@ import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
-import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
+import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
   filterNewEdges,
+  filterValidEdges,
   getUniqueBlockName,
   mergeSubblockState,
-  normalizeName,
 } from '@/stores/workflows/utils'
 import type {
   Position,
@@ -114,135 +112,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set({ needsRedeployment })
       },
 
-      addBlock: (
-        id: string,
-        type: string,
-        name: string,
-        position: Position,
-        data?: Record<string, any>,
-        parentId?: string,
-        extent?: 'parent',
-        blockProperties?: {
-          enabled?: boolean
-          horizontalHandles?: boolean
-          advancedMode?: boolean
-          triggerMode?: boolean
-          height?: number
-        }
-      ) => {
-        const blockConfig = getBlock(type)
-        // For custom nodes like loop and parallel that don't use BlockConfig
-        if (!blockConfig && (type === 'loop' || type === 'parallel')) {
-          // Merge parentId and extent into data if provided
-          const nodeData = {
-            ...data,
-            ...(parentId && { parentId, extent: extent || 'parent' }),
-          }
-
-          const newState = {
-            blocks: {
-              ...get().blocks,
-              [id]: {
-                id,
-                type,
-                name,
-                position,
-                subBlocks: {},
-                outputs: {},
-                enabled: blockProperties?.enabled ?? true,
-                horizontalHandles: blockProperties?.horizontalHandles ?? true,
-                advancedMode: blockProperties?.advancedMode ?? false,
-                triggerMode: blockProperties?.triggerMode ?? false,
-                height: blockProperties?.height ?? 0,
-                data: nodeData,
-              },
-            },
-            edges: [...get().edges],
-            loops: get().generateLoopBlocks(),
-            parallels: get().generateParallelBlocks(),
-          }
-
-          set(newState)
-          get().updateLastSaved()
-          return
-        }
-
-        if (!blockConfig) return
-
-        // Merge parentId and extent into data for regular blocks
-        const nodeData = {
-          ...data,
-          ...(parentId && { parentId, extent: extent || 'parent' }),
-        }
-
-        const subBlocks: Record<string, SubBlockState> = {}
-        const subBlockStore = useSubBlockStore.getState()
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-
-        blockConfig.subBlocks.forEach((subBlock) => {
-          const subBlockId = subBlock.id
-          const initialValue = resolveInitialSubblockValue(subBlock)
-          const normalizedValue =
-            initialValue !== undefined && initialValue !== null ? initialValue : null
-
-          subBlocks[subBlockId] = {
-            id: subBlockId,
-            type: subBlock.type,
-            value: normalizedValue as SubBlockState['value'],
-          }
-
-          if (activeWorkflowId) {
-            try {
-              const valueToStore =
-                initialValue !== undefined ? cloneInitialSubblockValue(initialValue) : null
-              subBlockStore.setValue(id, subBlockId, valueToStore)
-            } catch (error) {
-              logger.warn('Failed to seed sub-block store value during block creation', {
-                blockId: id,
-                subBlockId,
-                error: error instanceof Error ? error.message : String(error),
-              })
-            }
-          } else {
-            logger.warn('Cannot seed sub-block store value: activeWorkflowId not available', {
-              blockId: id,
-              subBlockId,
-            })
-          }
-        })
-
-        // Get outputs based on trigger mode
-        const triggerMode = blockProperties?.triggerMode ?? false
-        const outputs = getBlockOutputs(type, subBlocks, triggerMode)
-
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [id]: {
-              id,
-              type,
-              name,
-              position,
-              subBlocks,
-              outputs,
-              enabled: blockProperties?.enabled ?? true,
-              horizontalHandles: blockProperties?.horizontalHandles ?? true,
-              advancedMode: blockProperties?.advancedMode ?? false,
-              triggerMode: triggerMode,
-              height: blockProperties?.height ?? 0,
-              layout: {},
-              data: nodeData,
-            },
-          },
-          edges: [...get().edges],
-          loops: get().generateLoopBlocks(),
-          parallels: get().generateParallelBlocks(),
-        }
-
-        set(newState)
-        get().updateLastSaved()
-      },
-
       updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
         set((state) => {
           const block = state.blocks[id]
@@ -340,7 +209,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
           data?: Record<string, any>
         }>,
         edges?: Edge[],
-        subBlockValues?: Record<string, Record<string, unknown>>
+        subBlockValues?: Record<string, Record<string, unknown>>,
+        options?: { skipEdgeValidation?: boolean }
       ) => {
         const currentBlocks = get().blocks
         const currentEdges = get().edges
@@ -365,8 +235,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
 
         if (edges && edges.length > 0) {
+          // Skip validation if already validated by caller (e.g., collaborative layer)
+          const validEdges = options?.skipEdgeValidation
+            ? edges
+            : filterValidEdges(edges, newBlocks)
           const existingEdgeIds = new Set(currentEdges.map((e) => e.id))
-          for (const edge of edges) {
+          for (const edge of validEdges) {
             if (!existingEdgeIds.has(edge.id)) {
               newEdges.push({
                 id: edge.id || crypto.randomUUID(),
@@ -381,11 +255,27 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }
 
+        // Only regenerate loops/parallels if we're adding blocks that affect them:
+        // - Adding a loop/parallel container block
+        // - Adding a block as a child of a loop/parallel (has parentId pointing to one)
+        const needsLoopRegeneration = blocks.some(
+          (block) =>
+            block.type === 'loop' ||
+            (block.data?.parentId && newBlocks[block.data.parentId]?.type === 'loop')
+        )
+        const needsParallelRegeneration = blocks.some(
+          (block) =>
+            block.type === 'parallel' ||
+            (block.data?.parentId && newBlocks[block.data.parentId]?.type === 'parallel')
+        )
+
         set({
           blocks: newBlocks,
           edges: newEdges,
-          loops: generateLoopBlocks(newBlocks),
-          parallels: generateParallelBlocks(newBlocks),
+          loops: needsLoopRegeneration ? generateLoopBlocks(newBlocks) : { ...get().loops },
+          parallels: needsParallelRegeneration
+            ? generateParallelBlocks(newBlocks)
+            : { ...get().parallels },
         })
 
         if (subBlockValues && Object.keys(subBlockValues).length > 0) {
@@ -499,9 +389,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
         get().updateLastSaved()
       },
 
-      batchAddEdges: (edges: Edge[]) => {
+      batchAddEdges: (edges: Edge[], options?: { skipValidation?: boolean }) => {
+        const blocks = get().blocks
         const currentEdges = get().edges
-        const filtered = filterNewEdges(edges, currentEdges)
+
+        // Skip validation if already validated by caller (e.g., collaborative layer)
+        const validEdges = options?.skipValidation ? edges : filterValidEdges(edges, blocks)
+        const filtered = filterNewEdges(validEdges, currentEdges)
         const newEdges = [...currentEdges]
 
         for (const edge of filtered) {
@@ -517,12 +411,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
           })
         }
 
-        const blocks = get().blocks
         set({
           blocks: { ...blocks },
           edges: newEdges,
-          loops: generateLoopBlocks(blocks),
-          parallels: generateParallelBlocks(blocks),
+          // Edges don't affect loop/parallel structure (determined by parentId), skip regeneration
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
         })
 
         get().updateLastSaved()
@@ -536,8 +430,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set({
           blocks: { ...blocks },
           edges: newEdges,
-          loops: generateLoopBlocks(blocks),
-          parallels: generateParallelBlocks(blocks),
+          // Edges don't affect loop/parallel structure (determined by parentId), skip regeneration
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
         })
 
         get().updateLastSaved()
@@ -577,7 +472,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
       ) => {
         set((state) => {
           const nextBlocks = workflowState.blocks || {}
-          const nextEdges = workflowState.edges || []
+          const nextEdges = filterValidEdges(workflowState.edges || [], nextBlocks)
           const nextLoops =
             Object.keys(workflowState.loops || {}).length > 0
               ? workflowState.loops
@@ -727,6 +622,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
           logger.error(
             `Cannot rename block to "${name}" - conflicts with "${conflictingBlock[1].name}"`
           )
+          return { success: false, changedSubblocks: [] }
+        }
+
+        if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedNewName)) {
+          logger.error(`Cannot rename block to reserved name: "${name}"`)
           return { success: false, changedSubblocks: [] }
         }
 
@@ -1083,7 +983,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         const newState = {
           blocks: deployedState.blocks,
-          edges: deployedState.edges,
+          edges: filterValidEdges(deployedState.edges ?? [], deployedState.blocks),
           loops: deployedState.loops || {},
           parallels: deployedState.parallels || {},
           needsRedeployment: false,
@@ -1167,93 +1067,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set(newState)
 
         get().triggerUpdate()
-        // Note: Socket.IO handles real-time sync automatically
-      },
-
-      toggleBlockTriggerMode: (id: string) => {
-        const block = get().blocks[id]
-        if (!block) return
-
-        const newTriggerMode = !block.triggerMode
-
-        // When switching TO trigger mode, check if block is inside a subflow
-        if (newTriggerMode && TriggerUtils.isBlockInSubflow(id, get().blocks)) {
-          logger.warn('Cannot enable trigger mode for block inside loop or parallel subflow', {
-            blockId: id,
-            blockType: block.type,
-          })
-          return
-        }
-
-        // When switching TO trigger mode, remove all incoming connections
-        let filteredEdges = [...get().edges]
-        if (newTriggerMode) {
-          // Remove edges where this block is the target
-          filteredEdges = filteredEdges.filter((edge) => edge.target !== id)
-          logger.info(
-            `Removed ${get().edges.length - filteredEdges.length} incoming connections for trigger mode`,
-            {
-              blockId: id,
-              blockType: block.type,
-            }
-          )
-        }
-
-        const newState = {
-          blocks: {
-            ...get().blocks,
-            [id]: {
-              ...block,
-              triggerMode: newTriggerMode,
-            },
-          },
-          edges: filteredEdges,
-          loops: { ...get().loops },
-          parallels: { ...get().parallels },
-        }
-
-        set(newState)
-        get().updateLastSaved()
-
-        // Handle webhook enable/disable when toggling trigger mode
-        const handleWebhookToggle = async () => {
-          try {
-            const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-            if (!activeWorkflowId) return
-
-            // Check if there's a webhook for this block
-            const response = await fetch(
-              `/api/webhooks?workflowId=${activeWorkflowId}&blockId=${id}`
-            )
-            if (response.ok) {
-              const data = await response.json()
-              if (data.webhooks && data.webhooks.length > 0) {
-                const webhook = data.webhooks[0].webhook
-
-                // Update webhook's isActive status based on trigger mode
-                const updateResponse = await fetch(`/api/webhooks/${webhook.id}`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    isActive: newTriggerMode,
-                  }),
-                })
-
-                if (!updateResponse.ok) {
-                  logger.error('Failed to update webhook status')
-                }
-              }
-            }
-          } catch (error) {
-            logger.error('Error toggling webhook status:', error)
-          }
-        }
-
-        // Handle webhook toggle asynchronously
-        handleWebhookToggle()
-
         // Note: Socket.IO handles real-time sync automatically
       },
 

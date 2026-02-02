@@ -71,6 +71,19 @@ vi.mock('@/executor/path')
 vi.mock('@/executor/resolver', () => ({
   InputResolver: vi.fn(),
 }))
+vi.mock('@/executor/utils/http', () => ({
+  buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
+  buildAPIUrl: vi.fn((path: string) => new URL(path, 'http://localhost:3000')),
+  extractAPIErrorMessage: vi.fn(async (response: Response) => {
+    const defaultMessage = `API request failed with status ${response.status}`
+    try {
+      const errorData = await response.json()
+      return errorData.error || defaultMessage
+    } catch {
+      return defaultMessage
+    }
+  }),
+}))
 
 // Specific block utilities
 vi.mock('@/blocks/blocks/router')
