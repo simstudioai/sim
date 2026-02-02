@@ -8,7 +8,7 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
@@ -607,10 +607,19 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
             isOverageInvoice,
           })
         } else {
+          // Don't overwrite dispute blocks (dispute > payment_failed priority)
           await db
             .update(userStats)
             .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
-            .where(eq(userStats.userId, sub.referenceId))
+            .where(
+              and(
+                eq(userStats.userId, sub.referenceId),
+                or(
+                  ne(userStats.billingBlockedReason, 'dispute'),
+                  isNull(userStats.billingBlockedReason)
+                )
+              )
+            )
           logger.info('Blocked user due to payment failure', {
             userId: sub.referenceId,
             isOverageInvoice,

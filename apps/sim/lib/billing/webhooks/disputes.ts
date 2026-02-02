@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -97,7 +97,7 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
     return
   }
 
-  // Find and unblock user (Pro plans)
+  // Find and unblock user (Pro plans) - only if blocked for dispute, not other reasons
   const users = await db
     .select({ id: user.id })
     .from(user)
@@ -108,7 +108,7 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
     await db
       .update(userStats)
       .set({ billingBlocked: false, billingBlockedReason: null })
-      .where(eq(userStats.userId, users[0].id))
+      .where(and(eq(userStats.userId, users[0].id), eq(userStats.billingBlockedReason, 'dispute')))
 
     logger.info('Unblocked user after dispute resolved in our favor', {
       disputeId: dispute.id,
