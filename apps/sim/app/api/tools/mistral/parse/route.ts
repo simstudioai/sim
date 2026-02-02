@@ -5,6 +5,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { StorageService } from '@/lib/uploads'
+import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import {
   extractStorageKey,
   inferContextFromKey,
@@ -19,7 +20,7 @@ const logger = createLogger('MistralParseAPI')
 const MistralParseSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   filePath: z.string().min(1, 'File path is required').optional(),
-  fileData: z.unknown().optional(),
+  fileData: FileInputSchema.optional(),
   resultType: z.string().optional(),
   pages: z.array(z.number()).optional(),
   includeImageBase64: z.boolean().optional(),

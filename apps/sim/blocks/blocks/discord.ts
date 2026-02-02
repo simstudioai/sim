@@ -578,13 +578,20 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         if (!params.serverId) throw new Error('Server ID is required')
 
         switch (params.operation) {
-          case 'discord_send_message':
+          case 'discord_send_message': {
+            const fileParam = params.attachmentFiles || params.files
+            const normalizedFiles = fileParam
+              ? Array.isArray(fileParam)
+                ? fileParam
+                : [fileParam]
+              : undefined
             return {
               ...commonParams,
               channelId: params.channelId,
               content: params.content,
-              files: params.attachmentFiles || params.files,
+              files: normalizedFiles,
             }
+          }
           case 'discord_get_messages':
             return {
               ...commonParams,
@@ -789,6 +796,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   },
   outputs: {
     message: { type: 'string', description: 'Status message' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
     data: { type: 'json', description: 'Response data' },
   },
 }

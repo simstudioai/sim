@@ -1,5 +1,5 @@
 import type { UserFile } from '@/executor/types'
-import type { OutputProperty, ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
  * Shared output property definitions for Slack API responses.
@@ -596,6 +596,7 @@ export interface SlackMessageResponse extends ToolResponse {
     ts: string
     channel: string
     fileCount?: number
+    files?: ToolFileData[]
     // New comprehensive message object
     message: SlackMessage
   }

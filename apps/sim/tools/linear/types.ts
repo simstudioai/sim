@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -875,7 +876,8 @@ export interface LinearGetActiveCycleParams {
 
 export interface LinearCreateAttachmentParams {
   issueId: string
-  url: string
+  url?: string
+  file?: UserFile
   title?: string
   subtitle?: string
   accessToken?: string

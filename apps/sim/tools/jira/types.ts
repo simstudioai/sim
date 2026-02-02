@@ -1,4 +1,5 @@
-import type { ToolResponse } from '@/tools/types'
+import type { UserFile } from '@/executor/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 export interface JiraRetrieveParams {
   accessToken: string
@@ -312,6 +313,23 @@ export interface JiraDeleteAttachmentResponse extends ToolResponse {
   }
 }
 
+export interface JiraAddAttachmentParams {
+  accessToken: string
+  domain: string
+  issueKey: string
+  files: UserFile[]
+  cloudId?: string
+}
+
+export interface JiraAddAttachmentResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueKey: string
+    attachmentIds: string[]
+    files: ToolFileData[]
+  }
+}
+
 // Worklogs
 export interface JiraAddWorklogParams {
   accessToken: string
@@ -482,6 +500,7 @@ export type JiraResponse =
   | JiraUpdateCommentResponse
   | JiraDeleteCommentResponse
   | JiraGetAttachmentsResponse
+  | JiraAddAttachmentResponse
   | JiraDeleteAttachmentResponse
   | JiraAddWorklogResponse
   | JiraGetWorklogsResponse

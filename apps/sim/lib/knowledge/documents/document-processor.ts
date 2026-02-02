@@ -3,6 +3,7 @@ import { PDFDocument } from 'pdf-lib'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { type Chunk, JsonYamlChunker, StructuredDataChunker, TextChunker } from '@/lib/chunkers'
 import { env } from '@/lib/core/config/env'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
@@ -489,7 +490,7 @@ async function parseWithMistralOCR(
     workspaceId
   )
 
-  logger.info(`Mistral OCR: Using presigned URL for ${filename}: ${httpsUrl.substring(0, 120)}...`)
+  logger.info(`Mistral OCR: Using presigned URL for ${filename}: ${sanitizeUrlForLog(httpsUrl)}`)
 
   let pageCount = 0
   if (mimeType === 'application/pdf' && buffer) {

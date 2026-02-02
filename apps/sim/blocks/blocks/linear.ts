@@ -668,17 +668,44 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         generationType: 'timestamp',
       },
     },
+    // Attachment file
+    {
+      id: 'attachmentFileUpload',
+      title: 'Attachment',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload attachment',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_attachment'],
+      },
+      mode: 'basic',
+      multiple: false,
+    },
+    {
+      id: 'file',
+      title: 'File Reference',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      placeholder: 'File reference from previous block',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_attachment'],
+      },
+      mode: 'advanced',
+    },
     // Attachment URL
     {
       id: 'url',
       title: 'URL',
       type: 'short-input',
       placeholder: 'Enter URL',
-      required: true,
+      required: false,
       condition: {
         field: 'operation',
         value: ['linear_create_attachment'],
       },
+      mode: 'advanced',
     },
     // Attachment title
     {
@@ -1742,16 +1769,31 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               teamId: effectiveTeamId,
             }
 
-          case 'linear_create_attachment':
-            if (!params.issueId?.trim() || !params.url?.trim()) {
-              throw new Error('Issue ID and URL are required.')
+          case 'linear_create_attachment': {
+            if (!params.issueId?.trim()) {
+              throw new Error('Issue ID is required.')
+            }
+            if (Array.isArray(params.file)) {
+              throw new Error('Attachment file must be a single file.')
+            }
+            if (Array.isArray(params.attachmentFileUpload)) {
+              throw new Error('Attachment file must be a single file.')
+            }
+            const attachmentFile = params.attachmentFileUpload || params.file
+            const attachmentUrl =
+              params.url?.trim() ||
+              (attachmentFile && !Array.isArray(attachmentFile) ? attachmentFile.url : undefined)
+            if (!attachmentUrl) {
+              throw new Error('URL or file is required.')
             }
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
-              url: params.url.trim(),
+              url: attachmentUrl,
+              file: attachmentFile,
               title: params.attachmentTitle,
             }
+          }
 
           case 'linear_list_attachments':
             if (!params.issueId?.trim()) {
@@ -2248,6 +2290,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     endDate: { type: 'string', description: 'End date' },
     targetDate: { type: 'string', description: 'Target date' },
     url: { type: 'string', description: 'URL' },
+    attachmentFileUpload: { type: 'json', description: 'File to attach (UI upload)' },
+    file: { type: 'json', description: 'File to attach (UserFile)' },
     attachmentTitle: { type: 'string', description: 'Attachment title' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
     relationType: { type: 'string', description: 'Relation type' },
@@ -2341,7 +2385,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     cycles: { type: 'json', description: 'Cycles list' },
     // Attachment outputs
     attachment: { type: 'json', description: 'Attachment data' },
-    attachments: { type: 'file[]', description: 'Attachments list' },
+    attachments: { type: 'json', description: 'Attachments list' },
     // Relation outputs
     relation: { type: 'json', description: 'Issue relation data' },
     relations: { type: 'json', description: 'Issue relations list' },

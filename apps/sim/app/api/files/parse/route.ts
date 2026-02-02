@@ -7,6 +7,7 @@ import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
@@ -367,7 +368,7 @@ async function handleExternalUrl(
       throw new Error(`File too large: ${buffer.length} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
     }
 
-    logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
+    logger.info(`Downloaded file from URL: ${sanitizeUrlForLog(url)}, size: ${buffer.length} bytes`)
 
     let userFile: UserFile | undefined
     const mimeType = response.headers.get('content-type') || getMimeTypeFromExtension(extension)
@@ -420,7 +421,7 @@ async function handleExternalUrl(
 
     return parseResult
   } catch (error) {
-    logger.error(`Error handling external URL ${url}:`, error)
+    logger.error(`Error handling external URL ${sanitizeUrlForLog(url)}:`, error)
     return {
       success: false,
       error: `Error fetching URL: ${(error as Error).message}`,

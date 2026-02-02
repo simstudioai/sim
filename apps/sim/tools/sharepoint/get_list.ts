@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import type {
   SharepointGetListResponse,
   SharepointList,
@@ -56,7 +57,10 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`
         const url = new URL(baseUrl)
         const finalUrl = url.toString()
-        logger.info('SharePoint List All Lists URL', { finalUrl, siteId })
+        logger.info('SharePoint List All Lists URL', {
+          finalUrl: sanitizeUrlForLog(finalUrl),
+          siteId,
+        })
         return finalUrl
       }
 
@@ -72,7 +76,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         itemsUrl.searchParams.set('$expand', 'fields')
         const finalItemsUrl = itemsUrl.toString()
         logger.info('SharePoint Get List Items URL', {
-          finalUrl: finalItemsUrl,
+          finalUrl: sanitizeUrlForLog(finalItemsUrl),
           siteId,
           listId: params.listId,
         })
@@ -89,7 +93,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
 
       const finalUrl = url.toString()
       logger.info('SharePoint Get List URL', {
-        finalUrl,
+        finalUrl: sanitizeUrlForLog(finalUrl),
         siteId,
         listId: params.listId,
         includeColumns: !!params.includeColumns,

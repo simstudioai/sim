@@ -293,6 +293,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
   outputs: {
     success: { type: 'boolean', description: 'Whether the operation was successful' },
     uploadedFiles: { type: 'json', description: 'Array of uploaded file details' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     fileName: { type: 'string', description: 'Downloaded file name' },
     content: { type: 'string', description: 'Downloaded file content' },
     size: { type: 'number', description: 'File size in bytes' },

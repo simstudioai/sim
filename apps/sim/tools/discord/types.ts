@@ -1,4 +1,5 @@
 import type { UserFile } from '@/executor/types'
+import type { ToolFileData } from '@/tools/types'
 
 export interface DiscordMessage {
   id: string
@@ -85,6 +86,7 @@ interface BaseDiscordResponse {
 export interface DiscordSendMessageResponse extends BaseDiscordResponse {
   output: {
     message: string
+    files?: ToolFileData[]
     data?: DiscordMessage
   }
 }

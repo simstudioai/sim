@@ -1,5 +1,5 @@
 import type { UserFile } from '@/executor/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 export interface MicrosoftTeamsAttachment {
   id: string
@@ -61,6 +61,7 @@ export interface MicrosoftTeamsWriteResponse extends ToolResponse {
   output: {
     updatedContent: boolean
     metadata: MicrosoftTeamsMetadata
+    files?: ToolFileData[]
   }
 }
 

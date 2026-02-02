@@ -314,9 +314,14 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
           case 'telegram_send_document': {
             // Handle file upload
             const fileParam = params.attachmentFiles || params.files
+            const normalizedFiles = fileParam
+              ? Array.isArray(fileParam)
+                ? fileParam
+                : [fileParam]
+              : undefined
             return {
               ...commonParams,
-              files: fileParam,
+              files: normalizedFiles,
               caption: params.caption,
             }
           }
@@ -359,6 +364,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
     },
     message: { type: 'string', description: 'Success or error message' },
     data: { type: 'json', description: 'Response data' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
     // Specific result fields
     messageId: { type: 'number', description: 'Sent message ID' },
     chatId: { type: 'number', description: 'Chat ID where message was sent' },

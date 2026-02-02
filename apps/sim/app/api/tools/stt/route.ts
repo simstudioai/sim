@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { TranscriptSegment } from '@/tools/stt/types'
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       audioFileName = file.name
       audioMimeType = file.type
     } else if (body.audioUrl) {
-      logger.info(`[${requestId}] Downloading from URL: ${body.audioUrl}`)
+      logger.info(`[${requestId}] Downloading from URL: ${sanitizeUrlForLog(body.audioUrl)}`)
 
       const response = await fetch(body.audioUrl)
       if (!response.ok) {

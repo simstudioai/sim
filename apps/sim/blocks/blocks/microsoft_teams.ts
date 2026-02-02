@@ -346,7 +346,10 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         // Add files if provided
         const fileParam = attachmentFiles || files
         if (fileParam && (operation === 'write_chat' || operation === 'write_channel')) {
-          baseParams.files = fileParam
+          const normalizedFiles = Array.isArray(fileParam) ? fileParam : [fileParam]
+          if (normalizedFiles.length > 0) {
+            baseParams.files = normalizedFiles
+          }
         }
 
         // Add messageId if provided
@@ -463,6 +466,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     totalAttachments: { type: 'number', description: 'Total number of attachments' },
     attachmentTypes: { type: 'json', description: 'Array of attachment content types' },
     attachments: { type: 'file[]', description: 'Downloaded message attachments' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
     updatedContent: {
       type: 'boolean',
       description: 'Whether content was successfully updated/sent',

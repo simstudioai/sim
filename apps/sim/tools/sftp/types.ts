@@ -1,5 +1,5 @@
 import type { UserFile } from '@/executor/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 export interface SftpConnectionConfig {
   host: string
@@ -42,6 +42,7 @@ export interface SftpDownloadResult extends ToolResponse {
   output: {
     success: boolean
     fileName?: string
+    file?: ToolFileData
     content?: string
     size?: number
     encoding?: string

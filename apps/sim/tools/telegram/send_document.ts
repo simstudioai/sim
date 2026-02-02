@@ -75,6 +75,7 @@ export const telegramSendDocumentTool: ToolConfig<
 
   outputs: {
     message: { type: 'string', description: 'Success or error message' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
     data: {
       type: 'object',
       description: 'Telegram message data including document',

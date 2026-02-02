@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from '@/tools/browser_use/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -183,7 +184,7 @@ async function pollForCompletion(
     }
 
     if (!liveUrlLogged && taskData.live_url) {
-      logger.info(`BrowserUse task ${taskId} live URL: ${taskData.live_url}`)
+      logger.info(`BrowserUse task ${taskId} live URL: ${sanitizeUrlForLog(taskData.live_url)}`)
       liveUrlLogged = true
     }
 

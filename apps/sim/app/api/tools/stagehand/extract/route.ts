@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandExtractAPI')
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
 
       const page = stagehand.context.pages()[0]
 
-      logger.info(`Navigating to ${url}`)
+      logger.info(`Navigating to ${sanitizeUrlForLog(url)}`)
       await page.goto(url, { waitUntil: 'networkidle' })
       logger.info('Navigation complete')
 

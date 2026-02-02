@@ -622,7 +622,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             }
             const fileParam = attachmentFiles || files
             if (fileParam) {
-              baseParams.files = fileParam
+              const normalizedFiles = Array.isArray(fileParam) ? fileParam : [fileParam]
+              if (normalizedFiles.length > 0) {
+                baseParams.files = normalizedFiles
+              }
             }
             break
           }
@@ -796,6 +799,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'number',
       description: 'Number of files uploaded (when files are attached)',
     },
+    files: { type: 'file[]', description: 'Files attached to the message' },
 
     // slack_canvas outputs
     canvas_id: { type: 'string', description: 'Canvas identifier for created canvases' },

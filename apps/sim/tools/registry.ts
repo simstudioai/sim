@@ -763,6 +763,7 @@ import {
 } from '@/tools/intercom'
 import { jinaReadUrlTool, jinaSearchTool } from '@/tools/jina'
 import {
+  jiraAddAttachmentTool,
   jiraAddCommentTool,
   jiraAddWatcherTool,
   jiraAddWorklogTool,
@@ -1879,6 +1880,7 @@ export const tools: Record<string, ToolConfig> = {
   jira_update_comment: jiraUpdateCommentTool,
   jira_delete_comment: jiraDeleteCommentTool,
   jira_get_attachments: jiraGetAttachmentsTool,
+  jira_add_attachment: jiraAddAttachmentTool,
   jira_delete_attachment: jiraDeleteAttachmentTool,
   jira_add_worklog: jiraAddWorklogTool,
   jira_get_worklogs: jiraGetWorklogsTool,

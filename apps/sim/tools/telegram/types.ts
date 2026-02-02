@@ -1,5 +1,5 @@
 import type { UserFile } from '@/executor/types'
-import type { ToolResponse } from '@/tools/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 export interface TelegramMessage {
   message_id: number
@@ -167,6 +167,7 @@ export interface TelegramSendDocumentResponse extends ToolResponse {
   output: {
     message: string
     data?: TelegramMedia
+    files?: ToolFileData[]
   }
 }
 

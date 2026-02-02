@@ -98,10 +98,10 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         if (
           typeof params.fileUpload === 'object' &&
           params.fileUpload !== null &&
-          (params.fileUpload.url || params.fileUpload.path)
+          params.fileUpload.url
         ) {
-          // Get the full URL to the file - prefer url over path for UserFile compatibility
-          let uploadedFilePath = params.fileUpload.url || params.fileUpload.path
+          // Get the full URL to the file
+          let uploadedFilePath = params.fileUpload.url
 
           // Make sure the file path is an absolute URL
           if (uploadedFilePath.startsWith('/')) {
@@ -184,9 +184,9 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       }
 
       // Check if this is an internal workspace file path
-      if (params.fileUpload?.path?.startsWith('/api/files/serve/')) {
+      if (params.fileUpload?.url?.startsWith('/api/files/serve/')) {
         // Update filePath to the internal path for workspace files
-        requestBody.filePath = params.fileUpload.path
+        requestBody.filePath = params.fileUpload.url
       }
 
       // Add optional parameters with proper validation

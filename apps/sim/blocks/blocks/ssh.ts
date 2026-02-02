@@ -507,6 +507,7 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
     stderr: { type: 'string', description: 'Command standard error' },
     exitCode: { type: 'number', description: 'Command exit code' },
     success: { type: 'boolean', description: 'Operation success status' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     fileContent: { type: 'string', description: 'Downloaded/read file content' },
     entries: { type: 'json', description: 'Directory entries' },
     exists: { type: 'boolean', description: 'File/directory existence' },

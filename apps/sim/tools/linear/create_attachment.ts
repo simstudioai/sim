@@ -28,9 +28,15 @@ export const linearCreateAttachmentTool: ToolConfig<
     },
     url: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'URL of the attachment',
+    },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'user-only',
+      description: 'File to attach',
     },
     title: {
       type: 'string',
@@ -59,9 +65,14 @@ export const linearCreateAttachmentTool: ToolConfig<
       }
     },
     body: (params) => {
+      const attachmentUrl = params.url || params.file?.url
+      if (!attachmentUrl) {
+        throw new Error('URL or file is required')
+      }
+
       const input: Record<string, any> = {
         issueId: params.issueId,
-        url: params.url,
+        url: attachmentUrl,
         title: params.title,
       }
 

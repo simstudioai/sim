@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
 
       const uploadUrl = `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drives/${effectiveDriveId}/root:${encodedPath}:/content`
 
-      logger.info(`[${requestId}] Uploading to: ${uploadUrl}`)
+      logger.info(`[${requestId}] Uploading to: ${sanitizeUrlForLog(uploadUrl)}`)
 
       const uploadResponse = await fetch(uploadUrl, {
         method: 'PUT',

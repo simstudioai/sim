@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import type { StagehandAgentParams, StagehandAgentResponse } from '@/tools/stagehand/types'
 import { STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES } from '@/tools/stagehand/types'
 import type { ToolConfig } from '@/tools/types'
@@ -61,7 +62,9 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
       let startUrl = params.startUrl
       if (startUrl && !startUrl.match(/^https?:\/\//i)) {
         startUrl = `https://${startUrl.trim()}`
-        logger.info(`Normalized URL from ${params.startUrl} to ${startUrl}`)
+        logger.info(
+          `Normalized URL from ${sanitizeUrlForLog(params.startUrl)} to ${sanitizeUrlForLog(startUrl)}`
+        )
       }
 
       return {

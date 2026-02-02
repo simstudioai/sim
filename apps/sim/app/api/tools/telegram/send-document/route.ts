@@ -94,6 +94,14 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Uploading document: ${userFile.name}`)
 
     const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+    const filesOutput = [
+      {
+        name: userFile.name,
+        mimeType: userFile.type || 'application/octet-stream',
+        data: buffer.toString('base64'),
+        size: buffer.length,
+      },
+    ]
 
     logger.info(`[${requestId}] Downloaded file: ${buffer.length} bytes`)
 
@@ -136,6 +144,7 @@ export async function POST(request: NextRequest) {
       output: {
         message: 'Document sent successfully',
         data: data.result,
+        files: filesOutput,
       },
     })
   } catch (error) {

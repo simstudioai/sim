@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -53,6 +54,12 @@ export async function POST(request: NextRequest) {
     })
 
     const attachments: any[] = []
+    const filesOutput: Array<{
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }> = []
     if (validatedData.files && validatedData.files.length > 0) {
       const rawFiles = validatedData.files
       logger.info(`[${requestId}] Processing ${rawFiles.length} file(s) for upload to Teams`)
@@ -64,13 +71,19 @@ export async function POST(request: NextRequest) {
           logger.info(`[${requestId}] Uploading file to Teams: ${file.name} (${file.size} bytes)`)
 
           const buffer = await downloadFileFromStorage(file, requestId, logger)
+          filesOutput.push({
+            name: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            data: buffer.toString('base64'),
+            size: buffer.length,
+          })
 
           const uploadUrl =
             'https://graph.microsoft.com/v1.0/me/drive/root:/TeamsAttachments/' +
             encodeURIComponent(file.name) +
             ':/content'
 
-          logger.info(`[${requestId}] Uploading to Teams: ${uploadUrl}`)
+          logger.info(`[${requestId}] Uploading to Teams: ${sanitizeUrlForLog(uploadUrl)}`)
 
           const uploadResponse = await fetch(uploadUrl, {
             method: 'PUT',
@@ -234,6 +247,7 @@ export async function POST(request: NextRequest) {
           url: responseData.webUrl || '',
           attachmentCount: attachments.length,
         },
+        files: filesOutput,
       },
     })
   } catch (error) {
