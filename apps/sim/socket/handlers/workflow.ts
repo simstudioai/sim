@@ -137,9 +137,10 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       // Undo socket.join and room manager entry if any operation failed
       socket.leave(workflowId)
       await roomManager.removeUserFromRoom(socket.id)
+      const isReady = roomManager.isReady()
       socket.emit('join-workflow-error', {
-        error: roomManager.isReady() ? 'Failed to join workflow' : 'Realtime unavailable',
-        code: roomManager.isReady() ? undefined : 'ROOM_MANAGER_UNAVAILABLE',
+        error: isReady ? 'Failed to join workflow' : 'Realtime unavailable',
+        code: isReady ? undefined : 'ROOM_MANAGER_UNAVAILABLE',
       })
     }
   })
