@@ -60,7 +60,7 @@ export const tiktokQueryVideosTool: ToolConfig<TikTokQueryVideosParams, TikTokQu
         }
       }
 
-      const videos: TikTokVideo[] = (data.data?.videos ?? []).map((video: any) => ({
+      const videos: TikTokVideo[] = (data.data?.videos ?? []).map((video: Record<string, unknown>) => ({
         id: video.id ?? '',
         title: video.title ?? null,
         coverImageUrl: video.cover_image_url ?? null,
