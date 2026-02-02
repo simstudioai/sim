@@ -28,6 +28,8 @@ export { getHighestPrioritySubscription }
 /**
  * Check if a referenceId (user ID or org ID) has an active subscription
  * Used for duplicate subscription prevention
+ *
+ * Fails closed: returns true on error to prevent duplicate creation
  */
 export async function hasActiveSubscription(referenceId: string): Promise<boolean> {
   try {
@@ -40,7 +42,8 @@ export async function hasActiveSubscription(referenceId: string): Promise<boolea
     return !!activeSub
   } catch (error) {
     logger.error('Error checking active subscription', { error, referenceId })
-    return false
+    // Fail closed: assume subscription exists to prevent duplicate creation
+    return true
   }
 }
 
