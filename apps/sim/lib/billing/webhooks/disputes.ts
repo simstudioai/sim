@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
-import { member, subscription, user, userStats } from '@sim/db/schema'
+import { subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
+import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 
 const logger = createLogger('DisputeWebhooks')
@@ -57,36 +58,34 @@ export async function handleChargeDispute(event: Stripe.Event): Promise<void> {
 
   if (subs.length > 0) {
     const orgId = subs[0].referenceId
+    const memberCount = await blockOrgMembers(orgId, 'dispute')
 
-    const owners = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(and(eq(member.organizationId, orgId), eq(member.role, 'owner')))
-      .limit(1)
-
-    if (owners.length > 0) {
-      await db
-        .update(userStats)
-        .set({ billingBlocked: true, billingBlockedReason: 'dispute' })
-        .where(eq(userStats.userId, owners[0].userId))
-
-      logger.warn('Blocked org owner due to dispute', {
+    if (memberCount > 0) {
+      logger.warn('Blocked all org members due to dispute', {
         disputeId: dispute.id,
-        ownerId: owners[0].userId,
         organizationId: orgId,
+        memberCount,
       })
     }
   }
 }
 
 /**
- * Handles charge.dispute.closed - unblocks user if dispute was won
+ * Handles charge.dispute.closed - unblocks user if dispute was won or warning closed
+ *
+ * Status meanings:
+ * - 'won': Merchant won, customer's chargeback denied → unblock
+ * - 'lost': Customer won, money refunded → stay blocked (they owe us)
+ * - 'warning_closed': Pre-dispute inquiry closed without chargeback → unblock (false alarm)
  */
 export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
   const dispute = event.data.object as Stripe.Dispute
 
-  if (dispute.status !== 'won') {
-    logger.info('Dispute not won, user remains blocked', {
+  // Only unblock if we won or the warning was closed without a full dispute
+  const shouldUnblock = dispute.status === 'won' || dispute.status === 'warning_closed'
+
+  if (!shouldUnblock) {
+    logger.info('Dispute resolved against us, user remains blocked', {
       disputeId: dispute.id,
       status: dispute.status,
     })
@@ -98,7 +97,7 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
     return
   }
 
-  // Find and unblock user (Pro plans)
+  // Find and unblock user (Pro plans) - only if blocked for dispute, not other reasons
   const users = await db
     .select({ id: user.id })
     .from(user)
@@ -109,16 +108,17 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
     await db
       .update(userStats)
       .set({ billingBlocked: false, billingBlockedReason: null })
-      .where(eq(userStats.userId, users[0].id))
+      .where(and(eq(userStats.userId, users[0].id), eq(userStats.billingBlockedReason, 'dispute')))
 
-    logger.info('Unblocked user after winning dispute', {
+    logger.info('Unblocked user after dispute resolved in our favor', {
       disputeId: dispute.id,
       userId: users[0].id,
+      status: dispute.status,
     })
     return
   }
 
-  // Find and unblock org owner (Team/Enterprise)
+  // Find and unblock all org members (Team/Enterprise) - consistent with payment success
   const subs = await db
     .select({ referenceId: subscription.referenceId })
     .from(subscription)
@@ -127,24 +127,13 @@ export async function handleDisputeClosed(event: Stripe.Event): Promise<void> {
 
   if (subs.length > 0) {
     const orgId = subs[0].referenceId
+    const memberCount = await unblockOrgMembers(orgId, 'dispute')
 
-    const owners = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(and(eq(member.organizationId, orgId), eq(member.role, 'owner')))
-      .limit(1)
-
-    if (owners.length > 0) {
-      await db
-        .update(userStats)
-        .set({ billingBlocked: false, billingBlockedReason: null })
-        .where(eq(userStats.userId, owners[0].userId))
-
-      logger.info('Unblocked org owner after winning dispute', {
-        disputeId: dispute.id,
-        ownerId: owners[0].userId,
-        organizationId: orgId,
-      })
-    }
+    logger.info('Unblocked all org members after dispute resolved in our favor', {
+      disputeId: dispute.id,
+      organizationId: orgId,
+      memberCount,
+      status: dispute.status,
+    })
   }
 }

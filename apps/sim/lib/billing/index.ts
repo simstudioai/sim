@@ -11,6 +11,7 @@ export {
   getHighestPrioritySubscription as getActiveSubscription,
   getUserSubscriptionState as getSubscriptionState,
   hasAccessControlAccess,
+  hasActiveSubscription,
   hasCredentialSetsAccess,
   hasSSOAccess,
   isEnterpriseOrgAdminOrOwner,
@@ -32,6 +33,11 @@ export {
 } from '@/lib/billing/core/usage'
 export * from '@/lib/billing/credits/balance'
 export * from '@/lib/billing/credits/purchase'
+export {
+  blockOrgMembers,
+  getOrgMemberIds,
+  unblockOrgMembers,
+} from '@/lib/billing/organizations/membership'
 export * from '@/lib/billing/subscriptions/utils'
 export { canEditUsageLimit as canEditLimit } from '@/lib/billing/subscriptions/utils'
 export * from '@/lib/billing/types'
