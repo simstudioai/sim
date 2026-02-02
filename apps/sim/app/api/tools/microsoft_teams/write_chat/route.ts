@@ -2,11 +2,19 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import type {
+  GraphApiErrorResponse,
+  GraphChatMessage,
+  GraphDriveItem,
+} from '@/tools/microsoft_teams/types'
 import { resolveMentionsForChat, type TeamsMention } from '@/tools/microsoft_teams/utils'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +27,22 @@ const TeamsWriteChatSchema = z.object({
   content: z.string().min(1, 'Message content is required'),
   files: RawFileInputArraySchema.optional().nullable(),
 })
+
+async function secureFetchGraph(
+  url: string,
+  options: {
+    method?: string
+    headers?: Record<string, string>
+    body?: string | Buffer | Uint8Array
+  },
+  paramName: string
+) {
+  const urlValidation = await validateUrlWithDNS(url, paramName)
+  if (!urlValidation.isValid) {
+    throw new Error(urlValidation.error)
+  }
+  return secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, options)
+}
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -83,26 +107,32 @@ export async function POST(request: NextRequest) {
             encodeURIComponent(file.name) +
             ':/content'
 
-          logger.info(`[${requestId}] Uploading to Teams: ${sanitizeUrlForLog(uploadUrl)}`)
+          logger.info(`[${requestId}] Uploading to Teams: ${uploadUrl}`)
 
-          const uploadResponse = await fetch(uploadUrl, {
-            method: 'PUT',
-            headers: {
-              Authorization: `Bearer ${validatedData.accessToken}`,
-              'Content-Type': file.type || 'application/octet-stream',
+          const uploadResponse = await secureFetchGraph(
+            uploadUrl,
+            {
+              method: 'PUT',
+              headers: {
+                Authorization: `Bearer ${validatedData.accessToken}`,
+                'Content-Type': file.type || 'application/octet-stream',
+              },
+              body: buffer,
             },
-            body: new Uint8Array(buffer),
-          })
+            'uploadUrl'
+          )
 
           if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json().catch(() => ({}))
+            const errorData = (await uploadResponse
+              .json()
+              .catch(() => ({}))) as GraphApiErrorResponse
             logger.error(`[${requestId}] Teams upload failed:`, errorData)
             throw new Error(
               `Failed to upload file to Teams: ${errorData.error?.message || 'Unknown error'}`
             )
           }
 
-          const uploadedFile = await uploadResponse.json()
+          const uploadedFile = (await uploadResponse.json()) as GraphDriveItem
           logger.info(`[${requestId}] File uploaded to Teams successfully`, {
             id: uploadedFile.id,
             webUrl: uploadedFile.webUrl,
@@ -110,21 +140,28 @@ export async function POST(request: NextRequest) {
 
           const fileDetailsUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${uploadedFile.id}?$select=id,name,webDavUrl,eTag,size`
 
-          const fileDetailsResponse = await fetch(fileDetailsUrl, {
-            headers: {
-              Authorization: `Bearer ${validatedData.accessToken}`,
+          const fileDetailsResponse = await secureFetchGraph(
+            fileDetailsUrl,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${validatedData.accessToken}`,
+              },
             },
-          })
+            'fileDetailsUrl'
+          )
 
           if (!fileDetailsResponse.ok) {
-            const errorData = await fileDetailsResponse.json().catch(() => ({}))
+            const errorData = (await fileDetailsResponse
+              .json()
+              .catch(() => ({}))) as GraphApiErrorResponse
             logger.error(`[${requestId}] Failed to get file details:`, errorData)
             throw new Error(
               `Failed to get file details: ${errorData.error?.message || 'Unknown error'}`
             )
           }
 
-          const fileDetails = await fileDetailsResponse.json()
+          const fileDetails = (await fileDetailsResponse.json()) as GraphDriveItem
           logger.info(`[${requestId}] Got file details`, {
             webDavUrl: fileDetails.webDavUrl,
             eTag: fileDetails.eTag,
@@ -208,17 +245,21 @@ export async function POST(request: NextRequest) {
 
     const teamsUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(validatedData.chatId)}/messages`
 
-    const teamsResponse = await fetch(teamsUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${validatedData.accessToken}`,
+    const teamsResponse = await secureFetchGraph(
+      teamsUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${validatedData.accessToken}`,
+        },
+        body: JSON.stringify(messageBody),
       },
-      body: JSON.stringify(messageBody),
-    })
+      'teamsUrl'
+    )
 
     if (!teamsResponse.ok) {
-      const errorData = await teamsResponse.json().catch(() => ({}))
+      const errorData = (await teamsResponse.json().catch(() => ({}))) as GraphApiErrorResponse
       logger.error(`[${requestId}] Microsoft Teams API error:`, errorData)
       return NextResponse.json(
         {
@@ -229,7 +270,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const responseData = await teamsResponse.json()
+    const responseData = (await teamsResponse.json()) as GraphChatMessage
     logger.info(`[${requestId}] Teams message sent successfully`, {
       messageId: responseData.id,
       attachmentCount: attachments.length,

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { BlockType, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
@@ -41,16 +42,9 @@ export class ApiBlockHandler implements BlockHandler {
         }
       }
 
-      if (!urlToValidate.match(/^https?:\/\//i)) {
-        throw new Error(
-          `Invalid URL: "${urlToValidate}" - URL must include protocol (try "https://${urlToValidate}")`
-        )
-      }
-
-      try {
-        new URL(urlToValidate)
-      } catch (e: any) {
-        throw new Error(`Invalid URL format: "${urlToValidate}" - ${e.message}`)
+      const urlValidation = await validateUrlWithDNS(urlToValidate, 'url')
+      if (!urlValidation.isValid) {
+        throw new Error(urlValidation.error)
       }
     }
 

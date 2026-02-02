@@ -4,6 +4,26 @@ import { AuthMode } from '@/blocks/types'
 import type { FirefliesResponse } from '@/tools/fireflies/types'
 import { getTrigger } from '@/triggers'
 
+const resolveHttpsUrlFromFileInput = (fileInput: unknown): string | null => {
+  if (!fileInput || typeof fileInput !== 'object') {
+    return null
+  }
+
+  const record = fileInput as Record<string, unknown>
+  const url =
+    typeof record.url === 'string'
+      ? record.url.trim()
+      : typeof record.path === 'string'
+        ? record.path.trim()
+        : ''
+
+  if (!url || !url.startsWith('https://')) {
+    return null
+  }
+
+  return url
+}
+
 export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   type: 'fireflies',
   name: 'Fireflies',
@@ -585,5 +605,76 @@ Return ONLY the summary text - no quotes, no labels.`,
   triggers: {
     enabled: true,
     available: ['fireflies_transcription_complete'],
+  },
+}
+
+const firefliesV2SubBlocks = (FirefliesBlock.subBlocks || []).filter(
+  (subBlock) => subBlock.id !== 'audioUrl'
+)
+const firefliesV2Inputs = FirefliesBlock.inputs
+  ? Object.fromEntries(Object.entries(FirefliesBlock.inputs).filter(([key]) => key !== 'audioUrl'))
+  : {}
+
+export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
+  ...FirefliesBlock,
+  type: 'fireflies_v2',
+  name: 'Fireflies (File Only)',
+  description: 'Interact with Fireflies.ai meeting transcripts and recordings',
+  hideFromToolbar: true,
+  subBlocks: firefliesV2SubBlocks,
+  tools: {
+    ...FirefliesBlock.tools,
+    config: {
+      ...FirefliesBlock.tools?.config,
+      tool: (params) =>
+        FirefliesBlock.tools?.config?.tool
+          ? FirefliesBlock.tools.config.tool(params)
+          : params.operation || 'fireflies_list_transcripts',
+      params: (params) => {
+        const baseParams = FirefliesBlock.tools?.config?.params
+        if (!baseParams) {
+          return params
+        }
+
+        if (params.operation === 'fireflies_upload_audio') {
+          let audioInput = params.audioFile || params.audioFileReference
+          if (!audioInput) {
+            throw new Error('Audio file is required.')
+          }
+          if (typeof audioInput === 'string') {
+            try {
+              audioInput = JSON.parse(audioInput)
+            } catch {
+              throw new Error('Audio file must be a valid file reference.')
+            }
+          }
+          if (Array.isArray(audioInput)) {
+            throw new Error(
+              'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
+            )
+          }
+          if (typeof audioInput !== 'object' || audioInput === null) {
+            throw new Error('Audio file must be a file reference.')
+          }
+          const audioUrl = resolveHttpsUrlFromFileInput(audioInput)
+          if (!audioUrl) {
+            throw new Error('Audio file must include a https URL.')
+          }
+
+          return baseParams({
+            ...params,
+            audioUrl,
+            audioFile: undefined,
+            audioFileReference: undefined,
+          })
+        }
+
+        return baseParams(params)
+      },
+    },
+  },
+  inputs: {
+    ...firefliesV2Inputs,
+    audioFileReference: { type: 'json', description: 'Audio/video file reference' },
   },
 }

@@ -4,18 +4,18 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
+  secureFetchWithPinnedIP,
   validateAwsRegion,
-  validateExternalUrl,
   validateS3BucketName,
-} from '@/lib/core/security/input-validation'
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { StorageService } from '@/lib/uploads'
+import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
-  extractStorageKey,
-  inferContextFromKey,
-  isInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+  downloadFileFromStorage,
+  resolveInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes for large multi-page PDF processing
@@ -35,6 +35,7 @@ const TextractParseSchema = z
     region: z.string().min(1, 'AWS region is required'),
     processingMode: z.enum(['sync', 'async']).optional().default('sync'),
     filePath: z.string().optional(),
+    file: RawFileInputSchema.optional(),
     s3Uri: z.string().optional(),
     featureTypes: z
       .array(z.enum(['TABLES', 'FORMS', 'QUERIES', 'SIGNATURES', 'LAYOUT']))
@@ -48,6 +49,20 @@ const TextractParseSchema = z
         code: z.ZodIssueCode.custom,
         message: regionValidation.error,
         path: ['region'],
+      })
+    }
+    if (data.processingMode === 'async' && !data.s3Uri) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'S3 URI is required for multi-page processing (s3://bucket/key)',
+        path: ['s3Uri'],
+      })
+    }
+    if (data.processingMode !== 'async' && !data.file && !data.filePath) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'File input is required for single-page processing',
+        path: ['filePath'],
       })
     }
   })
@@ -111,7 +126,14 @@ function signAwsRequest(
 }
 
 async function fetchDocumentBytes(url: string): Promise<{ bytes: string; contentType: string }> {
-  const response = await fetch(url)
+  const urlValidation = await validateUrlWithDNS(url, 'Document URL')
+  if (!urlValidation.isValid) {
+    throw new Error(urlValidation.error || 'Invalid document URL')
+  }
+
+  const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
+    method: 'GET',
+  })
   if (!response.ok) {
     throw new Error(`Failed to fetch document: ${response.statusText}`)
   }
@@ -318,8 +340,8 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Textract parse request`, {
       processingMode,
-      filePath: validatedData.filePath?.substring(0, 50),
-      s3Uri: validatedData.s3Uri?.substring(0, 50),
+      hasFile: Boolean(validatedData.file),
+      hasS3Uri: Boolean(validatedData.s3Uri),
       featureTypes,
       userId,
     })
@@ -414,89 +436,88 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (!validatedData.filePath) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'File path is required for single-page processing',
-        },
-        { status: 400 }
-      )
-    }
+    let bytes = ''
+    let contentType = 'application/octet-stream'
+    let isPdf = false
 
-    let fileUrl = validatedData.filePath
-
-    const isInternalFilePath = validatedData.filePath && isInternalFileUrl(validatedData.filePath)
-
-    if (isInternalFilePath) {
+    if (validatedData.file) {
+      let userFile
       try {
-        const storageKey = extractStorageKey(validatedData.filePath)
-        const context = inferContextFromKey(storageKey)
-
-        const hasAccess = await verifyFileAccess(storageKey, userId, undefined, context, false)
-
-        if (!hasAccess) {
-          logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
-            userId,
-            key: storageKey,
-            context,
-          })
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'File not found',
-            },
-            { status: 404 }
-          )
-        }
-
-        fileUrl = await StorageService.generatePresignedDownloadUrl(storageKey, context, 5 * 60)
-        logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
+        userFile = processSingleFileToUserFile(validatedData.file, requestId, logger)
       } catch (error) {
-        logger.error(`[${requestId}] Failed to generate presigned URL:`, error)
         return NextResponse.json(
           {
             success: false,
-            error: 'Failed to generate file access URL',
-          },
-          { status: 500 }
-        )
-      }
-    } else if (validatedData.filePath?.startsWith('/')) {
-      // Reject arbitrary absolute paths that don't contain /api/files/serve/
-      logger.warn(`[${requestId}] Invalid internal path`, {
-        userId,
-        path: validatedData.filePath.substring(0, 50),
-      })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid file path. Only uploaded files are supported for internal paths.',
-        },
-        { status: 400 }
-      )
-    } else {
-      const urlValidation = validateExternalUrl(fileUrl, 'Document URL')
-      if (!urlValidation.isValid) {
-        logger.warn(`[${requestId}] SSRF attempt blocked`, {
-          userId,
-          url: fileUrl.substring(0, 100),
-          error: urlValidation.error,
-        })
-        return NextResponse.json(
-          {
-            success: false,
-            error: urlValidation.error,
+            error: error instanceof Error ? error.message : 'Failed to process file',
           },
           { status: 400 }
         )
       }
+
+      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+      bytes = buffer.toString('base64')
+      contentType = userFile.type || 'application/octet-stream'
+      isPdf = contentType.includes('pdf') || userFile.name?.toLowerCase().endsWith('.pdf')
+    } else if (validatedData.filePath) {
+      let fileUrl = validatedData.filePath
+
+      const isInternalFilePath = isInternalFileUrl(fileUrl)
+
+      if (isInternalFilePath) {
+        const resolution = await resolveInternalFileUrl(fileUrl, userId, requestId, logger)
+        if (resolution.error) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: resolution.error.message,
+            },
+            { status: resolution.error.status }
+          )
+        }
+        fileUrl = resolution.fileUrl || fileUrl
+      } else if (fileUrl.startsWith('/')) {
+        logger.warn(`[${requestId}] Invalid internal path`, {
+          userId,
+          path: fileUrl.substring(0, 50),
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Invalid file path. Only uploaded files are supported for internal paths.',
+          },
+          { status: 400 }
+        )
+      } else {
+        const urlValidation = await validateUrlWithDNS(fileUrl, 'Document URL')
+        if (!urlValidation.isValid) {
+          logger.warn(`[${requestId}] SSRF attempt blocked`, {
+            userId,
+            url: fileUrl.substring(0, 100),
+            error: urlValidation.error,
+          })
+          return NextResponse.json(
+            {
+              success: false,
+              error: urlValidation.error,
+            },
+            { status: 400 }
+          )
+        }
+      }
+
+      const fetched = await fetchDocumentBytes(fileUrl)
+      bytes = fetched.bytes
+      contentType = fetched.contentType
+      isPdf = contentType.includes('pdf') || fileUrl.toLowerCase().endsWith('.pdf')
+    } else {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'File input is required for single-page processing',
+        },
+        { status: 400 }
+      )
     }
-
-    const { bytes, contentType } = await fetchDocumentBytes(fileUrl)
-
-    // Track if this is a PDF for better error messaging
-    const isPdf = contentType.includes('pdf') || fileUrl.toLowerCase().endsWith('.pdf')
 
     const uri = '/'
 

@@ -1,9 +1,10 @@
-import { createLogger } from '@sim/logger'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { ReductoParserInput, ReductoParserOutput } from '@/tools/reducto/types'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import type {
+  ReductoParserInput,
+  ReductoParserOutput,
+  ReductoParserV2Input,
+} from '@/tools/reducto/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('ReductoParserTool')
 
 export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutput> = {
   id: 'reducto_parser',
@@ -14,9 +15,15 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
   params: {
     filePath: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'URL to a PDF document to be processed',
+    },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'hidden',
+      description: 'Document file to be processed',
     },
     fileUpload: {
       type: 'object',
@@ -63,66 +70,50 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
         throw new Error('Missing or invalid API key: A valid Reducto API key is required')
       }
 
-      if (
-        params.fileUpload &&
-        (!params.filePath || params.filePath === 'null' || params.filePath === '')
-      ) {
-        if (
-          typeof params.fileUpload === 'object' &&
-          params.fileUpload !== null &&
-          (params.fileUpload.url || params.fileUpload.path)
-        ) {
-          let uploadedFilePath = (params.fileUpload.url || params.fileUpload.path) as string
-
-          if (uploadedFilePath.startsWith('/')) {
-            const baseUrl = getBaseUrl()
-            if (!baseUrl) throw new Error('Failed to get base URL for file path conversion')
-            uploadedFilePath = `${baseUrl}${uploadedFilePath}`
-          }
-
-          params.filePath = uploadedFilePath as string
-          logger.info('Using uploaded file:', uploadedFilePath)
-        } else {
-          throw new Error('Invalid file upload: Upload data is missing or invalid')
-        }
-      }
-
-      if (
-        !params.filePath ||
-        typeof params.filePath !== 'string' ||
-        params.filePath.trim() === ''
-      ) {
-        throw new Error('Missing or invalid file path: Please provide a URL to a PDF document')
-      }
-
-      let filePathToValidate = params.filePath.trim()
-      if (filePathToValidate.startsWith('/')) {
-        const baseUrl = getBaseUrl()
-        if (!baseUrl) throw new Error('Failed to get base URL for file path conversion')
-        filePathToValidate = `${baseUrl}${filePathToValidate}`
-      }
-
-      let url
-      try {
-        url = new URL(filePathToValidate)
-
-        if (!['http:', 'https:'].includes(url.protocol)) {
-          throw new Error(`Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`)
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        throw new Error(
-          `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a PDF document.`
-        )
-      }
-
       const requestBody: Record<string, unknown> = {
         apiKey: params.apiKey,
-        filePath: url.toString(),
       }
+      const fileInput =
+        params.file && typeof params.file === 'object' ? params.file : params.fileUpload
+      const hasFileUpload = fileInput && typeof fileInput === 'object'
+      const hasFilePath =
+        typeof params.filePath === 'string' &&
+        params.filePath !== 'null' &&
+        params.filePath.trim() !== ''
 
-      if (params.fileUpload?.path?.startsWith('/api/files/serve/')) {
-        requestBody.filePath = params.fileUpload.path
+      if (hasFilePath) {
+        const filePathToValidate = params.filePath!.trim()
+
+        if (filePathToValidate.startsWith('/')) {
+          if (!isInternalFileUrl(filePathToValidate)) {
+            throw new Error(
+              'Invalid file path. Only uploaded files are supported for internal paths.'
+            )
+          }
+          requestBody.filePath = filePathToValidate
+        } else {
+          let url
+          try {
+            url = new URL(filePathToValidate)
+
+            if (!['http:', 'https:'].includes(url.protocol)) {
+              throw new Error(
+                `Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`
+              )
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            throw new Error(
+              `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a PDF document.`
+            )
+          }
+
+          requestBody.filePath = url.toString()
+        }
+      } else if (hasFileUpload) {
+        requestBody.file = fileInput
+      } else {
+        throw new Error('Missing file input: Please provide a PDF URL or upload a file')
       }
 
       if (params.tableOutputFormat && ['html', 'md'].includes(params.tableOutputFormat)) {
@@ -187,6 +178,74 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
       type: 'string',
       description: 'Link to Reducto studio interface',
       optional: true,
+    },
+  },
+}
+
+export const reductoParserV2Tool: ToolConfig<ReductoParserV2Input, ReductoParserOutput> = {
+  ...reductoParserTool,
+  id: 'reducto_parser_v2',
+  name: 'Reducto PDF Parser (File Only)',
+  postProcess: undefined,
+  directExecution: undefined,
+  transformResponse: reductoParserTool.transformResponse
+    ? (response: Response, params?: ReductoParserV2Input) =>
+        reductoParserTool.transformResponse!(response, params as unknown as ReductoParserInput)
+    : undefined,
+  params: {
+    file: {
+      type: 'file',
+      required: true,
+      visibility: 'user-only',
+      description: 'PDF document to be processed',
+    },
+    pages: reductoParserTool.params.pages,
+    tableOutputFormat: reductoParserTool.params.tableOutputFormat,
+    apiKey: reductoParserTool.params.apiKey,
+  },
+  request: {
+    url: '/api/tools/reducto/parse',
+    method: 'POST',
+    headers: (params) => ({
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${params.apiKey}`,
+    }),
+    body: (params: ReductoParserV2Input) => {
+      if (!params || typeof params !== 'object') {
+        throw new Error('Invalid parameters: Parameters must be provided as an object')
+      }
+
+      if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
+        throw new Error('Missing or invalid API key: A valid Reducto API key is required')
+      }
+
+      if (!params.file || typeof params.file !== 'object') {
+        throw new Error('Missing or invalid file: Please provide a file object')
+      }
+
+      const requestBody: Record<string, unknown> = {
+        apiKey: params.apiKey,
+        file: params.file,
+      }
+
+      if (params.tableOutputFormat && ['html', 'md'].includes(params.tableOutputFormat)) {
+        requestBody.tableOutputFormat = params.tableOutputFormat
+      }
+
+      if (params.pages !== undefined && params.pages !== null) {
+        if (Array.isArray(params.pages) && params.pages.length > 0) {
+          const validPages = params.pages.filter(
+            (page) => typeof page === 'number' && Number.isInteger(page) && page >= 0
+          )
+
+          if (validPages.length > 0) {
+            requestBody.pages = validPages
+          }
+        }
+      }
+
+      return requestBody
     },
   },
 }

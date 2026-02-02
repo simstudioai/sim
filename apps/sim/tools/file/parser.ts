@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import type {
   FileParseApiMultiResponse,
@@ -9,21 +10,14 @@ import type {
   FileParserOutputData,
   FileParserV3Output,
   FileParserV3OutputData,
+  FileUploadInput,
 } from '@/tools/file/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FileParserTool')
 
-interface FileUploadObject {
-  path: string
-  name?: string
-  size?: number
-  type?: string
-}
-
 interface ToolBodyParams extends Partial<FileParserInput> {
-  file?: FileUploadObject | FileUploadObject[]
-  files?: FileUploadObject[]
+  files?: FileUploadInput[]
   _context?: {
     workspaceId?: string
     workflowId?: string
@@ -104,6 +98,12 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       visibility: 'user-only',
       description: 'Path to the file(s). Can be a single path, URL, or an array of paths.',
     },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'user-only',
+      description: 'Uploaded file(s) to parse',
+    },
     fileType: {
       type: 'string',
       required: false,
@@ -129,6 +129,28 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       let determinedFilePath: string | string[] | null = null
       const determinedFileType: string | undefined = params.fileType
 
+      const resolveFilePath = (fileInput: unknown): string | null => {
+        if (!fileInput || typeof fileInput !== 'object') return null
+
+        if ('path' in fileInput && typeof (fileInput as { path?: unknown }).path === 'string') {
+          return (fileInput as { path: string }).path
+        }
+
+        if ('url' in fileInput && typeof (fileInput as { url?: unknown }).url === 'string') {
+          return (fileInput as { url: string }).url
+        }
+
+        if ('key' in fileInput && typeof (fileInput as { key?: unknown }).key === 'string') {
+          const fileRecord = fileInput as Record<string, unknown>
+          const key = fileRecord.key as string
+          const context =
+            typeof fileRecord.context === 'string' ? fileRecord.context : inferContextFromKey(key)
+          return `/api/files/serve/${encodeURIComponent(key)}?context=${context}`
+        }
+
+        return null
+      }
+
       // Determine the file path(s) based on input parameters.
       // Precedence: direct filePath > file array > single file object > legacy files array
       // 1. Check for direct filePath (URL or single path from upload)
@@ -139,18 +161,34 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       // 2. Check for file upload (array)
       else if (params.file && Array.isArray(params.file) && params.file.length > 0) {
         logger.info('Tool body processing file array upload')
-        determinedFilePath = params.file.map((file) => file.path)
+        const filePaths = params.file
+          .map((file) => resolveFilePath(file))
+          .filter(Boolean) as string[]
+        if (filePaths.length !== params.file.length) {
+          throw new Error('Invalid file input: One or more files are missing path or URL')
+        }
+        determinedFilePath = filePaths
       }
       // 3. Check for file upload (single object)
-      else if (params.file && !Array.isArray(params.file) && params.file.path) {
+      else if (params.file && !Array.isArray(params.file)) {
         logger.info('Tool body processing single file object upload')
-        determinedFilePath = params.file.path
+        const resolvedPath = resolveFilePath(params.file)
+        if (!resolvedPath) {
+          throw new Error('Invalid file input: Missing path or URL')
+        }
+        determinedFilePath = resolvedPath
       }
       // 4. Check for deprecated multiple files case (from older blocks?)
       else if (params.files && Array.isArray(params.files)) {
         logger.info('Tool body processing legacy files array:', params.files.length)
         if (params.files.length > 0) {
-          determinedFilePath = params.files.map((file) => file.path)
+          const filePaths = params.files
+            .map((file) => resolveFilePath(file))
+            .filter(Boolean) as string[]
+          if (filePaths.length !== params.files.length) {
+            throw new Error('Invalid file input: One or more files are missing path or URL')
+          }
+          determinedFilePath = filePaths
         } else {
           logger.warn('Legacy files array provided but is empty')
         }

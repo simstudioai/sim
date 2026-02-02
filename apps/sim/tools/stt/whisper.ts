@@ -1,4 +1,4 @@
-import type { SttParams, SttResponse } from '@/tools/stt/types'
+import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import { STT_SEGMENT_OUTPUT_PROPERTIES } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -151,5 +151,49 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
     },
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
+  },
+}
+
+const whisperSttV2Params = {
+  provider: whisperSttTool.params.provider,
+  apiKey: whisperSttTool.params.apiKey,
+  model: whisperSttTool.params.model,
+  audioFile: whisperSttTool.params.audioFile,
+  audioFileReference: whisperSttTool.params.audioFileReference,
+  language: whisperSttTool.params.language,
+  timestamps: whisperSttTool.params.timestamps,
+  translateToEnglish: whisperSttTool.params.translateToEnglish,
+  prompt: whisperSttTool.params.prompt,
+  temperature: whisperSttTool.params.temperature,
+  responseFormat: whisperSttTool.params.responseFormat,
+} satisfies ToolConfig['params']
+
+export const whisperSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+  ...whisperSttTool,
+  id: 'stt_whisper_v2',
+  name: 'OpenAI Whisper STT (File Only)',
+  params: whisperSttV2Params,
+  request: {
+    ...whisperSttTool.request,
+    body: (
+      params: SttV2Params & {
+        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
+      }
+    ) => ({
+      provider: 'whisper',
+      apiKey: params.apiKey,
+      model: params.model,
+      audioFile: params.audioFile,
+      audioFileReference: params.audioFileReference,
+      language: params.language || 'auto',
+      timestamps: params.timestamps || 'none',
+      translateToEnglish: params.translateToEnglish || false,
+      prompt: (params as any).prompt,
+      temperature: (params as any).temperature,
+      responseFormat: (params as any).responseFormat,
+      workspaceId: params._context?.workspaceId,
+      workflowId: params._context?.workflowId,
+      executionId: params._context?.executionId,
+    }),
   },
 }

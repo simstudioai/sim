@@ -1,11 +1,13 @@
 import { TextractIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type { TextractParserOutput } from '@/tools/textract/types'
 
 export const TextractBlock: BlockConfig<TextractParserOutput> = {
   type: 'textract',
   name: 'AWS Textract',
   description: 'Extract text, tables, and forms from documents',
+  hideFromToolbar: true,
   authMode: AuthMode.ApiKey,
   longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
   docsLink: 'https://docs.sim.ai/tools/textract',
@@ -140,7 +142,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
             throw new Error('Document is required')
           }
           if (typeof documentInput === 'object') {
-            parameters.fileUpload = documentInput
+            parameters.file = documentInput
           } else if (typeof documentInput === 'string') {
             parameters.filePath = documentInput.trim()
           }
@@ -188,4 +190,89 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
       description: 'Version of the Textract model used for processing',
     },
   },
+}
+
+const textractV2Inputs = TextractBlock.inputs
+  ? Object.fromEntries(Object.entries(TextractBlock.inputs).filter(([key]) => key !== 'filePath'))
+  : {}
+const textractV2SubBlocks = (TextractBlock.subBlocks || []).filter(
+  (subBlock) => subBlock.id !== 'filePath'
+)
+
+export const TextractV2Block: BlockConfig<TextractParserOutput> = {
+  ...TextractBlock,
+  type: 'textract_v2',
+  name: 'AWS Textract (File Only)',
+  hideFromToolbar: false,
+  subBlocks: textractV2SubBlocks,
+  tools: {
+    access: ['textract_parser_v2'],
+    config: {
+      tool: createVersionedToolSelector({
+        baseToolSelector: () => 'textract_parser',
+        suffix: '_v2',
+        fallbackToolId: 'textract_parser_v2',
+      }),
+      params: (params) => {
+        if (!params.accessKeyId || params.accessKeyId.trim() === '') {
+          throw new Error('AWS Access Key ID is required')
+        }
+        if (!params.secretAccessKey || params.secretAccessKey.trim() === '') {
+          throw new Error('AWS Secret Access Key is required')
+        }
+        if (!params.region || params.region.trim() === '') {
+          throw new Error('AWS Region is required')
+        }
+
+        const processingMode = params.processingMode || 'sync'
+        const parameters: Record<string, unknown> = {
+          accessKeyId: params.accessKeyId.trim(),
+          secretAccessKey: params.secretAccessKey.trim(),
+          region: params.region.trim(),
+          processingMode,
+        }
+
+        if (processingMode === 'async') {
+          if (!params.s3Uri || params.s3Uri.trim() === '') {
+            throw new Error('S3 URI is required for multi-page processing')
+          }
+          parameters.s3Uri = params.s3Uri.trim()
+        } else {
+          let documentInput = params.fileUpload || params.document
+          if (!documentInput) {
+            throw new Error('Document file is required')
+          }
+          if (typeof documentInput === 'string') {
+            try {
+              documentInput = JSON.parse(documentInput)
+            } catch {
+              throw new Error('Document file must be a valid file reference')
+            }
+          }
+          if (Array.isArray(documentInput)) {
+            throw new Error(
+              'File reference must be a single file, not an array. Use <block.attachments[0]> to select one file.'
+            )
+          }
+          if (typeof documentInput !== 'object' || documentInput === null) {
+            throw new Error('Document file must be a file reference')
+          }
+          parameters.file = documentInput
+        }
+
+        const featureTypes: string[] = []
+        if (params.extractTables) featureTypes.push('TABLES')
+        if (params.extractForms) featureTypes.push('FORMS')
+        if (params.detectSignatures) featureTypes.push('SIGNATURES')
+        if (params.analyzeLayout) featureTypes.push('LAYOUT')
+
+        if (featureTypes.length > 0) {
+          parameters.featureTypes = featureTypes
+        }
+
+        return parameters
+      },
+    },
+  },
+  inputs: textractV2Inputs,
 }

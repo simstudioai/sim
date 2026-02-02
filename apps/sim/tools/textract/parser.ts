@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type { TextractParserInput, TextractParserOutput } from '@/tools/textract/types'
+import type {
+  TextractParserInput,
+  TextractParserOutput,
+  TextractParserV2Input,
+} from '@/tools/textract/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('TextractParserTool')
@@ -41,17 +45,17 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
       visibility: 'user-only',
       description: 'URL to a document to be processed (JPEG, PNG, or single-page PDF).',
     },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'hidden',
+      description: 'Document file to be processed (JPEG, PNG, or single-page PDF).',
+    },
     s3Uri: {
       type: 'string',
       required: false,
       visibility: 'user-only',
       description: 'S3 URI for multi-page processing (s3://bucket/key).',
-    },
-    fileUpload: {
-      type: 'object',
-      required: false,
-      visibility: 'hidden',
-      description: 'File upload data from file-upload component',
     },
     featureTypes: {
       type: 'array',
@@ -103,14 +107,17 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
       if (processingMode === 'async') {
         requestBody.s3Uri = params.s3Uri?.trim()
       } else {
-        // Handle file upload by extracting the path
-        if (params.fileUpload && !params.filePath) {
-          const uploadPath = params.fileUpload.path || params.fileUpload.url
-          if (uploadPath) {
-            requestBody.filePath = uploadPath
-          }
-        } else {
+        const fileInput =
+          params.file && typeof params.file === 'object' ? params.file : params.fileUpload
+        const hasFileUpload = fileInput && typeof fileInput === 'object'
+        const hasFilePath = typeof params.filePath === 'string' && params.filePath.trim() !== ''
+
+        if (hasFilePath) {
           requestBody.filePath = params.filePath?.trim()
+        } else if (hasFileUpload) {
+          requestBody.file = fileInput
+        } else {
+          throw new Error('Document is required for single-page processing')
         }
       }
 
@@ -283,6 +290,59 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
       type: 'string',
       description: 'Version of the Textract model used for processing',
       optional: true,
+    },
+  },
+}
+
+export const textractParserV2Tool: ToolConfig<TextractParserV2Input, TextractParserOutput> = {
+  ...textractParserTool,
+  id: 'textract_parser_v2',
+  name: 'AWS Textract Parser (File Only)',
+  params: {
+    accessKeyId: textractParserTool.params.accessKeyId,
+    secretAccessKey: textractParserTool.params.secretAccessKey,
+    region: textractParserTool.params.region,
+    processingMode: textractParserTool.params.processingMode,
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'user-only',
+      description: 'Document to be processed (JPEG, PNG, or single-page PDF).',
+    },
+    s3Uri: textractParserTool.params.s3Uri,
+    featureTypes: textractParserTool.params.featureTypes,
+    queries: textractParserTool.params.queries,
+  },
+  request: {
+    ...textractParserTool.request,
+    body: (params: TextractParserV2Input) => {
+      const processingMode = params.processingMode || 'sync'
+
+      const requestBody: Record<string, unknown> = {
+        accessKeyId: params.accessKeyId?.trim(),
+        secretAccessKey: params.secretAccessKey?.trim(),
+        region: params.region?.trim(),
+        processingMode,
+      }
+
+      if (processingMode === 'async') {
+        requestBody.s3Uri = params.s3Uri?.trim()
+      } else {
+        if (!params.file || typeof params.file !== 'object') {
+          throw new Error('Document file is required for single-page processing')
+        }
+        requestBody.file = params.file
+      }
+
+      if (params.featureTypes && Array.isArray(params.featureTypes)) {
+        requestBody.featureTypes = params.featureTypes
+      }
+
+      if (params.queries && Array.isArray(params.queries)) {
+        requestBody.queries = params.queries
+      }
+
+      return requestBody
     },
   },
 }

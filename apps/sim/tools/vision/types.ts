@@ -9,6 +9,13 @@ export interface VisionParams {
   prompt?: string
 }
 
+export interface VisionV2Params {
+  apiKey: string
+  imageFile: UserFile
+  model?: string
+  prompt?: string
+}
+
 export interface VisionResponse extends ToolResponse {
   output: {
     content: string

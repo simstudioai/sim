@@ -6,7 +6,6 @@ import {
   validateJiraCloudId,
   validateJiraIssueKey,
 } from '@/lib/core/security/input-validation'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
@@ -67,7 +66,7 @@ export async function POST(request: NextRequest) {
       }
       const url = `${baseUrl}/request`
 
-      logger.info('Creating request at:', sanitizeUrlForLog(url))
+      logger.info('Creating request at:', url)
 
       const requestBody: Record<string, unknown> = {
         serviceDeskId,
@@ -129,7 +128,7 @@ export async function POST(request: NextRequest) {
 
     const url = `${baseUrl}/request/${issueIdOrKey}`
 
-    logger.info('Fetching request from:', sanitizeUrlForLog(url))
+    logger.info('Fetching request from:', url)
 
     const response = await fetch(url, {
       method: 'GET',

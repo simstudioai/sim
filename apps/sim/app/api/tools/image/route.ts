@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateImageUrl } from '@/lib/core/security/input-validation'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('ImageProxyAPI')
@@ -27,19 +29,20 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Missing URL parameter', { status: 400 })
   }
 
-  const urlValidation = validateImageUrl(imageUrl)
+  const urlValidation = await validateUrlWithDNS(imageUrl, 'imageUrl')
   if (!urlValidation.isValid) {
     logger.warn(`[${requestId}] Blocked image proxy request`, {
-      url: sanitizeUrlForLog(imageUrl),
+      url: imageUrl.substring(0, 100),
       error: urlValidation.error,
     })
     return new NextResponse(urlValidation.error || 'Invalid image URL', { status: 403 })
   }
 
-  logger.info(`[${requestId}] Proxying image request for: ${sanitizeUrlForLog(imageUrl)}`)
+  logger.info(`[${requestId}] Proxying image request for: ${imageUrl}`)
 
   try {
-    const imageResponse = await fetch(imageUrl, {
+    const imageResponse = await secureFetchWithPinnedIP(imageUrl, urlValidation.resolvedIP!, {
+      method: 'GET',
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',

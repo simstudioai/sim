@@ -6,7 +6,6 @@ import {
   validateJiraCloudId,
   validateJiraIssueKey,
 } from '@/lib/core/security/input-validation'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
@@ -70,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     const url = `${baseUrl}/request/${issueIdOrKey}/transition`
 
-    logger.info('Transitioning request at:', sanitizeUrlForLog(url))
+    logger.info('Transitioning request at:', url)
 
     const body: Record<string, unknown> = {
       id: transitionId,

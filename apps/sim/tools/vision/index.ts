@@ -1,3 +1,3 @@
-import { visionTool } from '@/tools/vision/tool'
+import { visionTool, visionToolV2 } from '@/tools/vision/tool'
 
-export { visionTool }
+export { visionTool, visionToolV2 }

@@ -438,6 +438,7 @@ export interface RawFileInput {
   uploadedAt?: string | Date
   expiresAt?: string | Date
   context?: string
+  base64?: string
 }
 
 /**
@@ -454,6 +455,41 @@ function isCompleteUserFile(file: RawFileInput): file is UserFile {
     typeof file.uploadedAt === 'string' &&
     typeof file.expiresAt === 'string'
   )
+}
+
+function isUrlLike(value: string): boolean {
+  return value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')
+}
+
+function resolveStorageKeyFromRawFile(file: RawFileInput): string | null {
+  if (file.key) {
+    return file.key
+  }
+
+  if (file.path) {
+    if (isUrlLike(file.path)) {
+      return isInternalFileUrl(file.path) ? extractStorageKey(file.path) : null
+    }
+    return file.path
+  }
+
+  if (file.url) {
+    return isInternalFileUrl(file.url) ? extractStorageKey(file.url) : null
+  }
+
+  return null
+}
+
+function resolveInternalFileUrl(file: RawFileInput): string {
+  if (file.url && isInternalFileUrl(file.url)) {
+    return file.url
+  }
+
+  if (file.path && isInternalFileUrl(file.path)) {
+    return file.path
+  }
+
+  return ''
 }
 
 /**
@@ -476,10 +512,13 @@ export function processSingleFileToUserFile(
   }
 
   if (isCompleteUserFile(file)) {
-    return file
+    return {
+      ...file,
+      url: resolveInternalFileUrl(file),
+    }
   }
 
-  const storageKey = file.key || (file.path ? extractStorageKey(file.path) : null)
+  const storageKey = resolveStorageKeyFromRawFile(file)
 
   if (!storageKey) {
     logger.warn(`[${requestId}] File has no storage key: ${file.name || 'unknown'}`)
@@ -489,10 +528,12 @@ export function processSingleFileToUserFile(
   const userFile: UserFile = {
     id: file.id || `file-${Date.now()}`,
     name: file.name,
-    url: file.url || file.path || '',
+    url: resolveInternalFileUrl(file),
     size: file.size,
     type: file.type || 'application/octet-stream',
     key: storageKey,
+    context: file.context,
+    base64: file.base64,
   }
 
   logger.info(`[${requestId}] Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`)
@@ -523,11 +564,14 @@ export function processFilesToUserFiles(
       }
 
       if (isCompleteUserFile(file)) {
-        userFiles.push(file)
+        userFiles.push({
+          ...file,
+          url: resolveInternalFileUrl(file),
+        })
         continue
       }
 
-      const storageKey = file.key || (file.path ? extractStorageKey(file.path) : null)
+      const storageKey = resolveStorageKeyFromRawFile(file)
 
       if (!storageKey) {
         logger.warn(`[${requestId}] Skipping file without storage key: ${file.name || 'unknown'}`)
@@ -537,10 +581,12 @@ export function processFilesToUserFiles(
       const userFile: UserFile = {
         id: file.id || `file-${Date.now()}`,
         name: file.name,
-        url: file.url || file.path || '',
+        url: resolveInternalFileUrl(file),
         size: file.size,
         type: file.type || 'application/octet-stream',
         key: storageKey,
+        context: file.context,
+        base64: file.base64,
       }
 
       logger.info(

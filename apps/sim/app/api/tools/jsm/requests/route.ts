@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
@@ -69,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     const url = `${baseUrl}/request${params.toString() ? `?${params.toString()}` : ''}`
 
-    logger.info('Fetching requests from:', sanitizeUrlForLog(url))
+    logger.info('Fetching requests from:', url)
 
     const response = await fetch(url, {
       method: 'GET',

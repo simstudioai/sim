@@ -2,8 +2,15 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import {
+  downloadFileFromStorage,
+  resolveInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { TranscriptSegment } from '@/tools/stt/types'
 
@@ -46,6 +53,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userId = authResult.userId
     const body: SttRequestBody = await request.json()
     const {
       provider,
@@ -73,6 +81,9 @@ export async function POST(request: NextRequest) {
     let audioMimeType: string
 
     if (body.audioFile) {
+      if (Array.isArray(body.audioFile) && body.audioFile.length !== 1) {
+        return NextResponse.json({ error: 'audioFile must be a single file' }, { status: 400 })
+      }
       const file = Array.isArray(body.audioFile) ? body.audioFile[0] : body.audioFile
       logger.info(`[${requestId}] Processing uploaded file: ${file.name}`)
 
@@ -80,6 +91,12 @@ export async function POST(request: NextRequest) {
       audioFileName = file.name
       audioMimeType = file.type
     } else if (body.audioFileReference) {
+      if (Array.isArray(body.audioFileReference) && body.audioFileReference.length !== 1) {
+        return NextResponse.json(
+          { error: 'audioFileReference must be a single file' },
+          { status: 400 }
+        )
+      }
       const file = Array.isArray(body.audioFileReference)
         ? body.audioFileReference[0]
         : body.audioFileReference
@@ -89,16 +106,50 @@ export async function POST(request: NextRequest) {
       audioFileName = file.name
       audioMimeType = file.type
     } else if (body.audioUrl) {
-      logger.info(`[${requestId}] Downloading from URL: ${sanitizeUrlForLog(body.audioUrl)}`)
+      logger.info(`[${requestId}] Downloading from URL: ${body.audioUrl}`)
 
-      const response = await fetch(body.audioUrl)
+      let audioUrl = body.audioUrl.trim()
+      if (audioUrl.startsWith('/') && !isInternalFileUrl(audioUrl)) {
+        return NextResponse.json(
+          {
+            error: 'Invalid file path. Only uploaded files are supported for internal paths.',
+          },
+          { status: 400 }
+        )
+      }
+
+      if (isInternalFileUrl(audioUrl)) {
+        if (!userId) {
+          return NextResponse.json(
+            { error: 'Authentication required for internal file access' },
+            { status: 401 }
+          )
+        }
+        const resolution = await resolveInternalFileUrl(audioUrl, userId, requestId, logger)
+        if (resolution.error) {
+          return NextResponse.json(
+            { error: resolution.error.message },
+            { status: resolution.error.status }
+          )
+        }
+        audioUrl = resolution.fileUrl || audioUrl
+      }
+
+      const urlValidation = await validateUrlWithDNS(audioUrl, 'audioUrl')
+      if (!urlValidation.isValid) {
+        return NextResponse.json({ error: urlValidation.error }, { status: 400 })
+      }
+
+      const response = await secureFetchWithPinnedIP(audioUrl, urlValidation.resolvedIP!, {
+        method: 'GET',
+      })
       if (!response.ok) {
         throw new Error(`Failed to download audio from URL: ${response.statusText}`)
       }
 
       const arrayBuffer = await response.arrayBuffer()
       audioBuffer = Buffer.from(arrayBuffer)
-      audioFileName = body.audioUrl.split('/').pop() || 'audio_file'
+      audioFileName = audioUrl.split('/').pop() || 'audio_file'
       audioMimeType = response.headers.get('content-type') || 'audio/mpeg'
     } else {
       return NextResponse.json(

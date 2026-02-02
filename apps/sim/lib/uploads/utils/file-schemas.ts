@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+
+const isUrlLike = (value: string) =>
+  value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')
 
 export const RawFileInputSchema = z
   .object({
@@ -18,6 +22,30 @@ export const RawFileInputSchema = z
   .refine((data) => Boolean(data.key || data.path || data.url), {
     message: 'File must include key, path, or url',
   })
+  .refine(
+    (data) => {
+      if (data.key || data.path) {
+        return true
+      }
+      if (!data.url) {
+        return true
+      }
+      return isInternalFileUrl(data.url)
+    },
+    { message: 'File url must reference an uploaded file' }
+  )
+  .refine(
+    (data) => {
+      if (data.key || !data.path) {
+        return true
+      }
+      if (!isUrlLike(data.path)) {
+        return true
+      }
+      return isInternalFileUrl(data.path)
+    },
+    { message: 'File path must reference an uploaded file' }
+  )
 
 export const RawFileInputArraySchema = z.array(RawFileInputSchema)
 

@@ -5,11 +5,11 @@ import type { ToolConfig } from '@/tools/types'
 import {
   createCustomToolRequestBody,
   createParamSchema,
-  executeRequest,
   formatRequestParams,
   getClientEnvVars,
   validateRequiredParametersAfterMerge,
 } from '@/tools/utils'
+import { executeRequest } from '@/tools/utils.server'
 
 vi.mock('@sim/logger', () => loggerMock)
 

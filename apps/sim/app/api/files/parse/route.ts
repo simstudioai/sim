@@ -6,7 +6,10 @@ import { createLogger } from '@sim/logger'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
@@ -20,6 +23,7 @@ import {
   getMimeTypeFromExtension,
   getViewerUrl,
   inferContextFromKey,
+  isInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
@@ -216,7 +220,7 @@ async function parseFileSingle(
     }
   }
 
-  if (filePath.includes('/api/files/serve/')) {
+  if (isInternalFileUrl(filePath)) {
     return handleCloudFile(filePath, fileType, undefined, userId, executionContext)
   }
 
@@ -247,7 +251,7 @@ function validateFilePath(filePath: string): { isValid: boolean; error?: string 
     return { isValid: false, error: 'Invalid path: tilde character not allowed' }
   }
 
-  if (filePath.startsWith('/') && !filePath.startsWith('/api/files/serve/')) {
+  if (filePath.startsWith('/') && !isInternalFileUrl(filePath)) {
     return { isValid: false, error: 'Path outside allowed directory' }
   }
 
@@ -368,7 +372,7 @@ async function handleExternalUrl(
       throw new Error(`File too large: ${buffer.length} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
     }
 
-    logger.info(`Downloaded file from URL: ${sanitizeUrlForLog(url)}, size: ${buffer.length} bytes`)
+    logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
 
     let userFile: UserFile | undefined
     const mimeType = response.headers.get('content-type') || getMimeTypeFromExtension(extension)

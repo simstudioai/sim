@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import type {
   MicrosoftPlannerReadResponse,
   MicrosoftPlannerToolParams,
@@ -77,7 +76,7 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
         finalUrl = 'https://graph.microsoft.com/v1.0/me/planner/tasks'
       }
 
-      logger.info('Microsoft Planner URL:', sanitizeUrlForLog(finalUrl))
+      logger.info('Microsoft Planner URL:', finalUrl)
       return finalUrl
     },
     method: 'GET',

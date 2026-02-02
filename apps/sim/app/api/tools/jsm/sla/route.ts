@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
@@ -54,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     const url = `${baseUrl}/request/${issueIdOrKey}/sla${params.toString() ? `?${params.toString()}` : ''}`
 
-    logger.info('Fetching SLA info from:', sanitizeUrlForLog(url))
+    logger.info('Fetching SLA info from:', url)
 
     const response = await fetch(url, {
       method: 'GET',

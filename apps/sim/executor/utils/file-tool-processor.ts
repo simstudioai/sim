@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { uploadExecutionFile, uploadFileFromRawData } from '@/lib/uploads/contexts/execution'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
 
@@ -127,14 +128,7 @@ export class FileToolProcessor {
       }
 
       if (!buffer && fileData.url) {
-        const response = await fetch(fileData.url)
-
-        if (!response.ok) {
-          throw new Error(`Failed to download file from ${fileData.url}: ${response.statusText}`)
-        }
-
-        const arrayBuffer = await response.arrayBuffer()
-        buffer = Buffer.from(arrayBuffer)
+        buffer = await downloadFileFromUrl(fileData.url)
       }
 
       if (buffer) {

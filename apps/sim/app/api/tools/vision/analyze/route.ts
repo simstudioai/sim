@@ -3,10 +3,17 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
-import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import {
+  downloadFileFromStorage,
+  resolveInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils.server'
 import { convertUsageMetadata, extractTextContent } from '@/providers/google/utils'
 
 export const dynamic = 'force-dynamic'
@@ -42,6 +49,7 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
+    const userId = authResult.userId
     const body = await request.json()
     const validatedData = VisionAnalyzeSchema.parse(body)
 
@@ -80,12 +88,65 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
-
-      const base64 = buffer.toString('base64')
+      let base64 = userFile.base64
+      let bufferLength = 0
+      if (!base64) {
+        const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+        base64 = buffer.toString('base64')
+        bufferLength = buffer.length
+      }
       const mimeType = userFile.type || 'image/jpeg'
       imageSource = `data:${mimeType};base64,${base64}`
-      logger.info(`[${requestId}] Converted image to base64 (${buffer.length} bytes)`)
+      if (bufferLength > 0) {
+        logger.info(`[${requestId}] Converted image to base64 (${bufferLength} bytes)`)
+      }
+    }
+
+    let imageUrlValidation: Awaited<ReturnType<typeof validateUrlWithDNS>> | null = null
+    if (imageSource && !imageSource.startsWith('data:')) {
+      if (imageSource.startsWith('/') && !isInternalFileUrl(imageSource)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Invalid file path. Only uploaded files are supported for internal paths.',
+          },
+          { status: 400 }
+        )
+      }
+
+      if (isInternalFileUrl(imageSource)) {
+        if (!userId) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Authentication required for internal file access',
+            },
+            { status: 401 }
+          )
+        }
+        const resolution = await resolveInternalFileUrl(imageSource, userId, requestId, logger)
+        if (resolution.error) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: resolution.error.message,
+            },
+            { status: resolution.error.status }
+          )
+        }
+        imageSource = resolution.fileUrl || imageSource
+      }
+
+      imageUrlValidation = await validateUrlWithDNS(imageSource, 'imageUrl')
+      if (!imageUrlValidation.isValid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: imageUrlValidation.error,
+          },
+          { status: 400 }
+        )
+      }
     }
 
     const defaultPrompt = 'Please analyze this image and describe what you see in detail.'
@@ -113,7 +174,15 @@ export async function POST(request: NextRequest) {
     if (isGemini) {
       let base64Payload = imageSource
       if (!base64Payload.startsWith('data:')) {
-        const response = await fetch(base64Payload)
+        const urlValidation =
+          imageUrlValidation || (await validateUrlWithDNS(base64Payload, 'imageUrl'))
+        if (!urlValidation.isValid) {
+          return NextResponse.json({ success: false, error: urlValidation.error }, { status: 400 })
+        }
+
+        const response = await secureFetchWithPinnedIP(base64Payload, urlValidation.resolvedIP!, {
+          method: 'GET',
+        })
         if (!response.ok) {
           return NextResponse.json(
             { success: false, error: 'Failed to fetch image for Gemini' },
@@ -126,7 +195,6 @@ export async function POST(request: NextRequest) {
         const base64 = Buffer.from(arrayBuffer).toString('base64')
         base64Payload = `data:${contentType};base64,${base64}`
       }
-
       const base64Marker = ';base64,'
       const markerIndex = base64Payload.indexOf(base64Marker)
       if (!base64Payload.startsWith('data:') || markerIndex === -1) {

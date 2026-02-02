@@ -1,10 +1,19 @@
 'use server'
 
 import type { Logger } from '@sim/logger'
-import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import type { StorageContext } from '@/lib/uploads'
+import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import {
+  extractStorageKey,
+  inferContextFromKey,
+  isInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils'
+import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -13,7 +22,6 @@ import type { UserFile } from '@/executor/types'
  * For external URLs, validates DNS/SSRF and uses secure fetch with IP pinning
  */
 export async function downloadFileFromUrl(fileUrl: string, timeoutMs = 180000): Promise<Buffer> {
-  const { isInternalFileUrl } = await import('./file-utils')
   const { parseInternalFileUrl } = await import('./file-utils')
 
   if (isInternalFileUrl(fileUrl)) {
@@ -36,6 +44,39 @@ export async function downloadFileFromUrl(fileUrl: string, timeoutMs = 180000): 
   }
 
   return Buffer.from(await response.arrayBuffer())
+}
+
+export async function resolveInternalFileUrl(
+  filePath: string,
+  userId: string,
+  requestId: string,
+  logger: Logger
+): Promise<{ fileUrl?: string; error?: { status: number; message: string } }> {
+  if (!isInternalFileUrl(filePath)) {
+    return { fileUrl: filePath }
+  }
+
+  try {
+    const storageKey = extractStorageKey(filePath)
+    const context = inferContextFromKey(storageKey)
+    const hasAccess = await verifyFileAccess(storageKey, userId, undefined, context, false)
+
+    if (!hasAccess) {
+      logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
+        userId,
+        key: storageKey,
+        context,
+      })
+      return { error: { status: 404, message: 'File not found' } }
+    }
+
+    const fileUrl = await StorageService.generatePresignedDownloadUrl(storageKey, context, 5 * 60)
+    logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
+    return { fileUrl }
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to generate presigned URL:`, error)
+    return { error: { status: 500, message: 'Failed to generate file access URL' } }
+  }
 }
 
 /**

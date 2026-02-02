@@ -1,6 +1,7 @@
 import { EyeIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type { VisionResponse } from '@/tools/vision/types'
 
 const VISION_MODEL_OPTIONS = [
@@ -107,6 +108,16 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
   name: 'Vision',
   description: 'Analyze images with vision models',
   hideFromToolbar: false,
+  tools: {
+    access: ['vision_tool_v2'],
+    config: {
+      tool: createVersionedToolSelector({
+        baseToolSelector: () => 'vision_tool',
+        suffix: '_v2',
+        fallbackToolId: 'vision_tool_v2',
+      }),
+    },
+  },
   subBlocks: [
     {
       id: 'imageFile',

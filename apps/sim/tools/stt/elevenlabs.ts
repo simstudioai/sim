@@ -1,4 +1,4 @@
-import type { SttParams, SttResponse } from '@/tools/stt/types'
+import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const elevenLabsSttTool: ToolConfig<SttParams, SttResponse> = {
@@ -114,5 +114,41 @@ export const elevenLabsSttTool: ToolConfig<SttParams, SttResponse> = {
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
     confidence: { type: 'number', description: 'Overall confidence score' },
+  },
+}
+
+const elevenLabsSttV2Params = {
+  provider: elevenLabsSttTool.params.provider,
+  apiKey: elevenLabsSttTool.params.apiKey,
+  model: elevenLabsSttTool.params.model,
+  audioFile: elevenLabsSttTool.params.audioFile,
+  audioFileReference: elevenLabsSttTool.params.audioFileReference,
+  language: elevenLabsSttTool.params.language,
+  timestamps: elevenLabsSttTool.params.timestamps,
+} satisfies ToolConfig['params']
+
+export const elevenLabsSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+  ...elevenLabsSttTool,
+  id: 'stt_elevenlabs_v2',
+  name: 'ElevenLabs STT (File Only)',
+  params: elevenLabsSttV2Params,
+  request: {
+    ...elevenLabsSttTool.request,
+    body: (
+      params: SttV2Params & {
+        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
+      }
+    ) => ({
+      provider: 'elevenlabs',
+      apiKey: params.apiKey,
+      model: params.model,
+      audioFile: params.audioFile,
+      audioFileReference: params.audioFileReference,
+      language: params.language || 'auto',
+      timestamps: params.timestamps || 'none',
+      workspaceId: params._context?.workspaceId,
+      workflowId: params._context?.workflowId,
+      executionId: params._context?.executionId,
+    }),
   },
 }

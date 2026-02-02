@@ -1,5 +1,5 @@
 // Common types for Zoom tools
-import type { OutputProperty, ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
  * Shared output property definitions for Zoom API responses.
@@ -556,11 +556,13 @@ export interface ZoomGetMeetingRecordingsParams extends ZoomBaseParams {
   meetingId: string
   includeFolderItems?: boolean
   ttl?: number
+  downloadFiles?: boolean
 }
 
 export interface ZoomGetMeetingRecordingsResponse extends ToolResponse {
   output: {
     recording: ZoomRecording
+    files?: ToolFileData[]
   }
 }
 

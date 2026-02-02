@@ -2,7 +2,10 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -20,6 +23,22 @@ const SharepointUploadSchema = z.object({
   fileName: z.string().optional().nullable(),
   files: RawFileInputArraySchema.optional().nullable(),
 })
+
+async function secureFetchGraph(
+  url: string,
+  options: {
+    method?: string
+    headers?: Record<string, string>
+    body?: string | Buffer | Uint8Array
+  },
+  paramName: string
+) {
+  const urlValidation = await validateUrlWithDNS(url, paramName)
+  if (!urlValidation.isValid) {
+    throw new Error(urlValidation.error)
+  }
+  return secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, options)
+}
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -81,14 +100,17 @@ export async function POST(request: NextRequest) {
     let effectiveDriveId = validatedData.driveId
     if (!effectiveDriveId) {
       logger.info(`[${requestId}] No driveId provided, fetching default drive for site`)
-      const driveResponse = await fetch(
-        `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drive`,
+      const driveUrl = `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drive`
+      const driveResponse = await secureFetchGraph(
+        driveUrl,
         {
+          method: 'GET',
           headers: {
             Authorization: `Bearer ${validatedData.accessToken}`,
             Accept: 'application/json',
           },
-        }
+        },
+        'driveUrl'
       )
 
       if (!driveResponse.ok) {
@@ -145,16 +167,20 @@ export async function POST(request: NextRequest) {
 
       const uploadUrl = `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drives/${effectiveDriveId}/root:${encodedPath}:/content`
 
-      logger.info(`[${requestId}] Uploading to: ${sanitizeUrlForLog(uploadUrl)}`)
+      logger.info(`[${requestId}] Uploading to: ${uploadUrl}`)
 
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${validatedData.accessToken}`,
-          'Content-Type': userFile.type || 'application/octet-stream',
+      const uploadResponse = await secureFetchGraph(
+        uploadUrl,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${validatedData.accessToken}`,
+            'Content-Type': userFile.type || 'application/octet-stream',
+          },
+          body: buffer,
         },
-        body: new Uint8Array(buffer),
-      })
+        'uploadUrl'
+      )
 
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json().catch(() => ({}))

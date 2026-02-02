@@ -2,11 +2,19 @@ import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface FileParserInput {
-  filePath: string | string[]
+  filePath?: string | string[]
+  file?: UserFile | UserFile[] | FileUploadInput | FileUploadInput[]
   fileType?: string
   workspaceId?: string
   workflowId?: string
   executionId?: string
+}
+
+export interface FileUploadInput {
+  path: string
+  name?: string
+  size?: number
+  type?: string
 }
 
 export interface FileParseResult {

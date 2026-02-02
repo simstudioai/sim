@@ -3,6 +3,26 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
 
+const resolveHttpsUrlFromFileInput = (fileInput: unknown): string | null => {
+  if (!fileInput || typeof fileInput !== 'object') {
+    return null
+  }
+
+  const record = fileInput as Record<string, unknown>
+  const url =
+    typeof record.url === 'string'
+      ? record.url.trim()
+      : typeof record.path === 'string'
+        ? record.path.trim()
+        : ''
+
+  if (!url || !url.startsWith('https://')) {
+    return null
+  }
+
+  return url
+}
+
 export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
   type: 'google_slides',
   name: 'Google Slides',
@@ -901,5 +921,101 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     // Insert text operation
     inserted: { type: 'boolean', description: 'Whether text was inserted' },
     text: { type: 'string', description: 'Text that was inserted' },
+  },
+}
+
+const googleSlidesV2SubBlocks = (GoogleSlidesBlock.subBlocks || []).flatMap((subBlock) => {
+  if (subBlock.id === 'imageFile') {
+    return [
+      {
+        ...subBlock,
+        canonicalParamId: 'imageFile',
+      },
+    ]
+  }
+
+  if (subBlock.id !== 'imageUrl') {
+    return [subBlock]
+  }
+
+  return [
+    {
+      id: 'imageFileReference',
+      title: 'Image',
+      type: 'short-input',
+      canonicalParamId: 'imageFile',
+      placeholder: 'Reference image from previous blocks',
+      mode: 'advanced',
+      required: true,
+      condition: { field: 'operation', value: 'add_image' },
+    },
+  ]
+})
+
+const googleSlidesV2Inputs = GoogleSlidesBlock.inputs
+  ? Object.fromEntries(
+      Object.entries(GoogleSlidesBlock.inputs).filter(
+        ([key]) => key !== 'imageUrl' && key !== 'imageSource'
+      )
+    )
+  : {}
+
+export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
+  ...GoogleSlidesBlock,
+  type: 'google_slides_v2',
+  name: 'Google Slides (File Only)',
+  description: 'Read, write, and create presentations',
+  hideFromToolbar: true,
+  subBlocks: googleSlidesV2SubBlocks,
+  tools: {
+    ...GoogleSlidesBlock.tools,
+    config: {
+      ...GoogleSlidesBlock.tools?.config,
+      params: (params) => {
+        const baseParams = GoogleSlidesBlock.tools?.config?.params
+        if (!baseParams) {
+          return params
+        }
+
+        if (params.operation === 'add_image') {
+          let imageInput = params.imageFile || params.imageFileReference || params.imageSource
+          if (!imageInput) {
+            throw new Error('Image file is required.')
+          }
+          if (typeof imageInput === 'string') {
+            try {
+              imageInput = JSON.parse(imageInput)
+            } catch {
+              throw new Error('Image file must be a valid file reference.')
+            }
+          }
+          if (Array.isArray(imageInput)) {
+            throw new Error(
+              'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
+            )
+          }
+          if (typeof imageInput !== 'object' || imageInput === null) {
+            throw new Error('Image file must be a file reference.')
+          }
+          const imageUrl = resolveHttpsUrlFromFileInput(imageInput)
+          if (!imageUrl) {
+            throw new Error('Image file must include a https URL.')
+          }
+
+          return baseParams({
+            ...params,
+            imageUrl,
+            imageFileReference: undefined,
+            imageSource: undefined,
+          })
+        }
+
+        return baseParams(params)
+      },
+    },
+  },
+  inputs: {
+    ...googleSlidesV2Inputs,
+    imageFileReference: { type: 'json', description: 'Image file reference' },
   },
 }

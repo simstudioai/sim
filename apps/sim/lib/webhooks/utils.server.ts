@@ -10,7 +10,7 @@ import {
   type SecureFetchResponse,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
-} from '@/lib/core/security/input-validation'
+} from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import type { DbOrTx } from '@/lib/db/types'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
@@ -115,7 +115,7 @@ async function fetchWithDNSPinning(
     const urlValidation = await validateUrlWithDNS(url, 'contentUrl')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid content URL: ${urlValidation.error}`, {
-        url: sanitizeUrlForLog(url),
+        url,
       })
       return null
     }

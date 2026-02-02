@@ -1,3 +1,5 @@
+import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 /**
@@ -5,13 +7,26 @@ import type { ToolResponse } from '@/tools/types'
  */
 export interface ReductoParserInput {
   /** URL to a document to be processed */
-  filePath: string
+  filePath?: string
+
+  file?: RawFileInput
 
   /** File upload data (from file-upload component) */
-  fileUpload?: {
-    url?: string
-    path?: string
-  }
+  fileUpload?: RawFileInput
+
+  /** Reducto API key for authentication */
+  apiKey: string
+
+  /** Specific pages to process (1-indexed) */
+  pages?: number[]
+
+  /** Table output format (html or md) */
+  tableOutputFormat?: 'html' | 'md'
+}
+
+export interface ReductoParserV2Input {
+  /** File to be processed */
+  file: UserFile
 
   /** Reducto API key for authentication */
   apiKey: string

@@ -5,7 +5,6 @@ import { createLogger } from '@sim/logger'
 import { ArrowDown, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileCards')
@@ -58,7 +57,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
       if (file.key.startsWith('url/')) {
         if (file.url) {
           window.open(file.url, '_blank')
-          logger.info(`Opened URL-type file directly: ${sanitizeUrlForLog(file.url)}`)
+          logger.info(`Opened URL-type file directly: ${file.url}`)
           return
         }
         throw new Error('URL is required for URL-type files')
@@ -78,13 +77,13 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
         const serveUrl =
           file.url || `/api/files/serve/${encodeURIComponent(file.key)}?context=execution`
         window.open(serveUrl, '_blank')
-        logger.info(`Opened execution file serve URL: ${sanitizeUrlForLog(serveUrl)}`)
+        logger.info(`Opened execution file serve URL: ${serveUrl}`)
       } else {
         const viewerUrl = resolvedWorkspaceId ? getViewerUrl(file.key, resolvedWorkspaceId) : null
 
         if (viewerUrl) {
           router.push(viewerUrl)
-          logger.info(`Navigated to viewer URL: ${sanitizeUrlForLog(viewerUrl)}`)
+          logger.info(`Navigated to viewer URL: ${viewerUrl}`)
         } else {
           logger.warn(
             `Could not construct viewer URL for file: ${file.name}, falling back to serve URL`

@@ -1,10 +1,47 @@
 import { createLogger } from '@sim/logger'
 import { DocumentIcon } from '@/components/icons'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
+
+const resolveFilePathFromInput = (fileInput: unknown): string | null => {
+  if (!fileInput || typeof fileInput !== 'object') {
+    return null
+  }
+
+  const record = fileInput as Record<string, unknown>
+  if (typeof record.path === 'string' && record.path.trim() !== '') {
+    return record.path
+  }
+  if (typeof record.url === 'string' && record.url.trim() !== '') {
+    return record.url
+  }
+  if (typeof record.key === 'string' && record.key.trim() !== '') {
+    const key = record.key.trim()
+    const context = typeof record.context === 'string' ? record.context : inferContextFromKey(key)
+    return `/api/files/serve/${encodeURIComponent(key)}?context=${context}`
+  }
+
+  return null
+}
+
+const resolveFilePathsFromInput = (fileInput: unknown): string[] => {
+  if (!fileInput) {
+    return []
+  }
+
+  if (Array.isArray(fileInput)) {
+    return fileInput
+      .map((file) => resolveFilePathFromInput(file))
+      .filter((path): path is string => Boolean(path))
+  }
+
+  const resolved = resolveFilePathFromInput(fileInput)
+  return resolved ? [resolved] : []
+}
 
 export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
@@ -79,20 +116,10 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
 
         // Handle file upload input
         if (inputMethod === 'upload') {
-          // Handle case where 'file' is an array (multiple files)
-          if (params.file && Array.isArray(params.file) && params.file.length > 0) {
-            const filePaths = params.file.map((file) => file.path)
-
+          const filePaths = resolveFilePathsFromInput(params.file)
+          if (filePaths.length > 0) {
             return {
               filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
-              fileType: params.fileType || 'auto',
-            }
-          }
-
-          // Handle case where 'file' is a single file object
-          if (params.file?.path) {
-            return {
-              filePath: params.file.path,
               fileType: params.fileType || 'auto',
             }
           }
@@ -182,16 +209,17 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
         }
 
         if (Array.isArray(fileInput) && fileInput.length > 0) {
-          const filePaths = fileInput.map((file) => file.path)
+          const filePaths = resolveFilePathsFromInput(fileInput)
           return {
             filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
             fileType: params.fileType || 'auto',
           }
         }
 
-        if (fileInput?.path) {
+        const resolvedSingle = resolveFilePathsFromInput(fileInput)
+        if (resolvedSingle.length > 0) {
           return {
-            filePath: fileInput.path,
+            filePath: resolvedSingle[0],
             fileType: params.fileType || 'auto',
           }
         }
@@ -274,9 +302,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (Array.isArray(fileInput)) {
-          const filePaths = fileInput
-            .map((file) => (file as { url?: string; path?: string }).url || file.path)
-            .filter((path): path is string => Boolean(path))
+          const filePaths = resolveFilePathsFromInput(fileInput)
           if (filePaths.length === 0) {
             logger.error('No valid file paths found in file input array')
             throw new Error('File input is required')
@@ -291,13 +317,13 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (typeof fileInput === 'object') {
-          const filePath = (fileInput as { url?: string; path?: string }).url || fileInput.path
-          if (!filePath) {
-            logger.error('File input object missing path or url')
+          const resolvedPaths = resolveFilePathsFromInput(fileInput)
+          if (resolvedPaths.length === 0) {
+            logger.error('File input object missing path, url, or key')
             throw new Error('File input is required')
           }
           return {
-            filePath,
+            filePath: resolvedPaths[0],
             fileType: params.fileType || 'auto',
             workspaceId: params._context?.workspaceId,
             workflowId: params._context?.workflowId,

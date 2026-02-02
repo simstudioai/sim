@@ -4,7 +4,10 @@ import { a2aPushNotificationConfig, a2aTask } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 
 const logger = createLogger('A2APushNotifications')
 
