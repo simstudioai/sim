@@ -29,11 +29,36 @@ export interface AgentInputs {
   verbosity?: string
 }
 
+/**
+ * Represents a tool input for the agent block.
+ *
+ * @remarks
+ * Valid types include:
+ * - Standard block types (e.g., 'api', 'search', 'function')
+ * - 'custom-tool': User-defined tools with custom code
+ * - 'mcp': Individual MCP tool from a connected server
+ * - 'mcp-server': All tools from an MCP server (agent discovery mode).
+ *   At execution time, this is expanded into individual tool definitions
+ *   for all tools available on the server. This enables dynamic capability
+ *   discovery where the LLM can call any tool from the server.
+ */
 export interface ToolInput {
+  /**
+   * Tool type identifier.
+   * 'mcp-server' enables server-level selection where all tools from
+   * the server are made available to the LLM at execution time.
+   */
   type?: string
   schema?: any
   title?: string
   code?: string
+  /**
+   * Tool parameters. For 'mcp-server' type, includes:
+   * - serverId: The MCP server ID
+   * - serverUrl: The server URL (optional)
+   * - serverName: Human-readable server name
+   * - toolCount: Number of tools available (for display)
+   */
   params?: Record<string, any>
   timeout?: number
   usageControl?: 'auto' | 'force' | 'none'
