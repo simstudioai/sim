@@ -37,6 +37,21 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
   socket.on('variable-update', async (data) => {
     const { workflowId: payloadWorkflowId, variableId, field, value, timestamp, operationId } = data
 
+    if (!roomManager.isReady()) {
+      socket.emit('operation-forbidden', {
+        type: 'ROOM_MANAGER_UNAVAILABLE',
+        message: 'Realtime unavailable',
+      })
+      if (operationId) {
+        socket.emit('operation-failed', {
+          operationId,
+          error: 'Realtime unavailable',
+          retryable: true,
+        })
+      }
+      return
+    }
+
     try {
       const sessionWorkflowId = await roomManager.getWorkflowIdForSocket(socket.id)
       const session = await roomManager.getUserSession(socket.id)

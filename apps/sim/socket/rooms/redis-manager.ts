@@ -96,17 +96,6 @@ export class RedisRoomManager implements IRoomManager {
     this._io = io
     this.redis = createClient({
       url: redisUrl,
-      socket: {
-        reconnectStrategy: (retries) => {
-          if (retries > 10) {
-            logger.error('Redis reconnection failed after 10 attempts')
-            return new Error('Redis reconnection failed')
-          }
-          const delay = Math.min(retries * 100, 3000)
-          logger.warn(`Redis reconnecting in ${delay}ms (attempt ${retries})`)
-          return delay
-        },
-      },
     })
 
     this.redis.on('error', (err) => {
@@ -122,10 +111,19 @@ export class RedisRoomManager implements IRoomManager {
       logger.info('Redis client ready')
       this.isConnected = true
     })
+
+    this.redis.on('end', () => {
+      logger.warn('Redis client connection closed')
+      this.isConnected = false
+    })
   }
 
   get io(): Server {
     return this._io
+  }
+
+  isReady(): boolean {
+    return this.isConnected
   }
 
   async initialize(): Promise<void> {

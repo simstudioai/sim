@@ -26,6 +26,10 @@ export class MemoryRoomManager implements IRoomManager {
     logger.info('MemoryRoomManager initialized (single-pod mode)')
   }
 
+  isReady(): boolean {
+    return true
+  }
+
   async shutdown(): Promise<void> {
     this.workflowRooms.clear()
     this.socketToWorkflow.clear()

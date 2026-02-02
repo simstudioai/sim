@@ -12,15 +12,49 @@ import {
 import { persistWorkflowOperation } from '@/socket/database/operations'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
 import { checkRolePermission } from '@/socket/middleware/permissions'
-import type { IRoomManager } from '@/socket/rooms'
+import type { IRoomManager, UserSession } from '@/socket/rooms'
 import { WorkflowOperationSchema } from '@/socket/validation/schemas'
 
 const logger = createLogger('OperationsHandlers')
 
 export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('workflow-operation', async (data) => {
-    const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
-    const session = await roomManager.getUserSession(socket.id)
+    if (!roomManager.isReady()) {
+      socket.emit('operation-forbidden', {
+        type: 'ROOM_MANAGER_UNAVAILABLE',
+        message: 'Realtime unavailable',
+      })
+      if (data?.operationId) {
+        socket.emit('operation-failed', {
+          operationId: data.operationId,
+          error: 'Realtime unavailable',
+          retryable: true,
+        })
+      }
+      return
+    }
+
+    let workflowId: string | null = null
+    let session: UserSession | null = null
+
+    try {
+      workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      session = await roomManager.getUserSession(socket.id)
+    } catch (error) {
+      logger.error('Error loading session for workflow operation:', error)
+      socket.emit('operation-forbidden', {
+        type: 'ROOM_MANAGER_UNAVAILABLE',
+        message: 'Realtime unavailable',
+      })
+      if (data?.operationId) {
+        socket.emit('operation-failed', {
+          operationId: data.operationId,
+          error: 'Realtime unavailable',
+          retryable: true,
+        })
+      }
+      return
+    }
 
     if (!workflowId || !session) {
       socket.emit('operation-forbidden', {

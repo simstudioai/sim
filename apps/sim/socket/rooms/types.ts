@@ -49,6 +49,11 @@ export interface IRoomManager {
   initialize(): Promise<void>
 
   /**
+   * Whether the room manager is ready to serve requests
+   */
+  isReady(): boolean
+
+  /**
    * Clean shutdown
    */
   shutdown(): Promise<void>

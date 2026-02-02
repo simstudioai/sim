@@ -14,6 +14,7 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { io, type Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/core/config/env'
+import { useOperationQueueStore } from '@/stores/operation-queue/store'
 
 const logger = createLogger('SocketContext')
 
@@ -138,6 +139,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [authFailed, setAuthFailed] = useState(false)
   const initializedRef = useRef(false)
   const socketRef = useRef<Socket | null>(null)
+  const triggerOfflineMode = useOperationQueueStore((state) => state.triggerOfflineMode)
 
   const params = useParams()
   const urlWorkflowId = params?.workflowId as string | undefined
@@ -341,9 +343,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           })
         })
 
-        socketInstance.on('join-workflow-error', ({ error }) => {
+        socketInstance.on('join-workflow-error', ({ error, code }) => {
           isRejoiningRef.current = false
-          logger.error('Failed to join workflow:', error)
+          logger.error('Failed to join workflow:', { error, code })
+          if (code === 'ROOM_MANAGER_UNAVAILABLE') {
+            triggerOfflineMode()
+          }
         })
 
         socketInstance.on('workflow-operation', (data) => {
