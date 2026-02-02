@@ -24,6 +24,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
@@ -43,7 +44,6 @@ import {
   type EntryNode,
   type ExecutionGroup,
   flattenBlockEntriesOnly,
-  formatDuration,
   getBlockColor,
   getBlockIcon,
   groupEntriesByExecution,

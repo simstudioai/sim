@@ -54,17 +54,6 @@ export function getBlockColor(blockType: string): string {
 }
 
 /**
- * Formats duration from milliseconds to readable format
- */
-export function formatDuration(ms?: number): string {
-  if (ms === undefined || ms === null) return '-'
-  if (ms < 1000) {
-    return `${Math.round(ms)}ms`
-  }
-  return `${(ms / 1000).toFixed(2)}s`
-}
-
-/**
  * Determines if a keyboard event originated from a text-editable element
  */
 export function isEventFromEditableElement(e: KeyboardEvent): boolean {

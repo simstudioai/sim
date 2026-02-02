@@ -6,11 +6,11 @@ import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, buttonVariants } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import {
   DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
   formatDate,
-  formatDuration,
   getDisplayStatus,
   LOG_COLUMNS,
   StatusBadge,

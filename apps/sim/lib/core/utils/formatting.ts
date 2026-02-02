@@ -153,20 +153,44 @@ export function formatCompactTimestamp(iso: string): string {
 }
 
 /**
- * Format a duration in milliseconds to a human-readable format
- * @param durationMs - The duration in milliseconds
+ * Format a duration to a human-readable format
+ * @param duration - Duration in milliseconds (number) or as string (e.g., "500ms")
  * @param options - Optional formatting options
  * @param options.precision - Number of decimal places for seconds (default: 0)
  * @returns A formatted duration string
  */
-export function formatDuration(durationMs: number, options?: { precision?: number }): string {
-  const precision = options?.precision ?? 0
-
-  if (durationMs < 1000) {
-    return `${durationMs}ms`
+export function formatDuration(
+  duration: number | string | undefined | null,
+  options?: { precision?: number }
+): string {
+  if (duration === undefined || duration === null) {
+    return '-'
   }
 
-  const seconds = durationMs / 1000
+  // Parse string durations (e.g., "500ms", "1234")
+  let ms: number
+  if (typeof duration === 'string') {
+    ms = Number.parseInt(duration.replace(/[^0-9.-]/g, ''), 10)
+    if (!Number.isFinite(ms)) {
+      return duration
+    }
+  } else {
+    ms = duration
+  }
+
+  const precision = options?.precision ?? 0
+
+  if (ms < 1) {
+    // Sub-millisecond: show with 2 decimal places
+    return `${ms.toFixed(2)}ms`
+  }
+
+  if (ms < 1000) {
+    // Milliseconds: round to integer
+    return `${Math.round(ms)}ms`
+  }
+
+  const seconds = ms / 1000
   if (seconds < 60) {
     return precision > 0 ? `${seconds.toFixed(precision)}s` : `${Math.floor(seconds)}s`
   }

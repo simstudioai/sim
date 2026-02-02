@@ -15,6 +15,7 @@ import {
   hasInterrupt as hasInterruptFromConfig,
   isSpecialTool as isSpecialToolFromConfig,
 } from '@/lib/copilot/tools/client/ui-config'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { CopilotMarkdownRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import { SmoothStreamingText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
 import { ThinkingBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/thinking-block'
@@ -848,13 +849,8 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
     (allParsed.options && Object.keys(allParsed.options).length > 0)
   )
 
-  const formatDuration = (ms: number) => {
-    const seconds = Math.max(1, Math.round(ms / 1000))
-    return `${seconds}s`
-  }
-
   const outerLabel = getSubagentCompletionLabel(toolCall.name)
-  const durationText = `${outerLabel} for ${formatDuration(duration)}`
+  const durationText = `${outerLabel} for ${formatDuration(Math.max(1000, duration))}`
 
   const renderCollapsibleContent = () => (
     <>

@@ -19,6 +19,7 @@ import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -225,12 +226,6 @@ async function deliverWebhook(
       error: err.name === 'AbortError' ? 'Request timeout' : err.message,
     }
   }
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
-  return `${(ms / 60000).toFixed(1)}m`
 }
 
 function formatCost(cost?: Record<string, unknown>): string {
