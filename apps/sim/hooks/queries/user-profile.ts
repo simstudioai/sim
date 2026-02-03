@@ -9,7 +9,7 @@ const logger = createLogger('UserProfileQuery')
 export const userProfileKeys = {
   all: ['userProfile'] as const,
   profile: () => [...userProfileKeys.all, 'profile'] as const,
-  superUser: () => [...userProfileKeys.all, 'superUser'] as const,
+  superUser: (userId?: string) => [...userProfileKeys.all, 'superUser', userId ?? ''] as const,
 }
 
 /**
@@ -134,13 +134,13 @@ async function fetchSuperUserStatus(): Promise<SuperUserStatus> {
 
 /**
  * Hook to fetch superuser status
+ * @param userId - User ID for cache isolation (required for proper per-user caching)
  */
-export function useSuperUserStatus(enabled = true) {
+export function useSuperUserStatus(userId?: string) {
   return useQuery({
-    queryKey: userProfileKeys.superUser(),
+    queryKey: userProfileKeys.superUser(userId),
     queryFn: fetchSuperUserStatus,
-    enabled,
+    enabled: Boolean(userId),
     staleTime: 5 * 60 * 1000, // 5 minutes - superuser status rarely changes
-    placeholderData: keepPreviousData,
   })
 }

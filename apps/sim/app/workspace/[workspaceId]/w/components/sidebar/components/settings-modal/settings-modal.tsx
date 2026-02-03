@@ -211,7 +211,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const { data: generalSettings } = useGeneralSettings()
   const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
-  const { data: superUserData } = useSuperUserStatus(Boolean(session?.user?.id))
+  const { data: superUserData } = useSuperUserStatus(session?.user?.id)
 
   const activeOrganization = organizationsData?.activeOrganization
   const { config: permissionConfig } = usePermissionConfig()
