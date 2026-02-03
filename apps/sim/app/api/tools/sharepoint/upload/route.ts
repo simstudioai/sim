@@ -7,6 +7,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -232,14 +233,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const uploadData = (await uploadResponse.json()) as {
-        id: string
-        name: string
-        webUrl: string
-        size: number
-        createdDateTime: string
-        lastModifiedDateTime: string
-      }
+      const uploadData = (await uploadResponse.json()) as MicrosoftGraphDriveItem
       logger.info(`[${requestId}] File uploaded successfully: ${fileName}`)
 
       uploadedFiles.push({
