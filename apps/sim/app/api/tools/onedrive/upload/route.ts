@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
@@ -55,28 +56,6 @@ interface ExcelRangeData {
   address?: string
   addressLocal?: string
   values?: unknown[][]
-}
-
-/** Validates Microsoft Graph item IDs (alphanumeric with some special chars) */
-function validateMicrosoftGraphId(
-  id: string,
-  paramName: string
-): { isValid: boolean; error?: string } {
-  // Microsoft Graph IDs are typically alphanumeric, may include hyphens and exclamation marks
-  const validIdPattern = /^[a-zA-Z0-9!-]+$/
-  if (!validIdPattern.test(id)) {
-    return {
-      isValid: false,
-      error: `Invalid ${paramName}: contains invalid characters`,
-    }
-  }
-  if (id.length > 256) {
-    return {
-      isValid: false,
-      error: `Invalid ${paramName}: exceeds maximum length`,
-    }
-  }
-  return { isValid: true }
 }
 
 export async function POST(request: NextRequest) {

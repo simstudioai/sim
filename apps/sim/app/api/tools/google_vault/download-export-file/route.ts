@@ -15,7 +15,6 @@ const logger = createLogger('GoogleVaultDownloadExportFileAPI')
 
 const GoogleVaultDownloadExportFileSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
-  matterId: z.string().min(1, 'Matter ID is required'),
   bucketName: z.string().min(1, 'Bucket name is required'),
   objectName: z.string().min(1, 'Object name is required'),
   fileName: z.string().optional().nullable(),

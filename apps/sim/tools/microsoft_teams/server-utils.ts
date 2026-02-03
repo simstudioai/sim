@@ -117,7 +117,8 @@ export async function uploadFilesForTeamsMessage(params: {
     })
 
     // Get file details for attachment reference
-    const fileDetailsUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${uploadedFile.id}?$select=id,name,webDavUrl,eTag,size`
+    // Note: webDavUrl requires 'select' without the '$' prefix to be reliably returned
+    const fileDetailsUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${uploadedFile.id}?select=id,name,webDavUrl,eTag,size`
 
     const fileDetailsResponse = await secureFetchWithValidation(
       fileDetailsUrl,
@@ -144,13 +145,21 @@ export async function uploadFilesForTeamsMessage(params: {
       eTag: fileDetails.eTag,
     })
 
+    // Validate webDavUrl is present (required for Teams attachment references)
+    if (!fileDetails.webDavUrl) {
+      log.error(`[${requestId}] webDavUrl missing from file details`, { fileId: uploadedFile.id })
+      throw new Error(
+        `Failed to get file URL for attachment "${file.name}". The file was uploaded but Teams attachment reference could not be created.`
+      )
+    }
+
     // Create attachment reference
     const attachmentId = fileDetails.eTag?.match(/\{([a-f0-9-]+)\}/i)?.[1] || fileDetails.id
 
     attachments.push({
       id: attachmentId,
       contentType: 'reference',
-      contentUrl: fileDetails.webDavUrl!,
+      contentUrl: fileDetails.webDavUrl,
       name: file.name,
     })
 
