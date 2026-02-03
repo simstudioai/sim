@@ -71,7 +71,9 @@ export interface DropboxBaseParams {
 
 export interface DropboxUploadParams extends DropboxBaseParams {
   path: string
-  fileContent: string | UserFileLike
+  file?: UserFileLike
+  // Legacy field for backwards compatibility
+  fileContent?: string
   fileName?: string
   mode?: 'add' | 'overwrite'
   autorename?: boolean

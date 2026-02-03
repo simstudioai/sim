@@ -64,7 +64,7 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       id: 'uploadFile',
       title: 'File',
       type: 'file-upload',
-      canonicalParamId: 'fileContent',
+      canonicalParamId: 'file',
       placeholder: 'Upload file to send to Dropbox',
       mode: 'basic',
       multiple: false,
@@ -72,10 +72,10 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       condition: { field: 'operation', value: 'dropbox_upload' },
     },
     {
-      id: 'fileContent',
+      id: 'fileRef',
       title: 'File',
       type: 'short-input',
-      canonicalParamId: 'fileContent',
+      canonicalParamId: 'file',
       placeholder: 'Reference file from previous blocks',
       mode: 'advanced',
       required: true,
@@ -319,7 +319,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         // Normalize file input for upload operation
         // normalizeFileInput handles JSON stringified values from advanced mode
-        if (params.fileContent) {
+        if (params.file) {
+          params.file = normalizeFileInput(params.file, { single: true })
+        }
+        // Legacy: also check fileContent for backwards compatibility
+        if (params.fileContent && !params.file) {
           params.fileContent = normalizeFileInput(params.fileContent, { single: true })
         }
 
@@ -358,7 +362,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     autorename: { type: 'boolean', description: 'Auto-rename on conflict' },
     // Upload inputs
     uploadFile: { type: 'json', description: 'Uploaded file (UserFile)' },
-    fileContent: { type: 'json', description: 'File reference or UserFile object' },
+    file: { type: 'json', description: 'File to upload (UserFile object)' },
+    fileRef: { type: 'json', description: 'File reference from previous block' },
+    fileContent: { type: 'string', description: 'Legacy: base64 encoded file content' },
     fileName: { type: 'string', description: 'Optional filename' },
     mode: { type: 'string', description: 'Write mode: add or overwrite' },
     mute: { type: 'boolean', description: 'Mute notifications' },

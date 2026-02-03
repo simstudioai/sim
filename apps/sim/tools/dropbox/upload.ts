@@ -1,16 +1,5 @@
-import { extractBase64FromFileInput } from '@/lib/core/utils/user-file'
 import type { DropboxUploadParams, DropboxUploadResponse } from '@/tools/dropbox/types'
 import type { ToolConfig } from '@/tools/types'
-
-/**
- * Escapes non-ASCII characters in JSON string for HTTP header safety.
- * Dropbox API requires characters 0x7F and all non-ASCII to be escaped as \uXXXX.
- */
-function httpHeaderSafeJson(value: object): string {
-  return JSON.stringify(value).replace(/[\u007f-\uffff]/g, (c) => {
-    return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4)
-  })
-}
 
 export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadResponse> = {
   id: 'dropbox_upload',
@@ -31,11 +20,18 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
       description:
         'The path in Dropbox where the file should be saved (e.g., /folder/document.pdf)',
     },
-    fileContent: {
-      type: 'json',
-      required: true,
+    file: {
+      type: 'file',
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The file to upload (UserFile object or base64 string)',
+      description: 'The file to upload (UserFile object)',
+    },
+    // Legacy field for backwards compatibility - hidden from UI
+    fileContent: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Legacy: base64 encoded file content',
     },
     fileName: {
       type: 'string',
@@ -64,52 +60,37 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
   },
 
   request: {
-    url: 'https://content.dropboxapi.com/2/files/upload',
+    url: '/api/tools/dropbox/upload',
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Dropbox API request')
-      }
-
-      const dropboxApiArg = {
-        path: params.path,
-        mode: params.mode || 'add',
-        autorename: params.autorename ?? true,
-        mute: params.mute ?? false,
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/octet-stream',
-        'Dropbox-API-Arg': httpHeaderSafeJson(dropboxApiArg),
-      }
-    },
-    body: (params) => {
-      const base64Content = extractBase64FromFileInput(params.fileContent)
-      if (!base64Content) {
-        throw new Error('File Content cannot be extracted')
-      }
-      // Decode base64 to raw binary bytes - Dropbox expects raw binary, not base64 text
-      return Buffer.from(base64Content, 'base64')
-    },
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => ({
+      accessToken: params.accessToken,
+      path: params.path,
+      file: params.file,
+      fileContent: params.fileContent,
+      fileName: params.fileName,
+      mode: params.mode,
+      autorename: params.autorename,
+      mute: params.mute,
+    }),
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response): Promise<DropboxUploadResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
+    if (!data.success) {
       return {
         success: false,
-        error: data.error_summary || data.error?.message || 'Failed to upload file',
+        error: data.error || 'Failed to upload file',
         output: {},
       }
     }
 
     return {
       success: true,
-      output: {
-        file: data,
-      },
+      output: data.output,
     }
   },
 
