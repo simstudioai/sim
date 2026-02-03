@@ -201,7 +201,9 @@ export async function POST(request: NextRequest) {
           translateToEnglish,
           model,
           body.prompt,
-          body.temperature
+          body.temperature,
+          audioMimeType,
+          audioFileName
         )
         transcript = result.transcript
         segments = result.segments
@@ -214,7 +216,8 @@ export async function POST(request: NextRequest) {
           language,
           timestamps,
           diarization,
-          model
+          model,
+          audioMimeType
         )
         transcript = result.transcript
         segments = result.segments
@@ -304,7 +307,9 @@ async function transcribeWithWhisper(
   translate?: boolean,
   model?: string,
   prompt?: string,
-  temperature?: number
+  temperature?: number,
+  mimeType?: string,
+  fileName?: string
 ): Promise<{
   transcript: string
   segments?: TranscriptSegment[]
@@ -313,8 +318,11 @@ async function transcribeWithWhisper(
 }> {
   const formData = new FormData()
 
-  const blob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' })
-  formData.append('file', blob, 'audio.mp3')
+  // Use actual MIME type and filename if provided
+  const actualMimeType = mimeType || 'audio/mpeg'
+  const actualFileName = fileName || 'audio.mp3'
+  const blob = new Blob([new Uint8Array(audioBuffer)], { type: actualMimeType })
+  formData.append('file', blob, actualFileName)
   formData.append('model', model || 'whisper-1')
 
   if (language && language !== 'auto') {
@@ -331,10 +339,11 @@ async function transcribeWithWhisper(
 
   formData.append('response_format', 'verbose_json')
 
+  // OpenAI API uses array notation for timestamp_granularities
   if (timestamps === 'word') {
-    formData.append('timestamp_granularities', 'word')
+    formData.append('timestamp_granularities[]', 'word')
   } else if (timestamps === 'sentence') {
-    formData.append('timestamp_granularities', 'segment')
+    formData.append('timestamp_granularities[]', 'segment')
   }
 
   const endpoint = translate ? 'translations' : 'transcriptions'
@@ -377,7 +386,8 @@ async function transcribeWithDeepgram(
   language?: string,
   timestamps?: 'none' | 'sentence' | 'word',
   diarization?: boolean,
-  model?: string
+  model?: string,
+  mimeType?: string
 ): Promise<{
   transcript: string
   segments?: TranscriptSegment[]
@@ -409,7 +419,7 @@ async function transcribeWithDeepgram(
     method: 'POST',
     headers: {
       Authorization: `Token ${apiKey}`,
-      'Content-Type': 'audio/mpeg',
+      'Content-Type': mimeType || 'audio/mpeg',
     },
     body: new Uint8Array(audioBuffer),
   })
@@ -565,7 +575,8 @@ async function transcribeWithAssemblyAI(
     audio_url: upload_url,
   }
 
-  if (model === 'best' || model === 'nano') {
+  // AssemblyAI only supports 'best', 'slam-1', or 'universal' for speech_model
+  if (model === 'best') {
     transcriptRequest.speech_model = model
   }
 

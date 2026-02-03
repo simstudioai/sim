@@ -101,9 +101,19 @@ export async function POST(request: NextRequest) {
       const base64Payload = base64.startsWith('data:')
         ? base64
         : `data:${mimeType};base64,${base64}`
-      mistralBody.document = {
-        type: 'document_url',
-        document_url: base64Payload,
+
+      // Mistral API uses different document types for images vs documents
+      const isImage = mimeType.startsWith('image/')
+      if (isImage) {
+        mistralBody.document = {
+          type: 'image_url',
+          image_url: base64Payload,
+        }
+      } else {
+        mistralBody.document = {
+          type: 'document_url',
+          document_url: base64Payload,
+        }
       }
     } else if (filePath) {
       let fileUrl = filePath
@@ -146,9 +156,26 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      mistralBody.document = {
-        type: 'document_url',
-        document_url: fileUrl,
+      // Detect image URLs by extension for proper Mistral API type
+      const lowerUrl = fileUrl.toLowerCase()
+      const isImageUrl =
+        lowerUrl.endsWith('.png') ||
+        lowerUrl.endsWith('.jpg') ||
+        lowerUrl.endsWith('.jpeg') ||
+        lowerUrl.endsWith('.gif') ||
+        lowerUrl.endsWith('.webp') ||
+        lowerUrl.endsWith('.avif')
+
+      if (isImageUrl) {
+        mistralBody.document = {
+          type: 'image_url',
+          image_url: fileUrl,
+        }
+      } else {
+        mistralBody.document = {
+          type: 'document_url',
+          document_url: fileUrl,
+        }
       }
     }
 

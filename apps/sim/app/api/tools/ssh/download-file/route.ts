@@ -80,6 +80,16 @@ export async function POST(request: NextRequest) {
         })
       })
 
+      // Check file size limit (50MB to prevent memory exhaustion)
+      const maxSize = 50 * 1024 * 1024
+      if (stats.size > maxSize) {
+        const sizeMB = (stats.size / (1024 * 1024)).toFixed(2)
+        return NextResponse.json(
+          { error: `File size (${sizeMB}MB) exceeds download limit of 50MB` },
+          { status: 400 }
+        )
+      }
+
       // Read file content
       const content = await new Promise<Buffer>((resolve, reject) => {
         const chunks: Buffer[] = []

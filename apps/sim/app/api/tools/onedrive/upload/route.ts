@@ -38,6 +38,7 @@ const OneDriveUploadSchema = z.object({
   folderId: z.string().optional().nullable(),
   mimeType: z.string().nullish(),
   values: ExcelValuesSchema.optional().nullable(),
+  conflictBehavior: z.enum(['fail', 'replace', 'rename']).optional().nullable(),
 })
 
 async function secureFetchGraph(
@@ -182,6 +183,11 @@ export async function POST(request: NextRequest) {
       uploadUrl = `${MICROSOFT_GRAPH_BASE}/me/drive/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(fileName)}:/content`
     } else {
       uploadUrl = `${MICROSOFT_GRAPH_BASE}/me/drive/root:/${encodeURIComponent(fileName)}:/content`
+    }
+
+    // Add conflict behavior if specified (defaults to replace by Microsoft Graph API)
+    if (validatedData.conflictBehavior) {
+      uploadUrl += `?@microsoft.graph.conflictBehavior=${validatedData.conflictBehavior}`
     }
 
     const uploadResponse = await secureFetchGraph(

@@ -114,7 +114,9 @@ export async function POST(request: NextRequest) {
       )
 
       if (!driveResponse.ok) {
-        const errorData = await driveResponse.json().catch(() => ({}))
+        const errorData = (await driveResponse.json().catch(() => ({}))) as {
+          error?: { message?: string }
+        }
         logger.error(`[${requestId}] Failed to get default drive:`, errorData)
         return NextResponse.json(
           {
@@ -125,7 +127,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const driveData = await driveResponse.json()
+      const driveData = (await driveResponse.json()) as { id: string }
       effectiveDriveId = driveData.id
       logger.info(`[${requestId}] Using default drive: ${effectiveDriveId}`)
     }
@@ -187,20 +189,76 @@ export async function POST(request: NextRequest) {
         logger.error(`[${requestId}] Failed to upload file ${fileName}:`, errorData)
 
         if (uploadResponse.status === 409) {
-          logger.warn(`[${requestId}] File ${fileName} already exists, attempting to replace`)
+          // File exists - retry with conflict behavior set to replace
+          logger.warn(`[${requestId}] File ${fileName} already exists, retrying with replace`)
+          const replaceUrl = `${uploadUrl}?@microsoft.graph.conflictBehavior=replace`
+          const replaceResponse = await secureFetchGraph(
+            replaceUrl,
+            {
+              method: 'PUT',
+              headers: {
+                Authorization: `Bearer ${validatedData.accessToken}`,
+                'Content-Type': userFile.type || 'application/octet-stream',
+              },
+              body: buffer,
+            },
+            'replaceUrl'
+          )
+
+          if (!replaceResponse.ok) {
+            const replaceErrorData = (await replaceResponse.json().catch(() => ({}))) as {
+              error?: { message?: string }
+            }
+            logger.error(`[${requestId}] Failed to replace file ${fileName}:`, replaceErrorData)
+            return NextResponse.json(
+              {
+                success: false,
+                error: replaceErrorData.error?.message || `Failed to replace file: ${fileName}`,
+              },
+              { status: replaceResponse.status }
+            )
+          }
+
+          const replaceData = (await replaceResponse.json()) as {
+            id: string
+            name: string
+            webUrl: string
+            size: number
+            createdDateTime: string
+            lastModifiedDateTime: string
+          }
+          logger.info(`[${requestId}] File replaced successfully: ${fileName}`)
+
+          uploadedFiles.push({
+            id: replaceData.id,
+            name: replaceData.name,
+            webUrl: replaceData.webUrl,
+            size: replaceData.size,
+            createdDateTime: replaceData.createdDateTime,
+            lastModifiedDateTime: replaceData.lastModifiedDateTime,
+          })
           continue
         }
 
         return NextResponse.json(
           {
             success: false,
-            error: errorData.error?.message || `Failed to upload file: ${fileName}`,
+            error:
+              (errorData as { error?: { message?: string } }).error?.message ||
+              `Failed to upload file: ${fileName}`,
           },
           { status: uploadResponse.status }
         )
       }
 
-      const uploadData = await uploadResponse.json()
+      const uploadData = (await uploadResponse.json()) as {
+        id: string
+        name: string
+        webUrl: string
+        size: number
+        createdDateTime: string
+        lastModifiedDateTime: string
+      }
       logger.info(`[${requestId}] File uploaded successfully: ${fileName}`)
 
       uploadedFiles.push({

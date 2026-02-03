@@ -96,14 +96,14 @@ export async function POST(request: NextRequest) {
 
       if (attachments.length > 0) {
         const totalSize = attachments.reduce((sum, file) => sum + file.size, 0)
-        const maxSize = 4 * 1024 * 1024 // 4MB
+        const maxSize = 3 * 1024 * 1024 // 3MB - Microsoft Graph API limit for inline attachments
 
         if (totalSize > maxSize) {
           const sizeMB = (totalSize / (1024 * 1024)).toFixed(2)
           return NextResponse.json(
             {
               success: false,
-              error: `Total attachment size (${sizeMB}MB) exceeds Outlook's limit of 4MB per request`,
+              error: `Total attachment size (${sizeMB}MB) exceeds Microsoft Graph API limit of 3MB per request`,
             },
             { status: 400 }
           )

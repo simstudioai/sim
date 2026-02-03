@@ -1,6 +1,16 @@
 import type { DropboxUploadParams, DropboxUploadResponse } from '@/tools/dropbox/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Escapes non-ASCII characters in JSON string for HTTP header safety.
+ * Dropbox API requires characters 0x7F and all non-ASCII to be escaped as \uXXXX.
+ */
+function httpHeaderSafeJson(value: object): string {
+  return JSON.stringify(value).replace(/[\u007f-\uffff]/g, (c) => {
+    return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4)
+  })
+}
+
 export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadResponse> = {
   id: 'dropbox_upload',
   name: 'Dropbox Upload File',
@@ -70,13 +80,12 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/octet-stream',
-        'Dropbox-API-Arg': JSON.stringify(dropboxApiArg),
+        'Dropbox-API-Arg': httpHeaderSafeJson(dropboxApiArg),
       }
     },
     body: (params) => {
-      // The body should be the raw binary data
-      // In this case we're passing the base64 content which will be decoded
-      return params.fileContent
+      // Decode base64 to raw binary bytes - Dropbox expects raw binary, not base64 text
+      return Buffer.from(params.fileContent, 'base64')
     },
   },
 

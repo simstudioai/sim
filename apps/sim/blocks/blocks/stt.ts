@@ -82,10 +82,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       title: 'Model',
       type: 'dropdown',
       condition: { field: 'provider', value: 'assemblyai' },
-      options: [
-        { label: 'Best', id: 'best' },
-        { label: 'Nano', id: 'nano' },
-      ],
+      options: [{ label: 'Best', id: 'best' }],
       value: () => 'best',
       required: true,
     },

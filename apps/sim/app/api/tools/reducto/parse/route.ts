@@ -175,8 +175,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (validatedData.pages && validatedData.pages.length > 0) {
+      // Reducto API expects page_range as an object with start/end, not an array
+      const pages = validatedData.pages
       reductoBody.settings = {
-        page_range: validatedData.pages,
+        page_range: {
+          start: Math.min(...pages),
+          end: Math.max(...pages),
+        },
       }
     }
 

@@ -94,6 +94,18 @@ export async function POST(request: NextRequest) {
 
       for (const file of userFiles) {
         try {
+          // Microsoft Graph API limits direct uploads to 4MB
+          const maxSize = 4 * 1024 * 1024
+          if (file.size > maxSize) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
+            logger.error(
+              `[${requestId}] File ${file.name} is ${sizeMB}MB, exceeds 4MB limit for direct upload`
+            )
+            throw new Error(
+              `File "${file.name}" (${sizeMB}MB) exceeds the 4MB limit for Teams attachments. Use smaller files or upload to SharePoint/OneDrive first.`
+            )
+          }
+
           logger.info(`[${requestId}] Uploading file to Teams: ${file.name} (${file.size} bytes)`)
 
           const buffer = await downloadFileFromStorage(file, requestId, logger)
