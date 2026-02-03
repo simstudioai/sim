@@ -132,17 +132,34 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
 const pulseV2Inputs = PulseBlock.inputs
   ? Object.fromEntries(Object.entries(PulseBlock.inputs).filter(([key]) => key !== 'filePath'))
   : {}
-const pulseV2SubBlocks = (PulseBlock.subBlocks || []).filter(
-  (subBlock) => subBlock.id !== 'filePath'
-)
+const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
+  if (subBlock.id === 'filePath') {
+    return [] // Remove the old filePath subblock
+  }
+  if (subBlock.id === 'fileUpload') {
+    // Insert fileReference right after fileUpload
+    return [
+      subBlock,
+      {
+        id: 'fileReference',
+        title: 'Document',
+        type: 'short-input' as SubBlockType,
+        canonicalParamId: 'document',
+        placeholder: 'File reference',
+        mode: 'advanced' as const,
+      },
+    ]
+  }
+  return [subBlock]
+})
 
 export const PulseV2Block: BlockConfig<PulseParserOutput> = {
   ...PulseBlock,
   type: 'pulse_v2',
-  name: 'Pulse (File Only)',
+  name: 'Pulse',
   hideFromToolbar: false,
   longDescription:
-    'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload.',
+    'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.',
   subBlocks: pulseV2SubBlocks,
   tools: {
     access: ['pulse_parser_v2'],

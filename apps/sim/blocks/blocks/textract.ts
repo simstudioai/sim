@@ -195,14 +195,36 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
 const textractV2Inputs = TextractBlock.inputs
   ? Object.fromEntries(Object.entries(TextractBlock.inputs).filter(([key]) => key !== 'filePath'))
   : {}
-const textractV2SubBlocks = (TextractBlock.subBlocks || []).filter(
-  (subBlock) => subBlock.id !== 'filePath'
-)
+const textractV2SubBlocks = (TextractBlock.subBlocks || []).flatMap((subBlock) => {
+  if (subBlock.id === 'filePath') {
+    return [] // Remove the old filePath subblock
+  }
+  if (subBlock.id === 'fileUpload') {
+    // Insert fileReference right after fileUpload
+    return [
+      subBlock,
+      {
+        id: 'fileReference',
+        title: 'Document',
+        type: 'short-input' as SubBlockType,
+        canonicalParamId: 'document',
+        placeholder: 'File reference',
+        condition: {
+          field: 'processingMode',
+          value: 'async',
+          not: true,
+        },
+        mode: 'advanced' as const,
+      },
+    ]
+  }
+  return [subBlock]
+})
 
 export const TextractV2Block: BlockConfig<TextractParserOutput> = {
   ...TextractBlock,
   type: 'textract_v2',
-  name: 'AWS Textract (File Only)',
+  name: 'AWS Textract',
   hideFromToolbar: false,
   subBlocks: textractV2SubBlocks,
   tools: {

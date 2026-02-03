@@ -138,16 +138,32 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
 const reductoV2Inputs = ReductoBlock.inputs
   ? Object.fromEntries(Object.entries(ReductoBlock.inputs).filter(([key]) => key !== 'filePath'))
   : {}
-const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).filter(
-  (subBlock) => subBlock.id !== 'filePath'
-)
+const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => {
+  if (subBlock.id === 'filePath') {
+    return []
+  }
+  if (subBlock.id === 'fileUpload') {
+    return [
+      subBlock,
+      {
+        id: 'fileReference',
+        title: 'PDF Document',
+        type: 'short-input' as SubBlockType,
+        canonicalParamId: 'document',
+        placeholder: 'File reference',
+        mode: 'advanced' as const,
+      },
+    ]
+  }
+  return [subBlock]
+})
 
 export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
   ...ReductoBlock,
   type: 'reducto_v2',
-  name: 'Reducto (File Only)',
+  name: 'Reducto',
   hideFromToolbar: false,
-  longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents.`,
+  longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents or file references.`,
   subBlocks: reductoV2SubBlocks,
   tools: {
     access: ['reducto_parser_v2'],
