@@ -1,3 +1,5 @@
+'use client'
+
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { organizationKeys } from '@/hooks/queries/organization'
 
@@ -70,42 +72,6 @@ export function useConfigureSSO() {
         })
         queryClient.invalidateQueries({
           queryKey: organizationKeys.lists(),
-        })
-      }
-    },
-  })
-}
-
-/**
- * Delete SSO provider mutation
- */
-interface DeleteSSOParams {
-  providerId: string
-  orgId?: string
-}
-
-export function useDeleteSSO() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ providerId }: DeleteSSOParams) => {
-      const response = await fetch(`/api/auth/sso/providers/${providerId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to delete SSO provider')
-      }
-
-      return response.json()
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ssoKeys.providers() })
-
-      if (variables.orgId) {
-        queryClient.invalidateQueries({
-          queryKey: organizationKeys.detail(variables.orgId),
         })
       }
     },

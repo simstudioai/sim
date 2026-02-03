@@ -11,54 +11,12 @@ import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
+import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useOrganizations } from '@/hooks/queries/organization'
-import { useConfigureSSO, useSSOProviders } from '@/hooks/queries/sso'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('SSO')
-
-const TRUSTED_SSO_PROVIDERS = [
-  'okta',
-  'okta-saml',
-  'okta-prod',
-  'okta-dev',
-  'okta-staging',
-  'okta-test',
-  'azure-ad',
-  'azure-active-directory',
-  'azure-corp',
-  'azure-enterprise',
-  'adfs',
-  'adfs-company',
-  'adfs-corp',
-  'adfs-enterprise',
-  'auth0',
-  'auth0-prod',
-  'auth0-dev',
-  'auth0-staging',
-  'onelogin',
-  'onelogin-prod',
-  'onelogin-corp',
-  'jumpcloud',
-  'jumpcloud-prod',
-  'jumpcloud-corp',
-  'ping-identity',
-  'ping-federate',
-  'pingone',
-  'shibboleth',
-  'shibboleth-idp',
-  'google-workspace',
-  'google-sso',
-  'saml',
-  'saml2',
-  'saml-sso',
-  'oidc',
-  'oidc-sso',
-  'openid-connect',
-  'custom-sso',
-  'enterprise-sso',
-  'company-sso',
-]
 
 interface SSOProvider {
   id: string
@@ -565,7 +523,7 @@ export function SSO() {
             <Combobox
               value={formData.providerId}
               onChange={(value: string) => handleInputChange('providerId', value)}
-              options={TRUSTED_SSO_PROVIDERS.map((id) => ({
+              options={SSO_TRUSTED_PROVIDERS.map((id) => ({
                 label: id,
                 value: id,
               }))}

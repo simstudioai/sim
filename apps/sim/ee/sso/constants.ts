@@ -1,3 +1,7 @@
+/**
+ * List of trusted SSO provider identifiers.
+ * Used for validation and autocomplete in SSO configuration.
+ */
 export const SSO_TRUSTED_PROVIDERS = [
   'okta',
   'okta-saml',

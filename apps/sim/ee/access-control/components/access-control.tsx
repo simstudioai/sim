@@ -29,7 +29,6 @@ import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
 import { getAllBlocks } from '@/blocks'
-import { useOrganization, useOrganizations } from '@/hooks/queries/organization'
 import {
   type PermissionGroup,
   useBulkAddPermissionGroupMembers,
@@ -39,7 +38,8 @@ import {
   usePermissionGroups,
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
-} from '@/hooks/queries/permission-groups'
+} from '@/ee/access-control/hooks/permission-groups'
+import { useOrganization, useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { getAllProviderIds } from '@/providers/utils'
@@ -255,7 +255,6 @@ export function AccessControl() {
     queryEnabled
   )
 
-  // Show loading while dependencies load, or while permission groups query is pending
   const isLoading = orgsLoading || subLoading || (queryEnabled && groupsLoading)
   const { data: organization } = useOrganization(activeOrganization?.id || '')
 
@@ -410,10 +409,8 @@ export function AccessControl() {
   }, [viewingGroup, editingConfig])
 
   const allBlocks = useMemo(() => {
-    // Filter out hidden blocks and start_trigger (which should never be disabled)
     const blocks = getAllBlocks().filter((b) => !b.hideFromToolbar && b.type !== 'start_trigger')
     return blocks.sort((a, b) => {
-      // Group by category: triggers first, then blocks, then tools
       const categoryOrder = { triggers: 0, blocks: 1, tools: 2 }
       const catA = categoryOrder[a.category] ?? 3
       const catB = categoryOrder[b.category] ?? 3
@@ -555,10 +552,9 @@ export function AccessControl() {
   }, [viewingGroup, editingConfig, activeOrganization?.id, updatePermissionGroup])
 
   const handleOpenAddMembersModal = useCallback(() => {
-    const existingMemberUserIds = new Set(members.map((m) => m.userId))
     setSelectedMemberIds(new Set())
     setShowAddMembersModal(true)
-  }, [members])
+  }, [])
 
   const handleAddSelectedMembers = useCallback(async () => {
     if (!viewingGroup || selectedMemberIds.size === 0) return
@@ -891,7 +887,6 @@ export function AccessControl() {
                             prev
                               ? {
                                   ...prev,
-                                  // When deselecting all, keep start_trigger allowed (it should never be disabled)
                                   allowedIntegrations: allAllowed ? ['start_trigger'] : null,
                                 }
                               : prev
