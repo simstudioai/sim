@@ -297,7 +297,7 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
 export const textractParserV2Tool: ToolConfig<TextractParserV2Input, TextractParserOutput> = {
   ...textractParserTool,
   id: 'textract_parser_v2',
-  name: 'AWS Textract Parser (File Only)',
+  name: 'AWS Textract Parser',
   params: {
     accessKeyId: textractParserTool.params.accessKeyId,
     secretAccessKey: textractParserTool.params.secretAccessKey,

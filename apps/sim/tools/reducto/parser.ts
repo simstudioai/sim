@@ -185,7 +185,7 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
 export const reductoParserV2Tool: ToolConfig<ReductoParserV2Input, ReductoParserOutput> = {
   ...reductoParserTool,
   id: 'reducto_parser_v2',
-  name: 'Reducto PDF Parser (File Only)',
+  name: 'Reducto PDF Parser',
   postProcess: undefined,
   directExecution: undefined,
   transformResponse: reductoParserTool.transformResponse

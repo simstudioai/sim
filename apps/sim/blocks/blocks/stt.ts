@@ -360,7 +360,7 @@ const sttV2SubBlocks = (SttBlock.subBlocks || []).filter((subBlock) => subBlock.
 export const SttV2Block: BlockConfig<SttBlockResponse> = {
   ...SttBlock,
   type: 'stt_v2',
-  name: 'Speech-to-Text (File Only)',
+  name: 'Speech-to-Text',
   hideFromToolbar: false,
   subBlocks: sttV2SubBlocks,
   tools: {

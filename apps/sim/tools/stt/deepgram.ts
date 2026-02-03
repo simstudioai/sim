@@ -147,7 +147,7 @@ const deepgramSttV2Params = {
 export const deepgramSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
   ...deepgramSttTool,
   id: 'stt_deepgram_v2',
-  name: 'Deepgram STT (File Only)',
+  name: 'Deepgram STT',
   params: deepgramSttV2Params,
   request: {
     ...deepgramSttTool.request,

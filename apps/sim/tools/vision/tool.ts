@@ -100,7 +100,7 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
 export const visionToolV2: ToolConfig<VisionV2Params, VisionResponse> = {
   ...visionTool,
   id: 'vision_tool_v2',
-  name: 'Vision Tool (File Only)',
+  name: 'Vision Tool',
   params: {
     apiKey: visionTool.params.apiKey,
     imageFile: {

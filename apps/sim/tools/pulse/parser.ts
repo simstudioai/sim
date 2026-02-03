@@ -257,7 +257,7 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
 export const pulseParserV2Tool: ToolConfig<PulseParserV2Input, PulseParserOutput> = {
   ...pulseParserTool,
   id: 'pulse_parser_v2',
-  name: 'Pulse Document Parser (File Only)',
+  name: 'Pulse Document Parser',
   postProcess: undefined,
   directExecution: undefined,
   transformResponse: pulseParserTool.transformResponse

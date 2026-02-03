@@ -171,7 +171,7 @@ const whisperSttV2Params = {
 export const whisperSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
   ...whisperSttTool,
   id: 'stt_whisper_v2',
-  name: 'OpenAI Whisper STT (File Only)',
+  name: 'OpenAI Whisper STT',
   params: whisperSttV2Params,
   request: {
     ...whisperSttTool.request,

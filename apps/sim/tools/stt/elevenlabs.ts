@@ -130,7 +130,7 @@ const elevenLabsSttV2Params = {
 export const elevenLabsSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
   ...elevenLabsSttTool,
   id: 'stt_elevenlabs_v2',
-  name: 'ElevenLabs STT (File Only)',
+  name: 'ElevenLabs STT',
   params: elevenLabsSttV2Params,
   request: {
     ...elevenLabsSttTool.request,

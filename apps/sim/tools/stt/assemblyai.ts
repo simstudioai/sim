@@ -202,7 +202,7 @@ const assemblyaiSttV2Params = {
 export const assemblyaiSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
   ...assemblyaiSttTool,
   id: 'stt_assemblyai_v2',
-  name: 'AssemblyAI STT (File Only)',
+  name: 'AssemblyAI STT',
   params: assemblyaiSttV2Params,
   request: {
     ...assemblyaiSttTool.request,

@@ -130,7 +130,7 @@ const geminiSttV2Params = {
 export const geminiSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
   ...geminiSttTool,
   id: 'stt_gemini_v2',
-  name: 'Gemini STT (File Only)',
+  name: 'Gemini STT',
   params: geminiSttV2Params,
   request: {
     ...geminiSttTool.request,
