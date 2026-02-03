@@ -30,6 +30,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { formatEditSequence } from '@/lib/workflows/training/compute-edit-sequence'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
@@ -575,7 +576,9 @@ export function TrainingModal() {
                                     <span className='text-[var(--text-muted)]'>Duration:</span>{' '}
                                     <span className='text-[var(--text-secondary)]'>
                                       {dataset.metadata?.duration
-                                        ? `${(dataset.metadata.duration / 1000).toFixed(1)}s`
+                                        ? formatDuration(dataset.metadata.duration, {
+                                            precision: 1,
+                                          })
                                         : 'N/A'}
                                     </span>
                                   </div>

@@ -24,6 +24,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
@@ -43,7 +44,6 @@ import {
   type EntryNode,
   type ExecutionGroup,
   flattenBlockEntriesOnly,
-  formatDuration,
   getBlockColor,
   getBlockIcon,
   groupEntriesByExecution,
@@ -128,7 +128,7 @@ const BlockRow = memo(function BlockRow({
         <StatusDisplay
           isRunning={isRunning}
           isCanceled={isCanceled}
-          formattedDuration={formatDuration(entry.durationMs)}
+          formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
         />
       </span>
     </div>
@@ -201,7 +201,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
           <StatusDisplay
             isRunning={hasRunningChild}
             isCanceled={hasCanceledChild}
-            formattedDuration={formatDuration(entry.durationMs)}
+            formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
       </div>
@@ -314,7 +314,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}
-            formattedDuration={formatDuration(entry.durationMs)}
+            formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
       </div>
