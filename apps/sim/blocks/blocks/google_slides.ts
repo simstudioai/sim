@@ -2,6 +2,7 @@ import { GoogleSlidesIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
 
 export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
@@ -960,26 +961,18 @@ export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
         }
 
         if (params.operation === 'add_image') {
-          let imageInput = params.imageFile || params.imageFileReference || params.imageSource
-          if (!imageInput) {
+          const imageInput = params.imageFile || params.imageFileReference || params.imageSource
+          const normalizedFiles = normalizeFileInput(imageInput)
+          if (!normalizedFiles || normalizedFiles.length === 0) {
             throw new Error('Image file is required.')
           }
-          if (typeof imageInput === 'string') {
-            try {
-              imageInput = JSON.parse(imageInput)
-            } catch {
-              throw new Error('Image file must be a valid file reference.')
-            }
-          }
-          if (Array.isArray(imageInput)) {
+          if (normalizedFiles.length > 1) {
             throw new Error(
               'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
             )
           }
-          if (typeof imageInput !== 'object' || imageInput === null) {
-            throw new Error('Image file must be a file reference.')
-          }
-          const imageUrl = resolveHttpsUrlFromFileInput(imageInput)
+          const fileObject = normalizedFiles[0]
+          const imageUrl = resolveHttpsUrlFromFileInput(fileObject)
           if (!imageUrl) {
             throw new Error('Image file must include a https URL.')
           }

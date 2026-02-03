@@ -269,46 +269,46 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
               messageId: params.messageId,
             }
           case 'telegram_send_photo': {
-            const photoSource = params.photoFile || params.photo
-            if (!photoSource) {
+            const photoSource = normalizeFileInput(params.photoFile || params.photo)
+            if (!photoSource || photoSource.length === 0) {
               throw new Error('Photo is required.')
             }
             return {
               ...commonParams,
-              photo: photoSource,
+              photo: photoSource[0],
               caption: params.caption,
             }
           }
           case 'telegram_send_video': {
-            const videoSource = params.videoFile || params.video
-            if (!videoSource) {
+            const videoSource = normalizeFileInput(params.videoFile || params.video)
+            if (!videoSource || videoSource.length === 0) {
               throw new Error('Video is required.')
             }
             return {
               ...commonParams,
-              video: videoSource,
+              video: videoSource[0],
               caption: params.caption,
             }
           }
           case 'telegram_send_audio': {
-            const audioSource = params.audioFile || params.audio
-            if (!audioSource) {
+            const audioSource = normalizeFileInput(params.audioFile || params.audio)
+            if (!audioSource || audioSource.length === 0) {
               throw new Error('Audio is required.')
             }
             return {
               ...commonParams,
-              audio: audioSource,
+              audio: audioSource[0],
               caption: params.caption,
             }
           }
           case 'telegram_send_animation': {
-            const animationSource = params.animationFile || params.animation
-            if (!animationSource) {
+            const animationSource = normalizeFileInput(params.animationFile || params.animation)
+            if (!animationSource || animationSource.length === 0) {
               throw new Error('Animation is required.')
             }
             return {
               ...commonParams,
-              animation: animationSource,
+              animation: animationSource[0],
               caption: params.caption,
             }
           }

@@ -1,7 +1,7 @@
 import { GmailIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { GmailToolResponse } from '@/tools/gmail/types'
 import { getTrigger } from '@/triggers'
 
@@ -418,6 +418,8 @@ Return ONLY the search query - no explanations, no extra text.`,
           labelActionMessageId,
           labelManagement,
           manualLabelManagement,
+          attachmentFiles,
+          attachments,
           ...rest
         } = params
 
@@ -465,9 +467,13 @@ Return ONLY the search query - no explanations, no extra text.`,
           }
         }
 
+        // Normalize attachments for send/draft operations
+        const normalizedAttachments = normalizeFileInput(attachmentFiles || attachments)
+
         return {
           ...rest,
           credential,
+          ...(normalizedAttachments && { attachments: normalizedAttachments }),
         }
       },
     },

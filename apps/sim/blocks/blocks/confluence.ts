@@ -1,6 +1,7 @@
 import { ConfluenceIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { ConfluenceResponse } from '@/tools/confluence/types'
 
 export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
@@ -651,14 +652,15 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'upload_attachment') {
           const fileInput = attachmentFileUpload || attachmentFileReference || attachmentFile
-          if (!fileInput) {
+          const normalizedFile = normalizeFileInput(fileInput)
+          if (!normalizedFile) {
             throw new Error('File is required for upload attachment operation.')
           }
           return {
             credential,
             pageId: effectivePageId,
             operation,
-            file: fileInput,
+            file: normalizedFile,
             fileName: attachmentFileName,
             comment: attachmentComment,
             ...rest,

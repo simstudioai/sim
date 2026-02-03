@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
 import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
 
@@ -352,17 +353,31 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderId, fileId, mimeType, values, downloadFileName, ...rest } = params
+        const {
+          credential,
+          folderId,
+          fileId,
+          mimeType,
+          values,
+          downloadFileName,
+          file,
+          fileReference,
+          ...rest
+        } = params
 
         let normalizedValues: ReturnType<typeof normalizeExcelValuesForToolParams>
         if (values !== undefined) {
           normalizedValues = normalizeExcelValuesForToolParams(values)
         }
 
+        // Normalize file input from both basic (file-upload) and advanced (short-input) modes
+        const normalizedFile = normalizeFileInput(file || fileReference)
+
         return {
           credential,
           ...rest,
           values: normalizedValues,
+          file: normalizedFile,
           folderId: folderId || undefined,
           fileId: fileId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,

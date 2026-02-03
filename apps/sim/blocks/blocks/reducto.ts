@@ -1,6 +1,6 @@
 import { ReductoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { ReductoParserOutput } from '@/tools/reducto/types'
 
 export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
@@ -182,26 +182,16 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        let documentInput = params.fileUpload || params.document
-        if (!documentInput) {
+        const documentInput = normalizeFileInput(params.fileUpload || params.document)
+        if (!documentInput || documentInput.length === 0) {
           throw new Error('PDF document file is required')
         }
-        if (typeof documentInput === 'string') {
-          try {
-            documentInput = JSON.parse(documentInput)
-          } catch {
-            throw new Error('PDF document file must be a valid file reference')
-          }
-        }
-        if (Array.isArray(documentInput)) {
+        if (documentInput.length > 1) {
           throw new Error(
             'File reference must be a single file, not an array. Use <block.attachments[0]> to select one file.'
           )
         }
-        if (typeof documentInput !== 'object' || documentInput === null) {
-          throw new Error('PDF document file must be a file reference')
-        }
-        parameters.file = documentInput
+        parameters.file = documentInput[0]
 
         let pagesArray: number[] | undefined
         if (params.pages && params.pages.trim() !== '') {

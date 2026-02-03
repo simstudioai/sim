@@ -1,6 +1,6 @@
 import { MistralIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
@@ -213,26 +213,18 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
           resultType: params.resultType || 'markdown',
         }
 
-        let documentInput = params.fileUpload || params.fileReference || params.document
-        if (!documentInput) {
+        const documentInput = normalizeFileInput(
+          params.fileUpload || params.fileReference || params.document
+        )
+        if (!documentInput || documentInput.length === 0) {
           throw new Error('PDF document is required')
         }
-        if (typeof documentInput === 'string') {
-          try {
-            documentInput = JSON.parse(documentInput)
-          } catch {
-            throw new Error('PDF document must be a valid file reference')
-          }
-        }
-        if (Array.isArray(documentInput)) {
+        if (documentInput.length > 1) {
           throw new Error(
             'File reference must be a single file, not an array. Use <block.attachments[0]> to select one file.'
           )
         }
-        if (typeof documentInput !== 'object' || documentInput === null) {
-          throw new Error('PDF document must be a file reference')
-        }
-        parameters.file = documentInput
+        parameters.file = documentInput[0]
 
         let pagesArray: number[] | undefined
         if (params.pages && params.pages.trim() !== '') {

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { DocumentIcon } from '@/components/icons'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
@@ -200,27 +200,25 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
           throw new Error('File is required')
         }
 
-        if (typeof fileInput === 'string') {
+        // First, try to normalize as file objects (handles JSON strings from advanced mode)
+        const normalizedFiles = normalizeFileInput(fileInput)
+        if (normalizedFiles) {
+          const filePaths = resolveFilePathsFromInput(normalizedFiles)
+          if (filePaths.length > 0) {
+            return {
+              filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
+              fileType: params.fileType || 'auto',
+              workspaceId: params._context?.workspaceId,
+            }
+          }
+        }
+
+        // If normalization fails, treat as direct URL string
+        if (typeof fileInput === 'string' && fileInput.trim()) {
           return {
             filePath: fileInput.trim(),
             fileType: params.fileType || 'auto',
             workspaceId: params._context?.workspaceId,
-          }
-        }
-
-        if (Array.isArray(fileInput) && fileInput.length > 0) {
-          const filePaths = resolveFilePathsFromInput(fileInput)
-          return {
-            filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
-            fileType: params.fileType || 'auto',
-          }
-        }
-
-        const resolvedSingle = resolveFilePathsFromInput(fileInput)
-        if (resolvedSingle.length > 0) {
-          return {
-            filePath: resolvedSingle[0],
-            fileType: params.fileType || 'auto',
           }
         }
 
@@ -292,39 +290,25 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
           throw new Error('File input is required')
         }
 
-        if (typeof fileInput === 'string') {
+        // First, try to normalize as file objects (handles JSON strings from advanced mode)
+        const normalizedFiles = normalizeFileInput(fileInput)
+        if (normalizedFiles) {
+          const filePaths = resolveFilePathsFromInput(normalizedFiles)
+          if (filePaths.length > 0) {
+            return {
+              filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
+              fileType: params.fileType || 'auto',
+              workspaceId: params._context?.workspaceId,
+              workflowId: params._context?.workflowId,
+              executionId: params._context?.executionId,
+            }
+          }
+        }
+
+        // If normalization fails, treat as direct URL string
+        if (typeof fileInput === 'string' && fileInput.trim()) {
           return {
             filePath: fileInput.trim(),
-            fileType: params.fileType || 'auto',
-            workspaceId: params._context?.workspaceId,
-            workflowId: params._context?.workflowId,
-            executionId: params._context?.executionId,
-          }
-        }
-
-        if (Array.isArray(fileInput)) {
-          const filePaths = resolveFilePathsFromInput(fileInput)
-          if (filePaths.length === 0) {
-            logger.error('No valid file paths found in file input array')
-            throw new Error('File input is required')
-          }
-          return {
-            filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
-            fileType: params.fileType || 'auto',
-            workspaceId: params._context?.workspaceId,
-            workflowId: params._context?.workflowId,
-            executionId: params._context?.executionId,
-          }
-        }
-
-        if (typeof fileInput === 'object') {
-          const resolvedPaths = resolveFilePathsFromInput(fileInput)
-          if (resolvedPaths.length === 0) {
-            logger.error('File input object missing path, url, or key')
-            throw new Error('File input is required')
-          }
-          return {
-            filePath: resolvedPaths[0],
             fileType: params.fileType || 'auto',
             workspaceId: params._context?.workspaceId,
             workflowId: params._context?.workflowId,

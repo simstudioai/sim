@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { SupabaseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SupabaseResponse } from '@/tools/supabase/types'
 
 const logger = createLogger('SupabaseBlock')
@@ -973,8 +974,15 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           allowedMimeTypes,
           upsert,
           download,
+          file,
+          fileContent,
+          fileData,
           ...rest
         } = params
+
+        // Normalize file input for storage_upload operation
+        // normalizeFileInput handles JSON stringified values from advanced mode
+        const normalizedFileData = normalizeFileInput(file || fileContent || fileData)
 
         // Parse JSON data if it's a string
         let parsedData
@@ -1100,6 +1108,10 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
 
         if (rest.isPublic !== undefined) {
           result.isPublic = parsedIsPublic
+        }
+
+        if (normalizedFileData !== undefined) {
+          result.fileData = normalizedFileData
         }
 
         return result

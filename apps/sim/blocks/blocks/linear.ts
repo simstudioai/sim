@@ -1,6 +1,7 @@
 import { LinearIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
 
@@ -1773,16 +1774,21 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             if (!params.issueId?.trim()) {
               throw new Error('Issue ID is required.')
             }
-            if (Array.isArray(params.file)) {
+            // Normalize file inputs - handles JSON stringified values from advanced mode
+            const normalizedUpload = normalizeFileInput(params.attachmentFileUpload)
+            const normalizedFile = normalizeFileInput(params.file)
+            // Take the first file from whichever input has data (Linear only accepts single file)
+            const attachmentFile = normalizedUpload?.[0] || normalizedFile?.[0]
+            // Check for multiple files
+            if (
+              (normalizedUpload && normalizedUpload.length > 1) ||
+              (normalizedFile && normalizedFile.length > 1)
+            ) {
               throw new Error('Attachment file must be a single file.')
             }
-            if (Array.isArray(params.attachmentFileUpload)) {
-              throw new Error('Attachment file must be a single file.')
-            }
-            const attachmentFile = params.attachmentFileUpload || params.file
             const attachmentUrl =
               params.url?.trim() ||
-              (attachmentFile && !Array.isArray(attachmentFile) ? attachmentFile.url : undefined)
+              (attachmentFile ? (attachmentFile as { url?: string }).url : undefined)
             if (!attachmentUrl) {
               throw new Error('URL or file is required.')
             }

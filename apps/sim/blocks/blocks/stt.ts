@@ -1,6 +1,6 @@
 import { STTIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { SttBlockResponse } from '@/tools/stt/types'
 
 export const SttBlock: BlockConfig<SttBlockResponse> = {
@@ -258,22 +258,28 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
             return 'stt_whisper'
         }
       },
-      params: (params) => ({
-        provider: params.provider,
-        apiKey: params.apiKey,
-        model: params.model,
-        audioFile: params.audioFile,
-        audioFileReference: params.audioFileReference,
-        audioUrl: params.audioUrl,
-        language: params.language,
-        timestamps: params.timestamps,
-        diarization: params.diarization,
-        translateToEnglish: params.translateToEnglish,
-        sentiment: params.sentiment,
-        entityDetection: params.entityDetection,
-        piiRedaction: params.piiRedaction,
-        summarization: params.summarization,
-      }),
+      params: (params) => {
+        // Normalize file input from basic (file-upload) or advanced (short-input) mode
+        const normalizedFiles = normalizeFileInput(params.audioFile || params.audioFileReference)
+        const audioFile = normalizedFiles?.[0]
+
+        return {
+          provider: params.provider,
+          apiKey: params.apiKey,
+          model: params.model,
+          audioFile,
+          audioFileReference: undefined,
+          audioUrl: params.audioUrl,
+          language: params.language,
+          timestamps: params.timestamps,
+          diarization: params.diarization,
+          translateToEnglish: params.translateToEnglish,
+          sentiment: params.sentiment,
+          entityDetection: params.entityDetection,
+          piiRedaction: params.piiRedaction,
+          summarization: params.summarization,
+        }
+      },
     },
   },
 
@@ -386,24 +392,15 @@ export const SttV2Block: BlockConfig<SttBlockResponse> = {
         fallbackToolId: 'stt_whisper_v2',
       }),
       params: (params) => {
-        let audioInput = params.audioFile || params.audioFileReference
-        if (audioInput && typeof audioInput === 'string') {
-          try {
-            audioInput = JSON.parse(audioInput)
-          } catch {
-            throw new Error('Audio file must be a valid file reference')
-          }
-        }
-        if (audioInput && Array.isArray(audioInput)) {
-          throw new Error(
-            'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
-          )
-        }
+        // Normalize file input from basic (file-upload) or advanced (short-input) mode
+        const normalizedFiles = normalizeFileInput(params.audioFile || params.audioFileReference)
+        const audioFile = normalizedFiles?.[0]
+
         return {
           provider: params.provider,
           apiKey: params.apiKey,
           model: params.model,
-          audioFile: audioInput,
+          audioFile,
           audioFileReference: undefined,
           language: params.language,
           timestamps: params.timestamps,

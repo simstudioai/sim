@@ -1,6 +1,7 @@
 import { SpotifyIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { ToolResponse } from '@/tools/types'
 
 export const SpotifyBlock: BlockConfig<ToolResponse> = {
@@ -784,6 +785,10 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         // Map playUris to uris for play
         if (params.playUris) {
           params.uris = params.playUris
+        }
+        // Normalize file input for cover image
+        if (params.coverImage !== undefined) {
+          params.coverImage = normalizeFileInput(params.coverImage)
         }
         return params.operation || 'spotify_search'
       },

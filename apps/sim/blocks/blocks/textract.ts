@@ -1,6 +1,6 @@
 import { TextractIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { TextractParserOutput } from '@/tools/textract/types'
 
 export const TextractBlock: BlockConfig<TextractParserOutput> = {
@@ -260,26 +260,11 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
           }
           parameters.s3Uri = params.s3Uri.trim()
         } else {
-          let documentInput = params.fileUpload || params.document
-          if (!documentInput) {
+          const files = normalizeFileInput(params.fileUpload || params.document)
+          if (!files || files.length === 0) {
             throw new Error('Document file is required')
           }
-          if (typeof documentInput === 'string') {
-            try {
-              documentInput = JSON.parse(documentInput)
-            } catch {
-              throw new Error('Document file must be a valid file reference')
-            }
-          }
-          if (Array.isArray(documentInput)) {
-            throw new Error(
-              'File reference must be a single file, not an array. Use <block.attachments[0]> to select one file.'
-            )
-          }
-          if (typeof documentInput !== 'object' || documentInput === null) {
-            throw new Error('Document file must be a file reference')
-          }
-          parameters.file = documentInput
+          parameters.file = files[0]
         }
 
         const featureTypes: string[] = []

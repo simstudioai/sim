@@ -1,6 +1,6 @@
 import { PulseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { PulseParserOutput } from '@/tools/pulse/types'
 
 export const PulseBlock: BlockConfig<PulseParserOutput> = {
@@ -178,26 +178,16 @@ export const PulseV2Block: BlockConfig<PulseParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        let documentInput = params.fileUpload || params.document
-        if (!documentInput) {
+        const normalizedFiles = normalizeFileInput(params.fileUpload || params.document)
+        if (!normalizedFiles || normalizedFiles.length === 0) {
           throw new Error('Document file is required')
         }
-        if (typeof documentInput === 'string') {
-          try {
-            documentInput = JSON.parse(documentInput)
-          } catch {
-            throw new Error('Document file must be a valid file reference')
-          }
-        }
-        if (Array.isArray(documentInput)) {
+        if (normalizedFiles.length > 1) {
           throw new Error(
             'File reference must be a single file, not an array. Use <block.attachments[0]> to select one file.'
           )
         }
-        if (typeof documentInput !== 'object' || documentInput === null) {
-          throw new Error('Document file must be a file reference')
-        }
-        parameters.file = documentInput
+        parameters.file = normalizedFiles[0]
 
         if (params.pages && params.pages.trim() !== '') {
           parameters.pages = params.pages.trim()

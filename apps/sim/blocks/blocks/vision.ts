@@ -1,7 +1,7 @@
 import { EyeIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { VisionResponse } from '@/tools/vision/types'
 
 const VISION_MODEL_OPTIONS = [
@@ -117,22 +117,13 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
         fallbackToolId: 'vision_tool_v2',
       }),
       params: (params) => {
-        let imageInput = params.imageFile || params.imageFileReference
-        if (imageInput && typeof imageInput === 'string') {
-          try {
-            imageInput = JSON.parse(imageInput)
-          } catch {
-            throw new Error('Image file must be a valid file reference')
-          }
-        }
-        if (imageInput && Array.isArray(imageInput)) {
-          throw new Error(
-            'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
-          )
-        }
+        // normalizeFileInput handles JSON stringified values from advanced mode
+        const normalizedFiles = normalizeFileInput(params.imageFile || params.imageFileReference)
+        // Vision expects a single file, take the first from the normalized array
+        const imageFile = normalizedFiles?.[0]
         return {
           ...params,
-          imageFile: imageInput,
+          imageFile,
           imageFileReference: undefined,
         }
       },

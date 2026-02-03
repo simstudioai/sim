@@ -1,6 +1,7 @@
 import { DropboxIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { DropboxResponse } from '@/tools/dropbox/types'
 
 export const DropboxBlock: BlockConfig<DropboxResponse> = {
@@ -314,6 +315,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         }
         if (params.maxResults) {
           params.maxResults = Number(params.maxResults)
+        }
+
+        // Normalize file input for upload operation
+        // normalizeFileInput handles JSON stringified values from advanced mode
+        if (params.fileContent) {
+          params.fileContent = normalizeFileInput(params.fileContent)
         }
 
         switch (params.operation) {

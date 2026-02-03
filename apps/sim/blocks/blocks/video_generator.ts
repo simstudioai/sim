@@ -1,5 +1,6 @@
 import { VideoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { VideoBlockResponse } from '@/tools/video/types'
 
 export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
@@ -745,7 +746,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
           duration: params.duration ? Number(params.duration) : undefined,
           aspectRatio: params.aspectRatio,
           resolution: params.resolution,
-          visualReference: visualRef,
+          visualReference: normalizeFileInput(visualRef),
           consistencyMode: params.consistencyMode,
           stylePreset: params.stylePreset,
           promptOptimizer: params.promptOptimizer,

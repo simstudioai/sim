@@ -2,6 +2,7 @@ import { FirefliesIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { FirefliesResponse } from '@/tools/fireflies/types'
 import { getTrigger } from '@/triggers'
 
@@ -619,26 +620,13 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
         }
 
         if (params.operation === 'fireflies_upload_audio') {
-          let audioInput = params.audioFile || params.audioFileReference
-          if (!audioInput) {
+          const audioFiles =
+            normalizeFileInput(params.audioFile) || normalizeFileInput(params.audioFileReference)
+          if (!audioFiles || audioFiles.length === 0) {
             throw new Error('Audio file is required.')
           }
-          if (typeof audioInput === 'string') {
-            try {
-              audioInput = JSON.parse(audioInput)
-            } catch {
-              throw new Error('Audio file must be a valid file reference.')
-            }
-          }
-          if (Array.isArray(audioInput)) {
-            throw new Error(
-              'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
-            )
-          }
-          if (typeof audioInput !== 'object' || audioInput === null) {
-            throw new Error('Audio file must be a file reference.')
-          }
-          const audioUrl = resolveHttpsUrlFromFileInput(audioInput)
+          const audioFile = audioFiles[0]
+          const audioUrl = resolveHttpsUrlFromFileInput(audioFile)
           if (!audioUrl) {
             throw new Error('Audio file must include a https URL.')
           }
