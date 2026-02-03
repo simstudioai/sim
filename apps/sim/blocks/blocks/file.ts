@@ -261,8 +261,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       title: 'Files',
       type: 'file-upload' as SubBlockType,
       canonicalParamId: 'fileInput',
-      acceptedTypes:
-        '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf',
+      acceptedTypes: '*',
       placeholder: 'Upload files to process',
       multiple: true,
       mode: 'basic',
