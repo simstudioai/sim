@@ -268,7 +268,7 @@ export const pulseParserV2Tool: ToolConfig<PulseParserV2Input, PulseParserOutput
     file: {
       type: 'file',
       required: true,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'Document to be processed',
     },
     pages: pulseParserTool.params.pages,

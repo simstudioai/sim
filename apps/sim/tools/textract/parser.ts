@@ -306,7 +306,7 @@ export const textractParserV2Tool: ToolConfig<TextractParserV2Input, TextractPar
     file: {
       type: 'file',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'Document to be processed (JPEG, PNG, or single-page PDF).',
     },
     s3Uri: textractParserTool.params.s3Uri,

@@ -196,7 +196,7 @@ export const reductoParserV2Tool: ToolConfig<ReductoParserV2Input, ReductoParser
     file: {
       type: 'file',
       required: true,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'PDF document to be processed',
     },
     pages: reductoParserTool.params.pages,
