@@ -244,7 +244,9 @@ export function ThinkingBlock({
 
   const hasContent = cleanContent.length > 0
   const isThinkingDone = !isStreaming || hasFollowingContent || hasSpecialTags
-  const durationText = `${label} for ${formatDuration(Math.max(1000, duration))}`
+  // Round to nearest second (minimum 1s) to match original behavior
+  const roundedMs = Math.max(1000, Math.round(duration / 1000) * 1000)
+  const durationText = `${label} for ${formatDuration(roundedMs)}`
 
   const getStreamingLabel = (lbl: string) => {
     if (lbl === 'Thought') return 'Thinking'

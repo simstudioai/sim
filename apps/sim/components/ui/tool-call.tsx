@@ -275,7 +275,7 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
                   )}
                   style={{ fontSize: '0.625rem' }}
                 >
-                  {formatDuration(toolCall.duration)}
+                  {toolCall.duration ? formatDuration(toolCall.duration, { precision: 1 }) : ''}
                 </Badge>
               )}
             </div>

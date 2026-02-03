@@ -850,7 +850,9 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
   )
 
   const outerLabel = getSubagentCompletionLabel(toolCall.name)
-  const durationText = `${outerLabel} for ${formatDuration(Math.max(1000, duration))}`
+  // Round to nearest second (minimum 1s) to match original behavior
+  const roundedMs = Math.max(1000, Math.round(duration / 1000) * 1000)
+  const durationText = `${outerLabel} for ${formatDuration(roundedMs)}`
 
   const renderCollapsibleContent = () => (
     <>
