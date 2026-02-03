@@ -5,7 +5,10 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import {
+  formatWorkflowStateForCopilot,
+  normalizeWorkflowName,
+} from '@/lib/copilot/tools/shared/workflow-utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('GetWorkflowFromNameClientTool')
@@ -67,11 +70,9 @@ export class GetWorkflowFromNameClientTool extends BaseClientTool {
 
       // Try to find by name from registry first to get ID
       const registry = useWorkflowRegistry.getState()
+      const targetName = normalizeWorkflowName(workflowName)
       const match = Object.values((registry as any).workflows || {}).find(
-        (w: any) =>
-          String(w?.name || '')
-            .trim()
-            .toLowerCase() === workflowName.toLowerCase()
+        (w: any) => normalizeWorkflowName(w?.name) === targetName
       ) as any
 
       if (!match?.id) {
@@ -98,15 +99,12 @@ export class GetWorkflowFromNameClientTool extends BaseClientTool {
       }
 
       // Convert state to the same string format as get_user_workflow
-      const workflowState = {
+      const userWorkflow = formatWorkflowStateForCopilot({
         blocks: wf.state.blocks || {},
         edges: wf.state.edges || [],
         loops: wf.state.loops || {},
         parallels: wf.state.parallels || {},
-      }
-      // Sanitize workflow state for copilot (remove UI-specific data)
-      const sanitizedState = sanitizeForCopilot(workflowState)
-      const userWorkflow = JSON.stringify(sanitizedState, null, 2)
+      })
 
       await this.markToolComplete(200, `Retrieved workflow ${workflowName}`, { userWorkflow })
       this.setState(ClientToolCallState.success)

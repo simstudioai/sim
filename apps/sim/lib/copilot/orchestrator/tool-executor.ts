@@ -22,7 +22,11 @@ import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { mcpService } from '@/lib/mcp/service'
-import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import {
+  extractWorkflowNames,
+  formatNormalizedWorkflowForCopilot,
+  normalizeWorkflowName,
+} from '@/lib/copilot/tools/shared/workflow-utils'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import {
   deployWorkflow,
@@ -373,6 +377,35 @@ async function ensureWorkspaceAccess(
   }
 }
 
+async function getAccessibleWorkflowsForUser(
+  userId: string,
+  options?: { workspaceId?: string; folderId?: string }
+) {
+  const workspaceIds = await db
+    .select({ entityId: permissions.entityId })
+    .from(permissions)
+    .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+
+  const workspaceIdList = workspaceIds.map((row) => row.entityId)
+
+  const workflowConditions = [eq(workflow.userId, userId)]
+  if (workspaceIdList.length > 0) {
+    workflowConditions.push(inArray(workflow.workspaceId, workspaceIdList))
+  }
+  if (options?.workspaceId) {
+    workflowConditions.push(eq(workflow.workspaceId, options.workspaceId))
+  }
+  if (options?.folderId) {
+    workflowConditions.push(eq(workflow.folderId, options.folderId))
+  }
+
+  return db
+    .select()
+    .from(workflow)
+    .where(or(...workflowConditions))
+    .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
+}
+
 async function executeGetUserWorkflow(
   params: Record<string, any>,
   context: ExecutionContext
@@ -389,18 +422,10 @@ async function executeGetUserWorkflow(
     )
 
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-    if (!normalized) {
+    const userWorkflow = formatNormalizedWorkflowForCopilot(normalized)
+    if (!userWorkflow) {
       return { success: false, error: 'Workflow has no normalized data' }
     }
-
-    const workflowState = {
-      blocks: normalized.blocks || {},
-      edges: normalized.edges || [],
-      loops: normalized.loops || {},
-      parallels: normalized.parallels || {},
-    }
-    const sanitized = sanitizeForCopilot(workflowState)
-    const userWorkflow = JSON.stringify(sanitized, null, 2)
 
     // Return workflow ID so copilot can use it for subsequent tool calls
     return {
@@ -427,42 +452,19 @@ async function executeGetWorkflowFromName(
       return { success: false, error: 'workflow_name is required' }
     }
 
-    const workspaceIds = await db
-      .select({ entityId: permissions.entityId })
-      .from(permissions)
-      .where(and(eq(permissions.userId, context.userId), eq(permissions.entityType, 'workspace')))
+    const workflows = await getAccessibleWorkflowsForUser(context.userId)
 
-    const workspaceIdList = workspaceIds.map((row) => row.entityId)
-
-    const workflowConditions = [eq(workflow.userId, context.userId)]
-    if (workspaceIdList.length > 0) {
-      workflowConditions.push(inArray(workflow.workspaceId, workspaceIdList))
-    }
-    const workflows = await db
-      .select()
-      .from(workflow)
-      .where(or(...workflowConditions))
-
-    const match = workflows.find(
-      (w) => String(w.name || '').trim().toLowerCase() === workflowName.toLowerCase()
-    )
+    const targetName = normalizeWorkflowName(workflowName)
+    const match = workflows.find((w) => normalizeWorkflowName(w.name) === targetName)
     if (!match) {
       return { success: false, error: `Workflow not found: ${workflowName}` }
     }
 
     const normalized = await loadWorkflowFromNormalizedTables(match.id)
-    if (!normalized) {
+    const userWorkflow = formatNormalizedWorkflowForCopilot(normalized)
+    if (!userWorkflow) {
       return { success: false, error: 'Workflow has no normalized data' }
     }
-
-    const workflowState = {
-      blocks: normalized.blocks || {},
-      edges: normalized.edges || [],
-      loops: normalized.loops || {},
-      parallels: normalized.parallels || {},
-    }
-    const sanitized = sanitizeForCopilot(workflowState)
-    const userWorkflow = JSON.stringify(sanitized, null, 2)
 
     // Return workflow ID and workspaceId so copilot can use them for subsequent tool calls
     return {
@@ -487,33 +489,10 @@ async function executeListUserWorkflows(
     const workspaceId = params?.workspaceId as string | undefined
     const folderId = params?.folderId as string | undefined
 
-    const workspaceIds = await db
-      .select({ entityId: permissions.entityId })
-      .from(permissions)
-      .where(and(eq(permissions.userId, context.userId), eq(permissions.entityType, 'workspace')))
-
-    const workspaceIdList = workspaceIds.map((row) => row.entityId)
-
-    const workflowConditions = [eq(workflow.userId, context.userId)]
-    if (workspaceIdList.length > 0) {
-      workflowConditions.push(inArray(workflow.workspaceId, workspaceIdList))
-    }
-    if (workspaceId) {
-      workflowConditions.push(eq(workflow.workspaceId, workspaceId))
-    }
-    if (folderId) {
-      workflowConditions.push(eq(workflow.folderId, folderId))
-    }
-    const workflows = await db
-      .select()
-      .from(workflow)
-      .where(or(...workflowConditions))
-      .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
+    const workflows = await getAccessibleWorkflowsForUser(context.userId, { workspaceId, folderId })
 
     // Return both names (for backward compatibility) and full workflow info with IDs
-    const names = workflows
-      .map((w) => (typeof w.name === 'string' ? w.name : null))
-      .filter((n): n is string => Boolean(n))
+    const names = extractWorkflowNames(workflows)
 
     const workflowList = workflows.map((w) => ({
       workflowId: w.id,

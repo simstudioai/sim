@@ -53,8 +53,7 @@ import { SleepClientTool } from '@/lib/copilot/tools/client/other/sleep'
 import { TestClientTool } from '@/lib/copilot/tools/client/other/test'
 import { TourClientTool } from '@/lib/copilot/tools/client/other/tour'
 import { WorkflowClientTool } from '@/lib/copilot/tools/client/other/workflow'
-import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
-import { COPILOT_SERVER_ORCHESTRATED } from '@/lib/copilot/orchestrator/config'
+import { getTool } from '@/lib/copilot/tools/client/registry'
 import { GetCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
 import { CheckDeploymentStatusClientTool } from '@/lib/copilot/tools/client/workflow/check-deployment-status'
@@ -1200,7 +1199,7 @@ const sseHandlers: Record<string, SSEHandler> = {
           } catch {}
         }
 
-        if (COPILOT_SERVER_ORCHESTRATED && current.name === 'edit_workflow') {
+        if (current.name === 'edit_workflow') {
           try {
             const resultPayload =
               data?.result || data?.data?.result || data?.data?.data || data?.data || {}
@@ -1375,229 +1374,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (COPILOT_SERVER_ORCHESTRATED) {
-      return
-    }
-
-    // Prefer interface-based registry to determine interrupt and execute
-    try {
-      const def = name ? getTool(name) : undefined
-      if (def) {
-        const hasInterrupt =
-          typeof def.hasInterrupt === 'function'
-            ? !!def.hasInterrupt(args || {})
-            : !!def.hasInterrupt
-        // Check if tool is auto-allowed - if so, execute even if it has an interrupt
-        const { autoAllowedTools } = get()
-        const isAutoAllowed = name ? autoAllowedTools.includes(name) : false
-        if ((!hasInterrupt || isAutoAllowed) && typeof def.execute === 'function') {
-          if (isAutoAllowed && hasInterrupt) {
-            logger.info('[toolCallsById] Auto-executing tool with interrupt (auto-allowed)', {
-              id,
-              name,
-            })
-          }
-          const ctx = createExecutionContext({ toolCallId: id, toolName: name || 'unknown_tool' })
-          // Defer executing transition by a tick to let pending render
-          setTimeout(() => {
-            // Guard against duplicate execution - check if already executing or terminal
-            const currentState = get().toolCallsById[id]?.state
-            if (currentState === ClientToolCallState.executing || isTerminalState(currentState)) {
-              return
-            }
-
-            const executingMap = { ...get().toolCallsById }
-            executingMap[id] = {
-              ...executingMap[id],
-              state: ClientToolCallState.executing,
-              display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
-            }
-            set({ toolCallsById: executingMap })
-            logger.info('[toolCallsById] pending → executing (registry)', { id, name })
-
-            // Update inline content block to executing
-            for (let i = 0; i < context.contentBlocks.length; i++) {
-              const b = context.contentBlocks[i] as any
-              if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                context.contentBlocks[i] = {
-                  ...b,
-                  toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
-                }
-                break
-              }
-            }
-            updateStreamingMessage(set, context)
-
-            Promise.resolve()
-              .then(async () => {
-                const result = await def.execute(ctx, args || {})
-                const success =
-                  result && typeof result.status === 'number'
-                    ? result.status >= 200 && result.status < 300
-                    : true
-                const completeMap = { ...get().toolCallsById }
-                // Do not override terminal review/rejected
-                if (
-                  isRejectedState(completeMap[id]?.state) ||
-                  isReviewState(completeMap[id]?.state) ||
-                  isBackgroundState(completeMap[id]?.state)
-                ) {
-                  return
-                }
-                completeMap[id] = {
-                  ...completeMap[id],
-                  state: success ? ClientToolCallState.success : ClientToolCallState.error,
-                  display: resolveToolDisplay(
-                    name,
-                    success ? ClientToolCallState.success : ClientToolCallState.error,
-                    id,
-                    args
-                  ),
-                }
-                set({ toolCallsById: completeMap })
-                logger.info(
-                  `[toolCallsById] executing → ${success ? 'success' : 'error'} (registry)`,
-                  { id, name }
-                )
-
-                // Notify backend tool mark-complete endpoint
-                try {
-                  await fetch('/api/copilot/tools/mark-complete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      id,
-                      name: name || 'unknown_tool',
-                      status:
-                        typeof result?.status === 'number' ? result.status : success ? 200 : 500,
-                      message: result?.message,
-                      data: result?.data,
-                    }),
-                  })
-                } catch {}
-              })
-              .catch((e) => {
-                const errorMap = { ...get().toolCallsById }
-                // Do not override terminal review/rejected
-                if (
-                  isRejectedState(errorMap[id]?.state) ||
-                  isReviewState(errorMap[id]?.state) ||
-                  isBackgroundState(errorMap[id]?.state)
-                ) {
-                  return
-                }
-                errorMap[id] = {
-                  ...errorMap[id],
-                  state: ClientToolCallState.error,
-                  display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
-                }
-                set({ toolCallsById: errorMap })
-                logger.error('Registry auto-execute tool failed', { id, name, error: e })
-              })
-          }, 0)
-          return
-        }
-      }
-    } catch (e) {
-      logger.warn('tool_call registry auto-exec check failed', { id, name, error: e })
-    }
-
-    // Class-based auto-exec for non-interrupt tools or auto-allowed tools
-    try {
-      const inst = getClientTool(id) as any
-      const hasInterrupt = !!inst?.getInterruptDisplays?.()
-      // Check if tool is auto-allowed - if so, execute even if it has an interrupt
-      const { autoAllowedTools: classAutoAllowed } = get()
-      const isClassAutoAllowed = name ? classAutoAllowed.includes(name) : false
-      if (
-        (!hasInterrupt || isClassAutoAllowed) &&
-        (typeof inst?.execute === 'function' || typeof inst?.handleAccept === 'function')
-      ) {
-        if (isClassAutoAllowed && hasInterrupt) {
-          logger.info('[toolCallsById] Auto-executing class tool with interrupt (auto-allowed)', {
-            id,
-            name,
-          })
-        }
-        setTimeout(() => {
-          // Guard against duplicate execution - check if already executing or terminal
-          const currentState = get().toolCallsById[id]?.state
-          if (currentState === ClientToolCallState.executing || isTerminalState(currentState)) {
-            return
-          }
-
-          const executingMap = { ...get().toolCallsById }
-          executingMap[id] = {
-            ...executingMap[id],
-            state: ClientToolCallState.executing,
-            display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
-          }
-          set({ toolCallsById: executingMap })
-          logger.info('[toolCallsById] pending → executing (class)', { id, name })
-
-          Promise.resolve()
-            .then(async () => {
-              // Use handleAccept for tools with interrupts, execute for others
-              if (hasInterrupt && typeof inst?.handleAccept === 'function') {
-                await inst.handleAccept(args || {})
-              } else {
-                await inst.execute(args || {})
-              }
-              // Success/error will be synced via registerToolStateSync
-            })
-            .catch(() => {
-              const errorMap = { ...get().toolCallsById }
-              // Do not override terminal review/rejected
-              if (
-                isRejectedState(errorMap[id]?.state) ||
-                isReviewState(errorMap[id]?.state) ||
-                isBackgroundState(errorMap[id]?.state)
-              ) {
-                return
-              }
-              errorMap[id] = {
-                ...errorMap[id],
-                state: ClientToolCallState.error,
-                display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
-              }
-              set({ toolCallsById: errorMap })
-            })
-        }, 0)
-        return
-      }
-    } catch {}
-
-    // Integration tools: Check auto-allowed or stay in pending state until user confirms
-    // This handles tools like google_calendar_*, exa_*, gmail_read, etc. that aren't in the client registry
-    // Only relevant if mode is 'build' (agent)
-    const { mode, workflowId, autoAllowedTools, executeIntegrationTool } = get()
-    if (mode === 'build' && workflowId) {
-      // Check if tool was NOT found in client registry
-      const def = name ? getTool(name) : undefined
-      const inst = getClientTool(id) as any
-      if (!def && !inst && name) {
-        // Check if this integration tool is auto-allowed - if so, execute it immediately
-        if (autoAllowedTools.includes(name)) {
-          logger.info('[build mode] Auto-executing integration tool (auto-allowed)', { id, name })
-          // Defer to allow pending state to render briefly
-          setTimeout(() => {
-            executeIntegrationTool(id).catch((err) => {
-              logger.error('[build mode] Auto-execute integration tool failed', {
-                id,
-                name,
-                error: err,
-              })
-            })
-          }, 0)
-        } else {
-          // Integration tools stay in pending state until user confirms
-          logger.info('[build mode] Integration tool awaiting user confirmation', {
-            id,
-            name,
-          })
-        }
-      }
-    }
+    return
   },
   reasoning: (data, context, _get, set) => {
     const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
@@ -2081,91 +1858,6 @@ const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) {
       return
-    }
-
-    // Execute client tools in parallel (non-blocking) - same pattern as main tool_call handler
-    // Check if tool is auto-allowed
-    const { autoAllowedTools: subAgentAutoAllowed } = get()
-    const isSubAgentAutoAllowed = name ? subAgentAutoAllowed.includes(name) : false
-
-    try {
-      const def = getTool(name)
-      if (def) {
-        const hasInterrupt =
-          typeof def.hasInterrupt === 'function'
-            ? !!def.hasInterrupt(args || {})
-            : !!def.hasInterrupt
-        // Auto-execute if no interrupt OR if auto-allowed
-        if (!hasInterrupt || isSubAgentAutoAllowed) {
-          if (isSubAgentAutoAllowed && hasInterrupt) {
-            logger.info('[SubAgent] Auto-executing tool with interrupt (auto-allowed)', {
-              id,
-              name,
-            })
-          }
-          // Auto-execute tools - non-blocking
-          const ctx = createExecutionContext({ toolCallId: id, toolName: name })
-          Promise.resolve()
-            .then(() => def.execute(ctx, args || {}))
-            .catch((execErr: any) => {
-              logger.error('[SubAgent] Tool execution failed', {
-                id,
-                name,
-                error: execErr?.message,
-              })
-            })
-        }
-      } else {
-        // Fallback to class-based tools - non-blocking
-        const instance = getClientTool(id)
-        if (instance) {
-          const hasInterruptDisplays = !!instance.getInterruptDisplays?.()
-          // Auto-execute if no interrupt OR if auto-allowed
-          if (!hasInterruptDisplays || isSubAgentAutoAllowed) {
-            if (isSubAgentAutoAllowed && hasInterruptDisplays) {
-              logger.info('[SubAgent] Auto-executing class tool with interrupt (auto-allowed)', {
-                id,
-                name,
-              })
-            }
-            Promise.resolve()
-              .then(() => {
-                // Use handleAccept for tools with interrupts, execute for others
-                if (hasInterruptDisplays && typeof instance.handleAccept === 'function') {
-                  return instance.handleAccept(args || {})
-                }
-                return instance.execute(args || {})
-              })
-              .catch((execErr: any) => {
-                logger.error('[SubAgent] Class tool execution failed', {
-                  id,
-                  name,
-                  error: execErr?.message,
-                })
-              })
-          }
-        } else {
-          // Check if this is an integration tool (server-side) that should be auto-executed
-          const isIntegrationTool = !CLASS_TOOL_METADATA[name]
-          if (isIntegrationTool && isSubAgentAutoAllowed) {
-            logger.info('[SubAgent] Auto-executing integration tool (auto-allowed)', {
-              id,
-              name,
-            })
-            // Execute integration tool via the store method
-            const { executeIntegrationTool } = get()
-            executeIntegrationTool(id).catch((err) => {
-              logger.error('[SubAgent] Integration tool auto-execution failed', {
-                id,
-                name,
-                error: err?.message || err,
-              })
-            })
-          }
-        }
-      }
-    } catch (e: any) {
-      logger.error('[SubAgent] Tool registry/execution error', { id, name, error: e?.message })
     }
   },
 
@@ -3208,21 +2900,13 @@ export const useCopilotStore = create<CopilotStore>()(
         return { messages }
       })
 
-      // Notify backend mark-complete to finalize tool server-side
       try {
-        fetch('/api/copilot/tools/mark-complete', {
+        fetch('/api/copilot/confirm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id,
-            name: current.name,
-            status:
-              targetState === ClientToolCallState.success
-                ? 200
-                : targetState === ClientToolCallState.rejected
-                  ? 409
-                  : 500,
-            message: toolCallState,
+            toolCallId: id,
+            status: toolCallState,
           }),
         }).catch(() => {})
       } catch {}
@@ -3836,150 +3520,6 @@ export const useCopilotStore = create<CopilotStore>()(
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
     setEnabledModels: (models) => set({ enabledModels: models }),
 
-    executeIntegrationTool: async (toolCallId: string) => {
-      if (COPILOT_SERVER_ORCHESTRATED) {
-        return
-      }
-      const { toolCallsById, workflowId } = get()
-      const toolCall = toolCallsById[toolCallId]
-      if (!toolCall || !workflowId) return
-
-      const { id, name, params } = toolCall
-
-      // Guard against double execution - skip if already executing or in terminal state
-      if (toolCall.state === ClientToolCallState.executing || isTerminalState(toolCall.state)) {
-        logger.info('[executeIntegrationTool] Skipping - already executing or terminal', {
-          id,
-          name,
-          state: toolCall.state,
-        })
-        return
-      }
-
-      // Set to executing state
-      const executingMap = { ...get().toolCallsById }
-      executingMap[id] = {
-        ...executingMap[id],
-        state: ClientToolCallState.executing,
-        display: resolveToolDisplay(name, ClientToolCallState.executing, id, params),
-      }
-      set({ toolCallsById: executingMap })
-      logger.info('[toolCallsById] pending → executing (integration tool)', { id, name })
-
-      try {
-        const res = await fetch('/api/copilot/execute-tool', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            toolCallId: id,
-            toolName: name,
-            arguments: params || {},
-            workflowId,
-          }),
-        })
-
-        const result = await res.json()
-        const success = result.success && result.result?.success
-        const completeMap = { ...get().toolCallsById }
-
-        // Do not override terminal review/rejected
-        if (
-          isRejectedState(completeMap[id]?.state) ||
-          isReviewState(completeMap[id]?.state) ||
-          isBackgroundState(completeMap[id]?.state)
-        ) {
-          return
-        }
-
-        completeMap[id] = {
-          ...completeMap[id],
-          state: success ? ClientToolCallState.success : ClientToolCallState.error,
-          display: resolveToolDisplay(
-            name,
-            success ? ClientToolCallState.success : ClientToolCallState.error,
-            id,
-            params
-          ),
-        }
-        set({ toolCallsById: completeMap })
-        logger.info(`[toolCallsById] executing → ${success ? 'success' : 'error'} (integration)`, {
-          id,
-          name,
-          result,
-        })
-
-        // Notify backend tool mark-complete endpoint
-        try {
-          await fetch('/api/copilot/tools/mark-complete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id,
-              name: name || 'unknown_tool',
-              status: success ? 200 : 500,
-              message: success
-                ? result.result?.output?.content
-                : result.result?.error || result.error || 'Tool execution failed',
-              data: success
-                ? result.result?.output
-                : {
-                    error: result.result?.error || result.error,
-                    output: result.result?.output,
-                  },
-            }),
-          })
-        } catch {}
-      } catch (e) {
-        const errorMap = { ...get().toolCallsById }
-        // Do not override terminal review/rejected
-        if (
-          isRejectedState(errorMap[id]?.state) ||
-          isReviewState(errorMap[id]?.state) ||
-          isBackgroundState(errorMap[id]?.state)
-        ) {
-          return
-        }
-        errorMap[id] = {
-          ...errorMap[id],
-          state: ClientToolCallState.error,
-          display: resolveToolDisplay(name, ClientToolCallState.error, id, params),
-        }
-        set({ toolCallsById: errorMap })
-        logger.error('Integration tool execution failed', { id, name, error: e })
-      }
-    },
-
-    skipIntegrationTool: (toolCallId: string) => {
-      const { toolCallsById } = get()
-      const toolCall = toolCallsById[toolCallId]
-      if (!toolCall) return
-
-      const { id, name, params } = toolCall
-
-      // Set to rejected state
-      const rejectedMap = { ...get().toolCallsById }
-      rejectedMap[id] = {
-        ...rejectedMap[id],
-        state: ClientToolCallState.rejected,
-        display: resolveToolDisplay(name, ClientToolCallState.rejected, id, params),
-      }
-      set({ toolCallsById: rejectedMap })
-      logger.info('[toolCallsById] pending → rejected (integration tool skipped)', { id, name })
-
-      // Notify backend tool mark-complete endpoint with skip status
-      fetch('/api/copilot/tools/mark-complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          name: name || 'unknown_tool',
-          status: 200,
-          message: 'Tool execution skipped by user',
-          data: { skipped: true },
-        }),
-      }).catch(() => {})
-    },
-
     loadAutoAllowedTools: async () => {
       try {
         logger.info('[AutoAllowedTools] Loading from API...')
@@ -4013,45 +3553,6 @@ export const useCopilotStore = create<CopilotStore>()(
           set({ autoAllowedTools: data.autoAllowedTools || [] })
           logger.info('[AutoAllowedTools] Added tool to store', { toolId })
 
-          // Auto-execute all pending tools of the same type
-          const { toolCallsById, executeIntegrationTool } = get()
-          const pendingToolCalls = Object.values(toolCallsById).filter(
-            (tc) => tc.name === toolId && tc.state === ClientToolCallState.pending
-          )
-          if (pendingToolCalls.length > 0) {
-            const isIntegrationTool = !CLASS_TOOL_METADATA[toolId]
-            logger.info('[AutoAllowedTools] Auto-executing pending tools', {
-              toolId,
-              count: pendingToolCalls.length,
-              isIntegrationTool,
-            })
-            for (const tc of pendingToolCalls) {
-              if (isIntegrationTool) {
-                // Integration tools use executeIntegrationTool
-                executeIntegrationTool(tc.id).catch((err) => {
-                  logger.error('[AutoAllowedTools] Auto-execute pending integration tool failed', {
-                    toolCallId: tc.id,
-                    toolId,
-                    error: err,
-                  })
-                })
-              } else {
-                // Client tools with interrupts use handleAccept
-                const inst = getClientTool(tc.id) as any
-                if (inst && typeof inst.handleAccept === 'function') {
-                  Promise.resolve()
-                    .then(() => inst.handleAccept(tc.params || {}))
-                    .catch((err: any) => {
-                      logger.error('[AutoAllowedTools] Auto-execute pending client tool failed', {
-                        toolCallId: tc.id,
-                        toolId,
-                        error: err,
-                      })
-                    })
-                }
-              }
-            }
-          }
         }
       } catch (err) {
         logger.error('[AutoAllowedTools] Failed to add tool', { toolId, error: err })
