@@ -79,10 +79,7 @@ export async function POST(request: NextRequest) {
       fileBuffer = Buffer.from(validatedData.fileContent, 'base64')
       fileName = validatedData.fileName || 'file'
     } else {
-      return NextResponse.json(
-        { success: false, error: 'File or file content is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
     }
 
     // Determine final path

@@ -318,13 +318,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         }
 
         // Normalize file input for upload operation
-        // normalizeFileInput handles JSON stringified values from advanced mode
-        if (params.file) {
-          params.file = normalizeFileInput(params.file, { single: true })
-        }
-        // Legacy: also check fileContent for backwards compatibility
-        if (params.fileContent && !params.file) {
-          params.fileContent = normalizeFileInput(params.fileContent, { single: true })
+        // Check all possible field IDs: uploadFile (basic), fileRef (advanced), fileContent (legacy)
+        const normalizedFile = normalizeFileInput(
+          params.uploadFile || params.fileRef || params.fileContent,
+          { single: true }
+        )
+        if (normalizedFile) {
+          params.file = normalizedFile
         }
 
         switch (params.operation) {
