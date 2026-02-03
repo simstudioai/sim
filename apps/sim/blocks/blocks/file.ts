@@ -251,7 +251,8 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
   type: 'file_v3',
   name: 'File',
   description: 'Read and parse multiple files',
-  longDescription: 'Upload files or reference files from previous blocks to extract text content.',
+  longDescription:
+    'Upload files directly or import from external URLs to get UserFile objects for use in other blocks.',
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   bgColor: '#40916C',
@@ -271,11 +272,11 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       required: true,
     },
     {
-      id: 'fileRef',
-      title: 'Files',
+      id: 'fileUrl',
+      title: 'File URL',
       type: 'short-input' as SubBlockType,
       canonicalParamId: 'fileInput',
-      placeholder: 'File reference from previous block',
+      placeholder: 'https://example.com/document.pdf',
       mode: 'advanced',
       required: true,
     },
@@ -285,7 +286,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     config: {
       tool: () => 'file_parser_v3',
       params: (params) => {
-        const fileInput = params.fileInput ?? params.file ?? params.filePath
+        const fileInput = params.fileInput ?? params.file ?? params.fileUrl ?? params.filePath
         if (!fileInput) {
           logger.error('No file input provided')
           throw new Error('File input is required')
@@ -337,7 +338,9 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   },
   inputs: {
-    fileInput: { type: 'json', description: 'File input (upload or UserFile reference)' },
+    fileInput: { type: 'json', description: 'File input (upload or URL)' },
+    fileUrl: { type: 'string', description: 'External file URL (advanced mode)' },
+    file: { type: 'json', description: 'Uploaded file data (basic mode)' },
     fileType: { type: 'string', description: 'File type' },
   },
   outputs: {

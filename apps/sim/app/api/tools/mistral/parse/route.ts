@@ -92,7 +92,23 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const mimeType = userFile.type || 'application/pdf'
+      let mimeType = userFile.type
+      if (!mimeType || mimeType === 'application/octet-stream') {
+        const filename = userFile.name?.toLowerCase() || ''
+        if (filename.endsWith('.pdf')) {
+          mimeType = 'application/pdf'
+        } else if (filename.endsWith('.png')) {
+          mimeType = 'image/png'
+        } else if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+          mimeType = 'image/jpeg'
+        } else if (filename.endsWith('.gif')) {
+          mimeType = 'image/gif'
+        } else if (filename.endsWith('.webp')) {
+          mimeType = 'image/webp'
+        } else {
+          mimeType = 'application/pdf'
+        }
+      }
       let base64 = userFile.base64
       if (!base64) {
         const buffer = await downloadFileFromStorage(userFile, requestId, logger)
