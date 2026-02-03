@@ -6,7 +6,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { getMimeTypeFromExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
@@ -89,7 +89,10 @@ export async function POST(request: NextRequest) {
 
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
-      audioMimeType = file.type
+      // file.type may be missing if the file came from a block that doesn't preserve it
+      // Infer from filename extension as fallback
+      const ext = file.name.split('.').pop()?.toLowerCase() || ''
+      audioMimeType = file.type || getMimeTypeFromExtension(ext)
     } else if (body.audioFileReference) {
       if (Array.isArray(body.audioFileReference) && body.audioFileReference.length !== 1) {
         return NextResponse.json(
@@ -104,7 +107,9 @@ export async function POST(request: NextRequest) {
 
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
-      audioMimeType = file.type
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || ''
+      audioMimeType = file.type || getMimeTypeFromExtension(ext)
     } else if (body.audioUrl) {
       logger.info(`[${requestId}] Downloading from URL: ${body.audioUrl}`)
 

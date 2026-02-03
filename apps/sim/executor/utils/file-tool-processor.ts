@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isUserFile } from '@/lib/core/utils/user-file'
 import { uploadExecutionFile, uploadFileFromRawData } from '@/lib/uploads/contexts/execution'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import type { ExecutionContext, UserFile } from '@/executor/types'
@@ -94,31 +95,39 @@ export class FileToolProcessor {
   }
 
   /**
-   * Convert various file data formats to UserFile by storing in execution filesystem
+   * Convert various file data formats to UserFile by storing in execution filesystem.
+   * If the input is already a UserFile, returns it unchanged.
    */
   private static async processFileData(
-    fileData: ToolFileData,
+    fileData: ToolFileData | UserFile,
     context: ExecutionContext
   ): Promise<UserFile> {
+    // If already a UserFile (e.g., from tools that handle their own file storage),
+    // return it directly without re-processing
+    if (isUserFile(fileData)) {
+      return fileData as UserFile
+    }
+
+    const data = fileData as ToolFileData
     try {
       let buffer: Buffer | null = null
 
-      if (Buffer.isBuffer(fileData.data)) {
-        buffer = fileData.data
+      if (Buffer.isBuffer(data.data)) {
+        buffer = data.data
       } else if (
-        fileData.data &&
-        typeof fileData.data === 'object' &&
-        'type' in fileData.data &&
-        'data' in fileData.data
+        data.data &&
+        typeof data.data === 'object' &&
+        'type' in data.data &&
+        'data' in data.data
       ) {
-        const serializedBuffer = fileData.data as { type: string; data: number[] }
+        const serializedBuffer = data.data as { type: string; data: number[] }
         if (serializedBuffer.type === 'Buffer' && Array.isArray(serializedBuffer.data)) {
           buffer = Buffer.from(serializedBuffer.data)
         } else {
-          throw new Error(`Invalid serialized buffer format for ${fileData.name}`)
+          throw new Error(`Invalid serialized buffer format for ${data.name}`)
         }
-      } else if (typeof fileData.data === 'string' && fileData.data) {
-        let base64Data = fileData.data
+      } else if (typeof data.data === 'string' && data.data) {
+        let base64Data = data.data
 
         if (base64Data.includes('-') || base64Data.includes('_')) {
           base64Data = base64Data.replace(/-/g, '+').replace(/_/g, '/')
@@ -127,13 +136,13 @@ export class FileToolProcessor {
         buffer = Buffer.from(base64Data, 'base64')
       }
 
-      if (!buffer && fileData.url) {
-        buffer = await downloadFileFromUrl(fileData.url)
+      if (!buffer && data.url) {
+        buffer = await downloadFileFromUrl(data.url)
       }
 
       if (buffer) {
         if (buffer.length === 0) {
-          throw new Error(`File '${fileData.name}' has zero bytes`)
+          throw new Error(`File '${data.name}' has zero bytes`)
         }
 
         return await uploadExecutionFile(
@@ -143,23 +152,23 @@ export class FileToolProcessor {
             executionId: context.executionId || '',
           },
           buffer,
-          fileData.name,
-          fileData.mimeType,
+          data.name,
+          data.mimeType,
           context.userId
         )
       }
 
-      if (!fileData.data) {
+      if (!data.data) {
         throw new Error(
-          `File data for '${fileData.name}' must have either 'data' (Buffer/base64) or 'url' property`
+          `File data for '${data.name}' must have either 'data' (Buffer/base64) or 'url' property`
         )
       }
 
       return uploadFileFromRawData(
         {
-          name: fileData.name,
-          data: fileData.data,
-          mimeType: fileData.mimeType,
+          name: data.name,
+          data: data.data,
+          mimeType: data.mimeType,
         },
         {
           workspaceId: context.workspaceId || '',
@@ -169,7 +178,7 @@ export class FileToolProcessor {
         context.userId
       )
     } catch (error) {
-      logger.error(`Error processing file data for '${fileData.name}':`, error)
+      logger.error(`Error processing file data for '${data.name}':`, error)
       throw error
     }
   }
