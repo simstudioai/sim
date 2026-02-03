@@ -1,6 +1,7 @@
 import { SlackIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SlackResponse } from '@/tools/slack/types'
 import { getTrigger } from '@/triggers'
 
@@ -620,12 +621,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             if (threadTs) {
               baseParams.thread_ts = threadTs
             }
-            const fileParam = attachmentFiles || files
-            if (fileParam) {
-              const normalizedFiles = Array.isArray(fileParam) ? fileParam : [fileParam]
-              if (normalizedFiles.length > 0) {
-                baseParams.files = normalizedFiles
-              }
+            const normalizedFiles = normalizeFileInput(attachmentFiles || files)
+            if (normalizedFiles) {
+              baseParams.files = normalizedFiles
             }
             break
           }

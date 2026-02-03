@@ -1,6 +1,7 @@
 import { TelegramIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { TelegramResponse } from '@/tools/telegram/types'
 import { getTrigger } from '@/triggers'
 
@@ -312,16 +313,9 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_document': {
-            // Handle file upload
-            const fileParam = params.attachmentFiles || params.files
-            const normalizedFiles = fileParam
-              ? Array.isArray(fileParam)
-                ? fileParam
-                : [fileParam]
-              : undefined
             return {
               ...commonParams,
-              files: normalizedFiles,
+              files: normalizeFileInput(params.attachmentFiles || params.files),
               caption: params.caption,
             }
           }

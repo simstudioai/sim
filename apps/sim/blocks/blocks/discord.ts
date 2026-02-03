@@ -1,6 +1,7 @@
 import { DiscordIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { DiscordResponse } from '@/tools/discord/types'
 
 export const DiscordBlock: BlockConfig<DiscordResponse> = {
@@ -579,17 +580,11 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
 
         switch (params.operation) {
           case 'discord_send_message': {
-            const fileParam = params.attachmentFiles || params.files
-            const normalizedFiles = fileParam
-              ? Array.isArray(fileParam)
-                ? fileParam
-                : [fileParam]
-              : undefined
             return {
               ...commonParams,
               channelId: params.channelId,
               content: params.content,
-              files: normalizedFiles,
+              files: normalizeFileInput(params.attachmentFiles || params.files),
             }
           }
           case 'discord_get_messages':

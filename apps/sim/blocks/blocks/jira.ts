@@ -1,6 +1,7 @@
 import { JiraIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { JiraResponse } from '@/tools/jira/types'
 import { getTrigger } from '@/triggers'
 
@@ -869,11 +870,10 @@ Return ONLY the comment text - no explanations.`,
             if (!effectiveIssueKey) {
               throw new Error('Issue Key is required to add attachments.')
             }
-            const fileParam = params.attachmentFiles || params.files
-            if (!fileParam || (Array.isArray(fileParam) && fileParam.length === 0)) {
+            const normalizedFiles = normalizeFileInput(params.attachmentFiles || params.files)
+            if (!normalizedFiles || normalizedFiles.length === 0) {
               throw new Error('At least one attachment file is required.')
             }
-            const normalizedFiles = Array.isArray(fileParam) ? fileParam : [fileParam]
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,

@@ -1,6 +1,7 @@
 import { MicrosoftTeamsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
 import { getTrigger } from '@/triggers'
 
@@ -344,10 +345,9 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         }
 
         // Add files if provided
-        const fileParam = attachmentFiles || files
-        if (fileParam && (operation === 'write_chat' || operation === 'write_channel')) {
-          const normalizedFiles = Array.isArray(fileParam) ? fileParam : [fileParam]
-          if (normalizedFiles.length > 0) {
+        if (operation === 'write_chat' || operation === 'write_channel') {
+          const normalizedFiles = normalizeFileInput(attachmentFiles || files)
+          if (normalizedFiles) {
             baseParams.files = normalizedFiles
           }
         }
