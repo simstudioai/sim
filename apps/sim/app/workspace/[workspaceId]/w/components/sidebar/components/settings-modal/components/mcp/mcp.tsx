@@ -675,6 +675,7 @@ export function MCP({ initialServerId }: MCPProps) {
 
   /**
    * Opens the detail view for a specific server.
+   * Note: Tool refresh is handled by the useEffect that watches selectedServerId
    */
   const handleViewDetails = useCallback((serverId: string) => {
     setSelectedServerId(serverId)
