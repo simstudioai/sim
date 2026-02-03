@@ -1025,7 +1025,7 @@ Return ONLY the comment text - no explanations.`,
     commentId: { type: 'string', description: 'Comment ID for update/delete operations' },
     // Attachment operation inputs
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'file[]', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (UserFile array)' },
     attachmentId: { type: 'string', description: 'Attachment ID for delete operation' },
     // Worklog operation inputs
     timeSpentSeconds: {

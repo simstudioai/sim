@@ -13,6 +13,18 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('PipedriveGetFilesAPI')
 
+interface PipedriveFile {
+  id?: number
+  name?: string
+  url?: string
+}
+
+interface PipedriveApiResponse {
+  success: boolean
+  data?: PipedriveFile[]
+  error?: string
+}
+
 const PipedriveGetFilesSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   deal_id: z.string().optional().nullable(),
@@ -70,7 +82,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const data = await response.json()
+    const data = (await response.json()) as PipedriveApiResponse
 
     if (!data.success) {
       logger.error(`[${requestId}] Pipedrive API request failed`, { data })

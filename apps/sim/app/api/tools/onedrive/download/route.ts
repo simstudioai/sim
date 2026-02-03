@@ -10,6 +10,24 @@ import { generateRequestId } from '@/lib/core/utils/request'
 
 export const dynamic = 'force-dynamic'
 
+/** Microsoft Graph API error response structure */
+interface GraphApiError {
+  error?: {
+    code?: string
+    message?: string
+  }
+}
+
+/** Microsoft Graph API drive item metadata response */
+interface DriveItemMetadata {
+  id?: string
+  name?: string
+  folder?: Record<string, unknown>
+  file?: {
+    mimeType?: string
+  }
+}
+
 const logger = createLogger('OneDriveDownloadAPI')
 
 const OneDriveDownloadSchema = z.object({
@@ -61,7 +79,7 @@ export async function POST(request: NextRequest) {
     )
 
     if (!metadataResponse.ok) {
-      const errorDetails = await metadataResponse.json().catch(() => ({}))
+      const errorDetails = (await metadataResponse.json().catch(() => ({}))) as GraphApiError
       logger.error(`[${requestId}] Failed to get file metadata`, {
         status: metadataResponse.status,
         error: errorDetails,
@@ -72,7 +90,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const metadata = await metadataResponse.json()
+    const metadata = (await metadataResponse.json()) as DriveItemMetadata
 
     if (metadata.folder && !metadata.file) {
       logger.error(`[${requestId}] Attempted to download a folder`, {
@@ -110,7 +128,7 @@ export async function POST(request: NextRequest) {
     )
 
     if (!downloadResponse.ok) {
-      const downloadError = await downloadResponse.json().catch(() => ({}))
+      const downloadError = (await downloadResponse.json().catch(() => ({}))) as GraphApiError
       logger.error(`[${requestId}] Failed to download file`, {
         status: downloadResponse.status,
         error: downloadError,

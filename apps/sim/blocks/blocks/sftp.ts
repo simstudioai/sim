@@ -279,7 +279,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
     privateKey: { type: 'string', description: 'Private key for authentication' },
     passphrase: { type: 'string', description: 'Passphrase for encrypted key' },
     remotePath: { type: 'string', description: 'Remote path on the SFTP server' },
-    files: { type: 'file[]', description: 'Files to upload (UserFile array)' },
+    files: { type: 'array', description: 'Files to upload (UserFile array)' },
     fileContent: { type: 'string', description: 'Direct content to upload' },
     fileName: { type: 'string', description: 'File name for direct content' },
     overwrite: { type: 'boolean', description: 'Overwrite existing files' },

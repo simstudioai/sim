@@ -196,7 +196,7 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
     cc: { type: 'string', description: 'CC recipients (comma-separated)' },
     bcc: { type: 'string', description: 'BCC recipients (comma-separated)' },
     replyTo: { type: 'string', description: 'Reply-to email address' },
-    attachments: { type: 'file[]', description: 'Files to attach (UserFile array)' },
+    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
   },
 
   outputs: {

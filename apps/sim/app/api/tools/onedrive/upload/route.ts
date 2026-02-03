@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
-  validateMicrosoftGraphId,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -40,6 +39,48 @@ const OneDriveUploadSchema = z.object({
   values: ExcelValuesSchema.optional().nullable(),
   conflictBehavior: z.enum(['fail', 'replace', 'rename']).optional().nullable(),
 })
+
+/** Microsoft Graph DriveItem response */
+interface OneDriveFileData {
+  id: string
+  name: string
+  size: number
+  webUrl: string
+  createdDateTime: string
+  lastModifiedDateTime: string
+  file?: { mimeType: string }
+  parentReference?: { id: string; path: string }
+  '@microsoft.graph.downloadUrl'?: string
+}
+
+/** Microsoft Graph Excel range response */
+interface ExcelRangeData {
+  address?: string
+  addressLocal?: string
+  values?: unknown[][]
+}
+
+/** Validates Microsoft Graph item IDs (alphanumeric with some special chars) */
+function validateMicrosoftGraphId(
+  id: string,
+  paramName: string
+): { isValid: boolean; error?: string } {
+  // Microsoft Graph IDs are typically alphanumeric, may include hyphens and exclamation marks
+  const validIdPattern = /^[a-zA-Z0-9!-]+$/
+  if (!validIdPattern.test(id)) {
+    return {
+      isValid: false,
+      error: `Invalid ${paramName}: contains invalid characters`,
+    }
+  }
+  if (id.length > 256) {
+    return {
+      isValid: false,
+      error: `Invalid ${paramName}: exceeds maximum length`,
+    }
+  }
+  return { isValid: true }
+}
 
 async function secureFetchGraph(
   url: string,
@@ -215,7 +256,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const fileData = await uploadResponse.json()
+    const fileData = (await uploadResponse.json()) as OneDriveFileData
 
     let excelWriteResult: any | undefined
     const shouldWriteExcelContent =
@@ -241,7 +282,7 @@ export async function POST(request: NextRequest) {
         )
 
         if (sessionResp.ok) {
-          const sessionData = await sessionResp.json()
+          const sessionData = (await sessionResp.json()) as { id?: string }
           workbookSessionId = sessionData?.id
         }
 
@@ -262,7 +303,7 @@ export async function POST(request: NextRequest) {
             'listUrl'
           )
           if (listResp.ok) {
-            const listData = await listResp.json()
+            const listData = (await listResp.json()) as { value?: Array<{ name?: string }> }
             const firstSheetName = listData?.value?.[0]?.name
             if (firstSheetName) {
               sheetName = firstSheetName
@@ -348,7 +389,7 @@ export async function POST(request: NextRequest) {
             details: errorText,
           }
         } else {
-          const writeData = await excelWriteResponse.json()
+          const writeData = (await excelWriteResponse.json()) as ExcelRangeData
           const addr = writeData.address || writeData.addressLocal
           const v = writeData.values || []
           excelWriteResult = {
@@ -356,7 +397,7 @@ export async function POST(request: NextRequest) {
             updatedRange: addr,
             updatedRows: Array.isArray(v) ? v.length : undefined,
             updatedColumns: Array.isArray(v) && v[0] ? v[0].length : undefined,
-            updatedCells: Array.isArray(v) && v[0] ? v.length * (v[0] as any[]).length : undefined,
+            updatedCells: Array.isArray(v) && v[0] ? v.length * v[0].length : undefined,
           }
         }
 

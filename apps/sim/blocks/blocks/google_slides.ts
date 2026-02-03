@@ -924,10 +924,10 @@ const googleSlidesV2SubBlocks = (GoogleSlidesBlock.subBlocks || []).flatMap((sub
     {
       id: 'imageFileReference',
       title: 'Image',
-      type: 'short-input',
+      type: 'short-input' as const,
       canonicalParamId: 'imageFile',
       placeholder: 'Reference image from previous blocks',
-      mode: 'advanced',
+      mode: 'advanced' as const,
       required: true,
       condition: { field: 'operation', value: 'add_image' },
     },
@@ -950,9 +950,9 @@ export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
   hideFromToolbar: false,
   subBlocks: googleSlidesV2SubBlocks,
   tools: {
-    ...GoogleSlidesBlock.tools,
+    access: GoogleSlidesBlock.tools!.access,
     config: {
-      ...GoogleSlidesBlock.tools?.config,
+      tool: GoogleSlidesBlock.tools!.config!.tool,
       params: (params) => {
         const baseParams = GoogleSlidesBlock.tools?.config?.params
         if (!baseParams) {

@@ -600,7 +600,7 @@ Return ONLY the HTML content.`,
     mailTemplateId: { type: 'string', description: 'Template ID for sending mail' },
     dynamicTemplateData: { type: 'json', description: 'Dynamic template data' },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    attachments: { type: 'file[]', description: 'Files to attach (UserFile array)' },
+    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
     // Contact inputs
     email: { type: 'string', description: 'Contact email' },
     firstName: { type: 'string', description: 'Contact first name' },

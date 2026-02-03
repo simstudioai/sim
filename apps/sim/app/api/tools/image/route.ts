@@ -68,14 +68,14 @@ export async function GET(request: NextRequest) {
 
     const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
 
-    const imageBlob = await imageResponse.blob()
+    const imageArrayBuffer = await imageResponse.arrayBuffer()
 
-    if (imageBlob.size === 0) {
-      logger.error(`[${requestId}] Empty image blob received`)
+    if (imageArrayBuffer.byteLength === 0) {
+      logger.error(`[${requestId}] Empty image received`)
       return new NextResponse('Empty image received', { status: 404 })
     }
 
-    return new NextResponse(imageBlob, {
+    return new NextResponse(imageArrayBuffer, {
       headers: {
         'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',

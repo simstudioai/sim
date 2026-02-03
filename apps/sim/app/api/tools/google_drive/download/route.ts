@@ -19,6 +19,21 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleDriveDownloadAPI')
 
+/** Google API error response structure */
+interface GoogleApiErrorResponse {
+  error?: {
+    message?: string
+    code?: number
+    status?: string
+  }
+}
+
+/** Google Drive revisions list response */
+interface GoogleDriveRevisionsResponse {
+  revisions?: GoogleDriveRevision[]
+  nextPageToken?: string
+}
+
 const GoogleDriveDownloadSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   fileId: z.string().min(1, 'File ID is required'),
@@ -76,7 +91,9 @@ export async function POST(request: NextRequest) {
     )
 
     if (!metadataResponse.ok) {
-      const errorDetails = await metadataResponse.json().catch(() => ({}))
+      const errorDetails = (await metadataResponse
+        .json()
+        .catch(() => ({}))) as GoogleApiErrorResponse
       logger.error(`[${requestId}] Failed to get file metadata`, {
         status: metadataResponse.status,
         error: errorDetails,
@@ -87,7 +104,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const metadata: GoogleDriveFile = await metadataResponse.json()
+    const metadata = (await metadataResponse.json()) as GoogleDriveFile
     const fileMimeType = metadata.mimeType
 
     let fileBuffer: Buffer
@@ -119,7 +136,9 @@ export async function POST(request: NextRequest) {
       )
 
       if (!exportResponse.ok) {
-        const exportError = await exportResponse.json().catch(() => ({}))
+        const exportError = (await exportResponse
+          .json()
+          .catch(() => ({}))) as GoogleApiErrorResponse
         logger.error(`[${requestId}] Failed to export file`, {
           status: exportResponse.status,
           error: exportError,
@@ -154,7 +173,9 @@ export async function POST(request: NextRequest) {
       )
 
       if (!downloadResponse.ok) {
-        const downloadError = await downloadResponse.json().catch(() => ({}))
+        const downloadError = (await downloadResponse
+          .json()
+          .catch(() => ({}))) as GoogleApiErrorResponse
         logger.error(`[${requestId}] Failed to download file`, {
           status: downloadResponse.status,
           error: downloadError,
@@ -182,8 +203,8 @@ export async function POST(request: NextRequest) {
           )
 
           if (revisionsResponse.ok) {
-            const revisionsData = await revisionsResponse.json()
-            metadata.revisions = revisionsData.revisions as GoogleDriveRevision[]
+            const revisionsData = (await revisionsResponse.json()) as GoogleDriveRevisionsResponse
+            metadata.revisions = revisionsData.revisions
             logger.info(`[${requestId}] Fetched file revisions`, {
               fileId,
               revisionCount: metadata.revisions?.length || 0,

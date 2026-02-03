@@ -13,6 +13,40 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ZoomGetRecordingsAPI')
 
+interface ZoomRecordingFile {
+  id?: string
+  meeting_id?: string
+  recording_start?: string
+  recording_end?: string
+  file_type?: string
+  file_extension?: string
+  file_size?: number
+  play_url?: string
+  download_url?: string
+  status?: string
+  recording_type?: string
+}
+
+interface ZoomRecordingsResponse {
+  uuid?: string
+  id?: string | number
+  account_id?: string
+  host_id?: string
+  topic?: string
+  type?: number
+  start_time?: string
+  duration?: number
+  total_size?: number
+  recording_count?: number
+  share_url?: string
+  recording_files?: ZoomRecordingFile[]
+}
+
+interface ZoomErrorResponse {
+  message?: string
+  code?: number
+}
+
 const ZoomGetRecordingsSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   meetingId: z.string().min(1, 'Meeting ID is required'),
@@ -72,7 +106,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = (await response.json().catch(() => ({}))) as ZoomErrorResponse
       logger.error(`[${requestId}] Zoom API error`, {
         status: response.status,
         error: errorData,
@@ -83,7 +117,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as ZoomRecordingsResponse
     const files: Array<{
       name: string
       mimeType: string
@@ -152,7 +186,7 @@ export async function POST(request: NextRequest) {
           total_size: data.total_size,
           recording_count: data.recording_count,
           share_url: data.share_url,
-          recording_files: (data.recording_files || []).map((file: any) => ({
+          recording_files: (data.recording_files || []).map((file: ZoomRecordingFile) => ({
             id: file.id,
             meeting_id: file.meeting_id,
             recording_start: file.recording_start,

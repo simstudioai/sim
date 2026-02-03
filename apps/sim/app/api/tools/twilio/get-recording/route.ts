@@ -13,6 +13,36 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TwilioGetRecordingAPI')
 
+interface TwilioRecordingResponse {
+  sid?: string
+  call_sid?: string
+  duration?: string
+  status?: string
+  channels?: number
+  source?: string
+  price?: string
+  price_unit?: string
+  uri?: string
+  error_code?: number
+  message?: string
+  error_message?: string
+}
+
+interface TwilioErrorResponse {
+  message?: string
+}
+
+interface TwilioTranscription {
+  transcription_text?: string
+  status?: string
+  price?: string
+  price_unit?: string
+}
+
+interface TwilioTranscriptionsResponse {
+  transcriptions?: TwilioTranscription[]
+}
+
 const TwilioGetRecordingSchema = z.object({
   accountSid: z.string().min(1, 'Account SID is required'),
   authToken: z.string().min(1, 'Auth token is required'),
@@ -67,7 +97,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!infoResponse.ok) {
-      const errorData = await infoResponse.json().catch(() => ({}))
+      const errorData = (await infoResponse.json().catch(() => ({}))) as TwilioErrorResponse
       logger.error(`[${requestId}] Twilio API error`, {
         status: infoResponse.status,
         error: errorData,
@@ -78,7 +108,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await infoResponse.json()
+    const data = (await infoResponse.json()) as TwilioRecordingResponse
 
     if (data.error_code) {
       return NextResponse.json({
@@ -126,7 +156,8 @@ export async function POST(request: NextRequest) {
         )
 
         if (transcriptionResponse.ok) {
-          const transcriptionData = await transcriptionResponse.json()
+          const transcriptionData =
+            (await transcriptionResponse.json()) as TwilioTranscriptionsResponse
 
           if (transcriptionData.transcriptions && transcriptionData.transcriptions.length > 0) {
             const transcription = transcriptionData.transcriptions[0]

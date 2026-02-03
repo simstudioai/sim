@@ -12,6 +12,33 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GitHubLatestCommitAPI')
 
+interface GitHubErrorResponse {
+  message?: string
+}
+
+interface GitHubCommitResponse {
+  sha: string
+  html_url: string
+  commit: {
+    message: string
+    author: { name: string; email: string; date: string }
+    committer: { name: string; email: string; date: string }
+  }
+  author?: { login: string; avatar_url: string; html_url: string }
+  committer?: { login: string; avatar_url: string; html_url: string }
+  stats?: { additions: number; deletions: number; total: number }
+  files?: Array<{
+    filename: string
+    status: string
+    additions: number
+    deletions: number
+    changes: number
+    patch?: string
+    raw_url?: string
+    blob_url?: string
+  }>
+}
+
 const GitHubLatestCommitSchema = z.object({
   owner: z.string().min(1, 'Owner is required'),
   repo: z.string().min(1, 'Repo is required'),
@@ -61,7 +88,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = (await response.json().catch(() => ({}))) as GitHubErrorResponse
       logger.error(`[${requestId}] GitHub API error`, {
         status: response.status,
         error: errorData,
@@ -72,7 +99,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as GitHubCommitResponse
 
     const content = `Latest commit: "${data.commit.message}" by ${data.commit.author.name} on ${data.commit.author.date}. SHA: ${data.sha}`
 

@@ -3,10 +3,9 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateAwsRegion, validateS3BucketName } from '@/lib/core/security/input-validation'
 import {
   secureFetchWithPinnedIP,
-  validateAwsRegion,
-  validateS3BucketName,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
