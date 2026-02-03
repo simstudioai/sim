@@ -27,7 +27,6 @@ import { getBlock } from '@/blocks/registry'
 import type { CopilotToolCall } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 import { CLASS_TOOL_METADATA } from '@/stores/panel/copilot/store'
-import { COPILOT_SERVER_ORCHESTRATED } from '@/lib/copilot/orchestrator/config'
 import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -1261,7 +1260,7 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
 
 const toolCallLogger = createLogger('CopilotToolCall')
 
-async function sendToolDecision(toolCallId: string, status: 'accepted' | 'rejected') {
+async function sendToolDecision(toolCallId: string, status: 'accepted' | 'rejected' | 'background') {
   try {
     await fetch('/api/copilot/confirm', {
       method: 'POST',
@@ -1283,105 +1282,15 @@ async function handleRun(
   onStateChange?: any,
   editedParams?: any
 ) {
-  if (COPILOT_SERVER_ORCHESTRATED) {
-    setToolCallState(toolCall, 'executing')
-    onStateChange?.('executing')
-    await sendToolDecision(toolCall.id, 'accepted')
-    return
-  }
-  const instance = getClientTool(toolCall.id)
-
-  if (!instance && isIntegrationTool(toolCall.name)) {
-    onStateChange?.('executing')
-    try {
-      await useCopilotStore.getState().executeIntegrationTool(toolCall.id)
-    } catch (e) {
-      setToolCallState(toolCall, 'error', { error: e instanceof Error ? e.message : String(e) })
-      onStateChange?.('error')
-      try {
-        await fetch('/api/copilot/tools/mark-complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: toolCall.id,
-            name: toolCall.name,
-            status: 500,
-            message: e instanceof Error ? e.message : 'Tool execution failed',
-            data: { error: e instanceof Error ? e.message : String(e) },
-          }),
-        })
-      } catch {
-        console.error('[handleRun] Failed to notify backend of tool error:', toolCall.id)
-      }
-    }
-    return
-  }
-
-  if (!instance) return
-  try {
-    const mergedParams =
-      editedParams ||
-      (toolCall as any).params ||
-      (toolCall as any).parameters ||
-      (toolCall as any).input ||
-      {}
-    await instance.handleAccept?.(mergedParams)
-    onStateChange?.('executing')
-  } catch (e) {
-    setToolCallState(toolCall, 'error', { error: e instanceof Error ? e.message : String(e) })
-  }
+  setToolCallState(toolCall, 'executing', editedParams ? { params: editedParams } : undefined)
+  onStateChange?.('executing')
+  await sendToolDecision(toolCall.id, 'accepted')
 }
 
 async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onStateChange?: any) {
-  if (COPILOT_SERVER_ORCHESTRATED) {
-    setToolCallState(toolCall, 'rejected')
-    onStateChange?.('rejected')
-    await sendToolDecision(toolCall.id, 'rejected')
-    return
-  }
-  const instance = getClientTool(toolCall.id)
-
-  if (!instance && isIntegrationTool(toolCall.name)) {
-    setToolCallState(toolCall, 'rejected')
-    onStateChange?.('rejected')
-
-    let notified = false
-    for (let attempt = 0; attempt < 3 && !notified; attempt++) {
-      try {
-        const res = await fetch('/api/copilot/tools/mark-complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: toolCall.id,
-            name: toolCall.name,
-            status: 400,
-            message: 'Tool execution skipped by user',
-            data: { skipped: true, reason: 'user_skipped' },
-          }),
-        })
-        if (res.ok) {
-          notified = true
-        }
-      } catch (e) {
-        if (attempt < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 500))
-        }
-      }
-    }
-
-    if (!notified) {
-      console.error('[handleSkip] Failed to notify backend after 3 attempts:', toolCall.id)
-    }
-    return
-  }
-
-  if (instance) {
-    try {
-      await instance.handleReject?.()
-    } catch {}
-  }
   setToolCallState(toolCall, 'rejected')
   onStateChange?.('rejected')
+  await sendToolDecision(toolCall.id, 'rejected')
 }
 
 function getDisplayName(toolCall: CopilotToolCall): string {
@@ -1541,7 +1450,7 @@ export function ToolCall({
   // Check if this integration tool is auto-allowed
   // Subscribe to autoAllowedTools so we re-render when it changes
   const autoAllowedTools = useCopilotStore((s) => s.autoAllowedTools)
-  const { removeAutoAllowedTool } = useCopilotStore()
+  const { removeAutoAllowedTool, setToolCallState } = useCopilotStore()
   const isAutoAllowed = isIntegrationTool(toolCall.name) && autoAllowedTools.includes(toolCall.name)
 
   // Update edited params when toolCall params change (deep comparison to avoid resetting user edits on ref change)
@@ -2243,16 +2152,9 @@ export function ToolCall({
         <div className='mt-[10px]'>
           <Button
             onClick={async () => {
-              try {
-                const instance = getClientTool(toolCall.id)
-                instance?.setState?.((ClientToolCallState as any).background)
-                await instance?.markToolComplete?.(
-                  200,
-                  'The user has chosen to move the workflow execution to the background. Check back with them later to know when the workflow execution is complete'
-                )
-                forceUpdate({})
-                onStateChange?.('background')
-              } catch {}
+              setToolCallState(toolCall, ClientToolCallState.background)
+              onStateChange?.('background')
+              await sendToolDecision(toolCall.id, 'background')
             }}
             variant='tertiary'
             title='Move to Background'
@@ -2264,21 +2166,9 @@ export function ToolCall({
         <div className='mt-[10px]'>
           <Button
             onClick={async () => {
-              try {
-                const instance = getClientTool(toolCall.id)
-                const elapsedSeconds = instance?.getElapsedSeconds?.() || 0
-                instance?.setState?.((ClientToolCallState as any).background, {
-                  result: { _elapsedSeconds: elapsedSeconds },
-                })
-                const { updateToolCallParams } = useCopilotStore.getState()
-                updateToolCallParams?.(toolCall.id, { _elapsedSeconds: Math.round(elapsedSeconds) })
-                await instance?.markToolComplete?.(
-                  200,
-                  `User woke you up after ${Math.round(elapsedSeconds)} seconds`
-                )
-                forceUpdate({})
-                onStateChange?.('background')
-              } catch {}
+              setToolCallState(toolCall, ClientToolCallState.background)
+              onStateChange?.('background')
+              await sendToolDecision(toolCall.id, 'background')
             }}
             variant='tertiary'
             title='Wake'

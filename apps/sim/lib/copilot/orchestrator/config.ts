@@ -1,8 +1,3 @@
-/**
- * Feature flag for server-side copilot orchestration.
- */
-export const COPILOT_SERVER_ORCHESTRATED = true
-
 export const INTERRUPT_TOOL_NAMES = [
   'set_global_workflow_variables',
   'run_workflow',
