@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
+import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
@@ -58,7 +58,11 @@ export async function POST(request: NextRequest) {
     // Prefer UserFile input, fall back to legacy base64 string
     if (validatedData.file) {
       // Process UserFile input
-      const userFiles = processFilesToUserFiles([validatedData.file], requestId, logger)
+      const userFiles = processFilesToUserFiles(
+        [validatedData.file as RawFileInput],
+        requestId,
+        logger
+      )
 
       if (userFiles.length === 0) {
         return NextResponse.json({ success: false, error: 'Invalid file input' }, { status: 400 })
@@ -103,7 +107,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/octet-stream',
         'Dropbox-API-Arg': httpHeaderSafeJson(dropboxApiArg),
       },
-      body: fileBuffer,
+      body: new Uint8Array(fileBuffer),
     })
 
     const data = await response.json()
