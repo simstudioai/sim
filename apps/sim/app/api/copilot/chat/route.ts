@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { copilotChats, permissions, workflow } from '@sim/db/schema'
+import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, desc, eq, inArray, or } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -21,6 +21,7 @@ import type { CopilotProviderConfig } from '@/lib/copilot/types'
 import { env } from '@/lib/core/config/env'
 import { CopilotFiles } from '@/lib/uploads'
 import { createFileContent } from '@/lib/uploads/utils/file-utils'
+import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
@@ -79,54 +80,6 @@ const ChatMessageSchema = z.object({
   commands: z.array(z.string()).optional(),
 })
 
-async function resolveWorkflowId(
-  userId: string,
-  workflowId?: string,
-  workflowName?: string
-): Promise<{ workflowId: string; workflowName?: string } | null> {
-  // If workflowId provided, use it directly
-  if (workflowId) {
-    return { workflowId }
-  }
-
-  // Get user's accessible workflows
-  const workspaceIds = await db
-    .select({ entityId: permissions.entityId })
-    .from(permissions)
-    .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
-
-  const workspaceIdList = workspaceIds.map((row) => row.entityId)
-
-  const workflowConditions = [eq(workflow.userId, userId)]
-  if (workspaceIdList.length > 0) {
-    workflowConditions.push(inArray(workflow.workspaceId, workspaceIdList))
-  }
-
-  const workflows = await db
-    .select()
-    .from(workflow)
-    .where(or(...workflowConditions))
-    .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
-
-  if (workflows.length === 0) {
-    return null
-  }
-
-  // If workflowName provided, find matching workflow
-  if (workflowName) {
-    const match = workflows.find(
-      (w) => String(w.name || '').trim().toLowerCase() === workflowName.toLowerCase()
-    )
-    if (match) {
-      return { workflowId: match.id, workflowName: match.name || undefined }
-    }
-    return null
-  }
-
-  // Default to first workflow
-  return { workflowId: workflows[0].id, workflowName: workflows[0].name || undefined }
-}
-
 /**
  * POST /api/copilot/chat
  * Send messages to sim agent and handle chat persistence
@@ -165,7 +118,11 @@ export async function POST(req: NextRequest) {
     } = ChatMessageSchema.parse(body)
 
     // Resolve workflowId - if not provided, use first workflow or find by name
-    const resolved = await resolveWorkflowId(authenticatedUserId, providedWorkflowId, workflowName)
+    const resolved = await resolveWorkflowIdForUser(
+      authenticatedUserId,
+      providedWorkflowId,
+      workflowName
+    )
     if (!resolved) {
       return createBadRequestResponse(
         'No workflows found. Create a workflow first or provide a valid workflowId.'

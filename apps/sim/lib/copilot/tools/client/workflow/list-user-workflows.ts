@@ -5,6 +5,7 @@ import {
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
+import { extractWorkflowNames } from '@/lib/copilot/tools/shared/workflow-utils'
 
 const logger = createLogger('ListUserWorkflowsClientTool')
 
@@ -41,9 +42,7 @@ export class ListUserWorkflowsClientTool extends BaseClientTool {
 
       const json = await res.json()
       const workflows = Array.isArray(json?.data) ? json.data : []
-      const names = workflows
-        .map((w: any) => (typeof w?.name === 'string' ? w.name : null))
-        .filter((n: string | null) => !!n)
+      const names = extractWorkflowNames(workflows)
 
       logger.info('Found workflows', { count: names.length })
 

@@ -231,8 +231,6 @@ export interface CopilotActions {
     triggerUserMessageId?: string
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
-  executeIntegrationTool: (toolCallId: string) => Promise<void>
-  skipIntegrationTool: (toolCallId: string) => void
   loadAutoAllowedTools: () => Promise<void>
   addAutoAllowedTool: (toolId: string) => Promise<void>
   removeAutoAllowedTool: (toolId: string) => Promise<void>
