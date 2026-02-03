@@ -34,7 +34,7 @@ export function sanitizeHeaders(
  * Client-safe MCP constants
  */
 export const MCP_CLIENT_CONSTANTS = {
-  CLIENT_TIMEOUT: 600000,
+  CLIENT_TIMEOUT: 5 * 60 * 1000,
   MAX_RETRIES: 3,
   RECONNECT_DELAY: 1000,
 } as const

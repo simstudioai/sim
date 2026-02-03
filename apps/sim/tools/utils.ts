@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AGENT, isCustomTool } from '@/executor/constants'
 import { getCustomTool } from '@/hooks/queries/custom-tools'
@@ -123,9 +124,7 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     }
   }
 
-  // Get timeout from params (if specified) and validate
-  // Must be a finite positive number, max 600000ms (10 minutes) as documented
-  const MAX_TIMEOUT_MS = 600000
+  const MAX_TIMEOUT_MS = getMaxExecutionTimeout()
   const rawTimeout = params.timeout
   const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
   const validTimeout =

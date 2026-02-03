@@ -185,10 +185,16 @@ export const HTTP = {
   },
 } as const
 
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+
 export const AGENT = {
   DEFAULT_MODEL: 'claude-sonnet-4-5',
-  DEFAULT_FUNCTION_TIMEOUT: 600000,
-  REQUEST_TIMEOUT: 600000,
+  get DEFAULT_FUNCTION_TIMEOUT() {
+    return getMaxExecutionTimeout()
+  },
+  get REQUEST_TIMEOUT() {
+    return getMaxExecutionTimeout()
+  },
   CUSTOM_TOOL_PREFIX: 'custom_',
 } as const
 

@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpTool, McpToolCall, McpToolResult } from '@/lib/mcp/types'
@@ -7,7 +9,6 @@ import {
   categorizeError,
   createMcpErrorResponse,
   createMcpSuccessResponse,
-  MCP_CONSTANTS,
   validateStringParam,
 } from '@/lib/mcp/utils'
 
@@ -171,13 +172,13 @@ export const POST = withMcpAuth('read')(
         arguments: args,
       }
 
+      const userSubscription = await getHighestPrioritySubscription(userId)
+      const executionTimeout = getExecutionTimeout(userSubscription?.plan, 'sync')
+
       const result = await Promise.race([
         mcpService.executeTool(userId, serverId, toolCall, workspaceId),
         new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error('Tool execution timeout')),
-            MCP_CONSTANTS.EXECUTION_TIMEOUT
-          )
+          setTimeout(() => reject(new Error('Tool execution timeout')), executionTimeout)
         ),
       ])
 

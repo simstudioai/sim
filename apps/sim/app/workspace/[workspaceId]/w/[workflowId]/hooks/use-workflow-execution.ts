@@ -27,7 +27,7 @@ import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import { useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
-import { type ConsoleEntry, useTerminalConsoleStore } from '@/stores/terminal'
+import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -1153,30 +1153,29 @@ export function useWorkflowExecution() {
                 logs: accumulatedBlockLogs,
               }
 
-              // Only add workflow-level error if no blocks have executed yet
-              // This catches pre-execution errors (validation, serialization, etc.)
-              // Block execution errors are already logged via onBlockError callback
-              const { entries } = useTerminalConsoleStore.getState()
-              const existingLogs = entries.filter(
-                (log: ConsoleEntry) => log.executionId === executionId
-              )
+              if (activeWorkflowId) {
+                cancelRunningEntries(activeWorkflowId)
+              }
 
-              if (existingLogs.length === 0) {
-                // No blocks executed yet - this is a pre-execution error
-                addConsole({
-                  input: {},
-                  output: {},
-                  success: false,
-                  error: data.error,
-                  durationMs: data.duration || 0,
-                  startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
-                  endedAt: new Date().toISOString(),
-                  workflowId: activeWorkflowId,
-                  blockId: 'validation',
-                  executionId,
-                  blockName: 'Workflow Validation',
-                  blockType: 'validation',
-                })
+              addConsole({
+                input: {},
+                output: {},
+                success: false,
+                error: data.error,
+                durationMs: data.duration || 0,
+                startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
+                endedAt: new Date().toISOString(),
+                workflowId: activeWorkflowId,
+                blockId: 'workflow-error',
+                executionId,
+                blockName: 'Workflow Error',
+                blockType: 'error',
+              })
+            },
+
+            onExecutionCancelled: () => {
+              if (activeWorkflowId) {
+                cancelRunningEntries(activeWorkflowId)
               }
             },
           },
@@ -1718,13 +1717,28 @@ export function useWorkflowExecution() {
                     'Workflow was modified. Run the workflow again to enable running from block.',
                   workflowId,
                 })
-              } else {
-                addNotification({
-                  level: 'error',
-                  message: data.error || 'Run from block failed',
-                  workflowId,
-                })
               }
+
+              cancelRunningEntries(workflowId)
+
+              addConsole({
+                input: {},
+                output: {},
+                success: false,
+                error: data.error,
+                durationMs: data.duration || 0,
+                startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
+                endedAt: new Date().toISOString(),
+                workflowId,
+                blockId: 'workflow-error',
+                executionId,
+                blockName: 'Workflow Error',
+                blockType: 'error',
+              })
+            },
+
+            onExecutionCancelled: () => {
+              cancelRunningEntries(workflowId)
             },
           },
         })

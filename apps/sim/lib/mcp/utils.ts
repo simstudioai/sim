@@ -1,18 +1,21 @@
 import { NextResponse } from 'next/server'
+import { DEFAULT_EXECUTION_TIMEOUT_MS, getExecutionTimeout } from '@/lib/core/execution-limits'
+import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import type { McpApiResponse } from '@/lib/mcp/types'
 import { isMcpTool, MCP } from '@/executor/constants'
 
-/**
- * MCP-specific constants
- */
 export const MCP_CONSTANTS = {
-  EXECUTION_TIMEOUT: 600000,
+  EXECUTION_TIMEOUT: DEFAULT_EXECUTION_TIMEOUT_MS,
   CACHE_TIMEOUT: 5 * 60 * 1000,
   DEFAULT_RETRIES: 3,
   DEFAULT_CONNECTION_TIMEOUT: 30000,
   MAX_CACHE_SIZE: 1000,
   MAX_CONSECUTIVE_FAILURES: 3,
 } as const
+
+export function getMcpExecutionTimeout(plan?: SubscriptionPlan): number {
+  return getExecutionTimeout(plan, 'sync')
+}
 
 /**
  * Core MCP tool parameter keys that are metadata, not user-entered test values.
@@ -45,11 +48,8 @@ export function sanitizeHeaders(
   )
 }
 
-/**
- * Client-safe MCP constants
- */
 export const MCP_CLIENT_CONSTANTS = {
-  CLIENT_TIMEOUT: 600000,
+  CLIENT_TIMEOUT: DEFAULT_EXECUTION_TIMEOUT_MS,
   AUTO_REFRESH_INTERVAL: 5 * 60 * 1000,
 } as const
 

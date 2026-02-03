@@ -62,9 +62,6 @@ export interface ExecutionErrorEvent extends BaseExecutionEvent {
   }
 }
 
-/**
- * Execution cancelled event
- */
 export interface ExecutionCancelledEvent extends BaseExecutionEvent {
   type: 'execution:cancelled'
   workflowId: string
@@ -171,9 +168,6 @@ export type ExecutionEvent =
   | StreamChunkEvent
   | StreamDoneEvent
 
-/**
- * Extracted data types for use in callbacks
- */
 export type ExecutionStartedData = ExecutionStartedEvent['data']
 export type ExecutionCompletedData = ExecutionCompletedEvent['data']
 export type ExecutionErrorData = ExecutionErrorEvent['data']
