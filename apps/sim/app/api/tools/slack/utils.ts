@@ -81,12 +81,6 @@ export async function uploadFilesToSlack(
     logger.info(`[${requestId}] Uploading file: ${userFile.name}`)
 
     const buffer = await downloadFileFromStorage(userFile, requestId, logger)
-    uploadedFiles.push({
-      name: userFile.name,
-      mimeType: userFile.type || 'application/octet-stream',
-      data: buffer.toString('base64'),
-      size: buffer.length,
-    })
 
     const getUrlResponse = await fetch('https://slack.com/api/files.getUploadURLExternal', {
       method: 'POST',
@@ -125,6 +119,13 @@ export async function uploadFilesToSlack(
 
     logger.info(`[${requestId}] File data uploaded successfully`)
     uploadedFileIds.push(urlData.file_id)
+    // Only add to uploadedFiles after successful upload to keep arrays in sync
+    uploadedFiles.push({
+      name: userFile.name,
+      mimeType: userFile.type || 'application/octet-stream',
+      data: buffer.toString('base64'),
+      size: buffer.length,
+    })
   }
 
   return { fileIds: uploadedFileIds, files: uploadedFiles }
