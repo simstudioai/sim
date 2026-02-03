@@ -448,7 +448,6 @@ describe('Blocks Module', () => {
         'boolean',
         'json',
         'array',
-        'files',
         'file',
         'file[]',
         'any',
