@@ -6,6 +6,7 @@ import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-mon
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
+import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
@@ -489,7 +490,7 @@ export async function preprocessExecution(
     triggerType,
   })
 
-  const plan = userSubscription?.plan
+  const plan = userSubscription?.plan as SubscriptionPlan | undefined
   return {
     success: true,
     actorUserId,
