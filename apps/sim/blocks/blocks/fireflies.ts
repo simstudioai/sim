@@ -620,9 +620,9 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
         }
 
         if (params.operation === 'fireflies_upload_audio') {
-          const audioFile =
-            normalizeFileInput(params.audioFile, { single: true }) ||
-            normalizeFileInput(params.audioFileReference, { single: true })
+          const audioFile = normalizeFileInput(params.audioFile || params.audioFileReference, {
+            single: true,
+          })
           if (!audioFile) {
             throw new Error('Audio file is required.')
           }
