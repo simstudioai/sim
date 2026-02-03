@@ -296,6 +296,54 @@ const SUBAGENT_TOOL_DEFS: Array<{
   agentId: string
 }> = [
   {
+    name: 'copilot_build',
+    agentId: 'build',
+    description: `Build a workflow end-to-end in a single step. This is the fast mode equivalent for headless/MCP usage.
+
+USE THIS WHEN:
+- Building a new workflow from scratch
+- Modifying an existing workflow
+- You want to gather information and build in one pass without separate plan→edit steps
+
+WORKFLOW ID (REQUIRED):
+- For NEW workflows: First call create_workflow to get a workflowId, then pass it here
+- For EXISTING workflows: Always pass the workflowId parameter
+
+CAN DO:
+- Gather information about blocks, credentials, patterns
+- Search documentation and patterns for best practices
+- Add, modify, or remove blocks
+- Configure block settings and connections
+- Set environment variables and workflow variables
+
+CANNOT DO:
+- Run or test workflows (use copilot_test separately after deploying)
+- Deploy workflows (use copilot_deploy separately)
+
+WORKFLOW:
+1. Call create_workflow to get a workflowId (for new workflows)
+2. Call copilot_build with the request and workflowId
+3. Build agent gathers info and builds in one pass
+4. Call copilot_deploy to deploy the workflow
+5. Optionally call copilot_test to verify it works`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: {
+          type: 'string',
+          description: 'What you want to build or modify in the workflow.',
+        },
+        workflowId: {
+          type: 'string',
+          description:
+            'REQUIRED. The workflow ID. For new workflows, call create_workflow first to get this.',
+        },
+        context: { type: 'object' },
+      },
+      required: ['request', 'workflowId'],
+    },
+  },
+  {
     name: 'copilot_discovery',
     agentId: 'discovery',
     description: `Find workflows by their contents or functionality when the user doesn't know the exact name or ID.
