@@ -1,5 +1,9 @@
-import { createMockFetch, loggerMock } from '@sim/testing'
+import { createMockResponse, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 import {
@@ -12,6 +16,10 @@ import {
 import { executeRequest } from '@/tools/utils.server'
 
 vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  validateUrlWithDNS: vi.fn(),
+  secureFetchWithPinnedIP: vi.fn(),
+}))
 
 vi.mock('@/stores/settings/environment', () => {
   const mockStore = {
@@ -406,11 +414,18 @@ describe('validateRequiredParametersAfterMerge', () => {
 
 describe('executeRequest', () => {
   let mockTool: ToolConfig
-  let mockFetch: ReturnType<typeof createMockFetch>
+  const mockValidateUrlWithDNS = vi.mocked(validateUrlWithDNS)
+  const mockSecureFetchWithPinnedIP = vi.mocked(secureFetchWithPinnedIP)
 
   beforeEach(() => {
-    mockFetch = createMockFetch({ json: { result: 'success' }, status: 200 })
-    global.fetch = mockFetch
+    mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '93.184.216.34',
+      originalHostname: 'api.example.com',
+    })
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
+      createMockResponse({ json: { result: 'success' }, status: 200 })
+    )
 
     mockTool = {
       id: 'test-tool',
@@ -441,11 +456,15 @@ describe('executeRequest', () => {
       headers: {},
     })
 
-    expect(mockFetch).toHaveBeenCalledWith('https://api.example.com', {
-      method: 'GET',
-      headers: {},
-      body: undefined,
-    })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://api.example.com',
+      '93.184.216.34',
+      {
+        method: 'GET',
+        headers: {},
+        body: undefined,
+      }
+    )
     expect(mockTool.transformResponse).toHaveBeenCalled()
     expect(result).toEqual({
       success: true,
@@ -455,8 +474,6 @@ describe('executeRequest', () => {
 
   it.concurrent('should use default transform response if not provided', async () => {
     mockTool.transformResponse = undefined
-    const localMockFetch = createMockFetch({ json: { result: 'success' }, status: 200 })
-    global.fetch = localMockFetch
 
     const result = await executeRequest('test-tool', mockTool, {
       url: 'https://api.example.com',
@@ -471,13 +488,14 @@ describe('executeRequest', () => {
   })
 
   it('should handle error responses', async () => {
-    const errorFetch = createMockFetch({
-      ok: false,
-      status: 400,
-      statusText: 'Bad Request',
-      json: { message: 'Invalid input' },
-    })
-    global.fetch = errorFetch
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      createMockResponse({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: { message: 'Invalid input' },
+      })
+    )
 
     const result = await executeRequest('test-tool', mockTool, {
       url: 'https://api.example.com',
@@ -493,8 +511,7 @@ describe('executeRequest', () => {
   })
 
   it.concurrent('should handle network errors', async () => {
-    const errorFetch = vi.fn().mockRejectedValueOnce(new Error('Network error'))
-    global.fetch = errorFetch
+    mockSecureFetchWithPinnedIP.mockRejectedValueOnce(new Error('Network error'))
 
     const result = await executeRequest('test-tool', mockTool, {
       url: 'https://api.example.com',
@@ -510,15 +527,16 @@ describe('executeRequest', () => {
   })
 
   it('should handle JSON parse errors in error response', async () => {
-    const errorFetch = vi.fn().mockResolvedValueOnce({
+    const errorResponse = createMockResponse({
       ok: false,
       status: 500,
       statusText: 'Server Error',
-      json: async () => {
-        throw new Error('Invalid JSON')
-      },
     })
-    global.fetch = errorFetch
+    errorResponse.json = vi.fn(async () => {
+      throw new Error('Invalid JSON')
+    })
+    errorResponse.text = vi.fn(async () => '')
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(errorResponse)
 
     const result = await executeRequest('test-tool', mockTool, {
       url: 'https://api.example.com',
@@ -548,11 +566,12 @@ describe('executeRequest', () => {
       },
     }
 
-    const xmlFetch = createMockFetch({
-      status: 200,
-      text: '<xml><test>Mock XML response</test></xml>',
-    })
-    global.fetch = xmlFetch
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      createMockResponse({
+        status: 200,
+        text: '<xml><test>Mock XML response</test></xml>',
+      })
+    )
 
     const result = await executeRequest('test-tool', toolWithTransform, {
       url: 'https://api.example.com',
