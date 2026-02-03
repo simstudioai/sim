@@ -214,17 +214,13 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
         }
 
         const documentInput = normalizeFileInput(
-          params.fileUpload || params.fileReference || params.document
+          params.fileUpload || params.fileReference || params.document,
+          { single: true }
         )
-        if (!documentInput || documentInput.length === 0) {
+        if (!documentInput) {
           throw new Error('PDF document is required')
         }
-        if (documentInput.length > 1) {
-          throw new Error(
-            'File reference must be a single file, not an array. Use <block.attachments[0]> to select one file.'
-          )
-        }
-        parameters.file = documentInput[0]
+        parameters.file = documentInput
 
         let pagesArray: number[] | undefined
         if (params.pages && params.pages.trim() !== '') {

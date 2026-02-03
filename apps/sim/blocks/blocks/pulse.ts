@@ -183,18 +183,14 @@ export const PulseV2Block: BlockConfig<PulseParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        const normalizedFiles = normalizeFileInput(
-          params.fileUpload || params.fileReference || params.document
+        const normalizedFile = normalizeFileInput(
+          params.fileUpload || params.fileReference || params.document,
+          { single: true }
         )
-        if (!normalizedFiles || normalizedFiles.length === 0) {
+        if (!normalizedFile) {
           throw new Error('Document file is required')
         }
-        if (normalizedFiles.length > 1) {
-          throw new Error(
-            'File reference must be a single file, not an array. Use <block.attachments[0]> to select one file.'
-          )
-        }
-        parameters.file = normalizedFiles[0]
+        parameters.file = normalizedFile
 
         if (params.pages && params.pages.trim() !== '') {
           parameters.pages = params.pages.trim()

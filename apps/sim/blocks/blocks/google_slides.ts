@@ -962,16 +962,10 @@ export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
 
         if (params.operation === 'add_image') {
           const imageInput = params.imageFile || params.imageFileReference || params.imageSource
-          const normalizedFiles = normalizeFileInput(imageInput)
-          if (!normalizedFiles || normalizedFiles.length === 0) {
+          const fileObject = normalizeFileInput(imageInput, { single: true })
+          if (!fileObject) {
             throw new Error('Image file is required.')
           }
-          if (normalizedFiles.length > 1) {
-            throw new Error(
-              'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
-            )
-          }
-          const fileObject = normalizedFiles[0]
           const imageUrl = resolveHttpsUrlFromFileInput(fileObject)
           if (!imageUrl) {
             throw new Error('Image file must include a https URL.')

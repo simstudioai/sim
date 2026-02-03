@@ -1775,17 +1775,15 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               throw new Error('Issue ID is required.')
             }
             // Normalize file inputs - handles JSON stringified values from advanced mode
-            // Take the first file from whichever input has data (Linear only accepts single file)
             const attachmentFile =
-              normalizeFileInput(params.attachmentFileUpload, { single: true }) ||
-              normalizeFileInput(params.file, { single: true })
-            // Check for multiple files
-            if (
-              (normalizedUpload && normalizedUpload.length > 1) ||
-              (normalizedFile && normalizedFile.length > 1)
-            ) {
-              throw new Error('Attachment file must be a single file.')
-            }
+              normalizeFileInput(params.attachmentFileUpload, {
+                single: true,
+                errorMessage: 'Attachment file must be a single file.',
+              }) ||
+              normalizeFileInput(params.file, {
+                single: true,
+                errorMessage: 'Attachment file must be a single file.',
+              })
             const attachmentUrl =
               params.url?.trim() ||
               (attachmentFile ? (attachmentFile as { url?: string }).url : undefined)
