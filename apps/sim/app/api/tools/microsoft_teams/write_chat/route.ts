@@ -2,10 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -27,22 +24,6 @@ const TeamsWriteChatSchema = z.object({
   content: z.string().min(1, 'Message content is required'),
   files: RawFileInputArraySchema.optional().nullable(),
 })
-
-async function secureFetchGraph(
-  url: string,
-  options: {
-    method?: string
-    headers?: Record<string, string>
-    body?: string | Buffer | Uint8Array
-  },
-  paramName: string
-) {
-  const urlValidation = await validateUrlWithDNS(url, paramName)
-  if (!urlValidation.isValid) {
-    throw new Error(urlValidation.error)
-  }
-  return secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, options)
-}
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -92,6 +73,18 @@ export async function POST(request: NextRequest) {
 
       for (const file of userFiles) {
         try {
+          // Microsoft Graph API limits direct uploads to 4MB
+          const maxSize = 4 * 1024 * 1024
+          if (file.size > maxSize) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
+            logger.error(
+              `[${requestId}] File ${file.name} is ${sizeMB}MB, exceeds 4MB limit for direct upload`
+            )
+            throw new Error(
+              `File "${file.name}" (${sizeMB}MB) exceeds the 4MB limit for Teams attachments. Use smaller files or upload to SharePoint/OneDrive first.`
+            )
+          }
+
           logger.info(`[${requestId}] Uploading file to Teams: ${file.name} (${file.size} bytes)`)
 
           const buffer = await downloadFileFromStorage(file, requestId, logger)
@@ -109,7 +102,7 @@ export async function POST(request: NextRequest) {
 
           logger.info(`[${requestId}] Uploading to Teams: ${uploadUrl}`)
 
-          const uploadResponse = await secureFetchGraph(
+          const uploadResponse = await secureFetchWithValidation(
             uploadUrl,
             {
               method: 'PUT',
@@ -140,7 +133,7 @@ export async function POST(request: NextRequest) {
 
           const fileDetailsUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${uploadedFile.id}?$select=id,name,webDavUrl,eTag,size`
 
-          const fileDetailsResponse = await secureFetchGraph(
+          const fileDetailsResponse = await secureFetchWithValidation(
             fileDetailsUrl,
             {
               method: 'GET',
@@ -245,7 +238,7 @@ export async function POST(request: NextRequest) {
 
     const teamsUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(validatedData.chatId)}/messages`
 
-    const teamsResponse = await secureFetchGraph(
+    const teamsResponse = await secureFetchWithValidation(
       teamsUrl,
       {
         method: 'POST',

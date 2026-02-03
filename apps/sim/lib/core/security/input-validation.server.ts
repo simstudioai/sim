@@ -288,3 +288,25 @@ export async function secureFetchWithPinnedIP(
     req.end()
   })
 }
+
+/**
+ * Validates a URL and performs a secure fetch with DNS pinning in one call.
+ * Combines validateUrlWithDNS and secureFetchWithPinnedIP for convenience.
+ *
+ * @param url - The URL to fetch
+ * @param options - Fetch options (method, headers, body, etc.)
+ * @param paramName - Name of the parameter for error messages (default: 'url')
+ * @returns SecureFetchResponse
+ * @throws Error if URL validation fails
+ */
+export async function secureFetchWithValidation(
+  url: string,
+  options: SecureFetchOptions = {},
+  paramName = 'url'
+): Promise<SecureFetchResponse> {
+  const validation = await validateUrlWithDNS(url, paramName)
+  if (!validation.isValid) {
+    throw new Error(validation.error)
+  }
+  return secureFetchWithPinnedIP(url, validation.resolvedIP!, options)
+}

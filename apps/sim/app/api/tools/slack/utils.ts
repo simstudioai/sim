@@ -1,27 +1,8 @@
 import type { Logger } from '@sim/logger'
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { ToolFileData } from '@/tools/types'
-
-async function secureFetchExternal(
-  url: string,
-  options: {
-    method?: string
-    headers?: Record<string, string>
-    body?: string | Buffer | Uint8Array
-  },
-  paramName: string
-) {
-  const urlValidation = await validateUrlWithDNS(url, paramName)
-  if (!urlValidation.isValid) {
-    throw new Error(urlValidation.error)
-  }
-  return secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, options)
-}
 
 /**
  * Sends a message to a Slack channel using chat.postMessage
@@ -128,7 +109,7 @@ export async function uploadFilesToSlack(
 
     logger.info(`[${requestId}] Got upload URL for ${userFile.name}, file_id: ${urlData.file_id}`)
 
-    const uploadResponse = await secureFetchExternal(
+    const uploadResponse = await secureFetchWithValidation(
       urlData.upload_url,
       {
         method: 'POST',

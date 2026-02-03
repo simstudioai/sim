@@ -2,10 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -28,22 +25,6 @@ const TeamsWriteChannelSchema = z.object({
   content: z.string().min(1, 'Message content is required'),
   files: RawFileInputArraySchema.optional().nullable(),
 })
-
-async function secureFetchGraph(
-  url: string,
-  options: {
-    method?: string
-    headers?: Record<string, string>
-    body?: string | Buffer | Uint8Array
-  },
-  paramName: string
-) {
-  const urlValidation = await validateUrlWithDNS(url, paramName)
-  if (!urlValidation.isValid) {
-    throw new Error(urlValidation.error)
-  }
-  return secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, options)
-}
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -123,7 +104,7 @@ export async function POST(request: NextRequest) {
 
           logger.info(`[${requestId}] Uploading to Teams: ${uploadUrl}`)
 
-          const uploadResponse = await secureFetchGraph(
+          const uploadResponse = await secureFetchWithValidation(
             uploadUrl,
             {
               method: 'PUT',
@@ -154,7 +135,7 @@ export async function POST(request: NextRequest) {
 
           const fileDetailsUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${uploadedFile.id}?$select=id,name,webDavUrl,eTag,size`
 
-          const fileDetailsResponse = await secureFetchGraph(
+          const fileDetailsResponse = await secureFetchWithValidation(
             fileDetailsUrl,
             {
               method: 'GET',
@@ -260,7 +241,7 @@ export async function POST(request: NextRequest) {
 
     const teamsUrl = `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(validatedData.teamId)}/channels/${encodeURIComponent(validatedData.channelId)}/messages`
 
-    const teamsResponse = await secureFetchGraph(
+    const teamsResponse = await secureFetchWithValidation(
       teamsUrl,
       {
         method: 'POST',

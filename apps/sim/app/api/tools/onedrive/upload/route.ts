@@ -3,10 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import {
@@ -80,22 +77,6 @@ function validateMicrosoftGraphId(
     }
   }
   return { isValid: true }
-}
-
-async function secureFetchGraph(
-  url: string,
-  options: {
-    method?: string
-    headers?: Record<string, string>
-    body?: string | Buffer | Uint8Array
-  },
-  paramName: string
-) {
-  const urlValidation = await validateUrlWithDNS(url, paramName)
-  if (!urlValidation.isValid) {
-    throw new Error(urlValidation.error)
-  }
-  return secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, options)
 }
 
 export async function POST(request: NextRequest) {
@@ -231,7 +212,7 @@ export async function POST(request: NextRequest) {
       uploadUrl += `?@microsoft.graph.conflictBehavior=${validatedData.conflictBehavior}`
     }
 
-    const uploadResponse = await secureFetchGraph(
+    const uploadResponse = await secureFetchWithValidation(
       uploadUrl,
       {
         method: 'PUT',
@@ -268,7 +249,7 @@ export async function POST(request: NextRequest) {
         const sessionUrl = `${MICROSOFT_GRAPH_BASE}/me/drive/items/${encodeURIComponent(
           fileData.id
         )}/workbook/createSession`
-        const sessionResp = await secureFetchGraph(
+        const sessionResp = await secureFetchWithValidation(
           sessionUrl,
           {
             method: 'POST',
@@ -291,7 +272,7 @@ export async function POST(request: NextRequest) {
           const listUrl = `${MICROSOFT_GRAPH_BASE}/me/drive/items/${encodeURIComponent(
             fileData.id
           )}/workbook/worksheets?$select=name&$orderby=position&$top=1`
-          const listResp = await secureFetchGraph(
+          const listResp = await secureFetchWithValidation(
             listUrl,
             {
               method: 'GET',
@@ -362,7 +343,7 @@ export async function POST(request: NextRequest) {
           )}')/range(address='${encodeURIComponent(computedRangeAddress)}')`
         )
 
-        const excelWriteResponse = await secureFetchGraph(
+        const excelWriteResponse = await secureFetchWithValidation(
           url.toString(),
           {
             method: 'PATCH',
@@ -406,7 +387,7 @@ export async function POST(request: NextRequest) {
             const closeUrl = `${MICROSOFT_GRAPH_BASE}/me/drive/items/${encodeURIComponent(
               fileData.id
             )}/workbook/closeSession`
-            const closeResp = await secureFetchGraph(
+            const closeResp = await secureFetchWithValidation(
               closeUrl,
               {
                 method: 'POST',

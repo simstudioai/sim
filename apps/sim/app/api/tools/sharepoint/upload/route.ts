@@ -2,10 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -23,22 +20,6 @@ const SharepointUploadSchema = z.object({
   fileName: z.string().optional().nullable(),
   files: RawFileInputArraySchema.optional().nullable(),
 })
-
-async function secureFetchGraph(
-  url: string,
-  options: {
-    method?: string
-    headers?: Record<string, string>
-    body?: string | Buffer | Uint8Array
-  },
-  paramName: string
-) {
-  const urlValidation = await validateUrlWithDNS(url, paramName)
-  if (!urlValidation.isValid) {
-    throw new Error(urlValidation.error)
-  }
-  return secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, options)
-}
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -101,7 +82,7 @@ export async function POST(request: NextRequest) {
     if (!effectiveDriveId) {
       logger.info(`[${requestId}] No driveId provided, fetching default drive for site`)
       const driveUrl = `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drive`
-      const driveResponse = await secureFetchGraph(
+      const driveResponse = await secureFetchWithValidation(
         driveUrl,
         {
           method: 'GET',
@@ -171,7 +152,7 @@ export async function POST(request: NextRequest) {
 
       logger.info(`[${requestId}] Uploading to: ${uploadUrl}`)
 
-      const uploadResponse = await secureFetchGraph(
+      const uploadResponse = await secureFetchWithValidation(
         uploadUrl,
         {
           method: 'PUT',
@@ -192,7 +173,7 @@ export async function POST(request: NextRequest) {
           // File exists - retry with conflict behavior set to replace
           logger.warn(`[${requestId}] File ${fileName} already exists, retrying with replace`)
           const replaceUrl = `${uploadUrl}?@microsoft.graph.conflictBehavior=replace`
-          const replaceResponse = await secureFetchGraph(
+          const replaceResponse = await secureFetchWithValidation(
             replaceUrl,
             {
               method: 'PUT',
