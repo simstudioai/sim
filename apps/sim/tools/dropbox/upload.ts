@@ -1,3 +1,4 @@
+import { extractBase64FromFileInput } from '@/lib/core/utils/user-file'
 import type { DropboxUploadParams, DropboxUploadResponse } from '@/tools/dropbox/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -31,10 +32,10 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
         'The path in Dropbox where the file should be saved (e.g., /folder/document.pdf)',
     },
     fileContent: {
-      type: 'string',
+      type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The base64 encoded content of the file to upload',
+      description: 'The file to upload (UserFile object or base64 string)',
     },
     fileName: {
       type: 'string',
@@ -84,8 +85,12 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
       }
     },
     body: (params) => {
+      const base64Content = extractBase64FromFileInput(params.fileContent)
+      if (!base64Content) {
+        throw new Error('File Content cannot be extracted')
+      }
       // Decode base64 to raw binary bytes - Dropbox expects raw binary, not base64 text
-      return Buffer.from(params.fileContent, 'base64')
+      return Buffer.from(base64Content, 'base64')
     },
   },
 
