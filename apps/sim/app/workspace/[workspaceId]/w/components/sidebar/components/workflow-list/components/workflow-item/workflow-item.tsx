@@ -189,6 +189,9 @@ export function WorkflowItem({
     const isCurrentlySelected = store.selectedWorkflows.has(workflow.id)
 
     if (!isCurrentlySelected) {
+      // Replace selection with just this item (Finder/Explorer pattern)
+      // This clears both workflow and folder selections
+      store.clearAllSelection()
       store.selectWorkflow(workflow.id)
     }
 
