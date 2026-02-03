@@ -167,10 +167,10 @@ export function formatDuration(
     return '-'
   }
 
-  // Parse string durations (e.g., "500ms", "1234")
+  // Parse string durations (e.g., "500ms", "0.44ms", "1234")
   let ms: number
   if (typeof duration === 'string') {
-    ms = Number.parseInt(duration.replace(/[^0-9.-]/g, ''), 10)
+    ms = Number.parseFloat(duration.replace(/[^0-9.-]/g, ''))
     if (!Number.isFinite(ms)) {
       return duration
     }
