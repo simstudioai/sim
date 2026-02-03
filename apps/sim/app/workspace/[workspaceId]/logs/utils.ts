@@ -370,7 +370,7 @@ export function mapToExecutionLogAlt(log: RawLogResponse): ExecutionLog {
  */
 export function formatLatency(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '—'
-  return formatDuration(ms, { precision: 2 })
+  return formatDuration(ms, { precision: 2 }) ?? '—'
 }
 
 export const formatDate = (dateString: string) => {

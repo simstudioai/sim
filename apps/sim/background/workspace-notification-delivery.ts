@@ -297,7 +297,7 @@ async function deliverEmail(
     workflowName: payload.data.workflowName || 'Unknown Workflow',
     status: payload.data.status,
     trigger: payload.data.trigger,
-    duration: formatDuration(payload.data.totalDurationMs, { precision: 1 }),
+    duration: formatDuration(payload.data.totalDurationMs, { precision: 1 }) ?? '-',
     cost: formatCost(payload.data.cost),
     logUrl,
     alertReason,
@@ -310,7 +310,7 @@ async function deliverEmail(
     to: subscription.emailRecipients,
     subject,
     html,
-    text: `${subject}\n${alertReason ? `\nReason: ${alertReason}\n` : ''}\nWorkflow: ${payload.data.workflowName}\nStatus: ${statusText}\nTrigger: ${payload.data.trigger}\nDuration: ${formatDuration(payload.data.totalDurationMs, { precision: 1 })}\nCost: ${formatCost(payload.data.cost)}\n\nView Log: ${logUrl}${includedDataText}`,
+    text: `${subject}\n${alertReason ? `\nReason: ${alertReason}\n` : ''}\nWorkflow: ${payload.data.workflowName}\nStatus: ${statusText}\nTrigger: ${payload.data.trigger}\nDuration: ${formatDuration(payload.data.totalDurationMs, { precision: 1 }) ?? '-'}\nCost: ${formatCost(payload.data.cost)}\n\nView Log: ${logUrl}${includedDataText}`,
     emailType: 'notifications',
   })
 
@@ -370,7 +370,7 @@ async function deliverSlack(
         { type: 'mrkdwn', text: `*Trigger:*\n${payload.data.trigger}` },
         {
           type: 'mrkdwn',
-          text: `*Duration:*\n${formatDuration(payload.data.totalDurationMs, { precision: 1 })}`,
+          text: `*Duration:*\n${formatDuration(payload.data.totalDurationMs, { precision: 1 }) ?? '-'}`,
         },
         { type: 'mrkdwn', text: `*Cost:*\n${formatCost(payload.data.cost)}` },
       ],

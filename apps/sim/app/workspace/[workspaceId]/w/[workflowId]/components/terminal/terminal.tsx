@@ -128,7 +128,7 @@ const BlockRow = memo(function BlockRow({
         <StatusDisplay
           isRunning={isRunning}
           isCanceled={isCanceled}
-          formattedDuration={formatDuration(entry.durationMs, { precision: 2 })}
+          formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
         />
       </span>
     </div>
@@ -201,7 +201,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
           <StatusDisplay
             isRunning={hasRunningChild}
             isCanceled={hasCanceledChild}
-            formattedDuration={formatDuration(entry.durationMs, { precision: 2 })}
+            formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
       </div>
@@ -314,7 +314,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}
-            formattedDuration={formatDuration(entry.durationMs, { precision: 2 })}
+            formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
       </div>
