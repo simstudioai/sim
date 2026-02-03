@@ -8,6 +8,7 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 const logger = createLogger('CleanupStaleExecutions')
 
 const STALE_THRESHOLD_MINUTES = 30
+const MAX_INT32 = 2_147_483_647
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,13 +46,14 @@ export async function GET(request: NextRequest) {
       try {
         const staleDurationMs = Date.now() - new Date(execution.startedAt).getTime()
         const staleDurationMinutes = Math.round(staleDurationMs / 60000)
+        const totalDurationMs = Math.min(staleDurationMs, MAX_INT32)
 
         await db
           .update(workflowExecutionLogs)
           .set({
             status: 'failed',
             endedAt: new Date(),
-            totalDurationMs: staleDurationMs,
+            totalDurationMs,
             executionData: sql`jsonb_set(
               COALESCE(execution_data, '{}'::jsonb),
               ARRAY['error'],

@@ -284,7 +284,7 @@ async function handleToolsCall(
       content: [
         { type: 'text', text: JSON.stringify(executeResult.output || executeResult, null, 2) },
       ],
-      isError: !executeResult.success,
+      isError: executeResult.success === false,
     }
 
     return NextResponse.json(createResponse(id, result))
