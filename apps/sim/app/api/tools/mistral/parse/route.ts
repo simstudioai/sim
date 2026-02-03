@@ -156,15 +156,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Detect image URLs by extension for proper Mistral API type
-      const lowerUrl = fileUrl.toLowerCase()
-      const isImageUrl =
-        lowerUrl.endsWith('.png') ||
-        lowerUrl.endsWith('.jpg') ||
-        lowerUrl.endsWith('.jpeg') ||
-        lowerUrl.endsWith('.gif') ||
-        lowerUrl.endsWith('.webp') ||
-        lowerUrl.endsWith('.avif')
+      const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif']
+      const pathname = new URL(fileUrl).pathname.toLowerCase()
+      const isImageUrl = imageExtensions.some((ext) => pathname.endsWith(ext))
 
       if (isImageUrl) {
         mistralBody.document = {
