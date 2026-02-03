@@ -159,6 +159,26 @@ export const DEFAULTS = {
   MAX_PARALLEL_BRANCHES: 20,
   MAX_WORKFLOW_DEPTH: 10,
   EXECUTION_TIME: 0,
+  /**
+   * Maximum number of iteration outputs to retain in memory during loop execution.
+   * Older iterations are discarded to prevent memory exhaustion in long-running loops.
+   * The final aggregated results will contain only the most recent iterations.
+   */
+  MAX_STORED_ITERATION_OUTPUTS: 100,
+  /**
+   * Maximum size in bytes for iteration outputs before triggering truncation.
+   * This is an approximate estimate based on JSON serialization.
+   */
+  MAX_ITERATION_OUTPUTS_SIZE_BYTES: 50 * 1024 * 1024, // 50MB
+  /**
+   * Maximum number of block logs to retain in memory during execution.
+   * Older logs are discarded to prevent memory exhaustion in long-running workflows.
+   */
+  MAX_BLOCK_LOGS: 500,
+  /**
+   * Maximum size in bytes for block logs before triggering truncation.
+   */
+  MAX_BLOCK_LOGS_SIZE_BYTES: 100 * 1024 * 1024, // 100MB
   TOKENS: {
     PROMPT: 0,
     COMPLETION: 0,

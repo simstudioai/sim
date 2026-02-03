@@ -67,7 +67,7 @@ export class BlockExecutor {
     let blockLog: BlockLog | undefined
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node)
-      ctx.blockLogs.push(blockLog)
+      this.addBlockLogWithMemoryLimit(ctx, blockLog)
       this.callOnBlockStart(ctx, node, block)
     }
 
@@ -682,5 +682,57 @@ export class BlockExecutor {
     }
 
     executionOutput.content = fullContent
+  }
+
+  /**
+   * Adds a block log to the execution context with memory management.
+   * Prevents unbounded memory growth by:
+   * 1. Limiting the number of stored logs (MAX_BLOCK_LOGS)
+   * 2. Checking estimated memory size (MAX_BLOCK_LOGS_SIZE_BYTES)
+   *
+   * When limits are exceeded, older logs are discarded to make room for newer ones.
+   */
+  private addBlockLogWithMemoryLimit(ctx: ExecutionContext, blockLog: BlockLog): void {
+    ctx.blockLogs.push(blockLog)
+
+    // Check log count limit
+    if (ctx.blockLogs.length > DEFAULTS.MAX_BLOCK_LOGS) {
+      const discardCount = ctx.blockLogs.length - DEFAULTS.MAX_BLOCK_LOGS
+      ctx.blockLogs = ctx.blockLogs.slice(discardCount)
+      logger.warn('Block logs exceeded count limit, discarding older logs', {
+        discardedCount: discardCount,
+        retainedCount: ctx.blockLogs.length,
+        maxAllowed: DEFAULTS.MAX_BLOCK_LOGS,
+      })
+    }
+
+    // Periodically check memory size (every 50 logs to avoid frequent serialization)
+    if (ctx.blockLogs.length % 50 === 0) {
+      const estimatedSize = this.estimateBlockLogsSize(ctx.blockLogs)
+      if (estimatedSize > DEFAULTS.MAX_BLOCK_LOGS_SIZE_BYTES) {
+        const halfLength = Math.floor(ctx.blockLogs.length / 2)
+        const discardCount = Math.max(halfLength, 1)
+        ctx.blockLogs = ctx.blockLogs.slice(discardCount)
+        logger.warn('Block logs exceeded memory limit, discarding older logs', {
+          estimatedSizeBytes: estimatedSize,
+          maxSizeBytes: DEFAULTS.MAX_BLOCK_LOGS_SIZE_BYTES,
+          discardedCount: discardCount,
+          retainedCount: ctx.blockLogs.length,
+        })
+      }
+    }
+  }
+
+  /**
+   * Estimates the memory size of block logs in bytes.
+   * Returns a value exceeding the limit on serialization failure to trigger cleanup.
+   */
+  private estimateBlockLogsSize(logs: BlockLog[]): number {
+    try {
+      return JSON.stringify(logs).length * 2
+    } catch {
+      // Return a value that exceeds the limit to trigger cleanup on serialization failure
+      return DEFAULTS.MAX_BLOCK_LOGS_SIZE_BYTES + 1
+    }
   }
 }
