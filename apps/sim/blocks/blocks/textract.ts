@@ -265,13 +265,14 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
           }
           parameters.s3Uri = params.s3Uri.trim()
         } else {
-          const files = normalizeFileInput(
-            params.fileUpload || params.fileReference || params.document
+          const file = normalizeFileInput(
+            params.fileUpload || params.fileReference || params.document,
+            { single: true }
           )
-          if (!files || files.length === 0) {
+          if (!file) {
             throw new Error('Document file is required')
           }
-          parameters.file = files[0]
+          parameters.file = file
         }
 
         const featureTypes: string[] = []

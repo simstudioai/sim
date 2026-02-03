@@ -746,7 +746,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
           duration: params.duration ? Number(params.duration) : undefined,
           aspectRatio: params.aspectRatio,
           resolution: params.resolution,
-          visualReference: normalizeFileInput(visualRef),
+          visualReference: normalizeFileInput(visualRef, { single: true }),
           consistencyMode: params.consistencyMode,
           stylePreset: params.stylePreset,
           promptOptimizer: params.promptOptimizer,

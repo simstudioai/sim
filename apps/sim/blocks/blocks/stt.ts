@@ -260,8 +260,9 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       },
       params: (params) => {
         // Normalize file input from basic (file-upload) or advanced (short-input) mode
-        const normalizedFiles = normalizeFileInput(params.audioFile || params.audioFileReference)
-        const audioFile = normalizedFiles?.[0]
+        const audioFile = normalizeFileInput(params.audioFile || params.audioFileReference, {
+          single: true,
+        })
 
         return {
           provider: params.provider,
@@ -393,8 +394,9 @@ export const SttV2Block: BlockConfig<SttBlockResponse> = {
       }),
       params: (params) => {
         // Normalize file input from basic (file-upload) or advanced (short-input) mode
-        const normalizedFiles = normalizeFileInput(params.audioFile || params.audioFileReference)
-        const audioFile = normalizedFiles?.[0]
+        const audioFile = normalizeFileInput(params.audioFile || params.audioFileReference, {
+          single: true,
+        })
 
         return {
           provider: params.provider,

@@ -269,46 +269,54 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
               messageId: params.messageId,
             }
           case 'telegram_send_photo': {
-            const photoSource = normalizeFileInput(params.photoFile || params.photo)
-            if (!photoSource || photoSource.length === 0) {
+            const photoSource = normalizeFileInput(params.photoFile || params.photo, {
+              single: true,
+            })
+            if (!photoSource) {
               throw new Error('Photo is required.')
             }
             return {
               ...commonParams,
-              photo: photoSource[0],
+              photo: photoSource,
               caption: params.caption,
             }
           }
           case 'telegram_send_video': {
-            const videoSource = normalizeFileInput(params.videoFile || params.video)
-            if (!videoSource || videoSource.length === 0) {
+            const videoSource = normalizeFileInput(params.videoFile || params.video, {
+              single: true,
+            })
+            if (!videoSource) {
               throw new Error('Video is required.')
             }
             return {
               ...commonParams,
-              video: videoSource[0],
+              video: videoSource,
               caption: params.caption,
             }
           }
           case 'telegram_send_audio': {
-            const audioSource = normalizeFileInput(params.audioFile || params.audio)
-            if (!audioSource || audioSource.length === 0) {
+            const audioSource = normalizeFileInput(params.audioFile || params.audio, {
+              single: true,
+            })
+            if (!audioSource) {
               throw new Error('Audio is required.')
             }
             return {
               ...commonParams,
-              audio: audioSource[0],
+              audio: audioSource,
               caption: params.caption,
             }
           }
           case 'telegram_send_animation': {
-            const animationSource = normalizeFileInput(params.animationFile || params.animation)
-            if (!animationSource || animationSource.length === 0) {
+            const animationSource = normalizeFileInput(params.animationFile || params.animation, {
+              single: true,
+            })
+            if (!animationSource) {
               throw new Error('Animation is required.')
             }
             return {
               ...commonParams,
-              animation: animationSource[0],
+              animation: animationSource,
               caption: params.caption,
             }
           }

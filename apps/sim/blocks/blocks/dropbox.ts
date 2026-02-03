@@ -320,7 +320,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         // Normalize file input for upload operation
         // normalizeFileInput handles JSON stringified values from advanced mode
         if (params.fileContent) {
-          params.fileContent = normalizeFileInput(params.fileContent)
+          params.fileContent = normalizeFileInput(params.fileContent, { single: true })
         }
 
         switch (params.operation) {

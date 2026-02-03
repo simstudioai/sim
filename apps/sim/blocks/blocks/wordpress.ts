@@ -770,7 +770,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
           case 'wordpress_upload_media':
             return {
               ...baseParams,
-              file: normalizeFileInput(params.fileUpload || params.file),
+              file: normalizeFileInput(params.fileUpload || params.file, { single: true }),
               filename: params.filename,
               title: params.mediaTitle,
               caption: params.caption,

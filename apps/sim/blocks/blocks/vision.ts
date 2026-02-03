@@ -118,9 +118,10 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
       }),
       params: (params) => {
         // normalizeFileInput handles JSON stringified values from advanced mode
-        const normalizedFiles = normalizeFileInput(params.imageFile || params.imageFileReference)
-        // Vision expects a single file, take the first from the normalized array
-        const imageFile = normalizedFiles?.[0]
+        // Vision expects a single file
+        const imageFile = normalizeFileInput(params.imageFile || params.imageFileReference, {
+          single: true,
+        })
         return {
           ...params,
           imageFile,

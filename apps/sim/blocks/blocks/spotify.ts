@@ -788,7 +788,7 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         }
         // Normalize file input for cover image
         if (params.coverImage !== undefined) {
-          params.coverImage = normalizeFileInput(params.coverImage)
+          params.coverImage = normalizeFileInput(params.coverImage, { single: true })
         }
         return params.operation || 'spotify_search'
       },

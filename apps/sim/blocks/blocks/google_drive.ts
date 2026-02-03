@@ -793,7 +793,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
         } = params
 
         // Normalize file input - handles both basic (file-upload) and advanced (short-input) modes
-        const normalizedFile = normalizeFileInput(file ?? fileUpload)
+        const normalizedFile = normalizeFileInput(file ?? fileUpload, { single: true })
 
         // Use folderSelector if provided, otherwise use manualFolderId
         const effectiveFolderId = (folderSelector || manualFolderId || '').trim()

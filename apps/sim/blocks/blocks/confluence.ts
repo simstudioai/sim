@@ -652,7 +652,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
         if (operation === 'upload_attachment') {
           const fileInput = attachmentFileUpload || attachmentFileReference || attachmentFile
-          const normalizedFile = normalizeFileInput(fileInput)
+          const normalizedFile = normalizeFileInput(fileInput, { single: true })
           if (!normalizedFile) {
             throw new Error('File is required for upload attachment operation.')
           }

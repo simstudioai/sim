@@ -273,7 +273,7 @@ export const S3Block: BlockConfig<S3Response> = {
             }
             // Use file from uploadFile if in basic mode, otherwise use file reference
             // normalizeFileInput handles JSON stringified values from advanced mode
-            const fileParam = normalizeFileInput(params.uploadFile || params.file)
+            const fileParam = normalizeFileInput(params.uploadFile || params.file, { single: true })
 
             return {
               accessKeyId: params.accessKeyId,

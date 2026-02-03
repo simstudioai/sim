@@ -982,7 +982,9 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
 
         // Normalize file input for storage_upload operation
         // normalizeFileInput handles JSON stringified values from advanced mode
-        const normalizedFileData = normalizeFileInput(file || fileContent || fileData)
+        const normalizedFileData = normalizeFileInput(file || fileContent || fileData, {
+          single: true,
+        })
 
         // Parse JSON data if it's a string
         let parsedData

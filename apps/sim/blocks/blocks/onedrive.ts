@@ -371,7 +371,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
 
         // Normalize file input from both basic (file-upload) and advanced (short-input) modes
-        const normalizedFile = normalizeFileInput(file || fileReference)
+        const normalizedFile = normalizeFileInput(file || fileReference, { single: true })
 
         return {
           credential,

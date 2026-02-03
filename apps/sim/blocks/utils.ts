@@ -251,7 +251,7 @@ export function createVersionedToolSelector<TParams extends Record<string, any>>
 }
 
 /**
- * Normalizes file input from block params.
+ * Normalizes file input from block params to a consistent format.
  * Handles the case where template resolution JSON.stringify's arrays/objects
  * when they're placed in short-input fields (advanced mode).
  *
@@ -260,9 +260,21 @@ export function createVersionedToolSelector<TParams extends Record<string, any>>
  *   - An array of file objects (basic mode or properly resolved)
  *   - A single file object
  *   - A JSON string of file(s) (from advanced mode template resolution)
- * @returns Normalized array of file objects, or undefined if no files
+ * @param options.single - If true, returns only the first file object instead of an array
+ * @returns Normalized file(s), or undefined if no files
  */
-export function normalizeFileInput(fileParam: unknown): object[] | undefined {
+export function normalizeFileInput(
+  fileParam: unknown,
+  options: { single: true }
+): object | undefined
+export function normalizeFileInput(
+  fileParam: unknown,
+  options?: { single?: false }
+): object[] | undefined
+export function normalizeFileInput(
+  fileParam: unknown,
+  options?: { single?: boolean }
+): object | object[] | undefined {
   if (!fileParam) return undefined
 
   if (typeof fileParam === 'string') {
@@ -273,13 +285,15 @@ export function normalizeFileInput(fileParam: unknown): object[] | undefined {
     }
   }
 
+  let files: object[] | undefined
+
   if (Array.isArray(fileParam)) {
-    return fileParam.length > 0 ? fileParam : undefined
+    files = fileParam.length > 0 ? fileParam : undefined
+  } else if (typeof fileParam === 'object' && fileParam !== null) {
+    files = [fileParam]
   }
 
-  if (typeof fileParam === 'object' && fileParam !== null) {
-    return [fileParam]
-  }
+  if (!files) return undefined
 
-  return undefined
+  return options?.single ? files[0] : files
 }

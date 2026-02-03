@@ -620,12 +620,12 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
         }
 
         if (params.operation === 'fireflies_upload_audio') {
-          const audioFiles =
-            normalizeFileInput(params.audioFile) || normalizeFileInput(params.audioFileReference)
-          if (!audioFiles || audioFiles.length === 0) {
+          const audioFile =
+            normalizeFileInput(params.audioFile, { single: true }) ||
+            normalizeFileInput(params.audioFileReference, { single: true })
+          if (!audioFile) {
             throw new Error('Audio file is required.')
           }
-          const audioFile = audioFiles[0]
           const audioUrl = resolveHttpsUrlFromFileInput(audioFile)
           if (!audioUrl) {
             throw new Error('Audio file must include a https URL.')
