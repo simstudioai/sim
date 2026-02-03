@@ -18,6 +18,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   ExecutionSnapshot,
@@ -453,7 +454,7 @@ export const LogDetails = memo(function LogDetails({
                       Duration
                     </span>
                     <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                      {log.duration || '—'}
+                      {formatDuration(log.duration, { precision: 2 }) || '—'}
                     </span>
                   </div>
 
