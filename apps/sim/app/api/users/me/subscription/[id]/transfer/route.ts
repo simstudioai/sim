@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { hasActiveSubscription } from '@/lib/billing'
 
 const logger = createLogger('SubscriptionTransferAPI')
 
@@ -85,6 +86,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json(
         { error: 'Unauthorized - user is not admin of organization' },
         { status: 403 }
+      )
+    }
+
+    // Check if org already has an active subscription (prevent duplicates)
+    if (await hasActiveSubscription(organizationId)) {
+      return NextResponse.json(
+        { error: 'Organization already has an active subscription' },
+        { status: 409 }
       )
     }
 

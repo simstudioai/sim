@@ -70,18 +70,3 @@ export function filterProtectedBlocks(
     allProtected: protectedIds.length === blockIds.length && blockIds.length > 0,
   }
 }
-
-/**
- * Checks if any blocks in the selection are protected.
- * Useful for determining if edit actions should be disabled.
- *
- * @param blockIds - Array of block IDs to check
- * @param blocks - Record of all blocks in the workflow
- * @returns True if any block is protected
- */
-export function hasProtectedBlocks(
-  blockIds: string[],
-  blocks: Record<string, BlockState>
-): boolean {
-  return blockIds.some((id) => isBlockProtected(id, blocks))
-}

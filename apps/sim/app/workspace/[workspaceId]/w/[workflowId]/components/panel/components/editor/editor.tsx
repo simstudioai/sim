@@ -53,6 +53,12 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
+/** Shared style for dashed divider lines */
+const DASHED_DIVIDER_STYLE = {
+  backgroundImage:
+    'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
+} as const
+
 /**
  * Icon component for rendering block icons.
  *
@@ -92,25 +98,19 @@ export function Editor() {
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
   const title = currentBlock?.name || 'Editor'
 
-  // Check if selected block is a subflow (loop or parallel)
   const isSubflow =
     currentBlock && (currentBlock.type === 'loop' || currentBlock.type === 'parallel')
 
-  // Get subflow display properties from configs
   const subflowConfig = isSubflow ? (currentBlock.type === 'loop' ? LoopTool : ParallelTool) : null
 
-  // Check if selected block is a workflow block
   const isWorkflowBlock =
     currentBlock && (currentBlock.type === 'workflow' || currentBlock.type === 'workflow_input')
 
-  // Get workspace ID from params
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  // Refs for resize functionality
   const subBlocksRef = useRef<HTMLDivElement>(null)
 
-  // Get user permissions
   const userPermissions = useUserPermissionsContext()
 
   // Check if block is locked (or inside a locked container) and compute edit permission
@@ -121,10 +121,8 @@ export function Editor() {
   const isLocked = (currentBlock?.locked ?? false) || isParentLocked
   const canEditBlock = userPermissions.canEdit && !isLocked
 
-  // Get active workflow ID
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
-  // Get block properties (advanced/trigger modes)
   const { advancedMode, triggerMode } = useEditorBlockProperties(
     currentBlockId,
     currentWorkflow.isSnapshotView
@@ -156,20 +154,17 @@ export function Editor() {
     [subBlocksForCanonical]
   )
   const canonicalModeOverrides = currentBlock?.data?.canonicalModes
-  const advancedValuesPresent = hasAdvancedValues(
-    subBlocksForCanonical,
-    blockSubBlockValues,
-    canonicalIndex
+  const advancedValuesPresent = useMemo(
+    () => hasAdvancedValues(subBlocksForCanonical, blockSubBlockValues, canonicalIndex),
+    [subBlocksForCanonical, blockSubBlockValues, canonicalIndex]
   )
   const displayAdvancedOptions = canEditBlock ? advancedMode : advancedMode || advancedValuesPresent
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
-      // Must be standalone advanced (mode: 'advanced' without canonicalParamId)
       if (subBlock.mode !== 'advanced') continue
       if (canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) continue
 
-      // Check condition - skip if condition not met for current values
       if (
         subBlock.condition &&
         !evaluateSubBlockCondition(subBlock.condition, blockSubBlockValues)
@@ -182,7 +177,6 @@ export function Editor() {
     return false
   }, [subBlocksForCanonical, canonicalIndex.canonicalIdBySubBlockId, blockSubBlockValues])
 
-  // Get subblock layout using custom hook
   const { subBlocks, stateToUse: subBlockState } = useEditorSubblockLayout(
     blockConfig || ({} as any),
     currentBlockId || '',
@@ -215,15 +209,12 @@ export function Editor() {
     return { regularSubBlocks: regular, advancedOnlySubBlocks: advancedOnly }
   }, [subBlocks, canonicalIndex.canonicalIdBySubBlockId])
 
-  // Get block connections
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(currentBlockId || '')
 
-  // Connections resize hook
   const { handleMouseDown: handleConnectionsResizeMouseDown, isResizing } = useConnectionsResize({
     subBlocksRef,
   })
 
-  // Collaborative actions
   const {
     collaborativeSetBlockCanonicalMode,
     collaborativeUpdateBlockName,
@@ -231,16 +222,22 @@ export function Editor() {
     collaborativeBatchToggleLocked,
   } = useCollaborativeWorkflow()
 
-  // Advanced mode toggle handler
   const handleToggleAdvancedMode = useCallback(() => {
     if (!currentBlockId || !canEditBlock) return
     collaborativeToggleBlockAdvancedMode(currentBlockId)
   }, [currentBlockId, canEditBlock, collaborativeToggleBlockAdvancedMode])
 
-  // Rename state
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
-  const nameInputRef = useRef<HTMLInputElement>(null)
+
+  /**
+   * Ref callback that auto-selects the input text when mounted.
+   */
+  const nameInputRefCallback = useCallback((element: HTMLInputElement | null) => {
+    if (element) {
+      element.select()
+    }
+  }, [])
 
   /**
    * Handles starting the rename process.
@@ -261,7 +258,6 @@ export function Editor() {
     if (trimmedName && trimmedName !== currentBlock?.name) {
       const result = collaborativeUpdateBlockName(currentBlockId, trimmedName)
       if (!result.success) {
-        // Keep rename mode open on error so user can correct the name
         return
       }
     }
@@ -276,14 +272,6 @@ export function Editor() {
     setEditedName('')
   }, [])
 
-  // Focus input when entering rename mode
-  useEffect(() => {
-    if (isRenaming && nameInputRef.current) {
-      nameInputRef.current.select()
-    }
-  }, [isRenaming])
-
-  // Trigger rename mode when signaled from context menu
   useEffect(() => {
     if (shouldFocusRename && currentBlock) {
       handleStartRename()
@@ -294,17 +282,13 @@ export function Editor() {
   /**
    * Handles opening documentation link in a new secure tab.
    */
-  const handleOpenDocs = () => {
+  const handleOpenDocs = useCallback(() => {
     const docsLink = isSubflow ? subflowConfig?.docsLink : blockConfig?.docsLink
-    if (docsLink) {
-      window.open(docsLink, '_blank', 'noopener,noreferrer')
-    }
-  }
+    window.open(docsLink || 'https://docs.sim.ai/quick-reference', '_blank', 'noopener,noreferrer')
+  }, [isSubflow, subflowConfig?.docsLink, blockConfig?.docsLink])
 
-  // Get child workflow ID for workflow blocks
   const childWorkflowId = isWorkflowBlock ? blockSubBlockValues?.workflowId : null
 
-  // Fetch child workflow state for preview (only for workflow blocks with a selected workflow)
   const { data: childWorkflowState, isLoading: isLoadingChildWorkflow } =
     useWorkflowState(childWorkflowId)
 
@@ -317,7 +301,6 @@ export function Editor() {
     }
   }, [childWorkflowId, workspaceId])
 
-  // Determine if connections are at minimum height (collapsed state)
   const isConnectionsAtMinHeight = connectionsHeight <= 35
 
   return (
@@ -338,7 +321,7 @@ export function Editor() {
           )}
           {isRenaming ? (
             <input
-              ref={nameInputRef}
+              ref={nameInputRefCallback}
               type='text'
               value={editedName}
               onChange={(e) => setEditedName(e.target.value)}
@@ -439,23 +422,21 @@ export function Editor() {
               </Tooltip.Content>
             </Tooltip.Root>
           )} */}
-          {currentBlock && (isSubflow ? subflowConfig?.docsLink : blockConfig?.docsLink) && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  className='p-0'
-                  onClick={handleOpenDocs}
-                  aria-label='Open documentation'
-                >
-                  <BookOpen className='h-[14px] w-[14px]' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                <p>Open docs</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                className='p-0'
+                onClick={handleOpenDocs}
+                aria-label='Open documentation'
+              >
+                <BookOpen className='h-[14px] w-[14px]' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>Open docs</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
         </div>
       </div>
 
@@ -535,13 +516,7 @@ export function Editor() {
                     </div>
                   </div>
                   <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
-                    <div
-                      className='h-[1.25px]'
-                      style={{
-                        backgroundImage:
-                          'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-                      }}
-                    />
+                    <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
                   </div>
                 </>
               )}
@@ -606,13 +581,7 @@ export function Editor() {
                         />
                         {showDivider && (
                           <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
-                            <div
-                              className='h-[1.25px]'
-                              style={{
-                                backgroundImage:
-                                  'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-                              }}
-                            />
+                            <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
                           </div>
                         )}
                       </div>
@@ -621,13 +590,7 @@ export function Editor() {
 
                   {hasAdvancedOnlyFields && canEditBlock && (
                     <div className='flex items-center gap-[10px] px-[2px] pt-[14px] pb-[12px]'>
-                      <div
-                        className='h-[1.25px] flex-1'
-                        style={{
-                          backgroundImage:
-                            'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-                        }}
-                      />
+                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
                       <button
                         type='button'
                         onClick={handleToggleAdvancedMode}
@@ -640,13 +603,7 @@ export function Editor() {
                           className={`h-[14px] w-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
                         />
                       </button>
-                      <div
-                        className='h-[1.25px] flex-1'
-                        style={{
-                          backgroundImage:
-                            'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-                        }}
-                      />
+                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
                     </div>
                   )}
 
@@ -670,13 +627,7 @@ export function Editor() {
                         />
                         {index < advancedOnlySubBlocks.length - 1 && (
                           <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
-                            <div
-                              className='h-[1.25px]'
-                              style={{
-                                backgroundImage:
-                                  'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-                              }}
-                            />
+                            <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
                           </div>
                         )}
                       </div>

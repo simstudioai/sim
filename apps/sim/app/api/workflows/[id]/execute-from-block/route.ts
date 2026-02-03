@@ -1,6 +1,4 @@
-import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
@@ -8,6 +6,7 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { createSSECallbacks } from '@/lib/workflows/executor/execution-events'
@@ -75,12 +74,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { startBlockId, sourceSnapshot, input } = validation.data
     const executionId = uuidv4()
 
-    const [workflowRecord] = await db
-      .select({ workspaceId: workflowTable.workspaceId, userId: workflowTable.userId })
-      .from(workflowTable)
-      .where(eq(workflowTable.id, workflowId))
-      .limit(1)
+    // Run preprocessing checks (billing, rate limits, usage limits)
+    const preprocessResult = await preprocessExecution({
+      workflowId,
+      userId,
+      triggerType: 'manual',
+      executionId,
+      requestId,
+      checkRateLimit: false, // Manual executions don't rate limit
+      checkDeployment: false, // Run-from-block doesn't require deployment
+    })
 
+    if (!preprocessResult.success) {
+      const { error } = preprocessResult
+      logger.warn(`[${requestId}] Preprocessing failed for run-from-block`, {
+        workflowId,
+        error: error?.message,
+        statusCode: error?.statusCode,
+      })
+      return NextResponse.json(
+        { error: error?.message || 'Execution blocked' },
+        { status: error?.statusCode || 500 }
+      )
+    }
+
+    const workflowRecord = preprocessResult.workflowRecord
     if (!workflowRecord?.workspaceId) {
       return NextResponse.json({ error: 'Workflow not found or has no workspace' }, { status: 404 })
     }
@@ -92,6 +110,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       workflowId,
       startBlockId,
       executedBlocksCount: sourceSnapshot.executedBlocks.length,
+      billingActorUserId: preprocessResult.actorUserId,
     })
 
     const loggingSession = new LoggingSession(workflowId, executionId, 'manual', requestId)

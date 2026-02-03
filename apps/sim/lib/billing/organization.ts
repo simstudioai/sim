@@ -8,6 +8,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { hasActiveSubscription } from '@/lib/billing'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 
@@ -159,6 +160,16 @@ export async function ensureOrganizationForTeamSubscription(
   if (existingMembership.length > 0) {
     const membership = existingMembership[0]
     if (membership.role === 'owner' || membership.role === 'admin') {
+      // Check if org already has an active subscription (prevent duplicates)
+      if (await hasActiveSubscription(membership.organizationId)) {
+        logger.error('Organization already has an active subscription', {
+          userId,
+          organizationId: membership.organizationId,
+          newSubscriptionId: subscription.id,
+        })
+        throw new Error('Organization already has an active subscription')
+      }
+
       logger.info('User already owns/admins an org, using it', {
         userId,
         organizationId: membership.organizationId,
