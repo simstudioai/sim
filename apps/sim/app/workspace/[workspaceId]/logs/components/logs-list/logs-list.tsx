@@ -113,7 +113,7 @@ const LogRow = memo(
 
           <div className={`${LOG_COLUMNS.duration.width} ${LOG_COLUMNS.duration.minWidth}`}>
             <Badge variant='default' className='rounded-[6px] px-[9px] py-[2px] text-[12px]'>
-              {formatDuration(log.duration) || '—'}
+              {formatDuration(log.duration, { precision: 2 }) || '—'}
             </Badge>
           </div>
         </div>
