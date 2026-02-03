@@ -1,9 +1,4 @@
-import type {
-  SendGridMailBody,
-  SendGridPersonalization,
-  SendMailParams,
-  SendMailResult,
-} from '@/tools/sendgrid/types'
+import type { SendMailParams, SendMailResult } from '@/tools/sendgrid/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = {
@@ -89,7 +84,7 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
       type: 'file[]',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Files to attach to the email as an array of attachment objects',
+      description: 'Files to attach to the email (UserFile objects)',
     },
     templateId: {
       type: 'string',
@@ -106,100 +101,49 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
   },
 
   request: {
-    url: () => 'https://api.sendgrid.com/v3/mail/send',
+    url: '/api/tools/sendgrid/send-mail',
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+    headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      const personalizations: SendGridPersonalization = {
-        to: [
-          {
-            email: params.to,
-            ...(params.toName && { name: params.toName }),
-          },
-        ],
-      }
-
-      if (params.cc) {
-        personalizations.cc = [{ email: params.cc }]
-      }
-
-      if (params.bcc) {
-        personalizations.bcc = [{ email: params.bcc }]
-      }
-
-      if (params.templateId && params.dynamicTemplateData) {
-        try {
-          personalizations.dynamic_template_data =
-            typeof params.dynamicTemplateData === 'string'
-              ? JSON.parse(params.dynamicTemplateData)
-              : params.dynamicTemplateData
-        } catch (e) {
-          // If parsing fails, use as-is
-        }
-      }
-
-      const mailBody: SendGridMailBody = {
-        personalizations: [personalizations],
-        from: {
-          email: params.from,
-          ...(params.fromName && { name: params.fromName }),
-        },
-        subject: params.subject,
-      }
-
-      if (params.templateId) {
-        mailBody.template_id = params.templateId
-      } else {
-        mailBody.content = [
-          {
-            type: params.contentType || 'text/plain',
-            value: params.content,
-          },
-        ]
-      }
-
-      if (params.replyTo) {
-        mailBody.reply_to = {
-          email: params.replyTo,
-          ...(params.replyToName && { name: params.replyToName }),
-        }
-      }
-
-      if (params.attachments) {
-        try {
-          mailBody.attachments =
-            typeof params.attachments === 'string'
-              ? JSON.parse(params.attachments)
-              : params.attachments
-        } catch (e) {
-          // If parsing fails, skip attachments
-        }
-      }
-
-      return { body: JSON.stringify(mailBody) }
-    },
+    body: (params) => ({
+      apiKey: params.apiKey,
+      from: params.from,
+      fromName: params.fromName,
+      to: params.to,
+      toName: params.toName,
+      subject: params.subject,
+      content: params.content,
+      contentType: params.contentType,
+      cc: params.cc,
+      bcc: params.bcc,
+      replyTo: params.replyTo,
+      replyToName: params.replyToName,
+      templateId: params.templateId,
+      dynamicTemplateData: params.dynamicTemplateData,
+      attachments: params.attachments,
+    }),
   },
 
-  transformResponse: async (response, params): Promise<SendMailResult> => {
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.errors?.[0]?.message || 'Failed to send email')
-    }
+  transformResponse: async (response): Promise<SendMailResult> => {
+    const data = await response.json()
 
-    // SendGrid returns 202 Accepted with X-Message-Id header
-    const messageId = response.headers.get('X-Message-Id')
+    if (!data.success) {
+      return {
+        success: false,
+        output: {
+          success: false,
+          messageId: undefined,
+          to: '',
+          subject: '',
+        },
+        error: data.error || 'Failed to send email',
+      }
+    }
 
     return {
       success: true,
-      output: {
-        success: true,
-        messageId: messageId || undefined,
-        to: params?.to || '',
-        subject: params?.subject || '',
-      },
+      output: data.output,
     }
   },
 
