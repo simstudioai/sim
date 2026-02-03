@@ -5,6 +5,7 @@ import {
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
 import { sanitizeInputFormat, sanitizeTools } from '@/lib/workflows/comparison/normalize'
+import { validateBlockType } from '@/ee/access-control/utils/permission-check'
 import {
   BlockType,
   buildResumeApiUrl,
@@ -31,7 +32,6 @@ import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
-import { validateBlockType } from '@/executor/utils/permission-check'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'

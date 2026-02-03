@@ -6,7 +6,7 @@ import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import type { Template as WorkspaceTemplate } from '@/app/workspace/[workspaceId]/templates/templates'
 import Templates from '@/app/workspace/[workspaceId]/templates/templates'
-import { getUserPermissionConfig } from '@/executor/utils/permission-check'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 interface TemplatesPageProps {
   params: Promise<{

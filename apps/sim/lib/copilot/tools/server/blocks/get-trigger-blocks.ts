@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
-import { getUserPermissionConfig } from '@/executor/utils/permission-check'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 export const GetTriggerBlocksInput = z.object({})
 export const GetTriggerBlocksResult = z.object({
