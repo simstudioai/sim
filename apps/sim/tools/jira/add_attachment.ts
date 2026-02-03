@@ -35,7 +35,7 @@ export const jiraAddAttachmentTool: ToolConfig<JiraAddAttachmentParams, JiraAddA
       files: {
         type: 'file[]',
         required: true,
-        visibility: 'user-only',
+        visibility: 'hidden',
         description: 'Files to attach to the Jira issue',
       },
       cloudId: {
