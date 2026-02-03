@@ -193,7 +193,12 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
 }
 
 const textractV2Inputs = TextractBlock.inputs
-  ? Object.fromEntries(Object.entries(TextractBlock.inputs).filter(([key]) => key !== 'filePath'))
+  ? {
+      ...Object.fromEntries(
+        Object.entries(TextractBlock.inputs).filter(([key]) => key !== 'filePath')
+      ),
+      fileReference: { type: 'json', description: 'File reference (advanced mode)' },
+    }
   : {}
 const textractV2SubBlocks = (TextractBlock.subBlocks || []).flatMap((subBlock) => {
   if (subBlock.id === 'filePath') {
@@ -260,7 +265,9 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
           }
           parameters.s3Uri = params.s3Uri.trim()
         } else {
-          const files = normalizeFileInput(params.fileUpload || params.document)
+          const files = normalizeFileInput(
+            params.fileUpload || params.fileReference || params.document
+          )
           if (!files || files.length === 0) {
             throw new Error('Document file is required')
           }

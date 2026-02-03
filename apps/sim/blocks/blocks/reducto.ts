@@ -136,7 +136,12 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
 }
 
 const reductoV2Inputs = ReductoBlock.inputs
-  ? Object.fromEntries(Object.entries(ReductoBlock.inputs).filter(([key]) => key !== 'filePath'))
+  ? {
+      ...Object.fromEntries(
+        Object.entries(ReductoBlock.inputs).filter(([key]) => key !== 'filePath')
+      ),
+      fileReference: { type: 'json', description: 'File reference (advanced mode)' },
+    }
   : {}
 const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => {
   if (subBlock.id === 'filePath') {
@@ -182,7 +187,9 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        const documentInput = normalizeFileInput(params.fileUpload || params.document)
+        const documentInput = normalizeFileInput(
+          params.fileUpload || params.fileReference || params.document
+        )
         if (!documentInput || documentInput.length === 0) {
           throw new Error('PDF document file is required')
         }

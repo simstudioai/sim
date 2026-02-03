@@ -130,7 +130,12 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
 }
 
 const pulseV2Inputs = PulseBlock.inputs
-  ? Object.fromEntries(Object.entries(PulseBlock.inputs).filter(([key]) => key !== 'filePath'))
+  ? {
+      ...Object.fromEntries(
+        Object.entries(PulseBlock.inputs).filter(([key]) => key !== 'filePath')
+      ),
+      fileReference: { type: 'json', description: 'File reference (advanced mode)' },
+    }
   : {}
 const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
   if (subBlock.id === 'filePath') {
@@ -178,7 +183,9 @@ export const PulseV2Block: BlockConfig<PulseParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        const normalizedFiles = normalizeFileInput(params.fileUpload || params.document)
+        const normalizedFiles = normalizeFileInput(
+          params.fileUpload || params.fileReference || params.document
+        )
         if (!normalizedFiles || normalizedFiles.length === 0) {
           throw new Error('Document file is required')
         }
