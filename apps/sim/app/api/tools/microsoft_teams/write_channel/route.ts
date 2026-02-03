@@ -5,12 +5,9 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { uploadFilesForTeamsMessage } from '@/tools/microsoft_teams/server-utils'
 import type { GraphApiErrorResponse, GraphChatMessage } from '@/tools/microsoft_teams/types'
-import {
-  resolveMentionsForChannel,
-  type TeamsMention,
-  uploadFilesForTeamsMessage,
-} from '@/tools/microsoft_teams/utils'
+import { resolveMentionsForChannel, type TeamsMention } from '@/tools/microsoft_teams/utils'
 
 export const dynamic = 'force-dynamic'
 
