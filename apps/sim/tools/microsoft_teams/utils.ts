@@ -1,7 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
+import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type {
@@ -44,7 +44,7 @@ export interface TeamsFileUploadResult {
  * and creating attachment references.
  */
 export async function uploadFilesForTeamsMessage(params: {
-  rawFiles: unknown[]
+  rawFiles: RawFileInput[]
   accessToken: string
   requestId: string
   logger: Logger
