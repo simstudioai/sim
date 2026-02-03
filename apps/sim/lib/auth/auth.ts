@@ -2502,7 +2502,13 @@ export const auth = betterAuth({
           clientSecret: env.TIKTOK_CLIENT_SECRET as string,
           authorizationUrl: 'https://www.tiktok.com/v2/auth/authorize/',
           tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
-          scopes: ['user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list'],
+          scopes: [
+            'user.info.basic',
+            'user.info.profile',
+            'user.info.stats',
+            'video.list',
+            'video.publish',
+          ],
           responseType: 'code',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/tiktok`,
           getUserInfo: async (tokens) => {

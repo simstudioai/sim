@@ -76,9 +76,65 @@ export interface TikTokQueryVideosResponse extends ToolResponse {
 }
 
 /**
+ * Query Creator Info - Check posting permissions and get privacy options
+ */
+export interface TikTokQueryCreatorInfoParams extends TikTokBaseParams {}
+
+export interface TikTokQueryCreatorInfoResponse extends ToolResponse {
+  output: {
+    creatorAvatarUrl: string | null
+    creatorUsername: string | null
+    creatorNickname: string | null
+    privacyLevelOptions: string[]
+    commentDisabled: boolean
+    duetDisabled: boolean
+    stitchDisabled: boolean
+    maxVideoPostDurationSec: number | null
+  }
+}
+
+/**
+ * Direct Post Video - Publish video from URL to TikTok
+ */
+export interface TikTokDirectPostVideoParams extends TikTokBaseParams {
+  videoUrl: string
+  title?: string
+  privacyLevel: string
+  disableDuet?: boolean
+  disableStitch?: boolean
+  disableComment?: boolean
+  videoCoverTimestampMs?: number
+  isAigc?: boolean
+}
+
+export interface TikTokDirectPostVideoResponse extends ToolResponse {
+  output: {
+    publishId: string
+  }
+}
+
+/**
+ * Get Post Status - Check status of a published post
+ */
+export interface TikTokGetPostStatusParams extends TikTokBaseParams {
+  publishId: string
+}
+
+export interface TikTokGetPostStatusResponse extends ToolResponse {
+  output: {
+    status: string
+    failReason: string | null
+    publiclyAvailablePostId: string[]
+  }
+}
+
+/**
  * Union type of all TikTok responses
  */
 export type TikTokResponse =
   | TikTokGetUserResponse
   | TikTokListVideosResponse
   | TikTokQueryVideosResponse
+  | TikTokQueryCreatorInfoResponse
+  | TikTokDirectPostVideoResponse
+  | TikTokGetPostStatusResponse

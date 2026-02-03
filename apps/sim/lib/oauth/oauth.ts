@@ -803,11 +803,17 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       tiktok: {
         name: 'TikTok',
-        description: 'Access TikTok user profiles and videos.',
+        description: 'Access TikTok user profiles, videos, and publish content.',
         providerId: 'tiktok',
         icon: TikTokIcon,
         baseProviderIcon: TikTokIcon,
-        scopes: ['user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list'],
+        scopes: [
+          'user.info.basic',
+          'user.info.profile',
+          'user.info.stats',
+          'video.list',
+          'video.publish',
+        ],
       },
     },
     defaultService: 'tiktok',

@@ -63,18 +63,20 @@ export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokList
       }
     }
 
-    const videos: TikTokVideo[] = (data.data?.videos ?? []).map((video: Record<string, unknown>) => ({
-      id: video.id ?? '',
-      title: video.title ?? null,
-      coverImageUrl: video.cover_image_url ?? null,
-      embedLink: video.embed_link ?? null,
-      duration: video.duration ?? null,
-      createTime: video.create_time ?? null,
-      shareUrl: video.share_url ?? null,
-      videoDescription: video.video_description ?? null,
-      width: video.width ?? null,
-      height: video.height ?? null,
-    }))
+    const videos: TikTokVideo[] = (data.data?.videos ?? []).map(
+      (video: Record<string, unknown>) => ({
+        id: video.id ?? '',
+        title: video.title ?? null,
+        coverImageUrl: video.cover_image_url ?? null,
+        embedLink: video.embed_link ?? null,
+        duration: video.duration ?? null,
+        createTime: video.create_time ?? null,
+        shareUrl: video.share_url ?? null,
+        videoDescription: video.video_description ?? null,
+        width: video.width ?? null,
+        height: video.height ?? null,
+      })
+    )
 
     return {
       success: true,
