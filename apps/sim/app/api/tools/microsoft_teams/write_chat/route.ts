@@ -5,14 +5,12 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-import type {
-  GraphApiErrorResponse,
-  GraphChatMessage,
-  GraphDriveItem,
-} from '@/tools/microsoft_teams/types'
-import { resolveMentionsForChat, type TeamsMention } from '@/tools/microsoft_teams/utils'
+import type { GraphApiErrorResponse, GraphChatMessage } from '@/tools/microsoft_teams/types'
+import {
+  resolveMentionsForChat,
+  type TeamsMention,
+  uploadFilesForTeamsMessage,
+} from '@/tools/microsoft_teams/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,130 +56,12 @@ export async function POST(request: NextRequest) {
       fileCount: validatedData.files?.length || 0,
     })
 
-    const attachments: any[] = []
-    const filesOutput: Array<{
-      name: string
-      mimeType: string
-      data: string
-      size: number
-    }> = []
-    if (validatedData.files && validatedData.files.length > 0) {
-      const rawFiles = validatedData.files
-      logger.info(`[${requestId}] Processing ${rawFiles.length} file(s) for upload to Teams`)
-
-      const userFiles = processFilesToUserFiles(rawFiles, requestId, logger)
-
-      for (const file of userFiles) {
-        try {
-          // Microsoft Graph API limits direct uploads to 4MB
-          const maxSize = 4 * 1024 * 1024
-          if (file.size > maxSize) {
-            const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
-            logger.error(
-              `[${requestId}] File ${file.name} is ${sizeMB}MB, exceeds 4MB limit for direct upload`
-            )
-            throw new Error(
-              `File "${file.name}" (${sizeMB}MB) exceeds the 4MB limit for Teams attachments. Use smaller files or upload to SharePoint/OneDrive first.`
-            )
-          }
-
-          logger.info(`[${requestId}] Uploading file to Teams: ${file.name} (${file.size} bytes)`)
-
-          const buffer = await downloadFileFromStorage(file, requestId, logger)
-          filesOutput.push({
-            name: file.name,
-            mimeType: file.type || 'application/octet-stream',
-            data: buffer.toString('base64'),
-            size: buffer.length,
-          })
-
-          const uploadUrl =
-            'https://graph.microsoft.com/v1.0/me/drive/root:/TeamsAttachments/' +
-            encodeURIComponent(file.name) +
-            ':/content'
-
-          logger.info(`[${requestId}] Uploading to Teams: ${uploadUrl}`)
-
-          const uploadResponse = await secureFetchWithValidation(
-            uploadUrl,
-            {
-              method: 'PUT',
-              headers: {
-                Authorization: `Bearer ${validatedData.accessToken}`,
-                'Content-Type': file.type || 'application/octet-stream',
-              },
-              body: buffer,
-            },
-            'uploadUrl'
-          )
-
-          if (!uploadResponse.ok) {
-            const errorData = (await uploadResponse
-              .json()
-              .catch(() => ({}))) as GraphApiErrorResponse
-            logger.error(`[${requestId}] Teams upload failed:`, errorData)
-            throw new Error(
-              `Failed to upload file to Teams: ${errorData.error?.message || 'Unknown error'}`
-            )
-          }
-
-          const uploadedFile = (await uploadResponse.json()) as GraphDriveItem
-          logger.info(`[${requestId}] File uploaded to Teams successfully`, {
-            id: uploadedFile.id,
-            webUrl: uploadedFile.webUrl,
-          })
-
-          const fileDetailsUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${uploadedFile.id}?$select=id,name,webDavUrl,eTag,size`
-
-          const fileDetailsResponse = await secureFetchWithValidation(
-            fileDetailsUrl,
-            {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${validatedData.accessToken}`,
-              },
-            },
-            'fileDetailsUrl'
-          )
-
-          if (!fileDetailsResponse.ok) {
-            const errorData = (await fileDetailsResponse
-              .json()
-              .catch(() => ({}))) as GraphApiErrorResponse
-            logger.error(`[${requestId}] Failed to get file details:`, errorData)
-            throw new Error(
-              `Failed to get file details: ${errorData.error?.message || 'Unknown error'}`
-            )
-          }
-
-          const fileDetails = (await fileDetailsResponse.json()) as GraphDriveItem
-          logger.info(`[${requestId}] Got file details`, {
-            webDavUrl: fileDetails.webDavUrl,
-            eTag: fileDetails.eTag,
-          })
-
-          const attachmentId = fileDetails.eTag?.match(/\{([a-f0-9-]+)\}/i)?.[1] || fileDetails.id
-
-          attachments.push({
-            id: attachmentId,
-            contentType: 'reference',
-            contentUrl: fileDetails.webDavUrl,
-            name: file.name,
-          })
-
-          logger.info(`[${requestId}] Created attachment reference for ${file.name}`)
-        } catch (error) {
-          logger.error(`[${requestId}] Failed to process file ${file.name}:`, error)
-          throw new Error(
-            `Failed to process file "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
-          )
-        }
-      }
-
-      logger.info(
-        `[${requestId}] All ${attachments.length} file(s) uploaded and attachment references created`
-      )
-    }
+    const { attachments, filesOutput } = await uploadFilesForTeamsMessage({
+      rawFiles: validatedData.files || [],
+      accessToken: validatedData.accessToken,
+      requestId,
+      logger,
+    })
 
     let messageContent = validatedData.content
     let contentType: 'text' | 'html' = 'text'

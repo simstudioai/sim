@@ -7,15 +7,9 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { type StorageContext, StorageService } from '@/lib/uploads'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
-import {
-  inferContextFromKey,
-  isInternalFileUrl,
-  processSingleFileToUserFile,
-} from '@/lib/uploads/utils/file-utils'
-import { resolveInternalFileUrl } from '@/lib/uploads/utils/file-utils.server'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,120 +50,31 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = PulseParseSchema.parse(body)
 
-    const fileInput = validatedData.file
-    let fileUrl = ''
-    if (fileInput) {
-      logger.info(`[${requestId}] Pulse parse request`, {
-        fileName: fileInput.name,
-        userId,
-      })
+    logger.info(`[${requestId}] Pulse parse request`, {
+      fileName: validatedData.file?.name,
+      filePath: validatedData.filePath,
+      isWorkspaceFile: validatedData.filePath ? isInternalFileUrl(validatedData.filePath) : false,
+      userId,
+    })
 
-      let userFile
-      try {
-        userFile = processSingleFileToUserFile(fileInput, requestId, logger)
-      } catch (error) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: error instanceof Error ? error.message : 'Failed to process file',
-          },
-          { status: 400 }
-        )
-      }
+    const resolution = await resolveFileInputToUrl({
+      file: validatedData.file,
+      filePath: validatedData.filePath,
+      userId,
+      requestId,
+      logger,
+    })
 
-      fileUrl = userFile.url || ''
-      if (fileUrl && isInternalFileUrl(fileUrl)) {
-        const resolution = await resolveInternalFileUrl(fileUrl, userId, requestId, logger)
-        if (resolution.error) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: resolution.error.message,
-            },
-            { status: resolution.error.status }
-          )
-        }
-        fileUrl = resolution.fileUrl || ''
-      }
-      if (!fileUrl && userFile.key) {
-        const context = (userFile.context as StorageContext) || inferContextFromKey(userFile.key)
-        const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context, false)
-        if (!hasAccess) {
-          logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
-            userId,
-            key: userFile.key,
-            context,
-          })
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'File not found',
-            },
-            { status: 404 }
-          )
-        }
-        fileUrl = await StorageService.generatePresignedDownloadUrl(userFile.key, context, 5 * 60)
-      }
-    } else if (validatedData.filePath) {
-      logger.info(`[${requestId}] Pulse parse request`, {
-        filePath: validatedData.filePath,
-        isWorkspaceFile: isInternalFileUrl(validatedData.filePath),
-        userId,
-      })
-
-      fileUrl = validatedData.filePath
-      const isInternalFilePath = isInternalFileUrl(validatedData.filePath)
-      if (isInternalFilePath) {
-        const resolution = await resolveInternalFileUrl(
-          validatedData.filePath,
-          userId,
-          requestId,
-          logger
-        )
-        if (resolution.error) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: resolution.error.message,
-            },
-            { status: resolution.error.status }
-          )
-        }
-        fileUrl = resolution.fileUrl || fileUrl
-      } else if (validatedData.filePath.startsWith('/')) {
-        logger.warn(`[${requestId}] Invalid internal path`, {
-          userId,
-          path: validatedData.filePath.substring(0, 50),
-        })
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Invalid file path. Only uploaded files are supported for internal paths.',
-          },
-          { status: 400 }
-        )
-      } else {
-        const urlValidation = await validateUrlWithDNS(fileUrl, 'filePath')
-        if (!urlValidation.isValid) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: urlValidation.error,
-            },
-            { status: 400 }
-          )
-        }
-      }
+    if (resolution.error) {
+      return NextResponse.json(
+        { success: false, error: resolution.error.message },
+        { status: resolution.error.status }
+      )
     }
 
+    const fileUrl = resolution.fileUrl
     if (!fileUrl) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'File input is required',
-        },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'File input is required' }, { status: 400 })
     }
 
     const formData = new FormData()

@@ -575,8 +575,8 @@ async function transcribeWithAssemblyAI(
     audio_url: upload_url,
   }
 
-  // AssemblyAI only supports 'best', 'slam-1', or 'universal' for speech_model
-  if (model === 'best') {
+  // AssemblyAI supports 'best', 'slam-1', or 'universal' for speech_model
+  if (model === 'best' || model === 'slam-1' || model === 'universal') {
     transcriptRequest.speech_model = model
   }
 

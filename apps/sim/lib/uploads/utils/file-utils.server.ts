@@ -12,9 +12,123 @@ import {
   extractStorageKey,
   inferContextFromKey,
   isInternalFileUrl,
+  processSingleFileToUserFile,
+  type RawFileInput,
 } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
+
+/**
+ * Result type for file input resolution
+ */
+export interface FileResolutionResult {
+  fileUrl?: string
+  error?: {
+    status: number
+    message: string
+  }
+}
+
+/**
+ * Options for resolving file input to a URL
+ */
+export interface ResolveFileInputOptions {
+  file?: RawFileInput
+  filePath?: string
+  userId: string
+  requestId: string
+  logger: Logger
+}
+
+/**
+ * Resolves file input (either a file object or filePath string) to a publicly accessible URL.
+ * Handles:
+ * - Processing raw file input via processSingleFileToUserFile
+ * - Resolving internal URLs via resolveInternalFileUrl
+ * - Generating presigned URLs for storage keys
+ * - Validating external URLs via validateUrlWithDNS
+ */
+export async function resolveFileInputToUrl(
+  options: ResolveFileInputOptions
+): Promise<FileResolutionResult> {
+  const { file, filePath, userId, requestId, logger } = options
+
+  if (file) {
+    let userFile: UserFile
+    try {
+      userFile = processSingleFileToUserFile(file, requestId, logger)
+    } catch (error) {
+      return {
+        error: {
+          status: 400,
+          message: error instanceof Error ? error.message : 'Failed to process file',
+        },
+      }
+    }
+
+    let fileUrl = userFile.url || ''
+
+    // Handle internal URLs
+    if (fileUrl && isInternalFileUrl(fileUrl)) {
+      const resolution = await resolveInternalFileUrl(fileUrl, userId, requestId, logger)
+      if (resolution.error) {
+        return { error: resolution.error }
+      }
+      fileUrl = resolution.fileUrl || ''
+    }
+
+    // Generate presigned URL if we have a key but no URL
+    if (!fileUrl && userFile.key) {
+      const context = (userFile.context as StorageContext) || inferContextFromKey(userFile.key)
+      const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context, false)
+
+      if (!hasAccess) {
+        logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
+          userId,
+          key: userFile.key,
+          context,
+        })
+        return { error: { status: 404, message: 'File not found' } }
+      }
+
+      fileUrl = await StorageService.generatePresignedDownloadUrl(userFile.key, context, 5 * 60)
+    }
+
+    return { fileUrl }
+  }
+
+  if (filePath) {
+    let fileUrl = filePath
+
+    if (isInternalFileUrl(filePath)) {
+      const resolution = await resolveInternalFileUrl(filePath, userId, requestId, logger)
+      if (resolution.error) {
+        return { error: resolution.error }
+      }
+      fileUrl = resolution.fileUrl || fileUrl
+    } else if (filePath.startsWith('/')) {
+      logger.warn(`[${requestId}] Invalid internal path`, {
+        userId,
+        path: filePath.substring(0, 50),
+      })
+      return {
+        error: {
+          status: 400,
+          message: 'Invalid file path. Only uploaded files are supported for internal paths.',
+        },
+      }
+    } else {
+      const urlValidation = await validateUrlWithDNS(fileUrl, 'filePath')
+      if (!urlValidation.isValid) {
+        return { error: { status: 400, message: urlValidation.error || 'Invalid URL' } }
+      }
+    }
+
+    return { fileUrl }
+  }
+
+  return { error: { status: 400, message: 'File input is required' } }
+}
 
 /**
  * Download a file from a URL (internal or external)
