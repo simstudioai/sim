@@ -23,6 +23,40 @@ When blocks output files (like Gmail attachments, generated images, or parsed do
 
 You can access any of these properties when referencing files from previous blocks.
 
+## The File Block
+
+The **File block** is the universal entry point for files in your workflows. It accepts files from any source and outputs standardized file objects that work with all integrations.
+
+**Inputs:**
+- **Uploaded files** - Drag and drop or select files directly
+- **External URLs** - Any publicly accessible file URL
+- **Files from other blocks** - Pass files from Gmail attachments, Slack downloads, etc.
+
+**Outputs:**
+- A list of `UserFile` objects with consistent structure (`name`, `url`, `base64`, `type`, `size`)
+- `combinedContent` - Extracted text content from all files (for documents)
+
+**Example usage:**
+
+```
+// Get all files from the File block
+<file.files>
+
+// Get the first file
+<file.files[0]>
+
+// Get combined text content from parsed documents
+<file.combinedContent>
+```
+
+The File block automatically:
+- Detects file types from URLs and extensions
+- Extracts text from PDFs, CSVs, and documents
+- Generates base64 encoding for binary files
+- Creates presigned URLs for secure access
+
+Use the File block when you need to normalize files from different sources before passing them to other blocks like Vision, STT, or email integrations.
+
 ## Passing Files Between Blocks
 
 Reference files from previous blocks using the tag dropdown. Click in any file input field and type `<` to see available outputs.
