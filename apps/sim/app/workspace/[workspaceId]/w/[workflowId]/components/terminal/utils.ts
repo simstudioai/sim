@@ -1,5 +1,5 @@
 import type React from 'react'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { AlertTriangleIcon, BanIcon, RepeatIcon, SplitIcon, XCircleIcon } from 'lucide-react'
 import { getBlock } from '@/blocks'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -10,6 +10,15 @@ import type { ConsoleEntry } from '@/stores/terminal'
 const SUBFLOW_COLORS = {
   loop: '#2FB3FF',
   parallel: '#FEE12B',
+} as const
+
+/**
+ * Special block type colors for errors and system messages
+ */
+const SPECIAL_BLOCK_COLORS = {
+  error: '#ef4444',
+  validation: '#f59e0b',
+  cancelled: '#6b7280',
 } as const
 
 /**
@@ -32,6 +41,18 @@ export function getBlockIcon(
     return SplitIcon
   }
 
+  if (blockType === 'error') {
+    return XCircleIcon
+  }
+
+  if (blockType === 'validation') {
+    return AlertTriangleIcon
+  }
+
+  if (blockType === 'cancelled') {
+    return BanIcon
+  }
+
   return null
 }
 
@@ -49,6 +70,16 @@ export function getBlockColor(blockType: string): string {
   }
   if (blockType === 'parallel') {
     return SUBFLOW_COLORS.parallel
+  }
+  // Special block types for errors and system messages
+  if (blockType === 'error') {
+    return SPECIAL_BLOCK_COLORS.error
+  }
+  if (blockType === 'validation') {
+    return SPECIAL_BLOCK_COLORS.validation
+  }
+  if (blockType === 'cancelled') {
+    return SPECIAL_BLOCK_COLORS.cancelled
   }
   return '#6b7280'
 }

@@ -1161,9 +1161,14 @@ export function useWorkflowExecution() {
                 cancelRunningEntries(activeWorkflowId)
               }
 
-              if (accumulatedBlockLogs.length === 0) {
-                // No blocks executed yet - this is a pre-execution error
-                // Use 0 for executionOrder so validation errors appear first
+              const isPreExecutionError = accumulatedBlockLogs.length === 0
+              // Check if any block already has this error - don't duplicate block errors
+              const blockAlreadyHasError = accumulatedBlockLogs.some((log) => log.error)
+
+              // Only add workflow-level error entry for:
+              // 1. Pre-execution errors (validation) - no blocks ran
+              // 2. Timeout errors - no block has the error
+              if (isPreExecutionError || !blockAlreadyHasError) {
                 addConsole({
                   input: {},
                   output: {},
@@ -1171,21 +1176,38 @@ export function useWorkflowExecution() {
                   error: data.error,
                   durationMs: data.duration || 0,
                   startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
-                  executionOrder: 0,
+                  executionOrder: isPreExecutionError ? 0 : Number.MAX_SAFE_INTEGER,
                   endedAt: new Date().toISOString(),
                   workflowId: activeWorkflowId,
-                  blockId: 'validation',
+                  blockId: isPreExecutionError ? 'validation' : 'timeout-error',
                   executionId,
-                  blockName: 'Workflow Validation',
-                  blockType: 'validation',
+                  blockName: isPreExecutionError ? 'Workflow Validation' : 'Timeout Error',
+                  blockType: isPreExecutionError ? 'validation' : 'error',
                 })
               }
             },
 
-            onExecutionCancelled: () => {
+            onExecutionCancelled: (data) => {
               if (activeWorkflowId) {
                 cancelRunningEntries(activeWorkflowId)
               }
+
+              // Add console entry for cancellation
+              addConsole({
+                input: {},
+                output: {},
+                success: false,
+                error: 'Execution was cancelled',
+                durationMs: data?.duration || 0,
+                startedAt: new Date(Date.now() - (data?.duration || 0)).toISOString(),
+                executionOrder: Number.MAX_SAFE_INTEGER,
+                endedAt: new Date().toISOString(),
+                workflowId: activeWorkflowId,
+                blockId: 'cancelled',
+                executionId,
+                blockName: 'Execution Cancelled',
+                blockType: 'cancelled',
+              })
             },
           },
         })
@@ -1736,21 +1758,27 @@ export function useWorkflowExecution() {
 
               cancelRunningEntries(workflowId)
 
-              addConsole({
-                input: {},
-                output: {},
-                success: false,
-                error: data.error,
-                durationMs: data.duration || 0,
-                startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
-                executionOrder: Number.MAX_SAFE_INTEGER,
-                endedAt: new Date().toISOString(),
-                workflowId,
-                blockId: 'workflow-error',
-                executionId,
-                blockName: 'Workflow Error',
-                blockType: 'error',
-              })
+              // Check if any block already has an error - don't duplicate block errors
+              const blockAlreadyHasError = accumulatedBlockLogs.some((log) => log.error)
+
+              // Only add timeout error entry if no block has the error
+              if (!blockAlreadyHasError) {
+                addConsole({
+                  input: {},
+                  output: {},
+                  success: false,
+                  error: data.error,
+                  durationMs: data.duration || 0,
+                  startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
+                  executionOrder: Number.MAX_SAFE_INTEGER,
+                  endedAt: new Date().toISOString(),
+                  workflowId,
+                  blockId: 'timeout-error',
+                  executionId,
+                  blockName: 'Timeout Error',
+                  blockType: 'error',
+                })
+              }
             },
 
             onExecutionCancelled: () => {
