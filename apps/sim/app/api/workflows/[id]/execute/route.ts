@@ -59,6 +59,25 @@ const ExecuteWorkflowSchema = z.object({
     })
     .optional(),
   stopAfterBlockId: z.string().optional(),
+  runFromBlock: z
+    .object({
+      startBlockId: z.string().min(1, 'Start block ID is required'),
+      sourceSnapshot: z.object({
+        blockStates: z.record(z.any()),
+        executedBlocks: z.array(z.string()),
+        blockLogs: z.array(z.any()),
+        decisions: z.object({
+          router: z.record(z.string()),
+          condition: z.record(z.string()),
+        }),
+        completedLoops: z.array(z.string()),
+        loopExecutions: z.record(z.any()).optional(),
+        parallelExecutions: z.record(z.any()).optional(),
+        parallelBlockMapping: z.record(z.any()).optional(),
+        activeExecutionPath: z.array(z.string()),
+      }),
+    })
+    .optional(),
 })
 
 export const runtime = 'nodejs'
@@ -123,16 +142,18 @@ type AsyncExecutionParams = {
   userId: string
   input: any
   triggerType: CoreTriggerType
+  executionId: string
 }
 
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
-  const { requestId, workflowId, userId, input, triggerType } = params
+  const { requestId, workflowId, userId, input, triggerType, executionId } = params
 
   const payload: WorkflowExecutionPayload = {
     workflowId,
     userId,
     input,
     triggerType,
+    executionId,
   }
 
   try {
@@ -178,6 +199,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
         success: true,
         async: true,
         jobId,
+        executionId,
         message: 'Workflow execution queued',
         statusUrl: `${getBaseUrl()}/api/jobs/${jobId}`,
       },
@@ -247,6 +269,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       base64MaxBytes,
       workflowStateOverride,
       stopAfterBlockId,
+      runFromBlock,
     } = validation.data
 
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
@@ -263,6 +286,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               base64MaxBytes,
               workflowStateOverride,
               stopAfterBlockId: _stopAfterBlockId,
+              runFromBlock: _runFromBlock,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               ...rest
             } = body
@@ -341,6 +365,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         userId: actorUserId,
         input,
         triggerType: loggingTriggerType,
+        executionId,
       })
     }
 
@@ -465,6 +490,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           includeFileBase64,
           base64MaxBytes,
           stopAfterBlockId,
+          runFromBlock,
           abortSignal: timeoutController.signal,
         })
 
@@ -513,6 +539,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         const filteredResult = {
           success: result.success,
+          executionId,
           output: outputWithBase64,
           error: result.error,
           metadata: result.metadata
@@ -804,6 +831,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             includeFileBase64,
             base64MaxBytes,
             stopAfterBlockId,
+            runFromBlock,
           })
 
           if (result.status === 'paused') {

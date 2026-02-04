@@ -211,12 +211,16 @@ export function useExecutionStream() {
     currentExecutionRef.current = null
 
     try {
-      const response = await fetch(`/api/workflows/${workflowId}/execute-from-block`, {
+      const response = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ startBlockId, sourceSnapshot, input }),
+        body: JSON.stringify({
+          stream: true,
+          input,
+          runFromBlock: { startBlockId, sourceSnapshot },
+        }),
         signal: abortController.signal,
       })
 

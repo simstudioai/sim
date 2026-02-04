@@ -549,11 +549,12 @@ export function useActivateDeploymentVersion() {
       workflowId,
       version,
     }: ActivateVersionVariables): Promise<ActivateVersionResult> => {
-      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}/activate`, {
-        method: 'POST',
+      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ isActive: true }),
       })
 
       if (!response.ok) {

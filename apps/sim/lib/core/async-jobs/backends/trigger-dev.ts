@@ -49,7 +49,6 @@ function mapTriggerDevStatus(status: string): JobStatus {
 
 /**
  * Adapter that wraps the trigger.dev SDK to conform to JobQueueBackend interface.
- * This allows seamless switching between trigger.dev and native backends.
  */
 export class TriggerDevJobQueue implements JobQueueBackend {
   async enqueue<TPayload>(
@@ -98,8 +97,17 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         metadata,
       }
     } catch (error) {
-      logger.warn('Failed to get job from trigger.dev', { jobId, error })
-      return null
+      const isNotFound =
+        (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
+        (error && typeof error === 'object' && 'status' in error && error.status === 404)
+
+      if (isNotFound) {
+        logger.debug('Job not found in trigger.dev', { jobId })
+        return null
+      }
+
+      logger.error('Failed to get job from trigger.dev', { jobId, error })
+      throw error
     }
   }
 

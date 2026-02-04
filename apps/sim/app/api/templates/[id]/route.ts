@@ -106,6 +106,7 @@ const updateTemplateSchema = z.object({
   creatorId: z.string().optional(), // Creator profile ID
   tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed').optional(),
   updateState: z.boolean().optional(), // Explicitly request state update from current workflow
+  status: z.enum(['approved', 'rejected', 'pending']).optional(), // Status change (super users only)
 })
 
 // PUT /api/templates/[id] - Update a template
@@ -131,7 +132,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    const { name, details, creatorId, tags, updateState } = validationResult.data
+    const { name, details, creatorId, tags, updateState, status } = validationResult.data
 
     const existingTemplate = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
 
@@ -142,21 +143,44 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const template = existingTemplate[0]
 
-    if (!template.creatorId) {
-      logger.warn(`[${requestId}] Template ${id} has no creator, denying update`)
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    // Status changes require super user permission
+    if (status !== undefined) {
+      const { verifyEffectiveSuperUser } = await import('@/lib/templates/permissions')
+      const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+      if (!effectiveSuperUser) {
+        logger.warn(`[${requestId}] Non-super user attempted to change template status: ${id}`)
+        return NextResponse.json(
+          { error: 'Only super users can change template status' },
+          { status: 403 }
+        )
+      }
     }
 
-    const { verifyCreatorPermission } = await import('@/lib/templates/permissions')
-    const { hasPermission, error: permissionError } = await verifyCreatorPermission(
-      session.user.id,
-      template.creatorId,
-      'admin'
-    )
+    // For non-status updates, verify creator permission
+    const hasNonStatusUpdates =
+      name !== undefined ||
+      details !== undefined ||
+      creatorId !== undefined ||
+      tags !== undefined ||
+      updateState
 
-    if (!hasPermission) {
-      logger.warn(`[${requestId}] User denied permission to update template ${id}`)
-      return NextResponse.json({ error: permissionError || 'Access denied' }, { status: 403 })
+    if (hasNonStatusUpdates) {
+      if (!template.creatorId) {
+        logger.warn(`[${requestId}] Template ${id} has no creator, denying update`)
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
+
+      const { verifyCreatorPermission } = await import('@/lib/templates/permissions')
+      const { hasPermission, error: permissionError } = await verifyCreatorPermission(
+        session.user.id,
+        template.creatorId,
+        'admin'
+      )
+
+      if (!hasPermission) {
+        logger.warn(`[${requestId}] User denied permission to update template ${id}`)
+        return NextResponse.json({ error: permissionError || 'Access denied' }, { status: 403 })
+      }
     }
 
     const updateData: any = {
@@ -167,6 +191,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (details !== undefined) updateData.details = details
     if (tags !== undefined) updateData.tags = tags
     if (creatorId !== undefined) updateData.creatorId = creatorId
+    if (status !== undefined) updateData.status = status
 
     if (updateState && template.workflowId) {
       const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')

@@ -270,7 +270,7 @@ response = requests.post(
 )
 
 job = response.json()
-print(job)  # Contains job_id for status checking`
+print(job)  # Contains jobId and executionId`
 
           case 'javascript':
             return `const response = await fetch("${endpoint}", {
@@ -284,7 +284,7 @@ print(job)  # Contains job_id for status checking`
 });
 
 const job = await response.json();
-console.log(job); // Contains job_id for status checking`
+console.log(job); // Contains jobId and executionId`
 
           case 'typescript':
             return `const response = await fetch("${endpoint}", {
@@ -297,8 +297,8 @@ console.log(job); // Contains job_id for status checking`
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const job: { job_id: string } = await response.json();
-console.log(job); // Contains job_id for status checking`
+const job: { jobId: string; executionId: string } = await response.json();
+console.log(job); // Contains jobId and executionId`
 
           default:
             return ''

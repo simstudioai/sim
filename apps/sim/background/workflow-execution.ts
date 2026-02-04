@@ -20,6 +20,7 @@ export type WorkflowExecutionPayload = {
   userId: string
   input?: any
   triggerType?: CoreTriggerType
+  executionId?: string
   metadata?: Record<string, any>
 }
 
@@ -30,7 +31,7 @@ export type WorkflowExecutionPayload = {
  */
 export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
   const workflowId = payload.workflowId
-  const executionId = uuidv4()
+  const executionId = payload.executionId || uuidv4()
   const requestId = executionId.slice(0, 8)
 
   logger.info(`[${requestId}] Starting workflow execution job: ${workflowId}`, {
