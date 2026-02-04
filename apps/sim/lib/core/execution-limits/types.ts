@@ -1,4 +1,5 @@
 import { env } from '@/lib/core/config/env'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 
 interface ExecutionTimeoutConfig {
@@ -8,9 +9,9 @@ interface ExecutionTimeoutConfig {
 
 const DEFAULT_SYNC_TIMEOUTS_SECONDS = {
   free: 300,
-  pro: 3600,
-  team: 3600,
-  enterprise: 3600,
+  pro: 3000,
+  team: 3000,
+  enterprise: 3000,
 } as const
 
 const DEFAULT_ASYNC_TIMEOUTS_SECONDS = {
@@ -63,6 +64,9 @@ export function getExecutionTimeout(
   plan: SubscriptionPlan | undefined,
   type: 'sync' | 'async' = 'sync'
 ): number {
+  if (!isBillingEnabled) {
+    return EXECUTION_TIMEOUTS.enterprise[type]
+  }
   return EXECUTION_TIMEOUTS[plan || 'free'][type]
 }
 
@@ -70,7 +74,9 @@ export function getMaxExecutionTimeout(): number {
   return EXECUTION_TIMEOUTS.enterprise.async
 }
 
-export const DEFAULT_EXECUTION_TIMEOUT_MS = EXECUTION_TIMEOUTS.free.sync
+export const DEFAULT_EXECUTION_TIMEOUT_MS = isBillingEnabled
+  ? EXECUTION_TIMEOUTS.free.sync
+  : EXECUTION_TIMEOUTS.enterprise.sync
 
 export function isTimeoutError(error: unknown): boolean {
   if (!error) return false
