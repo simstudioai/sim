@@ -54,6 +54,7 @@ type SkippedItemType =
   | 'block_not_found'
   | 'invalid_block_type'
   | 'block_not_allowed'
+  | 'block_locked'
   | 'tool_not_allowed'
   | 'invalid_edge_target'
   | 'invalid_edge_source'
@@ -618,6 +619,7 @@ function createBlockFromParams(
     subBlocks: {},
     outputs: outputs,
     data: parentId ? { parentId, extent: 'parent' as const } : {},
+    locked: false,
   }
 
   // Add validated inputs as subBlocks
@@ -1520,6 +1522,24 @@ function applyOperationsToWorkflowState(
           break
         }
 
+        // Check if block is locked or inside a locked container
+        const deleteBlock = modifiedState.blocks[block_id]
+        const deleteParentId = deleteBlock.data?.parentId as string | undefined
+        const deleteParentLocked = deleteParentId
+          ? modifiedState.blocks[deleteParentId]?.locked
+          : false
+        if (deleteBlock.locked || deleteParentLocked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'delete',
+            blockId: block_id,
+            reason: deleteParentLocked
+              ? `Block "${block_id}" is inside locked container "${deleteParentId}" and cannot be deleted`
+              : `Block "${block_id}" is locked and cannot be deleted`,
+          })
+          break
+        }
+
         // Find all child blocks to remove
         const blocksToRemove = new Set<string>([block_id])
         const findChildren = (parentId: string) => {
@@ -1554,6 +1574,21 @@ function applyOperationsToWorkflowState(
         }
 
         const block = modifiedState.blocks[block_id]
+
+        // Check if block is locked or inside a locked container
+        const editParentId = block.data?.parentId as string | undefined
+        const editParentLocked = editParentId ? modifiedState.blocks[editParentId]?.locked : false
+        if (block.locked || editParentLocked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'edit',
+            blockId: block_id,
+            reason: editParentLocked
+              ? `Block "${block_id}" is inside locked container "${editParentId}" and cannot be edited`
+              : `Block "${block_id}" is locked and cannot be edited`,
+          })
+          break
+        }
 
         // Ensure block has essential properties
         if (!block.type) {
@@ -2122,6 +2157,19 @@ function applyOperationsToWorkflowState(
 
         // Handle nested nodes (for loops/parallels created from scratch)
         if (params.nestedNodes) {
+          // Defensive check: verify parent is not locked before adding children
+          // (Parent was just created with locked: false, but check for consistency)
+          const parentBlock = modifiedState.blocks[block_id]
+          if (parentBlock?.locked) {
+            logSkippedItem(skippedItems, {
+              type: 'block_locked',
+              operationType: 'add_nested_nodes',
+              blockId: block_id,
+              reason: `Container "${block_id}" is locked - cannot add nested nodes`,
+            })
+            break
+          }
+
           Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
             // Validate childId is a valid string
             if (!isValidKey(childId)) {
@@ -2209,6 +2257,18 @@ function applyOperationsToWorkflowState(
           break
         }
 
+        // Check if subflow is locked
+        if (subflowBlock.locked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'insert_into_subflow',
+            blockId: block_id,
+            reason: `Subflow "${subflowId}" is locked - cannot insert block "${block_id}"`,
+            details: { subflowId },
+          })
+          break
+        }
+
         if (subflowBlock.type !== 'loop' && subflowBlock.type !== 'parallel') {
           logger.error('Subflow block has invalid type', {
             subflowId,
@@ -2243,6 +2303,17 @@ function applyOperationsToWorkflowState(
               blockId: block_id,
               reason: `Cannot move ${existingBlock.type} into ${subflowBlock.type} - nested subflows are not supported`,
               details: { parentType: subflowBlock.type, childType: existingBlock.type },
+            })
+            break
+          }
+
+          // Check if existing block is locked
+          if (existingBlock.locked) {
+            logSkippedItem(skippedItems, {
+              type: 'block_locked',
+              operationType: 'insert_into_subflow',
+              blockId: block_id,
+              reason: `Block "${block_id}" is locked and cannot be moved into a subflow`,
             })
             break
           }
@@ -2388,6 +2459,30 @@ function applyOperationsToWorkflowState(
             operationType: 'extract_from_subflow',
             blockId: block_id,
             reason: `Block "${block_id}" not found for extraction`,
+          })
+          break
+        }
+
+        // Check if block is locked
+        if (block.locked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'extract_from_subflow',
+            blockId: block_id,
+            reason: `Block "${block_id}" is locked and cannot be extracted from subflow`,
+          })
+          break
+        }
+
+        // Check if parent subflow is locked
+        const parentSubflow = modifiedState.blocks[subflowId]
+        if (parentSubflow?.locked) {
+          logSkippedItem(skippedItems, {
+            type: 'block_locked',
+            operationType: 'extract_from_subflow',
+            blockId: block_id,
+            reason: `Subflow "${subflowId}" is locked - cannot extract block "${block_id}"`,
+            details: { subflowId },
           })
           break
         }

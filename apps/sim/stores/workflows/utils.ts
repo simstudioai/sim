@@ -203,6 +203,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
     advancedMode: false,
     triggerMode,
     height: 0,
+    locked: false,
   }
 }
 
@@ -481,6 +482,8 @@ export function regenerateBlockIds(
       position: newPosition,
       // Temporarily keep data as-is, we'll fix parentId in second pass
       data: block.data ? { ...block.data } : block.data,
+      // Duplicated blocks are always unlocked so users can edit them
+      locked: false,
     }
 
     newBlocks[newId] = newBlock
@@ -508,15 +511,15 @@ export function regenerateBlockIds(
           parentId: newParentId,
           extent: 'parent',
         }
-      } else if (existingBlockNames[oldParentId]) {
-        // Parent exists in existing workflow - keep original parentId (block stays in same subflow)
+      } else if (existingBlockNames[oldParentId] && !existingBlockNames[oldParentId].locked) {
+        // Parent exists in existing workflow and is not locked - keep original parentId
         block.data = {
           ...block.data,
           parentId: oldParentId,
           extent: 'parent',
         }
       } else {
-        // Parent doesn't exist anywhere - clear the relationship
+        // Parent doesn't exist anywhere OR parent is locked - clear the relationship
         block.data = { ...block.data, parentId: undefined, extent: undefined }
       }
     }

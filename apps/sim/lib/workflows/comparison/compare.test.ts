@@ -296,6 +296,26 @@ describe('hasWorkflowChanged', () => {
       })
       expect(hasWorkflowChanged(state1, state2)).toBe(true)
     })
+
+    it.concurrent('should detect locked/unlocked changes', () => {
+      const state1 = createWorkflowState({
+        blocks: { block1: createBlock('block1', { locked: false }) },
+      })
+      const state2 = createWorkflowState({
+        blocks: { block1: createBlock('block1', { locked: true }) },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(true)
+    })
+
+    it.concurrent('should not detect changes when locked state is the same', () => {
+      const state1 = createWorkflowState({
+        blocks: { block1: createBlock('block1', { locked: true }) },
+      })
+      const state2 = createWorkflowState({
+        blocks: { block1: createBlock('block1', { locked: true }) },
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(false)
+    })
   })
 
   describe('SubBlock Changes', () => {

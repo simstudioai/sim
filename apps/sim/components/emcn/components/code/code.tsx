@@ -458,8 +458,8 @@ export function getCodeEditorProps(options?: {
       'caret-[var(--text-primary)] dark:caret-white',
       // Font smoothing
       '[-webkit-font-smoothing:antialiased] [-moz-osx-font-smoothing:grayscale]',
-      // Disable interaction for streaming/preview
-      (isStreaming || isPreview) && 'pointer-events-none'
+      // Disable interaction for streaming/preview/disabled
+      (isStreaming || isPreview || disabled) && 'pointer-events-none'
     ),
   }
 }

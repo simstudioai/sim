@@ -167,6 +167,15 @@ export function createInverseOperation(operation: Operation): Operation {
         },
       }
 
+    case UNDO_REDO_OPERATIONS.BATCH_TOGGLE_LOCKED:
+      return {
+        ...operation,
+        data: {
+          blockIds: operation.data.blockIds,
+          previousStates: operation.data.previousStates,
+        },
+      }
+
     default: {
       const exhaustiveCheck: never = operation
       throw new Error(`Unhandled operation type: ${(exhaustiveCheck as Operation).type}`)

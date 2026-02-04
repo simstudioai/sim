@@ -21,6 +21,7 @@ export interface BlockFactoryOptions {
   triggerMode?: boolean
   data?: BlockData
   parentId?: string
+  locked?: boolean
 }
 
 /**
@@ -67,6 +68,7 @@ export function createBlock(options: BlockFactoryOptions = {}): any {
     height: options.height ?? 0,
     advancedMode: options.advancedMode ?? false,
     triggerMode: options.triggerMode ?? false,
+    locked: options.locked ?? false,
     data: Object.keys(data).length > 0 ? data : undefined,
     layout: {},
   }

@@ -17,6 +17,7 @@ export const BLOCKS_OPERATIONS = {
   BATCH_TOGGLE_ENABLED: 'batch-toggle-enabled',
   BATCH_TOGGLE_HANDLES: 'batch-toggle-handles',
   BATCH_UPDATE_PARENT: 'batch-update-parent',
+  BATCH_TOGGLE_LOCKED: 'batch-toggle-locked',
 } as const
 
 export type BlocksOperation = (typeof BLOCKS_OPERATIONS)[keyof typeof BLOCKS_OPERATIONS]
@@ -85,6 +86,7 @@ export const UNDO_REDO_OPERATIONS = {
   BATCH_UPDATE_PARENT: 'batch-update-parent',
   BATCH_TOGGLE_ENABLED: 'batch-toggle-enabled',
   BATCH_TOGGLE_HANDLES: 'batch-toggle-handles',
+  BATCH_TOGGLE_LOCKED: 'batch-toggle-locked',
   APPLY_DIFF: 'apply-diff',
   ACCEPT_DIFF: 'accept-diff',
   REJECT_DIFF: 'reject-diff',

@@ -189,6 +189,7 @@ export async function duplicateWorkflow(
           parentId: newParentId,
           extent: newExtent,
           data: updatedData,
+          locked: false, // Duplicated blocks should always be unlocked
           createdAt: now,
           updatedAt: now,
         }

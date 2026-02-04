@@ -31,7 +31,8 @@ export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasCo
       nodes.map((n) => {
         const block = blocks[n.id]
         const parentId = block?.data?.parentId
-        const parentType = parentId ? blocks[parentId]?.type : undefined
+        const parentBlock = parentId ? blocks[parentId] : undefined
+        const parentType = parentBlock?.type
         return {
           id: n.id,
           type: block?.type || '',
@@ -39,6 +40,9 @@ export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasCo
           horizontalHandles: block?.horizontalHandles ?? false,
           parentId,
           parentType,
+          locked: block?.locked ?? false,
+          isParentLocked: parentBlock?.locked ?? false,
+          isParentDisabled: parentBlock ? !parentBlock.enabled : false,
         }
       }),
     [blocks]

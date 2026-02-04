@@ -157,7 +157,7 @@ export function generateWorkflowDiffSummary(
       }
       // Check other block properties (boolean fields)
       // Use !! to normalize: null/undefined/false are all equivalent (falsy)
-      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode'] as const
+      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode', 'locked'] as const
       for (const field of blockFields) {
         if (!!currentBlock[field] !== !!previousBlock[field]) {
           changes.push({

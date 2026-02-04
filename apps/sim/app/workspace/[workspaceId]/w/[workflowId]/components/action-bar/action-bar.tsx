@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react'
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, LogOut } from 'lucide-react'
+import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Lock, LogOut, Unlock } from 'lucide-react'
 import { Button, Copy, PlayOutline, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -49,6 +49,7 @@ export const ActionBar = memo(
       collaborativeBatchRemoveBlocks,
       collaborativeBatchToggleBlockEnabled,
       collaborativeBatchToggleBlockHandles,
+      collaborativeBatchToggleLocked,
     } = useCollaborativeWorkflow()
     const { setPendingSelection } = useWorkflowRegistry()
     const { handleRunFromBlock } = useWorkflowExecution()
@@ -84,16 +85,28 @@ export const ActionBar = memo(
       )
     }, [blockId, addNotification, collaborativeBatchAddBlocks, setPendingSelection])
 
-    const { isEnabled, horizontalHandles, parentId, parentType } = useWorkflowStore(
+    const {
+      isEnabled,
+      horizontalHandles,
+      parentId,
+      parentType,
+      isLocked,
+      isParentLocked,
+      isParentDisabled,
+    } = useWorkflowStore(
       useCallback(
         (state) => {
           const block = state.blocks[blockId]
           const parentId = block?.data?.parentId
+          const parentBlock = parentId ? state.blocks[parentId] : undefined
           return {
             isEnabled: block?.enabled ?? true,
             horizontalHandles: block?.horizontalHandles ?? false,
             parentId,
-            parentType: parentId ? state.blocks[parentId]?.type : undefined,
+            parentType: parentBlock?.type,
+            isLocked: block?.locked ?? false,
+            isParentLocked: parentBlock?.locked ?? false,
+            isParentDisabled: parentBlock ? !parentBlock.enabled : false,
           }
         },
         [blockId]
@@ -161,25 +174,27 @@ export const ActionBar = memo(
         {!isNoteBlock && !isInsideSubflow && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (canRunFromBlock && !disabled) {
-                    handleRunFromBlockClick()
-                  }
-                }}
-                className={ACTION_BUTTON_STYLES}
-                disabled={disabled || !canRunFromBlock}
-              >
-                <PlayOutline className={ICON_SIZE} />
-              </Button>
+              <span className='inline-flex'>
+                <Button
+                  variant='ghost'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (canRunFromBlock && !disabled) {
+                      handleRunFromBlockClick()
+                    }
+                  }}
+                  className={ACTION_BUTTON_STYLES}
+                  disabled={disabled || !canRunFromBlock}
+                >
+                  <PlayOutline className={ICON_SIZE} />
+                </Button>
+              </span>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {(() => {
                 if (disabled) return getTooltipMessage('Run from block')
                 if (isExecuting) return 'Execution in progress'
-                if (!dependenciesSatisfied) return 'Run upstream blocks first'
+                if (!dependenciesSatisfied) return 'Run previous blocks first'
                 return 'Run from block'
               })()}
             </Tooltip.Content>
@@ -193,18 +208,54 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled) {
+                  // Can't enable if parent is disabled (must enable parent first)
+                  const cantEnable = !isEnabled && isParentDisabled
+                  if (!disabled && !isLocked && !isParentLocked && !cantEnable) {
                     collaborativeBatchToggleBlockEnabled([blockId])
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled}
+                disabled={
+                  disabled || isLocked || isParentLocked || (!isEnabled && isParentDisabled)
+                }
               >
                 {isEnabled ? <Circle className={ICON_SIZE} /> : <CircleOff className={ICON_SIZE} />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
+              {isLocked || isParentLocked
+                ? 'Block is locked'
+                : !isEnabled && isParentDisabled
+                  ? 'Parent container is disabled'
+                  : getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+
+        {userPermissions.canAdmin && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // Can't unlock a block if its parent container is locked
+                  if (!disabled && !(isLocked && isParentLocked)) {
+                    collaborativeBatchToggleLocked([blockId])
+                  }
+                }}
+                className={ACTION_BUTTON_STYLES}
+                disabled={disabled || (isLocked && isParentLocked)}
+              >
+                {isLocked ? <Unlock className={ICON_SIZE} /> : <Lock className={ICON_SIZE} />}
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {isLocked && isParentLocked
+                ? 'Parent container is locked'
+                : isLocked
+                  ? 'Unlock Block'
+                  : 'Lock Block'}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -216,17 +267,21 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled) {
+                  if (!disabled && !isLocked && !isParentLocked) {
                     handleDuplicateBlock()
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled}
+                disabled={disabled || isLocked || isParentLocked}
               >
                 <Copy className={ICON_SIZE} />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>{getTooltipMessage('Duplicate Block')}</Tooltip.Content>
+            <Tooltip.Content side='top'>
+              {isLocked || isParentLocked
+                ? 'Block is locked'
+                : getTooltipMessage('Duplicate Block')}
+            </Tooltip.Content>
           </Tooltip.Root>
         )}
 
@@ -237,12 +292,12 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled) {
+                  if (!disabled && !isLocked && !isParentLocked) {
                     collaborativeBatchToggleBlockHandles([blockId])
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled}
+                disabled={disabled || isLocked || isParentLocked}
               >
                 {horizontalHandles ? (
                   <ArrowLeftRight className={ICON_SIZE} />
@@ -252,7 +307,9 @@ export const ActionBar = memo(
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
-              {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
+              {isLocked || isParentLocked
+                ? 'Block is locked'
+                : getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
             </Tooltip.Content>
           </Tooltip.Root>
         )}
@@ -264,19 +321,23 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled && userPermissions.canEdit) {
+                  if (!disabled && userPermissions.canEdit && !isLocked && !isParentLocked) {
                     window.dispatchEvent(
                       new CustomEvent('remove-from-subflow', { detail: { blockIds: [blockId] } })
                     )
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled || !userPermissions.canEdit}
+                disabled={disabled || !userPermissions.canEdit || isLocked || isParentLocked}
               >
                 <LogOut className={ICON_SIZE} />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>{getTooltipMessage('Remove from Subflow')}</Tooltip.Content>
+            <Tooltip.Content side='top'>
+              {isLocked || isParentLocked
+                ? 'Block is locked'
+                : getTooltipMessage('Remove from Subflow')}
+            </Tooltip.Content>
           </Tooltip.Root>
         )}
 
@@ -286,17 +347,19 @@ export const ActionBar = memo(
               variant='ghost'
               onClick={(e) => {
                 e.stopPropagation()
-                if (!disabled) {
+                if (!disabled && !isLocked && !isParentLocked) {
                   collaborativeBatchRemoveBlocks([blockId])
                 }
               }}
               className={ACTION_BUTTON_STYLES}
-              disabled={disabled}
+              disabled={disabled || isLocked || isParentLocked}
             >
               <Trash2 className={ICON_SIZE} />
             </Button>
           </Tooltip.Trigger>
-          <Tooltip.Content side='top'>{getTooltipMessage('Delete Block')}</Tooltip.Content>
+          <Tooltip.Content side='top'>
+            {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Delete Block')}
+          </Tooltip.Content>
         </Tooltip.Root>
       </div>
     )

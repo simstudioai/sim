@@ -97,6 +97,14 @@ export interface BatchToggleHandlesOperation extends BaseOperation {
   }
 }
 
+export interface BatchToggleLockedOperation extends BaseOperation {
+  type: typeof UNDO_REDO_OPERATIONS.BATCH_TOGGLE_LOCKED
+  data: {
+    blockIds: string[]
+    previousStates: Record<string, boolean>
+  }
+}
+
 export interface ApplyDiffOperation extends BaseOperation {
   type: typeof UNDO_REDO_OPERATIONS.APPLY_DIFF
   data: {
@@ -136,6 +144,7 @@ export type Operation =
   | BatchUpdateParentOperation
   | BatchToggleEnabledOperation
   | BatchToggleHandlesOperation
+  | BatchToggleLockedOperation
   | ApplyDiffOperation
   | AcceptDiffOperation
   | RejectDiffOperation
