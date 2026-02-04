@@ -108,6 +108,33 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Clean up stale pending jobs (never started, e.g., due to server crash before startJob())
+    let stalePendingJobsMarkedFailed = 0
+
+    try {
+      const stalePendingJobs = await db
+        .update(asyncJobs)
+        .set({
+          status: JOB_STATUS.FAILED,
+          completedAt: new Date(),
+          error: `Job terminated: stuck in pending state for more than ${STALE_THRESHOLD_MINUTES} minutes (never started)`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(asyncJobs.status, JOB_STATUS.PENDING), lt(asyncJobs.createdAt, staleThreshold))
+        )
+        .returning({ id: asyncJobs.id })
+
+      stalePendingJobsMarkedFailed = stalePendingJobs.length
+      if (stalePendingJobsMarkedFailed > 0) {
+        logger.info(`Marked ${stalePendingJobsMarkedFailed} stale pending jobs as failed`)
+      }
+    } catch (error) {
+      logger.error('Failed to clean up stale pending jobs:', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+
     // Delete completed/failed jobs older than retention period
     const retentionThreshold = new Date(Date.now() - JOB_RETENTION_HOURS * 60 * 60 * 1000)
     let asyncJobsDeleted = 0
@@ -144,7 +171,8 @@ export async function GET(request: NextRequest) {
         thresholdMinutes: STALE_THRESHOLD_MINUTES,
       },
       asyncJobs: {
-        staleMarkedFailed: asyncJobsMarkedFailed,
+        staleProcessingMarkedFailed: asyncJobsMarkedFailed,
+        stalePendingMarkedFailed: stalePendingJobsMarkedFailed,
         oldDeleted: asyncJobsDeleted,
         staleThresholdMinutes: STALE_THRESHOLD_MINUTES,
         retentionHours: JOB_RETENTION_HOURS,

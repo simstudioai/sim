@@ -261,10 +261,48 @@ export async function PATCH(
         context: 'activate',
       })
 
+      // Apply name/description updates if provided alongside activation
+      let updatedName: string | null | undefined
+      let updatedDescription: string | null | undefined
+      if (name !== undefined || description !== undefined) {
+        const activationUpdateData: { name?: string; description?: string | null } = {}
+        if (name !== undefined) {
+          activationUpdateData.name = name
+        }
+        if (description !== undefined) {
+          activationUpdateData.description = description
+        }
+
+        const [updated] = await db
+          .update(workflowDeploymentVersion)
+          .set(activationUpdateData)
+          .where(
+            and(
+              eq(workflowDeploymentVersion.workflowId, id),
+              eq(workflowDeploymentVersion.version, versionNum)
+            )
+          )
+          .returning({
+            name: workflowDeploymentVersion.name,
+            description: workflowDeploymentVersion.description,
+          })
+
+        if (updated) {
+          updatedName = updated.name
+          updatedDescription = updated.description
+          logger.info(
+            `[${requestId}] Updated deployment version ${version} metadata during activation`,
+            { name: activationUpdateData.name, description: activationUpdateData.description }
+          )
+        }
+      }
+
       return createSuccessResponse({
         success: true,
         deployedAt: result.deployedAt,
         warnings: triggerSaveResult.warnings,
+        ...(updatedName !== undefined && { name: updatedName }),
+        ...(updatedDescription !== undefined && { description: updatedDescription }),
       })
     }
 
