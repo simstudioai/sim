@@ -380,13 +380,18 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
         cancelRunningEntries: (workflowId: string) => {
           set((state) => {
+            const now = new Date()
             const updatedEntries = state.entries.map((entry) => {
               if (entry.workflowId === workflowId && entry.isRunning) {
+                const durationMs = entry.startedAt
+                  ? now.getTime() - new Date(entry.startedAt).getTime()
+                  : entry.durationMs
                 return {
                   ...entry,
                   isRunning: false,
                   isCanceled: true,
-                  endedAt: new Date().toISOString(),
+                  endedAt: now.toISOString(),
+                  durationMs,
                 }
               }
               return entry

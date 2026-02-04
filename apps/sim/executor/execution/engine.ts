@@ -130,6 +130,7 @@ export class ExecutionEngine {
       this.context.metadata.duration = endTime - startTime
 
       if (this.cancelledFlag) {
+        this.finalizeIncompleteLogs()
         return {
           success: false,
           output: this.finalOutput,
@@ -151,6 +152,7 @@ export class ExecutionEngine {
       this.context.metadata.duration = endTime - startTime
 
       if (this.cancelledFlag) {
+        this.finalizeIncompleteLogs()
         return {
           success: false,
           output: this.finalOutput,
@@ -472,6 +474,22 @@ export class ExecutionEngine {
     return {
       pausedBlocks: responses,
       pauseCount: responses.length,
+    }
+  }
+
+  /**
+   * Finalizes any block logs that were still running when execution was cancelled.
+   * Sets their endedAt to now and calculates the actual elapsed duration.
+   */
+  private finalizeIncompleteLogs(): void {
+    const now = new Date()
+    const nowIso = now.toISOString()
+
+    for (const log of this.context.blockLogs) {
+      if (!log.endedAt) {
+        log.endedAt = nowIso
+        log.durationMs = now.getTime() - new Date(log.startedAt).getTime()
+      }
     }
   }
 }

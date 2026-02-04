@@ -78,21 +78,15 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const {
-    currentBlockId,
-    connectionsHeight,
-    toggleConnectionsCollapsed,
-    shouldFocusRename,
-    setShouldFocusRename,
-  } = usePanelEditorStore(
-    useShallow((state) => ({
-      currentBlockId: state.currentBlockId,
-      connectionsHeight: state.connectionsHeight,
-      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
-      shouldFocusRename: state.shouldFocusRename,
-      setShouldFocusRename: state.setShouldFocusRename,
-    }))
-  )
+  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
+    usePanelEditorStore(
+      useShallow((state) => ({
+        currentBlockId: state.currentBlockId,
+        connectionsHeight: state.connectionsHeight,
+        toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+        registerRenameCallback: state.registerRenameCallback,
+      }))
+    )
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
@@ -229,6 +223,7 @@ export function Editor() {
 
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
+  const renamingBlockIdRef = useRef<string | null>(null)
 
   /**
    * Ref callback that auto-selects the input text when mounted.
@@ -240,44 +235,62 @@ export function Editor() {
   }, [])
 
   /**
-   * Handles starting the rename process.
+   * Starts the rename process for the current block.
+   * Reads from stores directly to avoid stale closures when called via registered callback.
+   * Captures the block ID in a ref to ensure the correct block is renamed even if selection changes.
    */
   const handleStartRename = useCallback(() => {
-    if (!canEditBlock || !currentBlock) return
-    setEditedName(currentBlock.name || '')
+    const blockId = usePanelEditorStore.getState().currentBlockId
+    if (!blockId) return
+
+    const blocks = useWorkflowStore.getState().blocks
+    const block = blocks[blockId]
+    if (!block) return
+
+    const parentId = block.data?.parentId as string | undefined
+    const isParentLocked = parentId ? (blocks[parentId]?.locked ?? false) : false
+    const isLocked = (block.locked ?? false) || isParentLocked
+    if (!userPermissions.canEdit || isLocked) return
+
+    renamingBlockIdRef.current = blockId
+    setEditedName(block.name || '')
     setIsRenaming(true)
-  }, [canEditBlock, currentBlock])
+  }, [userPermissions.canEdit])
 
   /**
-   * Handles saving the renamed block.
+   * Saves the renamed block using the captured block ID from when rename started.
    */
   const handleSaveRename = useCallback(() => {
-    if (!currentBlockId || !isRenaming) return
+    const blockIdToRename = renamingBlockIdRef.current
+    if (!blockIdToRename || !isRenaming) return
+
+    const blocks = useWorkflowStore.getState().blocks
+    const blockToRename = blocks[blockIdToRename]
 
     const trimmedName = editedName.trim()
-    if (trimmedName && trimmedName !== currentBlock?.name) {
-      const result = collaborativeUpdateBlockName(currentBlockId, trimmedName)
+    if (trimmedName && blockToRename && trimmedName !== blockToRename.name) {
+      const result = collaborativeUpdateBlockName(blockIdToRename, trimmedName)
       if (!result.success) {
         return
       }
     }
+    renamingBlockIdRef.current = null
     setIsRenaming(false)
-  }, [currentBlockId, isRenaming, editedName, currentBlock?.name, collaborativeUpdateBlockName])
+  }, [isRenaming, editedName, collaborativeUpdateBlockName])
 
   /**
    * Handles canceling the rename process.
    */
   const handleCancelRename = useCallback(() => {
+    renamingBlockIdRef.current = null
     setIsRenaming(false)
     setEditedName('')
   }, [])
 
   useEffect(() => {
-    if (shouldFocusRename && currentBlock) {
-      handleStartRename()
-      setShouldFocusRename(false)
-    }
-  }, [shouldFocusRename, currentBlock, handleStartRename, setShouldFocusRename])
+    registerRenameCallback(handleStartRename)
+    return () => registerRenameCallback(null)
+  }, [registerRenameCallback, handleStartRename])
 
   /**
    * Handles opening documentation link in a new secure tab.

@@ -1132,7 +1132,7 @@ const WorkflowContent = React.memo(() => {
   const handleContextRename = useCallback(() => {
     if (contextMenuBlocks.length === 1) {
       usePanelEditorStore.getState().setCurrentBlockId(contextMenuBlocks[0].id)
-      usePanelEditorStore.getState().setShouldFocusRename(true)
+      usePanelEditorStore.getState().triggerRename()
     }
   }, [contextMenuBlocks])
 
