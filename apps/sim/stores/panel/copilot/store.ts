@@ -3039,7 +3039,7 @@ export const useCopilotStore = create<CopilotStore>()(
           })
           const batchUrl = `/api/copilot/chat/stream?streamId=${encodeURIComponent(
             nextStream.streamId
-          )}&from=0&batch=true`
+          )}&from=0&to=${encodeURIComponent(String(nextStream.lastEventId))}&batch=true`
           const batchResponse = await fetch(batchUrl, { credentials: 'include' })
           if (batchResponse.ok) {
             const batchData = await batchResponse.json()
