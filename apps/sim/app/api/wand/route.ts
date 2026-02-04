@@ -377,7 +377,15 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
                     }
 
                     if (eventType === 'response.output_text.delta') {
-                      const content = parsed.delta
+                      let content = ''
+                      if (typeof parsed.delta === 'string') {
+                        content = parsed.delta
+                      } else if (parsed.delta && typeof parsed.delta.text === 'string') {
+                        content = parsed.delta.text
+                      } else if (typeof parsed.text === 'string') {
+                        content = parsed.text
+                      }
+
                       if (content) {
                         chunkCount++
                         if (chunkCount === 1) {

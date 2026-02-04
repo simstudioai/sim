@@ -359,9 +359,18 @@ export function createReadableStreamFromResponses(
             }
 
             if (eventType === 'response.output_text.delta') {
-              if (typeof event.delta === 'string' && event.delta.length > 0) {
-                fullContent += event.delta
-                controller.enqueue(encoder.encode(event.delta))
+              let deltaText = ''
+              if (typeof event.delta === 'string') {
+                deltaText = event.delta
+              } else if (event.delta && typeof event.delta.text === 'string') {
+                deltaText = event.delta.text
+              } else if (typeof event.text === 'string') {
+                deltaText = event.text
+              }
+
+              if (deltaText.length > 0) {
+                fullContent += deltaText
+                controller.enqueue(encoder.encode(deltaText))
               }
             }
 
