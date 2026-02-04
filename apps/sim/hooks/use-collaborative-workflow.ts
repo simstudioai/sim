@@ -1092,7 +1092,6 @@ export function useCollaborativeWorkflow() {
       const previousStates: Record<string, boolean> = {}
       const validIds: string[] = []
 
-      // For each ID, collect blocks and their children for undo/redo
       for (const id of ids) {
         const block = currentBlocks[id]
         if (!block) continue
@@ -1100,7 +1099,6 @@ export function useCollaborativeWorkflow() {
         validIds.push(id)
         previousStates[id] = block.locked ?? false
 
-        // If it's a loop or parallel, also capture children's previous states for undo/redo
         if (block.type === 'loop' || block.type === 'parallel') {
           Object.entries(currentBlocks).forEach(([blockId, b]) => {
             if (b.data?.parentId === id) {
@@ -1145,7 +1143,6 @@ export function useCollaborativeWorkflow() {
 
       if (edges.length === 0) return false
 
-      // Filter out invalid edges (e.g., edges targeting trigger blocks) and duplicates
       const blocks = useWorkflowStore.getState().blocks
       const currentEdges = useWorkflowStore.getState().edges
       const validEdges = filterValidEdges(edges, blocks)
