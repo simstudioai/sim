@@ -612,6 +612,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             blockId: string,
             blockName: string,
             blockType: string,
+            executionOrder: number,
             iterationContext?: IterationContext
           ) => {
             logger.info(`[${requestId}] 🔷 onBlockStart called:`, { blockId, blockName, blockType })
@@ -624,6 +625,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 blockId,
                 blockName,
                 blockType,
+                executionOrder,
                 ...(iterationContext && {
                   iterationCurrent: iterationContext.iterationCurrent,
                   iterationTotal: iterationContext.iterationTotal,
@@ -662,6 +664,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   error: callbackData.output.error,
                   durationMs: callbackData.executionTime || 0,
                   startedAt: callbackData.startedAt,
+                  executionOrder: callbackData.executionOrder,
                   endedAt: callbackData.endedAt,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,
@@ -689,6 +692,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   output: callbackData.output,
                   durationMs: callbackData.executionTime || 0,
                   startedAt: callbackData.startedAt,
+                  executionOrder: callbackData.executionOrder,
                   endedAt: callbackData.endedAt,
                   ...(iterationContext && {
                     iterationCurrent: iterationContext.iterationCurrent,

@@ -246,7 +246,6 @@ export function CredentialSets() {
       setNewSetDescription('')
       setNewSetProvider('google-email')
 
-      // Open detail view for the newly created group
       if (result?.credentialSet) {
         setViewingSet(result.credentialSet)
       }
@@ -336,7 +335,6 @@ export function CredentialSets() {
           email,
         })
 
-        // Start 60s cooldown
         setResendCooldowns((prev) => ({ ...prev, [invitationId]: 60 }))
         const interval = setInterval(() => {
           setResendCooldowns((prev) => {
@@ -393,7 +391,6 @@ export function CredentialSets() {
     return <GmailIcon className='h-4 w-4' />
   }
 
-  // All hooks must be called before any early returns
   const activeMemberships = useMemo(
     () => memberships.filter((m) => m.status === 'active'),
     [memberships]
@@ -447,7 +444,6 @@ export function CredentialSets() {
         <div className='flex h-full flex-col gap-[16px]'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='flex flex-col gap-[16px]'>
-              {/* Group Info */}
               <div className='flex items-center gap-[16px]'>
                 <div className='flex items-center gap-[8px]'>
                   <span className='font-medium text-[13px] text-[var(--text-primary)]'>
@@ -471,7 +467,6 @@ export function CredentialSets() {
                 </div>
               </div>
 
-              {/* Invite Section - Email Tags Input */}
               <div className='flex flex-col gap-[4px]'>
                 <div className='flex items-center gap-[8px]'>
                   <TagInput
@@ -495,7 +490,6 @@ export function CredentialSets() {
                 {emailError && <p className='text-[12px] text-[var(--text-error)]'>{emailError}</p>}
               </div>
 
-              {/* Members List - styled like team members */}
               <div className='flex flex-col gap-[16px]'>
                 <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>Members</h4>
 
@@ -519,7 +513,6 @@ export function CredentialSets() {
                   </p>
                 ) : (
                   <div className='flex flex-col gap-[16px]'>
-                    {/* Active Members */}
                     {activeMembers.map((member) => {
                       const name = member.userName || 'Unknown'
                       const avatarInitial = name.charAt(0).toUpperCase()
@@ -572,7 +565,6 @@ export function CredentialSets() {
                       )
                     })}
 
-                    {/* Pending Invitations */}
                     {pendingInvitations.map((invitation) => {
                       const email = invitation.email || 'Unknown'
                       const emailPrefix = email.split('@')[0]
@@ -641,7 +633,6 @@ export function CredentialSets() {
             </div>
           </div>
 
-          {/* Footer Actions */}
           <div className='mt-auto flex items-center justify-end'>
             <Button onClick={handleBackToList} variant='tertiary'>
               Back
@@ -822,7 +813,6 @@ export function CredentialSets() {
         </div>
       </div>
 
-      {/* Create Polling Group Modal */}
       <Modal open={showCreateModal} onOpenChange={handleCloseCreateModal}>
         <ModalContent size='sm'>
           <ModalHeader>Create Polling Group</ModalHeader>
@@ -895,7 +885,6 @@ export function CredentialSets() {
         </ModalContent>
       </Modal>
 
-      {/* Leave Confirmation Modal */}
       <Modal open={!!leavingMembership} onOpenChange={() => setLeavingMembership(null)}>
         <ModalContent size='sm'>
           <ModalHeader>Leave Polling Group</ModalHeader>
@@ -923,7 +912,6 @@ export function CredentialSets() {
         </ModalContent>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
       <Modal open={!!deletingSet} onOpenChange={() => setDeletingSet(null)}>
         <ModalContent size='sm'>
           <ModalHeader>Delete Polling Group</ModalHeader>

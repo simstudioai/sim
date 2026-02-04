@@ -6,11 +6,11 @@ import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, buttonVariants } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import {
   DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
   formatDate,
-  formatDuration,
   getDisplayStatus,
   LOG_COLUMNS,
   StatusBadge,
@@ -113,7 +113,7 @@ const LogRow = memo(
 
           <div className={`${LOG_COLUMNS.duration.width} ${LOG_COLUMNS.duration.minWidth}`}>
             <Badge variant='default' className='rounded-[6px] px-[9px] py-[2px] text-[12px]'>
-              {formatDuration(log.duration) || '—'}
+              {formatDuration(log.duration, { precision: 2 }) || '—'}
             </Badge>
           </div>
         </div>

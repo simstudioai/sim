@@ -105,11 +105,9 @@ export function useTerminalFilters() {
         })
       }
 
-      // Apply sorting by timestamp
+      // Sort by executionOrder (monotonically increasing integer from server)
       result = [...result].sort((a, b) => {
-        const timeA = new Date(a.timestamp).getTime()
-        const timeB = new Date(b.timestamp).getTime()
-        const comparison = timeA - timeB
+        const comparison = a.executionOrder - b.executionOrder
         return sortConfig.direction === 'asc' ? comparison : -comparison
       })
 
