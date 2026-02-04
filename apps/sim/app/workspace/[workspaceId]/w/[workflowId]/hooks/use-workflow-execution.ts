@@ -789,7 +789,12 @@ export function useWorkflowExecution() {
       const startBlock = TriggerUtils.findStartBlock(filteredStates, 'chat')
 
       if (!startBlock) {
-        throw new Error(TriggerUtils.getTriggerValidationMessage('chat', 'missing'))
+        throw new WorkflowValidationError(
+          TriggerUtils.getTriggerValidationMessage('chat', 'missing'),
+          'validation',
+          'validation',
+          'Workflow Validation'
+        )
       }
 
       startBlockId = startBlock.blockId
@@ -800,7 +805,12 @@ export function useWorkflowExecution() {
       })
 
       if (candidates.length === 0) {
-        const error = new Error('Workflow requires at least one trigger block to execute')
+        const error = new WorkflowValidationError(
+          'Workflow requires at least one trigger block to execute',
+          'validation',
+          'validation',
+          'Workflow Validation'
+        )
         logger.error('No trigger blocks found for manual run', {
           allBlockTypes: Object.values(filteredStates).map((b) => b.type),
         })
@@ -813,7 +823,12 @@ export function useWorkflowExecution() {
         (candidate) => candidate.path === StartBlockPath.SPLIT_API
       )
       if (apiCandidates.length > 1) {
-        const error = new Error('Multiple API Trigger blocks found. Keep only one.')
+        const error = new WorkflowValidationError(
+          'Multiple API Trigger blocks found. Keep only one.',
+          'validation',
+          'validation',
+          'Workflow Validation'
+        )
         logger.error('Multiple API triggers found')
         setIsExecuting(false)
         throw error
@@ -833,7 +848,12 @@ export function useWorkflowExecution() {
         const outgoingConnections = workflowEdges.filter((edge) => edge.source === startBlockId)
         if (outgoingConnections.length === 0) {
           const triggerName = selectedTrigger.name || selectedTrigger.type
-          const error = new Error(`${triggerName} must be connected to other blocks to execute`)
+          const error = new WorkflowValidationError(
+            `${triggerName} must be connected to other blocks to execute`,
+            'validation',
+            'validation',
+            'Workflow Validation'
+          )
           logger.error('Trigger has no outgoing connections', { triggerName, startBlockId })
           setIsExecuting(false)
           throw error
@@ -859,7 +879,12 @@ export function useWorkflowExecution() {
 
     // If we don't have a valid startBlockId at this point, throw an error
     if (!startBlockId) {
-      const error = new Error('No valid trigger block found to start execution')
+      const error = new WorkflowValidationError(
+        'No valid trigger block found to start execution',
+        'validation',
+        'validation',
+        'Workflow Validation'
+      )
       logger.error('No startBlockId found after trigger search')
       setIsExecuting(false)
       throw error
