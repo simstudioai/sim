@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { getJobQueue } from '@/lib/core/async-jobs'
+import { getJobQueue, JOB_STATUS } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
@@ -48,7 +48,7 @@ export async function GET(
       return createErrorResponse('Access denied', 403)
     }
 
-    const mappedStatus = job.status === 'pending' ? 'queued' : job.status
+    const mappedStatus = job.status === JOB_STATUS.PENDING ? 'queued' : job.status
 
     const response: any = {
       success: true,
@@ -59,7 +59,7 @@ export async function GET(
       },
     }
 
-    if (job.status === 'completed') {
+    if (job.status === JOB_STATUS.COMPLETED) {
       response.output = job.output
       response.metadata.completedAt = job.completedAt
       if (job.startedAt && job.completedAt) {
@@ -67,7 +67,7 @@ export async function GET(
       }
     }
 
-    if (job.status === 'failed') {
+    if (job.status === JOB_STATUS.FAILED) {
       response.error = job.error
       response.metadata.completedAt = job.completedAt
       if (job.startedAt && job.completedAt) {
@@ -75,7 +75,7 @@ export async function GET(
       }
     }
 
-    if (job.status === 'processing' || job.status === 'pending') {
+    if (job.status === JOB_STATUS.PROCESSING || job.status === JOB_STATUS.PENDING) {
       response.estimatedDuration = 180000
     }
 

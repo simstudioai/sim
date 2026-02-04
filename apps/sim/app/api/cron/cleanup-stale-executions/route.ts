@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { JOB_RETENTION_HOURS } from '@/lib/core/async-jobs'
+import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 
 const logger = createLogger('CleanupStaleExecutions')
@@ -88,12 +88,14 @@ export async function GET(request: NextRequest) {
       const staleAsyncJobs = await db
         .update(asyncJobs)
         .set({
-          status: 'failed',
+          status: JOB_STATUS.FAILED,
           completedAt: new Date(),
           error: `Job terminated: stuck in processing for more than ${STALE_THRESHOLD_MINUTES} minutes`,
           updatedAt: new Date(),
         })
-        .where(and(eq(asyncJobs.status, 'processing'), lt(asyncJobs.startedAt, staleThreshold)))
+        .where(
+          and(eq(asyncJobs.status, JOB_STATUS.PROCESSING), lt(asyncJobs.startedAt, staleThreshold))
+        )
         .returning({ id: asyncJobs.id })
 
       asyncJobsMarkedFailed = staleAsyncJobs.length
@@ -115,7 +117,7 @@ export async function GET(request: NextRequest) {
         .delete(asyncJobs)
         .where(
           and(
-            inArray(asyncJobs.status, ['completed', 'failed']),
+            inArray(asyncJobs.status, [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED]),
             lt(asyncJobs.completedAt, retentionThreshold)
           )
         )

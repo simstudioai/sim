@@ -8,7 +8,14 @@ export const JOB_RETENTION_HOURS = 24
 /** Retention period for completed/failed jobs (in seconds, for Redis TTL) */
 export const JOB_RETENTION_SECONDS = JOB_RETENTION_HOURS * 60 * 60
 
-export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed'
+export const JOB_STATUS = {
+  PENDING: 'pending',
+  PROCESSING: 'processing',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+} as const
+
+export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS]
 
 export type JobType = 'workflow-execution' | 'schedule-execution' | 'webhook-execution'
 

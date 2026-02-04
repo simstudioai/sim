@@ -14,4 +14,4 @@ export type {
   JobStatus,
   JobType,
 } from './types'
-export { JOB_RETENTION_HOURS, JOB_RETENTION_SECONDS } from './types'
+export { JOB_RETENTION_HOURS, JOB_RETENTION_SECONDS, JOB_STATUS } from './types'

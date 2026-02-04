@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/logger', () => loggerMock)
 
-import { JOB_RETENTION_SECONDS } from '@/lib/core/async-jobs/types'
+import { JOB_RETENTION_SECONDS, JOB_STATUS } from '@/lib/core/async-jobs/types'
 import { RedisJobQueue } from './redis'
 
 describe('RedisJobQueue', () => {
@@ -31,7 +31,7 @@ describe('RedisJobQueue', () => {
 
       const [key, data] = localRedis.hset.mock.calls[0]
       expect(key).toBe(`async-jobs:job:${jobId}`)
-      expect(data.status).toBe('pending')
+      expect(data.status).toBe(JOB_STATUS.PENDING)
       expect(data.type).toBe('workflow-execution')
     })
 
@@ -54,7 +54,7 @@ describe('RedisJobQueue', () => {
       await localQueue.completeJob(jobId, { result: 'success' })
 
       expect(localRedis.hset).toHaveBeenCalledWith(`async-jobs:job:${jobId}`, {
-        status: 'completed',
+        status: JOB_STATUS.COMPLETED,
         completedAt: expect.any(String),
         output: JSON.stringify({ result: 'success' }),
         updatedAt: expect.any(String),
@@ -85,7 +85,7 @@ describe('RedisJobQueue', () => {
       await localQueue.markJobFailed(jobId, error)
 
       expect(localRedis.hset).toHaveBeenCalledWith(`async-jobs:job:${jobId}`, {
-        status: 'failed',
+        status: JOB_STATUS.FAILED,
         completedAt: expect.any(String),
         error,
         updatedAt: expect.any(String),
@@ -137,7 +137,7 @@ describe('RedisJobQueue', () => {
         id: 'run_test',
         type: 'workflow-execution',
         payload: JSON.stringify({ foo: 'bar' }),
-        status: 'completed',
+        status: JOB_STATUS.COMPLETED,
         createdAt: now.toISOString(),
         startedAt: now.toISOString(),
         completedAt: now.toISOString(),
@@ -154,7 +154,7 @@ describe('RedisJobQueue', () => {
       expect(job?.id).toBe('run_test')
       expect(job?.type).toBe('workflow-execution')
       expect(job?.payload).toEqual({ foo: 'bar' })
-      expect(job?.status).toBe('completed')
+      expect(job?.status).toBe(JOB_STATUS.COMPLETED)
       expect(job?.output).toEqual({ result: 'ok' })
       expect(job?.metadata.workflowId).toBe('wf_123')
     })

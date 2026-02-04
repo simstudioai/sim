@@ -1,13 +1,14 @@
 import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type {
-  EnqueueOptions,
-  Job,
-  JobMetadata,
-  JobQueueBackend,
-  JobStatus,
-  JobType,
+import {
+  type EnqueueOptions,
+  JOB_STATUS,
+  type Job,
+  type JobMetadata,
+  type JobQueueBackend,
+  type JobStatus,
+  type JobType,
 } from '@/lib/core/async-jobs/types'
 
 const logger = createLogger('DatabaseJobQueue')
@@ -44,7 +45,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
       id: jobId,
       type,
       payload: payload as Record<string, unknown>,
-      status: 'pending',
+      status: JOB_STATUS.PENDING,
       createdAt: now,
       attempts: 0,
       maxAttempts: options?.maxAttempts ?? 3,
@@ -68,7 +69,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     await db
       .update(asyncJobs)
       .set({
-        status: 'processing',
+        status: JOB_STATUS.PROCESSING,
         startedAt: now,
         attempts: 1,
         updatedAt: now,
@@ -84,7 +85,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     await db
       .update(asyncJobs)
       .set({
-        status: 'completed',
+        status: JOB_STATUS.COMPLETED,
         completedAt: now,
         output: output as Record<string, unknown>,
         updatedAt: now,
@@ -100,7 +101,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     await db
       .update(asyncJobs)
       .set({
-        status: 'failed',
+        status: JOB_STATUS.FAILED,
         completedAt: now,
         error,
         updatedAt: now,

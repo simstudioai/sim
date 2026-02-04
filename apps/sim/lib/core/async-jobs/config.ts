@@ -11,25 +11,17 @@ let cachedBackendType: AsyncBackendType | null = null
 /**
  * Determines which async backend to use based on environment configuration.
  * Follows the fallback chain: trigger.dev → redis → database
- *
- * This mirrors the pattern used by:
- * - Socket.IO rooms (RedisRoomManager → MemoryRoomManager)
- * - Document processing queue (Redis → in-memory)
- * - Rate limiting (Redis → database)
  */
 export function getAsyncBackendType(): AsyncBackendType {
-  // Check trigger.dev first
   if (isTriggerDevEnabled) {
     return 'trigger-dev'
   }
 
-  // Check Redis availability
   const redis = getRedisClient()
   if (redis) {
     return 'redis'
   }
 
-  // Fall back to database
   return 'database'
 }
 

@@ -3,6 +3,7 @@ import type Redis from 'ioredis'
 import {
   type EnqueueOptions,
   JOB_RETENTION_SECONDS,
+  JOB_STATUS,
   type Job,
   type JobMetadata,
   type JobQueueBackend,
@@ -77,7 +78,7 @@ export class RedisJobQueue implements JobQueueBackend {
       id: jobId,
       type,
       payload,
-      status: 'pending',
+      status: JOB_STATUS.PENDING,
       createdAt: now,
       attempts: 0,
       maxAttempts: options?.maxAttempts ?? 3,
@@ -100,7 +101,7 @@ export class RedisJobQueue implements JobQueueBackend {
     const now = new Date()
 
     await this.redis.hset(KEYS.job(jobId), {
-      status: 'processing',
+      status: JOB_STATUS.PROCESSING,
       startedAt: now.toISOString(),
       attempts: '1',
       updatedAt: now.toISOString(),
@@ -114,7 +115,7 @@ export class RedisJobQueue implements JobQueueBackend {
     const key = KEYS.job(jobId)
 
     await this.redis.hset(key, {
-      status: 'completed',
+      status: JOB_STATUS.COMPLETED,
       completedAt: now.toISOString(),
       output: JSON.stringify(output),
       updatedAt: now.toISOString(),
@@ -129,7 +130,7 @@ export class RedisJobQueue implements JobQueueBackend {
     const key = KEYS.job(jobId)
 
     await this.redis.hset(key, {
-      status: 'failed',
+      status: JOB_STATUS.FAILED,
       completedAt: now.toISOString(),
       error,
       updatedAt: now.toISOString(),
