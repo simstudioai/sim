@@ -1,6 +1,6 @@
 import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import {
   type EnqueueOptions,
   JOB_STATUS,
@@ -71,7 +71,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
       .set({
         status: JOB_STATUS.PROCESSING,
         startedAt: now,
-        attempts: 1,
+        attempts: sql`${asyncJobs.attempts} + 1`,
         updatedAt: now,
       })
       .where(eq(asyncJobs.id, jobId))
