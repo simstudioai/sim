@@ -143,9 +143,145 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   },
 }
 
+/**
+ * V2 Block - Restored from main branch for backwards compatibility
+ * Hidden from toolbar, uses filePath subblock ID for advanced mode
+ */
 export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
   ...MistralParseBlock,
   type: 'mistral_parse_v2',
+  name: 'Mistral Parser',
+  description: 'Extract text from PDF documents',
+  hideFromToolbar: true,
+  subBlocks: [
+    {
+      id: 'fileUpload',
+      title: 'PDF Document',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'document',
+      acceptedTypes: 'application/pdf',
+      placeholder: 'Upload a PDF document',
+      mode: 'basic',
+      maxSize: 50,
+    },
+    {
+      id: 'filePath',
+      title: 'PDF Document',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'document',
+      placeholder: 'Document URL',
+      mode: 'advanced',
+    },
+    {
+      id: 'resultType',
+      title: 'Output Format',
+      type: 'dropdown',
+      options: [
+        { id: 'markdown', label: 'Markdown' },
+        { id: 'text', label: 'Plain Text' },
+        { id: 'json', label: 'JSON' },
+      ],
+    },
+    {
+      id: 'pages',
+      title: 'Specific Pages',
+      type: 'short-input',
+      placeholder: 'e.g. 0,1,2 (leave empty for all pages)',
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'Enter your Mistral API key',
+      password: true,
+      required: true,
+    },
+  ],
+  tools: {
+    access: ['mistral_parser_v2'],
+    config: {
+      tool: createVersionedToolSelector({
+        baseToolSelector: () => 'mistral_parser',
+        suffix: '_v2',
+        fallbackToolId: 'mistral_parser_v2',
+      }),
+      params: (params) => {
+        if (!params || !params.apiKey || params.apiKey.trim() === '') {
+          throw new Error('Mistral API key is required')
+        }
+
+        const parameters: Record<string, unknown> = {
+          apiKey: params.apiKey.trim(),
+          resultType: params.resultType || 'markdown',
+        }
+
+        // Original V2 pattern: fileUpload (basic) or filePath (advanced) or document (wired)
+        const documentInput = params.fileUpload || params.filePath || params.document
+        if (!documentInput) {
+          throw new Error('PDF document is required')
+        }
+        // Smart handling: object → fileUpload param, string → filePath param
+        if (typeof documentInput === 'object') {
+          parameters.fileUpload = documentInput
+        } else if (typeof documentInput === 'string') {
+          parameters.filePath = documentInput.trim()
+        }
+
+        let pagesArray: number[] | undefined
+        if (params.pages && params.pages.trim() !== '') {
+          try {
+            pagesArray = params.pages
+              .split(',')
+              .map((p: string) => p.trim())
+              .filter((p: string) => p.length > 0)
+              .map((p: string) => {
+                const num = Number.parseInt(p, 10)
+                if (Number.isNaN(num) || num < 0) {
+                  throw new Error(`Invalid page number: ${p}`)
+                }
+                return num
+              })
+
+            if (pagesArray && pagesArray.length === 0) {
+              pagesArray = undefined
+            }
+          } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            throw new Error(`Page number format error: ${errorMessage}`)
+          }
+        }
+
+        if (pagesArray && pagesArray.length > 0) {
+          parameters.pages = pagesArray
+        }
+
+        return parameters
+      },
+    },
+  },
+  inputs: {
+    document: { type: 'json', description: 'Document input (file upload or URL reference)' },
+    filePath: { type: 'string', description: 'PDF document URL (advanced mode)' },
+    fileUpload: { type: 'json', description: 'Uploaded PDF file (basic mode)' },
+    apiKey: { type: 'string', description: 'Mistral API key' },
+    resultType: { type: 'string', description: 'Output format type' },
+    pages: { type: 'string', description: 'Page selection' },
+  },
+  outputs: {
+    pages: { type: 'array', description: 'Array of page objects from Mistral OCR' },
+    model: { type: 'string', description: 'Mistral OCR model identifier' },
+    usage_info: { type: 'json', description: 'Usage statistics from the API' },
+    document_annotation: { type: 'string', description: 'Structured annotation data' },
+  },
+}
+
+/**
+ * V3 Block - New file handling pattern with UserFile normalization
+ * Uses fileReference subblock ID with canonicalParamId for proper file handling
+ */
+export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
+  ...MistralParseBlock,
+  type: 'mistral_parse_v3',
   name: 'Mistral Parser',
   description: 'Extract text from PDF documents',
   hideFromToolbar: false,
@@ -196,13 +332,9 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
     },
   ],
   tools: {
-    access: ['mistral_parser_v2'],
+    access: ['mistral_parser_v3'],
     config: {
-      tool: createVersionedToolSelector({
-        baseToolSelector: () => 'mistral_parser',
-        suffix: '_v2',
-        fallbackToolId: 'mistral_parser_v2',
-      }),
+      tool: () => 'mistral_parser_v3',
       params: (params) => {
         if (!params || !params.apiKey || params.apiKey.trim() === '') {
           throw new Error('Mistral API key is required')
@@ -213,6 +345,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
           resultType: params.resultType || 'markdown',
         }
 
+        // V3 pattern: normalize file inputs from basic/advanced modes
         const documentInput = normalizeFileInput(
           params.fileUpload || params.fileReference || params.document,
           { single: true }
