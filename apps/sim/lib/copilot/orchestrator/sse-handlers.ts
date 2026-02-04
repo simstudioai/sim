@@ -1,4 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { INTERRUPT_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
+import { getToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
+import { executeToolServerSide, markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ContentBlock,
   ExecutionContext,
@@ -7,9 +10,6 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
-import { executeToolServerSide, markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
-import { getToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
-import { INTERRUPT_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
 
 const logger = createLogger('CopilotSseHandlers')
 
@@ -25,9 +25,12 @@ const seenToolResults = new Set<string>()
 
 export function markToolCallSeen(toolCallId: string): void {
   seenToolCalls.add(toolCallId)
-  setTimeout(() => {
-    seenToolCalls.delete(toolCallId)
-  }, 5 * 60 * 1000)
+  setTimeout(
+    () => {
+      seenToolCalls.delete(toolCallId)
+    },
+    5 * 60 * 1000
+  )
 }
 
 export function wasToolCallSeen(toolCallId: string): boolean {
@@ -99,9 +102,12 @@ export function normalizeSseEvent(event: SSEEvent): SSEEvent {
  */
 export function markToolResultSeen(toolCallId: string): void {
   seenToolResults.add(toolCallId)
-  setTimeout(() => {
-    seenToolResults.delete(toolCallId)
-  }, 5 * 60 * 1000)
+  setTimeout(
+    () => {
+      seenToolResults.delete(toolCallId)
+    },
+    5 * 60 * 1000
+  )
 }
 
 /**
@@ -134,10 +140,7 @@ export type SSEHandler = (
   options: OrchestratorOptions
 ) => void | Promise<void>
 
-function addContentBlock(
-  context: StreamingContext,
-  block: Omit<ContentBlock, 'timestamp'>
-): void {
+function addContentBlock(context: StreamingContext, block: Omit<ContentBlock, 'timestamp'>): void {
   context.contentBlocks.push({
     ...block,
     timestamp: Date.now(),
@@ -195,7 +198,7 @@ async function executeToolAndReport(
       success: result.success,
       result: result.output,
       data: {
-        id: toolCall.id, 
+        id: toolCall.id,
         name: toolCall.name,
         success: result.success,
         result: result.output,
@@ -256,7 +259,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const hasError = !!data?.error || !!data?.result?.error
 
     // If explicitly set, use that; otherwise infer from data presence
-    const success = hasExplicitSuccess ? !!explicitSuccess : (hasResultData && !hasError)
+    const success = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
 
     current.status = success ? 'success' : 'error'
     current.endTime = Date.now()
@@ -306,7 +309,10 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     // If we've already completed this tool call, ignore late/duplicate tool_call events
     // to avoid resetting UI/state back to pending and re-executing.
-    if (existing?.endTime || (existing && existing.status !== 'pending' && existing.status !== 'executing')) {
+    if (
+      existing?.endTime ||
+      (existing && existing.status !== 'pending' && existing.status !== 'executing')
+    ) {
       if (!existing.params && args) {
         existing.params = args
       }
@@ -343,7 +349,10 @@ export const sseHandlers: Record<string, SSEHandler> = {
     if (RESPOND_TOOL_SET.has(toolName)) {
       toolCall.status = 'success'
       toolCall.endTime = Date.now()
-      toolCall.result = { success: true, output: 'Internal respond tool - handled by copilot backend' }
+      toolCall.result = {
+        success: true,
+        output: 'Internal respond tool - handled by copilot backend',
+      }
       return
     }
 
@@ -429,12 +438,14 @@ export const sseHandlers: Record<string, SSEHandler> = {
       context.currentThinkingBlock = null
       return
     }
-    const chunk = typeof event.data === 'string' ? event.data : event.data?.data || event.data?.content
+    const chunk =
+      typeof event.data === 'string' ? event.data : event.data?.data || event.data?.content
     if (!chunk || !context.currentThinkingBlock) return
     context.currentThinkingBlock.content = `${context.currentThinkingBlock.content || ''}${chunk}`
   },
   content: (event, context) => {
-    const chunk = typeof event.data === 'string' ? event.data : event.data?.content || event.data?.data
+    const chunk =
+      typeof event.data === 'string' ? event.data : event.data?.content || event.data?.data
     if (!chunk) return
     context.accumulatedContent += chunk
     addContentBlock(context, { type: 'text', content: chunk })
@@ -452,7 +463,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   error: (event, context) => {
     const message =
-      event.data?.message || event.data?.error || (typeof event.data === 'string' ? event.data : null)
+      event.data?.message ||
+      event.data?.error ||
+      (typeof event.data === 'string' ? event.data : null)
     if (message) {
       context.errors.push(message)
     }
@@ -466,7 +479,8 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     if (!parentToolCallId || !event.data) return
     const chunk = typeof event.data === 'string' ? event.data : event.data?.content || ''
     if (!chunk) return
-    context.subAgentContent[parentToolCallId] = (context.subAgentContent[parentToolCallId] || '') + chunk
+    context.subAgentContent[parentToolCallId] =
+      (context.subAgentContent[parentToolCallId] || '') + chunk
     addContentBlock(context, { type: 'subagent_text', content: chunk })
   },
   tool_call: async (event, context, execContext, options) => {
@@ -510,7 +524,10 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     if (RESPOND_TOOL_SET.has(toolName)) {
       toolCall.status = 'success'
       toolCall.endTime = Date.now()
-      toolCall.result = { success: true, output: 'Internal respond tool - handled by copilot backend' }
+      toolCall.result = {
+        success: true,
+        output: 'Internal respond tool - handled by copilot backend',
+      }
       return
     }
 
@@ -541,9 +558,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     const status = success ? 'success' : 'error'
     const endTime = Date.now()
-    const result = hasResultData
-      ? { success, output: data?.result || data?.data }
-      : undefined
+    const result = hasResultData ? { success, output: data?.result || data?.data } : undefined
 
     if (subAgentToolCall) {
       subAgentToolCall.status = status
@@ -572,4 +587,3 @@ export function handleSubagentRouting(event: SSEEvent, context: StreamingContext
   }
   return true
 }
-

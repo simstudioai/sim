@@ -1,12 +1,12 @@
-import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@sim/logger'
-import { SSE_HEADERS } from '@/lib/core/utils/sse'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
+import { type NextRequest, NextResponse } from 'next/server'
 import {
   getStreamMeta,
   readStreamEvents,
   type StreamMeta,
 } from '@/lib/copilot/orchestrator/stream-buffer'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
+import { SSE_HEADERS } from '@/lib/core/utils/sse'
 
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
@@ -56,9 +56,7 @@ export async function GET(request: NextRequest) {
   // Batch mode: return all buffered events as JSON
   if (batchMode) {
     const events = await readStreamEvents(streamId, fromEventId)
-    const filteredEvents = toEventId
-      ? events.filter((e) => e.eventId <= toEventId)
-      : events
+    const filteredEvents = toEventId ? events.filter((e) => e.eventId <= toEventId) : events
     logger.info('[Resume] Batch response', {
       streamId,
       fromEventId,
@@ -130,4 +128,3 @@ export async function GET(request: NextRequest) {
 
   return new Response(stream, { headers: SSE_HEADERS })
 }
-

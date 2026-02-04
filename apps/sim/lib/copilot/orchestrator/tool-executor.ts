@@ -12,38 +12,42 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, inArray, isNull, max, or } from 'drizzle-orm'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
-import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
-import { normalizeName } from '@/executor/constants'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { env } from '@/lib/core/config/env'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
-import { mcpService } from '@/lib/mcp/service'
+import type {
+  ExecutionContext,
+  ToolCallResult,
+  ToolCallState,
+} from '@/lib/copilot/orchestrator/types'
+import { routeExecution } from '@/lib/copilot/tools/server/router'
 import {
   extractWorkflowNames,
   formatNormalizedWorkflowForCopilot,
   normalizeWorkflowName,
 } from '@/lib/copilot/tools/shared/workflow-utils'
+import { env } from '@/lib/core/config/env'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { mcpService } from '@/lib/mcp/service'
+import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
+import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
+import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
   deployWorkflow,
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
-import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
-import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
-import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
+import { normalizeName } from '@/executor/constants'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { executeTool } from '@/tools'
 import { getTool, resolveToolId } from '@/tools/utils'
-import { routeExecution } from '@/lib/copilot/tools/server/router'
-import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
-import type { ExecutionContext, ToolCallResult, ToolCallState } from '@/lib/copilot/orchestrator/types'
 
 const logger = createLogger('CopilotToolExecutor')
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
@@ -171,11 +175,9 @@ async function executeIntegrationToolDirect(
   const decryptedEnvVars =
     context.decryptedEnvVars || (await getEffectiveDecryptedEnv(userId, workspaceId))
 
-  const executionParams: Record<string, any> = resolveEnvVarReferences(
-    toolArgs,
-    decryptedEnvVars,
-    { deep: true }
-  ) as Record<string, any>
+  const executionParams: Record<string, any> = resolveEnvVarReferences(toolArgs, decryptedEnvVars, {
+    deep: true,
+  }) as Record<string, any>
 
   if (toolConfig.oauth?.required && toolConfig.oauth.provider) {
     const provider = toolConfig.oauth.provider
@@ -285,7 +287,10 @@ async function executeSimWorkflowTool(
   }
 }
 
-async function ensureWorkflowAccess(workflowId: string, userId: string): Promise<{
+async function ensureWorkflowAccess(
+  workflowId: string,
+  userId: string
+): Promise<{
   workflow: typeof workflow.$inferSelect
   workspaceId?: string | null
 }> {
@@ -538,8 +543,8 @@ async function executeListFolders(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workspaceId = (params?.workspaceId as string | undefined) ||
-      (await getDefaultWorkspaceId(context.userId))
+    const workspaceId =
+      (params?.workspaceId as string | undefined) || (await getDefaultWorkspaceId(context.userId))
 
     await ensureWorkspaceAccess(workspaceId, context.userId, false)
 
@@ -794,9 +799,10 @@ async function executeGetBlockOutputs(
     const blocks = normalized.blocks || {}
     const loops = normalized.loops || {}
     const parallels = normalized.parallels || {}
-    const blockIds = Array.isArray(params.blockIds) && params.blockIds.length > 0
-      ? params.blockIds
-      : Object.keys(blocks)
+    const blockIds =
+      Array.isArray(params.blockIds) && params.blockIds.length > 0
+        ? params.blockIds
+        : Object.keys(blocks)
 
     const results: Array<{
       blockId: string
@@ -935,8 +941,7 @@ async function executeGetBlockUpstreamReferences(
       for (const accessibleBlockId of accessibleIds) {
         const block = blocks[accessibleBlockId]
         if (!block?.type) continue
-        const canSelfReference =
-          block.type === 'approval' || block.type === 'human_in_the_loop'
+        const canSelfReference = block.type === 'approval' || block.type === 'human_in_the_loop'
         if (accessibleBlockId === blockId && !canSelfReference) continue
 
         const blockName = block.name || block.type
@@ -1149,7 +1154,12 @@ async function executeDeployApi(
 
     return {
       success: true,
-      output: { workflowId, isDeployed: true, deployedAt: result.deployedAt, version: result.version },
+      output: {
+        workflowId,
+        isDeployed: true,
+        deployedAt: result.deployedAt,
+        version: result.version,
+      },
     }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
@@ -1196,7 +1206,10 @@ async function executeDeployChat(
 
     const identifierPattern = /^[a-z0-9-]+$/
     if (!identifierPattern.test(identifier)) {
-      return { success: false, error: 'Identifier can only contain lowercase letters, numbers, and hyphens' }
+      return {
+        success: false,
+        error: 'Identifier can only contain lowercase letters, numbers, and hyphens',
+      }
     }
 
     const existingIdentifier = await db
@@ -1273,7 +1286,10 @@ async function executeDeployChat(
       })
     }
 
-    return { success: true, output: { success: true, action: 'deploy', isDeployed: true, identifier } }
+    return {
+      success: true,
+      output: { success: true, action: 'deploy', isDeployed: true, identifier },
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -1313,12 +1329,18 @@ async function executeDeployMcp(
     const existingTool = await db
       .select()
       .from(workflowMcpTool)
-      .where(and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId)))
+      .where(
+        and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId))
+      )
       .limit(1)
 
-    const toolName = sanitizeToolName(params.toolName || workflowRecord.name || `workflow_${workflowId}`)
+    const toolName = sanitizeToolName(
+      params.toolName || workflowRecord.name || `workflow_${workflowId}`
+    )
     const toolDescription =
-      params.toolDescription || workflowRecord.description || `Execute ${workflowRecord.name} workflow`
+      params.toolDescription ||
+      workflowRecord.description ||
+      `Execute ${workflowRecord.name} workflow`
     const parameterSchema = params.parameterSchema || {}
 
     if (existingTool.length > 0) {
@@ -1387,11 +1409,7 @@ async function executeCheckDeploymentStatus(
     const workspaceId = workflowRecord.workspaceId
 
     const [apiDeploy, chatDeploy] = await Promise.all([
-      db
-        .select()
-        .from(workflow)
-        .where(eq(workflow.id, workflowId))
-        .limit(1),
+      db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1),
       db.select().from(chat).where(eq(chat.workflowId, workflowId)).limit(1),
     ])
 
@@ -1546,10 +1564,7 @@ async function executeCreateWorkspaceMcpServer(
     const addedTools: Array<{ workflowId: string; toolName: string }> = []
 
     if (workflowIds.length > 0) {
-      const workflows = await db
-        .select()
-        .from(workflow)
-        .where(inArray(workflow.id, workflowIds))
+      const workflows = await db.select().from(workflow).where(inArray(workflow.id, workflowIds))
 
       for (const wf of workflows) {
         if (wf.workspaceId !== workspaceId || !wf.isDeployed) {
@@ -1559,7 +1574,7 @@ async function executeCreateWorkspaceMcpServer(
         if (!hasStartBlock) {
           continue
         }
-    const toolName = sanitizeToolName(wf.name || `workflow_${wf.id}`)
+        const toolName = sanitizeToolName(wf.name || `workflow_${wf.id}`)
         await db.insert(workflowMcpTool).values({
           id: crypto.randomUUID(),
           serverId,
@@ -1674,13 +1689,12 @@ export async function prepareExecutionContext(
   userId: string,
   workflowId: string
 ): Promise<ExecutionContext> {
-  let workspaceId: string | undefined
   const workflowResult = await db
     .select({ workspaceId: workflow.workspaceId })
     .from(workflow)
     .where(eq(workflow.id, workflowId))
     .limit(1)
-  workspaceId = workflowResult[0]?.workspaceId ?? undefined
+  const workspaceId = workflowResult[0]?.workspaceId ?? undefined
 
   const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
 
@@ -1691,4 +1705,3 @@ export async function prepareExecutionContext(
     decryptedEnvVars,
   }
 }
-

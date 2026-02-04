@@ -80,8 +80,8 @@ import { subscriptionKeys } from '@/hooks/queries/subscription'
 import type {
   ChatContext,
   CopilotMessage,
-  CopilotStreamInfo,
   CopilotStore,
+  CopilotStreamInfo,
   CopilotToolCall,
   MessageFileAttachment,
 } from '@/stores/panel/copilot/types'
@@ -2251,7 +2251,7 @@ function createOptimizedContentBlocks(contentBlocks: any[]): any[] {
   }
   return result
 }
-``
+;``
 function updateStreamingMessage(set: any, context: StreamingContext) {
   if (context.suppressStreamingUpdates) return
   const now = performance.now()
@@ -3124,8 +3124,8 @@ export const useCopilotStore = create<CopilotStore>()(
             replayBlocks && replayBlocks.length > 0
               ? replayBlocks
               : bufferedContent
-              ? [{ type: TEXT_BLOCK_TYPE, content: bufferedContent, timestamp: Date.now() }]
-              : [],
+                ? [{ type: TEXT_BLOCK_TYPE, content: bufferedContent, timestamp: Date.now() }]
+                : [],
         }
         nextMessages = [...nextMessages, assistantMessage]
       } else if (bufferedContent || (replayBlocks && replayBlocks.length > 0)) {
@@ -3207,7 +3207,10 @@ export const useCopilotStore = create<CopilotStore>()(
         set({ isSendingMessage: false, abortController: null })
       } catch (error) {
         // Handle AbortError gracefully - expected when user aborts
-        if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))) {
+        if (
+          error instanceof Error &&
+          (error.name === 'AbortError' || error.message.includes('aborted'))
+        ) {
           logger.info('[Copilot] Resume stream aborted by user')
           set({ isSendingMessage: false, abortController: null })
           return false
@@ -4123,7 +4126,6 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.info('[AutoAllowedTools] API returned', { toolId, tools: data.autoAllowedTools })
           set({ autoAllowedTools: data.autoAllowedTools || [] })
           logger.info('[AutoAllowedTools] Added tool to store', { toolId })
-
         }
       } catch (err) {
         logger.error('[AutoAllowedTools] Failed to add tool', { toolId, error: err })
