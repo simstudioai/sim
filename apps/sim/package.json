@@ -148,7 +148,6 @@
     "redis": "5.10.0",
     "rehype-autolink-headings": "^7.1.0",
     "rehype-slug": "^6.0.0",
-    "remark-breaks": "4.0.0",
     "remark-gfm": "4.0.1",
     "resend": "^4.1.2",
     "rss-parser": "3.13.0",
