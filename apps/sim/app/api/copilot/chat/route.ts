@@ -26,7 +26,7 @@ import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import {
-  appendStreamEvent,
+  createStreamEventWriter,
   resetStreamBuffer,
   setStreamMeta,
 } from '@/lib/copilot/orchestrator/stream-buffer'
@@ -497,24 +497,44 @@ export async function POST(req: NextRequest) {
 
     if (stream) {
       const streamId = userMessageIdToUse
+      let eventWriter: ReturnType<typeof createStreamEventWriter> | null = null
+      let clientDisconnected = false
       const transformedStream = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder()
 
           await resetStreamBuffer(streamId)
           await setStreamMeta(streamId, { status: 'active', userId: authenticatedUserId })
+          eventWriter = createStreamEventWriter(streamId)
+
+          const shouldFlushEvent = (event: Record<string, any>) =>
+            event.type === 'tool_call' ||
+            event.type === 'tool_result' ||
+            event.type === 'tool_error' ||
+            event.type === 'subagent_end' ||
+            event.type === 'structured_result' ||
+            event.type === 'subagent_result' ||
+            event.type === 'done' ||
+            event.type === 'error'
 
           const pushEvent = async (event: Record<string, any>) => {
-            const entry = await appendStreamEvent(streamId, event)
+            if (!eventWriter) return
+            const entry = await eventWriter.write(event)
+            if (shouldFlushEvent(event)) {
+              await eventWriter.flush()
+            }
             const payload = {
               ...event,
               eventId: entry.eventId,
               streamId,
             }
             try {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+              if (!clientDisconnected) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+              }
             } catch {
-              // Client disconnected - keep buffering
+              clientDisconnected = true
+              await eventWriter.flush()
             }
           }
 
@@ -562,9 +582,11 @@ export async function POST(req: NextRequest) {
                 })
                 .where(eq(copilotChats.id, actualChatId!))
             }
+            await eventWriter.close()
             await setStreamMeta(streamId, { status: 'complete', userId: authenticatedUserId })
           } catch (error) {
             logger.error(`[${tracker.requestId}] Orchestration error:`, error)
+            await eventWriter.close()
             await setStreamMeta(streamId, {
               status: 'error',
               userId: authenticatedUserId,
@@ -578,6 +600,12 @@ export async function POST(req: NextRequest) {
             })
           } finally {
             controller.close()
+          }
+        },
+        async cancel() {
+          clientDisconnected = true
+          if (eventWriter) {
+            await eventWriter.flush()
           }
         },
       })
