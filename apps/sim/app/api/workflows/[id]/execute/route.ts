@@ -1,10 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { tasks } from '@trigger.dev/sdk'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
@@ -31,7 +30,7 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
-import type { WorkflowExecutionPayload } from '@/background/workflow-execution'
+import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
@@ -60,6 +59,25 @@ const ExecuteWorkflowSchema = z.object({
     })
     .optional(),
   stopAfterBlockId: z.string().optional(),
+  runFromBlock: z
+    .object({
+      startBlockId: z.string().min(1, 'Start block ID is required'),
+      sourceSnapshot: z.object({
+        blockStates: z.record(z.any()),
+        executedBlocks: z.array(z.string()),
+        blockLogs: z.array(z.any()),
+        decisions: z.object({
+          router: z.record(z.string()),
+          condition: z.record(z.string()),
+        }),
+        completedLoops: z.array(z.string()),
+        loopExecutions: z.record(z.any()).optional(),
+        parallelExecutions: z.record(z.any()).optional(),
+        parallelBlockMapping: z.record(z.any()).optional(),
+        activeExecutionPath: z.array(z.string()),
+      }),
+    })
+    .optional(),
 })
 
 export const runtime = 'nodejs'
@@ -124,41 +142,66 @@ type AsyncExecutionParams = {
   userId: string
   input: any
   triggerType: CoreTriggerType
+  executionId: string
 }
 
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
-  const { requestId, workflowId, userId, input, triggerType } = params
-
-  if (!isTriggerDevEnabled) {
-    logger.warn(`[${requestId}] Async mode requested but TRIGGER_DEV_ENABLED is false`)
-    return NextResponse.json(
-      { error: 'Async execution is not enabled. Set TRIGGER_DEV_ENABLED=true to use async mode.' },
-      { status: 400 }
-    )
-  }
+  const { requestId, workflowId, userId, input, triggerType, executionId } = params
 
   const payload: WorkflowExecutionPayload = {
     workflowId,
     userId,
     input,
     triggerType,
+    executionId,
   }
 
   try {
-    const handle = await tasks.trigger('workflow-execution', payload)
+    const jobQueue = await getJobQueue()
+    const jobId = await jobQueue.enqueue('workflow-execution', payload, {
+      metadata: { workflowId, userId },
+    })
 
     logger.info(`[${requestId}] Queued async workflow execution`, {
       workflowId,
-      jobId: handle.id,
+      jobId,
     })
+
+    if (shouldExecuteInline()) {
+      void (async () => {
+        try {
+          await jobQueue.startJob(jobId)
+          const output = await executeWorkflowJob(payload)
+          await jobQueue.completeJob(jobId, output)
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logger.error(`[${requestId}] Async workflow execution failed`, {
+            jobId,
+            error: errorMessage,
+          })
+          try {
+            await jobQueue.markJobFailed(jobId, errorMessage)
+          } catch (markFailedError) {
+            logger.error(`[${requestId}] Failed to mark job as failed`, {
+              jobId,
+              error:
+                markFailedError instanceof Error
+                  ? markFailedError.message
+                  : String(markFailedError),
+            })
+          }
+        }
+      })()
+    }
 
     return NextResponse.json(
       {
         success: true,
         async: true,
-        jobId: handle.id,
+        jobId,
+        executionId,
         message: 'Workflow execution queued',
-        statusUrl: `${getBaseUrl()}/api/jobs/${handle.id}`,
+        statusUrl: `${getBaseUrl()}/api/jobs/${jobId}`,
       },
       { status: 202 }
     )
@@ -226,6 +269,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       base64MaxBytes,
       workflowStateOverride,
       stopAfterBlockId,
+      runFromBlock,
     } = validation.data
 
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
@@ -242,6 +286,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               base64MaxBytes,
               workflowStateOverride,
               stopAfterBlockId: _stopAfterBlockId,
+              runFromBlock: _runFromBlock,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               ...rest
             } = body
@@ -320,6 +365,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         userId: actorUserId,
         input,
         triggerType: loggingTriggerType,
+        executionId,
       })
     }
 
@@ -444,6 +490,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           includeFileBase64,
           base64MaxBytes,
           stopAfterBlockId,
+          runFromBlock,
           abortSignal: timeoutController.signal,
         })
 
@@ -492,6 +539,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         const filteredResult = {
           success: result.success,
+          executionId,
           output: outputWithBase64,
           error: result.error,
           metadata: result.metadata
@@ -783,6 +831,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             includeFileBase64,
             base64MaxBytes,
             stopAfterBlockId,
+            runFromBlock,
           })
 
           if (result.status === 'paused') {
