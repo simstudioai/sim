@@ -287,8 +287,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                 return entry
               }
 
-              // For loop/parallel iterations, match on iterationCurrent to update the correct entry.
-              // Without this, all iterations of the same block would be updated with the last iteration's output.
               if (
                 typeof update === 'object' &&
                 update.iterationCurrent !== undefined &&
@@ -411,9 +409,15 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         },
         merge: (persistedState, currentState) => {
           const persisted = persistedState as Partial<ConsoleStore> | undefined
+          const entries = (persisted?.entries ?? currentState.entries).map((entry, index) => {
+            if (entry.executionOrder === undefined) {
+              return { ...entry, executionOrder: index + 1 }
+            }
+            return entry
+          })
           return {
             ...currentState,
-            entries: persisted?.entries ?? currentState.entries,
+            entries,
             isOpen: persisted?.isOpen ?? currentState.isOpen,
           }
         },
