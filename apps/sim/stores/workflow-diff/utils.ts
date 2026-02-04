@@ -37,10 +37,26 @@ export function applyWorkflowStateToStores(
   workflowState: WorkflowState,
   options?: { updateLastSaved?: boolean }
 ) {
+  logger.info('[applyWorkflowStateToStores] Applying state', {
+    workflowId,
+    blockCount: Object.keys(workflowState.blocks || {}).length,
+    edgeCount: workflowState.edges?.length ?? 0,
+    edgePreview: workflowState.edges?.slice(0, 3).map((e) => `${e.source} -> ${e.target}`),
+  })
   const workflowStore = useWorkflowStore.getState()
-  workflowStore.replaceWorkflowState(cloneWorkflowState(workflowState), options)
+  const cloned = cloneWorkflowState(workflowState)
+  logger.info('[applyWorkflowStateToStores] Cloned state edges', {
+    clonedEdgeCount: cloned.edges?.length ?? 0,
+  })
+  workflowStore.replaceWorkflowState(cloned, options)
   const subBlockValues = extractSubBlockValues(workflowState)
   useSubBlockStore.getState().setWorkflowValues(workflowId, subBlockValues)
+
+  // Verify what's in the store after apply
+  const afterState = workflowStore.getWorkflowState()
+  logger.info('[applyWorkflowStateToStores] After apply', {
+    afterEdgeCount: afterState.edges?.length ?? 0,
+  })
 }
 
 export function captureBaselineSnapshot(workflowId: string): WorkflowState {
