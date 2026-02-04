@@ -246,7 +246,8 @@ export interface CopilotActions {
     stream: ReadableStream,
     messageId: string,
     isContinuation?: boolean,
-    triggerUserMessageId?: string
+    triggerUserMessageId?: string,
+    abortSignal?: AbortSignal
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
   loadAutoAllowedTools: () => Promise<void>
