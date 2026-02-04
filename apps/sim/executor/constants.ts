@@ -1,3 +1,4 @@
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { LoopType, ParallelType } from '@/lib/workflows/types'
 
 /**
@@ -184,8 +185,6 @@ export const HTTP = {
     EVENT_STREAM: 'text/event-stream',
   },
 } as const
-
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 
 export const AGENT = {
   DEFAULT_MODEL: 'claude-sonnet-4-5',
