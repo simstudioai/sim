@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { JOB_RETENTION_HOURS, JOB_RETENTION_SECONDS } from './types'
+import { JOB_MAX_LIFETIME_SECONDS, JOB_RETENTION_HOURS, JOB_RETENTION_SECONDS } from './types'
 
 describe('Job retention constants', () => {
   it.concurrent('JOB_RETENTION_HOURS should be 24', async () => {
@@ -21,4 +21,12 @@ describe('Job retention constants', () => {
     const hoursToSeconds = JOB_RETENTION_HOURS * 60 * 60
     expect(JOB_RETENTION_SECONDS).toBe(hoursToSeconds)
   })
+
+  it.concurrent(
+    'JOB_MAX_LIFETIME_SECONDS should be greater than JOB_RETENTION_SECONDS',
+    async () => {
+      expect(JOB_MAX_LIFETIME_SECONDS).toBeGreaterThan(JOB_RETENTION_SECONDS)
+      expect(JOB_MAX_LIFETIME_SECONDS).toBe(48 * 60 * 60)
+    }
+  )
 })

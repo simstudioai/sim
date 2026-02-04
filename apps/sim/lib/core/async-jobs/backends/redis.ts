@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type Redis from 'ioredis'
 import {
   type EnqueueOptions,
+  JOB_MAX_LIFETIME_SECONDS,
   JOB_RETENTION_SECONDS,
   JOB_STATUS,
   type Job,
@@ -85,8 +86,10 @@ export class RedisJobQueue implements JobQueueBackend {
       metadata: options?.metadata ?? {},
     }
 
+    const key = KEYS.job(jobId)
     const serialized = serializeJob(job as Job)
-    await this.redis.hset(KEYS.job(jobId), serialized)
+    await this.redis.hset(key, serialized)
+    await this.redis.expire(key, JOB_MAX_LIFETIME_SECONDS)
 
     logger.debug('Enqueued job', { jobId, type })
     return jobId

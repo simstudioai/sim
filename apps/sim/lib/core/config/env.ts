@@ -170,10 +170,15 @@ export const env = createEnv({
     RATE_LIMIT_ENTERPRISE_SYNC:            z.string().optional().default('600'),   // Enterprise tier sync API executions per minute
     RATE_LIMIT_ENTERPRISE_ASYNC:           z.string().optional().default('5000'),  // Enterprise tier async API executions per minute
 
-    EXECUTION_TIMEOUT_FREE:                z.string().optional().default('300'),
-    EXECUTION_TIMEOUT_PRO:                 z.string().optional().default('3600'),
-    EXECUTION_TIMEOUT_TEAM:                z.string().optional().default('3600'),
-    EXECUTION_TIMEOUT_ENTERPRISE:          z.string().optional().default('3600'),
+    // Timeout Configuration
+    EXECUTION_TIMEOUT_FREE:                z.string().optional().default('300'),   // 5 minutes
+    EXECUTION_TIMEOUT_PRO:                 z.string().optional().default('3600'),  // 1 hour
+    EXECUTION_TIMEOUT_TEAM:                z.string().optional().default('3600'),  // 1 hour
+    EXECUTION_TIMEOUT_ENTERPRISE:          z.string().optional().default('3600'),  // 1 hour
+    EXECUTION_TIMEOUT_ASYNC_FREE:          z.string().optional().default('5400'),  // 90 minutes
+    EXECUTION_TIMEOUT_ASYNC_PRO:           z.string().optional().default('5400'),  // 90 minutes
+    EXECUTION_TIMEOUT_ASYNC_TEAM:          z.string().optional().default('5400'),  // 90 minutes
+    EXECUTION_TIMEOUT_ASYNC_ENTERPRISE:    z.string().optional().default('5400'),  // 90 minutes
 
     // Knowledge Base Processing Configuration - Shared across all processing methods
     KB_CONFIG_MAX_DURATION:                z.number().optional().default(600),     // Max processing duration in seconds (10 minutes)

@@ -8,6 +8,9 @@ export const JOB_RETENTION_HOURS = 24
 /** Retention period for completed/failed jobs (in seconds, for Redis TTL) */
 export const JOB_RETENTION_SECONDS = JOB_RETENTION_HOURS * 60 * 60
 
+/** Max lifetime for jobs in Redis (in seconds) - cleanup for stuck pending/processing jobs */
+export const JOB_MAX_LIFETIME_SECONDS = 48 * 60 * 60
+
 export const JOB_STATUS = {
   PENDING: 'pending',
   PROCESSING: 'processing',

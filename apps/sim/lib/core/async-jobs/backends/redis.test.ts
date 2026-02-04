@@ -6,7 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/logger', () => loggerMock)
 
-import { JOB_RETENTION_SECONDS, JOB_STATUS } from '@/lib/core/async-jobs/types'
+import {
+  JOB_MAX_LIFETIME_SECONDS,
+  JOB_RETENTION_SECONDS,
+  JOB_STATUS,
+} from '@/lib/core/async-jobs/types'
 import { RedisJobQueue } from './redis'
 
 describe('RedisJobQueue', () => {
@@ -35,13 +39,16 @@ describe('RedisJobQueue', () => {
       expect(data.type).toBe('workflow-execution')
     })
 
-    it.concurrent('should not set TTL on enqueue', async () => {
+    it.concurrent('should set max lifetime TTL on enqueue', async () => {
       const localRedis = createMockRedis()
       const localQueue = new RedisJobQueue(localRedis as never)
 
-      await localQueue.enqueue('workflow-execution', { test: 'data' })
+      const jobId = await localQueue.enqueue('workflow-execution', { test: 'data' })
 
-      expect(localRedis.expire).not.toHaveBeenCalled()
+      expect(localRedis.expire).toHaveBeenCalledWith(
+        `async-jobs:job:${jobId}`,
+        JOB_MAX_LIFETIME_SECONDS
+      )
     })
   })
 

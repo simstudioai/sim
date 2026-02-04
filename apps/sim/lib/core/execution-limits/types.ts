@@ -13,8 +13,12 @@ const DEFAULT_SYNC_TIMEOUTS_SECONDS = {
   enterprise: 3600,
 } as const
 
-const ASYNC_MULTIPLIER = 2
-const MAX_ASYNC_TIMEOUT_SECONDS = 5400
+const DEFAULT_ASYNC_TIMEOUTS_SECONDS = {
+  free: 5400,
+  pro: 5400,
+  team: 5400,
+  enterprise: 5400,
+} as const
 
 function getSyncTimeoutForPlan(plan: SubscriptionPlan): number {
   const envVarMap: Record<SubscriptionPlan, string | undefined> = {
@@ -27,10 +31,13 @@ function getSyncTimeoutForPlan(plan: SubscriptionPlan): number {
 }
 
 function getAsyncTimeoutForPlan(plan: SubscriptionPlan): number {
-  const syncMs = getSyncTimeoutForPlan(plan)
-  const asyncMs = syncMs * ASYNC_MULTIPLIER
-  const maxAsyncMs = MAX_ASYNC_TIMEOUT_SECONDS * 1000
-  return Math.min(asyncMs, maxAsyncMs)
+  const envVarMap: Record<SubscriptionPlan, string | undefined> = {
+    free: env.EXECUTION_TIMEOUT_ASYNC_FREE,
+    pro: env.EXECUTION_TIMEOUT_ASYNC_PRO,
+    team: env.EXECUTION_TIMEOUT_ASYNC_TEAM,
+    enterprise: env.EXECUTION_TIMEOUT_ASYNC_ENTERPRISE,
+  }
+  return (Number.parseInt(envVarMap[plan] || '') || DEFAULT_ASYNC_TIMEOUTS_SECONDS[plan]) * 1000
 }
 
 const EXECUTION_TIMEOUTS: Record<SubscriptionPlan, ExecutionTimeoutConfig> = {
