@@ -1,11 +1,21 @@
 import { createLogger } from '@sim/logger'
-import OpenAI from 'openai'
-import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
-import { createReadableStreamFromOpenAIStream } from '@/providers/openai/utils'
+import {
+  buildResponsesInputFromMessages,
+  convertResponseOutputToInputItems,
+  convertToolsToResponses,
+  createReadableStreamFromResponses,
+  extractResponseText,
+  extractResponseToolCalls,
+  parseResponsesUsage,
+  type ResponsesInputItem,
+  type ResponsesToolCall,
+  toResponsesToolChoice,
+} from '@/providers/responses-utils'
 import type {
+  Message,
   ProviderConfig,
   ProviderRequest,
   ProviderResponse,
@@ -20,6 +30,7 @@ import {
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OpenAIProvider')
+const responsesEndpoint = 'https://api.openai.com/v1/responses'
 
 export const openaiProvider: ProviderConfig = {
   id: 'openai',
@@ -42,9 +53,11 @@ export const openaiProvider: ProviderConfig = {
       stream: !!request.stream,
     })
 
-    const openai = new OpenAI({ apiKey: request.apiKey })
+    if (!request.apiKey) {
+      throw new Error('API key is required for OpenAI')
+    }
 
-    const allMessages = []
+    const allMessages: Message[] = []
 
     if (request.systemPrompt) {
       allMessages.push({
@@ -64,30 +77,31 @@ export const openaiProvider: ProviderConfig = {
       allMessages.push(...request.messages)
     }
 
-    const tools = request.tools?.length
-      ? request.tools.map((tool) => ({
-          type: 'function',
-          function: {
-            name: tool.id,
-            description: tool.description,
-            parameters: tool.parameters,
-          },
-        }))
-      : undefined
+    const initialInput = buildResponsesInputFromMessages(allMessages)
 
-    const payload: any = {
+    const basePayload: Record<string, any> = {
       model: request.model,
-      messages: allMessages,
     }
 
-    if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
+    if (request.temperature !== undefined) basePayload.temperature = request.temperature
+    if (request.maxTokens != null) basePayload.max_output_tokens = request.maxTokens
 
-    if (request.reasoningEffort !== undefined) payload.reasoning_effort = request.reasoningEffort
-    if (request.verbosity !== undefined) payload.verbosity = request.verbosity
+    if (request.reasoningEffort !== undefined) {
+      basePayload.reasoning = {
+        effort: request.reasoningEffort,
+        summary: 'auto',
+      }
+    }
+
+    if (request.verbosity !== undefined) {
+      basePayload.text = {
+        ...(basePayload.text ?? {}),
+        verbosity: request.verbosity,
+      }
+    }
 
     if (request.responseFormat) {
-      payload.response_format = {
+      basePayload.response_format = {
         type: 'json_schema',
         json_schema: {
           name: request.responseFormat.name || 'response_schema',
@@ -99,23 +113,47 @@ export const openaiProvider: ProviderConfig = {
       logger.info('Added JSON schema response format to request')
     }
 
+    const tools = request.tools?.length
+      ? request.tools.map((tool) => ({
+          type: 'function',
+          function: {
+            name: tool.id,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        }))
+      : undefined
+
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+    let responsesToolChoice: ReturnType<typeof toResponsesToolChoice> | undefined
 
     if (tools?.length) {
       preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'openai')
       const { tools: filteredTools, toolChoice } = preparedTools
 
-      if (filteredTools?.length && toolChoice) {
-        payload.tools = filteredTools
-        payload.tool_choice = toolChoice
+      if (filteredTools?.length) {
+        const convertedTools = convertToolsToResponses(filteredTools)
+        if (!convertedTools.length) {
+          throw new Error('All tools have empty names')
+        }
+
+        basePayload.tools = convertedTools
+        basePayload.parallel_tool_calls = true
+      }
+
+      if (toolChoice) {
+        responsesToolChoice = toResponsesToolChoice(toolChoice)
+        if (responsesToolChoice) {
+          basePayload.tool_choice = responsesToolChoice
+        }
 
         logger.info('OpenAI request configuration:', {
-          toolCount: filteredTools.length,
+          toolCount: filteredTools?.length || 0,
           toolChoice:
             typeof toolChoice === 'string'
               ? toolChoice
               : toolChoice.type === 'function'
-                ? `force:${toolChoice.function.name}`
+                ? `force:${toolChoice.function?.name}`
                 : toolChoice.type === 'tool'
                   ? `force:${toolChoice.name}`
                   : toolChoice.type === 'any'
@@ -126,6 +164,46 @@ export const openaiProvider: ProviderConfig = {
       }
     }
 
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${request.apiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'responses=v1',
+    }
+
+    const createRequestBody = (
+      input: ResponsesInputItem[],
+      overrides: Record<string, any> = {}
+    ) => ({
+      ...basePayload,
+      input,
+      ...overrides,
+    })
+
+    const parseErrorResponse = async (response: Response): Promise<string> => {
+      const text = await response.text()
+      try {
+        const payload = JSON.parse(text)
+        return payload?.error?.message || text
+      } catch {
+        return text
+      }
+    }
+
+    const postResponses = async (body: Record<string, any>) => {
+      const response = await fetch(responsesEndpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+
+      if (!response.ok) {
+        const message = await parseErrorResponse(response)
+        throw new Error(`OpenAI API error (${response.status}): ${message}`)
+      }
+
+      return response.json()
+    }
+
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
@@ -133,26 +211,30 @@ export const openaiProvider: ProviderConfig = {
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for OpenAI request')
 
-        const streamingParams: ChatCompletionCreateParamsStreaming = {
-          ...payload,
-          stream: true,
-          stream_options: { include_usage: true },
+        const streamResponse = await fetch(responsesEndpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(createRequestBody(initialInput, { stream: true })),
+        })
+
+        if (!streamResponse.ok) {
+          const message = await parseErrorResponse(streamResponse)
+          throw new Error(`OpenAI API error (${streamResponse.status}): ${message}`)
         }
-        const streamResponse = await openai.chat.completions.create(streamingParams)
 
         const streamingResult = {
-          stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
+          stream: createReadableStreamFromResponses(streamResponse, (content, usage) => {
             streamingResult.execution.output.content = content
             streamingResult.execution.output.tokens = {
-              input: usage.prompt_tokens,
-              output: usage.completion_tokens,
-              total: usage.total_tokens,
+              input: usage?.promptTokens || 0,
+              output: usage?.completionTokens || 0,
+              total: usage?.totalTokens || 0,
             }
 
             const costResult = calculateCost(
               request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
+              usage?.promptTokens || 0,
+              usage?.completionTokens || 0
             )
             streamingResult.execution.output.cost = {
               input: costResult.input,
@@ -212,23 +294,18 @@ export const openaiProvider: ProviderConfig = {
       }
 
       const initialCallTime = Date.now()
-
-      const originalToolChoice = payload.tool_choice
-
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
+      let hasUsedForcedTool = false
+      let currentToolChoice = responsesToolChoice
 
-      /**
-       * Helper function to check for forced tool usage in responses
-       */
       const checkForForcedToolUsage = (
-        response: any,
-        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
+        toolCallsInResponse: ResponsesToolCall[],
+        toolChoice: string | { type: string; name?: string } | undefined
       ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
+        if (typeof toolChoice === 'object' && toolCallsInResponse.length > 0) {
           const result = trackForcedToolUsage(
-            toolCallsResponse,
+            toolCallsInResponse,
             toolChoice,
             logger,
             'openai',
@@ -240,24 +317,25 @@ export const openaiProvider: ProviderConfig = {
         }
       }
 
-      let currentResponse = await openai.chat.completions.create(payload)
+      const currentInput: ResponsesInputItem[] = [...initialInput]
+      let currentResponse = await postResponses(
+        createRequestBody(currentInput, { tool_choice: currentToolChoice })
+      )
       const firstResponseTime = Date.now() - initialCallTime
 
-      let content = currentResponse.choices[0]?.message?.content || ''
+      const initialUsage = parseResponsesUsage(currentResponse.usage)
       const tokens = {
-        input: currentResponse.usage?.prompt_tokens || 0,
-        output: currentResponse.usage?.completion_tokens || 0,
-        total: currentResponse.usage?.total_tokens || 0,
+        input: initialUsage?.promptTokens || 0,
+        output: initialUsage?.completionTokens || 0,
+        total: initialUsage?.totalTokens || 0,
       }
+
       const toolCalls = []
       const toolResults = []
-      const currentMessages = [...allMessages]
       let iterationCount = 0
-
       let modelTime = firstResponseTime
       let toolsTime = 0
-
-      let hasUsedForcedTool = false
+      let content = extractResponseText(currentResponse.output) || ''
 
       const timeSegments: TimeSegment[] = [
         {
@@ -269,30 +347,38 @@ export const openaiProvider: ProviderConfig = {
         },
       ]
 
-      checkForForcedToolUsage(currentResponse, originalToolChoice)
+      checkForForcedToolUsage(extractResponseToolCalls(currentResponse.output), currentToolChoice)
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
-        if (currentResponse.choices[0]?.message?.content) {
-          content = currentResponse.choices[0].message.content
+        const responseText = extractResponseText(currentResponse.output)
+        if (responseText) {
+          content = responseText
         }
 
-        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
-        if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
+        const toolCallsInResponse = extractResponseToolCalls(currentResponse.output)
+        if (!toolCallsInResponse.length) {
           break
         }
 
+        const outputInputItems = convertResponseOutputToInputItems(currentResponse.output)
+        if (outputInputItems.length) {
+          currentInput.push(...outputInputItems)
+        }
+
         logger.info(
-          `Processing ${toolCallsInResponse.length} tool calls in parallel (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
+          `Processing ${toolCallsInResponse.length} tool calls in parallel (iteration ${
+            iterationCount + 1
+          }/${MAX_TOOL_ITERATIONS})`
         )
 
         const toolsStartTime = Date.now()
 
         const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
           const toolCallStartTime = Date.now()
-          const toolName = toolCall.function.name
+          const toolName = toolCall.name
 
           try {
-            const toolArgs = JSON.parse(toolCall.function.arguments)
+            const toolArgs = toolCall.arguments ? JSON.parse(toolCall.arguments) : {}
             const tool = request.tools?.find((t) => t.id === toolName)
 
             if (!tool) {
@@ -334,19 +420,6 @@ export const openaiProvider: ProviderConfig = {
 
         const executionResults = await Promise.allSettled(toolExecutionPromises)
 
-        currentMessages.push({
-          role: 'assistant',
-          content: null,
-          tool_calls: toolCallsInResponse.map((tc) => ({
-            id: tc.id,
-            type: 'function',
-            function: {
-              name: tc.function.name,
-              arguments: tc.function.arguments,
-            },
-          })),
-        })
-
         for (const settledResult of executionResults) {
           if (settledResult.status === 'rejected' || !settledResult.value) continue
 
@@ -383,41 +456,38 @@ export const openaiProvider: ProviderConfig = {
             success: result.success,
           })
 
-          currentMessages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: JSON.stringify(resultContent),
+          currentInput.push({
+            type: 'function_call_output',
+            call_id: toolCall.id,
+            output: JSON.stringify(resultContent),
           })
         }
 
         const thisToolsTime = Date.now() - toolsStartTime
         toolsTime += thisToolsTime
 
-        const nextPayload = {
-          ...payload,
-          messages: currentMessages,
-        }
-
-        if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
+        if (typeof currentToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
           const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
           if (remainingTools.length > 0) {
-            nextPayload.tool_choice = {
+            currentToolChoice = {
               type: 'function',
-              function: { name: remainingTools[0] },
+              name: remainingTools[0],
             }
             logger.info(`Forcing next tool: ${remainingTools[0]}`)
           } else {
-            nextPayload.tool_choice = 'auto'
+            currentToolChoice = 'auto'
             logger.info('All forced tools have been used, switching to auto tool_choice')
           }
         }
 
         const nextModelStartTime = Date.now()
 
-        currentResponse = await openai.chat.completions.create(nextPayload)
+        currentResponse = await postResponses(
+          createRequestBody(currentInput, { tool_choice: currentToolChoice })
+        )
 
-        checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
+        checkForForcedToolUsage(extractResponseToolCalls(currentResponse.output), currentToolChoice)
 
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime
@@ -432,10 +502,11 @@ export const openaiProvider: ProviderConfig = {
 
         modelTime += thisModelTime
 
-        if (currentResponse.usage) {
-          tokens.input += currentResponse.usage.prompt_tokens || 0
-          tokens.output += currentResponse.usage.completion_tokens || 0
-          tokens.total += currentResponse.usage.total_tokens || 0
+        const usage = parseResponsesUsage(currentResponse.usage)
+        if (usage) {
+          tokens.input += usage.promptTokens
+          tokens.output += usage.completionTokens
+          tokens.total += usage.totalTokens
         }
 
         iterationCount++
@@ -446,28 +517,32 @@ export const openaiProvider: ProviderConfig = {
 
         const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
-        const streamingParams: ChatCompletionCreateParamsStreaming = {
-          ...payload,
-          messages: currentMessages,
-          tool_choice: 'auto',
-          stream: true,
-          stream_options: { include_usage: true },
+        const streamResponse = await fetch(responsesEndpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(
+            createRequestBody(currentInput, { stream: true, tool_choice: 'auto' })
+          ),
+        })
+
+        if (!streamResponse.ok) {
+          const message = await parseErrorResponse(streamResponse)
+          throw new Error(`OpenAI API error (${streamResponse.status}): ${message}`)
         }
-        const streamResponse = await openai.chat.completions.create(streamingParams)
 
         const streamingResult = {
-          stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
+          stream: createReadableStreamFromResponses(streamResponse, (content, usage) => {
             streamingResult.execution.output.content = content
             streamingResult.execution.output.tokens = {
-              input: tokens.input + usage.prompt_tokens,
-              output: tokens.output + usage.completion_tokens,
-              total: tokens.total + usage.total_tokens,
+              input: tokens.input + (usage?.promptTokens || 0),
+              output: tokens.output + (usage?.completionTokens || 0),
+              total: tokens.total + (usage?.totalTokens || 0),
             }
 
             const streamCost = calculateCost(
               request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
+              usage?.promptTokens || 0,
+              usage?.completionTokens || 0
             )
             streamingResult.execution.output.cost = {
               input: accumulatedCost.input + streamCost.input,
