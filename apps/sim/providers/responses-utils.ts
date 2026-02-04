@@ -57,7 +57,10 @@ export function buildResponsesInputFromMessages(messages: Message[]): ResponsesI
       continue
     }
 
-    if (message.content) {
+    if (
+      message.content &&
+      (message.role === 'system' || message.role === 'user' || message.role === 'assistant')
+    ) {
       input.push({
         role: message.role,
         content: message.content,
@@ -200,6 +203,28 @@ export function convertResponseOutputToInputItems(output: unknown): ResponsesInp
           content: text,
         })
       }
+
+      const toolCalls = Array.isArray(item.tool_calls) ? item.tool_calls : []
+      for (const toolCall of toolCalls) {
+        const callId = toolCall?.id
+        const name = toolCall?.function?.name ?? toolCall?.name
+        if (!callId || !name) {
+          continue
+        }
+
+        const argumentsValue =
+          typeof toolCall?.function?.arguments === 'string'
+            ? toolCall.function.arguments
+            : JSON.stringify(toolCall?.function?.arguments ?? {})
+
+        items.push({
+          type: 'function_call',
+          call_id: callId,
+          name,
+          arguments: argumentsValue,
+        })
+      }
+
       continue
     }
 
@@ -233,28 +258,54 @@ export function extractResponseToolCalls(output: unknown): ResponsesToolCall[] {
     return []
   }
 
-  return output
-    .map((item) => {
-      if (!item || item.type !== 'function_call') {
-        return null
-      }
+  const toolCalls: ResponsesToolCall[] = []
 
+  for (const item of output) {
+    if (!item || typeof item !== 'object') {
+      continue
+    }
+
+    if (item.type === 'function_call') {
       const callId = item.call_id ?? item.id
       const name = item.name ?? item.function?.name
       if (!callId || !name) {
-        return null
+        continue
       }
 
       const argumentsValue =
         typeof item.arguments === 'string' ? item.arguments : JSON.stringify(item.arguments ?? {})
 
-      return {
+      toolCalls.push({
         id: callId,
         name,
         arguments: argumentsValue,
+      })
+      continue
+    }
+
+    if (item.type === 'message' && Array.isArray(item.tool_calls)) {
+      for (const toolCall of item.tool_calls) {
+        const callId = toolCall?.id
+        const name = toolCall?.function?.name ?? toolCall?.name
+        if (!callId || !name) {
+          continue
+        }
+
+        const argumentsValue =
+          typeof toolCall?.function?.arguments === 'string'
+            ? toolCall.function.arguments
+            : JSON.stringify(toolCall?.function?.arguments ?? {})
+
+        toolCalls.push({
+          id: callId,
+          name,
+          arguments: argumentsValue,
+        })
       }
-    })
-    .filter(Boolean) as ResponsesToolCall[]
+    }
+  }
+
+  return toolCalls
 }
 
 /**
@@ -269,8 +320,8 @@ export function parseResponsesUsage(usage: any): ResponsesUsageTokens | undefine
   const outputTokens = Number(usage.output_tokens ?? 0)
   const cachedTokens = Number(usage.input_tokens_details?.cached_tokens ?? 0)
   const reasoningTokens = Number(usage.output_tokens_details?.reasoning_tokens ?? 0)
-  const completionTokens = outputTokens + reasoningTokens
-  const totalTokens = inputTokens + completionTokens
+  const completionTokens = outputTokens
+  const totalTokens = inputTokens + outputTokens
 
   return {
     promptTokens: inputTokens,

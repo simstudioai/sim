@@ -262,7 +262,7 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
         )
 
         const apiUrl = useWandAzure
-          ? `${azureEndpoint}/openai/v1/responses?api-version=${azureApiVersion}`
+          ? `${azureEndpoint?.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
           : 'https://api.openai.com/v1/responses'
 
         const headers: Record<string, string> = {
@@ -461,7 +461,7 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
     }
 
     const apiUrl = useWandAzure
-      ? `${azureEndpoint}/openai/v1/responses?api-version=${azureApiVersion}`
+      ? `${azureEndpoint?.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
       : 'https://api.openai.com/v1/responses'
 
     const headers: Record<string, string> = {

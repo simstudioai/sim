@@ -24,7 +24,7 @@ export async function generateChatTitle(message: string): Promise<string | null>
 
   try {
     const apiUrl = useChatTitleAzure
-      ? `${azureEndpoint}/openai/v1/responses?api-version=${azureApiVersion}`
+      ? `${azureEndpoint?.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
       : 'https://api.openai.com/v1/responses'
 
     const headers: Record<string, string> = {
