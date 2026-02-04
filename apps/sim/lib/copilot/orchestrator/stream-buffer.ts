@@ -5,6 +5,9 @@ const logger = createLogger('CopilotStreamBuffer')
 
 const STREAM_TTL_SECONDS = 60 * 60
 const STREAM_EVENT_LIMIT = 5000
+const STREAM_RESERVE_BATCH = 200
+const STREAM_FLUSH_INTERVAL_MS = 15
+const STREAM_FLUSH_MAX_BATCH = 200
 
 const APPEND_STREAM_EVENT_LUA = `
 local seqKey = KEYS[1]
@@ -54,6 +57,12 @@ export type StreamEventEntry = {
   eventId: number
   streamId: string
   event: Record<string, any>
+}
+
+export type StreamEventWriter = {
+  write: (event: Record<string, any>) => Promise<StreamEventEntry>
+  flush: () => Promise<void>
+  close: () => Promise<void>
 }
 
 export async function resetStreamBuffer(streamId: string): Promise<void> {
@@ -138,6 +147,95 @@ export async function appendStreamEvent(
     })
     return { eventId: 0, streamId, event }
   }
+}
+
+export function createStreamEventWriter(streamId: string): StreamEventWriter {
+  const redis = getRedisClient()
+  if (!redis) {
+    return {
+      write: async (event) => ({ eventId: 0, streamId, event }),
+      flush: async () => {},
+      close: async () => {},
+    }
+  }
+
+  let pending: StreamEventEntry[] = []
+  let nextEventId = 0
+  let maxReservedId = 0
+  let flushTimer: ReturnType<typeof setTimeout> | null = null
+  let isFlushing = false
+
+  const scheduleFlush = () => {
+    if (flushTimer) return
+    flushTimer = setTimeout(() => {
+      flushTimer = null
+      void flush()
+    }, STREAM_FLUSH_INTERVAL_MS)
+  }
+
+  const reserveIds = async (minCount: number) => {
+    const reserveCount = Math.max(STREAM_RESERVE_BATCH, minCount)
+    const newMax = await redis.incrby(getSeqKey(streamId), reserveCount)
+    const startId = newMax - reserveCount + 1
+    if (nextEventId === 0 || nextEventId > maxReservedId) {
+      nextEventId = startId
+      maxReservedId = newMax
+    }
+  }
+
+  const flush = async () => {
+    if (isFlushing || pending.length === 0) return
+    isFlushing = true
+    const batch = pending
+    pending = []
+    try {
+      const key = getEventsKey(streamId)
+      const zaddArgs: (string | number)[] = []
+      for (const entry of batch) {
+        zaddArgs.push(entry.eventId, JSON.stringify(entry))
+      }
+      const pipeline = redis.pipeline()
+      pipeline.zadd(key, ...(zaddArgs as any))
+      pipeline.expire(key, STREAM_TTL_SECONDS)
+      pipeline.expire(getSeqKey(streamId), STREAM_TTL_SECONDS)
+      pipeline.zremrangebyrank(key, 0, -STREAM_EVENT_LIMIT - 1)
+      await pipeline.exec()
+    } catch (error) {
+      logger.warn('Failed to flush stream events', {
+        streamId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      pending = batch.concat(pending)
+    } finally {
+      isFlushing = false
+      if (pending.length > 0) scheduleFlush()
+    }
+  }
+
+  const write = async (event: Record<string, any>) => {
+    if (nextEventId === 0 || nextEventId > maxReservedId) {
+      await reserveIds(1)
+    }
+    const eventId = nextEventId++
+    const entry: StreamEventEntry = { eventId, streamId, event }
+    pending.push(entry)
+    if (pending.length >= STREAM_FLUSH_MAX_BATCH) {
+      await flush()
+    } else {
+      scheduleFlush()
+    }
+    return entry
+  }
+
+  const close = async () => {
+    if (flushTimer) {
+      clearTimeout(flushTimer)
+      flushTimer = null
+    }
+    await flush()
+  }
+
+  return { write, flush, close }
 }
 
 export async function readStreamEvents(
