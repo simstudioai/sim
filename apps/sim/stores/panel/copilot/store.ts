@@ -1303,11 +1303,25 @@ const sseHandlers: Record<string, SSEHandler> = {
             const resultPayload =
               data?.result || data?.data?.result || data?.data?.data || data?.data || {}
             const workflowState = resultPayload?.workflowState
+            logger.info('[SSE] edit_workflow result received', {
+              hasWorkflowState: !!workflowState,
+              blockCount: workflowState ? Object.keys(workflowState.blocks || {}).length : 0,
+              edgeCount: workflowState?.edges?.length ?? 0,
+            })
             if (workflowState) {
               const diffStore = useWorkflowDiffStore.getState()
-              void diffStore.setProposedChanges(workflowState)
+              // Await the diff application to catch any errors
+              diffStore.setProposedChanges(workflowState).catch((err) => {
+                logger.error('[SSE] Failed to apply edit_workflow diff', {
+                  error: err instanceof Error ? err.message : String(err),
+                })
+              })
             }
-          } catch {}
+          } catch (err) {
+            logger.error('[SSE] edit_workflow result handling failed', {
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
         }
       }
 
