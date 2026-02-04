@@ -62,16 +62,9 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         workspaceId,
         folderId: folderId || undefined,
         sortOrder,
+        color: workflowColor,
       })
       const newWorkflowId = result.id
-
-      if (workflowColor !== '#3972F6') {
-        await fetch(`/api/workflows/${newWorkflowId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ color: workflowColor }),
-        })
-      }
 
       await fetch(`/api/workflows/${newWorkflowId}/state`, {
         method: 'PUT',
