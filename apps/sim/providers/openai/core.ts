@@ -1,6 +1,14 @@
 import type { Logger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
+import {
+  calculateCost,
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  trackForcedToolUsage,
+} from '@/providers/utils'
+import { executeTool } from '@/tools'
 import {
   buildResponsesInputFromMessages,
   convertResponseOutputToInputItems,
@@ -12,18 +20,58 @@ import {
   type ResponsesInputItem,
   type ResponsesToolCall,
   toResponsesToolChoice,
-} from '@/providers/responses-utils'
-import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
-import {
-  calculateCost,
-  prepareToolExecution,
-  prepareToolsWithUsageControl,
-  trackForcedToolUsage,
-} from '@/providers/utils'
-import { executeTool } from '@/tools'
+} from './utils'
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
+
+/**
+ * Recursively enforces OpenAI strict mode requirements on a JSON schema.
+ * - Sets additionalProperties: false on all object types.
+ * - Ensures required includes ALL property keys.
+ */
+function enforceStrictSchema(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema
+
+  const result = { ...schema }
+
+  // If this is an object type, enforce strict requirements
+  if (result.type === 'object') {
+    result.additionalProperties = false
+
+    // Recursively process properties and ensure required includes all keys
+    if (result.properties && typeof result.properties === 'object') {
+      const propKeys = Object.keys(result.properties)
+      result.required = propKeys // Strict mode requires ALL properties
+      result.properties = Object.fromEntries(
+        Object.entries(result.properties).map(([key, value]) => [key, enforceStrictSchema(value)])
+      )
+    }
+  }
+
+  // Handle array items
+  if (result.type === 'array' && result.items) {
+    result.items = enforceStrictSchema(result.items)
+  }
+
+  // Handle anyOf, oneOf, allOf
+  for (const keyword of ['anyOf', 'oneOf', 'allOf']) {
+    if (Array.isArray(result[keyword])) {
+      result[keyword] = result[keyword].map(enforceStrictSchema)
+    }
+  }
+
+  // Handle $defs / definitions
+  for (const defKey of ['$defs', 'definitions']) {
+    if (result[defKey] && typeof result[defKey] === 'object') {
+      result[defKey] = Object.fromEntries(
+        Object.entries(result[defKey]).map(([key, value]) => [key, enforceStrictSchema(value)])
+      )
+    }
+  }
+
+  return result
+}
 
 export interface ResponsesProviderConfig {
   providerId: string
@@ -97,15 +145,18 @@ export async function executeResponsesProviderRequest(
   }
 
   if (request.responseFormat) {
+    const isStrict = request.responseFormat.strict !== false
+    const rawSchema = request.responseFormat.schema || request.responseFormat
+    // OpenAI strict mode requires additionalProperties: false on ALL nested objects
+    const cleanedSchema = isStrict ? enforceStrictSchema(rawSchema) : rawSchema
+
     basePayload.text = {
       ...(basePayload.text ?? {}),
       format: {
         type: 'json_schema',
-        json_schema: {
-          name: request.responseFormat.name || 'response_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-          strict: request.responseFormat.strict !== false,
-        },
+        name: request.responseFormat.name || 'response_schema',
+        schema: cleanedSchema,
+        strict: isStrict,
       },
     }
 

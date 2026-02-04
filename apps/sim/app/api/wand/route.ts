@@ -11,7 +11,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import { extractResponseText, parseResponsesUsage } from '@/providers/responses-utils'
+import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
 import { getModelPricing } from '@/providers/utils'
 
 export const dynamic = 'force-dynamic'
@@ -386,12 +386,19 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
                       throw new Error(parsed?.error?.message || 'Responses stream error')
                     }
 
-                    if (eventType === 'response.output_text.delta') {
+                    if (
+                      eventType === 'response.output_text.delta' ||
+                      eventType === 'response.output_json.delta'
+                    ) {
                       let content = ''
                       if (typeof parsed.delta === 'string') {
                         content = parsed.delta
                       } else if (parsed.delta && typeof parsed.delta.text === 'string') {
                         content = parsed.delta.text
+                      } else if (parsed.delta && parsed.delta.json !== undefined) {
+                        content = JSON.stringify(parsed.delta.json)
+                      } else if (parsed.json !== undefined) {
+                        content = JSON.stringify(parsed.json)
                       } else if (typeof parsed.text === 'string') {
                         content = parsed.text
                       }

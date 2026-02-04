@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { extractResponseText } from '@/providers/responses-utils'
+import { extractResponseText } from '@/providers/openai/utils'
 
 const logger = createLogger('SimAgentUtils')
 

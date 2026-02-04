@@ -146,12 +146,21 @@ function extractTextFromMessageItem(item: any): string {
 
   const textParts: string[] = []
   for (const part of item.content) {
-    if (
-      part &&
-      (part.type === 'output_text' || part.type === 'text') &&
-      typeof part.text === 'string'
-    ) {
+    if (!part || typeof part !== 'object') {
+      continue
+    }
+
+    if ((part.type === 'output_text' || part.type === 'text') && typeof part.text === 'string') {
       textParts.push(part.text)
+      continue
+    }
+
+    if (part.type === 'output_json') {
+      if (typeof part.text === 'string') {
+        textParts.push(part.text)
+      } else if (part.json !== undefined) {
+        textParts.push(JSON.stringify(part.json))
+      }
     }
   }
 
@@ -412,12 +421,19 @@ export function createReadableStreamFromResponses(
               return
             }
 
-            if (eventType === 'response.output_text.delta') {
+            if (
+              eventType === 'response.output_text.delta' ||
+              eventType === 'response.output_json.delta'
+            ) {
               let deltaText = ''
               if (typeof event.delta === 'string') {
                 deltaText = event.delta
               } else if (event.delta && typeof event.delta.text === 'string') {
                 deltaText = event.delta.text
+              } else if (event.delta && event.delta.json !== undefined) {
+                deltaText = JSON.stringify(event.delta.json)
+              } else if (event.json !== undefined) {
+                deltaText = JSON.stringify(event.json)
               } else if (typeof event.text === 'string') {
                 deltaText = event.text
               }
