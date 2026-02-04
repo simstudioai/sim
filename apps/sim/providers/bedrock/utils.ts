@@ -72,7 +72,7 @@ export function checkForForcedToolUsage(
  * AWS Bedrock requires toolUseId to be 1-64 characters, pattern [a-zA-Z0-9_-]+
  */
 export function generateToolUseId(toolName: string): string {
-  const timestamp = Date.now().toString(36) // Base36 timestamp (8 chars)
+  const timestamp = Date.now().toString(36) // Base36 timestamp (9 chars)
   const random = Math.random().toString(36).substring(2, 7) // 5 random chars
   const suffix = `-${timestamp}-${random}` // ~15 chars
   const maxNameLength = 64 - suffix.length
