@@ -313,10 +313,21 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
               return
             }
 
+            let finalUsage: any = null
+            let usageRecorded = false
+
+            const recordUsage = async () => {
+              if (usageRecorded || !finalUsage) {
+                return
+              }
+
+              usageRecorded = true
+              await updateUserStatsForWand(session.user.id, finalUsage, requestId, isBYOK)
+            }
+
             try {
               let buffer = ''
               let chunkCount = 0
-              let finalUsage: any = null
               let activeEventType: string | undefined
 
               while (true) {
@@ -324,6 +335,7 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
 
                 if (done) {
                   logger.info(`[${requestId}] Stream completed. Total chunks: ${chunkCount}`)
+                  await recordUsage()
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
                   controller.close()
                   break
@@ -353,9 +365,7 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
                   if (data === '[DONE]') {
                     logger.info(`[${requestId}] Received [DONE] signal`)
 
-                    if (finalUsage) {
-                      await updateUserStatsForWand(session.user.id, finalUsage, requestId, isBYOK)
-                    }
+                    await recordUsage()
 
                     controller.enqueue(
                       encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`)
@@ -422,6 +432,12 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
                 message: streamError?.message || 'Unknown error',
                 stack: streamError?.stack,
               })
+
+              try {
+                await recordUsage()
+              } catch (usageError) {
+                logger.warn(`[${requestId}] Failed to record usage after stream error`, usageError)
+              }
 
               const errorData = `data: ${JSON.stringify({ error: 'Streaming failed', done: true })}\n\n`
               controller.enqueue(encoder.encode(errorData))

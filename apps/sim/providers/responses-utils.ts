@@ -310,6 +310,9 @@ export function extractResponseToolCalls(output: unknown): ResponsesToolCall[] {
 
 /**
  * Maps Responses API usage data to prompt/completion token counts.
+ *
+ * Note: output_tokens is expected to include reasoning tokens; fall back to reasoning_tokens
+ * when output_tokens is missing or zero.
  */
 export function parseResponsesUsage(usage: any): ResponsesUsageTokens | undefined {
   if (!usage || typeof usage !== 'object') {
@@ -320,8 +323,8 @@ export function parseResponsesUsage(usage: any): ResponsesUsageTokens | undefine
   const outputTokens = Number(usage.output_tokens ?? 0)
   const cachedTokens = Number(usage.input_tokens_details?.cached_tokens ?? 0)
   const reasoningTokens = Number(usage.output_tokens_details?.reasoning_tokens ?? 0)
-  const completionTokens = outputTokens
-  const totalTokens = inputTokens + outputTokens
+  const completionTokens = Math.max(outputTokens, reasoningTokens)
+  const totalTokens = inputTokens + completionTokens
 
   return {
     promptTokens: inputTokens,
