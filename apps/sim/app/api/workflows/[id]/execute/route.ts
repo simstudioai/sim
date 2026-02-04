@@ -596,6 +596,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
         }
 
+        const shouldCleanupBase64 = true
+
         try {
           const startTime = new Date()
 
@@ -866,9 +868,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
-
-          // Cleanup base64 cache for this execution
-          await cleanupExecutionBase64Cache(executionId)
         } catch (error: unknown) {
           const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
           const errorMessage = isTimeout
@@ -902,6 +901,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })
         } finally {
           timeoutController.cleanup()
+          if (executionId && shouldCleanupBase64) {
+            await cleanupExecutionBase64Cache(executionId)
+          }
           if (!isStreamClosed) {
             try {
               controller.enqueue(encoder.encode('data: [DONE]\n\n'))
