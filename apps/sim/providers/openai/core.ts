@@ -627,6 +627,18 @@ export async function executeResponsesProviderRequest(
       // Copy over non-tool related settings
       if (request.temperature !== undefined) finalPayload.temperature = request.temperature
       if (request.maxTokens != null) finalPayload.max_output_tokens = request.maxTokens
+      if (request.reasoningEffort !== undefined) {
+        finalPayload.reasoning = {
+          effort: request.reasoningEffort,
+          summary: 'auto',
+        }
+      }
+      if (request.verbosity !== undefined) {
+        finalPayload.text = {
+          ...finalPayload.text,
+          verbosity: request.verbosity,
+        }
+      }
 
       currentResponse = await postResponses(finalPayload)
 
