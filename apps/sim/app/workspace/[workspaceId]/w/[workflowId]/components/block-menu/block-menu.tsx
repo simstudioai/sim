@@ -175,7 +175,7 @@ export function BlockMenu({
         </PopoverItem>
         {!hasSingletonBlock && (
           <PopoverItem
-            disabled={!userCanEdit}
+            disabled={disableEdit}
             onClick={() => {
               onDuplicate()
               onClose()
