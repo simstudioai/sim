@@ -300,9 +300,42 @@ function getEmbedInfo(url: string): EmbedInfo | null {
 }
 
 /**
+ * Converts single newlines to markdown hard breaks (two trailing spaces + newline).
+ * This ensures that pressing Enter in the editor creates a visible line break in the preview.
+ * Preserves double newlines (paragraph breaks) and code block formatting.
+ */
+function convertNewlinesToBreaks(text: string): string {
+  // Split by code blocks to preserve their formatting
+  const parts = text.split(/(```[\s\S]*?```|`[^`\n]+`)/g)
+
+  return parts
+    .map((part, index) => {
+      // Odd indices are code blocks - don't modify them
+      if (index % 2 === 1) return part
+
+      // For regular text, convert single newlines to hard breaks
+      // First, temporarily replace double newlines with a placeholder
+      const placeholder = '\u0000DOUBLE_NEWLINE\u0000'
+      let processed = part.replace(/\n\n/g, placeholder)
+
+      // Add two spaces before single newlines (markdown hard break syntax)
+      // But only if there aren't already two spaces before the newline
+      processed = processed.replace(/([^\s\n])(\n)(?!\n)/g, '$1  $2')
+
+      // Restore double newlines
+      processed = processed.replace(new RegExp(placeholder, 'g'), '\n\n')
+
+      return processed
+    })
+    .join('')
+}
+
+/**
  * Compact markdown renderer for note blocks with tight spacing
  */
 const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }) {
+  const processedContent = convertNewlinesToBreaks(content)
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -468,7 +501,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
         ),
       }}
     >
-      {content}
+      {processedContent}
     </ReactMarkdown>
   )
 })
