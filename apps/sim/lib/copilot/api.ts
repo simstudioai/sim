@@ -82,6 +82,7 @@ export interface SendMessageRequest {
     executionId?: string
   }>
   commands?: string[]
+  resumeFromEventId?: number
 }
 
 /**
@@ -120,7 +121,7 @@ export async function sendStreamingMessage(
   request: SendMessageRequest
 ): Promise<StreamingResponse> {
   try {
-    const { abortSignal, ...requestBody } = request
+    const { abortSignal, resumeFromEventId, ...requestBody } = request
     try {
       const preview = Array.isArray((requestBody as any).contexts)
         ? (requestBody as any).contexts.map((c: any) => ({
@@ -136,8 +137,51 @@ export async function sendStreamingMessage(
           ? (requestBody as any).contexts.length
           : 0,
         contextsPreview: preview,
+        resumeFromEventId,
       })
     } catch {}
+
+    const streamId = request.userMessageId
+    if (typeof resumeFromEventId === 'number') {
+      if (!streamId) {
+        return {
+          success: false,
+          error: 'streamId is required to resume a stream',
+          status: 400,
+        }
+      }
+      const url = `/api/copilot/chat/stream?streamId=${encodeURIComponent(
+        streamId
+      )}&from=${encodeURIComponent(String(resumeFromEventId))}`
+      const response = await fetch(url, {
+        method: 'GET',
+        signal: abortSignal,
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        const errorMessage = await handleApiError(response, 'Failed to resume streaming message')
+        return {
+          success: false,
+          error: errorMessage,
+          status: response.status,
+        }
+      }
+
+      if (!response.body) {
+        return {
+          success: false,
+          error: 'No response body received',
+          status: 500,
+        }
+      }
+
+      return {
+        success: true,
+        stream: response.body,
+      }
+    }
+
     const response = await fetch('/api/copilot/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

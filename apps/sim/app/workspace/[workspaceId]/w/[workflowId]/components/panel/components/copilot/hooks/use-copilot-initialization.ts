@@ -14,6 +14,7 @@ interface UseCopilotInitializationProps {
   loadAutoAllowedTools: () => Promise<void>
   currentChat: any
   isSendingMessage: boolean
+  resumeActiveStream: () => Promise<boolean>
 }
 
 /**
@@ -32,11 +33,13 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     loadAutoAllowedTools,
     currentChat,
     isSendingMessage,
+    resumeActiveStream,
   } = props
 
   const [isInitialized, setIsInitialized] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
+  const hasResumedRef = useRef(false)
 
   /** Initialize on mount - loads chats if needed. Never loads during streaming */
   useEffect(() => {
@@ -104,6 +107,16 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     loadChats,
     isSendingMessage,
   ])
+
+  /** Try to resume active stream on mount - runs early, before waiting for chats */
+  useEffect(() => {
+    if (hasResumedRef.current || isSendingMessage) return
+    hasResumedRef.current = true
+    // Resume immediately on mount - don't wait for isInitialized
+    resumeActiveStream().catch((err) => {
+      logger.warn('[Copilot] Failed to resume active stream', err)
+    })
+  }, [isSendingMessage, resumeActiveStream])
 
   /** Load auto-allowed tools once on mount - runs immediately, independent of workflow */
   const hasLoadedAutoAllowedToolsRef = useRef(false)

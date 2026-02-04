@@ -80,6 +80,7 @@ import { subscriptionKeys } from '@/hooks/queries/subscription'
 import type {
   ChatContext,
   CopilotMessage,
+  CopilotStreamInfo,
   CopilotStore,
   CopilotToolCall,
   MessageFileAttachment,
@@ -91,6 +92,69 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('CopilotStore')
+
+const STREAM_STORAGE_KEY = 'copilot_active_stream'
+
+/**
+ * Flag set on beforeunload to suppress continue option during page refresh/close.
+ * Aborts during unload should NOT show the continue button.
+ */
+let isPageUnloading = false
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    isPageUnloading = true
+  })
+}
+
+function readActiveStreamFromStorage(): CopilotStreamInfo | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(STREAM_STORAGE_KEY)
+    logger.info('[Copilot] Reading stream from storage', {
+      hasRaw: !!raw,
+      rawPreview: raw ? raw.substring(0, 100) : null,
+    })
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as CopilotStreamInfo
+    return parsed?.streamId ? parsed : null
+  } catch (e) {
+    logger.warn('[Copilot] Failed to read stream from storage', { error: String(e) })
+    return null
+  }
+}
+
+function writeActiveStreamToStorage(info: CopilotStreamInfo | null): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (!info) {
+      logger.info('[Copilot] Clearing stream from storage', {
+        isPageUnloading,
+        stack: new Error().stack?.split('\n').slice(1, 4).join(' <- '),
+      })
+      window.sessionStorage.removeItem(STREAM_STORAGE_KEY)
+      return
+    }
+    logger.info('[Copilot] Writing stream to storage', {
+      streamId: info.streamId,
+      lastEventId: info.lastEventId,
+    })
+    window.sessionStorage.setItem(STREAM_STORAGE_KEY, JSON.stringify(info))
+  } catch {}
+}
+
+function updateActiveStreamEventId(
+  get: () => CopilotStore,
+  set: (next: Partial<CopilotStore>) => void,
+  streamId: string,
+  eventId: number
+): void {
+  const current = get().activeStream
+  if (!current || current.streamId !== streamId) return
+  if (eventId <= (current.lastEventId || 0)) return
+  const next = { ...current, lastEventId: eventId }
+  set({ activeStream: next })
+  writeActiveStreamToStorage(next)
+}
 
 // On module load, clear any lingering diff preview (fresh page refresh)
 try {
@@ -1033,6 +1097,28 @@ function appendContinueOptionBlock(blocks: any[]): any[] {
   ]
 }
 
+function stripContinueOption(content: string): string {
+  if (!content || !content.includes(CONTINUE_OPTIONS_TAG)) return content
+  const next = content.replace(CONTINUE_OPTIONS_TAG, '')
+  return next.replace(/\n{2,}\s*$/g, '\n').trimEnd()
+}
+
+function stripContinueOptionFromBlocks(blocks: any[]): any[] {
+  if (!Array.isArray(blocks)) return blocks
+  return blocks.flatMap((block) => {
+    if (
+      block?.type === TEXT_BLOCK_TYPE &&
+      typeof block.content === 'string' &&
+      block.content.includes(CONTINUE_OPTIONS_TAG)
+    ) {
+      const nextContent = stripContinueOption(block.content)
+      if (!nextContent.trim()) return []
+      return [{ ...block, content: nextContent }]
+    }
+    return [block]
+  })
+}
+
 function beginThinkingBlock(context: StreamingContext) {
   if (!context.currentThinkingBlock) {
     context.currentThinkingBlock = contentBlockPool.get()
@@ -1118,11 +1204,17 @@ function appendSubAgentText(context: StreamingContext, parentToolCallId: string,
 }
 
 const sseHandlers: Record<string, SSEHandler> = {
-  chat_id: async (data, context, get) => {
+  chat_id: async (data, context, get, set) => {
     context.newChatId = data.chatId
-    const { currentChat } = get()
+    const { currentChat, activeStream } = get()
     if (!currentChat && context.newChatId) {
       await get().handleNewChatCreation(context.newChatId)
+    }
+    // Update activeStream with chatId for resume purposes
+    if (activeStream && context.newChatId && !activeStream.chatId) {
+      const updatedStream = { ...activeStream, chatId: context.newChatId }
+      set({ activeStream: updatedStream })
+      writeActiveStreamToStorage(updatedStream)
     }
   },
   title_updated: (_data, _context, get, set) => {
@@ -2072,6 +2164,7 @@ const initialState = {
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
   autoAllowedTools: [] as string[],
+  activeStream: null as CopilotStreamInfo | null,
   messageQueue: [] as import('./types').QueuedMessage[],
   suppressAbortContinueOption: false,
   sensitiveCredentialIds: new Set<string>(),
@@ -2492,6 +2585,22 @@ export const useCopilotStore = create<CopilotStore>()(
         currentUserMessageId: userMessage.id,
       }))
 
+      const activeStream: CopilotStreamInfo = {
+        streamId: userMessage.id,
+        workflowId,
+        chatId: currentChat?.id,
+        userMessageId: userMessage.id,
+        assistantMessageId: streamingMessage.id,
+        lastEventId: 0,
+        resumeAttempts: 0,
+        userMessageContent: message,
+        fileAttachments,
+        contexts,
+        startedAt: Date.now(),
+      }
+      set({ activeStream })
+      writeActiveStreamToStorage(activeStream)
+
       if (isFirstMessage) {
         const optimisticTitle = message.length > 50 ? `${message.substring(0, 47)}...` : message
         set((state) => ({
@@ -2616,6 +2725,8 @@ export const useCopilotStore = create<CopilotStore>()(
             isSendingMessage: false,
             abortController: null,
           }))
+          set({ activeStream: null })
+          writeActiveStreamToStorage(null)
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') return
@@ -2629,14 +2740,240 @@ export const useCopilotStore = create<CopilotStore>()(
           isSendingMessage: false,
           abortController: null,
         }))
+        set({ activeStream: null })
+        writeActiveStreamToStorage(null)
       }
+    },
+
+    resumeActiveStream: async () => {
+      const stored = get().activeStream || readActiveStreamFromStorage()
+      logger.info('[Copilot] Resume check', {
+        hasStored: !!stored,
+        streamId: stored?.streamId,
+        lastEventId: stored?.lastEventId,
+        storedWorkflowId: stored?.workflowId,
+        storedChatId: stored?.chatId,
+        currentWorkflowId: get().workflowId,
+        isSendingMessage: get().isSendingMessage,
+        resumeAttempts: stored?.resumeAttempts,
+      })
+      if (!stored || !stored.streamId) return false
+      if (get().isSendingMessage) return false
+      if (get().workflowId && stored.workflowId !== get().workflowId) return false
+
+      if (stored.resumeAttempts >= 3) {
+        logger.warn('[Copilot] Too many resume attempts, giving up')
+        return false
+      }
+
+      const nextStream: CopilotStreamInfo = {
+        ...stored,
+        resumeAttempts: (stored.resumeAttempts || 0) + 1,
+      }
+      set({ activeStream: nextStream })
+      writeActiveStreamToStorage(nextStream)
+
+      // Load existing chat messages from database if we have a chatId but no messages
+      let messages = get().messages
+      // Track if this is a fresh page load (no messages in memory)
+      const isFreshResume = messages.length === 0
+      if (isFreshResume && nextStream.chatId) {
+        try {
+          logger.info('[Copilot] Loading chat for resume', { chatId: nextStream.chatId })
+          const response = await fetch(`/api/copilot/chat?chatId=${nextStream.chatId}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.success && data.chat) {
+              const normalizedMessages = normalizeMessagesForUI(data.chat.messages || [])
+              const toolCallsById = buildToolCallsById(normalizedMessages)
+              set({
+                currentChat: data.chat,
+                messages: normalizedMessages,
+                toolCallsById,
+                streamingPlanContent: data.chat.planArtifact || '',
+              })
+              messages = normalizedMessages
+              logger.info('[Copilot] Loaded chat for resume', {
+                chatId: nextStream.chatId,
+                messageCount: normalizedMessages.length,
+              })
+            }
+          }
+        } catch (e) {
+          logger.warn('[Copilot] Failed to load chat for resume', { error: String(e) })
+        }
+      }
+
+      // ALWAYS fetch buffered events when resuming (to ensure we have complete content)
+      let bufferedContent = ''
+      if (nextStream.lastEventId > 0) {
+        try {
+          logger.info('[Copilot] Fetching buffered events', {
+            streamId: nextStream.streamId,
+            lastEventId: nextStream.lastEventId,
+            isFreshResume,
+          })
+          const batchUrl = `/api/copilot/chat/stream?streamId=${encodeURIComponent(
+            nextStream.streamId
+          )}&from=0&to=${nextStream.lastEventId}&batch=true`
+          const batchResponse = await fetch(batchUrl, { credentials: 'include' })
+          if (batchResponse.ok) {
+            const batchData = await batchResponse.json()
+            if (batchData.success && Array.isArray(batchData.events)) {
+              // Extract text content from buffered events
+              for (const entry of batchData.events) {
+                const event = entry.event
+                if (event?.type === 'content' && typeof event.data === 'string') {
+                  bufferedContent += event.data
+                }
+              }
+              logger.info('[Copilot] Loaded buffered content', {
+                eventCount: batchData.events.length,
+                contentLength: bufferedContent.length,
+                contentPreview: bufferedContent.slice(0, 100),
+              })
+            } else {
+              logger.warn('[Copilot] Batch response missing events', {
+                success: batchData.success,
+                hasEvents: Array.isArray(batchData.events),
+              })
+            }
+          } else {
+            logger.warn('[Copilot] Failed to fetch buffered events', {
+              status: batchResponse.status,
+            })
+          }
+        } catch (e) {
+          logger.warn('[Copilot] Failed to fetch buffered events', { error: String(e) })
+        }
+      }
+
+      let nextMessages = messages
+      let cleanedExisting = false
+      nextMessages = nextMessages.map((m) => {
+        if (m.id !== nextStream.assistantMessageId) return m
+        const hasContinueTag =
+          (typeof m.content === 'string' && m.content.includes(CONTINUE_OPTIONS_TAG)) ||
+          (Array.isArray(m.contentBlocks) &&
+            m.contentBlocks.some(
+              (b: any) =>
+                b?.type === TEXT_BLOCK_TYPE &&
+                typeof b.content === 'string' &&
+                b.content.includes(CONTINUE_OPTIONS_TAG)
+            ))
+        if (!hasContinueTag) return m
+        cleanedExisting = true
+        return {
+          ...m,
+          content: stripContinueOption(m.content || ''),
+          contentBlocks: stripContinueOptionFromBlocks(m.contentBlocks || []),
+        }
+      })
+
+      if (!messages.some((m) => m.id === nextStream.userMessageId)) {
+        const userMessage = createUserMessage(
+          nextStream.userMessageContent || '',
+          nextStream.fileAttachments,
+          nextStream.contexts,
+          nextStream.userMessageId
+        )
+        nextMessages = [...nextMessages, userMessage]
+      }
+
+      if (!nextMessages.some((m) => m.id === nextStream.assistantMessageId)) {
+        // Create assistant message with buffered content pre-loaded
+        const assistantMessage: CopilotMessage = {
+          ...createStreamingMessage(),
+          id: nextStream.assistantMessageId,
+          content: bufferedContent,
+          contentBlocks: bufferedContent
+            ? [{ type: TEXT_BLOCK_TYPE, content: bufferedContent, timestamp: Date.now() }]
+            : [],
+        }
+        nextMessages = [...nextMessages, assistantMessage]
+      } else if (bufferedContent) {
+        // Update existing assistant message with buffered content
+        nextMessages = nextMessages.map((m) =>
+          m.id === nextStream.assistantMessageId
+            ? {
+                ...m,
+                content: bufferedContent,
+                contentBlocks: [
+                  { type: TEXT_BLOCK_TYPE, content: bufferedContent, timestamp: Date.now() },
+                ],
+              }
+            : m
+        )
+      }
+
+      if (cleanedExisting || nextMessages !== messages || bufferedContent) {
+        set({ messages: nextMessages, currentUserMessageId: nextStream.userMessageId })
+      } else {
+        set({ currentUserMessageId: nextStream.userMessageId })
+      }
+
+      const abortController = new AbortController()
+      set({ isSendingMessage: true, abortController })
+
+      try {
+        logger.info('[Copilot] Attempting to resume stream', {
+          streamId: nextStream.streamId,
+          lastEventId: nextStream.lastEventId,
+          isFreshResume,
+          bufferedContentLength: bufferedContent.length,
+          assistantMessageId: nextStream.assistantMessageId,
+          chatId: nextStream.chatId,
+        })
+        const result = await sendStreamingMessage({
+          message: nextStream.userMessageContent || '',
+          userMessageId: nextStream.userMessageId,
+          workflowId: nextStream.workflowId,
+          chatId: nextStream.chatId || get().currentChat?.id || undefined,
+          mode: get().mode === 'ask' ? 'ask' : get().mode === 'plan' ? 'plan' : 'agent',
+          model: get().selectedModel,
+          prefetch: get().agentPrefetch,
+          stream: true,
+          resumeFromEventId: nextStream.lastEventId,
+          abortSignal: abortController.signal,
+        })
+
+        logger.info('[Copilot] Resume stream result', {
+          success: result.success,
+          hasStream: !!result.stream,
+          error: result.error,
+        })
+
+        if (result.success && result.stream) {
+          await get().handleStreamingResponse(
+            result.stream,
+            nextStream.assistantMessageId,
+            true,
+            nextStream.userMessageId
+          )
+          return true
+        }
+        set({ isSendingMessage: false, abortController: null })
+      } catch (error) {
+        // Handle AbortError gracefully - expected when user aborts
+        if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))) {
+          logger.info('[Copilot] Resume stream aborted by user')
+          set({ isSendingMessage: false, abortController: null })
+          return false
+        }
+        logger.error('[Copilot] Failed to resume stream', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        set({ isSendingMessage: false, abortController: null })
+      }
+      return false
     },
 
     // Abort streaming
     abortMessage: (options?: { suppressContinueOption?: boolean }) => {
       const { abortController, isSendingMessage, messages } = get()
       if (!isSendingMessage || !abortController) return
-      const suppressContinueOption = options?.suppressContinueOption === true
+      // Suppress continue option if explicitly requested OR if page is unloading (refresh/close)
+      const suppressContinueOption = options?.suppressContinueOption === true || isPageUnloading
       set({ isAborting: true, suppressAbortContinueOption: suppressContinueOption })
       try {
         abortController.abort()
@@ -2678,6 +3015,13 @@ export const useCopilotStore = create<CopilotStore>()(
           })
         }
 
+        // Only clear active stream for user-initiated aborts, NOT page unload
+        // During page unload, keep the stream info so we can resume after refresh
+        if (!isPageUnloading) {
+          set({ activeStream: null })
+          writeActiveStreamToStorage(null)
+        }
+
         // Immediately put all in-progress tools into aborted state
         abortAllInProgressTools(set, get)
 
@@ -2704,6 +3048,11 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       } catch {
         set({ isSendingMessage: false, isAborting: false })
+        // Only clear active stream for user-initiated aborts, NOT page unload
+        if (!isPageUnloading) {
+          set({ activeStream: null })
+          writeActiveStreamToStorage(null)
+        }
       }
     },
 
@@ -3051,15 +3400,42 @@ export const useCopilotStore = create<CopilotStore>()(
         subAgentToolCalls: {},
         subAgentBlocks: {},
       }
+      if (isContinuation) {
+        context.suppressContinueOption = true
+      }
 
       if (isContinuation) {
         const { messages } = get()
         const existingMessage = messages.find((m) => m.id === assistantMessageId)
+        logger.info('[Copilot] Continuation init', {
+          hasMessage: !!existingMessage,
+          contentLength: existingMessage?.content?.length || 0,
+          contentPreview: existingMessage?.content?.slice(0, 100) || '',
+          contentBlocksCount: existingMessage?.contentBlocks?.length || 0,
+        })
         if (existingMessage) {
-          if (existingMessage.content) context.accumulatedContent.append(existingMessage.content)
-          context.contentBlocks = existingMessage.contentBlocks
-            ? [...existingMessage.contentBlocks]
-            : []
+          // Initialize with existing text content (should be buffered content we set earlier)
+          const existingContent = existingMessage.content || ''
+          if (existingContent) {
+            context.accumulatedContent.append(existingContent)
+          }
+          // Create fresh text block with existing content (don't reuse to avoid mutation issues)
+          if (existingContent) {
+            const textBlock = contentBlockPool.get()
+            textBlock.type = TEXT_BLOCK_TYPE
+            textBlock.content = existingContent
+            textBlock.timestamp = Date.now()
+            context.contentBlocks = [textBlock]
+            context.currentTextBlock = textBlock
+          }
+          // Copy over any non-text blocks (tool calls, thinking, etc) from existing message
+          if (existingMessage.contentBlocks) {
+            for (const block of existingMessage.contentBlocks) {
+              if (block.type !== TEXT_BLOCK_TYPE) {
+                context.contentBlocks.push({ ...block })
+              }
+            }
+          }
         }
       }
 
@@ -3074,7 +3450,8 @@ export const useCopilotStore = create<CopilotStore>()(
           if (abortController?.signal.aborted) {
             context.wasAborted = true
             const { suppressAbortContinueOption } = get()
-            context.suppressContinueOption = suppressAbortContinueOption === true
+            // Suppress continue option if explicitly requested OR if page is unloading (refresh/close)
+            context.suppressContinueOption = suppressAbortContinueOption === true || isPageUnloading
             if (suppressAbortContinueOption) {
               set({ suppressAbortContinueOption: false })
             }
@@ -3083,6 +3460,12 @@ export const useCopilotStore = create<CopilotStore>()(
             stopStreamingUpdates()
             reader.cancel()
             break
+          }
+
+          const eventId = typeof data?.eventId === 'number' ? data.eventId : undefined
+          const streamId = typeof data?.streamId === 'string' ? data.streamId : undefined
+          if (eventId && streamId) {
+            updateActiveStreamEventId(get, set, streamId, eventId)
           }
 
           // Log SSE events for debugging
@@ -3202,8 +3585,18 @@ export const useCopilotStore = create<CopilotStore>()(
               : block
           )
         }
+        if (isContinuation) {
+          sanitizedContentBlocks = stripContinueOptionFromBlocks(sanitizedContentBlocks)
+        }
         if (context.wasAborted && !context.suppressContinueOption) {
           sanitizedContentBlocks = appendContinueOptionBlock(sanitizedContentBlocks)
+        }
+
+        if (!context.streamComplete && !context.wasAborted) {
+          const resumed = await get().resumeActiveStream()
+          if (resumed) {
+            return
+          }
         }
 
         if (context.contentBlocks) {
@@ -3215,10 +3608,13 @@ export const useCopilotStore = create<CopilotStore>()(
         }
 
         const finalContent = stripTodoTags(context.accumulatedContent.toString())
+        const finalContentStripped = isContinuation
+          ? stripContinueOption(finalContent)
+          : finalContent
         const finalContentWithOptions =
           context.wasAborted && !context.suppressContinueOption
             ? appendContinueOption(finalContent)
-            : finalContent
+            : finalContentStripped
         set((state) => {
           const snapshotId = state.currentUserMessageId
           const nextSnapshots =
@@ -3229,7 +3625,7 @@ export const useCopilotStore = create<CopilotStore>()(
                   return updated
                 })()
               : state.messageSnapshots
-          return {
+          const nextState: Partial<CopilotStore> = {
             messages: state.messages.map((msg) =>
               msg.id === assistantMessageId
                 ? {
@@ -3245,7 +3641,14 @@ export const useCopilotStore = create<CopilotStore>()(
             currentUserMessageId: null,
             messageSnapshots: nextSnapshots,
           }
+          return nextState
         })
+
+        // Only clear active stream if stream completed normally or user aborted (not page unload)
+        if ((context.streamComplete || context.wasAborted) && !isPageUnloading) {
+          set({ activeStream: null })
+          writeActiveStreamToStorage(null)
+        }
 
         if (context.newChatId && !get().currentChat) {
           await get().handleNewChatCreation(context.newChatId)
