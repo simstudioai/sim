@@ -507,7 +507,7 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
       body: JSON.stringify({
         model: useWandAzure ? wandModelName : 'gpt-4o',
         input: messages,
-        temperature: 0.3,
+        temperature: 0.2,
         max_output_tokens: 10000,
       }),
     })
