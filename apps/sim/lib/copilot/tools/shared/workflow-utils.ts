@@ -26,7 +26,9 @@ export function formatNormalizedWorkflowForCopilot(
 }
 
 export function normalizeWorkflowName(name?: string | null): string {
-  return String(name || '').trim().toLowerCase()
+  return String(name || '')
+    .trim()
+    .toLowerCase()
 }
 
 export function extractWorkflowNames(workflows: Array<{ name?: string | null }>): string[] {
@@ -34,4 +36,3 @@ export function extractWorkflowNames(workflows: Array<{ name?: string | null }>)
     .map((workflow) => (typeof workflow?.name === 'string' ? workflow.name : null))
     .filter((name): name is string => Boolean(name))
 }
-

@@ -69,7 +69,10 @@ export async function saveMessages(
 /**
  * Update the conversationId for a chat without overwriting messages.
  */
-export async function updateChatConversationId(chatId: string, conversationId: string): Promise<void> {
+export async function updateChatConversationId(
+  chatId: string,
+  conversationId: string
+): Promise<void> {
   await db
     .update(copilotChats)
     .set({
@@ -135,4 +138,3 @@ export async function getToolConfirmation(toolCallId: string): Promise<{
     return null
   }
 }
-

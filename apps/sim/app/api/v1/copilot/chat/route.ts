@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { authenticateV1Request } from '@/app/api/v1/auth'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
+import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('CopilotHeadlessAPI')
 
@@ -24,7 +24,7 @@ const RequestSchema = z.object({
 /**
  * POST /api/v1/copilot/chat
  * Headless copilot endpoint for server-side orchestration.
- * 
+ *
  * workflowId is optional - if not provided:
  * - If workflowName is provided, finds that workflow
  * - Otherwise uses the user's first workflow as context
@@ -33,7 +33,10 @@ const RequestSchema = z.object({
 export async function POST(req: NextRequest) {
   const auth = await authenticateV1Request(req)
   if (!auth.authenticated || !auth.userId) {
-    return NextResponse.json({ success: false, error: auth.error || 'Unauthorized' }, { status: 401 })
+    return NextResponse.json(
+      { success: false, error: auth.error || 'Unauthorized' },
+      { status: 401 }
+    )
   }
 
   try {
@@ -43,10 +46,17 @@ export async function POST(req: NextRequest) {
     const selectedModel = parsed.model || defaults.model
 
     // Resolve workflow ID
-    const resolved = await resolveWorkflowIdForUser(auth.userId, parsed.workflowId, parsed.workflowName)
+    const resolved = await resolveWorkflowIdForUser(
+      auth.userId,
+      parsed.workflowId,
+      parsed.workflowName
+    )
     if (!resolved) {
       return NextResponse.json(
-        { success: false, error: 'No workflows found. Create a workflow first or provide a valid workflowId.' },
+        {
+          success: false,
+          error: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+        },
         { status: 400 }
       )
     }
@@ -104,4 +114,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }
-

@@ -1,7 +1,7 @@
 'use client'
 
-import { createLogger } from '@sim/logger'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronUp, LayoutList } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
@@ -1260,7 +1260,10 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
 
 const toolCallLogger = createLogger('CopilotToolCall')
 
-async function sendToolDecision(toolCallId: string, status: 'accepted' | 'rejected' | 'background') {
+async function sendToolDecision(
+  toolCallId: string,
+  status: 'accepted' | 'rejected' | 'background'
+) {
   try {
     await fetch('/api/copilot/confirm', {
       method: 'POST',
