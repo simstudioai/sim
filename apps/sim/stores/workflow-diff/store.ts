@@ -121,6 +121,13 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           const candidateState = diffResult.diff.proposedState
 
+          logger.info('[WorkflowDiff] Applying proposed state', {
+            blockCount: Object.keys(candidateState.blocks || {}).length,
+            edgeCount: candidateState.edges?.length ?? 0,
+            hasLoops: !!candidateState.loops,
+            hasParallels: !!candidateState.parallels,
+          })
+
           // Validate proposed workflow using serializer round-trip
           const serializer = new Serializer()
           const serialized = serializer.serializeWorkflow(
@@ -134,6 +141,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           // OPTIMISTIC: Apply state immediately to stores (this is what makes UI update)
           applyWorkflowStateToStores(activeWorkflowId, candidateState)
+          logger.info('[WorkflowDiff] Applied state to stores')
 
           // OPTIMISTIC: Update diff state immediately so UI shows the diff
           const triggerMessageId =
