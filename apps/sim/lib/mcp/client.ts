@@ -155,7 +155,7 @@ export class McpClient {
       return result.tools.map((tool: Tool) => ({
         name: tool.name,
         description: tool.description,
-        inputSchema: tool.inputSchema,
+        inputSchema: tool.inputSchema as McpTool['inputSchema'],
         serverId: this.config.id,
         serverName: this.config.name,
       }))

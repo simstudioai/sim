@@ -76,7 +76,7 @@ export const deepseekProvider: ProviderConfig = {
         : undefined
 
       const payload: any = {
-        model: 'deepseek-chat',
+        model: request.model,
         messages: allMessages,
       }
 
