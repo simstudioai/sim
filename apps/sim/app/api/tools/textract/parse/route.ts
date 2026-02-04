@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import {
   validateAwsRegion,
   validateExternalUrl,
@@ -205,8 +206,8 @@ async function pollForJobCompletion(
   useAnalyzeDocument: boolean,
   requestId: string
 ): Promise<Record<string, unknown>> {
-  const pollIntervalMs = 5000 // 5 seconds between polls
-  const maxPollTimeMs = 180000 // 3 minutes maximum polling time
+  const pollIntervalMs = 5000
+  const maxPollTimeMs = DEFAULT_EXECUTION_TIMEOUT_MS
   const maxAttempts = Math.ceil(maxPollTimeMs / pollIntervalMs)
 
   const getTarget = useAnalyzeDocument

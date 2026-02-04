@@ -4,6 +4,7 @@ import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 
 const logger = createLogger('InputValidation')
 
@@ -931,7 +932,7 @@ export async function secureFetchWithPinnedIP(
       method: options.method || 'GET',
       headers: sanitizedHeaders,
       agent,
-      timeout: options.timeout || 300000, // Default 5 minutes
+      timeout: options.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
     }
 
     const protocol = isHttps ? https : http

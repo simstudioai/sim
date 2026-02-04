@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { TranscriptSegment } from '@/tools/stt/types'
@@ -568,7 +569,8 @@ async function transcribeWithAssemblyAI(
 
   let transcript: any
   let attempts = 0
-  const maxAttempts = 60 // 5 minutes with 5-second intervals
+  const pollIntervalMs = 5000
+  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
 
   while (attempts < maxAttempts) {
     const statusResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${id}`, {

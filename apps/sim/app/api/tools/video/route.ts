@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { VideoRequestBody } from '@/tools/video/types'
@@ -326,11 +327,12 @@ async function generateWithRunway(
 
   logger.info(`[${requestId}] Runway task created: ${taskId}`)
 
-  const maxAttempts = 120 // 10 minutes with 5-second intervals
+  const pollIntervalMs = 5000
+  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
-    await sleep(5000) // Poll every 5 seconds
+    await sleep(pollIntervalMs)
 
     const statusResponse = await fetch(`https://api.dev.runwayml.com/v1/tasks/${taskId}`, {
       headers: {
@@ -429,11 +431,12 @@ async function generateWithVeo(
 
   logger.info(`[${requestId}] Veo operation created: ${operationName}`)
 
-  const maxAttempts = 60 // 5 minutes with 5-second intervals
+  const pollIntervalMs = 5000
+  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
-    await sleep(5000)
+    await sleep(pollIntervalMs)
 
     const statusResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/${operationName}`,
@@ -541,11 +544,12 @@ async function generateWithLuma(
 
   logger.info(`[${requestId}] Luma generation created: ${generationId}`)
 
-  const maxAttempts = 120 // 10 minutes
+  const pollIntervalMs = 5000
+  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
-    await sleep(5000)
+    await sleep(pollIntervalMs)
 
     const statusResponse = await fetch(
       `https://api.lumalabs.ai/dream-machine/v1/generations/${generationId}`,
@@ -658,14 +662,13 @@ async function generateWithMiniMax(
 
   logger.info(`[${requestId}] MiniMax task created: ${taskId}`)
 
-  // Poll for completion (6-10 minutes typical)
-  const maxAttempts = 120 // 10 minutes with 5-second intervals
+  const pollIntervalMs = 5000
+  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
-    await sleep(5000)
+    await sleep(pollIntervalMs)
 
-    // Query task status
     const statusResponse = await fetch(
       `https://api.minimax.io/v1/query/video_generation?task_id=${taskId}`,
       {
@@ -861,11 +864,12 @@ async function generateWithFalAI(
   // Get base model ID (without subpath) for status and result endpoints
   const baseModelId = getBaseModelId(falModelId)
 
-  const maxAttempts = 96 // 8 minutes with 5-second intervals
+  const pollIntervalMs = 5000
+  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
-    await sleep(5000)
+    await sleep(pollIntervalMs)
 
     const statusResponse = await fetch(
       `https://queue.fal.run/${baseModelId}/requests/${requestIdFal}/status`,
