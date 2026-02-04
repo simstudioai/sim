@@ -99,13 +99,14 @@ export class RedisJobQueue implements JobQueueBackend {
 
   async startJob(jobId: string): Promise<void> {
     const now = new Date()
+    const key = KEYS.job(jobId)
 
-    await this.redis.hset(KEYS.job(jobId), {
+    await this.redis.hset(key, {
       status: JOB_STATUS.PROCESSING,
       startedAt: now.toISOString(),
-      attempts: '1',
       updatedAt: now.toISOString(),
     })
+    await this.redis.hincrby(key, 'attempts', 1)
 
     logger.debug('Started job', { jobId })
   }

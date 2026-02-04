@@ -21,6 +21,7 @@ export function createMockRedis() {
     hgetall: vi.fn().mockResolvedValue({}),
     hdel: vi.fn().mockResolvedValue(1),
     hmset: vi.fn().mockResolvedValue('OK'),
+    hincrby: vi.fn().mockResolvedValue(1),
 
     // Key operations
     get: vi.fn().mockResolvedValue(null),
