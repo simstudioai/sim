@@ -14,6 +14,64 @@ import { INTERRUPT_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrato
 const logger = createLogger('CopilotSseHandlers')
 
 /**
+ * Tracks tool call IDs for which a tool_call has already been forwarded/emitted (non-partial).
+ */
+const seenToolCalls = new Set<string>()
+
+/**
+ * Tracks tool call IDs for which a tool_result has already been emitted or forwarded.
+ */
+const seenToolResults = new Set<string>()
+
+export function markToolCallSeen(toolCallId: string): void {
+  seenToolCalls.add(toolCallId)
+  setTimeout(() => {
+    seenToolCalls.delete(toolCallId)
+  }, 5 * 60 * 1000)
+}
+
+export function wasToolCallSeen(toolCallId: string): boolean {
+  return seenToolCalls.has(toolCallId)
+}
+
+type EventDataObject = Record<string, any> | undefined
+
+const parseEventData = (data: unknown): EventDataObject => {
+  if (!data) return undefined
+  if (typeof data !== 'string') return data as EventDataObject
+  try {
+    return JSON.parse(data) as EventDataObject
+  } catch {
+    return undefined
+  }
+}
+
+const getEventData = (event: SSEEvent): EventDataObject => parseEventData(event.data)
+
+export function getToolCallIdFromEvent(event: SSEEvent): string | undefined {
+  const data = getEventData(event)
+  return event.toolCallId || data?.id || data?.toolCallId
+}
+
+/**
+ * Mark a tool call as executed by the sim-side.
+ * This prevents the Go backend's duplicate tool_result from being forwarded.
+ */
+export function markToolResultSeen(toolCallId: string): void {
+  seenToolResults.add(toolCallId)
+  setTimeout(() => {
+    seenToolResults.delete(toolCallId)
+  }, 5 * 60 * 1000)
+}
+
+/**
+ * Check if a tool call was executed by the sim-side.
+ */
+export function wasToolResultSeen(toolCallId: string): boolean {
+  return seenToolResults.has(toolCallId)
+}
+
+/**
  * Respond tools are internal to the copilot's subagent system.
  * They're used by subagents to signal completion and should NOT be executed by the sim side.
  * The copilot backend handles these internally.
@@ -56,6 +114,7 @@ async function executeToolAndReport(
   if (!toolCall) return
 
   if (toolCall.status === 'executing') return
+  if (wasToolResultSeen(toolCall.id)) return
 
   toolCall.status = 'executing'
   try {
@@ -79,6 +138,8 @@ async function executeToolAndReport(
       }
     }
 
+    markToolResultSeen(toolCall.id)
+
     await markToolComplete(
       toolCall.id,
       toolCall.name,
@@ -90,8 +151,11 @@ async function executeToolAndReport(
     await options?.onEvent?.({
       type: 'tool_result',
       toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      success: result.success,
+      result: result.output,
       data: {
-        id: toolCall.id,
+        id: toolCall.id, 
         name: toolCall.name,
         success: result.success,
         result: result.output,
@@ -101,6 +165,8 @@ async function executeToolAndReport(
     toolCall.status = 'error'
     toolCall.error = error instanceof Error ? error.message : String(error)
     toolCall.endTime = Date.now()
+
+    markToolResultSeen(toolCall.id)
 
     await markToolComplete(toolCall.id, toolCall.name, 500, toolCall.error)
 
@@ -137,16 +203,17 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   title_updated: () => {},
   tool_result: (event, context) => {
-    const toolCallId = event.toolCallId || event.data?.id
+    const data = getEventData(event)
+    const toolCallId = event.toolCallId || data?.id
     if (!toolCallId) return
     const current = context.toolCalls.get(toolCallId)
     if (!current) return
 
     // Determine success: explicit success field, or if there's result data without explicit failure
-    const hasExplicitSuccess = event.data?.success !== undefined || event.data?.result?.success !== undefined
-    const explicitSuccess = event.data?.success ?? event.data?.result?.success
-    const hasResultData = event.data?.result !== undefined || event.data?.data !== undefined
-    const hasError = !!event.data?.error || !!event.data?.result?.error
+    const hasExplicitSuccess = data?.success !== undefined || data?.result?.success !== undefined
+    const explicitSuccess = data?.success ?? data?.result?.success
+    const hasResultData = data?.result !== undefined || data?.data !== undefined
+    const hasError = !!data?.error || !!data?.result?.error
 
     // If explicitly set, use that; otherwise infer from data presence
     const success = hasExplicitSuccess ? !!explicitSuccess : (hasResultData && !hasError)
@@ -156,25 +223,27 @@ export const sseHandlers: Record<string, SSEHandler> = {
     if (hasResultData) {
       current.result = {
         success,
-        output: event.data?.result || event.data?.data,
+        output: data?.result || data?.data,
       }
     }
     if (hasError) {
-      current.error = event.data?.error || event.data?.result?.error
+      current.error = data?.error || data?.result?.error
     }
   },
   tool_error: (event, context) => {
-    const toolCallId = event.toolCallId || event.data?.id
+    const data = getEventData(event)
+    const toolCallId = event.toolCallId || data?.id
     if (!toolCallId) return
     const current = context.toolCalls.get(toolCallId)
     if (!current) return
     current.status = 'error'
-    current.error = event.data?.error || 'Tool execution failed'
+    current.error = data?.error || 'Tool execution failed'
     current.endTime = Date.now()
   },
   tool_generating: (event, context) => {
-    const toolCallId = event.toolCallId || event.data?.toolCallId || event.data?.id
-    const toolName = event.toolName || event.data?.toolName || event.data?.name
+    const data = getEventData(event)
+    const toolCallId = event.toolCallId || data?.toolCallId || data?.id
+    const toolName = event.toolName || data?.toolName || data?.name
     if (!toolCallId || !toolName) return
     if (!context.toolCalls.has(toolCallId)) {
       context.toolCalls.set(toolCallId, {
@@ -186,7 +255,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
   },
   tool_call: async (event, context, execContext, options) => {
-    const toolData = event.data || {}
+    const toolData = getEventData(event) || {}
     const toolCallId = toolData.id || event.toolCallId
     const toolName = toolData.name || event.toolName
     if (!toolCallId || !toolName) return
@@ -194,20 +263,35 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const args = toolData.arguments || toolData.input || event.data?.input
     const isPartial = toolData.partial === true
     const existing = context.toolCalls.get(toolCallId)
-    const toolCall: ToolCallState = existing
-      ? { ...existing, status: 'pending', params: args || existing.params }
-      : {
-          id: toolCallId,
-          name: toolName,
-          status: 'pending',
-          params: args,
-          startTime: Date.now(),
-        }
 
-    context.toolCalls.set(toolCallId, toolCall)
-    addContentBlock(context, { type: 'tool_call', toolCall })
+    // If we've already completed this tool call, ignore late/duplicate tool_call events
+    // to avoid resetting UI/state back to pending and re-executing.
+    if (existing?.endTime || (existing && existing.status !== 'pending' && existing.status !== 'executing')) {
+      if (!existing.params && args) {
+        existing.params = args
+      }
+      return
+    }
+
+    if (existing) {
+      if (args && !existing.params) existing.params = args
+    } else {
+      context.toolCalls.set(toolCallId, {
+        id: toolCallId,
+        name: toolName,
+        status: 'pending',
+        params: args,
+        startTime: Date.now(),
+      })
+      const created = context.toolCalls.get(toolCallId)!
+      addContentBlock(context, { type: 'tool_call', toolCall: created })
+    }
 
     if (isPartial) return
+    if (wasToolResultSeen(toolCallId)) return
+
+    const toolCall = context.toolCalls.get(toolCallId)
+    if (!toolCall) return
 
     // Subagent tools are executed by the copilot backend, not sim side
     if (SUBAGENT_TOOL_SET.has(toolName)) {
@@ -243,6 +327,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
           decision.message || 'Tool execution rejected',
           { skipped: true, reason: 'user_rejected' }
         )
+        markToolResultSeen(toolCall.id)
         await options.onEvent?.({
           type: 'tool_result',
           toolCallId: toolCall.id,
@@ -266,6 +351,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
           decision.message || 'Tool execution moved to background',
           { background: true }
         )
+        markToolResultSeen(toolCall.id)
         await options.onEvent?.({
           type: 'tool_result',
           toolCallId: toolCall.id,
@@ -346,12 +432,18 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
   tool_call: async (event, context, execContext, options) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
-    const toolData = event.data || {}
+    const toolData = getEventData(event) || {}
     const toolCallId = toolData.id || event.toolCallId
     const toolName = toolData.name || event.toolName
     if (!toolCallId || !toolName) return
     const isPartial = toolData.partial === true
     const args = toolData.arguments || toolData.input || event.data?.input
+
+    const existing = context.toolCalls.get(toolCallId)
+    // Ignore late/duplicate tool_call events once we already have a result
+    if (wasToolResultSeen(toolCallId) || existing?.endTime) {
+      return
+    }
 
     const toolCall: ToolCallState = {
       id: toolCallId,
@@ -361,12 +453,16 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       startTime: Date.now(),
     }
 
-    // Store in both places - subAgentToolCalls for tracking and toolCalls for executeToolAndReport
+    // Store in both places - but do NOT overwrite existing tool call state for the same id
     if (!context.subAgentToolCalls[parentToolCallId]) {
       context.subAgentToolCalls[parentToolCallId] = []
     }
-    context.subAgentToolCalls[parentToolCallId].push(toolCall)
-    context.toolCalls.set(toolCallId, toolCall)
+    if (!context.subAgentToolCalls[parentToolCallId].some((tc) => tc.id === toolCallId)) {
+      context.subAgentToolCalls[parentToolCallId].push(toolCall)
+    }
+    if (!context.toolCalls.has(toolCallId)) {
+      context.toolCalls.set(toolCallId, toolCall)
+    }
 
     if (isPartial) return
 
@@ -385,7 +481,8 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
   tool_result: (event, context) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
-    const toolCallId = event.toolCallId || event.data?.id
+    const data = getEventData(event)
+    const toolCallId = event.toolCallId || data?.id
     if (!toolCallId) return
 
     // Update in subAgentToolCalls
@@ -396,31 +493,30 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const mainToolCall = context.toolCalls.get(toolCallId)
 
     // Use same success inference logic as main handler
-    const hasExplicitSuccess =
-      event.data?.success !== undefined || event.data?.result?.success !== undefined
-    const explicitSuccess = event.data?.success ?? event.data?.result?.success
-    const hasResultData = event.data?.result !== undefined || event.data?.data !== undefined
-    const hasError = !!event.data?.error || !!event.data?.result?.error
+    const hasExplicitSuccess = data?.success !== undefined || data?.result?.success !== undefined
+    const explicitSuccess = data?.success ?? data?.result?.success
+    const hasResultData = data?.result !== undefined || data?.data !== undefined
+    const hasError = !!data?.error || !!data?.result?.error
     const success = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
 
     const status = success ? 'success' : 'error'
     const endTime = Date.now()
     const result = hasResultData
-      ? { success, output: event.data?.result || event.data?.data }
+      ? { success, output: data?.result || data?.data }
       : undefined
 
     if (subAgentToolCall) {
       subAgentToolCall.status = status
       subAgentToolCall.endTime = endTime
       if (result) subAgentToolCall.result = result
-      if (hasError) subAgentToolCall.error = event.data?.error || event.data?.result?.error
+      if (hasError) subAgentToolCall.error = data?.error || data?.result?.error
     }
 
     if (mainToolCall) {
       mainToolCall.status = status
       mainToolCall.endTime = endTime
       if (result) mainToolCall.result = result
-      if (hasError) mainToolCall.error = event.data?.error || event.data?.result?.error
+      if (hasError) mainToolCall.error = data?.error || data?.result?.error
     }
   },
 }
