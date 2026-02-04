@@ -7,6 +7,7 @@ import {
   handleSubagentRouting,
   markToolCallSeen,
   markToolResultSeen,
+  normalizeSseEvent,
   sseHandlers,
   subAgentHandlers,
   wasToolCallSeen,
@@ -95,35 +96,33 @@ export async function orchestrateCopilotStream(
           break
         }
 
+        const normalizedEvent = normalizeSseEvent(event)
+
         // Skip tool_result events for tools the sim-side already executed.
         // The sim-side emits its own tool_result with complete data.
         // For server-side tools (not executed by sim), we still forward the Go backend's tool_result.
-        const toolCallId = getToolCallIdFromEvent(event)
-        const eventData =
-          typeof event.data === 'string'
-            ? (() => {
-                try {
-                  return JSON.parse(event.data)
-                } catch {
-                  return undefined
-                }
-              })()
-            : event.data
+        const toolCallId = getToolCallIdFromEvent(normalizedEvent)
+        const eventData = normalizedEvent.data
 
-        const isPartialToolCall = event.type === 'tool_call' && eventData?.partial === true
+        const isPartialToolCall = normalizedEvent.type === 'tool_call' && eventData?.partial === true
 
         const shouldSkipToolCall =
-          event.type === 'tool_call' &&
+          normalizedEvent.type === 'tool_call' &&
           !!toolCallId &&
           !isPartialToolCall &&
           (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId))
 
-        if (event.type === 'tool_call' && toolCallId && !isPartialToolCall && !shouldSkipToolCall) {
+        if (
+          normalizedEvent.type === 'tool_call' &&
+          toolCallId &&
+          !isPartialToolCall &&
+          !shouldSkipToolCall
+        ) {
           markToolCallSeen(toolCallId)
         }
 
         const shouldSkipToolResult =
-          event.type === 'tool_result' &&
+          normalizedEvent.type === 'tool_result' &&
           (() => {
             if (!toolCallId) return false
             if (wasToolResultSeen(toolCallId)) return true
@@ -132,11 +131,11 @@ export async function orchestrateCopilotStream(
           })()
 
         if (!shouldSkipToolCall && !shouldSkipToolResult) {
-          await forwardEvent(event, options)
+          await forwardEvent(normalizedEvent, options)
         }
 
-        if (event.type === 'subagent_start') {
-          const toolCallId = event.data?.tool_call_id
+        if (normalizedEvent.type === 'subagent_start') {
+          const toolCallId = normalizedEvent.data?.tool_call_id
           if (toolCallId) {
             context.subAgentParentToolCallId = toolCallId
             context.subAgentContent[toolCallId] = ''
@@ -145,23 +144,23 @@ export async function orchestrateCopilotStream(
           continue
         }
 
-        if (event.type === 'subagent_end') {
+        if (normalizedEvent.type === 'subagent_end') {
           context.subAgentParentToolCallId = undefined
           continue
         }
 
-        if (handleSubagentRouting(event, context)) {
-          const handler = subAgentHandlers[event.type]
+        if (handleSubagentRouting(normalizedEvent, context)) {
+          const handler = subAgentHandlers[normalizedEvent.type]
           if (handler) {
-            await handler(event, context, execContext, options)
+            await handler(normalizedEvent, context, execContext, options)
           }
           if (context.streamComplete) break
           continue
         }
 
-        const handler = sseHandlers[event.type]
+        const handler = sseHandlers[normalizedEvent.type]
         if (handler) {
-          await handler(event, context, execContext, options)
+          await handler(normalizedEvent, context, execContext, options)
         }
         if (context.streamComplete) break
       }

@@ -6,6 +6,25 @@ const logger = createLogger('CopilotStreamBuffer')
 const STREAM_TTL_SECONDS = 60 * 60
 const STREAM_EVENT_LIMIT = 5000
 
+const APPEND_STREAM_EVENT_LUA = `
+local seqKey = KEYS[1]
+local eventsKey = KEYS[2]
+local ttl = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
+local streamId = ARGV[3]
+local eventJson = ARGV[4]
+
+local id = redis.call('INCR', seqKey)
+local entry = '{"eventId":' .. id .. ',"streamId":' .. cjson.encode(streamId) .. ',"event":' .. eventJson .. '}'
+redis.call('ZADD', eventsKey, id, entry)
+redis.call('EXPIRE', eventsKey, ttl)
+redis.call('EXPIRE', seqKey, ttl)
+if limit > 0 then
+  redis.call('ZREMRANGEBYRANK', eventsKey, 0, -limit-1)
+end
+return id
+`
+
 function getStreamKeyPrefix(streamId: string) {
   return `copilot_stream:${streamId}`
 }
@@ -99,22 +118,19 @@ export async function appendStreamEvent(
   }
 
   try {
-    const nextId = await redis.incr(getSeqKey(streamId))
-    const entry: StreamEventEntry = { eventId: nextId, streamId, event }
-    await redis.zadd(getEventsKey(streamId), nextId, JSON.stringify(entry))
-
-    const count = await redis.zcard(getEventsKey(streamId))
-    if (count > STREAM_EVENT_LIMIT) {
-      const trimCount = count - STREAM_EVENT_LIMIT
-      if (trimCount > 0) {
-        await redis.zremrangebyrank(getEventsKey(streamId), 0, trimCount - 1)
-      }
-    }
-
-    await redis.expire(getEventsKey(streamId), STREAM_TTL_SECONDS)
-    await redis.expire(getSeqKey(streamId), STREAM_TTL_SECONDS)
-
-    return entry
+    const eventJson = JSON.stringify(event)
+    const nextId = await redis.eval(
+      APPEND_STREAM_EVENT_LUA,
+      2,
+      getSeqKey(streamId),
+      getEventsKey(streamId),
+      STREAM_TTL_SECONDS,
+      STREAM_EVENT_LIMIT,
+      streamId,
+      eventJson
+    )
+    const eventId = typeof nextId === 'number' ? nextId : Number(nextId)
+    return { eventId, streamId, event }
   } catch (error) {
     logger.warn('Failed to append stream event', {
       streamId,
