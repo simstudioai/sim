@@ -2804,33 +2804,38 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       }
 
-      // ALWAYS fetch buffered events when resuming (to ensure we have complete content)
+      // Fetch ALL buffered events and display instantly, then continue streaming from highest event
       let bufferedContent = ''
+      let resumeFromEventId = nextStream.lastEventId
       if (nextStream.lastEventId > 0) {
         try {
-          logger.info('[Copilot] Fetching buffered events', {
+          logger.info('[Copilot] Fetching all buffered events', {
             streamId: nextStream.streamId,
-            lastEventId: nextStream.lastEventId,
-            isFreshResume,
+            savedLastEventId: nextStream.lastEventId,
           })
+          // Fetch ALL events (no 'to' limit) so we get everything buffered while disconnected
           const batchUrl = `/api/copilot/chat/stream?streamId=${encodeURIComponent(
             nextStream.streamId
-          )}&from=0&to=${nextStream.lastEventId}&batch=true`
+          )}&from=0&batch=true`
           const batchResponse = await fetch(batchUrl, { credentials: 'include' })
           if (batchResponse.ok) {
             const batchData = await batchResponse.json()
             if (batchData.success && Array.isArray(batchData.events)) {
-              // Extract text content from buffered events
+              // Extract text content and track highest event ID
               for (const entry of batchData.events) {
                 const event = entry.event
                 if (event?.type === 'content' && typeof event.data === 'string') {
                   bufferedContent += event.data
                 }
+                // Track highest event ID so we resume from there (not the old lastEventId)
+                if (typeof entry.eventId === 'number' && entry.eventId > resumeFromEventId) {
+                  resumeFromEventId = entry.eventId
+                }
               }
-              logger.info('[Copilot] Loaded buffered content', {
+              logger.info('[Copilot] Loaded buffered content instantly', {
                 eventCount: batchData.events.length,
                 contentLength: bufferedContent.length,
-                contentPreview: bufferedContent.slice(0, 100),
+                resumeFromEventId,
               })
             } else {
               logger.warn('[Copilot] Batch response missing events', {
@@ -2918,7 +2923,8 @@ export const useCopilotStore = create<CopilotStore>()(
       try {
         logger.info('[Copilot] Attempting to resume stream', {
           streamId: nextStream.streamId,
-          lastEventId: nextStream.lastEventId,
+          savedLastEventId: nextStream.lastEventId,
+          resumeFromEventId,
           isFreshResume,
           bufferedContentLength: bufferedContent.length,
           assistantMessageId: nextStream.assistantMessageId,
@@ -2933,7 +2939,7 @@ export const useCopilotStore = create<CopilotStore>()(
           model: get().selectedModel,
           prefetch: get().agentPrefetch,
           stream: true,
-          resumeFromEventId: nextStream.lastEventId,
+          resumeFromEventId,
           abortSignal: abortController.signal,
         })
 
