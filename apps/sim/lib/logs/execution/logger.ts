@@ -261,10 +261,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
       models: costSummary.models,
     }
 
-    const totalDuration =
+    const rawDurationMs =
       isResume && existingLog?.startedAt
         ? new Date(endedAt).getTime() - new Date(existingLog.startedAt).getTime()
         : totalDurationMs
+    const totalDuration =
+      typeof rawDurationMs === 'number' && Number.isFinite(rawDurationMs)
+        ? Math.max(0, Math.round(rawDurationMs))
+        : 0
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)

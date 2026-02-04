@@ -17,6 +17,7 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -879,11 +880,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`, { isTimeout })
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+          const { traceSpans, totalDuration } = executionResult
+            ? buildTraceSpans(executionResult)
+            : { traceSpans: [], totalDuration: 0 }
 
           await loggingSession.safeCompleteWithError({
-            totalDurationMs: executionResult?.metadata?.duration,
+            totalDurationMs: totalDuration || executionResult?.metadata?.duration,
             error: { message: errorMessage },
-            traceSpans: executionResult?.logs as any,
+            traceSpans,
           })
 
           sendEvent({
