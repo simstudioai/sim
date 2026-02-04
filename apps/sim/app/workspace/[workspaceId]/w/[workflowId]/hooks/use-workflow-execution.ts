@@ -1058,25 +1058,58 @@ export function useWorkflowExecution() {
                 endedAt,
               })
 
-              // Update existing console entry (created in onBlockStarted) with error data
-              updateConsole(
-                data.blockId,
-                {
+              // Check if entry exists (created in onBlockStarted)
+              // For container blocks like loops/parallels that fail during initialization,
+              // onBlockStarted is never called, so we need to create the entry here
+              const existingEntries = useTerminalConsoleStore.getState().entries
+              const hasExistingEntry = existingEntries.some(
+                (entry) => entry.blockId === data.blockId && entry.executionId === executionId
+              )
+
+              if (hasExistingEntry) {
+                // Update existing console entry
+                updateConsole(
+                  data.blockId,
+                  {
+                    input: data.input || {},
+                    replaceOutput: {},
+                    success: false,
+                    error: data.error,
+                    durationMs: data.durationMs,
+                    startedAt,
+                    endedAt,
+                    isRunning: false,
+                    // Pass through iteration context for subflow grouping
+                    iterationCurrent: data.iterationCurrent,
+                    iterationTotal: data.iterationTotal,
+                    iterationType: data.iterationType,
+                  },
+                  executionId
+                )
+              } else {
+                // Create new console entry for blocks that failed before starting
+                // (e.g., loop/parallel blocks with invalid configuration)
+                addConsole({
                   input: data.input || {},
-                  replaceOutput: {},
+                  output: {},
                   success: false,
                   error: data.error,
-                  durationMs: data.durationMs,
-                  startedAt,
-                  endedAt,
+                  durationMs: data.durationMs || 0,
+                  startedAt: startedAt || new Date().toISOString(),
+                  executionOrder: data.executionOrder,
+                  endedAt: endedAt || new Date().toISOString(),
+                  workflowId: activeWorkflowId,
+                  blockId: data.blockId,
+                  executionId,
+                  blockName: data.blockName || 'Unknown Block',
+                  blockType: data.blockType || 'unknown',
                   isRunning: false,
                   // Pass through iteration context for subflow grouping
                   iterationCurrent: data.iterationCurrent,
                   iterationTotal: data.iterationTotal,
                   iterationType: data.iterationType,
-                },
-                executionId
-              )
+                })
+              }
             },
 
             onStreamChunk: (data) => {
@@ -1192,8 +1225,10 @@ export function useWorkflowExecution() {
 
               // Only add workflow-level error entry for:
               // 1. Pre-execution errors (validation) - no blocks ran
-              // 2. Timeout errors - no block has the error
+              // 2. Workflow-level errors (timeout, etc.) - no block has the error
               if (isPreExecutionError || !blockAlreadyHasError) {
+                // Determine if this is a timeout error based on the error message
+                const isTimeout = data.error?.toLowerCase().includes('timed out')
                 addConsole({
                   input: {},
                   output: {},
@@ -1204,9 +1239,17 @@ export function useWorkflowExecution() {
                   executionOrder: isPreExecutionError ? 0 : Number.MAX_SAFE_INTEGER,
                   endedAt: new Date().toISOString(),
                   workflowId: activeWorkflowId,
-                  blockId: isPreExecutionError ? 'validation' : 'timeout-error',
+                  blockId: isPreExecutionError
+                    ? 'validation'
+                    : isTimeout
+                      ? 'timeout-error'
+                      : 'execution-error',
                   executionId,
-                  blockName: isPreExecutionError ? 'Workflow Validation' : 'Timeout Error',
+                  blockName: isPreExecutionError
+                    ? 'Workflow Validation'
+                    : isTimeout
+                      ? 'Timeout Error'
+                      : 'Execution Error',
                   blockType: isPreExecutionError ? 'validation' : 'error',
                 })
               }
@@ -1786,8 +1829,10 @@ export function useWorkflowExecution() {
               // Check if any block already has an error - don't duplicate block errors
               const blockAlreadyHasError = accumulatedBlockLogs.some((log) => log.error)
 
-              // Only add timeout error entry if no block has the error
+              // Only add execution error entry if no block has the error
               if (!blockAlreadyHasError) {
+                // Determine if this is a timeout error based on the error message
+                const isTimeout = data.error?.toLowerCase().includes('timed out')
                 addConsole({
                   input: {},
                   output: {},
@@ -1798,16 +1843,33 @@ export function useWorkflowExecution() {
                   executionOrder: Number.MAX_SAFE_INTEGER,
                   endedAt: new Date().toISOString(),
                   workflowId,
-                  blockId: 'timeout-error',
+                  blockId: isTimeout ? 'timeout-error' : 'execution-error',
                   executionId,
-                  blockName: 'Timeout Error',
+                  blockName: isTimeout ? 'Timeout Error' : 'Execution Error',
                   blockType: 'error',
                 })
               }
             },
 
-            onExecutionCancelled: () => {
+            onExecutionCancelled: (data) => {
               cancelRunningEntries(workflowId)
+
+              // Add console entry for cancellation
+              addConsole({
+                input: {},
+                output: {},
+                success: false,
+                error: 'Execution was cancelled',
+                durationMs: data?.duration || 0,
+                startedAt: new Date(Date.now() - (data?.duration || 0)).toISOString(),
+                executionOrder: Number.MAX_SAFE_INTEGER,
+                endedAt: new Date().toISOString(),
+                workflowId,
+                blockId: 'cancelled',
+                executionId,
+                blockName: 'Execution Cancelled',
+                blockType: 'cancelled',
+              })
             },
           },
         })
