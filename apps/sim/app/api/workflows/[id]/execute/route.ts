@@ -458,8 +458,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })
           await loggingSession.markAsFailed(timeoutErrorMessage)
 
-          await cleanupExecutionBase64Cache(executionId)
-
           return NextResponse.json(
             {
               success: false,
@@ -486,9 +484,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           : result.output
 
         const resultWithBase64 = { ...result, output: outputWithBase64 }
-
-        // Cleanup base64 cache for this execution
-        await cleanupExecutionBase64Cache(executionId)
 
         const hasResponseBlock = workflowHasResponseBlock(resultWithBase64)
         if (hasResponseBlock) {
@@ -539,6 +534,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         )
       } finally {
         timeoutController.cleanup()
+        if (executionId) {
+          try {
+            await cleanupExecutionBase64Cache(executionId)
+          } catch (error) {
+            logger.error(`[${requestId}] Failed to cleanup base64 cache`, { error })
+          }
+        }
       }
     }
 
