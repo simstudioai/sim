@@ -20,7 +20,7 @@ import {
   convertUsageMetadata,
   createReadableStreamFromGeminiStream,
   ensureStructResponse,
-  extractFunctionCallPart,
+  extractAllFunctionCallParts,
   extractTextContent,
   mapToThinkingLevel,
 } from '@/providers/google/utils'
@@ -32,7 +32,7 @@ import {
   prepareToolsWithUsageControl,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
-import type { ExecutionState, GeminiProviderType, GeminiUsage, ParsedFunctionCall } from './types'
+import type { ExecutionState, GeminiProviderType, GeminiUsage } from './types'
 
 /**
  * Creates initial execution state
@@ -79,100 +79,167 @@ function createInitialState(
 }
 
 /**
- * Executes a tool call and updates state
+ * Executes multiple tool calls in parallel and updates state.
+ * Per Gemini docs, all function calls from a single response should be executed
+ * together, with one model message containing all function calls and one user
+ * message containing all function responses.
  */
-async function executeToolCall(
-  functionCallPart: Part,
-  functionCall: ParsedFunctionCall,
+async function executeToolCallsBatch(
+  functionCallParts: Part[],
   request: ProviderRequest,
   state: ExecutionState,
   forcedTools: string[],
   logger: ReturnType<typeof createLogger>
 ): Promise<{ success: boolean; state: ExecutionState }> {
-  const toolCallStartTime = Date.now()
-  const toolName = functionCall.name
-
-  const tool = request.tools?.find((t) => t.id === toolName)
-  if (!tool) {
-    logger.warn(`Tool ${toolName} not found in registry, skipping`)
+  if (functionCallParts.length === 0) {
     return { success: false, state }
   }
 
-  try {
-    const { toolParams, executionParams } = prepareToolExecution(tool, functionCall.args, request)
-    const result = await executeTool(toolName, executionParams)
-    const toolCallEndTime = Date.now()
-    const duration = toolCallEndTime - toolCallStartTime
+  const executionPromises = functionCallParts.map(async (part) => {
+    const toolCallStartTime = Date.now()
+    const functionCall = part.functionCall!
+    const toolName = functionCall.name ?? ''
+    const args = (functionCall.args ?? {}) as Record<string, unknown>
 
-    const resultContent: Record<string, unknown> = result.success
-      ? ensureStructResponse(result.output)
-      : { error: true, message: result.error || 'Tool execution failed', tool: toolName }
-
-    const toolCall: FunctionCallResponse = {
-      name: toolName,
-      arguments: toolParams,
-      startTime: new Date(toolCallStartTime).toISOString(),
-      endTime: new Date(toolCallEndTime).toISOString(),
-      duration,
-      result: resultContent,
+    const tool = request.tools?.find((t) => t.id === toolName)
+    if (!tool) {
+      logger.warn(`Tool ${toolName} not found in registry, skipping`)
+      return {
+        success: false,
+        part,
+        toolName,
+        args,
+        resultContent: { error: true, message: `Tool ${toolName} not found`, tool: toolName },
+        toolParams: {},
+        startTime: toolCallStartTime,
+        endTime: Date.now(),
+        duration: Date.now() - toolCallStartTime,
+      }
     }
 
-    const updatedContents: Content[] = [
-      ...state.contents,
-      {
-        role: 'model',
-        parts: [functionCallPart],
-      },
-      {
-        role: 'user',
-        parts: [
-          {
-            functionResponse: {
-              name: functionCall.name,
-              response: resultContent,
-            },
-          },
-        ],
-      },
-    ]
+    try {
+      const { toolParams, executionParams } = prepareToolExecution(tool, args, request)
+      const result = await executeTool(toolName, executionParams)
+      const toolCallEndTime = Date.now()
+      const duration = toolCallEndTime - toolCallStartTime
 
-    const forcedToolCheck = checkForForcedToolUsage(
-      [{ name: functionCall.name, args: functionCall.args }],
-      state.currentToolConfig,
-      forcedTools,
-      state.usedForcedTools
-    )
+      const resultContent: Record<string, unknown> = result.success
+        ? ensureStructResponse(result.output)
+        : { error: true, message: result.error || 'Tool execution failed', tool: toolName }
 
-    return {
-      success: true,
-      state: {
-        ...state,
-        contents: updatedContents,
-        toolCalls: [...state.toolCalls, toolCall],
-        toolResults: result.success
-          ? [...state.toolResults, result.output as Record<string, unknown>]
-          : state.toolResults,
-        toolsTime: state.toolsTime + duration,
-        timeSegments: [
-          ...state.timeSegments,
-          {
-            type: 'tool',
-            name: toolName,
-            startTime: toolCallStartTime,
-            endTime: toolCallEndTime,
-            duration,
-          },
-        ],
-        usedForcedTools: forcedToolCheck?.usedForcedTools ?? state.usedForcedTools,
-        currentToolConfig: forcedToolCheck?.nextToolConfig ?? state.currentToolConfig,
-      },
+      return {
+        success: result.success,
+        part,
+        toolName,
+        args,
+        resultContent,
+        toolParams,
+        result,
+        startTime: toolCallStartTime,
+        endTime: toolCallEndTime,
+        duration,
+      }
+    } catch (error) {
+      const toolCallEndTime = Date.now()
+      logger.error('Error processing function call:', {
+        error: error instanceof Error ? error.message : String(error),
+        functionName: toolName,
+      })
+      return {
+        success: false,
+        part,
+        toolName,
+        args,
+        resultContent: {
+          error: true,
+          message: error instanceof Error ? error.message : 'Tool execution failed',
+          tool: toolName,
+        },
+        toolParams: {},
+        startTime: toolCallStartTime,
+        endTime: toolCallEndTime,
+        duration: toolCallEndTime - toolCallStartTime,
+      }
     }
-  } catch (error) {
-    logger.error('Error processing function call:', {
-      error: error instanceof Error ? error.message : String(error),
-      functionName: toolName,
-    })
+  })
+
+  const results = await Promise.all(executionPromises)
+
+  // Check if at least one tool was found (not all failed due to missing tools)
+  const hasValidResults = results.some((r) => r.result !== undefined)
+  if (!hasValidResults && results.every((r) => !r.success)) {
     return { success: false, state }
+  }
+
+  // Build batched messages per Gemini spec:
+  // ONE model message with ALL function call parts
+  // ONE user message with ALL function responses
+  const modelParts: Part[] = results.map((r) => r.part)
+  const userParts: Part[] = results.map((r) => ({
+    functionResponse: {
+      name: r.toolName,
+      response: r.resultContent,
+    },
+  }))
+
+  const updatedContents: Content[] = [
+    ...state.contents,
+    { role: 'model', parts: modelParts },
+    { role: 'user', parts: userParts },
+  ]
+
+  // Collect all tool calls and results
+  const newToolCalls: FunctionCallResponse[] = []
+  const newToolResults: Record<string, unknown>[] = []
+  const newTimeSegments: ExecutionState['timeSegments'] = []
+  let totalToolsTime = 0
+
+  for (const r of results) {
+    newToolCalls.push({
+      name: r.toolName,
+      arguments: r.toolParams,
+      startTime: new Date(r.startTime).toISOString(),
+      endTime: new Date(r.endTime).toISOString(),
+      duration: r.duration,
+      result: r.resultContent,
+    })
+
+    if (r.success && r.result?.output) {
+      newToolResults.push(r.result.output as Record<string, unknown>)
+    }
+
+    newTimeSegments.push({
+      type: 'tool',
+      name: r.toolName,
+      startTime: r.startTime,
+      endTime: r.endTime,
+      duration: r.duration,
+    })
+
+    totalToolsTime += r.duration
+  }
+
+  // Check forced tool usage for all executed tools
+  const executedToolsInfo = results.map((r) => ({ name: r.toolName, args: r.args }))
+  const forcedToolCheck = checkForForcedToolUsage(
+    executedToolsInfo,
+    state.currentToolConfig,
+    forcedTools,
+    state.usedForcedTools
+  )
+
+  return {
+    success: true,
+    state: {
+      ...state,
+      contents: updatedContents,
+      toolCalls: [...state.toolCalls, ...newToolCalls],
+      toolResults: [...state.toolResults, ...newToolResults],
+      toolsTime: state.toolsTime + totalToolsTime,
+      timeSegments: [...state.timeSegments, ...newTimeSegments],
+      usedForcedTools: forcedToolCheck?.usedForcedTools ?? state.usedForcedTools,
+      currentToolConfig: forcedToolCheck?.nextToolConfig ?? state.currentToolConfig,
+    },
   }
 }
 
@@ -506,27 +573,25 @@ export async function executeGeminiRequest(
     // Tool execution loop
     const functionCalls = response.functionCalls
     if (functionCalls?.length) {
-      logger.info(`Received function call from Gemini: ${functionCalls[0].name}`)
+      const functionNames = functionCalls.map((fc) => fc.name).join(', ')
+      logger.info(`Received ${functionCalls.length} function call(s) from Gemini: ${functionNames}`)
 
       while (state.iterationCount < MAX_TOOL_ITERATIONS) {
-        const functionCallPart = extractFunctionCallPart(currentResponse.candidates?.[0])
-        if (!functionCallPart?.functionCall) {
+        // Extract ALL function call parts from the response (Gemini can return multiple)
+        const functionCallParts = extractAllFunctionCallParts(currentResponse.candidates?.[0])
+        if (functionCallParts.length === 0) {
           content = extractTextContent(currentResponse.candidates?.[0])
           break
         }
 
-        const functionCall: ParsedFunctionCall = {
-          name: functionCallPart.functionCall.name ?? '',
-          args: (functionCallPart.functionCall.args ?? {}) as Record<string, unknown>,
-        }
-
+        const callNames = functionCallParts.map((p) => p.functionCall?.name ?? 'unknown').join(', ')
         logger.info(
-          `Processing function call: ${functionCall.name} (iteration ${state.iterationCount + 1})`
+          `Processing ${functionCallParts.length} function call(s): ${callNames} (iteration ${state.iterationCount + 1})`
         )
 
-        const { success, state: updatedState } = await executeToolCall(
-          functionCallPart,
-          functionCall,
+        // Execute ALL function calls in this batch
+        const { success, state: updatedState } = await executeToolCallsBatch(
+          functionCallParts,
           request,
           state,
           forcedTools,
