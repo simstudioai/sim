@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { DEFAULT_EXECUTION_TIMEOUT_MS, getExecutionTimeout } from '@/lib/core/execution-limits'
-import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import type { McpApiResponse } from '@/lib/mcp/types'
 import { isMcpTool, MCP } from '@/executor/constants'
 
@@ -12,10 +11,6 @@ export const MCP_CONSTANTS = {
   MAX_CACHE_SIZE: 1000,
   MAX_CONSECUTIVE_FAILURES: 3,
 } as const
-
-export function getMcpExecutionTimeout(plan?: SubscriptionPlan): number {
-  return getExecutionTimeout(plan, 'sync')
-}
 
 /**
  * Core MCP tool parameter keys that are metadata, not user-entered test values.

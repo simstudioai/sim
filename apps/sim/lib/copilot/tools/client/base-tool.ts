@@ -7,7 +7,7 @@ const baseToolLogger = createLogger('BaseClientTool')
 
 const DEFAULT_TOOL_TIMEOUT_MS = 5 * 60 * 1000
 
-export const WORKFLOW_EXECUTION_TIMEOUT_MS = 5 * 60 * 1000
+export const WORKFLOW_EXECUTION_TIMEOUT_MS = 10 * 60 * 1000
 
 // Client tool call states used by the new runtime
 export enum ClientToolCallState {

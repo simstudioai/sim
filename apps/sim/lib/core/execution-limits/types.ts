@@ -51,37 +51,13 @@ export function getExecutionTimeout(
   return EXECUTION_TIMEOUTS[plan || 'free'][type]
 }
 
-export function getExecutionTimeoutSeconds(
-  plan: SubscriptionPlan | undefined,
-  type: 'sync' | 'async' = 'sync'
-): number {
-  return Math.floor(getExecutionTimeout(plan, type) / 1000)
-}
-
 export function getMaxExecutionTimeout(): number {
   return EXECUTION_TIMEOUTS.enterprise.async
 }
 
 export const DEFAULT_EXECUTION_TIMEOUT_MS = EXECUTION_TIMEOUTS.free.sync
 
-export class ExecutionTimeoutError extends Error {
-  constructor(
-    public readonly timeoutMs: number,
-    public readonly plan?: SubscriptionPlan
-  ) {
-    const timeoutSeconds = Math.floor(timeoutMs / 1000)
-    const timeoutMinutes = Math.floor(timeoutSeconds / 60)
-    const displayTime =
-      timeoutMinutes > 0
-        ? `${timeoutMinutes} minute${timeoutMinutes > 1 ? 's' : ''}`
-        : `${timeoutSeconds} seconds`
-    super(`Execution timed out after ${displayTime}`)
-    this.name = 'ExecutionTimeoutError'
-  }
-}
-
 export function isTimeoutError(error: unknown): boolean {
-  if (error instanceof ExecutionTimeoutError) return true
   if (!(error instanceof Error)) return false
 
   const name = error.name.toLowerCase()
@@ -96,18 +72,7 @@ export function isTimeoutError(error: unknown): boolean {
   )
 }
 
-export function createTimeoutError(
-  timeoutMs: number,
-  plan?: SubscriptionPlan
-): ExecutionTimeoutError {
-  return new ExecutionTimeoutError(timeoutMs, plan)
-}
-
 export function getTimeoutErrorMessage(error: unknown, timeoutMs?: number): string {
-  if (error instanceof ExecutionTimeoutError) {
-    return error.message
-  }
-
   if (timeoutMs) {
     const timeoutSeconds = Math.floor(timeoutMs / 1000)
     const timeoutMinutes = Math.floor(timeoutSeconds / 60)
