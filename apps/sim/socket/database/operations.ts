@@ -263,18 +263,51 @@ async function handleBlockOperationTx(
         throw new Error('Missing required fields for update name operation')
       }
 
-      const updateResult = await tx
+      // Check if block is protected (locked or inside locked parent)
+      const blockToRename = await tx
+        .select({
+          id: workflowBlocks.id,
+          locked: workflowBlocks.locked,
+          data: workflowBlocks.data,
+        })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .limit(1)
+
+      if (blockToRename.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      const block = blockToRename[0]
+      const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+        | string
+        | undefined
+
+      if (block.locked) {
+        logger.info(`Skipping rename of locked block ${payload.id}`)
+        break
+      }
+
+      if (parentId) {
+        const parentBlock = await tx
+          .select({ locked: workflowBlocks.locked })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, parentId), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (parentBlock.length > 0 && parentBlock[0].locked) {
+          logger.info(`Skipping rename of block ${payload.id} - parent ${parentId} is locked`)
+          break
+        }
+      }
+
+      await tx
         .update(workflowBlocks)
         .set({
           name: payload.name,
           updatedAt: new Date(),
         })
         .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
-        .returning({ id: workflowBlocks.id })
-
-      if (updateResult.length === 0) {
-        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
-      }
 
       logger.debug(`Updated block name: ${payload.id} -> "${payload.name}"`)
       break

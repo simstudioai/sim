@@ -744,6 +744,23 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeUpdateBlockName = useCallback(
     (id: string, name: string): { success: boolean; error?: string } => {
+      const blocks = useWorkflowStore.getState().blocks
+      const block = blocks[id]
+
+      if (block) {
+        const parentId = block.data?.parentId
+        const isParentLocked = parentId ? blocks[parentId]?.locked : false
+        if (block.locked || isParentLocked) {
+          logger.error('Cannot rename locked block')
+          useNotificationStore.getState().addNotification({
+            level: 'info',
+            message: 'Cannot rename locked blocks',
+            workflowId: activeWorkflowId || undefined,
+          })
+          return { success: false, error: 'Block is locked' }
+        }
+      }
+
       const trimmedName = name.trim()
       const normalizedNewName = normalizeName(trimmedName)
 
@@ -1021,7 +1038,6 @@ export function useCollaborativeWorkflow() {
 
       const blocks = useWorkflowStore.getState().blocks
 
-      // Helper to check if a block is protected (locked or inside locked parent)
       const isProtected = (blockId: string): boolean => {
         const block = blocks[blockId]
         if (!block) return false
@@ -1036,7 +1052,6 @@ export function useCollaborativeWorkflow() {
 
       for (const id of ids) {
         const block = blocks[id]
-        // Skip locked blocks and blocks inside locked containers
         if (block && !isProtected(id)) {
           previousStates[id] = block.horizontalHandles ?? false
           validIds.push(id)
