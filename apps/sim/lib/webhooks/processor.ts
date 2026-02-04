@@ -1035,7 +1035,17 @@ export async function queueWebhookExecution(
             jobId,
             error: errorMessage,
           })
-          await jobQueue.markJobFailed(jobId, errorMessage)
+          try {
+            await jobQueue.markJobFailed(jobId, errorMessage)
+          } catch (markFailedError) {
+            logger.error(`[${options.requestId}] Failed to mark job as failed`, {
+              jobId,
+              error:
+                markFailedError instanceof Error
+                  ? markFailedError.message
+                  : String(markFailedError),
+            })
+          }
         }
       })()
     }

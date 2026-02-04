@@ -90,7 +90,17 @@ export async function GET(request: NextRequest) {
                 `[${requestId}] Schedule execution failed for workflow ${schedule.workflowId}`,
                 { jobId, error: errorMessage }
               )
-              await jobQueue.markJobFailed(jobId, errorMessage)
+              try {
+                await jobQueue.markJobFailed(jobId, errorMessage)
+              } catch (markFailedError) {
+                logger.error(`[${requestId}] Failed to mark job as failed`, {
+                  jobId,
+                  error:
+                    markFailedError instanceof Error
+                      ? markFailedError.message
+                      : String(markFailedError),
+                })
+              }
             }
           })()
         }
