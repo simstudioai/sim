@@ -2034,6 +2034,38 @@ function stopStreamingUpdates() {
   streamingUpdateQueue.clear()
 }
 
+/** Flush pending streaming updates immediately (apply them to state before clearing) */
+function flushStreamingUpdates(set: any) {
+  if (streamingUpdateRAF !== null) {
+    cancelAnimationFrame(streamingUpdateRAF)
+    streamingUpdateRAF = null
+  }
+  if (streamingUpdateQueue.size === 0) return
+
+  const updates = new Map(streamingUpdateQueue)
+  streamingUpdateQueue.clear()
+
+  set((state: CopilotStore) => {
+    if (updates.size === 0) return state
+    return {
+      messages: state.messages.map((msg) => {
+        const update = updates.get(msg.id)
+        if (update) {
+          return {
+            ...msg,
+            content: '',
+            contentBlocks:
+              update.contentBlocks.length > 0
+                ? createOptimizedContentBlocks(update.contentBlocks)
+                : [],
+          }
+        }
+        return msg
+      }),
+    }
+  })
+}
+
 function createOptimizedContentBlocks(contentBlocks: any[]): any[] {
   const result: any[] = new Array(contentBlocks.length)
   for (let i = 0; i < contentBlocks.length; i++) {
@@ -2983,8 +3015,11 @@ export const useCopilotStore = create<CopilotStore>()(
       set({ isAborting: true, suppressAbortContinueOption: suppressContinueOption })
       try {
         abortController.abort()
-        stopStreamingUpdates()
-        const lastMessage = messages[messages.length - 1]
+        // Flush pending streaming updates to preserve content before stopping
+        flushStreamingUpdates(set)
+        // Re-read messages after flush to get the latest content
+        const { messages: updatedMessages } = get()
+        const lastMessage = updatedMessages[updatedMessages.length - 1]
         if (lastMessage && lastMessage.role === 'assistant') {
           const textContent =
             lastMessage.contentBlocks
