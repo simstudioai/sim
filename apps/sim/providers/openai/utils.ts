@@ -414,7 +414,7 @@ export function createReadableStreamFromResponses(
             if (
               eventType === 'response.error' ||
               eventType === 'error' ||
-              activeEventType === 'response.failed'
+              eventType === 'response.failed'
             ) {
               const message = event?.error?.message || 'Responses API stream error'
               controller.error(new Error(message))
