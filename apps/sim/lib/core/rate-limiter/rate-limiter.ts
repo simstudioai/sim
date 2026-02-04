@@ -1,13 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { createStorageAdapter, type RateLimitStorageAdapter } from './storage'
 import {
-  createStorageAdapter,
-  type RateLimitStorageAdapter,
-  type TokenBucketConfig,
-} from './storage'
-import {
+  getRateLimit,
   MANUAL_EXECUTION_LIMIT,
   RATE_LIMIT_WINDOW_MS,
-  RATE_LIMITS,
   type RateLimitCounterType,
   type SubscriptionPlan,
   type TriggerType,
@@ -57,21 +53,6 @@ export class RateLimiter {
     return isAsync ? 'async' : 'sync'
   }
 
-  private getBucketConfig(
-    plan: SubscriptionPlan,
-    counterType: RateLimitCounterType
-  ): TokenBucketConfig {
-    const config = RATE_LIMITS[plan]
-    switch (counterType) {
-      case 'api-endpoint':
-        return config.apiEndpoint
-      case 'async':
-        return config.async
-      case 'sync':
-        return config.sync
-    }
-  }
-
   private buildStorageKey(rateLimitKey: string, counterType: RateLimitCounterType): string {
     return `${rateLimitKey}:${counterType}`
   }
@@ -81,15 +62,6 @@ export class RateLimiter {
       allowed: true,
       remaining: MANUAL_EXECUTION_LIMIT,
       resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
-    }
-  }
-
-  private createUnlimitedStatus(config: TokenBucketConfig): RateLimitStatus {
-    return {
-      requestsPerMinute: MANUAL_EXECUTION_LIMIT,
-      maxBurst: MANUAL_EXECUTION_LIMIT,
-      remaining: MANUAL_EXECUTION_LIMIT,
-      resetAt: new Date(Date.now() + config.refillIntervalMs),
     }
   }
 
@@ -107,7 +79,7 @@ export class RateLimiter {
       const plan = (subscription?.plan || 'free') as SubscriptionPlan
       const rateLimitKey = this.getRateLimitKey(userId, subscription)
       const counterType = this.getCounterType(triggerType, isAsync)
-      const config = this.getBucketConfig(plan, counterType)
+      const config = getRateLimit(plan, counterType)
       const storageKey = this.buildStorageKey(rateLimitKey, counterType)
 
       const result = await this.storage.consumeTokens(storageKey, 1, config)
@@ -152,10 +124,15 @@ export class RateLimiter {
     try {
       const plan = (subscription?.plan || 'free') as SubscriptionPlan
       const counterType = this.getCounterType(triggerType, isAsync)
-      const config = this.getBucketConfig(plan, counterType)
+      const config = getRateLimit(plan, counterType)
 
       if (triggerType === 'manual') {
-        return this.createUnlimitedStatus(config)
+        return {
+          requestsPerMinute: MANUAL_EXECUTION_LIMIT,
+          maxBurst: MANUAL_EXECUTION_LIMIT,
+          remaining: MANUAL_EXECUTION_LIMIT,
+          resetAt: new Date(Date.now() + config.refillIntervalMs),
+        }
       }
 
       const rateLimitKey = this.getRateLimitKey(userId, subscription)
@@ -178,7 +155,7 @@ export class RateLimiter {
       })
       const plan = (subscription?.plan || 'free') as SubscriptionPlan
       const counterType = this.getCounterType(triggerType, isAsync)
-      const config = this.getBucketConfig(plan, counterType)
+      const config = getRateLimit(plan, counterType)
       return {
         requestsPerMinute: config.refillRate,
         maxBurst: config.maxTokens,
