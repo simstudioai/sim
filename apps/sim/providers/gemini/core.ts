@@ -95,9 +95,6 @@ async function executeToolCallsBatch(
     return { success: false, state }
   }
 
-  const batchStartTime = Date.now()
-
-  // Execute all tool calls in parallel
   const executionPromises = functionCallParts.map(async (part) => {
     const toolCallStartTime = Date.now()
     const functionCall = part.functionCall!
