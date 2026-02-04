@@ -97,12 +97,15 @@ export async function executeResponsesProviderRequest(
   }
 
   if (request.responseFormat) {
-    basePayload.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: request.responseFormat.name || 'response_schema',
-        schema: request.responseFormat.schema || request.responseFormat,
-        strict: request.responseFormat.strict !== false,
+    basePayload.text = {
+      ...(basePayload.text ?? {}),
+      format: {
+        type: 'json_schema',
+        json_schema: {
+          name: request.responseFormat.name || 'response_schema',
+          schema: request.responseFormat.schema || request.responseFormat,
+          strict: request.responseFormat.strict !== false,
+        },
       },
     }
 
