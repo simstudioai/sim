@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { generateInternalToken } from '@/lib/auth/internal'
-import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { parseMcpToolId } from '@/lib/mcp/utils'

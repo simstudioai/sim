@@ -73,5 +73,6 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
 
   outputs: {
     audioUrl: { type: 'string', description: 'Generated audio URL' },
+    audioFile: { type: 'file', description: 'Generated audio file' },
   },
 }

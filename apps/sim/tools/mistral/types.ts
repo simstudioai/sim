@@ -1,3 +1,5 @@
+import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -117,7 +119,7 @@ export const MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES = {
   jobId: { type: 'string', description: 'Unique job identifier' },
   fileType: { type: 'string', description: 'File type (e.g., pdf)' },
   fileName: { type: 'string', description: 'Original file name' },
-  source: { type: 'string', description: 'Source type (url)' },
+  source: { type: 'string', description: 'Source type (url or file)' },
   pageCount: { type: 'number', description: 'Number of pages processed' },
   model: { type: 'string', description: 'Mistral model used' },
   resultType: { type: 'string', description: 'Output format (markdown, text, json)' },
@@ -136,9 +138,20 @@ export const MISTRAL_PARSER_METADATA_OUTPUT: OutputProperty = {
 }
 
 export interface MistralParserInput {
-  filePath: string
-  fileUpload?: any
+  filePath?: string
+  file?: RawFileInput
+  fileUpload?: RawFileInput
   _internalFilePath?: string
+  apiKey: string
+  resultType?: 'markdown' | 'text' | 'json'
+  includeImageBase64?: boolean
+  pages?: number[]
+  imageLimit?: number
+  imageMinSize?: number
+}
+
+export interface MistralParserV2Input {
+  file: UserFile
   apiKey: string
   resultType?: 'markdown' | 'text' | 'json'
   includeImageBase64?: boolean
@@ -156,7 +169,7 @@ export interface MistralParserMetadata {
   jobId: string
   fileType: string
   fileName: string
-  source: 'url'
+  source: 'url' | 'file'
   sourceUrl?: string
   pageCount: number
   usageInfo?: MistralOcrUsageInfo

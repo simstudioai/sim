@@ -55,3 +55,20 @@ export function filterUserFileForDisplay(data: Record<string, unknown>): Record<
   }
   return filtered
 }
+
+/**
+ * Extracts base64 content from either a raw base64 string or a UserFile object.
+ * Useful for tools that accept file input in either format.
+ * @returns The base64 string, or undefined if not found
+ */
+export function extractBase64FromFileInput(
+  input: string | UserFileLike | null | undefined
+): string | undefined {
+  if (typeof input === 'string') {
+    return input
+  }
+  if (input?.base64) {
+    return input.base64
+  }
+  return undefined
+}

@@ -183,6 +183,109 @@ export const {ServiceName}Block: BlockConfig = {
 }
 ```
 
+## File Input Handling
+
+When your block accepts file uploads, use the basic/advanced mode pattern with `normalizeFileInput`.
+
+### Basic/Advanced File Pattern
+
+```typescript
+// Basic mode: Visual file upload
+{
+  id: 'uploadFile',
+  title: 'File',
+  type: 'file-upload',
+  canonicalParamId: 'file',  // Both map to 'file' param
+  placeholder: 'Upload file',
+  mode: 'basic',
+  multiple: false,
+  required: true,
+  condition: { field: 'operation', value: 'upload' },
+},
+// Advanced mode: Reference from other blocks
+{
+  id: 'fileRef',
+  title: 'File',
+  type: 'short-input',
+  canonicalParamId: 'file',  // Both map to 'file' param
+  placeholder: 'Reference file (e.g., {{file_block.output}})',
+  mode: 'advanced',
+  required: true,
+  condition: { field: 'operation', value: 'upload' },
+},
+```
+
+**Critical constraints:**
+- `canonicalParamId` must NOT match any subblock's `id` in the same block
+- Values are stored under subblock `id`, not `canonicalParamId`
+
+### Normalizing File Input in tools.config
+
+Use `normalizeFileInput` to handle all input variants:
+
+```typescript
+import { normalizeFileInput } from '@/blocks/utils'
+
+tools: {
+  access: ['service_upload'],
+  config: {
+    tool: (params) => {
+      // Check all field IDs: uploadFile (basic), fileRef (advanced), fileContent (legacy)
+      const normalizedFile = normalizeFileInput(
+        params.uploadFile || params.fileRef || params.fileContent,
+        { single: true }
+      )
+      if (normalizedFile) {
+        params.file = normalizedFile
+      }
+      return `service_${params.operation}`
+    },
+  },
+}
+```
+
+**Why this pattern?**
+- Values come through as `params.uploadFile` or `params.fileRef` (the subblock IDs)
+- `canonicalParamId` only controls UI/schema mapping, not runtime values
+- `normalizeFileInput` handles JSON strings from advanced mode template resolution
+
+### File Input Types in `inputs`
+
+Use `type: 'json'` for file inputs:
+
+```typescript
+inputs: {
+  uploadFile: { type: 'json', description: 'Uploaded file (UserFile)' },
+  fileRef: { type: 'json', description: 'File reference from previous block' },
+  // Legacy field for backwards compatibility
+  fileContent: { type: 'string', description: 'Legacy: base64 encoded content' },
+}
+```
+
+### Multiple Files
+
+For multiple file uploads:
+
+```typescript
+{
+  id: 'attachments',
+  title: 'Attachments',
+  type: 'file-upload',
+  multiple: true,  // Allow multiple files
+  maxSize: 25,     // Max size in MB per file
+  acceptedTypes: 'image/*,application/pdf,.doc,.docx',
+}
+
+// In tools.config:
+const normalizedFiles = normalizeFileInput(
+  params.attachments || params.attachmentRefs,
+  // No { single: true } - returns array
+)
+if (normalizedFiles) {
+  params.files = normalizedFiles
+}
+```
+
 ## Condition Syntax
 
 Controls when a field is shown based on other field values.

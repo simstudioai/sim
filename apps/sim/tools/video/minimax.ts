@@ -110,7 +110,7 @@ export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
 
   outputs: {
     videoUrl: { type: 'string', description: 'Generated video URL' },
-    videoFile: { type: 'json', description: 'Video file object with metadata' },
+    videoFile: { type: 'file', description: 'Video file object with metadata' },
     duration: { type: 'number', description: 'Video duration in seconds' },
     width: { type: 'number', description: 'Video width in pixels' },
     height: { type: 'number', description: 'Video height in pixels' },

@@ -53,7 +53,7 @@ export const sftpUploadTool: ToolConfig<SftpUploadParams, SftpUploadResult> = {
     files: {
       type: 'file[]',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'Files to upload',
     },
     fileContent: {

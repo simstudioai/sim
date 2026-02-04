@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface SharepointSite {
@@ -180,7 +181,7 @@ export interface SharepointToolParams {
   driveId?: string
   folderPath?: string
   fileName?: string
-  files?: any[]
+  files?: UserFile[]
 }
 
 export interface GraphApiResponse {

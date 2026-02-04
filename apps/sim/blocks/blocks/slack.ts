@@ -1,6 +1,7 @@
 import { SlackIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SlackResponse } from '@/tools/slack/types'
 import { getTrigger } from '@/triggers'
 
@@ -620,9 +621,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             if (threadTs) {
               baseParams.thread_ts = threadTs
             }
-            const fileParam = attachmentFiles || files
-            if (fileParam) {
-              baseParams.files = fileParam
+            const normalizedFiles = normalizeFileInput(attachmentFiles || files)
+            if (normalizedFiles) {
+              baseParams.files = normalizedFiles
             }
             break
           }
@@ -796,6 +797,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'number',
       description: 'Number of files uploaded (when files are attached)',
     },
+    files: { type: 'file[]', description: 'Files attached to the message' },
 
     // slack_canvas outputs
     canvas_id: { type: 'string', description: 'Canvas identifier for created canvases' },
@@ -859,7 +861,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
     // slack_download outputs
     file: {
-      type: 'json',
+      type: 'file',
       description: 'Downloaded file stored in execution files',
     },
 

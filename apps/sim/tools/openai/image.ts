@@ -77,7 +77,6 @@ export const imageTool: ToolConfig = {
         n: params.n ? Number(params.n) : 1,
       }
 
-      // Add model-specific parameters
       if (params.model === 'dall-e-3') {
         if (params.quality) body.quality = params.quality
         if (params.style) body.style = params.style
@@ -164,37 +163,6 @@ export const imageTool: ToolConfig = {
           base64Image = buffer.toString('base64')
         } catch (error) {
           logger.error('Error fetching or processing image:', error)
-
-          try {
-            logger.info('Attempting fallback with direct browser fetch...')
-            const directImageResponse = await fetch(imageUrl, {
-              cache: 'no-store',
-              headers: {
-                Accept: 'image/*, */*',
-                'User-Agent': 'Mozilla/5.0 (compatible DalleProxy/1.0)',
-              },
-            })
-
-            if (!directImageResponse.ok) {
-              throw new Error(`Direct fetch failed: ${directImageResponse.status}`)
-            }
-
-            const imageBlob = await directImageResponse.blob()
-            if (imageBlob.size === 0) {
-              throw new Error('Empty blob received from direct fetch')
-            }
-
-            const arrayBuffer = await imageBlob.arrayBuffer()
-            const buffer = Buffer.from(arrayBuffer)
-            base64Image = buffer.toString('base64')
-
-            logger.info(
-              'Successfully converted image to base64 via direct fetch, length:',
-              base64Image.length
-            )
-          } catch (fallbackError) {
-            logger.error('Fallback fetch also failed:', fallbackError)
-          }
         }
       }
 

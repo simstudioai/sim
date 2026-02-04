@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import type { Client, SFTPWrapper } from 'ssh2'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { createSSHConnection, sanitizePath } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHDownloadFileAPI')
@@ -79,6 +80,16 @@ export async function POST(request: NextRequest) {
         })
       })
 
+      // Check file size limit (50MB to prevent memory exhaustion)
+      const maxSize = 50 * 1024 * 1024
+      if (stats.size > maxSize) {
+        const sizeMB = (stats.size / (1024 * 1024)).toFixed(2)
+        return NextResponse.json(
+          { error: `File size (${sizeMB}MB) exceeds download limit of 50MB` },
+          { status: 400 }
+        )
+      }
+
       // Read file content
       const content = await new Promise<Buffer>((resolve, reject) => {
         const chunks: Buffer[] = []
@@ -96,6 +107,8 @@ export async function POST(request: NextRequest) {
       })
 
       const fileName = path.basename(remotePath)
+      const extension = getFileExtension(fileName)
+      const mimeType = getMimeTypeFromExtension(extension)
 
       // Encode content as base64 for binary safety
       const base64Content = content.toString('base64')
@@ -104,6 +117,12 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         downloaded: true,
+        file: {
+          name: fileName,
+          mimeType,
+          data: base64Content,
+          size: stats.size,
+        },
         content: base64Content,
         fileName: fileName,
         remotePath: remotePath,

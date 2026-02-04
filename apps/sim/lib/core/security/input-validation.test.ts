@@ -18,8 +18,8 @@ import {
   validatePathSegment,
   validateProxyUrl,
   validateS3BucketName,
-  validateUrlWithDNS,
 } from '@/lib/core/security/input-validation'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
 vi.mock('@sim/logger', () => loggerMock)

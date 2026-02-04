@@ -58,6 +58,7 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
     createdTime: { type: 'string', description: 'Timestamp when message was created' },
     url: { type: 'string', description: 'Web URL to the message' },
     updatedContent: { type: 'boolean', description: 'Whether content was successfully updated' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
   },
 
   request: {

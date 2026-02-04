@@ -1,5 +1,6 @@
 import { A2AIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { ToolResponse } from '@/tools/types'
 
 export interface A2AResponse extends ToolResponse {
@@ -214,6 +215,14 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     ],
     config: {
       tool: (params) => params.operation as string,
+      params: (params) => {
+        const { fileUpload, fileReference, ...rest } = params
+        const normalizedFiles = normalizeFileInput(fileUpload || fileReference || params.files)
+        return {
+          ...rest,
+          ...(normalizedFiles && { files: normalizedFiles }),
+        }
+      },
     },
   },
   inputs: {

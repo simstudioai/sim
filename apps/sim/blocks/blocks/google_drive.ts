@@ -1,6 +1,7 @@
 import { GoogleDriveIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { GoogleDriveResponse } from '@/tools/google_drive/types'
 
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
@@ -782,12 +783,17 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           manualDestinationFolderId,
           fileSelector,
           manualFileId,
+          file,
+          fileUpload,
           mimeType,
           shareType,
           starred,
           sendNotification,
           ...rest
         } = params
+
+        // Normalize file input - handles both basic (file-upload) and advanced (short-input) modes
+        const normalizedFile = normalizeFileInput(file ?? fileUpload, { single: true })
 
         // Use folderSelector if provided, otherwise use manualFolderId
         const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
@@ -813,6 +819,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           folderId: effectiveFolderId || undefined,
           fileId: effectiveFileId || undefined,
           destinationFolderId: effectiveDestinationFolderId || undefined,
+          file: normalizedFile,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           type: shareType, // Map shareType to type for share tool
@@ -861,7 +868,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
     permissionId: { type: 'string', description: 'Permission ID to remove' },
   },
   outputs: {
-    file: { type: 'json', description: 'File metadata or downloaded file data' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     files: { type: 'json', description: 'List of files' },
     metadata: { type: 'json', description: 'Complete file metadata (from download)' },
     content: { type: 'string', description: 'File content as text' },

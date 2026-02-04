@@ -1,3 +1,5 @@
+import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 /**
@@ -5,13 +7,38 @@ import type { ToolResponse } from '@/tools/types'
  */
 export interface PulseParserInput {
   /** URL to a document to be processed */
-  filePath: string
+  filePath?: string
+
+  file?: RawFileInput
 
   /** File upload data (from file-upload component) */
-  fileUpload?: {
-    url?: string
-    path?: string
-  }
+  fileUpload?: RawFileInput
+
+  /** Pulse API key for authentication */
+  apiKey: string
+
+  /** Page range to process (1-indexed, e.g., "1-2,5") */
+  pages?: string
+
+  /** Whether to extract figures from the document */
+  extractFigure?: boolean
+
+  /** Whether to generate figure descriptions/captions */
+  figureDescription?: boolean
+
+  /** Whether to include HTML in the response */
+  returnHtml?: boolean
+
+  /** Chunking strategies (comma-separated: semantic, header, page, recursive) */
+  chunking?: string
+
+  /** Maximum characters per chunk when chunking is enabled */
+  chunkSize?: number
+}
+
+export interface PulseParserV2Input {
+  /** File to be processed */
+  file: UserFile
 
   /** Pulse API key for authentication */
   apiKey: string

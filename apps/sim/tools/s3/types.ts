@@ -1,8 +1,10 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface S3Response extends ToolResponse {
   output: {
     url?: string
+    file?: UserFile
     objects?: Array<{
       key: string
       size: number

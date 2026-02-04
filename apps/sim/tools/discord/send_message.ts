@@ -72,6 +72,7 @@ export const discordSendMessageTool: ToolConfig<
 
   outputs: {
     message: { type: 'string', description: 'Success or error message' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
     data: {
       type: 'object',
       description: 'Discord message data',

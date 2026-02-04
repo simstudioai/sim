@@ -1,4 +1,5 @@
-import type { ToolResponse } from '@/tools/types'
+import type { UserFileLike } from '@/lib/core/utils/user-file'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 // ===== Core Types =====
 
@@ -70,7 +71,9 @@ export interface DropboxBaseParams {
 
 export interface DropboxUploadParams extends DropboxBaseParams {
   path: string
-  fileContent: string // Base64 encoded file content
+  file?: UserFileLike
+  // Legacy field for backwards compatibility
+  fileContent?: string
   fileName?: string
   mode?: 'add' | 'overwrite'
   autorename?: boolean
@@ -91,8 +94,9 @@ export interface DropboxDownloadParams extends DropboxBaseParams {
 
 export interface DropboxDownloadResponse extends ToolResponse {
   output: {
-    file?: DropboxFileMetadata
+    file?: ToolFileData
     content?: string // Base64 encoded file content
+    metadata?: DropboxFileMetadata
     temporaryLink?: string
   }
 }

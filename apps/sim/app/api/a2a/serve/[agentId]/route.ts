@@ -16,7 +16,7 @@ import {
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
-import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
@@ -1119,7 +1119,7 @@ async function handlePushNotificationSet(
     )
   }
 
-  const urlValidation = validateExternalUrl(
+  const urlValidation = await validateUrlWithDNS(
     params.pushNotificationConfig.url,
     'Push notification URL'
   )

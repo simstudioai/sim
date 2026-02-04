@@ -1,2 +1,2 @@
-export { textractParserTool } from '@/tools/textract/parser'
+export { textractParserTool, textractParserV2Tool } from '@/tools/textract/parser'
 export * from '@/tools/textract/types'

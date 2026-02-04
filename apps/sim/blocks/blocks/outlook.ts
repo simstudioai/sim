@@ -1,6 +1,7 @@
 import { OutlookIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { OutlookResponse } from '@/tools/outlook/types'
 import { getTrigger } from '@/triggers'
 
@@ -335,11 +336,19 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           copyMessageId,
           copyDestinationFolder,
           manualCopyDestinationFolder,
+          attachmentFiles,
+          attachments,
           ...rest
         } = params
 
         // Handle both selector and manual folder input
         const effectiveFolder = (folder || manualFolder || '').trim()
+
+        // Normalize file attachments from either basic (file-upload) or advanced (short-input) mode
+        const normalizedAttachments = normalizeFileInput(attachmentFiles || attachments)
+        if (normalizedAttachments) {
+          rest.attachments = normalizedAttachments
+        }
 
         if (rest.operation === 'read_outlook') {
           rest.folder = effectiveFolder || 'INBOX'
@@ -440,7 +449,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     sentDateTime: { type: 'string', description: 'Email sent timestamp' },
     hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
     attachments: {
-      type: 'json',
+      type: 'file[]',
       description: 'Email attachments (if includeAttachments is enabled)',
     },
     isRead: { type: 'boolean', description: 'Whether email is read' },

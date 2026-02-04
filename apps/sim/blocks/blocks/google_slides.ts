@@ -1,12 +1,15 @@
 import { GoogleSlidesIcon } from '@/components/icons'
+import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
 
 export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
   type: 'google_slides',
-  name: 'Google Slides',
+  name: 'Google Slides (Legacy)',
   description: 'Read, write, and create presentations',
+  hideFromToolbar: true,
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Google Slides into the workflow. Can read, write, create presentations, replace text, add slides, add images, get thumbnails, get page details, delete objects, duplicate objects, reorder slides, create tables, create shapes, and insert text.',
@@ -315,12 +318,26 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       required: true,
     },
     {
-      id: 'imageUrl',
-      title: 'Image URL',
-      type: 'short-input',
-      placeholder: 'Public URL of the image (PNG, JPEG, or GIF)',
-      condition: { field: 'operation', value: 'add_image' },
+      id: 'imageFile',
+      title: 'Image',
+      type: 'file-upload',
+      canonicalParamId: 'imageSource',
+      placeholder: 'Upload image (PNG, JPEG, or GIF)',
+      mode: 'basic',
+      multiple: false,
       required: true,
+      acceptedTypes: '.png,.jpg,.jpeg,.gif',
+      condition: { field: 'operation', value: 'add_image' },
+    },
+    {
+      id: 'imageUrl',
+      title: 'Image',
+      type: 'short-input',
+      canonicalParamId: 'imageSource',
+      placeholder: 'Reference image from previous blocks or enter URL',
+      mode: 'advanced',
+      required: true,
+      condition: { field: 'operation', value: 'add_image' },
     },
     {
       id: 'imageWidth',
@@ -809,7 +826,9 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     placeholderIdMappings: { type: 'string', description: 'JSON array of placeholder ID mappings' },
     // Add image operation
     pageObjectId: { type: 'string', description: 'Slide object ID for image' },
-    imageUrl: { type: 'string', description: 'Image URL' },
+    imageFile: { type: 'json', description: 'Uploaded image (UserFile)' },
+    imageUrl: { type: 'string', description: 'Image URL or reference' },
+    imageSource: { type: 'json', description: 'Image source (file or URL)' },
     imageWidth: { type: 'number', description: 'Image width in points' },
     imageHeight: { type: 'number', description: 'Image height in points' },
     positionX: { type: 'number', description: 'X position in points' },
@@ -885,5 +904,87 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     // Insert text operation
     inserted: { type: 'boolean', description: 'Whether text was inserted' },
     text: { type: 'string', description: 'Text that was inserted' },
+  },
+}
+
+const googleSlidesV2SubBlocks = (GoogleSlidesBlock.subBlocks || []).flatMap((subBlock) => {
+  if (subBlock.id === 'imageFile') {
+    return [
+      {
+        ...subBlock,
+        canonicalParamId: 'imageFile',
+      },
+    ]
+  }
+
+  if (subBlock.id !== 'imageUrl') {
+    return [subBlock]
+  }
+
+  return [
+    {
+      id: 'imageFileReference',
+      title: 'Image',
+      type: 'short-input' as const,
+      canonicalParamId: 'imageFile',
+      placeholder: 'Reference image from previous blocks',
+      mode: 'advanced' as const,
+      required: true,
+      condition: { field: 'operation', value: 'add_image' },
+    },
+  ]
+})
+
+const googleSlidesV2Inputs = GoogleSlidesBlock.inputs
+  ? Object.fromEntries(
+      Object.entries(GoogleSlidesBlock.inputs).filter(
+        ([key]) => key !== 'imageUrl' && key !== 'imageSource'
+      )
+    )
+  : {}
+
+export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
+  ...GoogleSlidesBlock,
+  type: 'google_slides_v2',
+  name: 'Google Slides',
+  description: 'Read, write, and create presentations',
+  hideFromToolbar: false,
+  subBlocks: googleSlidesV2SubBlocks,
+  tools: {
+    access: GoogleSlidesBlock.tools!.access,
+    config: {
+      tool: GoogleSlidesBlock.tools!.config!.tool,
+      params: (params) => {
+        const baseParams = GoogleSlidesBlock.tools?.config?.params
+        if (!baseParams) {
+          return params
+        }
+
+        if (params.operation === 'add_image') {
+          const imageInput = params.imageFile || params.imageFileReference || params.imageSource
+          const fileObject = normalizeFileInput(imageInput, { single: true })
+          if (!fileObject) {
+            throw new Error('Image file is required.')
+          }
+          const imageUrl = resolveHttpsUrlFromFileInput(fileObject)
+          if (!imageUrl) {
+            throw new Error('Image file must include a https URL.')
+          }
+
+          return baseParams({
+            ...params,
+            imageUrl,
+            imageFileReference: undefined,
+            imageSource: undefined,
+          })
+        }
+
+        return baseParams(params)
+      },
+    },
+  },
+  inputs: {
+    ...googleSlidesV2Inputs,
+    imageFileReference: { type: 'json', description: 'Image file reference' },
   },
 }

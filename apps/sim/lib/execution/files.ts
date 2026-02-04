@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { v4 as uuidv4 } from 'uuid'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
@@ -11,7 +10,7 @@ const logger = createLogger('ExecutionFiles')
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 
 /**
- * Process a single file for workflow execution - handles both base64 ('file' type) and URL pass-through ('url' type)
+ * Process a single file for workflow execution - handles base64 ('file' type) and URL downloads ('url' type)
  */
 export async function processExecutionFile(
   file: { type: string; data: string; name: string; mime?: string },
@@ -60,14 +59,28 @@ export async function processExecutionFile(
   }
 
   if (file.type === 'url' && file.data) {
-    return {
-      id: uuidv4(),
-      url: file.data,
-      name: file.name,
-      size: 0,
-      type: file.mime || 'application/octet-stream',
-      key: `url/${file.name}`,
+    const { downloadFileFromUrl } = await import('@/lib/uploads/utils/file-utils.server')
+    const buffer = await downloadFileFromUrl(file.data)
+
+    if (buffer.length > MAX_FILE_SIZE) {
+      const fileSizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
+      throw new Error(
+        `File "${file.name}" exceeds the maximum size limit of 20MB (actual size: ${fileSizeMB}MB)`
+      )
     }
+
+    logger.debug(`[${requestId}] Uploading file from URL: ${file.name} (${buffer.length} bytes)`)
+
+    const userFile = await uploadExecutionFile(
+      executionContext,
+      buffer,
+      file.name,
+      file.mime || 'application/octet-stream',
+      userId
+    )
+
+    logger.debug(`[${requestId}] Successfully uploaded ${file.name} from URL`)
+    return userFile
   }
 
   return null
@@ -163,7 +176,7 @@ export async function processInputFileFields(
   }
 
   const inputFormat = extractInputFormatFromBlock(startBlock)
-  const fileFields = inputFormat.filter((field) => field.type === 'files')
+  const fileFields = inputFormat.filter((field) => field.type === 'file[]')
 
   if (fileFields.length === 0) {
     return input

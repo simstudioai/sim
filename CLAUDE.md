@@ -265,6 +265,23 @@ Register in `blocks/registry.ts` (alphabetically).
 
 **dependsOn:** `['field']` or `{ all: ['a'], any: ['b', 'c'] }`
 
+**File Input Pattern (basic/advanced mode):**
+```typescript
+// Basic: file-upload UI
+{ id: 'uploadFile', type: 'file-upload', canonicalParamId: 'file', mode: 'basic' },
+// Advanced: reference from other blocks
+{ id: 'fileRef', type: 'short-input', canonicalParamId: 'file', mode: 'advanced' },
+```
+
+In `tools.config.tool`, normalize with:
+```typescript
+import { normalizeFileInput } from '@/blocks/utils'
+const file = normalizeFileInput(params.uploadFile || params.fileRef, { single: true })
+if (file) params.file = file
+```
+
+For file uploads, create an internal API route (`/api/tools/{service}/upload`) that uses `downloadFileFromStorage` to get file content from `UserFile` objects.
+
 ### 3. Icon (`components/icons.tsx`)
 
 ```typescript
@@ -293,3 +310,5 @@ Register in `triggers/registry.ts`.
 - [ ] Create block in `blocks/blocks/{service}.ts`
 - [ ] Register block in `blocks/registry.ts`
 - [ ] (Optional) Create and register triggers
+- [ ] (If file uploads) Create internal API route with `downloadFileFromStorage`
+- [ ] (If file uploads) Use `normalizeFileInput` in block config

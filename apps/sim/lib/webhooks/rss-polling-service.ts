@@ -5,7 +5,10 @@ import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import Parser from 'rss-parser'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import { secureFetchWithPinnedIP, validateUrlWithDNS } from '@/lib/core/security/input-validation'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 

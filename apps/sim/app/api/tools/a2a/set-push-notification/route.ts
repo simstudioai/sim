@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createA2AClient } from '@/lib/a2a/utils'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 export const dynamic = 'force-dynamic'
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = A2ASetPushNotificationSchema.parse(body)
 
-    const urlValidation = validateExternalUrl(validatedData.webhookUrl, 'Webhook URL')
+    const urlValidation = await validateUrlWithDNS(validatedData.webhookUrl, 'Webhook URL')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid webhook URL`, { error: urlValidation.error })
       return NextResponse.json(

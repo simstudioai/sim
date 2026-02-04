@@ -1,6 +1,7 @@
 import { DropboxIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { DropboxResponse } from '@/tools/dropbox/types'
 
 export const DropboxBlock: BlockConfig<DropboxResponse> = {
@@ -60,12 +61,25 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       required: true,
     },
     {
-      id: 'fileContent',
-      title: 'File Content',
-      type: 'long-input',
-      placeholder: 'Base64 encoded file content or file reference',
-      condition: { field: 'operation', value: 'dropbox_upload' },
+      id: 'uploadFile',
+      title: 'File',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload file to send to Dropbox',
+      mode: 'basic',
+      multiple: false,
       required: true,
+      condition: { field: 'operation', value: 'dropbox_upload' },
+    },
+    {
+      id: 'fileRef',
+      title: 'File',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      placeholder: 'Reference file from previous blocks',
+      mode: 'advanced',
+      required: true,
+      condition: { field: 'operation', value: 'dropbox_upload' },
     },
     {
       id: 'mode',
@@ -303,6 +317,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           params.maxResults = Number(params.maxResults)
         }
 
+        // Normalize file input for upload operation
+        // Check all possible field IDs: uploadFile (basic), fileRef (advanced), fileContent (legacy)
+        const normalizedFile = normalizeFileInput(
+          params.uploadFile || params.fileRef || params.fileContent,
+          { single: true }
+        )
+        if (normalizedFile) {
+          params.file = normalizedFile
+        }
+
         switch (params.operation) {
           case 'dropbox_upload':
             return 'dropbox_upload'
@@ -337,7 +361,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     path: { type: 'string', description: 'Path in Dropbox' },
     autorename: { type: 'boolean', description: 'Auto-rename on conflict' },
     // Upload inputs
-    fileContent: { type: 'string', description: 'Base64 encoded file content' },
+    uploadFile: { type: 'json', description: 'Uploaded file (UserFile)' },
+    file: { type: 'json', description: 'File to upload (UserFile object)' },
+    fileRef: { type: 'json', description: 'File reference from previous block' },
+    fileContent: { type: 'string', description: 'Legacy: base64 encoded file content' },
     fileName: { type: 'string', description: 'Optional filename' },
     mode: { type: 'string', description: 'Write mode: add or overwrite' },
     mute: { type: 'boolean', description: 'Mute notifications' },
@@ -360,7 +387,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   },
   outputs: {
     // Upload/Download outputs
-    file: { type: 'json', description: 'File metadata' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     content: { type: 'string', description: 'File content (base64)' },
     temporaryLink: { type: 'string', description: 'Temporary download link' },
     // List folder outputs

@@ -1,6 +1,7 @@
 import { GoogleSheetsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type { GoogleSheetsResponse, GoogleSheetsV2Response } from '@/tools/google_sheets/types'
 
 // Legacy block - hidden from toolbar
@@ -681,34 +682,38 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       'google_sheets_copy_sheet_v2',
     ],
     config: {
-      tool: (params) => {
-        switch (params.operation) {
-          case 'read':
-            return 'google_sheets_read_v2'
-          case 'write':
-            return 'google_sheets_write_v2'
-          case 'update':
-            return 'google_sheets_update_v2'
-          case 'append':
-            return 'google_sheets_append_v2'
-          case 'clear':
-            return 'google_sheets_clear_v2'
-          case 'get_info':
-            return 'google_sheets_get_spreadsheet_v2'
-          case 'create':
-            return 'google_sheets_create_spreadsheet_v2'
-          case 'batch_get':
-            return 'google_sheets_batch_get_v2'
-          case 'batch_update':
-            return 'google_sheets_batch_update_v2'
-          case 'batch_clear':
-            return 'google_sheets_batch_clear_v2'
-          case 'copy_sheet':
-            return 'google_sheets_copy_sheet_v2'
-          default:
-            throw new Error(`Invalid Google Sheets V2 operation: ${params.operation}`)
-        }
-      },
+      tool: createVersionedToolSelector({
+        baseToolSelector: (params) => {
+          switch (params.operation) {
+            case 'read':
+              return 'google_sheets_read'
+            case 'write':
+              return 'google_sheets_write'
+            case 'update':
+              return 'google_sheets_update'
+            case 'append':
+              return 'google_sheets_append'
+            case 'clear':
+              return 'google_sheets_clear'
+            case 'get_info':
+              return 'google_sheets_get_spreadsheet'
+            case 'create':
+              return 'google_sheets_create_spreadsheet'
+            case 'batch_get':
+              return 'google_sheets_batch_get'
+            case 'batch_update':
+              return 'google_sheets_batch_update'
+            case 'batch_clear':
+              return 'google_sheets_batch_clear'
+            case 'copy_sheet':
+              return 'google_sheets_copy_sheet'
+            default:
+              throw new Error(`Invalid Google Sheets operation: ${params.operation}`)
+          }
+        },
+        suffix: '_v2',
+        fallbackToolId: 'google_sheets_read_v2',
+      }),
       params: (params) => {
         const {
           credential,

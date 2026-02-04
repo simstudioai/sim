@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { StorageService } from '@/lib/uploads'
 import type { ExecutionContext } from '@/lib/uploads/contexts/execution/utils'
 import { generateExecutionFileKey, generateFileId } from '@/lib/uploads/contexts/execution/utils'
 import type { UserFile } from '@/executor/types'
@@ -89,10 +90,7 @@ export async function uploadExecutionFile(
   }
 
   try {
-    const { uploadFile, generatePresignedDownloadUrl } = await import(
-      '@/lib/uploads/core/storage-service'
-    )
-    const fileInfo = await uploadFile({
+    const fileInfo = await StorageService.uploadFile({
       file: fileBuffer,
       fileName: storageKey,
       contentType,
@@ -102,21 +100,24 @@ export async function uploadExecutionFile(
       metadata, // Pass metadata for cloud storage and database tracking
     })
 
-    // Generate presigned URL for file access (10 minutes expiration)
-    const fullUrl = await generatePresignedDownloadUrl(fileInfo.key, 'execution', 600)
+    const presignedUrl = await StorageService.generatePresignedDownloadUrl(
+      fileInfo.key,
+      'execution',
+      5 * 60
+    )
 
     const userFile: UserFile = {
       id: fileId,
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: fullUrl, // Presigned URL for external access and downstream workflow usage
+      url: presignedUrl,
       key: fileInfo.key,
-      context: 'execution', // Preserve context in file object
+      context: 'execution',
+      base64: fileBuffer.toString('base64'),
     }
 
     logger.info(`Successfully uploaded execution file: ${fileName} (${fileBuffer.length} bytes)`, {
-      url: fullUrl,
       key: fileInfo.key,
     })
     return userFile
@@ -135,8 +136,7 @@ export async function downloadExecutionFile(userFile: UserFile): Promise<Buffer>
   logger.info(`Downloading execution file: ${userFile.name}`)
 
   try {
-    const { downloadFile } = await import('@/lib/uploads/core/storage-service')
-    const fileBuffer = await downloadFile({
+    const fileBuffer = await StorageService.downloadFile({
       key: userFile.key,
       context: 'execution',
     })
