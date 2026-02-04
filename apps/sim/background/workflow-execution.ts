@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { v4 as uuidv4 } from 'uuid'
-import { getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -104,17 +104,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       []
     )
 
-    const asyncTimeout = preprocessResult.executionTimeout?.async
-    const abortController = new AbortController()
-    let isTimedOut = false
-    let timeoutId: NodeJS.Timeout | undefined
-
-    if (asyncTimeout) {
-      timeoutId = setTimeout(() => {
-        isTimedOut = true
-        abortController.abort()
-      }, asyncTimeout)
-    }
+    const timeoutController = createTimeoutAbortController(preprocessResult.executionTimeout?.async)
 
     let result
     try {
@@ -124,15 +114,21 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
         loggingSession,
         includeFileBase64: true,
         base64MaxBytes: undefined,
-        abortSignal: abortController.signal,
+        abortSignal: timeoutController.signal,
       })
     } finally {
-      if (timeoutId) clearTimeout(timeoutId)
+      timeoutController.cleanup()
     }
 
-    if (result.status === 'cancelled' && isTimedOut && asyncTimeout) {
-      const timeoutErrorMessage = getTimeoutErrorMessage(null, asyncTimeout)
-      logger.info(`[${requestId}] Workflow execution timed out`, { timeoutMs: asyncTimeout })
+    if (
+      result.status === 'cancelled' &&
+      timeoutController.isTimedOut() &&
+      timeoutController.timeoutMs
+    ) {
+      const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+      logger.info(`[${requestId}] Workflow execution timed out`, {
+        timeoutMs: timeoutController.timeoutMs,
+      })
       await loggingSession.markAsFailed(timeoutErrorMessage)
     } else if (result.status === 'paused') {
       if (!result.snapshotSeed) {

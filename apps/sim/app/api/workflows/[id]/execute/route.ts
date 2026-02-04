@@ -5,7 +5,11 @@ import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { getTimeoutErrorMessage, isTimeoutError } from '@/lib/core/execution-limits'
+import {
+  createTimeoutAbortController,
+  getTimeoutErrorMessage,
+  isTimeoutError,
+} from '@/lib/core/execution-limits'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -402,17 +406,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)
-      const syncTimeout = preprocessResult.executionTimeout?.sync
-      const abortController = new AbortController()
-      let isTimedOut = false
-      let timeoutId: NodeJS.Timeout | undefined
-
-      if (syncTimeout) {
-        timeoutId = setTimeout(() => {
-          isTimedOut = true
-          abortController.abort()
-        }, syncTimeout)
-      }
+      const timeoutController = createTimeoutAbortController(
+        preprocessResult.executionTimeout?.sync
+      )
 
       try {
         const metadata: ExecutionMetadata = {
@@ -447,12 +443,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           includeFileBase64,
           base64MaxBytes,
           stopAfterBlockId,
-          abortSignal: abortController.signal,
+          abortSignal: timeoutController.signal,
         })
 
-        if (result.status === 'cancelled' && isTimedOut && syncTimeout) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, syncTimeout)
-          logger.info(`[${requestId}] Non-SSE execution timed out`, { timeoutMs: syncTimeout })
+        if (
+          result.status === 'cancelled' &&
+          timeoutController.isTimedOut() &&
+          timeoutController.timeoutMs
+        ) {
+          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          logger.info(`[${requestId}] Non-SSE execution timed out`, {
+            timeoutMs: timeoutController.timeoutMs,
+          })
           await loggingSession.markAsFailed(timeoutErrorMessage)
 
           await cleanupExecutionBase64Cache(executionId)
@@ -535,7 +537,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           { status: 500 }
         )
       } finally {
-        if (timeoutId) clearTimeout(timeoutId)
+        timeoutController.cleanup()
       }
     }
 
@@ -578,18 +580,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const encoder = new TextEncoder()
-    const abortController = new AbortController()
+    const timeoutController = createTimeoutAbortController(preprocessResult.executionTimeout?.sync)
     let isStreamClosed = false
-    let isTimedOut = false
-
-    const syncTimeout = preprocessResult.executionTimeout?.sync
-    let timeoutId: NodeJS.Timeout | undefined
-    if (syncTimeout) {
-      timeoutId = setTimeout(() => {
-        isTimedOut = true
-        abortController.abort()
-      }, syncTimeout)
-    }
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -780,7 +772,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               onStream,
             },
             loggingSession,
-            abortSignal: abortController.signal,
+            abortSignal: timeoutController.signal,
             includeFileBase64,
             base64MaxBytes,
             stopAfterBlockId,
@@ -816,9 +808,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
 
           if (result.status === 'cancelled') {
-            if (isTimedOut && syncTimeout) {
-              const timeoutErrorMessage = getTimeoutErrorMessage(null, syncTimeout)
-              logger.info(`[${requestId}] Workflow execution timed out`, { timeoutMs: syncTimeout })
+            if (timeoutController.isTimedOut() && timeoutController.timeoutMs) {
+              const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+              logger.info(`[${requestId}] Workflow execution timed out`, {
+                timeoutMs: timeoutController.timeoutMs,
+              })
 
               await loggingSession.markAsFailed(timeoutErrorMessage)
 
@@ -871,9 +865,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           // Cleanup base64 cache for this execution
           await cleanupExecutionBase64Cache(executionId)
         } catch (error: unknown) {
-          const isTimeout = isTimeoutError(error) || isTimedOut
+          const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
           const errorMessage = isTimeout
-            ? getTimeoutErrorMessage(error, syncTimeout)
+            ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
             : error instanceof Error
               ? error.message
               : 'Unknown error'
@@ -899,7 +893,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
           })
         } finally {
-          if (timeoutId) clearTimeout(timeoutId)
+          timeoutController.cleanup()
           if (!isStreamClosed) {
             try {
               controller.enqueue(encoder.encode('data: [DONE]\n\n'))
@@ -910,9 +904,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       cancel() {
         isStreamClosed = true
-        if (timeoutId) clearTimeout(timeoutId)
+        timeoutController.cleanup()
         logger.info(`[${requestId}] Client aborted SSE stream, signalling cancellation`)
-        abortController.abort()
+        timeoutController.abort()
         markExecutionCancelled(executionId).catch(() => {})
       },
     })

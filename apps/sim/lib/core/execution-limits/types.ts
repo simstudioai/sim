@@ -92,3 +92,43 @@ export function getTimeoutErrorMessage(error: unknown, timeoutMs?: number): stri
 
   return 'Execution timed out'
 }
+
+/**
+ * Helper to create an AbortController with timeout handling.
+ * Centralizes the timeout abort pattern used across execution paths.
+ */
+export interface TimeoutAbortController {
+  /** The AbortSignal to pass to execution functions */
+  signal: AbortSignal
+  /** Returns true if the abort was triggered by timeout (not user cancellation) */
+  isTimedOut: () => boolean
+  /** Cleanup function - call in finally block to clear the timeout */
+  cleanup: () => void
+  /** Manually abort the execution (for user cancellation) */
+  abort: () => void
+  /** The timeout duration in milliseconds (undefined if no timeout) */
+  timeoutMs: number | undefined
+}
+
+export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortController {
+  const abortController = new AbortController()
+  let isTimedOut = false
+  let timeoutId: NodeJS.Timeout | undefined
+
+  if (timeoutMs) {
+    timeoutId = setTimeout(() => {
+      isTimedOut = true
+      abortController.abort()
+    }, timeoutMs)
+  }
+
+  return {
+    signal: abortController.signal,
+    isTimedOut: () => isTimedOut,
+    cleanup: () => {
+      if (timeoutId) clearTimeout(timeoutId)
+    },
+    abort: () => abortController.abort(),
+    timeoutMs,
+  }
+}

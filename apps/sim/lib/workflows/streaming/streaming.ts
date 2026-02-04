@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import {
   extractBlockIdFromOutputId,
   extractPathFromOutputId,
@@ -270,17 +270,7 @@ export async function createStreamingResponse(
         }
       }
 
-      const timeoutMs = streamConfig.timeoutMs
-      const abortController = new AbortController()
-      let isTimedOut = false
-      let timeoutId: NodeJS.Timeout | undefined
-
-      if (timeoutMs) {
-        timeoutId = setTimeout(() => {
-          isTimedOut = true
-          abortController.abort()
-        }, timeoutMs)
-      }
+      const timeoutController = createTimeoutAbortController(streamConfig.timeoutMs)
 
       try {
         const result = await executeWorkflow(
@@ -298,7 +288,7 @@ export async function createStreamingResponse(
             skipLoggingComplete: true,
             includeFileBase64: streamConfig.includeFileBase64,
             base64MaxBytes: streamConfig.base64MaxBytes,
-            abortSignal: abortController.signal,
+            abortSignal: timeoutController.signal,
           },
           executionId
         )
@@ -308,9 +298,15 @@ export async function createStreamingResponse(
           processStreamingBlockLogs(result.logs, state.streamedContent)
         }
 
-        if (result.status === 'cancelled' && isTimedOut && timeoutMs) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutMs)
-          logger.info(`[${requestId}] Streaming execution timed out`, { timeoutMs })
+        if (
+          result.status === 'cancelled' &&
+          timeoutController.isTimedOut() &&
+          timeoutController.timeoutMs
+        ) {
+          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          logger.info(`[${requestId}] Streaming execution timed out`, {
+            timeoutMs: timeoutController.timeoutMs,
+          })
           if (result._streamingMetadata?.loggingSession) {
             await result._streamingMetadata.loggingSession.markAsFailed(timeoutErrorMessage)
           }
@@ -349,7 +345,7 @@ export async function createStreamingResponse(
 
         controller.close()
       } finally {
-        if (timeoutId) clearTimeout(timeoutId)
+        timeoutController.cleanup()
       }
     },
   })

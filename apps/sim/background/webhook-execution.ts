@@ -5,7 +5,11 @@ import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getHighestPrioritySubscription } from '@/lib/billing'
-import { getExecutionTimeout, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import {
+  createTimeoutAbortController,
+  getExecutionTimeout,
+  getTimeoutErrorMessage,
+} from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { processExecutionFiles } from '@/lib/execution/files'
@@ -142,16 +146,7 @@ async function executeWebhookJobInternal(
     userSubscription?.plan as SubscriptionPlan | undefined,
     'async'
   )
-  const abortController = new AbortController()
-  let isTimedOut = false
-  let timeoutId: NodeJS.Timeout | undefined
-
-  if (asyncTimeout) {
-    timeoutId = setTimeout(() => {
-      isTimedOut = true
-      abortController.abort()
-    }, asyncTimeout)
-  }
+  const timeoutController = createTimeoutAbortController(asyncTimeout)
 
   let deploymentVersionId: string | undefined
 
@@ -261,13 +256,17 @@ async function executeWebhookJobInternal(
           loggingSession,
           includeFileBase64: true,
           base64MaxBytes: undefined,
-          abortSignal: abortController.signal,
+          abortSignal: timeoutController.signal,
         })
 
-        if (executionResult.status === 'cancelled' && isTimedOut && asyncTimeout) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, asyncTimeout)
+        if (
+          executionResult.status === 'cancelled' &&
+          timeoutController.isTimedOut() &&
+          timeoutController.timeoutMs
+        ) {
+          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
           logger.info(`[${requestId}] Airtable webhook execution timed out`, {
-            timeoutMs: asyncTimeout,
+            timeoutMs: timeoutController.timeoutMs,
           })
           await loggingSession.markAsFailed(timeoutErrorMessage)
         } else if (executionResult.status === 'paused') {
@@ -522,12 +521,18 @@ async function executeWebhookJobInternal(
       callbacks: {},
       loggingSession,
       includeFileBase64: true,
-      abortSignal: abortController.signal,
+      abortSignal: timeoutController.signal,
     })
 
-    if (executionResult.status === 'cancelled' && isTimedOut && asyncTimeout) {
-      const timeoutErrorMessage = getTimeoutErrorMessage(null, asyncTimeout)
-      logger.info(`[${requestId}] Webhook execution timed out`, { timeoutMs: asyncTimeout })
+    if (
+      executionResult.status === 'cancelled' &&
+      timeoutController.isTimedOut() &&
+      timeoutController.timeoutMs
+    ) {
+      const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+      logger.info(`[${requestId}] Webhook execution timed out`, {
+        timeoutMs: timeoutController.timeoutMs,
+      })
       await loggingSession.markAsFailed(timeoutErrorMessage)
     } else if (executionResult.status === 'paused') {
       if (!executionResult.snapshotSeed) {
@@ -632,7 +637,7 @@ async function executeWebhookJobInternal(
 
     throw error
   } finally {
-    if (timeoutId) clearTimeout(timeoutId)
+    timeoutController.cleanup()
   }
 }
 

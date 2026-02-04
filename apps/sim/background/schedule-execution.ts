@@ -4,7 +4,7 @@ import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -184,16 +184,7 @@ async function runWorkflowExecution({
       []
     )
 
-    const abortController = new AbortController()
-    let isTimedOut = false
-    let timeoutId: NodeJS.Timeout | undefined
-
-    if (asyncTimeout) {
-      timeoutId = setTimeout(() => {
-        isTimedOut = true
-        abortController.abort()
-      }, asyncTimeout)
-    }
+    const timeoutController = createTimeoutAbortController(asyncTimeout)
 
     let executionResult
     try {
@@ -203,16 +194,20 @@ async function runWorkflowExecution({
         loggingSession,
         includeFileBase64: true,
         base64MaxBytes: undefined,
-        abortSignal: abortController.signal,
+        abortSignal: timeoutController.signal,
       })
     } finally {
-      if (timeoutId) clearTimeout(timeoutId)
+      timeoutController.cleanup()
     }
 
-    if (executionResult.status === 'cancelled' && isTimedOut && asyncTimeout) {
-      const timeoutErrorMessage = getTimeoutErrorMessage(null, asyncTimeout)
+    if (
+      executionResult.status === 'cancelled' &&
+      timeoutController.isTimedOut() &&
+      timeoutController.timeoutMs
+    ) {
+      const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
       logger.info(`[${requestId}] Scheduled workflow execution timed out`, {
-        timeoutMs: asyncTimeout,
+        timeoutMs: timeoutController.timeoutMs,
       })
       await loggingSession.markAsFailed(timeoutErrorMessage)
     } else if (executionResult.status === 'paused') {
