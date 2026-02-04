@@ -176,6 +176,10 @@ export function formatDuration(
     }
   } else {
     ms = duration
+    // Handle NaN/Infinity (e.g., cancelled blocks with no end time)
+    if (!Number.isFinite(ms)) {
+      return '—'
+    }
   }
 
   const precision = options?.precision ?? 0
