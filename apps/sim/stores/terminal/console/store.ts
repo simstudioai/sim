@@ -287,6 +287,15 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                 return entry
               }
 
+              // For loop iterations, also match on iterationCurrent to update the correct entry
+              if (
+                typeof update === 'object' &&
+                update.iterationCurrent !== undefined &&
+                entry.iterationCurrent !== update.iterationCurrent
+              ) {
+                return entry
+              }
+
               if (typeof update === 'string') {
                 const newOutput = updateBlockOutput(entry.output, update)
                 return { ...entry, output: newOutput }
@@ -322,6 +331,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
               if (update.success !== undefined) {
                 updatedEntry.success = update.success
+              }
+
+              if (update.startedAt !== undefined) {
+                updatedEntry.startedAt = update.startedAt
               }
 
               if (update.endedAt !== undefined) {

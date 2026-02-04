@@ -926,6 +926,7 @@ export function useWorkflowExecution() {
               })
 
               // Add entry to terminal immediately with isRunning=true
+              // Use server-provided executionOrder to ensure correct sort order
               const startedAt = new Date().toISOString()
               addConsole({
                 input: {},
@@ -933,6 +934,7 @@ export function useWorkflowExecution() {
                 success: undefined,
                 durationMs: undefined,
                 startedAt,
+                executionOrder: data.executionOrder,
                 endedAt: undefined,
                 workflowId: activeWorkflowId,
                 blockId: data.blockId,
@@ -948,8 +950,6 @@ export function useWorkflowExecution() {
             },
 
             onBlockCompleted: (data) => {
-              logger.info('onBlockCompleted received:', { data })
-
               activeBlocksSet.delete(data.blockId)
               setActiveBlocks(new Set(activeBlocksSet))
               setBlockRunStatus(data.blockId, 'success')
@@ -976,6 +976,7 @@ export function useWorkflowExecution() {
                 success: true,
                 durationMs: data.durationMs,
                 startedAt,
+                executionOrder: data.executionOrder,
                 endedAt,
               })
 
@@ -987,6 +988,7 @@ export function useWorkflowExecution() {
                   replaceOutput: data.output,
                   success: true,
                   durationMs: data.durationMs,
+                  startedAt,
                   endedAt,
                   isRunning: false,
                   // Pass through iteration context for subflow grouping
@@ -1027,6 +1029,7 @@ export function useWorkflowExecution() {
                 error: data.error,
                 durationMs: data.durationMs,
                 startedAt,
+                executionOrder: data.executionOrder,
                 endedAt,
               })
 
@@ -1039,6 +1042,7 @@ export function useWorkflowExecution() {
                   success: false,
                   error: data.error,
                   durationMs: data.durationMs,
+                  startedAt,
                   endedAt,
                   isRunning: false,
                   // Pass through iteration context for subflow grouping
@@ -1170,6 +1174,7 @@ export function useWorkflowExecution() {
                   error: data.error,
                   durationMs: data.duration || 0,
                   startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
+                  executionOrder: performance.now(),
                   endedAt: new Date().toISOString(),
                   workflowId: activeWorkflowId,
                   blockId: 'validation',
@@ -1244,6 +1249,7 @@ export function useWorkflowExecution() {
             error: normalizedMessage,
             durationMs: 0,
             startedAt: new Date().toISOString(),
+            executionOrder: performance.now(),
             endedAt: new Date().toISOString(),
             workflowId: activeWorkflowId || '',
             blockId,
@@ -1615,6 +1621,7 @@ export function useWorkflowExecution() {
                 success: true,
                 durationMs: data.durationMs,
                 startedAt,
+                executionOrder: data.executionOrder,
                 endedAt,
               })
 
@@ -1624,6 +1631,7 @@ export function useWorkflowExecution() {
                 success: true,
                 durationMs: data.durationMs,
                 startedAt,
+                executionOrder: data.executionOrder,
                 endedAt,
                 workflowId,
                 blockId: data.blockId,
@@ -1653,6 +1661,7 @@ export function useWorkflowExecution() {
                 output: {},
                 success: false,
                 error: data.error,
+                executionOrder: data.executionOrder,
                 durationMs: data.durationMs,
                 startedAt,
                 endedAt,
@@ -1665,6 +1674,7 @@ export function useWorkflowExecution() {
                 error: data.error,
                 durationMs: data.durationMs,
                 startedAt,
+                executionOrder: data.executionOrder,
                 endedAt,
                 workflowId,
                 blockId: data.blockId,

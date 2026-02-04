@@ -3,7 +3,11 @@ import { DEFAULTS } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { ParallelScope } from '@/executor/execution/state'
 import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
-import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import {
+  type ExecutionContext,
+  getNextExecutionOrder,
+  type NormalizedBlockOutput,
+} from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import { ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
@@ -270,6 +274,7 @@ export class ParallelOrchestrator {
         output,
         executionTime: 0,
         startedAt: now,
+        executionOrder: getNextExecutionOrder(ctx),
         endedAt: now,
       })
     }

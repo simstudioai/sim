@@ -10,6 +10,7 @@ export interface ConsoleEntry {
   blockType: string
   executionId?: string
   startedAt?: string
+  executionOrder: number
   endedAt?: string
   durationMs?: number
   success?: boolean
@@ -20,9 +21,7 @@ export interface ConsoleEntry {
   iterationCurrent?: number
   iterationTotal?: number
   iterationType?: SubflowType
-  /** Whether this block is currently running */
   isRunning?: boolean
-  /** Whether this block execution was canceled */
   isCanceled?: boolean
 }
 
@@ -33,14 +32,12 @@ export interface ConsoleUpdate {
   error?: string | Error | null
   warning?: string
   success?: boolean
+  startedAt?: string
   endedAt?: string
   durationMs?: number
   input?: any
-  /** Whether this block is currently running */
   isRunning?: boolean
-  /** Whether this block execution was canceled */
   isCanceled?: boolean
-  /** Iteration context for subflow blocks */
   iterationCurrent?: number
   iterationTotal?: number
   iterationType?: SubflowType

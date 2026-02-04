@@ -184,13 +184,9 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     group.blocks.push(entry)
   }
 
-  // Sort blocks within each iteration by start time ascending (oldest first, top-down)
+  // Sort blocks within each iteration by executionOrder ascending (oldest first, top-down)
   for (const group of iterationGroupsMap.values()) {
-    group.blocks.sort((a, b) => {
-      const aStart = new Date(a.startedAt || a.timestamp).getTime()
-      const bStart = new Date(b.startedAt || b.timestamp).getTime()
-      return aStart - bStart
-    })
+    group.blocks.sort((a, b) => a.executionOrder - b.executionOrder)
   }
 
   // Group iterations by iterationType to create subflow parents
@@ -225,6 +221,8 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     const totalDuration = allBlocks.reduce((sum, b) => sum + (b.durationMs || 0), 0)
 
     // Create synthetic subflow parent entry
+    // Use the minimum executionOrder from all child blocks for proper ordering
+    const subflowExecutionOrder = Math.min(...allBlocks.map((b) => b.executionOrder))
     const syntheticSubflow: ConsoleEntry = {
       id: `subflow-${iterationType}-${firstIteration.blocks[0]?.executionId || 'unknown'}`,
       timestamp: new Date(subflowStartMs).toISOString(),
@@ -234,6 +232,7 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
       blockType: iterationType,
       executionId: firstIteration.blocks[0]?.executionId,
       startedAt: new Date(subflowStartMs).toISOString(),
+      executionOrder: subflowExecutionOrder,
       endedAt: new Date(subflowEndMs).toISOString(),
       durationMs: totalDuration,
       success: !allBlocks.some((b) => b.error),
@@ -251,6 +250,8 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
       )
       const iterDuration = iterBlocks.reduce((sum, b) => sum + (b.durationMs || 0), 0)
 
+      // Use the minimum executionOrder from blocks in this iteration
+      const iterExecutionOrder = Math.min(...iterBlocks.map((b) => b.executionOrder))
       const syntheticIteration: ConsoleEntry = {
         id: `iteration-${iterationType}-${iterGroup.iterationCurrent}-${iterBlocks[0]?.executionId || 'unknown'}`,
         timestamp: new Date(iterStartMs).toISOString(),
@@ -260,6 +261,7 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
         blockType: iterationType,
         executionId: iterBlocks[0]?.executionId,
         startedAt: new Date(iterStartMs).toISOString(),
+        executionOrder: iterExecutionOrder,
         endedAt: new Date(iterEndMs).toISOString(),
         durationMs: iterDuration,
         success: !iterBlocks.some((b) => b.error),
@@ -300,14 +302,9 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     nodeType: 'block' as const,
   }))
 
-  // Combine all nodes and sort by start time ascending (oldest first, top-down)
+  // Combine all nodes and sort by executionOrder ascending (oldest first, top-down)
   const allNodes = [...subflowNodes, ...regularNodes]
-  allNodes.sort((a, b) => {
-    const aStart = new Date(a.entry.startedAt || a.entry.timestamp).getTime()
-    const bStart = new Date(b.entry.startedAt || b.entry.timestamp).getTime()
-    return aStart - bStart
-  })
-
+  allNodes.sort((a, b) => a.entry.executionOrder - b.entry.executionOrder)
   return allNodes
 }
 
