@@ -171,6 +171,7 @@ export async function createStreamingResponse(
   options: StreamingResponseOptions
 ): Promise<ReadableStream> {
   const { requestId, workflow, input, executingUserId, streamConfig, executionId } = options
+  const timeoutController = createTimeoutAbortController(streamConfig.timeoutMs)
 
   return new ReadableStream({
     async start(controller) {
@@ -270,8 +271,6 @@ export async function createStreamingResponse(
         }
       }
 
-      const timeoutController = createTimeoutAbortController(streamConfig.timeoutMs)
-
       try {
         const result = await executeWorkflow(
           workflow,
@@ -346,6 +345,18 @@ export async function createStreamingResponse(
         controller.close()
       } finally {
         timeoutController.cleanup()
+      }
+    },
+    async cancel(reason) {
+      logger.info(`[${requestId}] Streaming response cancelled`, { reason })
+      timeoutController.abort()
+      timeoutController.cleanup()
+      if (executionId) {
+        try {
+          await cleanupExecutionBase64Cache(executionId)
+        } catch (error) {
+          logger.error(`[${requestId}] Failed to cleanup base64 cache`, { error })
+        }
       }
     },
   })
