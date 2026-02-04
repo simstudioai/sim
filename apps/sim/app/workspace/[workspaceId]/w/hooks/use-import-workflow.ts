@@ -52,9 +52,8 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       const workflowName = extractWorkflowName(content, filename)
       clearDiff()
 
-      const parsedContent = JSON.parse(content)
       const workflowColor =
-        parsedContent.state?.metadata?.color || parsedContent.metadata?.color || '#3972F6'
+        (workflowData.metadata as { color?: string } | undefined)?.color || '#3972F6'
 
       const result = await createWorkflowMutation.mutateAsync({
         name: workflowName,
@@ -66,11 +65,15 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
       })
       const newWorkflowId = result.id
 
-      await fetch(`/api/workflows/${newWorkflowId}/state`, {
+      const stateResponse = await fetch(`/api/workflows/${newWorkflowId}/state`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(workflowData),
       })
+
+      if (!stateResponse.ok) {
+        logger.error(`Failed to save workflow state for ${newWorkflowId}`)
+      }
 
       if (workflowData.variables) {
         const variablesArray = Array.isArray(workflowData.variables)
@@ -94,11 +97,15 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             }
           }
 
-          await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+          const variablesResponse = await fetch(`/api/workflows/${newWorkflowId}/variables`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ variables: variablesRecord }),
           })
+
+          if (!variablesResponse.ok) {
+            logger.error(`Failed to save variables for ${newWorkflowId}`)
+          }
         }
       }
 
