@@ -170,13 +170,11 @@ export const env = createEnv({
     RATE_LIMIT_ENTERPRISE_SYNC:            z.string().optional().default('600'),   // Enterprise tier sync API executions per minute
     RATE_LIMIT_ENTERPRISE_ASYNC:           z.string().optional().default('5000'),  // Enterprise tier async API executions per minute
 
-    // Sync execution timeouts in seconds (applies to synchronous API calls)
+    // Timeout Configuration
     EXECUTION_TIMEOUT_FREE:                z.string().optional().default('300'),   // 5 minutes
     EXECUTION_TIMEOUT_PRO:                 z.string().optional().default('3000'),  // 50 minutes
     EXECUTION_TIMEOUT_TEAM:                z.string().optional().default('3000'),  // 50 minutes
     EXECUTION_TIMEOUT_ENTERPRISE:          z.string().optional().default('3000'),  // 50 minutes
-
-    // Async execution timeouts in seconds (applies to async/background job executions)
     EXECUTION_TIMEOUT_ASYNC_FREE:          z.string().optional().default('5400'),  // 90 minutes
     EXECUTION_TIMEOUT_ASYNC_PRO:           z.string().optional().default('5400'),  // 90 minutes
     EXECUTION_TIMEOUT_ASYNC_TEAM:          z.string().optional().default('5400'),  // 90 minutes
