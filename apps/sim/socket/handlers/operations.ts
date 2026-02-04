@@ -12,39 +12,70 @@ import {
 import { persistWorkflowOperation } from '@/socket/database/operations'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
 import { checkRolePermission } from '@/socket/middleware/permissions'
-import type { IRoomManager } from '@/socket/rooms'
+import type { IRoomManager, UserSession } from '@/socket/rooms'
 import { WorkflowOperationSchema } from '@/socket/validation/schemas'
 
 const logger = createLogger('OperationsHandlers')
 
 export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('workflow-operation', async (data) => {
-    const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
-    const session = await roomManager.getUserSession(socket.id)
-
-    if (!workflowId || !session) {
-      socket.emit('operation-forbidden', {
-        type: 'SESSION_ERROR',
-        message: 'Session expired, please rejoin workflow',
-      })
-      if (data?.operationId) {
-        socket.emit('operation-failed', { operationId: data.operationId, error: 'Session expired' })
+    const emitOperationError = (
+      forbidden: { type: string; message: string; operation?: string; target?: string },
+      failed?: { error: string; retryable?: boolean }
+    ) => {
+      socket.emit('operation-forbidden', forbidden)
+      if (failed && data?.operationId) {
+        socket.emit('operation-failed', { operationId: data.operationId, ...failed })
       }
+    }
+
+    if (!roomManager.isReady()) {
+      emitOperationError(
+        { type: 'ROOM_MANAGER_UNAVAILABLE', message: 'Realtime unavailable' },
+        { error: 'Realtime unavailable', retryable: true }
+      )
       return
     }
 
-    const hasRoom = await roomManager.hasWorkflowRoom(workflowId)
+    let workflowId: string | null = null
+    let session: UserSession | null = null
+
+    try {
+      workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      session = await roomManager.getUserSession(socket.id)
+    } catch (error) {
+      logger.error('Error loading session for workflow operation:', error)
+      emitOperationError(
+        { type: 'ROOM_MANAGER_UNAVAILABLE', message: 'Realtime unavailable' },
+        { error: 'Realtime unavailable', retryable: true }
+      )
+      return
+    }
+
+    if (!workflowId || !session) {
+      emitOperationError(
+        { type: 'SESSION_ERROR', message: 'Session expired, please rejoin workflow' },
+        { error: 'Session expired' }
+      )
+      return
+    }
+
+    let hasRoom = false
+    try {
+      hasRoom = await roomManager.hasWorkflowRoom(workflowId)
+    } catch (error) {
+      logger.error('Error checking workflow room:', error)
+      emitOperationError(
+        { type: 'ROOM_MANAGER_UNAVAILABLE', message: 'Realtime unavailable' },
+        { error: 'Realtime unavailable', retryable: true }
+      )
+      return
+    }
     if (!hasRoom) {
-      socket.emit('operation-forbidden', {
-        type: 'ROOM_NOT_FOUND',
-        message: 'Workflow room not found',
-      })
-      if (data?.operationId) {
-        socket.emit('operation-failed', {
-          operationId: data.operationId,
-          error: 'Workflow room not found',
-        })
-      }
+      emitOperationError(
+        { type: 'ROOM_NOT_FOUND', message: 'Workflow room not found' },
+        { error: 'Workflow room not found' }
+      )
       return
     }
 
@@ -77,15 +108,15 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
         // Check permissions from cached role for all other operations
         if (!userPresence) {
           logger.warn(`User presence not found for socket ${socket.id}`)
-          socket.emit('operation-forbidden', {
-            type: 'SESSION_ERROR',
-            message: 'User session not found',
-            operation,
-            target,
-          })
-          if (operationId) {
-            socket.emit('operation-failed', { operationId, error: 'User session not found' })
-          }
+          emitOperationError(
+            {
+              type: 'SESSION_ERROR',
+              message: 'User session not found',
+              operation,
+              target,
+            },
+            { error: 'User session not found' }
+          )
           return
         }
 
@@ -97,7 +128,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           logger.warn(
             `User ${session.userId} (role: ${userPresence.role}) forbidden from ${operation} on ${target}`
           )
-          socket.emit('operation-forbidden', {
+          emitOperationError({
             type: 'INSUFFICIENT_PERMISSIONS',
             message: `${permissionCheck.reason} on '${target}'`,
             operation,

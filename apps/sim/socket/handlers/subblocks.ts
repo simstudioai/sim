@@ -48,6 +48,21 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
       operationId,
     } = data
 
+    if (!roomManager.isReady()) {
+      socket.emit('operation-forbidden', {
+        type: 'ROOM_MANAGER_UNAVAILABLE',
+        message: 'Realtime unavailable',
+      })
+      if (operationId) {
+        socket.emit('operation-failed', {
+          operationId,
+          error: 'Realtime unavailable',
+          retryable: true,
+        })
+      }
+      return
+    }
+
     try {
       const sessionWorkflowId = await roomManager.getWorkflowIdForSocket(socket.id)
       const session = await roomManager.getUserSession(socket.id)

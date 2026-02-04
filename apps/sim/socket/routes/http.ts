@@ -85,6 +85,11 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
         res.end(JSON.stringify({ error: authResult.error }))
         return
       }
+
+      if (!roomManager.isReady()) {
+        sendError(res, 'Room manager unavailable', 503)
+        return
+      }
     }
 
     // Handle workflow deletion notifications from the main API

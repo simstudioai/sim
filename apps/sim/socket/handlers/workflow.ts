@@ -20,6 +20,15 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         return
       }
 
+      if (!roomManager.isReady()) {
+        logger.warn(`Join workflow rejected: Room manager unavailable`)
+        socket.emit('join-workflow-error', {
+          error: 'Realtime unavailable',
+          code: 'ROOM_MANAGER_UNAVAILABLE',
+        })
+        return
+      }
+
       logger.info(`Join workflow request from ${userId} (${userName}) for workflow ${workflowId}`)
 
       // Verify workflow access
@@ -128,12 +137,20 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       // Undo socket.join and room manager entry if any operation failed
       socket.leave(workflowId)
       await roomManager.removeUserFromRoom(socket.id)
-      socket.emit('join-workflow-error', { error: 'Failed to join workflow' })
+      const isReady = roomManager.isReady()
+      socket.emit('join-workflow-error', {
+        error: isReady ? 'Failed to join workflow' : 'Realtime unavailable',
+        code: isReady ? undefined : 'ROOM_MANAGER_UNAVAILABLE',
+      })
     }
   })
 
   socket.on('leave-workflow', async () => {
     try {
+      if (!roomManager.isReady()) {
+        return
+      }
+
       const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
       const session = await roomManager.getUserSession(socket.id)
 
