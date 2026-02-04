@@ -588,24 +588,36 @@ export async function executeResponsesProviderRequest(
     }
 
     // For Azure with deferred format: make a final call with the response format applied
-    // This only happens if we had tool calls and a deferred format
-    if (deferredTextFormat && iterationCount > 0) {
+    // This happens whenever we have a deferred format, even if no tools were called
+    // (the initial call was made without the format, so we need to apply it now)
+    let appliedDeferredFormat = false
+    if (deferredTextFormat) {
       logger.info(
-        `Applying deferred JSON schema response format for ${config.providerLabel} after tool calls completed`
+        `Applying deferred JSON schema response format for ${config.providerLabel} (iterationCount: ${iterationCount})`
       )
 
       const finalFormatStartTime = Date.now()
 
-      // Add the output items from the last response to the input
-      const lastOutputItems = convertResponseOutputToInputItems(currentResponse.output)
-      if (lastOutputItems.length) {
-        currentInput.push(...lastOutputItems)
+      // Determine what input to use for the formatted call
+      let formattedInput: ResponsesInputItem[]
+
+      if (iterationCount > 0) {
+        // Tools were called - include the conversation history with tool results
+        const lastOutputItems = convertResponseOutputToInputItems(currentResponse.output)
+        if (lastOutputItems.length) {
+          currentInput.push(...lastOutputItems)
+        }
+        formattedInput = currentInput
+      } else {
+        // No tools were called - just retry the initial call with format applied
+        // Don't include the model's previous unformatted response
+        formattedInput = initialInput
       }
 
       // Make final call with the response format - build payload without tools
       const finalPayload: Record<string, any> = {
         model: config.modelName,
-        input: currentInput,
+        input: formattedInput,
         text: {
           ...(basePayload.text ?? {}),
           format: deferredTextFormat,
@@ -643,19 +655,30 @@ export async function executeResponsesProviderRequest(
       if (formattedText) {
         content = formattedText
       }
+
+      appliedDeferredFormat = true
     }
 
-    if (request.stream) {
+    // Skip streaming if we already applied deferred format - we have the formatted content
+    // Making another streaming call would lose the formatted response
+    if (request.stream && !appliedDeferredFormat) {
       logger.info('Using streaming for final response after tool processing')
 
       const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
+      // For Azure with deferred format in streaming mode, include the format in the streaming call
+      const streamOverrides: Record<string, any> = { stream: true, tool_choice: 'auto' }
+      if (deferredTextFormat) {
+        streamOverrides.text = {
+          ...(basePayload.text ?? {}),
+          format: deferredTextFormat,
+        }
+      }
+
       const streamResponse = await fetch(config.endpoint, {
         method: 'POST',
         headers: config.headers,
-        body: JSON.stringify(
-          createRequestBody(currentInput, { stream: true, tool_choice: 'auto' })
-        ),
+        body: JSON.stringify(createRequestBody(currentInput, streamOverrides)),
       })
 
       if (!streamResponse.ok) {
