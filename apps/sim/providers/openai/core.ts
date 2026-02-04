@@ -544,6 +544,11 @@ export async function executeResponsesProviderRequest(
         currentTrackingToolChoice
       )
 
+      const latestText = extractResponseText(currentResponse.output)
+      if (latestText) {
+        content = latestText
+      }
+
       const nextModelEndTime = Date.now()
       const thisModelTime = nextModelEndTime - nextModelStartTime
 

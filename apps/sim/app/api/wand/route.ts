@@ -374,62 +374,65 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
                     return
                   }
 
+                  let parsed: any
                   try {
-                    const parsed = JSON.parse(data)
-                    const eventType = parsed?.type ?? activeEventType
-
-                    if (
-                      eventType === 'response.error' ||
-                      eventType === 'error' ||
-                      activeEventType === 'response.failed'
-                    ) {
-                      throw new Error(parsed?.error?.message || 'Responses stream error')
-                    }
-
-                    if (
-                      eventType === 'response.output_text.delta' ||
-                      eventType === 'response.output_json.delta'
-                    ) {
-                      let content = ''
-                      if (typeof parsed.delta === 'string') {
-                        content = parsed.delta
-                      } else if (parsed.delta && typeof parsed.delta.text === 'string') {
-                        content = parsed.delta.text
-                      } else if (parsed.delta && parsed.delta.json !== undefined) {
-                        content = JSON.stringify(parsed.delta.json)
-                      } else if (parsed.json !== undefined) {
-                        content = JSON.stringify(parsed.json)
-                      } else if (typeof parsed.text === 'string') {
-                        content = parsed.text
-                      }
-
-                      if (content) {
-                        chunkCount++
-                        if (chunkCount === 1) {
-                          logger.info(`[${requestId}] Received first content chunk`)
-                        }
-
-                        controller.enqueue(
-                          encoder.encode(`data: ${JSON.stringify({ chunk: content })}\n\n`)
-                        )
-                      }
-                    }
-
-                    if (eventType === 'response.completed') {
-                      const usage = parseResponsesUsage(parsed?.response?.usage ?? parsed?.usage)
-                      if (usage) {
-                        finalUsage = {
-                          prompt_tokens: usage.promptTokens,
-                          completion_tokens: usage.completionTokens,
-                          total_tokens: usage.totalTokens,
-                        }
-                        logger.info(
-                          `[${requestId}] Received usage data: ${JSON.stringify(finalUsage)}`
-                        )
-                      }
-                    }
+                    parsed = JSON.parse(data)
                   } catch (parseError) {
                     logger.debug(`[${requestId}] Skipped non-JSON line: ${data.substring(0, 100)}`)
+                    continue
+                  }
+
+                  const eventType = parsed?.type ?? activeEventType
+
+                  if (
+                    eventType === 'response.error' ||
+                    eventType === 'error' ||
+                    eventType === 'response.failed'
+                  ) {
+                    throw new Error(parsed?.error?.message || 'Responses stream error')
+                  }
+
+                  if (
+                    eventType === 'response.output_text.delta' ||
+                    eventType === 'response.output_json.delta'
+                  ) {
+                    let content = ''
+                    if (typeof parsed.delta === 'string') {
+                      content = parsed.delta
+                    } else if (parsed.delta && typeof parsed.delta.text === 'string') {
+                      content = parsed.delta.text
+                    } else if (parsed.delta && parsed.delta.json !== undefined) {
+                      content = JSON.stringify(parsed.delta.json)
+                    } else if (parsed.json !== undefined) {
+                      content = JSON.stringify(parsed.json)
+                    } else if (typeof parsed.text === 'string') {
+                      content = parsed.text
+                    }
+
+                    if (content) {
+                      chunkCount++
+                      if (chunkCount === 1) {
+                        logger.info(`[${requestId}] Received first content chunk`)
+                      }
+
+                      controller.enqueue(
+                        encoder.encode(`data: ${JSON.stringify({ chunk: content })}\n\n`)
+                      )
+                    }
+                  }
+
+                  if (eventType === 'response.completed') {
+                    const usage = parseResponsesUsage(parsed?.response?.usage ?? parsed?.usage)
+                    if (usage) {
+                      finalUsage = {
+                        prompt_tokens: usage.promptTokens,
+                        completion_tokens: usage.completionTokens,
+                        total_tokens: usage.totalTokens,
+                      }
+                      logger.info(
+                        `[${requestId}] Received usage data: ${JSON.stringify(finalUsage)}`
+                      )
+                    }
                   }
                 }
               }
