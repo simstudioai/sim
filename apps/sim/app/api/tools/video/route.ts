@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { VideoRequestBody } from '@/tools/video/types'
@@ -328,7 +328,7 @@ async function generateWithRunway(
   logger.info(`[${requestId}] Runway task created: ${taskId}`)
 
   const pollIntervalMs = 5000
-  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
+  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
@@ -372,7 +372,7 @@ async function generateWithRunway(
     attempts++
   }
 
-  throw new Error('Runway generation timed out after 10 minutes')
+  throw new Error('Runway generation timed out')
 }
 
 async function generateWithVeo(
@@ -432,7 +432,7 @@ async function generateWithVeo(
   logger.info(`[${requestId}] Veo operation created: ${operationName}`)
 
   const pollIntervalMs = 5000
-  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
+  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
@@ -488,7 +488,7 @@ async function generateWithVeo(
     attempts++
   }
 
-  throw new Error('Veo generation timed out after 5 minutes')
+  throw new Error('Veo generation timed out')
 }
 
 async function generateWithLuma(
@@ -545,7 +545,7 @@ async function generateWithLuma(
   logger.info(`[${requestId}] Luma generation created: ${generationId}`)
 
   const pollIntervalMs = 5000
-  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
+  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
@@ -596,7 +596,7 @@ async function generateWithLuma(
     attempts++
   }
 
-  throw new Error('Luma generation timed out after 10 minutes')
+  throw new Error('Luma generation timed out')
 }
 
 async function generateWithMiniMax(
@@ -663,7 +663,7 @@ async function generateWithMiniMax(
   logger.info(`[${requestId}] MiniMax task created: ${taskId}`)
 
   const pollIntervalMs = 5000
-  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
+  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
@@ -746,7 +746,7 @@ async function generateWithMiniMax(
     attempts++
   }
 
-  throw new Error('MiniMax generation timed out after 10 minutes')
+  throw new Error('MiniMax generation timed out')
 }
 
 // Helper function to strip subpaths from Fal.ai model IDs for status/result endpoints
@@ -865,7 +865,7 @@ async function generateWithFalAI(
   const baseModelId = getBaseModelId(falModelId)
 
   const pollIntervalMs = 5000
-  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
+  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
   let attempts = 0
 
   while (attempts < maxAttempts) {
@@ -942,7 +942,7 @@ async function generateWithFalAI(
     attempts++
   }
 
-  throw new Error('Fal.ai generation timed out after 8 minutes')
+  throw new Error('Fal.ai generation timed out')
 }
 
 function getVideoDimensions(

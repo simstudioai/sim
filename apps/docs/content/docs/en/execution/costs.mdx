@@ -217,16 +217,16 @@ Different subscription plans have different usage limits:
 
 Workflows have maximum execution time limits based on your subscription plan:
 
-| Plan | Sync Execution Limit |
-|------|---------------------|
-| **Free** | 5 minutes |
-| **Pro** | 60 minutes |
-| **Team** | 60 minutes |
-| **Enterprise** | 60 minutes |
+| Plan | Sync Execution | Async Execution |
+|------|----------------|-----------------|
+| **Free** | 5 minutes | 10 minutes |
+| **Pro** | 60 minutes | 90 minutes |
+| **Team** | 60 minutes | 90 minutes |
+| **Enterprise** | 60 minutes | 90 minutes |
 
 **Sync executions** run immediately and return results directly. These are triggered via the API with `async: false` (default) or through the UI.
 
-**Async executions** (triggered via API with `async: true`, webhooks, or schedules) run in the background with a 90-minute time limit for all plans.
+**Async executions** (triggered via API with `async: true`, webhooks, or schedules) run in the background. Async time limits are 2x the sync limit, capped at 90 minutes.
 
 <Callout type="info">
   If a workflow exceeds its time limit, it will be terminated and marked as failed with a timeout error. Design long-running workflows to use async execution or break them into smaller workflows.

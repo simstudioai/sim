@@ -517,6 +517,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         cachedWorkflowData?.blocks || {}
       )
       const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
+      const streamingTimeout = preprocessResult.executionTimeout?.sync
 
       const stream = await createStreamingResponse({
         requestId,
@@ -535,6 +536,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
           includeFileBase64,
           base64MaxBytes,
+          abortSignal: streamingTimeout ? AbortSignal.timeout(streamingTimeout) : undefined,
         },
         executionId,
       })

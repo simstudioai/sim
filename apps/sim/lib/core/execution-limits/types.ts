@@ -6,14 +6,15 @@ interface ExecutionTimeoutConfig {
   async: number
 }
 
-const DEFAULT_SYNC_TIMEOUTS = {
+const DEFAULT_SYNC_TIMEOUTS_SECONDS = {
   free: 300,
   pro: 3600,
   team: 3600,
   enterprise: 3600,
 } as const
 
-const ASYNC_TIMEOUT_SECONDS = 5400
+const ASYNC_MULTIPLIER = 2
+const MAX_ASYNC_TIMEOUT_SECONDS = 5400
 
 function getSyncTimeoutForPlan(plan: SubscriptionPlan): number {
   const envVarMap: Record<SubscriptionPlan, string | undefined> = {
@@ -22,25 +23,32 @@ function getSyncTimeoutForPlan(plan: SubscriptionPlan): number {
     team: env.EXECUTION_TIMEOUT_TEAM,
     enterprise: env.EXECUTION_TIMEOUT_ENTERPRISE,
   }
-  return (Number.parseInt(envVarMap[plan] || '') || DEFAULT_SYNC_TIMEOUTS[plan]) * 1000
+  return (Number.parseInt(envVarMap[plan] || '') || DEFAULT_SYNC_TIMEOUTS_SECONDS[plan]) * 1000
+}
+
+function getAsyncTimeoutForPlan(plan: SubscriptionPlan): number {
+  const syncMs = getSyncTimeoutForPlan(plan)
+  const asyncMs = syncMs * ASYNC_MULTIPLIER
+  const maxAsyncMs = MAX_ASYNC_TIMEOUT_SECONDS * 1000
+  return Math.min(asyncMs, maxAsyncMs)
 }
 
 const EXECUTION_TIMEOUTS: Record<SubscriptionPlan, ExecutionTimeoutConfig> = {
   free: {
     sync: getSyncTimeoutForPlan('free'),
-    async: ASYNC_TIMEOUT_SECONDS * 1000,
+    async: getAsyncTimeoutForPlan('free'),
   },
   pro: {
     sync: getSyncTimeoutForPlan('pro'),
-    async: ASYNC_TIMEOUT_SECONDS * 1000,
+    async: getAsyncTimeoutForPlan('pro'),
   },
   team: {
     sync: getSyncTimeoutForPlan('team'),
-    async: ASYNC_TIMEOUT_SECONDS * 1000,
+    async: getAsyncTimeoutForPlan('team'),
   },
   enterprise: {
     sync: getSyncTimeoutForPlan('enterprise'),
-    async: ASYNC_TIMEOUT_SECONDS * 1000,
+    async: getAsyncTimeoutForPlan('enterprise'),
   },
 }
 
@@ -58,18 +66,17 @@ export function getMaxExecutionTimeout(): number {
 export const DEFAULT_EXECUTION_TIMEOUT_MS = EXECUTION_TIMEOUTS.free.sync
 
 export function isTimeoutError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
+  if (!error) return false
 
-  const name = error.name.toLowerCase()
-  const message = error.message.toLowerCase()
+  if (error instanceof Error) {
+    return error.name === 'TimeoutError'
+  }
 
-  return (
-    name === 'timeouterror' ||
-    name === 'aborterror' ||
-    message.includes('timeout') ||
-    message.includes('timed out') ||
-    message.includes('aborted')
-  )
+  if (typeof error === 'object' && 'name' in error) {
+    return (error as { name: string }).name === 'TimeoutError'
+  }
+
+  return false
 }
 
 export function getTimeoutErrorMessage(error: unknown, timeoutMs?: number): string {

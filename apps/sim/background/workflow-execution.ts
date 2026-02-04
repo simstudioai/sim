@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { v4 as uuidv4 } from 'uuid'
+import { getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -103,15 +104,37 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       []
     )
 
-    const result = await executeWorkflowCore({
-      snapshot,
-      callbacks: {},
-      loggingSession,
-      includeFileBase64: true,
-      base64MaxBytes: undefined,
-    })
+    const asyncTimeout = preprocessResult.executionTimeout?.async
+    const abortController = new AbortController()
+    let isTimedOut = false
+    let timeoutId: NodeJS.Timeout | undefined
 
-    if (result.status === 'paused') {
+    if (asyncTimeout) {
+      timeoutId = setTimeout(() => {
+        isTimedOut = true
+        abortController.abort()
+      }, asyncTimeout)
+    }
+
+    let result
+    try {
+      result = await executeWorkflowCore({
+        snapshot,
+        callbacks: {},
+        loggingSession,
+        includeFileBase64: true,
+        base64MaxBytes: undefined,
+        abortSignal: abortController.signal,
+      })
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+
+    if (result.status === 'cancelled' && isTimedOut && asyncTimeout) {
+      const timeoutErrorMessage = getTimeoutErrorMessage(null, asyncTimeout)
+      logger.info(`[${requestId}] Workflow execution timed out`, { timeoutMs: asyncTimeout })
+      await loggingSession.markAsFailed(timeoutErrorMessage)
+    } else if (result.status === 'paused') {
       if (!result.snapshotSeed) {
         logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
           executionId,

@@ -32,6 +32,7 @@ export interface StreamingConfig {
   workflowTriggerType?: 'api' | 'chat'
   includeFileBase64?: boolean
   base64MaxBytes?: number
+  abortSignal?: AbortSignal
 }
 
 export interface StreamingResponseOptions {
@@ -284,6 +285,7 @@ export async function createStreamingResponse(
             skipLoggingComplete: true,
             includeFileBase64: streamConfig.includeFileBase64,
             base64MaxBytes: streamConfig.base64MaxBytes,
+            abortSignal: streamConfig.abortSignal,
           },
           executionId
         )

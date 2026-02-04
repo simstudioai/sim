@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from '@/tools/browser_use/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('BrowserUseTool')
 
 const POLL_INTERVAL_MS = 5000
-const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
+const MAX_POLL_TIME_MS = getMaxExecutionTimeout()
 const MAX_CONSECUTIVE_ERRORS = 3
 
 async function createSessionWithProfile(
