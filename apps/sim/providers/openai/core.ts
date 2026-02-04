@@ -144,23 +144,38 @@ export async function executeResponsesProviderRequest(
     }
   }
 
+  // Store response format config - for Azure with tools, we defer applying it until after tool calls complete
+  let deferredTextFormat: { type: string; name: string; schema: any; strict: boolean } | undefined
+  const hasTools = !!request.tools?.length
+  const isAzure = config.providerId === 'azure-openai'
+
   if (request.responseFormat) {
     const isStrict = request.responseFormat.strict !== false
     const rawSchema = request.responseFormat.schema || request.responseFormat
     // OpenAI strict mode requires additionalProperties: false on ALL nested objects
     const cleanedSchema = isStrict ? enforceStrictSchema(rawSchema) : rawSchema
 
-    basePayload.text = {
-      ...(basePayload.text ?? {}),
-      format: {
-        type: 'json_schema',
-        name: request.responseFormat.name || 'response_schema',
-        schema: cleanedSchema,
-        strict: isStrict,
-      },
+    const textFormat = {
+      type: 'json_schema' as const,
+      name: request.responseFormat.name || 'response_schema',
+      schema: cleanedSchema,
+      strict: isStrict,
     }
 
-    logger.info(`Added JSON schema response format to ${config.providerLabel} request`)
+    // Azure OpenAI has issues combining tools + response_format in the same request
+    // Defer the format until after tool calls complete for Azure
+    if (isAzure && hasTools) {
+      deferredTextFormat = textFormat
+      logger.info(
+        `Deferring JSON schema response format for ${config.providerLabel} (will apply after tool calls complete)`
+      )
+    } else {
+      basePayload.text = {
+        ...(basePayload.text ?? {}),
+        format: textFormat,
+      }
+      logger.info(`Added JSON schema response format to ${config.providerLabel} request`)
+    }
   }
 
   const tools = request.tools?.length
@@ -570,6 +585,64 @@ export async function executeResponsesProviderRequest(
       }
 
       iterationCount++
+    }
+
+    // For Azure with deferred format: make a final call with the response format applied
+    // This only happens if we had tool calls and a deferred format
+    if (deferredTextFormat && iterationCount > 0) {
+      logger.info(
+        `Applying deferred JSON schema response format for ${config.providerLabel} after tool calls completed`
+      )
+
+      const finalFormatStartTime = Date.now()
+
+      // Add the output items from the last response to the input
+      const lastOutputItems = convertResponseOutputToInputItems(currentResponse.output)
+      if (lastOutputItems.length) {
+        currentInput.push(...lastOutputItems)
+      }
+
+      // Make final call with the response format - build payload without tools
+      const finalPayload: Record<string, any> = {
+        model: config.modelName,
+        input: currentInput,
+        text: {
+          ...(basePayload.text ?? {}),
+          format: deferredTextFormat,
+        },
+      }
+
+      // Copy over non-tool related settings
+      if (request.temperature !== undefined) finalPayload.temperature = request.temperature
+      if (request.maxTokens != null) finalPayload.max_output_tokens = request.maxTokens
+
+      currentResponse = await postResponses(finalPayload)
+
+      const finalFormatEndTime = Date.now()
+      const finalFormatDuration = finalFormatEndTime - finalFormatStartTime
+
+      timeSegments.push({
+        type: 'model',
+        name: 'Final formatted response',
+        startTime: finalFormatStartTime,
+        endTime: finalFormatEndTime,
+        duration: finalFormatDuration,
+      })
+
+      modelTime += finalFormatDuration
+
+      const finalUsage = parseResponsesUsage(currentResponse.usage)
+      if (finalUsage) {
+        tokens.input += finalUsage.promptTokens
+        tokens.output += finalUsage.completionTokens
+        tokens.total += finalUsage.totalTokens
+      }
+
+      // Update content with the formatted response
+      const formattedText = extractResponseText(currentResponse.output)
+      if (formattedText) {
+        content = formattedText
+      }
     }
 
     if (request.stream) {
