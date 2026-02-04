@@ -207,6 +207,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           triggerMode?: boolean
           height?: number
           data?: Record<string, any>
+          locked?: boolean
         }>,
         edges?: Edge[],
         subBlockValues?: Record<string, Record<string, unknown>>,
@@ -231,6 +232,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             triggerMode: block.triggerMode ?? false,
             height: block.height ?? 0,
             data: block.data,
+            locked: block.locked ?? false,
           }
         }
 
@@ -365,24 +367,69 @@ export const useWorkflowStore = create<WorkflowStore>()(
       },
 
       batchToggleEnabled: (ids: string[]) => {
-        const newBlocks = { ...get().blocks }
+        if (ids.length === 0) return
+
+        const currentBlocks = get().blocks
+        const newBlocks = { ...currentBlocks }
+        const blocksToToggle = new Set<string>()
+
+        // For each ID, collect blocks to toggle (skip locked blocks entirely)
+        // If it's a container, also include non-locked children
         for (const id of ids) {
-          if (newBlocks[id]) {
-            newBlocks[id] = { ...newBlocks[id], enabled: !newBlocks[id].enabled }
+          const block = currentBlocks[id]
+          if (!block) continue
+
+          // Skip locked blocks entirely (including their children)
+          if (block.locked) continue
+
+          blocksToToggle.add(id)
+
+          // If it's a loop or parallel, also include non-locked children
+          if (block.type === 'loop' || block.type === 'parallel') {
+            Object.entries(currentBlocks).forEach(([blockId, b]) => {
+              if (b.data?.parentId === id && !b.locked) {
+                blocksToToggle.add(blockId)
+              }
+            })
           }
         }
+
+        // If no blocks can be toggled, exit early
+        if (blocksToToggle.size === 0) return
+
+        // Determine target enabled state based on first toggleable block
+        const firstToggleableId = Array.from(blocksToToggle)[0]
+        const firstBlock = currentBlocks[firstToggleableId]
+        const targetEnabled = !firstBlock.enabled
+
+        // Apply the enabled state to all toggleable blocks
+        for (const blockId of blocksToToggle) {
+          newBlocks[blockId] = { ...newBlocks[blockId], enabled: targetEnabled }
+        }
+
         set({ blocks: newBlocks, edges: [...get().edges] })
         get().updateLastSaved()
       },
 
       batchToggleHandles: (ids: string[]) => {
-        const newBlocks = { ...get().blocks }
+        const currentBlocks = get().blocks
+        const newBlocks = { ...currentBlocks }
+
+        // Helper to check if a block is protected (locked or inside locked parent)
+        const isProtected = (blockId: string): boolean => {
+          const block = currentBlocks[blockId]
+          if (!block) return false
+          if (block.locked) return true
+          const parentId = block.data?.parentId
+          if (parentId && currentBlocks[parentId]?.locked) return true
+          return false
+        }
+
         for (const id of ids) {
-          if (newBlocks[id]) {
-            newBlocks[id] = {
-              ...newBlocks[id],
-              horizontalHandles: !newBlocks[id].horizontalHandles,
-            }
+          if (!newBlocks[id] || isProtected(id)) continue
+          newBlocks[id] = {
+            ...newBlocks[id],
+            horizontalHandles: !newBlocks[id].horizontalHandles,
           }
         }
         set({ blocks: newBlocks, edges: [...get().edges] })
@@ -527,9 +574,33 @@ export const useWorkflowStore = create<WorkflowStore>()(
         if (!block) return
 
         const newId = crypto.randomUUID()
-        const offsetPosition = {
-          x: block.position.x + DEFAULT_DUPLICATE_OFFSET.x,
-          y: block.position.y + DEFAULT_DUPLICATE_OFFSET.y,
+
+        // Check if block is inside a locked container - if so, place duplicate outside
+        const parentId = block.data?.parentId
+        const parentBlock = parentId ? get().blocks[parentId] : undefined
+        const isParentLocked = parentBlock?.locked ?? false
+
+        // If parent is locked, calculate position outside the container
+        let offsetPosition: Position
+        const newData = block.data ? { ...block.data } : undefined
+
+        if (isParentLocked && parentBlock) {
+          // Place duplicate outside the locked container (to the right of it)
+          const containerWidth = parentBlock.data?.width ?? 400
+          offsetPosition = {
+            x: parentBlock.position.x + containerWidth + 50,
+            y: parentBlock.position.y,
+          }
+          // Remove parent relationship since we're placing outside
+          if (newData) {
+            newData.parentId = undefined
+            newData.extent = undefined
+          }
+        } else {
+          offsetPosition = {
+            x: block.position.x + DEFAULT_DUPLICATE_OFFSET.x,
+            y: block.position.y + DEFAULT_DUPLICATE_OFFSET.y,
+          }
         }
 
         const newName = getUniqueBlockName(block.name, get().blocks)
@@ -557,6 +628,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
               name: newName,
               position: offsetPosition,
               subBlocks: newSubBlocks,
+              locked: false,
+              data: newData,
             },
           },
           edges: [...get().edges],
@@ -1163,6 +1236,70 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       getDragStartPosition: () => {
         return get().dragStartPosition || null
+      },
+
+      setBlockLocked: (id: string, locked: boolean) => {
+        const block = get().blocks[id]
+        if (!block || block.locked === locked) return
+
+        const newState = {
+          blocks: {
+            ...get().blocks,
+            [id]: {
+              ...block,
+              locked,
+            },
+          },
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
+        }
+
+        set(newState)
+        get().updateLastSaved()
+      },
+
+      batchToggleLocked: (ids: string[]) => {
+        if (ids.length === 0) return
+
+        const currentBlocks = get().blocks
+        const newBlocks = { ...currentBlocks }
+        const blocksToToggle = new Set<string>()
+
+        // For each ID, collect blocks to toggle
+        // If it's a container, also include all children
+        for (const id of ids) {
+          const block = currentBlocks[id]
+          if (!block) continue
+
+          blocksToToggle.add(id)
+
+          // If it's a loop or parallel, also include all children
+          if (block.type === 'loop' || block.type === 'parallel') {
+            Object.entries(currentBlocks).forEach(([blockId, b]) => {
+              if (b.data?.parentId === id) {
+                blocksToToggle.add(blockId)
+              }
+            })
+          }
+        }
+
+        // If no blocks found, exit early
+        if (blocksToToggle.size === 0) return
+
+        // Determine target locked state based on first block in original ids
+        const firstBlock = currentBlocks[ids[0]]
+        if (!firstBlock) return
+
+        const targetLocked = !firstBlock.locked
+
+        // Apply the locked state to all blocks
+        for (const blockId of blocksToToggle) {
+          newBlocks[blockId] = { ...newBlocks[blockId], locked: targetLocked }
+        }
+
+        set({ blocks: newBlocks, edges: [...get().edges] })
+        get().updateLastSaved()
       },
     }),
     { name: 'workflow-store' }

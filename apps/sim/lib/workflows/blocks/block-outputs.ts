@@ -123,13 +123,13 @@ function filterOutputsByCondition(
 const CHAT_OUTPUTS: OutputDefinition = {
   input: { type: 'string', description: 'User message' },
   conversationId: { type: 'string', description: 'Conversation ID' },
-  files: { type: 'files', description: 'Uploaded files' },
+  files: { type: 'file[]', description: 'Uploaded files' },
 }
 
 const UNIFIED_START_OUTPUTS: OutputDefinition = {
   input: { type: 'string', description: 'Primary user input or message' },
   conversationId: { type: 'string', description: 'Conversation thread identifier' },
-  files: { type: 'files', description: 'User uploaded files' },
+  files: { type: 'file[]', description: 'User uploaded files' },
 }
 
 function applyInputFormatFields(
@@ -341,6 +341,17 @@ function expandFileTypeProperties(path: string): string[] {
   return USER_FILE_ACCESSIBLE_PROPERTIES.map((prop) => `${path}.${prop}`)
 }
 
+type FileOutputType = 'file' | 'file[]'
+
+function isFileOutputDefinition(value: unknown): value is { type: FileOutputType } {
+  if (!value || typeof value !== 'object' || !('type' in value)) {
+    return false
+  }
+
+  const { type } = value as { type?: unknown }
+  return type === 'file' || type === 'file[]'
+}
+
 export function getBlockOutputPaths(
   blockType: string,
   subBlocks?: Record<string, SubBlockWithValue>,
@@ -373,13 +384,7 @@ function getFilePropertyType(outputs: OutputDefinition, pathParts: string[]): st
     current = (current as Record<string, unknown>)[part]
   }
 
-  if (
-    current &&
-    typeof current === 'object' &&
-    'type' in current &&
-    ((current as { type: unknown }).type === 'files' ||
-      (current as { type: unknown }).type === 'file[]')
-  ) {
+  if (isFileOutputDefinition(current)) {
     return USER_FILE_PROPERTY_TYPES[lastPart as keyof typeof USER_FILE_PROPERTY_TYPES]
   }
 
@@ -485,7 +490,7 @@ function generateOutputPaths(outputs: Record<string, any>, prefix = ''): string[
       paths.push(currentPath)
     } else if (typeof value === 'object' && value !== null) {
       if ('type' in value && typeof value.type === 'string') {
-        if (value.type === 'files' || value.type === 'file[]') {
+        if (isFileOutputDefinition(value)) {
           paths.push(...expandFileTypeProperties(currentPath))
           continue
         }
@@ -546,7 +551,7 @@ function generateOutputPathsWithTypes(
       paths.push({ path: currentPath, type: value })
     } else if (typeof value === 'object' && value !== null) {
       if ('type' in value && typeof value.type === 'string') {
-        if (value.type === 'files' || value.type === 'file[]') {
+        if (isFileOutputDefinition(value)) {
           paths.push({ path: currentPath, type: value.type })
           for (const prop of USER_FILE_ACCESSIBLE_PROPERTIES) {
             paths.push({

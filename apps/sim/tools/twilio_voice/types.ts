@@ -1,4 +1,4 @@
-import type { ToolResponse } from '@/tools/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 export interface TwilioMakeCallParams {
   to: string
@@ -50,6 +50,7 @@ export interface TwilioGetRecordingOutput extends ToolResponse {
     channels?: number
     source?: string
     mediaUrl?: string
+    file?: ToolFileData
     price?: string
     priceUnit?: string
     uri?: string

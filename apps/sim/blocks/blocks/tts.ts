@@ -578,7 +578,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
 
   outputs: {
     audioUrl: { type: 'string', description: 'URL to the generated audio file' },
-    audioFile: { type: 'json', description: 'Generated audio file object (UserFile)' },
+    audioFile: { type: 'file', description: 'Generated audio file object (UserFile)' },
     duration: {
       type: 'number',
       description: 'Audio duration in seconds',

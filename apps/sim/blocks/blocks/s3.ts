@@ -1,6 +1,7 @@
 import { S3Icon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { S3Response } from '@/tools/s3/types'
 
 export const S3Block: BlockConfig<S3Response> = {
@@ -271,7 +272,8 @@ export const S3Block: BlockConfig<S3Response> = {
               throw new Error('Object Key is required for upload')
             }
             // Use file from uploadFile if in basic mode, otherwise use file reference
-            const fileParam = params.uploadFile || params.file
+            // normalizeFileInput handles JSON stringified values from advanced mode
+            const fileParam = normalizeFileInput(params.uploadFile || params.file, { single: true })
 
             return {
               accessKeyId: params.accessKeyId,
@@ -418,6 +420,7 @@ export const S3Block: BlockConfig<S3Response> = {
       type: 'string',
       description: 'S3 URI (s3://bucket/key) for use with other AWS services',
     },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     objects: { type: 'json', description: 'List of objects (for list operation)' },
     deleted: { type: 'boolean', description: 'Deletion status' },
     metadata: { type: 'json', description: 'Operation metadata' },

@@ -47,7 +47,7 @@ async function downloadAttachments(
             const buffer = Buffer.from(contentBytes, 'base64')
             attachments.push({
               name: attachment.name,
-              data: buffer,
+              data: buffer.toString('base64'),
               contentType: attachment.contentType,
               size: attachment.size,
             })

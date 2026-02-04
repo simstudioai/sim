@@ -1,6 +1,7 @@
 import { SftpIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SftpUploadResult } from '@/tools/sftp/types'
 
 export const SftpBlock: BlockConfig<SftpUploadResult> = {
@@ -222,7 +223,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
             return {
               ...connectionConfig,
               remotePath: params.remotePath,
-              files: params.files,
+              files: normalizeFileInput(params.uploadFiles || params.files),
               overwrite: params.overwrite !== false,
               permissions: params.permissions,
             }
@@ -293,6 +294,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
   outputs: {
     success: { type: 'boolean', description: 'Whether the operation was successful' },
     uploadedFiles: { type: 'json', description: 'Array of uploaded file details' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     fileName: { type: 'string', description: 'Downloaded file name' },
     content: { type: 'string', description: 'Downloaded file content' },
     size: { type: 'number', description: 'File size in bytes' },

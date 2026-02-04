@@ -1,3 +1,4 @@
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import type { FileContentResponse, GetFileContentParams } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -77,11 +78,30 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
     }
 
     let decodedContent = ''
+    let file:
+      | {
+          name: string
+          mimeType: string
+          data: string
+          size: number
+        }
+      | undefined
     if (data.content) {
       try {
         decodedContent = Buffer.from(data.content, 'base64').toString('utf-8')
       } catch (error) {
         decodedContent = '[Binary file - content cannot be displayed as text]'
+      }
+    }
+    if (data.content && data.encoding === 'base64' && data.name) {
+      const base64Data = String(data.content).replace(/\n/g, '')
+      const extension = getFileExtension(data.name)
+      const mimeType = getMimeTypeFromExtension(extension)
+      file = {
+        name: data.name,
+        mimeType,
+        data: base64Data,
+        size: data.size || 0,
       }
     }
 
@@ -103,6 +123,7 @@ ${contentPreview}`
       success: true,
       output: {
         content,
+        file,
         metadata: {
           name: data.name,
           path: data.path,
@@ -120,6 +141,11 @@ ${contentPreview}`
     content: {
       type: 'string',
       description: 'Human-readable file information with content preview',
+    },
+    file: {
+      type: 'file',
+      description: 'Downloaded file stored in execution files',
+      optional: true,
     },
     metadata: {
       type: 'object',
@@ -150,11 +176,30 @@ export const getFileContentV2Tool: ToolConfig<GetFileContentParams, any> = {
 
     // Decode base64 content if present
     let decodedContent = ''
+    let file:
+      | {
+          name: string
+          mimeType: string
+          data: string
+          size: number
+        }
+      | undefined
     if (data.content && data.encoding === 'base64') {
       try {
         decodedContent = Buffer.from(data.content, 'base64').toString('utf-8')
       } catch {
         decodedContent = data.content
+      }
+    }
+    if (data.content && data.encoding === 'base64' && data.name) {
+      const base64Data = String(data.content).replace(/\n/g, '')
+      const extension = getFileExtension(data.name)
+      const mimeType = getMimeTypeFromExtension(extension)
+      file = {
+        name: data.name,
+        mimeType,
+        data: base64Data,
+        size: data.size || 0,
       }
     }
 
@@ -172,6 +217,7 @@ export const getFileContentV2Tool: ToolConfig<GetFileContentParams, any> = {
         download_url: data.download_url ?? null,
         git_url: data.git_url,
         _links: data._links,
+        file,
       },
     }
   },
@@ -188,5 +234,10 @@ export const getFileContentV2Tool: ToolConfig<GetFileContentParams, any> = {
     download_url: { type: 'string', description: 'Direct download URL', optional: true },
     git_url: { type: 'string', description: 'Git blob API URL' },
     _links: { type: 'json', description: 'Related links' },
+    file: {
+      type: 'file',
+      description: 'Downloaded file stored in execution files',
+      optional: true,
+    },
   },
 }

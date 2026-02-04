@@ -432,4 +432,104 @@ describe('regenerateBlockIds', () => {
     expect(duplicatedBlock.position).toEqual({ x: 280, y: 70 })
     expect(duplicatedBlock.data?.parentId).toBe(loopId)
   })
+
+  it('should unlock pasted block when source is locked', () => {
+    const blockId = 'block-1'
+
+    const blocksToCopy = {
+      [blockId]: createAgentBlock({
+        id: blockId,
+        name: 'Locked Agent',
+        position: { x: 100, y: 50 },
+        locked: true,
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+
+    // Pasted blocks are always unlocked so users can edit them
+    const pastedBlock = newBlocks[0]
+    expect(pastedBlock.locked).toBe(false)
+  })
+
+  it('should keep pasted block unlocked when source is unlocked', () => {
+    const blockId = 'block-1'
+
+    const blocksToCopy = {
+      [blockId]: createAgentBlock({
+        id: blockId,
+        name: 'Unlocked Agent',
+        position: { x: 100, y: 50 },
+        locked: false,
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(1)
+
+    const pastedBlock = newBlocks[0]
+    expect(pastedBlock.locked).toBe(false)
+  })
+
+  it('should unlock all pasted blocks regardless of source locked state', () => {
+    const lockedId = 'locked-1'
+    const unlockedId = 'unlocked-1'
+
+    const blocksToCopy = {
+      [lockedId]: createAgentBlock({
+        id: lockedId,
+        name: 'Originally Locked Agent',
+        position: { x: 100, y: 50 },
+        locked: true,
+      }),
+      [unlockedId]: createFunctionBlock({
+        id: unlockedId,
+        name: 'Originally Unlocked Function',
+        position: { x: 200, y: 50 },
+        locked: false,
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {},
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+
+    const newBlocks = Object.values(result.blocks)
+    expect(newBlocks).toHaveLength(2)
+
+    // All pasted blocks should be unlocked so users can edit them
+    for (const block of newBlocks) {
+      expect(block.locked).toBe(false)
+    }
+  })
 })

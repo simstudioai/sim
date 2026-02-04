@@ -5,6 +5,8 @@ import { persist } from 'zustand/middleware'
 import { EDITOR_CONNECTIONS_HEIGHT } from '@/stores/constants'
 import { usePanelStore } from '../store'
 
+let renameCallback: (() => void) | null = null
+
 /**
  * State for the Editor panel.
  * Tracks the currently selected block to edit its subblocks/values and connections panel height.
@@ -22,10 +24,10 @@ interface PanelEditorState {
   setConnectionsHeight: (height: number) => void
   /** Toggle connections between collapsed (min height) and expanded (default height) */
   toggleConnectionsCollapsed: () => void
-  /** Flag to signal the editor to focus the rename input */
-  shouldFocusRename: boolean
-  /** Sets the shouldFocusRename flag */
-  setShouldFocusRename: (value: boolean) => void
+  /** Register the rename callback (called by Editor on mount) */
+  registerRenameCallback: (callback: (() => void) | null) => void
+  /** Trigger rename mode by invoking the registered callback */
+  triggerRename: () => void
 }
 
 /**
@@ -37,15 +39,16 @@ export const usePanelEditorStore = create<PanelEditorState>()(
     (set, get) => ({
       currentBlockId: null,
       connectionsHeight: EDITOR_CONNECTIONS_HEIGHT.DEFAULT,
-      shouldFocusRename: false,
-      setShouldFocusRename: (value) => set({ shouldFocusRename: value }),
+      registerRenameCallback: (callback) => {
+        renameCallback = callback
+      },
+      triggerRename: () => {
+        renameCallback?.()
+      },
       setCurrentBlockId: (blockId) => {
         set({ currentBlockId: blockId })
-
-        // When a block is selected, always switch to the editor tab
         if (blockId !== null) {
-          const panelState = usePanelStore.getState()
-          panelState.setActiveTab('editor')
+          usePanelStore.getState().setActiveTab('editor')
         }
       },
       clearCurrentBlock: () => {
@@ -57,7 +60,6 @@ export const usePanelEditorStore = create<PanelEditorState>()(
           Math.min(EDITOR_CONNECTIONS_HEIGHT.MAX, height)
         )
         set({ connectionsHeight: clampedHeight })
-        // Update CSS variable for immediate visual feedback
         if (typeof window !== 'undefined') {
           document.documentElement.style.setProperty(
             '--editor-connections-height',
@@ -73,8 +75,6 @@ export const usePanelEditorStore = create<PanelEditorState>()(
           : EDITOR_CONNECTIONS_HEIGHT.MIN
 
         set({ connectionsHeight: newHeight })
-
-        // Update CSS variable
         if (typeof window !== 'undefined') {
           document.documentElement.style.setProperty(
             '--editor-connections-height',
@@ -90,7 +90,6 @@ export const usePanelEditorStore = create<PanelEditorState>()(
         connectionsHeight: state.connectionsHeight,
       }),
       onRehydrateStorage: () => (state) => {
-        // Sync CSS variables with stored state after rehydration
         if (state && typeof window !== 'undefined') {
           document.documentElement.style.setProperty(
             '--editor-connections-height',

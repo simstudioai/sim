@@ -249,3 +249,62 @@ export function createVersionedToolSelector<TParams extends Record<string, any>>
     }
   }
 }
+
+const DEFAULT_MULTIPLE_FILES_ERROR =
+  'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
+
+/**
+ * Normalizes file input from block params to a consistent format.
+ * Handles the case where template resolution JSON.stringify's arrays/objects
+ * when they're placed in short-input fields (advanced mode).
+ *
+ * @param fileParam - The file parameter which could be:
+ *   - undefined/null (no files)
+ *   - An array of file objects (basic mode or properly resolved)
+ *   - A single file object
+ *   - A JSON string of file(s) (from advanced mode template resolution)
+ * @param options.single - If true, returns single file object and throws if multiple provided
+ * @param options.errorMessage - Custom error message when single is true and multiple files provided
+ * @returns Normalized file(s), or undefined if no files
+ */
+export function normalizeFileInput(
+  fileParam: unknown,
+  options: { single: true; errorMessage?: string }
+): object | undefined
+export function normalizeFileInput(
+  fileParam: unknown,
+  options?: { single?: false }
+): object[] | undefined
+export function normalizeFileInput(
+  fileParam: unknown,
+  options?: { single?: boolean; errorMessage?: string }
+): object | object[] | undefined {
+  if (!fileParam) return undefined
+
+  if (typeof fileParam === 'string') {
+    try {
+      fileParam = JSON.parse(fileParam)
+    } catch {
+      return undefined
+    }
+  }
+
+  let files: object[] | undefined
+
+  if (Array.isArray(fileParam)) {
+    files = fileParam.length > 0 ? fileParam : undefined
+  } else if (typeof fileParam === 'object' && fileParam !== null) {
+    files = [fileParam]
+  }
+
+  if (!files) return undefined
+
+  if (options?.single) {
+    if (files.length > 1) {
+      throw new Error(options.errorMessage ?? DEFAULT_MULTIPLE_FILES_ERROR)
+    }
+    return files[0]
+  }
+
+  return files
+}

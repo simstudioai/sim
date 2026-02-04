@@ -1,10 +1,20 @@
 import type { DropboxDownloadParams, DropboxDownloadResponse } from '@/tools/dropbox/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Escapes non-ASCII characters in JSON string for HTTP header safety.
+ * Dropbox API requires characters 0x7F and all non-ASCII to be escaped as \uXXXX.
+ */
+function httpHeaderSafeJson(value: object): string {
+  return JSON.stringify(value).replace(/[\u007f-\uffff]/g, (c) => {
+    return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4)
+  })
+}
+
 export const dropboxDownloadTool: ToolConfig<DropboxDownloadParams, DropboxDownloadResponse> = {
   id: 'dropbox_download',
   name: 'Dropbox Download File',
-  description: 'Download a file from Dropbox and get a temporary link',
+  description: 'Download a file from Dropbox with metadata and content',
   version: '1.0.0',
 
   oauth: {
@@ -22,7 +32,7 @@ export const dropboxDownloadTool: ToolConfig<DropboxDownloadParams, DropboxDownl
   },
 
   request: {
-    url: 'https://api.dropboxapi.com/2/files/get_temporary_link',
+    url: 'https://content.dropboxapi.com/2/files/download',
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {
@@ -30,45 +40,74 @@ export const dropboxDownloadTool: ToolConfig<DropboxDownloadParams, DropboxDownl
       }
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/octet-stream',
+        'Dropbox-API-Arg': httpHeaderSafeJson({ path: params.path }),
       }
     },
-    body: (params) => ({
-      path: params.path,
-    }),
   },
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-
+  transformResponse: async (response, params) => {
     if (!response.ok) {
+      const errorText = await response.text()
       return {
         success: false,
-        error: data.error_summary || data.error?.message || 'Failed to download file',
+        error: errorText || 'Failed to download file',
         output: {},
+      }
+    }
+
+    const apiResultHeader =
+      response.headers.get('dropbox-api-result') || response.headers.get('Dropbox-API-Result')
+    const metadata = apiResultHeader ? JSON.parse(apiResultHeader) : undefined
+    const contentType = response.headers.get('content-type') || 'application/octet-stream'
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    const resolvedName = metadata?.name || params?.path?.split('/').pop() || 'download'
+
+    let temporaryLink: string | undefined
+    if (params?.accessToken) {
+      try {
+        const linkResponse = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${params.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ path: params.path }),
+        })
+        if (linkResponse.ok) {
+          const linkData = await linkResponse.json()
+          temporaryLink = linkData.link
+        }
+      } catch {
+        temporaryLink = undefined
       }
     }
 
     return {
       success: true,
       output: {
-        file: data.metadata,
-        content: '', // Content will be available via the temporary link
-        temporaryLink: data.link,
+        file: {
+          name: resolvedName,
+          mimeType: contentType,
+          data: buffer.toString('base64'),
+          size: buffer.length,
+        },
+        content: buffer.toString('base64'),
+        metadata,
+        temporaryLink,
       },
     }
   },
 
   outputs: {
     file: {
-      type: 'object',
+      type: 'file',
+      description: 'Downloaded file stored in execution files',
+    },
+    metadata: {
+      type: 'json',
       description: 'The file metadata',
-      properties: {
-        id: { type: 'string', description: 'Unique identifier for the file' },
-        name: { type: 'string', description: 'Name of the file' },
-        path_display: { type: 'string', description: 'Display path of the file' },
-        size: { type: 'number', description: 'Size of the file in bytes' },
-      },
     },
     temporaryLink: {
       type: 'string',

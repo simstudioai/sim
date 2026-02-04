@@ -442,7 +442,16 @@ describe('Blocks Module', () => {
     })
 
     it('should have valid output types', () => {
-      const validPrimitiveTypes = ['string', 'number', 'boolean', 'json', 'array', 'files', 'any']
+      const validPrimitiveTypes = [
+        'string',
+        'number',
+        'boolean',
+        'json',
+        'array',
+        'file',
+        'file[]',
+        'any',
+      ]
       const blocks = getAllBlocks()
       for (const block of blocks) {
         for (const [key, outputConfig] of Object.entries(block.outputs)) {

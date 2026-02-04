@@ -1,4 +1,4 @@
-import type { ToolResponse } from '@/tools/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 // Base SSH connection configuration
 export interface SSHConnectionConfig {
@@ -149,6 +149,7 @@ export interface SSHResponse extends ToolResponse {
 
     uploaded?: boolean
     downloaded?: boolean
+    file?: ToolFileData
     fileContent?: string
     fileName?: string
     remotePath?: string

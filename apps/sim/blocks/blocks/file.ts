@@ -1,10 +1,47 @@
 import { createLogger } from '@sim/logger'
 import { DocumentIcon } from '@/components/icons'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
-import type { FileParserOutput } from '@/tools/file/types'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
+
+const resolveFilePathFromInput = (fileInput: unknown): string | null => {
+  if (!fileInput || typeof fileInput !== 'object') {
+    return null
+  }
+
+  const record = fileInput as Record<string, unknown>
+  if (typeof record.path === 'string' && record.path.trim() !== '') {
+    return record.path
+  }
+  if (typeof record.url === 'string' && record.url.trim() !== '') {
+    return record.url
+  }
+  if (typeof record.key === 'string' && record.key.trim() !== '') {
+    const key = record.key.trim()
+    const context = typeof record.context === 'string' ? record.context : inferContextFromKey(key)
+    return `/api/files/serve/${encodeURIComponent(key)}?context=${context}`
+  }
+
+  return null
+}
+
+const resolveFilePathsFromInput = (fileInput: unknown): string[] => {
+  if (!fileInput) {
+    return []
+  }
+
+  if (Array.isArray(fileInput)) {
+    return fileInput
+      .map((file) => resolveFilePathFromInput(file))
+      .filter((path): path is string => Boolean(path))
+  }
+
+  const resolved = resolveFilePathFromInput(fileInput)
+  return resolved ? [resolved] : []
+}
 
 export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
@@ -79,20 +116,10 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
 
         // Handle file upload input
         if (inputMethod === 'upload') {
-          // Handle case where 'file' is an array (multiple files)
-          if (params.file && Array.isArray(params.file) && params.file.length > 0) {
-            const filePaths = params.file.map((file) => file.path)
-
+          const filePaths = resolveFilePathsFromInput(params.file)
+          if (filePaths.length > 0) {
             return {
               filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
-              fileType: params.fileType || 'auto',
-            }
-          }
-
-          // Handle case where 'file' is a single file object
-          if (params.file?.path) {
-            return {
-              filePath: params.file.path,
               fileType: params.fileType || 'auto',
             }
           }
@@ -116,7 +143,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   },
   outputs: {
     files: {
-      type: 'json',
+      type: 'file[]',
       description: 'Array of parsed file objects with content, metadata, and file properties',
     },
     combinedContent: {
@@ -124,7 +151,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       description: 'All file contents merged into a single text string',
     },
     processedFiles: {
-      type: 'files',
+      type: 'file[]',
       description: 'Array of UserFile objects for downstream use (attachments, uploads, etc.)',
     },
   },
@@ -133,9 +160,9 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
 export const FileV2Block: BlockConfig<FileParserOutput> = {
   ...FileBlock,
   type: 'file_v2',
-  name: 'File',
+  name: 'File (Legacy)',
   description: 'Read and parse multiple files',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'file',
@@ -173,26 +200,25 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
           throw new Error('File is required')
         }
 
-        if (typeof fileInput === 'string') {
+        // First, try to normalize as file objects (handles JSON strings from advanced mode)
+        const normalizedFiles = normalizeFileInput(fileInput)
+        if (normalizedFiles) {
+          const filePaths = resolveFilePathsFromInput(normalizedFiles)
+          if (filePaths.length > 0) {
+            return {
+              filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
+              fileType: params.fileType || 'auto',
+              workspaceId: params._context?.workspaceId,
+            }
+          }
+        }
+
+        // If normalization fails, treat as direct URL string
+        if (typeof fileInput === 'string' && fileInput.trim()) {
           return {
             filePath: fileInput.trim(),
             fileType: params.fileType || 'auto',
             workspaceId: params._context?.workspaceId,
-          }
-        }
-
-        if (Array.isArray(fileInput) && fileInput.length > 0) {
-          const filePaths = fileInput.map((file) => file.path)
-          return {
-            filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
-            fileType: params.fileType || 'auto',
-          }
-        }
-
-        if (fileInput?.path) {
-          return {
-            filePath: fileInput.path,
-            fileType: params.fileType || 'auto',
           }
         }
 
@@ -209,8 +235,101 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
   },
   outputs: {
     files: {
-      type: 'json',
+      type: 'file[]',
       description: 'Array of parsed file objects with content, metadata, and file properties',
+    },
+    combinedContent: {
+      type: 'string',
+      description: 'All file contents merged into a single text string',
+    },
+  },
+}
+
+export const FileV3Block: BlockConfig<FileParserV3Output> = {
+  type: 'file_v3',
+  name: 'File',
+  description: 'Read and parse multiple files',
+  longDescription:
+    'Upload files directly or import from external URLs to get UserFile objects for use in other blocks.',
+  docsLink: 'https://docs.sim.ai/tools/file',
+  category: 'tools',
+  bgColor: '#40916C',
+  icon: DocumentIcon,
+  subBlocks: [
+    {
+      id: 'file',
+      title: 'Files',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'fileInput',
+      acceptedTypes: '*',
+      placeholder: 'Upload files to process',
+      multiple: true,
+      mode: 'basic',
+      maxSize: 100,
+      required: true,
+    },
+    {
+      id: 'fileUrl',
+      title: 'File URL',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'fileInput',
+      placeholder: 'https://example.com/document.pdf',
+      mode: 'advanced',
+      required: true,
+    },
+  ],
+  tools: {
+    access: ['file_parser_v3'],
+    config: {
+      tool: () => 'file_parser_v3',
+      params: (params) => {
+        const fileInput = params.fileInput ?? params.file ?? params.fileUrl ?? params.filePath
+        if (!fileInput) {
+          logger.error('No file input provided')
+          throw new Error('File input is required')
+        }
+
+        // First, try to normalize as file objects (handles JSON strings from advanced mode)
+        const normalizedFiles = normalizeFileInput(fileInput)
+        if (normalizedFiles) {
+          const filePaths = resolveFilePathsFromInput(normalizedFiles)
+          if (filePaths.length > 0) {
+            return {
+              filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
+              fileType: params.fileType || 'auto',
+              workspaceId: params._context?.workspaceId,
+              workflowId: params._context?.workflowId,
+              executionId: params._context?.executionId,
+            }
+          }
+        }
+
+        // If normalization fails, treat as direct URL string
+        if (typeof fileInput === 'string' && fileInput.trim()) {
+          return {
+            filePath: fileInput.trim(),
+            fileType: params.fileType || 'auto',
+            workspaceId: params._context?.workspaceId,
+            workflowId: params._context?.workflowId,
+            executionId: params._context?.executionId,
+          }
+        }
+
+        logger.error('Invalid file input format')
+        throw new Error('File input is required')
+      },
+    },
+  },
+  inputs: {
+    fileInput: { type: 'json', description: 'File input (upload or URL)' },
+    fileUrl: { type: 'string', description: 'External file URL (advanced mode)' },
+    file: { type: 'json', description: 'Uploaded file data (basic mode)' },
+    fileType: { type: 'string', description: 'File type' },
+  },
+  outputs: {
+    files: {
+      type: 'file[]',
+      description: 'Parsed files as UserFile objects',
     },
     combinedContent: {
       type: 'string',

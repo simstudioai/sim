@@ -1,6 +1,7 @@
 import { MicrosoftExcelIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { createVersionedToolSelector } from '@/blocks/utils'
 import type {
   MicrosoftExcelResponse,
   MicrosoftExcelV2Response,
@@ -489,16 +490,20 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
   tools: {
     access: ['microsoft_excel_read_v2', 'microsoft_excel_write_v2'],
     config: {
-      tool: (params) => {
-        switch (params.operation) {
-          case 'read':
-            return 'microsoft_excel_read_v2'
-          case 'write':
-            return 'microsoft_excel_write_v2'
-          default:
-            throw new Error(`Invalid Microsoft Excel V2 operation: ${params.operation}`)
-        }
-      },
+      tool: createVersionedToolSelector({
+        baseToolSelector: (params) => {
+          switch (params.operation) {
+            case 'read':
+              return 'microsoft_excel_read'
+            case 'write':
+              return 'microsoft_excel_write'
+            default:
+              throw new Error(`Invalid Microsoft Excel operation: ${params.operation}`)
+          }
+        },
+        suffix: '_v2',
+        fallbackToolId: 'microsoft_excel_read_v2',
+      }),
       params: (params) => {
         const {
           credential,

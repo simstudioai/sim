@@ -9,7 +9,9 @@ import {
   ChevronUp,
   ExternalLink,
   Loader2,
+  Lock,
   Pencil,
+  Unlock,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -46,6 +48,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
@@ -75,21 +78,15 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const {
-    currentBlockId,
-    connectionsHeight,
-    toggleConnectionsCollapsed,
-    shouldFocusRename,
-    setShouldFocusRename,
-  } = usePanelEditorStore(
-    useShallow((state) => ({
-      currentBlockId: state.currentBlockId,
-      connectionsHeight: state.connectionsHeight,
-      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
-      shouldFocusRename: state.shouldFocusRename,
-      setShouldFocusRename: state.setShouldFocusRename,
-    }))
-  )
+  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
+    usePanelEditorStore(
+      useShallow((state) => ({
+        currentBlockId: state.currentBlockId,
+        connectionsHeight: state.connectionsHeight,
+        toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+        registerRenameCallback: state.registerRenameCallback,
+      }))
+    )
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
@@ -109,6 +106,14 @@ export function Editor() {
   const subBlocksRef = useRef<HTMLDivElement>(null)
 
   const userPermissions = useUserPermissionsContext()
+
+  // Check if block is locked (or inside a locked container) and compute edit permission
+  // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const parentId = currentBlock?.data?.parentId as string | undefined
+  const isParentLocked = parentId ? (blocks[parentId]?.locked ?? false) : false
+  const isLocked = (currentBlock?.locked ?? false) || isParentLocked
+  const canEditBlock = userPermissions.canEdit && !isLocked
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
@@ -147,9 +152,7 @@ export function Editor() {
     () => hasAdvancedValues(subBlocksForCanonical, blockSubBlockValues, canonicalIndex),
     [subBlocksForCanonical, blockSubBlockValues, canonicalIndex]
   )
-  const displayAdvancedOptions = userPermissions.canEdit
-    ? advancedMode
-    : advancedMode || advancedValuesPresent
+  const displayAdvancedOptions = canEditBlock ? advancedMode : advancedMode || advancedValuesPresent
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
@@ -210,15 +213,17 @@ export function Editor() {
     collaborativeSetBlockCanonicalMode,
     collaborativeUpdateBlockName,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeBatchToggleLocked,
   } = useCollaborativeWorkflow()
 
   const handleToggleAdvancedMode = useCallback(() => {
-    if (!currentBlockId || !userPermissions.canEdit) return
+    if (!currentBlockId || !canEditBlock) return
     collaborativeToggleBlockAdvancedMode(currentBlockId)
-  }, [currentBlockId, userPermissions.canEdit, collaborativeToggleBlockAdvancedMode])
+  }, [currentBlockId, canEditBlock, collaborativeToggleBlockAdvancedMode])
 
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
+  const renamingBlockIdRef = useRef<string | null>(null)
 
   /**
    * Ref callback that auto-selects the input text when mounted.
@@ -230,44 +235,62 @@ export function Editor() {
   }, [])
 
   /**
-   * Handles starting the rename process.
+   * Starts the rename process for the current block.
+   * Reads from stores directly to avoid stale closures when called via registered callback.
+   * Captures the block ID in a ref to ensure the correct block is renamed even if selection changes.
    */
   const handleStartRename = useCallback(() => {
-    if (!userPermissions.canEdit || !currentBlock) return
-    setEditedName(currentBlock.name || '')
+    const blockId = usePanelEditorStore.getState().currentBlockId
+    if (!blockId) return
+
+    const blocks = useWorkflowStore.getState().blocks
+    const block = blocks[blockId]
+    if (!block) return
+
+    const parentId = block.data?.parentId as string | undefined
+    const isParentLocked = parentId ? (blocks[parentId]?.locked ?? false) : false
+    const isLocked = (block.locked ?? false) || isParentLocked
+    if (!userPermissions.canEdit || isLocked) return
+
+    renamingBlockIdRef.current = blockId
+    setEditedName(block.name || '')
     setIsRenaming(true)
-  }, [userPermissions.canEdit, currentBlock])
+  }, [userPermissions.canEdit])
 
   /**
-   * Handles saving the renamed block.
+   * Saves the renamed block using the captured block ID from when rename started.
    */
   const handleSaveRename = useCallback(() => {
-    if (!currentBlockId || !isRenaming) return
+    const blockIdToRename = renamingBlockIdRef.current
+    if (!blockIdToRename || !isRenaming) return
+
+    const blocks = useWorkflowStore.getState().blocks
+    const blockToRename = blocks[blockIdToRename]
 
     const trimmedName = editedName.trim()
-    if (trimmedName && trimmedName !== currentBlock?.name) {
-      const result = collaborativeUpdateBlockName(currentBlockId, trimmedName)
+    if (trimmedName && blockToRename && trimmedName !== blockToRename.name) {
+      const result = collaborativeUpdateBlockName(blockIdToRename, trimmedName)
       if (!result.success) {
         return
       }
     }
+    renamingBlockIdRef.current = null
     setIsRenaming(false)
-  }, [currentBlockId, isRenaming, editedName, currentBlock?.name, collaborativeUpdateBlockName])
+  }, [isRenaming, editedName, collaborativeUpdateBlockName])
 
   /**
    * Handles canceling the rename process.
    */
   const handleCancelRename = useCallback(() => {
+    renamingBlockIdRef.current = null
     setIsRenaming(false)
     setEditedName('')
   }, [])
 
   useEffect(() => {
-    if (shouldFocusRename && currentBlock) {
-      handleStartRename()
-      setShouldFocusRename(false)
-    }
-  }, [shouldFocusRename, currentBlock, handleStartRename, setShouldFocusRename])
+    registerRenameCallback(handleStartRename)
+    return () => registerRenameCallback(null)
+  }, [registerRenameCallback, handleStartRename])
 
   /**
    * Handles opening documentation link in a new secure tab.
@@ -341,6 +364,36 @@ export function Editor() {
           )}
         </div>
         <div className='flex shrink-0 items-center gap-[8px]'>
+          {/* Locked indicator - clickable to unlock if user has admin permissions, block is locked, and parent is not locked */}
+          {isLocked && currentBlock && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                {userPermissions.canAdmin && currentBlock.locked && !isParentLocked ? (
+                  <Button
+                    variant='ghost'
+                    className='p-0'
+                    onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
+                    aria-label='Unlock block'
+                  >
+                    <Unlock className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
+                  </Button>
+                ) : (
+                  <div className='flex items-center justify-center'>
+                    <Lock className='h-[14px] w-[14px] text-[var(--text-secondary)]' />
+                  </div>
+                )}
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>
+                  {isParentLocked
+                    ? 'Parent container is locked'
+                    : userPermissions.canAdmin && currentBlock.locked
+                      ? 'Unlock block'
+                      : 'Block is locked'}
+                </p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
           {/* Rename button */}
           {currentBlock && (
             <Tooltip.Root>
@@ -349,7 +402,7 @@ export function Editor() {
                   variant='ghost'
                   className='p-0'
                   onClick={isRenaming ? handleSaveRename : handleStartRename}
-                  disabled={!userPermissions.canEdit}
+                  disabled={!canEditBlock}
                   aria-label={isRenaming ? 'Save name' : 'Rename block'}
                 >
                   {isRenaming ? (
@@ -415,7 +468,7 @@ export function Editor() {
           incomingConnections={incomingConnections}
           handleConnectionsResizeMouseDown={handleConnectionsResizeMouseDown}
           toggleConnectionsCollapsed={toggleConnectionsCollapsed}
-          userCanEdit={userPermissions.canEdit}
+          userCanEdit={canEditBlock}
           isConnectionsAtMinHeight={isConnectionsAtMinHeight}
         />
       ) : (
@@ -517,14 +570,14 @@ export function Editor() {
                           config={subBlock}
                           isPreview={false}
                           subBlockValues={subBlockState}
-                          disabled={!userPermissions.canEdit}
+                          disabled={!canEditBlock}
                           fieldDiffStatus={undefined}
                           allowExpandInPreview={false}
                           canonicalToggle={
                             isCanonicalSwap && canonicalMode && canonicalId
                               ? {
                                   mode: canonicalMode,
-                                  disabled: !userPermissions.canEdit,
+                                  disabled: !canEditBlock,
                                   onToggle: () => {
                                     if (!currentBlockId) return
                                     const nextMode =
@@ -548,7 +601,7 @@ export function Editor() {
                     )
                   })}
 
-                  {hasAdvancedOnlyFields && userPermissions.canEdit && (
+                  {hasAdvancedOnlyFields && canEditBlock && (
                     <div className='flex items-center gap-[10px] px-[2px] pt-[14px] pb-[12px]'>
                       <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
                       <button
@@ -581,7 +634,7 @@ export function Editor() {
                           config={subBlock}
                           isPreview={false}
                           subBlockValues={subBlockState}
-                          disabled={!userPermissions.canEdit}
+                          disabled={!canEditBlock}
                           fieldDiffStatus={undefined}
                           allowExpandInPreview={false}
                         />

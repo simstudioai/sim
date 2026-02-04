@@ -1,4 +1,4 @@
-import type { OutputProperty, ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
  * Shared output property definitions for GitHub API responses.
@@ -1876,6 +1876,7 @@ export interface TreeItemMetadata {
 export interface FileContentResponse extends ToolResponse {
   output: {
     content: string
+    file?: ToolFileData
     metadata: FileContentMetadata
   }
 }

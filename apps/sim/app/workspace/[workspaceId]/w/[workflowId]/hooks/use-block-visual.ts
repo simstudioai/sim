@@ -47,6 +47,7 @@ export function useBlockVisual({
     isActive: isExecuting,
     diffStatus,
     isDeletedBlock,
+    isLocked,
   } = useBlockState(blockId, currentWorkflow, data)
 
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
@@ -103,6 +104,7 @@ export function useBlockVisual({
     currentWorkflow,
     activeWorkflowId,
     isEnabled,
+    isLocked,
     handleClick,
     hasRing,
     ringStyles,

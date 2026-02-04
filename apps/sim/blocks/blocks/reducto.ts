@@ -1,11 +1,13 @@
 import { ReductoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { ReductoParserOutput } from '@/tools/reducto/types'
 
 export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
   type: 'reducto',
   name: 'Reducto',
   description: 'Extract text from PDF documents',
+  hideFromToolbar: true,
   authMode: AuthMode.ApiKey,
   longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.`,
   docsLink: 'https://docs.sim.ai/tools/reducto',
@@ -74,7 +76,7 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
         }
 
         if (typeof documentInput === 'object') {
-          parameters.fileUpload = documentInput
+          parameters.file = documentInput
         } else if (typeof documentInput === 'string') {
           parameters.filePath = documentInput.trim()
         }
@@ -131,4 +133,104 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
     pdf_url: { type: 'string', description: 'Storage URL of converted PDF' },
     studio_link: { type: 'string', description: 'Link to Reducto studio interface' },
   },
+}
+
+const reductoV2Inputs = ReductoBlock.inputs
+  ? {
+      ...Object.fromEntries(
+        Object.entries(ReductoBlock.inputs).filter(([key]) => key !== 'filePath')
+      ),
+      fileReference: { type: 'json', description: 'File reference (advanced mode)' },
+    }
+  : {}
+const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => {
+  if (subBlock.id === 'filePath') {
+    return []
+  }
+  if (subBlock.id === 'fileUpload') {
+    return [
+      subBlock,
+      {
+        id: 'fileReference',
+        title: 'PDF Document',
+        type: 'short-input' as SubBlockType,
+        canonicalParamId: 'document',
+        placeholder: 'File reference',
+        mode: 'advanced' as const,
+      },
+    ]
+  }
+  return [subBlock]
+})
+
+export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
+  ...ReductoBlock,
+  type: 'reducto_v2',
+  name: 'Reducto',
+  hideFromToolbar: false,
+  longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents or file references.`,
+  subBlocks: reductoV2SubBlocks,
+  tools: {
+    access: ['reducto_parser_v2'],
+    config: {
+      tool: createVersionedToolSelector({
+        baseToolSelector: () => 'reducto_parser',
+        suffix: '_v2',
+        fallbackToolId: 'reducto_parser_v2',
+      }),
+      params: (params) => {
+        if (!params || !params.apiKey || params.apiKey.trim() === '') {
+          throw new Error('Reducto API key is required')
+        }
+
+        const parameters: Record<string, unknown> = {
+          apiKey: params.apiKey.trim(),
+        }
+
+        const documentInput = normalizeFileInput(
+          params.fileUpload || params.fileReference || params.document,
+          { single: true }
+        )
+        if (!documentInput) {
+          throw new Error('PDF document file is required')
+        }
+        parameters.file = documentInput
+
+        let pagesArray: number[] | undefined
+        if (params.pages && params.pages.trim() !== '') {
+          try {
+            pagesArray = params.pages
+              .split(',')
+              .map((p: string) => p.trim())
+              .filter((p: string) => p.length > 0)
+              .map((p: string) => {
+                const num = Number.parseInt(p, 10)
+                if (Number.isNaN(num) || num < 0) {
+                  throw new Error(`Invalid page number: ${p}`)
+                }
+                return num
+              })
+
+            if (pagesArray && pagesArray.length === 0) {
+              pagesArray = undefined
+            }
+          } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            throw new Error(`Page number format error: ${errorMessage}`)
+          }
+        }
+
+        if (pagesArray && pagesArray.length > 0) {
+          parameters.pages = pagesArray
+        }
+
+        if (params.tableOutputFormat) {
+          parameters.tableOutputFormat = params.tableOutputFormat
+        }
+
+        return parameters
+      },
+    },
+  },
+  inputs: reductoV2Inputs,
 }

@@ -270,7 +270,7 @@ import {
   exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
-import { fileParserV2Tool, fileParseTool } from '@/tools/file'
+import { fileParserV2Tool, fileParserV3Tool, fileParseTool } from '@/tools/file'
 import {
   firecrawlAgentTool,
   firecrawlCrawlTool,
@@ -794,6 +794,7 @@ import {
 } from '@/tools/intercom'
 import { jinaReadUrlTool, jinaSearchTool } from '@/tools/jina'
 import {
+  jiraAddAttachmentTool,
   jiraAddCommentTool,
   jiraAddWatcherTool,
   jiraAddWorklogTool,
@@ -1259,7 +1260,7 @@ import {
   posthogUpdatePropertyDefinitionTool,
   posthogUpdateSurveyTool,
 } from '@/tools/posthog'
-import { pulseParserTool } from '@/tools/pulse'
+import { pulseParserTool, pulseParserV2Tool } from '@/tools/pulse'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import {
   rdsDeleteTool,
@@ -1284,7 +1285,7 @@ import {
   redditUnsaveTool,
   redditVoteTool,
 } from '@/tools/reddit'
-import { reductoParserTool } from '@/tools/reducto'
+import { reductoParserTool, reductoParserV2Tool } from '@/tools/reducto'
 import { mailSendTool } from '@/tools/resend'
 import {
   s3CopyObjectTool,
@@ -1584,10 +1585,15 @@ import {
 } from '@/tools/stripe'
 import {
   assemblyaiSttTool,
+  assemblyaiSttV2Tool,
   deepgramSttTool,
+  deepgramSttV2Tool,
   elevenLabsSttTool,
+  elevenLabsSttV2Tool,
   geminiSttTool,
+  geminiSttV2Tool,
   whisperSttTool,
+  whisperSttV2Tool,
 } from '@/tools/stt'
 import {
   supabaseCountTool,
@@ -1623,7 +1629,7 @@ import {
   telegramSendPhotoTool,
   telegramSendVideoTool,
 } from '@/tools/telegram'
-import { textractParserTool } from '@/tools/textract'
+import { textractParserTool, textractParserV2Tool } from '@/tools/textract'
 import { thinkingTool } from '@/tools/thinking'
 import { tinybirdEventsTool, tinybirdQueryTool } from '@/tools/tinybird'
 import {
@@ -1663,7 +1669,7 @@ import {
   runwayVideoTool,
   veoVideoTool,
 } from '@/tools/video'
-import { visionTool } from '@/tools/vision'
+import { visionTool, visionToolV2 } from '@/tools/vision'
 import {
   wealthboxReadContactTool,
   wealthboxReadNoteTool,
@@ -1807,8 +1813,10 @@ export const tools: Record<string, ToolConfig> = {
   llm_chat: llmChatTool,
   function_execute: functionExecuteTool,
   vision_tool: visionTool,
+  vision_tool_v2: visionToolV2,
   file_parser: fileParseTool,
   file_parser_v2: fileParserV2Tool,
+  file_parser_v3: fileParserV3Tool,
   firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,
   firecrawl_crawl: firecrawlCrawlTool,
@@ -1909,6 +1917,7 @@ export const tools: Record<string, ToolConfig> = {
   jira_update_comment: jiraUpdateCommentTool,
   jira_delete_comment: jiraDeleteCommentTool,
   jira_get_attachments: jiraGetAttachmentsTool,
+  jira_add_attachment: jiraAddAttachmentTool,
   jira_delete_attachment: jiraDeleteAttachmentTool,
   jira_add_worklog: jiraAddWorklogTool,
   jira_get_worklogs: jiraGetWorklogsTool,
@@ -2551,6 +2560,7 @@ export const tools: Record<string, ToolConfig> = {
   perplexity_chat: perplexityChatTool,
   perplexity_search: perplexitySearchTool,
   pulse_parser: pulseParserTool,
+  pulse_parser_v2: pulseParserV2Tool,
   posthog_capture_event: posthogCaptureEventTool,
   posthog_batch_events: posthogBatchEventsTool,
   posthog_list_persons: posthogListPersonsTool,
@@ -2675,7 +2685,9 @@ export const tools: Record<string, ToolConfig> = {
   mistral_parser: mistralParserTool,
   mistral_parser_v2: mistralParserV2Tool,
   reducto_parser: reductoParserTool,
+  reducto_parser_v2: reductoParserV2Tool,
   textract_parser: textractParserTool,
+  textract_parser_v2: textractParserV2Tool,
   thinking_tool: thinkingTool,
   tinybird_events: tinybirdEventsTool,
   tinybird_query: tinybirdQueryTool,
@@ -2703,10 +2715,15 @@ export const tools: Record<string, ToolConfig> = {
   search_tool: searchTool,
   elevenlabs_tts: elevenLabsTtsTool,
   stt_whisper: whisperSttTool,
+  stt_whisper_v2: whisperSttV2Tool,
   stt_deepgram: deepgramSttTool,
+  stt_deepgram_v2: deepgramSttV2Tool,
   stt_elevenlabs: elevenLabsSttTool,
+  stt_elevenlabs_v2: elevenLabsSttV2Tool,
   stt_assemblyai: assemblyaiSttTool,
+  stt_assemblyai_v2: assemblyaiSttV2Tool,
   stt_gemini: geminiSttTool,
+  stt_gemini_v2: geminiSttV2Tool,
   tts_openai: openaiTtsTool,
   tts_deepgram: deepgramTtsTool,
   tts_elevenlabs: elevenLabsTtsUnifiedTool,

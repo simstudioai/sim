@@ -2,15 +2,14 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { StorageService } from '@/lib/uploads'
 import {
-  extractStorageKey,
-  inferContextFromKey,
-  isInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +17,8 @@ const logger = createLogger('ReductoParseAPI')
 
 const ReductoParseSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().min(1, 'File path is required'),
+  filePath: z.string().optional(),
+  file: RawFileInputSchema.optional(),
   pages: z.array(z.number()).optional(),
   tableOutputFormat: z.enum(['html', 'md']).optional(),
 })
@@ -47,56 +47,30 @@ export async function POST(request: NextRequest) {
     const validatedData = ReductoParseSchema.parse(body)
 
     logger.info(`[${requestId}] Reducto parse request`, {
+      fileName: validatedData.file?.name,
       filePath: validatedData.filePath,
-      isWorkspaceFile: isInternalFileUrl(validatedData.filePath),
+      isWorkspaceFile: validatedData.filePath ? isInternalFileUrl(validatedData.filePath) : false,
       userId,
     })
 
-    let fileUrl = validatedData.filePath
+    const resolution = await resolveFileInputToUrl({
+      file: validatedData.file,
+      filePath: validatedData.filePath,
+      userId,
+      requestId,
+      logger,
+    })
 
-    if (isInternalFileUrl(validatedData.filePath)) {
-      try {
-        const storageKey = extractStorageKey(validatedData.filePath)
-        const context = inferContextFromKey(storageKey)
+    if (resolution.error) {
+      return NextResponse.json(
+        { success: false, error: resolution.error.message },
+        { status: resolution.error.status }
+      )
+    }
 
-        const hasAccess = await verifyFileAccess(
-          storageKey,
-          userId,
-          undefined, // customConfig
-          context, // context
-          false // isLocal
-        )
-
-        if (!hasAccess) {
-          logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
-            userId,
-            key: storageKey,
-            context,
-          })
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'File not found',
-            },
-            { status: 404 }
-          )
-        }
-
-        fileUrl = await StorageService.generatePresignedDownloadUrl(storageKey, context, 5 * 60)
-        logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to generate presigned URL:`, error)
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Failed to generate file access URL',
-          },
-          { status: 500 }
-        )
-      }
-    } else if (validatedData.filePath?.startsWith('/')) {
-      const baseUrl = getBaseUrl()
-      fileUrl = `${baseUrl}${validatedData.filePath}`
+    const fileUrl = resolution.fileUrl
+    if (!fileUrl) {
+      return NextResponse.json({ success: false, error: 'File input is required' }, { status: 400 })
     }
 
     const reductoBody: Record<string, unknown> = {
@@ -104,8 +78,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (validatedData.pages && validatedData.pages.length > 0) {
+      // Reducto API expects page_range as an object with start/end, not an array
+      const pages = validatedData.pages
       reductoBody.settings = {
-        page_range: validatedData.pages,
+        page_range: {
+          start: Math.min(...pages),
+          end: Math.max(...pages),
+        },
       }
     }
 
@@ -115,15 +94,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const reductoResponse = await fetch('https://platform.reducto.ai/parse', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${validatedData.apiKey}`,
-      },
-      body: JSON.stringify(reductoBody),
-    })
+    const reductoEndpoint = 'https://platform.reducto.ai/parse'
+    const reductoValidation = await validateUrlWithDNS(reductoEndpoint, 'Reducto API URL')
+    if (!reductoValidation.isValid) {
+      logger.error(`[${requestId}] Reducto API URL validation failed`, {
+        error: reductoValidation.error,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to reach Reducto API',
+        },
+        { status: 502 }
+      )
+    }
+
+    const reductoResponse = await secureFetchWithPinnedIP(
+      reductoEndpoint,
+      reductoValidation.resolvedIP!,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${validatedData.apiKey}`,
+        },
+        body: JSON.stringify(reductoBody),
+      }
+    )
 
     if (!reductoResponse.ok) {
       const errorText = await reductoResponse.text()

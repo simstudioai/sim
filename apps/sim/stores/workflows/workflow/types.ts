@@ -87,6 +87,7 @@ export interface BlockState {
   triggerMode?: boolean
   data?: BlockData
   layout?: BlockLayoutState
+  locked?: boolean
 }
 
 export interface SubBlockState {
@@ -131,6 +132,7 @@ export interface Loop {
   whileCondition?: string // JS expression that evaluates to boolean (for while loops)
   doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
   enabled: boolean
+  locked?: boolean
 }
 
 export interface Parallel {
@@ -140,6 +142,7 @@ export interface Parallel {
   count?: number // Number of parallel executions for count-based parallel
   parallelType?: 'count' | 'collection' // Explicit parallel type to avoid inference bugs
   enabled: boolean
+  locked?: boolean
 }
 
 export interface Variable {
@@ -233,6 +236,8 @@ export interface WorkflowActions {
     workflowState: WorkflowState,
     options?: { updateLastSaved?: boolean }
   ) => void
+  setBlockLocked: (id: string, locked: boolean) => void
+  batchToggleLocked: (ids: string[]) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

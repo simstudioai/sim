@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 // User information returned in various file metadata fields
@@ -322,7 +323,7 @@ export interface GoogleDriveToolParams {
   folderSelector?: string
   fileId?: string
   fileName?: string
-  file?: any // UserFile object
+  file?: UserFile
   content?: string
   mimeType?: string
   query?: string

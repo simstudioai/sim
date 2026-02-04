@@ -1,4 +1,29 @@
-import type { ToolResponse } from '@/tools/types'
+import type { UserFile } from '@/executor/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
+
+export interface GraphApiErrorResponse {
+  error?: {
+    message?: string
+  }
+}
+
+export interface GraphDriveItem {
+  id: string
+  webUrl?: string
+  webDavUrl?: string
+  eTag?: string
+  name?: string
+  size?: number
+}
+
+export interface GraphChatMessage {
+  id?: string
+  chatId?: string
+  channelIdentity?: { teamId?: string; channelId?: string }
+  body?: { content?: string }
+  createdDateTime?: string
+  webUrl?: string
+}
 
 export interface MicrosoftTeamsAttachment {
   id: string
@@ -60,6 +85,7 @@ export interface MicrosoftTeamsWriteResponse extends ToolResponse {
   output: {
     updatedContent: boolean
     metadata: MicrosoftTeamsMetadata
+    files?: ToolFileData[]
   }
 }
 
@@ -71,7 +97,7 @@ export interface MicrosoftTeamsToolParams {
   teamId?: string
   content?: string
   includeAttachments?: boolean
-  files?: any[] // UserFile array for attachments
+  files?: UserFile[]
   reactionType?: string // For reaction operations
 }
 

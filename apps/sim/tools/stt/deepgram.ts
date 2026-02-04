@@ -1,4 +1,4 @@
-import type { SttParams, SttResponse } from '@/tools/stt/types'
+import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import { STT_SEGMENT_OUTPUT_PROPERTIES } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -129,5 +129,45 @@ export const deepgramSttTool: ToolConfig<SttParams, SttResponse> = {
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
     confidence: { type: 'number', description: 'Overall confidence score' },
+  },
+}
+
+const deepgramSttV2Params = {
+  provider: deepgramSttTool.params.provider,
+  apiKey: deepgramSttTool.params.apiKey,
+  model: deepgramSttTool.params.model,
+  audioFile: deepgramSttTool.params.audioFile,
+  audioFileReference: deepgramSttTool.params.audioFileReference,
+  language: deepgramSttTool.params.language,
+  timestamps: deepgramSttTool.params.timestamps,
+  diarization: deepgramSttTool.params.diarization,
+  translateToEnglish: deepgramSttTool.params.translateToEnglish,
+} satisfies ToolConfig['params']
+
+export const deepgramSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+  ...deepgramSttTool,
+  id: 'stt_deepgram_v2',
+  name: 'Deepgram STT',
+  params: deepgramSttV2Params,
+  request: {
+    ...deepgramSttTool.request,
+    body: (
+      params: SttV2Params & {
+        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
+      }
+    ) => ({
+      provider: 'deepgram',
+      apiKey: params.apiKey,
+      model: params.model,
+      audioFile: params.audioFile,
+      audioFileReference: params.audioFileReference,
+      language: params.language || 'auto',
+      timestamps: params.timestamps || 'none',
+      diarization: params.diarization || false,
+      translateToEnglish: params.translateToEnglish || false,
+      workspaceId: params._context?.workspaceId,
+      workflowId: params._context?.workflowId,
+      executionId: params._context?.executionId,
+    }),
   },
 }

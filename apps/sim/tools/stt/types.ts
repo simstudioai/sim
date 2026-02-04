@@ -77,6 +77,8 @@ export interface SttParams {
   summarization?: boolean
 }
 
+export interface SttV2Params extends Omit<SttParams, 'audioUrl'> {}
+
 export interface TranscriptSegment {
   text: string
   start: number

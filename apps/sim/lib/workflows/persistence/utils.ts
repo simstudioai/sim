@@ -226,6 +226,7 @@ export async function loadWorkflowFromNormalizedTables(
         subBlocks: (block.subBlocks as BlockState['subBlocks']) || {},
         outputs: (block.outputs as BlockState['outputs']) || {},
         data: blockData,
+        locked: block.locked,
       }
 
       blocksMap[block.id] = assembled
@@ -363,6 +364,7 @@ export async function saveWorkflowToNormalizedTables(
           data: block.data || {},
           parentId: block.data?.parentId || null,
           extent: block.data?.extent || null,
+          locked: block.locked ?? false,
         }))
 
         await tx.insert(workflowBlocks).values(blockInserts)
@@ -627,7 +629,8 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
   // Regenerate blocks with updated references
   Object.entries(state.blocks || {}).forEach(([oldId, block]) => {
     const newId = blockIdMapping.get(oldId)!
-    const newBlock: BlockState = { ...block, id: newId }
+    // Duplicated blocks are always unlocked so users can edit them
+    const newBlock: BlockState = { ...block, id: newId, locked: false }
 
     // Update parentId reference if it exists
     if (newBlock.data?.parentId) {

@@ -1,11 +1,13 @@
 import { STTIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { SttBlockResponse } from '@/tools/stt/types'
 
 export const SttBlock: BlockConfig<SttBlockResponse> = {
   type: 'stt',
   name: 'Speech-to-Text',
   description: 'Convert speech to text using AI',
+  hideFromToolbar: true,
   authMode: AuthMode.ApiKey,
   longDescription:
     'Transcribe audio and video files to text using leading AI providers. Supports multiple languages, timestamps, and speaker diarization.',
@@ -80,10 +82,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       title: 'Model',
       type: 'dropdown',
       condition: { field: 'provider', value: 'assemblyai' },
-      options: [
-        { label: 'Best', id: 'best' },
-        { label: 'Nano', id: 'nano' },
-      ],
+      options: [{ label: 'Best', id: 'best' }],
       value: () => 'best',
       required: true,
     },
@@ -259,22 +258,29 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
             return 'stt_whisper'
         }
       },
-      params: (params) => ({
-        provider: params.provider,
-        apiKey: params.apiKey,
-        model: params.model,
-        audioFile: params.audioFile,
-        audioFileReference: params.audioFileReference,
-        audioUrl: params.audioUrl,
-        language: params.language,
-        timestamps: params.timestamps,
-        diarization: params.diarization,
-        translateToEnglish: params.translateToEnglish,
-        sentiment: params.sentiment,
-        entityDetection: params.entityDetection,
-        piiRedaction: params.piiRedaction,
-        summarization: params.summarization,
-      }),
+      params: (params) => {
+        // Normalize file input from basic (file-upload) or advanced (short-input) mode
+        const audioFile = normalizeFileInput(params.audioFile || params.audioFileReference, {
+          single: true,
+        })
+
+        return {
+          provider: params.provider,
+          apiKey: params.apiKey,
+          model: params.model,
+          audioFile,
+          audioFileReference: undefined,
+          audioUrl: params.audioUrl,
+          language: params.language,
+          timestamps: params.timestamps,
+          diarization: params.diarization,
+          translateToEnglish: params.translateToEnglish,
+          sentiment: params.sentiment,
+          entityDetection: params.entityDetection,
+          piiRedaction: params.piiRedaction,
+          summarization: params.summarization,
+        }
+      },
     },
   },
 
@@ -344,4 +350,71 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
       },
     },
   },
+}
+
+const sttV2Inputs = SttBlock.inputs
+  ? Object.fromEntries(Object.entries(SttBlock.inputs).filter(([key]) => key !== 'audioUrl'))
+  : {}
+const sttV2SubBlocks = (SttBlock.subBlocks || []).filter((subBlock) => subBlock.id !== 'audioUrl')
+
+export const SttV2Block: BlockConfig<SttBlockResponse> = {
+  ...SttBlock,
+  type: 'stt_v2',
+  name: 'Speech-to-Text',
+  hideFromToolbar: false,
+  subBlocks: sttV2SubBlocks,
+  tools: {
+    access: [
+      'stt_whisper_v2',
+      'stt_deepgram_v2',
+      'stt_elevenlabs_v2',
+      'stt_assemblyai_v2',
+      'stt_gemini_v2',
+    ],
+    config: {
+      tool: createVersionedToolSelector({
+        baseToolSelector: (params) => {
+          switch (params.provider) {
+            case 'whisper':
+              return 'stt_whisper'
+            case 'deepgram':
+              return 'stt_deepgram'
+            case 'elevenlabs':
+              return 'stt_elevenlabs'
+            case 'assemblyai':
+              return 'stt_assemblyai'
+            case 'gemini':
+              return 'stt_gemini'
+            default:
+              return 'stt_whisper'
+          }
+        },
+        suffix: '_v2',
+        fallbackToolId: 'stt_whisper_v2',
+      }),
+      params: (params) => {
+        // Normalize file input from basic (file-upload) or advanced (short-input) mode
+        const audioFile = normalizeFileInput(params.audioFile || params.audioFileReference, {
+          single: true,
+        })
+
+        return {
+          provider: params.provider,
+          apiKey: params.apiKey,
+          model: params.model,
+          audioFile,
+          audioFileReference: undefined,
+          language: params.language,
+          timestamps: params.timestamps,
+          diarization: params.diarization,
+          translateToEnglish: params.translateToEnglish,
+          sentiment: params.sentiment,
+          entityDetection: params.entityDetection,
+          piiRedaction: params.piiRedaction,
+          summarization: params.summarization,
+        }
+      },
+    },
+  },
+  inputs: sttV2Inputs,
 }

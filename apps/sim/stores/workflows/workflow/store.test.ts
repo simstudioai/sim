@@ -1144,6 +1144,223 @@ describe('workflow store', () => {
     })
   })
 
+  describe('batchToggleLocked', () => {
+    it('should toggle block locked state', () => {
+      const { batchToggleLocked } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
+
+      // Initial state is undefined (falsy)
+      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBeFalsy()
+
+      batchToggleLocked(['block-1'])
+      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(true)
+
+      batchToggleLocked(['block-1'])
+      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(false)
+    })
+
+    it('should cascade lock to children when locking a loop', () => {
+      const { batchToggleLocked } = useWorkflowStore.getState()
+
+      addBlock('loop-1', 'loop', 'My Loop', { x: 0, y: 0 }, { loopType: 'for', count: 3 })
+      addBlock(
+        'child-1',
+        'function',
+        'Child',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+
+      batchToggleLocked(['loop-1'])
+
+      const { blocks } = useWorkflowStore.getState()
+      expect(blocks['loop-1'].locked).toBe(true)
+      expect(blocks['child-1'].locked).toBe(true)
+    })
+
+    it('should cascade unlock to children when unlocking a parallel', () => {
+      const { batchToggleLocked } = useWorkflowStore.getState()
+
+      addBlock('parallel-1', 'parallel', 'My Parallel', { x: 0, y: 0 }, { count: 3 })
+      addBlock(
+        'child-1',
+        'function',
+        'Child',
+        { x: 50, y: 50 },
+        { parentId: 'parallel-1' },
+        'parallel-1',
+        'parent'
+      )
+
+      // Lock first
+      batchToggleLocked(['parallel-1'])
+      expect(useWorkflowStore.getState().blocks['child-1'].locked).toBe(true)
+
+      // Unlock
+      batchToggleLocked(['parallel-1'])
+
+      const { blocks } = useWorkflowStore.getState()
+      expect(blocks['parallel-1'].locked).toBe(false)
+      expect(blocks['child-1'].locked).toBe(false)
+    })
+
+    it('should toggle multiple blocks at once', () => {
+      const { batchToggleLocked } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'function', 'Test 1', { x: 0, y: 0 })
+      addBlock('block-2', 'function', 'Test 2', { x: 100, y: 0 })
+
+      batchToggleLocked(['block-1', 'block-2'])
+
+      const { blocks } = useWorkflowStore.getState()
+      expect(blocks['block-1'].locked).toBe(true)
+      expect(blocks['block-2'].locked).toBe(true)
+    })
+  })
+
+  describe('setBlockLocked', () => {
+    it('should set block locked state', () => {
+      const { setBlockLocked } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
+
+      setBlockLocked('block-1', true)
+      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(true)
+
+      setBlockLocked('block-1', false)
+      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(false)
+    })
+
+    it('should not update if locked state is already the target value', () => {
+      const { setBlockLocked } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
+
+      // First set to true
+      setBlockLocked('block-1', true)
+      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(true)
+
+      // Setting to true again should still be true
+      setBlockLocked('block-1', true)
+      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(true)
+    })
+  })
+
+  describe('duplicateBlock with locked', () => {
+    it('should unlock duplicate when duplicating a locked block', () => {
+      const { setBlockLocked, duplicateBlock } = useWorkflowStore.getState()
+
+      addBlock('original', 'agent', 'Original Agent', { x: 0, y: 0 })
+      setBlockLocked('original', true)
+
+      expect(useWorkflowStore.getState().blocks.original.locked).toBe(true)
+
+      duplicateBlock('original')
+
+      const { blocks } = useWorkflowStore.getState()
+      const blockIds = Object.keys(blocks)
+
+      expect(blockIds.length).toBe(2)
+
+      const duplicatedId = blockIds.find((id) => id !== 'original')
+      expect(duplicatedId).toBeDefined()
+
+      if (duplicatedId) {
+        // Original should still be locked
+        expect(blocks.original.locked).toBe(true)
+        // Duplicate should be unlocked so users can edit it
+        expect(blocks[duplicatedId].locked).toBe(false)
+      }
+    })
+
+    it('should create unlocked duplicate when duplicating an unlocked block', () => {
+      const { duplicateBlock } = useWorkflowStore.getState()
+
+      addBlock('original', 'agent', 'Original Agent', { x: 0, y: 0 })
+
+      duplicateBlock('original')
+
+      const { blocks } = useWorkflowStore.getState()
+      const blockIds = Object.keys(blocks)
+      const duplicatedId = blockIds.find((id) => id !== 'original')
+
+      if (duplicatedId) {
+        expect(blocks[duplicatedId].locked).toBeFalsy()
+      }
+    })
+
+    it('should place duplicate outside locked container when duplicating block inside locked loop', () => {
+      const { batchToggleLocked, duplicateBlock } = useWorkflowStore.getState()
+
+      // Create a loop with a child block
+      addBlock('loop-1', 'loop', 'My Loop', { x: 0, y: 0 }, { loopType: 'for', count: 3 })
+      addBlock(
+        'child-1',
+        'function',
+        'Child',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+
+      // Lock the loop (which cascades to the child)
+      batchToggleLocked(['loop-1'])
+      expect(useWorkflowStore.getState().blocks['child-1'].locked).toBe(true)
+
+      // Duplicate the child block
+      duplicateBlock('child-1')
+
+      const { blocks } = useWorkflowStore.getState()
+      const blockIds = Object.keys(blocks)
+
+      expect(blockIds.length).toBe(3) // loop, original child, duplicate
+
+      const duplicatedId = blockIds.find((id) => id !== 'loop-1' && id !== 'child-1')
+      expect(duplicatedId).toBeDefined()
+
+      if (duplicatedId) {
+        // Duplicate should be unlocked
+        expect(blocks[duplicatedId].locked).toBe(false)
+        // Duplicate should NOT have a parentId (placed outside the locked container)
+        expect(blocks[duplicatedId].data?.parentId).toBeUndefined()
+        // Original should still be inside the loop
+        expect(blocks['child-1'].data?.parentId).toBe('loop-1')
+      }
+    })
+
+    it('should keep duplicate inside unlocked container when duplicating block inside unlocked loop', () => {
+      const { duplicateBlock } = useWorkflowStore.getState()
+
+      // Create a loop with a child block (not locked)
+      addBlock('loop-1', 'loop', 'My Loop', { x: 0, y: 0 }, { loopType: 'for', count: 3 })
+      addBlock(
+        'child-1',
+        'function',
+        'Child',
+        { x: 50, y: 50 },
+        { parentId: 'loop-1' },
+        'loop-1',
+        'parent'
+      )
+
+      // Duplicate the child block (loop is NOT locked)
+      duplicateBlock('child-1')
+
+      const { blocks } = useWorkflowStore.getState()
+      const blockIds = Object.keys(blocks)
+      const duplicatedId = blockIds.find((id) => id !== 'loop-1' && id !== 'child-1')
+
+      if (duplicatedId) {
+        // Duplicate should still be inside the loop since it's not locked
+        expect(blocks[duplicatedId].data?.parentId).toBe('loop-1')
+      }
+    })
+  })
+
   describe('updateBlockName', () => {
     beforeEach(() => {
       useWorkflowStore.setState({

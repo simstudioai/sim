@@ -1830,6 +1830,7 @@ export function useWorkflowExecution() {
       setEdgeRunStatus,
       addNotification,
       addConsole,
+      cancelRunningEntries,
       executionStream,
     ]
   )

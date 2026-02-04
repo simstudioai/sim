@@ -47,7 +47,7 @@ export function buildBlockExecutionError(details: BlockExecutionErrorDetails): E
   const blockName = details.block.metadata?.name || details.block.id
   const blockType = details.block.metadata?.id || 'unknown'
 
-  const error = new Error(`[${blockType}] ${blockName}: ${errorMessage}`)
+  const error = new Error(`${blockName}: ${errorMessage}`)
 
   Object.assign(error, {
     blockId: details.block.id,

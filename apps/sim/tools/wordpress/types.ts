@@ -1,4 +1,5 @@
 // Common types for WordPress REST API tools
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 // Common parameters for all WordPress tools (WordPress.com OAuth)
@@ -254,7 +255,7 @@ export interface WordPressListPagesResponse extends ToolResponse {
 
 // Upload Media
 export interface WordPressUploadMediaParams extends WordPressBaseParams {
-  file: any // UserFile object from file upload
+  file: UserFile
   filename?: string // Optional filename override
   title?: string
   caption?: string

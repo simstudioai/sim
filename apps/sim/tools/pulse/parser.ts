@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { PulseParserInput, PulseParserOutput } from '@/tools/pulse/types'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import type { PulseParserInput, PulseParserOutput, PulseParserV2Input } from '@/tools/pulse/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('PulseParserTool')
 
 export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = {
   id: 'pulse_parser',
@@ -14,9 +11,15 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
   params: {
     filePath: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'URL to a document to be processed',
+    },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'hidden',
+      description: 'Document file to be processed',
     },
     fileUpload: {
       type: 'object',
@@ -86,70 +89,50 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
         throw new Error('Missing or invalid API key: A valid Pulse API key is required')
       }
 
-      if (
-        params.fileUpload &&
-        (!params.filePath || params.filePath === 'null' || params.filePath === '')
-      ) {
-        if (
-          typeof params.fileUpload === 'object' &&
-          params.fileUpload !== null &&
-          (params.fileUpload.url || params.fileUpload.path)
-        ) {
-          let uploadedFilePath: string = params.fileUpload.url ?? params.fileUpload.path ?? ''
-
-          if (!uploadedFilePath) {
-            throw new Error('Invalid file upload: Upload data is missing or invalid')
-          }
-
-          if (uploadedFilePath.startsWith('/')) {
-            const baseUrl = getBaseUrl()
-            if (!baseUrl) throw new Error('Failed to get base URL for file path conversion')
-            uploadedFilePath = `${baseUrl}${uploadedFilePath}`
-          }
-
-          params.filePath = uploadedFilePath
-          logger.info('Using uploaded file:', uploadedFilePath)
-        } else {
-          throw new Error('Invalid file upload: Upload data is missing or invalid')
-        }
-      }
-
-      if (
-        !params.filePath ||
-        typeof params.filePath !== 'string' ||
-        params.filePath.trim() === ''
-      ) {
-        throw new Error('Missing or invalid file path: Please provide a URL to a document')
-      }
-
-      let filePathToValidate = params.filePath.trim()
-      if (filePathToValidate.startsWith('/')) {
-        const baseUrl = getBaseUrl()
-        if (!baseUrl) throw new Error('Failed to get base URL for file path conversion')
-        filePathToValidate = `${baseUrl}${filePathToValidate}`
-      }
-
-      let url
-      try {
-        url = new URL(filePathToValidate)
-
-        if (!['http:', 'https:'].includes(url.protocol)) {
-          throw new Error(`Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`)
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        throw new Error(
-          `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a document`
-        )
-      }
-
       const requestBody: Record<string, unknown> = {
         apiKey: params.apiKey.trim(),
-        filePath: url.toString(),
       }
+      const fileInput =
+        params.file && typeof params.file === 'object' ? params.file : params.fileUpload
+      const hasFileUpload = fileInput && typeof fileInput === 'object'
+      const hasFilePath =
+        typeof params.filePath === 'string' &&
+        params.filePath !== 'null' &&
+        params.filePath.trim() !== ''
 
-      if (params.fileUpload?.path?.startsWith('/api/files/serve/')) {
-        requestBody.filePath = params.fileUpload.path
+      if (hasFilePath) {
+        const filePathToValidate = params.filePath!.trim()
+
+        if (filePathToValidate.startsWith('/')) {
+          if (!isInternalFileUrl(filePathToValidate)) {
+            throw new Error(
+              'Invalid file path. Only uploaded files are supported for internal paths.'
+            )
+          }
+          requestBody.filePath = filePathToValidate
+        } else {
+          let url
+          try {
+            url = new URL(filePathToValidate)
+
+            if (!['http:', 'https:'].includes(url.protocol)) {
+              throw new Error(
+                `Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`
+              )
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            throw new Error(
+              `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a document`
+            )
+          }
+
+          requestBody.filePath = url.toString()
+        }
+      } else if (hasFileUpload) {
+        requestBody.file = fileInput
+      } else {
+        throw new Error('Missing file input: Please provide a document URL or upload a file')
       }
 
       if (params.pages && typeof params.pages === 'string' && params.pages.trim() !== '') {
@@ -267,6 +250,80 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
       type: 'json',
       description: 'Extracted figures if figure extraction was enabled',
       optional: true,
+    },
+  },
+}
+
+export const pulseParserV2Tool: ToolConfig<PulseParserV2Input, PulseParserOutput> = {
+  ...pulseParserTool,
+  id: 'pulse_parser_v2',
+  name: 'Pulse Document Parser',
+  postProcess: undefined,
+  directExecution: undefined,
+  transformResponse: pulseParserTool.transformResponse
+    ? (response: Response, params?: PulseParserV2Input) =>
+        pulseParserTool.transformResponse!(response, params as unknown as PulseParserInput)
+    : undefined,
+  params: {
+    file: {
+      type: 'file',
+      required: true,
+      visibility: 'hidden',
+      description: 'Document to be processed',
+    },
+    pages: pulseParserTool.params.pages,
+    extractFigure: pulseParserTool.params.extractFigure,
+    figureDescription: pulseParserTool.params.figureDescription,
+    returnHtml: pulseParserTool.params.returnHtml,
+    chunking: pulseParserTool.params.chunking,
+    chunkSize: pulseParserTool.params.chunkSize,
+    apiKey: pulseParserTool.params.apiKey,
+  },
+  request: {
+    url: '/api/tools/pulse/parse',
+    method: 'POST',
+    headers: () => ({
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    }),
+    body: (params: PulseParserV2Input) => {
+      if (!params || typeof params !== 'object') {
+        throw new Error('Invalid parameters: Parameters must be provided as an object')
+      }
+
+      if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
+        throw new Error('Missing or invalid API key: A valid Pulse API key is required')
+      }
+
+      if (!params.file || typeof params.file !== 'object') {
+        throw new Error('Missing or invalid file: Please provide a file object')
+      }
+
+      const requestBody: Record<string, unknown> = {
+        apiKey: params.apiKey.trim(),
+        file: params.file,
+      }
+
+      if (params.pages && typeof params.pages === 'string' && params.pages.trim() !== '') {
+        requestBody.pages = params.pages.trim()
+      }
+      if (params.extractFigure !== undefined) {
+        requestBody.extractFigure = params.extractFigure
+      }
+      if (params.figureDescription !== undefined) {
+        requestBody.figureDescription = params.figureDescription
+      }
+      if (params.returnHtml !== undefined) {
+        requestBody.returnHtml = params.returnHtml
+      }
+      if (params.chunking && typeof params.chunking === 'string' && params.chunking.trim() !== '') {
+        requestBody.chunking = params.chunking.trim()
+      }
+      if (params.chunkSize !== undefined && params.chunkSize > 0) {
+        requestBody.chunkSize = params.chunkSize
+      }
+
+      return requestBody
     },
   },
 }

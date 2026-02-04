@@ -441,11 +441,11 @@ async function executeWebhookJobInternal(
         if (triggerBlock?.subBlocks?.inputFormat?.value) {
           const inputFormat = triggerBlock.subBlocks.inputFormat.value as unknown as Array<{
             name: string
-            type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
+            type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
           }>
           logger.debug(`[${requestId}] Processing generic webhook files from inputFormat`)
 
-          const fileFields = inputFormat.filter((field) => field.type === 'files')
+          const fileFields = inputFormat.filter((field) => field.type === 'file[]')
 
           if (fileFields.length > 0 && typeof input === 'object' && input !== null) {
             const executionContext = {

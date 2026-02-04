@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -117,7 +118,7 @@ export interface OutlookSendParams {
   conversationId?: string
   cc?: string
   bcc?: string
-  attachments?: any[]
+  attachments?: UserFile[]
 }
 
 export interface OutlookSendResponse extends ToolResponse {
@@ -150,7 +151,7 @@ export interface OutlookDraftParams {
   subject: string
   body: string
   contentType?: 'text' | 'html'
-  attachments?: any[]
+  attachments?: UserFile[]
 }
 
 export interface OutlookDraftResponse extends ToolResponse {
@@ -217,7 +218,7 @@ export interface OutlookMessagesResponse {
 // Outlook attachment interface (for tool responses)
 export interface OutlookAttachment {
   name: string
-  data: Buffer
+  data: string
   contentType: string
   size: number
 }

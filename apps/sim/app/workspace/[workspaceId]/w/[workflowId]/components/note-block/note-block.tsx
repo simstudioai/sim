@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { NodeProps } from 'reactflow'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/core/utils/cn'
 import { BLOCK_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
@@ -305,7 +306,7 @@ function getEmbedInfo(url: string): EmbedInfo | null {
 const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkBreaks]}
       components={{
         p: ({ children }: any) => (
           <p className='mb-1 break-words text-[var(--text-primary)] text-sm leading-[1.25rem] last:mb-0'>

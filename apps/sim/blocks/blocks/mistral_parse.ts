@@ -1,6 +1,6 @@
 import { MistralIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
@@ -94,7 +94,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
           if (!params.fileUpload) {
             throw new Error('Please upload a PDF document')
           }
-          parameters.fileUpload = params.fileUpload
+          parameters.file = params.fileUpload
         }
 
         let pagesArray: number[] | undefined
@@ -159,14 +159,16 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
       placeholder: 'Upload a PDF document',
       mode: 'basic',
       maxSize: 50,
+      required: true,
     },
     {
-      id: 'filePath',
-      title: 'PDF Document',
+      id: 'fileReference',
+      title: 'File Reference',
       type: 'short-input' as SubBlockType,
       canonicalParamId: 'document',
-      placeholder: 'Document URL',
+      placeholder: 'File reference from previous block',
       mode: 'advanced',
+      required: true,
     },
     {
       id: 'resultType',
@@ -211,15 +213,14 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
           resultType: params.resultType || 'markdown',
         }
 
-        const documentInput = params.fileUpload || params.filePath || params.document
+        const documentInput = normalizeFileInput(
+          params.fileUpload || params.fileReference || params.document,
+          { single: true }
+        )
         if (!documentInput) {
           throw new Error('PDF document is required')
         }
-        if (typeof documentInput === 'object') {
-          parameters.fileUpload = documentInput
-        } else if (typeof documentInput === 'string') {
-          parameters.filePath = documentInput.trim()
-        }
+        parameters.file = documentInput
 
         let pagesArray: number[] | undefined
         if (params.pages && params.pages.trim() !== '') {
@@ -254,8 +255,8 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
     },
   },
   inputs: {
-    document: { type: 'json', description: 'Document input (file upload or URL reference)' },
-    filePath: { type: 'string', description: 'PDF document URL (advanced mode)' },
+    document: { type: 'json', description: 'Document input (file upload or file reference)' },
+    fileReference: { type: 'json', description: 'File reference (advanced mode)' },
     fileUpload: { type: 'json', description: 'Uploaded PDF file (basic mode)' },
     apiKey: { type: 'string', description: 'Mistral API key' },
     resultType: { type: 'string', description: 'Output format type' },
