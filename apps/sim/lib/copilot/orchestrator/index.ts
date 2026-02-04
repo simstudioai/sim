@@ -3,9 +3,14 @@ import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
 import { env } from '@/lib/core/config/env'
 import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import {
+  getToolCallIdFromEvent,
   handleSubagentRouting,
+  markToolCallSeen,
+  markToolResultSeen,
   sseHandlers,
   subAgentHandlers,
+  wasToolCallSeen,
+  wasToolResultSeen,
 } from '@/lib/copilot/orchestrator/sse-handlers'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
@@ -90,7 +95,45 @@ export async function orchestrateCopilotStream(
           break
         }
 
-        await forwardEvent(event, options)
+        // Skip tool_result events for tools the sim-side already executed.
+        // The sim-side emits its own tool_result with complete data.
+        // For server-side tools (not executed by sim), we still forward the Go backend's tool_result.
+        const toolCallId = getToolCallIdFromEvent(event)
+        const eventData =
+          typeof event.data === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(event.data)
+                } catch {
+                  return undefined
+                }
+              })()
+            : event.data
+
+        const isPartialToolCall = event.type === 'tool_call' && eventData?.partial === true
+
+        const shouldSkipToolCall =
+          event.type === 'tool_call' &&
+          !!toolCallId &&
+          !isPartialToolCall &&
+          (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId))
+
+        if (event.type === 'tool_call' && toolCallId && !isPartialToolCall && !shouldSkipToolCall) {
+          markToolCallSeen(toolCallId)
+        }
+
+        const shouldSkipToolResult =
+          event.type === 'tool_result' &&
+          (() => {
+            if (!toolCallId) return false
+            if (wasToolResultSeen(toolCallId)) return true
+            markToolResultSeen(toolCallId)
+            return false
+          })()
+
+        if (!shouldSkipToolCall && !shouldSkipToolResult) {
+          await forwardEvent(event, options)
+        }
 
         if (event.type === 'subagent_start') {
           const toolCallId = event.data?.tool_call_id
