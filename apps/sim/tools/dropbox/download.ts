@@ -1,15 +1,6 @@
+import { httpHeaderSafeJson } from '@/lib/core/utils/validation'
 import type { DropboxDownloadParams, DropboxDownloadResponse } from '@/tools/dropbox/types'
 import type { ToolConfig } from '@/tools/types'
-
-/**
- * Escapes non-ASCII characters in JSON string for HTTP header safety.
- * Dropbox API requires characters 0x7F and all non-ASCII to be escaped as \uXXXX.
- */
-function httpHeaderSafeJson(value: object): string {
-  return JSON.stringify(value).replace(/[\u007f-\uffff]/g, (c) => {
-    return `\\u${(`0000${c.charCodeAt(0).toString(16)}`).slice(-4)}`
-  })
-}
 
 export const dropboxDownloadTool: ToolConfig<DropboxDownloadParams, DropboxDownloadResponse> = {
   id: 'dropbox_download',

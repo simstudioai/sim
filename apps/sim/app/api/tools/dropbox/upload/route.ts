@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { httpHeaderSafeJson } from '@/lib/core/utils/validation'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -10,16 +11,6 @@ import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('DropboxUploadAPI')
-
-/**
- * Escapes non-ASCII characters in JSON string for HTTP header safety.
- * Dropbox API requires characters 0x7F and all non-ASCII to be escaped as \uXXXX.
- */
-function httpHeaderSafeJson(value: object): string {
-  return JSON.stringify(value).replace(/[\u007f-\uffff]/g, (c) => {
-    return `\\u${(`0000${c.charCodeAt(0).toString(16)}`).slice(-4)}`
-  })
-}
 
 const DropboxUploadSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),

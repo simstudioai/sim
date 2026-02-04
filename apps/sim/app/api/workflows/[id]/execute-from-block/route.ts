@@ -9,6 +9,7 @@ import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { createSSECallbacks } from '@/lib/workflows/executor/execution-events'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -233,11 +234,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+          const { traceSpans, totalDuration } = executionResult
+            ? buildTraceSpans(executionResult)
+            : { traceSpans: [], totalDuration: 0 }
 
           await loggingSession.safeCompleteWithError({
-            totalDurationMs: executionResult?.metadata?.duration,
+            totalDurationMs: totalDuration || executionResult?.metadata?.duration,
             error: { message: errorMessage },
-            traceSpans: executionResult?.logs as any,
+            traceSpans,
           })
 
           sendEvent({
