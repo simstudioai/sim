@@ -65,7 +65,7 @@ export function getExecutionTimeout(
   type: 'sync' | 'async' = 'sync'
 ): number {
   if (!isBillingEnabled) {
-    return EXECUTION_TIMEOUTS.enterprise[type]
+    return EXECUTION_TIMEOUTS.free[type]
   }
   return EXECUTION_TIMEOUTS[plan || 'free'][type]
 }
@@ -74,9 +74,7 @@ export function getMaxExecutionTimeout(): number {
   return EXECUTION_TIMEOUTS.enterprise.async
 }
 
-export const DEFAULT_EXECUTION_TIMEOUT_MS = isBillingEnabled
-  ? EXECUTION_TIMEOUTS.free.sync
-  : EXECUTION_TIMEOUTS.enterprise.sync
+export const DEFAULT_EXECUTION_TIMEOUT_MS = EXECUTION_TIMEOUTS.free.sync
 
 export function isTimeoutError(error: unknown): boolean {
   if (!error) return false
