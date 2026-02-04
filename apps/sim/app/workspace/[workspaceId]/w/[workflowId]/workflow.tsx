@@ -1173,7 +1173,7 @@ const WorkflowContent = React.memo(() => {
       block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
 
     if (isInsideSubflow) return { canRun: false, reason: 'Cannot run from inside subflow' }
-    if (!dependenciesSatisfied) return { canRun: false, reason: 'Run upstream blocks first' }
+    if (!dependenciesSatisfied) return { canRun: false, reason: 'Run previous blocks first' }
     if (isNoteBlock) return { canRun: false, reason: undefined }
     if (isExecuting) return { canRun: false, reason: undefined }
 
