@@ -2,9 +2,14 @@ import { createLogger } from '@sim/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
 import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import {
+  getToolCallIdFromEvent,
+  handleSubagentRouting,
+  markToolCallSeen,
+  markToolResultSeen,
   sseHandlers,
   subAgentHandlers,
-  handleSubagentRouting,
+  wasToolCallSeen,
+  wasToolResultSeen,
 } from '@/lib/copilot/orchestrator/sse-handlers'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
@@ -20,10 +25,11 @@ import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 const logger = createLogger('CopilotSubagentOrchestrator')
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
-export interface SubagentOrchestratorOptions extends OrchestratorOptions {
+export interface SubagentOrchestratorOptions extends Omit<OrchestratorOptions, 'onComplete'> {
   userId: string
   workflowId?: string
   workspaceId?: string
+  onComplete?: (result: SubagentOrchestratorResult) => void | Promise<void>
 }
 
 export interface SubagentOrchestratorResult {
@@ -106,7 +112,45 @@ export async function orchestrateSubagentStream(
           break
         }
 
-        await forwardEvent(event, options)
+        // Skip tool_result events for tools the sim-side already executed.
+        // The sim-side emits its own tool_result with complete data.
+        // For server-side tools (not executed by sim), we still forward the Go backend's tool_result.
+        const toolCallId = getToolCallIdFromEvent(event)
+        const eventData =
+          typeof event.data === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(event.data)
+                } catch {
+                  return undefined
+                }
+              })()
+            : event.data
+
+        const isPartialToolCall = event.type === 'tool_call' && eventData?.partial === true
+
+        const shouldSkipToolCall =
+          event.type === 'tool_call' &&
+          !!toolCallId &&
+          !isPartialToolCall &&
+          (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId))
+
+        if (event.type === 'tool_call' && toolCallId && !isPartialToolCall && !shouldSkipToolCall) {
+          markToolCallSeen(toolCallId)
+        }
+
+        const shouldSkipToolResult =
+          event.type === 'tool_result' &&
+          (() => {
+            if (!toolCallId) return false
+            if (wasToolResultSeen(toolCallId)) return true
+            markToolResultSeen(toolCallId)
+            return false
+          })()
+
+        if (!shouldSkipToolCall && !shouldSkipToolResult) {
+          await forwardEvent(event, options)
+        }
 
         if (event.type === 'structured_result' || event.type === 'subagent_result') {
           structuredResult = normalizeStructuredResult(event.data)

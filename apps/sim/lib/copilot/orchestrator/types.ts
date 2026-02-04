@@ -23,6 +23,8 @@ export interface SSEEvent {
   subagent?: string
   toolCallId?: string
   toolName?: string
+  success?: boolean
+  result?: any
 }
 
 export type ToolCallStatus = 'pending' | 'executing' | 'success' | 'error' | 'skipped' | 'rejected'
