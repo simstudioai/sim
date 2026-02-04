@@ -2855,10 +2855,7 @@ const WorkflowContent = React.memo(() => {
   /** Captures initial parent ID and position when drag starts. */
   const onNodeDragStart = useCallback(
     (_event: React.MouseEvent, node: any) => {
-      // Prevent dragging protected blocks
-      if (isBlockProtected(node.id, blocks)) {
-        return
-      }
+      // Note: Protected blocks are already non-draggable via the `draggable` node property
 
       // Store the original parent ID when starting to drag
       const currentParentId = blocks[node.id]?.data?.parentId || null

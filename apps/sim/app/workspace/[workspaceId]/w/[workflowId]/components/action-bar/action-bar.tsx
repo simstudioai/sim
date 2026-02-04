@@ -267,17 +267,21 @@ export const ActionBar = memo(
                 variant='ghost'
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!disabled) {
+                  if (!disabled && !isLocked && !isParentLocked) {
                     handleDuplicateBlock()
                   }
                 }}
                 className={ACTION_BUTTON_STYLES}
-                disabled={disabled}
+                disabled={disabled || isLocked || isParentLocked}
               >
                 <Copy className={ICON_SIZE} />
               </Button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>{getTooltipMessage('Duplicate Block')}</Tooltip.Content>
+            <Tooltip.Content side='top'>
+              {isLocked || isParentLocked
+                ? 'Block is locked'
+                : getTooltipMessage('Duplicate Block')}
+            </Tooltip.Content>
           </Tooltip.Root>
         )}
 
