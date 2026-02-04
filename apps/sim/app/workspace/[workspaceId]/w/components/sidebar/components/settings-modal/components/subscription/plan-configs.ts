@@ -1,11 +1,11 @@
 import {
-  Building2,
   Clock,
   Database,
   HardDrive,
   HeadphonesIcon,
   Server,
   ShieldCheck,
+  Timer,
   Users,
   Zap,
 } from 'lucide-react'
@@ -15,8 +15,8 @@ import type { PlanFeature } from '@/app/workspace/[workspaceId]/w/components/sid
 export const PRO_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '150 runs per minute (sync)' },
   { icon: Clock, text: '1,000 runs per minute (async)' },
+  { icon: Timer, text: '60 min sync execution limit' },
   { icon: HardDrive, text: '50GB file storage' },
-  { icon: Building2, text: 'Unlimited workspaces' },
   { icon: Users, text: 'Unlimited invites' },
   { icon: Database, text: 'Unlimited log retention' },
 ]
@@ -24,8 +24,8 @@ export const PRO_PLAN_FEATURES: PlanFeature[] = [
 export const TEAM_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '300 runs per minute (sync)' },
   { icon: Clock, text: '2,500 runs per minute (async)' },
+  { icon: Timer, text: '60 min sync execution limit' },
   { icon: HardDrive, text: '500GB file storage (pooled)' },
-  { icon: Building2, text: 'Unlimited workspaces' },
   { icon: Users, text: 'Unlimited invites' },
   { icon: Database, text: 'Unlimited log retention' },
   { icon: SlackMonoIcon, text: 'Dedicated Slack channel' },
