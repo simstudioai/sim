@@ -368,6 +368,7 @@ export function FileUpload({
     const uploadedFile: UploadedFile = {
       name: selectedFile.name,
       path: selectedFile.path,
+      key: selectedFile.key,
       size: selectedFile.size,
       type: selectedFile.type,
     }
