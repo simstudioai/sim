@@ -4,10 +4,12 @@ import { createLogger } from '@sim/logger'
 import { and, eq, lt, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 
 const logger = createLogger('CleanupStaleExecutions')
 
-const STALE_THRESHOLD_MINUTES = 30
+const STALE_THRESHOLD_MS = getMaxExecutionTimeout() + 5 * 60 * 1000
+const STALE_THRESHOLD_MINUTES = Math.ceil(STALE_THRESHOLD_MS / 60000)
 const MAX_INT32 = 2_147_483_647
 
 export async function GET(request: NextRequest) {

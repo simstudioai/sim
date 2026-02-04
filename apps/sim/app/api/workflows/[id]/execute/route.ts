@@ -5,6 +5,11 @@ import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import {
+  createTimeoutAbortController,
+  getTimeoutErrorMessage,
+  isTimeoutError,
+} from '@/lib/core/execution-limits'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -12,6 +17,7 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { processInputFileFields } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -120,10 +126,6 @@ type AsyncExecutionParams = {
   triggerType: CoreTriggerType
 }
 
-/**
- * Handles async workflow execution by queueing a background job.
- * Returns immediately with a 202 Accepted response containing the job ID.
- */
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
   const { requestId, workflowId, userId, input, triggerType } = params
 
@@ -405,6 +407,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)
+      const timeoutController = createTimeoutAbortController(
+        preprocessResult.executionTimeout?.sync
+      )
+
       try {
         const metadata: ExecutionMetadata = {
           requestId,
@@ -438,7 +444,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           includeFileBase64,
           base64MaxBytes,
           stopAfterBlockId,
+          abortSignal: timeoutController.signal,
         })
+
+        if (
+          result.status === 'cancelled' &&
+          timeoutController.isTimedOut() &&
+          timeoutController.timeoutMs
+        ) {
+          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          logger.info(`[${requestId}] Non-SSE execution timed out`, {
+            timeoutMs: timeoutController.timeoutMs,
+          })
+          await loggingSession.markAsFailed(timeoutErrorMessage)
+
+          return NextResponse.json(
+            {
+              success: false,
+              output: result.output,
+              error: timeoutErrorMessage,
+              metadata: result.metadata
+                ? {
+                    duration: result.metadata.duration,
+                    startTime: result.metadata.startTime,
+                    endTime: result.metadata.endTime,
+                  }
+                : undefined,
+            },
+            { status: 408 }
+          )
+        }
 
         const outputWithBase64 = includeFileBase64
           ? ((await hydrateUserFilesWithBase64(result.output, {
@@ -449,9 +484,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           : result.output
 
         const resultWithBase64 = { ...result, output: outputWithBase64 }
-
-        // Cleanup base64 cache for this execution
-        await cleanupExecutionBase64Cache(executionId)
 
         const hasResponseBlock = workflowHasResponseBlock(resultWithBase64)
         if (hasResponseBlock) {
@@ -474,9 +506,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json(filteredResult)
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
         logger.error(`[${requestId}] Non-SSE execution failed: ${errorMessage}`)
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+
+        await loggingSession.safeCompleteWithError({
+          totalDurationMs: executionResult?.metadata?.duration,
+          error: { message: errorMessage },
+          traceSpans: executionResult?.logs as any,
+        })
 
         return NextResponse.json(
           {
@@ -493,6 +532,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           },
           { status: 500 }
         )
+      } finally {
+        timeoutController.cleanup()
+        if (executionId) {
+          try {
+            await cleanupExecutionBase64Cache(executionId)
+          } catch (error) {
+            logger.error(`[${requestId}] Failed to cleanup base64 cache`, { error })
+          }
+        }
       }
     }
 
@@ -506,7 +554,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         cachedWorkflowData?.blocks || {}
       )
       const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
-
       const stream = await createStreamingResponse({
         requestId,
         workflow: {
@@ -524,6 +571,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
           includeFileBase64,
           base64MaxBytes,
+          timeoutMs: preprocessResult.executionTimeout?.sync,
         },
         executionId,
       })
@@ -535,7 +583,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const encoder = new TextEncoder()
-    const abortController = new AbortController()
+    const timeoutController = createTimeoutAbortController(preprocessResult.executionTimeout?.sync)
     let isStreamClosed = false
 
     const stream = new ReadableStream<Uint8Array>({
@@ -731,7 +779,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               onStream,
             },
             loggingSession,
-            abortSignal: abortController.signal,
+            abortSignal: timeoutController.signal,
             includeFileBase64,
             base64MaxBytes,
             stopAfterBlockId,
@@ -767,16 +815,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
 
           if (result.status === 'cancelled') {
-            logger.info(`[${requestId}] Workflow execution was cancelled`)
-            sendEvent({
-              type: 'execution:cancelled',
-              timestamp: new Date().toISOString(),
-              executionId,
-              workflowId,
-              data: {
-                duration: result.metadata?.duration || 0,
-              },
-            })
+            if (timeoutController.isTimedOut() && timeoutController.timeoutMs) {
+              const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+              logger.info(`[${requestId}] Workflow execution timed out`, {
+                timeoutMs: timeoutController.timeoutMs,
+              })
+
+              await loggingSession.markAsFailed(timeoutErrorMessage)
+
+              sendEvent({
+                type: 'execution:error',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: {
+                  error: timeoutErrorMessage,
+                  duration: result.metadata?.duration || 0,
+                },
+              })
+            } else {
+              logger.info(`[${requestId}] Workflow execution was cancelled`)
+
+              sendEvent({
+                type: 'execution:cancelled',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: {
+                  duration: result.metadata?.duration || 0,
+                },
+              })
+            }
             return
           }
 
@@ -799,14 +868,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
-
-          // Cleanup base64 cache for this execution
-          await cleanupExecutionBase64Cache(executionId)
         } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-          logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`)
+          const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
+          const errorMessage = isTimeout
+            ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+            : error instanceof Error
+              ? error.message
+              : 'Unknown error'
+
+          logger.error(`[${requestId}] SSE execution failed: ${errorMessage}`, { isTimeout })
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+          const { traceSpans, totalDuration } = executionResult
+            ? buildTraceSpans(executionResult)
+            : { traceSpans: [], totalDuration: 0 }
+
+          await loggingSession.safeCompleteWithError({
+            totalDurationMs: totalDuration || executionResult?.metadata?.duration,
+            error: { message: errorMessage },
+            traceSpans,
+          })
 
           sendEvent({
             type: 'execution:error',
@@ -819,20 +900,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
           })
         } finally {
+          timeoutController.cleanup()
+          if (executionId) {
+            await cleanupExecutionBase64Cache(executionId)
+          }
           if (!isStreamClosed) {
             try {
               controller.enqueue(encoder.encode('data: [DONE]\n\n'))
               controller.close()
-            } catch {
-              // Stream already closed - nothing to do
-            }
+            } catch {}
           }
         }
       },
       cancel() {
         isStreamClosed = true
+        timeoutController.cleanup()
         logger.info(`[${requestId}] Client aborted SSE stream, signalling cancellation`)
-        abortController.abort()
+        timeoutController.abort()
         markExecutionCancelled(executionId).catch(() => {})
       },
     })

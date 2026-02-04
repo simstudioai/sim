@@ -5,10 +5,8 @@ import type { ToolUIConfig } from './ui-config'
 
 const baseToolLogger = createLogger('BaseClientTool')
 
-/** Default timeout for tool execution (5 minutes) */
-const DEFAULT_TOOL_TIMEOUT_MS = 2 * 60 * 1000
+const DEFAULT_TOOL_TIMEOUT_MS = 5 * 60 * 1000
 
-/** Timeout for tools that run workflows (10 minutes) */
 export const WORKFLOW_EXECUTION_TIMEOUT_MS = 10 * 60 * 1000
 
 // Client tool call states used by the new runtime

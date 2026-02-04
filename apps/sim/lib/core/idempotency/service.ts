@@ -4,6 +4,7 @@ import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { extractProviderIdentifierFromBody } from '@/lib/webhooks/provider-utils'
 
@@ -36,9 +37,9 @@ export interface AtomicClaimResult {
   storageMethod: StorageMethod
 }
 
-const DEFAULT_TTL = 60 * 60 * 24 * 7 // 7 days
+const DEFAULT_TTL = 60 * 60 * 24 * 7
 const REDIS_KEY_PREFIX = 'idempotency:'
-const MAX_WAIT_TIME_MS = 300000 // 5 minutes max wait
+const MAX_WAIT_TIME_MS = getMaxExecutionTimeout()
 const POLL_INTERVAL_MS = 1000
 
 /**

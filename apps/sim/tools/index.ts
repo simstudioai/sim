@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -628,9 +629,8 @@ async function executeToolRequest(
     let response: Response
 
     if (isInternalRoute) {
-      // Set up AbortController for timeout support on internal routes
       const controller = new AbortController()
-      const timeout = requestParams.timeout || 300000
+      const timeout = requestParams.timeout || DEFAULT_EXECUTION_TIMEOUT_MS
       const timeoutId = setTimeout(() => controller.abort(), timeout)
 
       try {

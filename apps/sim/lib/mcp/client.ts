@@ -12,6 +12,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { ListToolsResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   McpConnectionError,
   type McpConnectionStatus,
@@ -202,7 +203,7 @@ export class McpClient {
       const sdkResult = await this.client.callTool(
         { name: toolCall.name, arguments: toolCall.arguments },
         undefined,
-        { timeout: 600000 } // 10 minutes - override SDK's 60s default
+        { timeout: getMaxExecutionTimeout() }
       )
 
       return sdkResult as McpToolResult

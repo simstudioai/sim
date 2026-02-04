@@ -3,11 +3,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { getTimeoutErrorMessage, isTimeoutError } from '@/lib/core/execution-limits'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { createSSECallbacks } from '@/lib/workflows/executor/execution-events'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -116,6 +118,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const loggingSession = new LoggingSession(workflowId, executionId, 'manual', requestId)
     const abortController = new AbortController()
     let isStreamClosed = false
+    let isTimedOut = false
+
+    const syncTimeout = preprocessResult.executionTimeout?.sync
+    let timeoutId: NodeJS.Timeout | undefined
+    if (syncTimeout) {
+      timeoutId = setTimeout(() => {
+        isTimedOut = true
+        abortController.abort()
+      }, syncTimeout)
+    }
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -167,13 +179,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })
 
           if (result.status === 'cancelled') {
-            sendEvent({
-              type: 'execution:cancelled',
-              timestamp: new Date().toISOString(),
-              executionId,
-              workflowId,
-              data: { duration: result.metadata?.duration || 0 },
-            })
+            if (isTimedOut && syncTimeout) {
+              const timeoutErrorMessage = getTimeoutErrorMessage(null, syncTimeout)
+              logger.info(`[${requestId}] Run-from-block execution timed out`, {
+                timeoutMs: syncTimeout,
+              })
+
+              await loggingSession.markAsFailed(timeoutErrorMessage)
+
+              sendEvent({
+                type: 'execution:error',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: {
+                  error: timeoutErrorMessage,
+                  duration: result.metadata?.duration || 0,
+                },
+              })
+            } else {
+              sendEvent({
+                type: 'execution:cancelled',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: { duration: result.metadata?.duration || 0 },
+              })
+            }
           } else {
             sendEvent({
               type: 'execution:completed',
@@ -190,10 +222,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             })
           }
         } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-          logger.error(`[${requestId}] Run-from-block execution failed: ${errorMessage}`)
+          const isTimeout = isTimeoutError(error) || isTimedOut
+          const errorMessage = isTimeout
+            ? getTimeoutErrorMessage(error, syncTimeout)
+            : error instanceof Error
+              ? error.message
+              : 'Unknown error'
+
+          logger.error(`[${requestId}] Run-from-block execution failed: ${errorMessage}`, {
+            isTimeout,
+          })
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+          const { traceSpans, totalDuration } = executionResult
+            ? buildTraceSpans(executionResult)
+            : { traceSpans: [], totalDuration: 0 }
+
+          await loggingSession.safeCompleteWithError({
+            totalDurationMs: totalDuration || executionResult?.metadata?.duration,
+            error: { message: errorMessage },
+            traceSpans,
+          })
 
           sendEvent({
             type: 'execution:error',
@@ -206,6 +255,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
           })
         } finally {
+          if (timeoutId) clearTimeout(timeoutId)
           if (!isStreamClosed) {
             try {
               controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
@@ -216,6 +266,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       cancel() {
         isStreamClosed = true
+        if (timeoutId) clearTimeout(timeoutId)
         abortController.abort()
         markExecutionCancelled(executionId).catch(() => {})
       },

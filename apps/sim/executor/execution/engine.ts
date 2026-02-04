@@ -162,6 +162,8 @@ export class ExecutionEngine {
         }
       }
 
+      this.finalizeIncompleteLogs()
+
       const errorMessage = normalizeError(error)
       logger.error('Execution failed', { error: errorMessage })
 

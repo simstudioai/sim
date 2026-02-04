@@ -229,6 +229,10 @@ export function addSubflowErrorLog(
   }
   ctx.blockLogs.push(blockLog)
 
+  if (contextExtensions?.onBlockStart) {
+    contextExtensions.onBlockStart(blockId, blockName, blockType, execOrder)
+  }
+
   if (contextExtensions?.onBlockComplete) {
     contextExtensions.onBlockComplete(blockId, blockName, blockType, {
       input: inputData,
