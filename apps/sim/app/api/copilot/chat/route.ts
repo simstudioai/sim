@@ -25,6 +25,11 @@ import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
+import {
+  appendStreamEvent,
+  resetStreamBuffer,
+  setStreamMeta,
+} from '@/lib/copilot/orchestrator/stream-buffer'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -491,16 +496,30 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     if (stream) {
+      const streamId = userMessageIdToUse
       const transformedStream = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder()
 
+          await resetStreamBuffer(streamId)
+          await setStreamMeta(streamId, { status: 'active', userId: authenticatedUserId })
+
+          const pushEvent = async (event: Record<string, any>) => {
+            const entry = await appendStreamEvent(streamId, event)
+            const payload = {
+              ...event,
+              eventId: entry.eventId,
+              streamId,
+            }
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+            } catch {
+              // Client disconnected - keep buffering
+            }
+          }
+
           if (actualChatId) {
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ type: 'chat_id', chatId: actualChatId })}\n\n`
-              )
-            )
+            await pushEvent({ type: 'chat_id', chatId: actualChatId })
           }
 
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
@@ -514,9 +533,7 @@ export async function POST(req: NextRequest) {
                       updatedAt: new Date(),
                     })
                     .where(eq(copilotChats.id, actualChatId!))
-                  controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify({ type: 'title_updated', title })}\n\n`)
-                  )
+                  await pushEvent({ type: 'title_updated', title })
                 }
               })
               .catch((error) => {
@@ -532,11 +549,7 @@ export async function POST(req: NextRequest) {
               autoExecuteTools: true,
               interactive: true,
               onEvent: async (event) => {
-                try {
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
-                } catch {
-                  controller.error('Failed to forward SSE event')
-                }
+                await pushEvent(event)
               },
             })
 
@@ -549,19 +562,20 @@ export async function POST(req: NextRequest) {
                 })
                 .where(eq(copilotChats.id, actualChatId!))
             }
+            await setStreamMeta(streamId, { status: 'complete', userId: authenticatedUserId })
           } catch (error) {
             logger.error(`[${tracker.requestId}] Orchestration error:`, error)
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({
-                  type: 'error',
-                  data: {
-                    displayMessage:
-                      'An unexpected error occurred while processing the response.',
-                  },
-                })}\n\n`
-              )
-            )
+            await setStreamMeta(streamId, {
+              status: 'error',
+              userId: authenticatedUserId,
+              error: error instanceof Error ? error.message : 'Stream error',
+            })
+            await pushEvent({
+              type: 'error',
+              data: {
+                displayMessage: 'An unexpected error occurred while processing the response.',
+              },
+            })
           } finally {
             controller.close()
           }
@@ -706,16 +720,54 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const workflowId = searchParams.get('workflowId')
-
-    if (!workflowId) {
-      return createBadRequestResponse('workflowId is required')
-    }
+    const chatId = searchParams.get('chatId')
 
     // Get authenticated user using consolidated helper
     const { userId: authenticatedUserId, isAuthenticated } =
       await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !authenticatedUserId) {
       return createUnauthorizedResponse()
+    }
+
+    // If chatId is provided, fetch a single chat
+    if (chatId) {
+      const [chat] = await db
+        .select({
+          id: copilotChats.id,
+          title: copilotChats.title,
+          model: copilotChats.model,
+          messages: copilotChats.messages,
+          planArtifact: copilotChats.planArtifact,
+          config: copilotChats.config,
+          createdAt: copilotChats.createdAt,
+          updatedAt: copilotChats.updatedAt,
+        })
+        .from(copilotChats)
+        .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, authenticatedUserId)))
+        .limit(1)
+
+      if (!chat) {
+        return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
+      }
+
+      const transformedChat = {
+        id: chat.id,
+        title: chat.title,
+        model: chat.model,
+        messages: Array.isArray(chat.messages) ? chat.messages : [],
+        messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
+        planArtifact: chat.planArtifact || null,
+        config: chat.config || null,
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
+      }
+
+      logger.info(`Retrieved chat ${chatId}`)
+      return NextResponse.json({ success: true, chat: transformedChat })
+    }
+
+    if (!workflowId) {
+      return createBadRequestResponse('workflowId or chatId is required')
     }
 
     // Fetch chats for this user and workflow

@@ -33,6 +33,20 @@ export interface CopilotToolCall {
   subAgentStreaming?: boolean
 }
 
+export interface CopilotStreamInfo {
+  streamId: string
+  workflowId: string
+  chatId?: string
+  userMessageId: string
+  assistantMessageId: string
+  lastEventId: number
+  resumeAttempts: number
+  userMessageContent: string
+  fileAttachments?: MessageFileAttachment[]
+  contexts?: ChatContext[]
+  startedAt: number
+}
+
 export interface MessageFileAttachment {
   id: string
   key: string
@@ -154,6 +168,9 @@ export interface CopilotState {
   // Auto-allowed integration tools (tools that can run without confirmation)
   autoAllowedTools: string[]
 
+  // Active stream metadata for reconnect/replay
+  activeStream: CopilotStreamInfo | null
+
   // Message queue for messages sent while another is in progress
   messageQueue: QueuedMessage[]
 
@@ -194,6 +211,7 @@ export interface CopilotActions {
     toolCallState: 'accepted' | 'rejected' | 'error',
     toolCallId?: string
   ) => void
+  resumeActiveStream: () => Promise<boolean>
   setToolCallState: (toolCall: any, newState: ClientToolCallState, options?: any) => void
   updateToolCallParams: (toolCallId: string, params: Record<string, any>) => void
   sendDocsMessage: (query: string, options?: { stream?: boolean; topK?: number }) => Promise<void>
