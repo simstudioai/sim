@@ -48,7 +48,10 @@ export async function resolveWorkflowIdForUser(
 
   if (workflowName) {
     const match = workflows.find(
-      (w) => String(w.name || '').trim().toLowerCase() === workflowName.toLowerCase()
+      (w) =>
+        String(w.name || '')
+          .trim()
+          .toLowerCase() === workflowName.toLowerCase()
     )
     if (match) {
       return { workflowId: match.id, workflowName: match.name || undefined }

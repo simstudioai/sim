@@ -15,8 +15,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
+import {
+  executeToolServerSide,
+  prepareExecutionContext,
+} from '@/lib/copilot/orchestrator/tool-executor'
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
-import { executeToolServerSide, prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 
 const logger = createLogger('CopilotMcpAPI')
 
@@ -408,4 +411,3 @@ async function handleSubagentToolCall(
 
   return NextResponse.json(createResponse(id, response))
 }
-

@@ -1,7 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
-import { env } from '@/lib/core/config/env'
-import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import {
   getToolCallIdFromEvent,
   handleSubagentRouting,
@@ -13,15 +11,16 @@ import {
   wasToolCallSeen,
   wasToolResultSeen,
 } from '@/lib/copilot/orchestrator/sse-handlers'
+import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
-  ExecutionContext,
   OrchestratorOptions,
   OrchestratorResult,
   SSEEvent,
   StreamingContext,
   ToolCallSummary,
 } from '@/lib/copilot/orchestrator/types'
+import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotOrchestrator')
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
@@ -73,7 +72,9 @@ export async function orchestrateCopilotStream(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
-      throw new Error(`Copilot backend error (${response.status}): ${errorText || response.statusText}`)
+      throw new Error(
+        `Copilot backend error (${response.status}): ${errorText || response.statusText}`
+      )
     }
 
     if (!response.body) {
@@ -104,7 +105,8 @@ export async function orchestrateCopilotStream(
         const toolCallId = getToolCallIdFromEvent(normalizedEvent)
         const eventData = normalizedEvent.data
 
-        const isPartialToolCall = normalizedEvent.type === 'tool_call' && eventData?.partial === true
+        const isPartialToolCall =
+          normalizedEvent.type === 'tool_call' && eventData?.partial === true
 
         const shouldSkipToolCall =
           normalizedEvent.type === 'tool_call' &&
@@ -220,4 +222,3 @@ function buildResult(context: StreamingContext): OrchestratorResult {
     errors: context.errors.length ? context.errors : undefined,
   }
 }
-

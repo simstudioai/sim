@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
-import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import {
   getToolCallIdFromEvent,
   handleSubagentRouting,
@@ -12,6 +11,7 @@ import {
   wasToolCallSeen,
   wasToolResultSeen,
 } from '@/lib/copilot/orchestrator/sse-handlers'
+import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ExecutionContext,
@@ -121,7 +121,8 @@ export async function orchestrateSubagentStream(
         const toolCallId = getToolCallIdFromEvent(normalizedEvent)
         const eventData = normalizedEvent.data
 
-        const isPartialToolCall = normalizedEvent.type === 'tool_call' && eventData?.partial === true
+        const isPartialToolCall =
+          normalizedEvent.type === 'tool_call' && eventData?.partial === true
 
         const shouldSkipToolCall =
           normalizedEvent.type === 'tool_call' &&
@@ -151,7 +152,10 @@ export async function orchestrateSubagentStream(
           await forwardEvent(normalizedEvent, options)
         }
 
-        if (normalizedEvent.type === 'structured_result' || normalizedEvent.type === 'subagent_result') {
+        if (
+          normalizedEvent.type === 'structured_result' ||
+          normalizedEvent.type === 'subagent_result'
+        ) {
           structuredResult = normalizeStructuredResult(normalizedEvent.data)
           context.streamComplete = true
           continue
@@ -280,4 +284,3 @@ function buildResult(
     errors: context.errors.length ? context.errors : undefined,
   }
 }
-

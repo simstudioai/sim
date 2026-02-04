@@ -78,10 +78,7 @@ export async function resetStreamBuffer(streamId: string): Promise<void> {
   }
 }
 
-export async function setStreamMeta(
-  streamId: string,
-  meta: StreamMeta
-): Promise<void> {
+export async function setStreamMeta(streamId: string, meta: StreamMeta): Promise<void> {
   const redis = getRedisClient()
   if (!redis) return
   try {
@@ -263,4 +260,3 @@ export async function readStreamEvents(
     return []
   }
 }
-

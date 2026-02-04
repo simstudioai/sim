@@ -9,6 +9,12 @@ import { generateChatTitle } from '@/lib/copilot/chat-title'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { COPILOT_MODEL_IDS, COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
+import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
+import {
+  createStreamEventWriter,
+  resetStreamBuffer,
+  setStreamMeta,
+} from '@/lib/copilot/orchestrator/stream-buffer'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -24,15 +30,8 @@ import { createFileContent } from '@/lib/uploads/utils/file-utils'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
-import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
-import {
-  createStreamEventWriter,
-  resetStreamBuffer,
-  setStreamMeta,
-} from '@/lib/copilot/orchestrator/stream-buffer'
 
 const logger = createLogger('CopilotChatAPI')
-
 
 const FileAttachmentSchema = z.object({
   id: z.string(),

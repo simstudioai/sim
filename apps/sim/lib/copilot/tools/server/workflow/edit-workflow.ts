@@ -6,9 +6,9 @@ import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import { applyAutoLayout } from '@/lib/workflows/autolayout'
 import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
-import { applyAutoLayout } from '@/lib/workflows/autolayout'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
@@ -3276,9 +3276,8 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
       padding: { x: 100, y: 100 },
     })
 
-    const layoutedBlocks = layoutResult.success && layoutResult.blocks
-      ? layoutResult.blocks
-      : finalWorkflowState.blocks
+    const layoutedBlocks =
+      layoutResult.success && layoutResult.blocks ? layoutResult.blocks : finalWorkflowState.blocks
 
     if (!layoutResult.success) {
       logger.warn('Autolayout failed, using default positions', {

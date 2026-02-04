@@ -20,7 +20,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
   {
     name: 'list_workflows',
     toolId: 'list_user_workflows',
-    description: 'List all workflows the user has access to. Returns workflow IDs, names, and workspace info.',
+    description:
+      'List all workflows the user has access to. Returns workflow IDs, names, and workspace info.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -38,7 +39,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
   {
     name: 'list_workspaces',
     toolId: 'list_user_workspaces',
-    description: 'List all workspaces the user has access to. Returns workspace IDs, names, and roles.',
+    description:
+      'List all workspaces the user has access to. Returns workspace IDs, names, and roles.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -225,10 +227,14 @@ IMPORTANT: Pass the returned plan EXACTLY to copilot_edit - do not modify or sum
     inputSchema: {
       type: 'object',
       properties: {
-        request: { type: 'string', description: 'What you want to build or modify in the workflow.' },
+        request: {
+          type: 'string',
+          description: 'What you want to build or modify in the workflow.',
+        },
         workflowId: {
           type: 'string',
-          description: 'REQUIRED. The workflow ID. For new workflows, call create_workflow first to get this.',
+          description:
+            'REQUIRED. The workflow ID. For new workflows, call create_workflow first to get this.',
         },
         context: { type: 'object' },
       },
@@ -261,15 +267,18 @@ IMPORTANT: After copilot_edit completes, you MUST call copilot_deploy before the
         message: { type: 'string', description: 'Optional additional instructions for the edit.' },
         workflowId: {
           type: 'string',
-          description: 'REQUIRED. The workflow ID to edit. Get this from create_workflow for new workflows.',
+          description:
+            'REQUIRED. The workflow ID to edit. Get this from create_workflow for new workflows.',
         },
         plan: {
           type: 'object',
-          description: 'The plan object from copilot_plan. Pass it EXACTLY as returned, do not modify.',
+          description:
+            'The plan object from copilot_plan. Pass it EXACTLY as returned, do not modify.',
         },
         context: {
           type: 'object',
-          description: 'Additional context. Put the plan in context.plan if not using the plan field directly.',
+          description:
+            'Additional context. Put the plan in context.plan if not using the plan field directly.',
         },
       },
       required: ['workflowId'],
@@ -463,4 +472,3 @@ USE THIS:
     },
   },
 ]
-
