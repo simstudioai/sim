@@ -17,7 +17,7 @@ const logger = createLogger('DropboxUploadAPI')
  */
 function httpHeaderSafeJson(value: object): string {
   return JSON.stringify(value).replace(/[\u007f-\uffff]/g, (c) => {
-    return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4)
+    return `\\u${(`0000${c.charCodeAt(0).toString(16)}`).slice(-4)}`
   })
 }
 

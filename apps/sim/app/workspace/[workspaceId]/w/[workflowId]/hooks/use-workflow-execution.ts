@@ -1058,58 +1058,25 @@ export function useWorkflowExecution() {
                 endedAt,
               })
 
-              // Check if entry exists (created in onBlockStarted)
-              // For container blocks like loops/parallels that fail during initialization,
-              // onBlockStarted is never called, so we need to create the entry here
-              const existingEntries = useTerminalConsoleStore.getState().entries
-              const hasExistingEntry = existingEntries.some(
-                (entry) => entry.blockId === data.blockId && entry.executionId === executionId
-              )
-
-              if (hasExistingEntry) {
-                // Update existing console entry
-                updateConsole(
-                  data.blockId,
-                  {
-                    input: data.input || {},
-                    replaceOutput: {},
-                    success: false,
-                    error: data.error,
-                    durationMs: data.durationMs,
-                    startedAt,
-                    endedAt,
-                    isRunning: false,
-                    // Pass through iteration context for subflow grouping
-                    iterationCurrent: data.iterationCurrent,
-                    iterationTotal: data.iterationTotal,
-                    iterationType: data.iterationType,
-                  },
-                  executionId
-                )
-              } else {
-                // Create new console entry for blocks that failed before starting
-                // (e.g., loop/parallel blocks with invalid configuration)
-                addConsole({
+              // Update existing console entry (created in onBlockStarted) with error data
+              updateConsole(
+                data.blockId,
+                {
                   input: data.input || {},
-                  output: {},
+                  replaceOutput: {},
                   success: false,
                   error: data.error,
-                  durationMs: data.durationMs || 0,
-                  startedAt: startedAt || new Date().toISOString(),
-                  executionOrder: data.executionOrder,
-                  endedAt: endedAt || new Date().toISOString(),
-                  workflowId: activeWorkflowId,
-                  blockId: data.blockId,
-                  executionId,
-                  blockName: data.blockName || 'Unknown Block',
-                  blockType: data.blockType || 'unknown',
+                  durationMs: data.durationMs,
+                  startedAt,
+                  endedAt,
                   isRunning: false,
                   // Pass through iteration context for subflow grouping
                   iterationCurrent: data.iterationCurrent,
                   iterationTotal: data.iterationTotal,
                   iterationType: data.iterationType,
-                })
-              }
+                },
+                executionId
+              )
             },
 
             onStreamChunk: (data) => {
