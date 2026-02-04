@@ -596,8 +596,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
         }
 
-        const shouldCleanupBase64 = true
-
         try {
           const startTime = new Date()
 
@@ -901,7 +899,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           })
         } finally {
           timeoutController.cleanup()
-          if (executionId && shouldCleanupBase64) {
+          if (executionId) {
             await cleanupExecutionBase64Cache(executionId)
           }
           if (!isStreamClosed) {
