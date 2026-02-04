@@ -38,7 +38,9 @@ type EventDataObject = Record<string, any> | undefined
 
 const parseEventData = (data: unknown): EventDataObject => {
   if (!data) return undefined
-  if (typeof data !== 'string') return data as EventDataObject
+  if (typeof data !== 'string') {
+    return data as EventDataObject
+  }
   try {
     return JSON.parse(data) as EventDataObject
   } catch {
@@ -46,11 +48,49 @@ const parseEventData = (data: unknown): EventDataObject => {
   }
 }
 
-const getEventData = (event: SSEEvent): EventDataObject => parseEventData(event.data)
+const hasToolFields = (data: EventDataObject): boolean => {
+  if (!data) return false
+  return (
+    data.id !== undefined ||
+    data.toolCallId !== undefined ||
+    data.name !== undefined ||
+    data.success !== undefined ||
+    data.result !== undefined ||
+    data.arguments !== undefined
+  )
+}
+
+const getEventData = (event: SSEEvent): EventDataObject => {
+  const topLevel = parseEventData(event.data)
+  if (!topLevel) return undefined
+  if (hasToolFields(topLevel)) return topLevel
+  const nested = parseEventData(topLevel.data)
+  return nested || topLevel
+}
 
 export function getToolCallIdFromEvent(event: SSEEvent): string | undefined {
   const data = getEventData(event)
   return event.toolCallId || data?.id || data?.toolCallId
+}
+
+/** Normalizes SSE events so tool metadata is available at the top level. */
+export function normalizeSseEvent(event: SSEEvent): SSEEvent {
+  if (!event) return event
+  const data = getEventData(event)
+  if (!data) return event
+  const toolCallId = event.toolCallId || data.id || data.toolCallId
+  const toolName = event.toolName || data.name || data.toolName
+  const success = event.success ?? data.success
+  const result = event.result ?? data.result
+  const normalizedData = typeof event.data === 'string' ? data : event.data
+  return {
+    ...event,
+    data: normalizedData,
+    toolCallId,
+    toolName,
+    success,
+    result,
+  }
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   handleSubagentRouting,
   markToolCallSeen,
   markToolResultSeen,
+  normalizeSseEvent,
   sseHandlers,
   subAgentHandlers,
   wasToolCallSeen,
@@ -112,35 +113,33 @@ export async function orchestrateSubagentStream(
           break
         }
 
+        const normalizedEvent = normalizeSseEvent(event)
+
         // Skip tool_result events for tools the sim-side already executed.
         // The sim-side emits its own tool_result with complete data.
         // For server-side tools (not executed by sim), we still forward the Go backend's tool_result.
-        const toolCallId = getToolCallIdFromEvent(event)
-        const eventData =
-          typeof event.data === 'string'
-            ? (() => {
-                try {
-                  return JSON.parse(event.data)
-                } catch {
-                  return undefined
-                }
-              })()
-            : event.data
+        const toolCallId = getToolCallIdFromEvent(normalizedEvent)
+        const eventData = normalizedEvent.data
 
-        const isPartialToolCall = event.type === 'tool_call' && eventData?.partial === true
+        const isPartialToolCall = normalizedEvent.type === 'tool_call' && eventData?.partial === true
 
         const shouldSkipToolCall =
-          event.type === 'tool_call' &&
+          normalizedEvent.type === 'tool_call' &&
           !!toolCallId &&
           !isPartialToolCall &&
           (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId))
 
-        if (event.type === 'tool_call' && toolCallId && !isPartialToolCall && !shouldSkipToolCall) {
+        if (
+          normalizedEvent.type === 'tool_call' &&
+          toolCallId &&
+          !isPartialToolCall &&
+          !shouldSkipToolCall
+        ) {
           markToolCallSeen(toolCallId)
         }
 
         const shouldSkipToolResult =
-          event.type === 'tool_result' &&
+          normalizedEvent.type === 'tool_result' &&
           (() => {
             if (!toolCallId) return false
             if (wasToolResultSeen(toolCallId)) return true
@@ -149,18 +148,18 @@ export async function orchestrateSubagentStream(
           })()
 
         if (!shouldSkipToolCall && !shouldSkipToolResult) {
-          await forwardEvent(event, options)
+          await forwardEvent(normalizedEvent, options)
         }
 
-        if (event.type === 'structured_result' || event.type === 'subagent_result') {
-          structuredResult = normalizeStructuredResult(event.data)
+        if (normalizedEvent.type === 'structured_result' || normalizedEvent.type === 'subagent_result') {
+          structuredResult = normalizeStructuredResult(normalizedEvent.data)
           context.streamComplete = true
           continue
         }
 
         // Handle subagent_start/subagent_end events to track nested subagent calls
-        if (event.type === 'subagent_start') {
-          const toolCallId = event.data?.tool_call_id
+        if (normalizedEvent.type === 'subagent_start') {
+          const toolCallId = normalizedEvent.data?.tool_call_id
           if (toolCallId) {
             context.subAgentParentToolCallId = toolCallId
             context.subAgentContent[toolCallId] = ''
@@ -169,7 +168,7 @@ export async function orchestrateSubagentStream(
           continue
         }
 
-        if (event.type === 'subagent_end') {
+        if (normalizedEvent.type === 'subagent_end') {
           context.subAgentParentToolCallId = undefined
           continue
         }
@@ -177,22 +176,23 @@ export async function orchestrateSubagentStream(
         // For direct subagent calls, events may have the subagent field set (e.g., subagent: "discovery")
         // but no subagent_start event because this IS the top-level agent. Skip subagent routing
         // for events where the subagent field matches the current agentId - these are top-level events.
-        const isTopLevelSubagentEvent = event.subagent === agentId && !context.subAgentParentToolCallId
+        const isTopLevelSubagentEvent =
+          normalizedEvent.subagent === agentId && !context.subAgentParentToolCallId
 
         // Only route to subagent handlers for nested subagent events (not matching current agentId)
-        if (!isTopLevelSubagentEvent && handleSubagentRouting(event, context)) {
-          const handler = subAgentHandlers[event.type]
+        if (!isTopLevelSubagentEvent && handleSubagentRouting(normalizedEvent, context)) {
+          const handler = subAgentHandlers[normalizedEvent.type]
           if (handler) {
-            await handler(event, context, execContext, options)
+            await handler(normalizedEvent, context, execContext, options)
           }
           if (context.streamComplete) break
           continue
         }
 
         // Process as a regular SSE event (including top-level subagent events)
-        const handler = sseHandlers[event.type]
+        const handler = sseHandlers[normalizedEvent.type]
         if (handler) {
-          await handler(event, context, execContext, options)
+          await handler(normalizedEvent, context, execContext, options)
         }
         if (context.streamComplete) break
       }
