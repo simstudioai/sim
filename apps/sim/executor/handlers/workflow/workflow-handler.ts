@@ -126,6 +126,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           workspaceId: ctx.workspaceId,
           userId: ctx.userId,
           executionId: ctx.executionId,
+          abortSignal: ctx.abortSignal,
         },
       })
 

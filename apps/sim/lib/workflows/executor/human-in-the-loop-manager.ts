@@ -4,6 +4,7 @@ import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
+import { getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -771,14 +772,43 @@ export class PauseResumeManager {
       actorUserId: metadata.userId,
     })
 
-    return await executeWorkflowCore({
-      snapshot: resumeSnapshot,
-      callbacks: {},
-      loggingSession,
-      skipLogCreation: true, // Reuse existing log entry
-      includeFileBase64: true, // Enable base64 hydration
-      base64MaxBytes: undefined, // Use default limit
-    })
+    const asyncTimeout = preprocessingResult.executionTimeout?.async
+    const abortController = new AbortController()
+    let isTimedOut = false
+    let timeoutId: NodeJS.Timeout | undefined
+
+    if (asyncTimeout) {
+      timeoutId = setTimeout(() => {
+        isTimedOut = true
+        abortController.abort()
+      }, asyncTimeout)
+    }
+
+    let result: ExecutionResult
+    try {
+      result = await executeWorkflowCore({
+        snapshot: resumeSnapshot,
+        callbacks: {},
+        loggingSession,
+        skipLogCreation: true, // Reuse existing log entry
+        includeFileBase64: true, // Enable base64 hydration
+        base64MaxBytes: undefined, // Use default limit
+        abortSignal: abortController.signal,
+      })
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+
+    if (result.status === 'cancelled' && isTimedOut && asyncTimeout) {
+      const timeoutErrorMessage = getTimeoutErrorMessage(null, asyncTimeout)
+      logger.info('Resume execution timed out', {
+        resumeExecutionId,
+        timeoutMs: asyncTimeout,
+      })
+      await loggingSession.markAsFailed(timeoutErrorMessage)
+    }
+
+    return result
   }
 
   private static async markResumeCompleted(args: {
