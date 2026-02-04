@@ -12,7 +12,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 
 interface WorkflowDeploymentInfo {
@@ -78,7 +77,6 @@ export function ApiDeploy({
     async: false,
   })
 
-  const isAsyncEnabled = isTruthy(getEnv('NEXT_PUBLIC_TRIGGER_DEV_ENABLED'))
   const info = deploymentInfo ? { ...deploymentInfo, needsRedeployment } : null
 
   const getBaseEndpoint = () => {
@@ -539,55 +537,49 @@ console.log(limits);`
         />
       </div>
 
-      {isAsyncEnabled && (
-        <div>
-          <div className='mb-[6.5px] flex items-center justify-between'>
-            <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
-              Run workflow (async)
-            </Label>
-            <div className='flex items-center gap-[6px]'>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={() => handleCopy('async', getAsyncCommand())}
-                    aria-label='Copy command'
-                    className='!p-1.5 -my-1.5'
-                  >
-                    {copied.async ? (
-                      <Check className='h-3 w-3' />
-                    ) : (
-                      <Clipboard className='h-3 w-3' />
-                    )}
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>{copied.async ? 'Copied' : 'Copy'}</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-              <Combobox
-                size='sm'
-                className='!w-fit !py-[2px] min-w-[100px] rounded-[6px] px-[9px]'
-                options={[
-                  { label: 'Execute Job', value: 'execute' },
-                  { label: 'Check Status', value: 'status' },
-                  { label: 'Rate Limits', value: 'rate-limits' },
-                ]}
-                value={asyncExampleType}
-                onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}
-                align='end'
-                dropdownWidth={160}
-              />
-            </div>
+      <div>
+        <div className='mb-[6.5px] flex items-center justify-between'>
+          <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            Run workflow (async)
+          </Label>
+          <div className='flex items-center gap-[6px]'>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  onClick={() => handleCopy('async', getAsyncCommand())}
+                  aria-label='Copy command'
+                  className='!p-1.5 -my-1.5'
+                >
+                  {copied.async ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content>
+                <span>{copied.async ? 'Copied' : 'Copy'}</span>
+              </Tooltip.Content>
+            </Tooltip.Root>
+            <Combobox
+              size='sm'
+              className='!w-fit !py-[2px] min-w-[100px] rounded-[6px] px-[9px]'
+              options={[
+                { label: 'Execute Job', value: 'execute' },
+                { label: 'Check Status', value: 'status' },
+                { label: 'Rate Limits', value: 'rate-limits' },
+              ]}
+              value={asyncExampleType}
+              onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}
+              align='end'
+              dropdownWidth={160}
+            />
           </div>
-          <Code.Viewer
-            code={getAsyncCommand()}
-            language={LANGUAGE_SYNTAX[language]}
-            wrapText
-            className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
-          />
         </div>
-      )}
+        <Code.Viewer
+          code={getAsyncCommand()}
+          language={LANGUAGE_SYNTAX[language]}
+          wrapText
+          className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
+        />
+      </div>
     </div>
   )
 }

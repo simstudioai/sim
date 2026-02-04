@@ -1,9 +1,10 @@
-import { db } from '@sim/db'
+import { asyncJobs, db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, lt, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { JOB_RETENTION_HOURS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 
 const logger = createLogger('CleanupStaleExecutions')
@@ -80,12 +81,72 @@ export async function GET(request: NextRequest) {
 
     logger.info(`Stale execution cleanup completed. Cleaned: ${cleaned}, Failed: ${failed}`)
 
+    // Clean up stale async jobs (stuck in processing)
+    let asyncJobsMarkedFailed = 0
+
+    try {
+      const staleAsyncJobs = await db
+        .update(asyncJobs)
+        .set({
+          status: 'failed',
+          completedAt: new Date(),
+          error: `Job terminated: stuck in processing for more than ${STALE_THRESHOLD_MINUTES} minutes`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(asyncJobs.status, 'processing'), lt(asyncJobs.startedAt, staleThreshold)))
+        .returning({ id: asyncJobs.id })
+
+      asyncJobsMarkedFailed = staleAsyncJobs.length
+      if (asyncJobsMarkedFailed > 0) {
+        logger.info(`Marked ${asyncJobsMarkedFailed} stale async jobs as failed`)
+      }
+    } catch (error) {
+      logger.error('Failed to clean up stale async jobs:', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+
+    // Delete completed/failed jobs older than retention period
+    const retentionThreshold = new Date(Date.now() - JOB_RETENTION_HOURS * 60 * 60 * 1000)
+    let asyncJobsDeleted = 0
+
+    try {
+      const deletedJobs = await db
+        .delete(asyncJobs)
+        .where(
+          and(
+            inArray(asyncJobs.status, ['completed', 'failed']),
+            lt(asyncJobs.completedAt, retentionThreshold)
+          )
+        )
+        .returning({ id: asyncJobs.id })
+
+      asyncJobsDeleted = deletedJobs.length
+      if (asyncJobsDeleted > 0) {
+        logger.info(
+          `Deleted ${asyncJobsDeleted} old async jobs (retention: ${JOB_RETENTION_HOURS}h)`
+        )
+      }
+    } catch (error) {
+      logger.error('Failed to delete old async jobs:', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+
     return NextResponse.json({
       success: true,
-      found: staleExecutions.length,
-      cleaned,
-      failed,
-      thresholdMinutes: STALE_THRESHOLD_MINUTES,
+      executions: {
+        found: staleExecutions.length,
+        cleaned,
+        failed,
+        thresholdMinutes: STALE_THRESHOLD_MINUTES,
+      },
+      asyncJobs: {
+        staleMarkedFailed: asyncJobsMarkedFailed,
+        oldDeleted: asyncJobsDeleted,
+        staleThresholdMinutes: STALE_THRESHOLD_MINUTES,
+        retentionHours: JOB_RETENTION_HOURS,
+      },
     })
   } catch (error) {
     logger.error('Error in stale execution cleanup job:', error)

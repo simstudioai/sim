@@ -63,6 +63,8 @@ export {
 } from './fetch.mock'
 // Logger mocks
 export { clearLoggerMocks, createMockLogger, getLoggerCalls, loggerMock } from './logger.mock'
+// Redis mocks
+export { clearRedisMocks, createMockRedis, type MockRedis } from './redis.mock'
 // Request mocks
 export { createMockFormDataRequest, createMockRequest } from './request.mock'
 // Socket mocks

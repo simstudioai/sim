@@ -1,10 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { tasks } from '@trigger.dev/sdk'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
@@ -31,7 +30,7 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
-import type { WorkflowExecutionPayload } from '@/background/workflow-execution'
+import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
@@ -129,14 +128,6 @@ type AsyncExecutionParams = {
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
   const { requestId, workflowId, userId, input, triggerType } = params
 
-  if (!isTriggerDevEnabled) {
-    logger.warn(`[${requestId}] Async mode requested but TRIGGER_DEV_ENABLED is false`)
-    return NextResponse.json(
-      { error: 'Async execution is not enabled. Set TRIGGER_DEV_ENABLED=true to use async mode.' },
-      { status: 400 }
-    )
-  }
-
   const payload: WorkflowExecutionPayload = {
     workflowId,
     userId,
@@ -145,20 +136,40 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
   }
 
   try {
-    const handle = await tasks.trigger('workflow-execution', payload)
+    const jobQueue = await getJobQueue()
+    const jobId = await jobQueue.enqueue('workflow-execution', payload, {
+      metadata: { workflowId, userId },
+    })
 
     logger.info(`[${requestId}] Queued async workflow execution`, {
       workflowId,
-      jobId: handle.id,
+      jobId,
     })
+
+    if (shouldExecuteInline()) {
+      void (async () => {
+        try {
+          await jobQueue.startJob(jobId)
+          const output = await executeWorkflowJob(payload)
+          await jobQueue.completeJob(jobId, output)
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logger.error(`[${requestId}] Async workflow execution failed`, {
+            jobId,
+            error: errorMessage,
+          })
+          await jobQueue.markJobFailed(jobId, errorMessage)
+        }
+      })()
+    }
 
     return NextResponse.json(
       {
         success: true,
         async: true,
-        jobId: handle.id,
+        jobId,
         message: 'Workflow execution queued',
-        statusUrl: `${getBaseUrl()}/api/jobs/${handle.id}`,
+        statusUrl: `${getBaseUrl()}/api/jobs/${jobId}`,
       },
       { status: 202 }
     )

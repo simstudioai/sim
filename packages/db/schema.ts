@@ -2124,3 +2124,34 @@ export const permissionGroupMember = pgTable(
     userIdUnique: uniqueIndex('permission_group_member_user_id_unique').on(table.userId),
   })
 )
+
+/**
+ * Async Jobs - Queue for background job processing (Redis/DB backends)
+ * Used when trigger.dev is not available for async workflow executions
+ */
+export const asyncJobs = pgTable(
+  'async_jobs',
+  {
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    payload: jsonb('payload').notNull(),
+    status: text('status').notNull().default('pending'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    runAt: timestamp('run_at'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(3),
+    error: text('error'),
+    output: jsonb('output'),
+    metadata: jsonb('metadata').notNull().default('{}'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    statusStartedAtIdx: index('async_jobs_status_started_at_idx').on(table.status, table.startedAt),
+    statusCompletedAtIdx: index('async_jobs_status_completed_at_idx').on(
+      table.status,
+      table.completedAt
+    ),
+  })
+)
