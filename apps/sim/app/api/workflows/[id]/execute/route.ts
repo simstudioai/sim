@@ -403,6 +403,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!enableSSE) {
       logger.info(`[${requestId}] Using non-SSE execution (direct JSON response)`)
       const syncTimeout = preprocessResult.executionTimeout?.sync
+      const abortController = new AbortController()
+      let isTimedOut = false
+      let timeoutId: NodeJS.Timeout | undefined
+
+      if (syncTimeout) {
+        timeoutId = setTimeout(() => {
+          isTimedOut = true
+          abortController.abort()
+        }, syncTimeout)
+      }
+
       try {
         const metadata: ExecutionMetadata = {
           requestId,
@@ -436,8 +447,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           includeFileBase64,
           base64MaxBytes,
           stopAfterBlockId,
-          abortSignal: syncTimeout ? AbortSignal.timeout(syncTimeout) : undefined,
+          abortSignal: abortController.signal,
         })
+
+        if (result.status === 'cancelled' && isTimedOut && syncTimeout) {
+          const timeoutErrorMessage = getTimeoutErrorMessage(null, syncTimeout)
+          logger.info(`[${requestId}] Non-SSE execution timed out`, { timeoutMs: syncTimeout })
+          await loggingSession.markAsFailed(timeoutErrorMessage)
+
+          await cleanupExecutionBase64Cache(executionId)
+
+          return NextResponse.json(
+            {
+              success: false,
+              output: result.output,
+              error: timeoutErrorMessage,
+              metadata: result.metadata
+                ? {
+                    duration: result.metadata.duration,
+                    startTime: result.metadata.startTime,
+                    endTime: result.metadata.endTime,
+                  }
+                : undefined,
+            },
+            { status: 408 }
+          )
+        }
 
         const outputWithBase64 = includeFileBase64
           ? ((await hydrateUserFilesWithBase64(result.output, {
@@ -472,14 +507,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         return NextResponse.json(filteredResult)
       } catch (error: unknown) {
-        const isTimeout = isTimeoutError(error)
-        const errorMessage = isTimeout
-          ? getTimeoutErrorMessage(error, syncTimeout)
-          : error instanceof Error
-            ? error.message
-            : 'Unknown error'
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
-        logger.error(`[${requestId}] Non-SSE execution failed: ${errorMessage}`, { isTimeout })
+        logger.error(`[${requestId}] Non-SSE execution failed: ${errorMessage}`)
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
@@ -502,8 +532,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 }
               : undefined,
           },
-          { status: isTimeout ? 408 : 500 }
+          { status: 500 }
         )
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId)
       }
     }
 
