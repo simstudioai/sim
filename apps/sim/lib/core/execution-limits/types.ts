@@ -1,7 +1,7 @@
 import { env } from '@/lib/core/config/env'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 
-export interface ExecutionTimeoutConfig {
+interface ExecutionTimeoutConfig {
   sync: number
   async: number
 }
@@ -25,7 +25,7 @@ function getSyncTimeoutForPlan(plan: SubscriptionPlan): number {
   return (Number.parseInt(envVarMap[plan] || '') || DEFAULT_SYNC_TIMEOUTS[plan]) * 1000
 }
 
-export const EXECUTION_TIMEOUTS: Record<SubscriptionPlan, ExecutionTimeoutConfig> = {
+const EXECUTION_TIMEOUTS: Record<SubscriptionPlan, ExecutionTimeoutConfig> = {
   free: {
     sync: getSyncTimeoutForPlan('free'),
     async: ASYNC_TIMEOUT_SECONDS * 1000,
