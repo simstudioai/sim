@@ -1167,6 +1167,7 @@ export function useWorkflowExecution() {
 
               if (existingLogs.length === 0) {
                 // No blocks executed yet - this is a pre-execution error
+                // Use 0 for executionOrder so validation errors appear first
                 addConsole({
                   input: {},
                   output: {},
@@ -1174,7 +1175,7 @@ export function useWorkflowExecution() {
                   error: data.error,
                   durationMs: data.duration || 0,
                   startedAt: new Date(Date.now() - (data.duration || 0)).toISOString(),
-                  executionOrder: performance.now(),
+                  executionOrder: 0,
                   endedAt: new Date().toISOString(),
                   workflowId: activeWorkflowId,
                   blockId: 'validation',
@@ -1242,6 +1243,7 @@ export function useWorkflowExecution() {
             blockType = error.blockType || blockType
           }
 
+          // Use MAX_SAFE_INTEGER so execution errors appear at the end of the log
           useTerminalConsoleStore.getState().addConsole({
             input: {},
             output: {},
@@ -1249,7 +1251,7 @@ export function useWorkflowExecution() {
             error: normalizedMessage,
             durationMs: 0,
             startedAt: new Date().toISOString(),
-            executionOrder: performance.now(),
+            executionOrder: Number.MAX_SAFE_INTEGER,
             endedAt: new Date().toISOString(),
             workflowId: activeWorkflowId || '',
             blockId,

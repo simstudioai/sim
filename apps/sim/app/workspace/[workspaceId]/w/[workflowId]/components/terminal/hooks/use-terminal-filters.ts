@@ -105,7 +105,7 @@ export function useTerminalFilters() {
         })
       }
 
-      // Sort by executionOrder (high-precision value from performance.now())
+      // Sort by executionOrder (monotonically increasing integer from server)
       result = [...result].sort((a, b) => {
         const comparison = a.executionOrder - b.executionOrder
         return sortConfig.direction === 'asc' ? comparison : -comparison

@@ -287,7 +287,8 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                 return entry
               }
 
-              // For loop iterations, also match on iterationCurrent to update the correct entry
+              // For loop/parallel iterations, match on iterationCurrent to update the correct entry.
+              // Without this, all iterations of the same block would be updated with the last iteration's output.
               if (
                 typeof update === 'object' &&
                 update.iterationCurrent !== undefined &&
