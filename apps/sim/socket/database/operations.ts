@@ -1133,12 +1133,10 @@ async function handleBlocksOperationTx(
 async function handleEdgeOperationTx(tx: any, workflowId: string, operation: string, payload: any) {
   switch (operation) {
     case EDGE_OPERATIONS.ADD: {
-      // Validate required fields
       if (!payload.id || !payload.source || !payload.target) {
         throw new Error('Missing required fields for add edge operation')
       }
 
-      // Check if source or target blocks are protected (locked or inside locked parent)
       const edgeBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1157,6 +1155,36 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
       const blocksById: Record<string, EdgeBlockRecord> = Object.fromEntries(
         edgeBlocks.map((b: EdgeBlockRecord) => [b.id, b])
       )
+
+      const parentIds = new Set<string>()
+      for (const block of edgeBlocks) {
+        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
+        if (parentId && !blocksById[parentId]) {
+          parentIds.add(parentId)
+        }
+      }
+
+      // Fetch parent blocks if needed
+      if (parentIds.size > 0) {
+        const parentBlocks = await tx
+          .select({
+            id: workflowBlocks.id,
+            locked: workflowBlocks.locked,
+            data: workflowBlocks.data,
+          })
+          .from(workflowBlocks)
+          .where(
+            and(
+              eq(workflowBlocks.workflowId, workflowId),
+              inArray(workflowBlocks.id, Array.from(parentIds))
+            )
+          )
+        for (const b of parentBlocks) {
+          blocksById[b.id] = b
+        }
+      }
 
       const isBlockProtected = (blockId: string): boolean => {
         const block = blocksById[blockId]
@@ -1225,6 +1253,37 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
       const blocksById: Record<string, RemoveEdgeBlockRecord> = Object.fromEntries(
         connectedBlocks.map((b: RemoveEdgeBlockRecord) => [b.id, b])
       )
+
+      // Collect parent IDs that need to be fetched
+      const parentIds = new Set<string>()
+      for (const block of connectedBlocks) {
+        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
+        if (parentId && !blocksById[parentId]) {
+          parentIds.add(parentId)
+        }
+      }
+
+      // Fetch parent blocks if needed
+      if (parentIds.size > 0) {
+        const parentBlocks = await tx
+          .select({
+            id: workflowBlocks.id,
+            locked: workflowBlocks.locked,
+            data: workflowBlocks.data,
+          })
+          .from(workflowBlocks)
+          .where(
+            and(
+              eq(workflowBlocks.workflowId, workflowId),
+              inArray(workflowBlocks.id, Array.from(parentIds))
+            )
+          )
+        for (const b of parentBlocks) {
+          blocksById[b.id] = b
+        }
+      }
 
       const isBlockProtected = (blockId: string): boolean => {
         const block = blocksById[blockId]
@@ -1319,6 +1378,37 @@ async function handleEdgesOperationTx(
         connectedBlocks.map((b: EdgeBlockRecord) => [b.id, b])
       )
 
+      // Collect parent IDs that need to be fetched
+      const parentIds = new Set<string>()
+      for (const block of connectedBlocks) {
+        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
+        if (parentId && !blocksById[parentId]) {
+          parentIds.add(parentId)
+        }
+      }
+
+      // Fetch parent blocks if needed
+      if (parentIds.size > 0) {
+        const parentBlocks = await tx
+          .select({
+            id: workflowBlocks.id,
+            locked: workflowBlocks.locked,
+            data: workflowBlocks.data,
+          })
+          .from(workflowBlocks)
+          .where(
+            and(
+              eq(workflowBlocks.workflowId, workflowId),
+              inArray(workflowBlocks.id, Array.from(parentIds))
+            )
+          )
+        for (const b of parentBlocks) {
+          blocksById[b.id] = b
+        }
+      }
+
       const isBlockProtected = (blockId: string): boolean => {
         const block = blocksById[blockId]
         if (!block) return false
@@ -1387,6 +1477,37 @@ async function handleEdgesOperationTx(
       const blocksById: Record<string, AddEdgeBlockRecord> = Object.fromEntries(
         connectedBlocks.map((b: AddEdgeBlockRecord) => [b.id, b])
       )
+
+      // Collect parent IDs that need to be fetched
+      const parentIds = new Set<string>()
+      for (const block of connectedBlocks) {
+        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+          | string
+          | undefined
+        if (parentId && !blocksById[parentId]) {
+          parentIds.add(parentId)
+        }
+      }
+
+      // Fetch parent blocks if needed
+      if (parentIds.size > 0) {
+        const parentBlocks = await tx
+          .select({
+            id: workflowBlocks.id,
+            locked: workflowBlocks.locked,
+            data: workflowBlocks.data,
+          })
+          .from(workflowBlocks)
+          .where(
+            and(
+              eq(workflowBlocks.workflowId, workflowId),
+              inArray(workflowBlocks.id, Array.from(parentIds))
+            )
+          )
+        for (const b of parentBlocks) {
+          blocksById[b.id] = b
+        }
+      }
 
       const isBlockProtected = (blockId: string): boolean => {
         const block = blocksById[blockId]
