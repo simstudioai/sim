@@ -517,21 +517,17 @@ Return ONLY the natural language event text - no explanations.`,
           attendees,
           replaceExisting,
           calendarId,
-          manualCalendarId,
-          destinationCalendar,
-          manualDestinationCalendarId,
+          destinationCalendarId,
           ...rest
         } = params
 
-        // Handle calendar ID (selector or manual)
-        const effectiveCalendarId = (calendarId || manualCalendarId || '').trim()
+        // Use canonical 'calendarId' param directly
+        const effectiveCalendarId = calendarId ? String(calendarId).trim() : ''
 
-        // Handle destination calendar ID for move operation (selector or manual)
-        const effectiveDestinationCalendarId = (
-          destinationCalendar ||
-          manualDestinationCalendarId ||
-          ''
-        ).trim()
+        // Use canonical 'destinationCalendarId' param directly
+        const effectiveDestinationCalendarId = destinationCalendarId
+          ? String(destinationCalendarId).trim()
+          : ''
 
         const processedParams: Record<string, any> = {
           ...rest,
@@ -589,8 +585,7 @@ Return ONLY the natural language event text - no explanations.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Google Calendar access token' },
-    calendarId: { type: 'string', description: 'Calendar identifier' },
-    manualCalendarId: { type: 'string', description: 'Manual calendar identifier' },
+    calendarId: { type: 'string', description: 'Calendar identifier (canonical param)' },
 
     // Create/Update operation inputs
     summary: { type: 'string', description: 'Event title' },
@@ -609,8 +604,10 @@ Return ONLY the natural language event text - no explanations.`,
     eventId: { type: 'string', description: 'Event identifier' },
 
     // Move operation inputs
-    destinationCalendar: { type: 'string', description: 'Destination calendar selector' },
-    manualDestinationCalendarId: { type: 'string', description: 'Manual destination calendar ID' },
+    destinationCalendarId: {
+      type: 'string',
+      description: 'Destination calendar ID (canonical param)',
+    },
 
     // List Calendars operation inputs
     minAccessRole: { type: 'string', description: 'Minimum access role filter' },

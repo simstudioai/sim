@@ -169,9 +169,10 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
         }
       },
       params: (params) => {
-        const { credential, operation, contactId, manualContactId, taskId, ...rest } = params
+        const { credential, operation, contactId, taskId, ...rest } = params
 
-        const effectiveContactId = (contactId || manualContactId || '').trim()
+        // contactId is the canonical param for both basic (file-selector) and advanced (manualContactId) modes
+        const effectiveContactId = contactId ? String(contactId).trim() : ''
 
         const baseParams = {
           ...rest,
@@ -222,7 +223,6 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
     credential: { type: 'string', description: 'Wealthbox access token' },
     noteId: { type: 'string', description: 'Note identifier' },
     contactId: { type: 'string', description: 'Contact identifier' },
-    manualContactId: { type: 'string', description: 'Manual contact identifier' },
     taskId: { type: 'string', description: 'Task identifier' },
     content: { type: 'string', description: 'Content text' },
     firstName: { type: 'string', description: 'First name' },

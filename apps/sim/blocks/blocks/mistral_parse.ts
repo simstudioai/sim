@@ -215,8 +215,8 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
           resultType: params.resultType || 'markdown',
         }
 
-        // Original V2 pattern: fileUpload (basic) or filePath (advanced) or document (wired)
-        const documentInput = params.fileUpload || params.filePath || params.document
+        // Use canonical document param directly
+        const documentInput = params.document
         if (!documentInput) {
           throw new Error('PDF document is required')
         }
@@ -261,8 +261,6 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
   },
   inputs: {
     document: { type: 'json', description: 'Document input (file upload or URL reference)' },
-    filePath: { type: 'string', description: 'PDF document URL (advanced mode)' },
-    fileUpload: { type: 'json', description: 'Uploaded PDF file (basic mode)' },
     apiKey: { type: 'string', description: 'Mistral API key' },
     resultType: { type: 'string', description: 'Output format type' },
     pages: { type: 'string', description: 'Page selection' },
@@ -345,11 +343,8 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
           resultType: params.resultType || 'markdown',
         }
 
-        // V3 pattern: normalize file inputs from basic/advanced modes
-        const documentInput = normalizeFileInput(
-          params.fileUpload || params.fileReference || params.document,
-          { single: true }
-        )
+        // V3 pattern: use canonical document param directly
+        const documentInput = normalizeFileInput(params.document, { single: true })
         if (!documentInput) {
           throw new Error('PDF document is required')
         }
@@ -389,8 +384,6 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
   },
   inputs: {
     document: { type: 'json', description: 'Document input (file upload or file reference)' },
-    fileReference: { type: 'json', description: 'File reference (advanced mode)' },
-    fileUpload: { type: 'json', description: 'Uploaded PDF file (basic mode)' },
     apiKey: { type: 'string', description: 'Mistral API key' },
     resultType: { type: 'string', description: 'Output format type' },
     pages: { type: 'string', description: 'Page selection' },

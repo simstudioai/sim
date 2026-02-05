@@ -94,6 +94,19 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Select Confluence page',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'create_comment',
+          'list_comments',
+          'list_attachments',
+          'list_labels',
+          'upload_attachment',
+        ],
+      },
     },
     {
       id: 'manualPageId',
@@ -102,14 +115,26 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
       mode: 'advanced',
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'create_comment',
+          'list_comments',
+          'list_attachments',
+          'list_labels',
+          'upload_attachment',
+        ],
+      },
     },
     {
       id: 'spaceId',
       title: 'Space ID',
       type: 'short-input',
       placeholder: 'Enter Confluence space ID',
-      required: true,
-      condition: { field: 'operation', value: ['create', 'get_space'] },
+      required: { field: 'operation', value: ['create', 'get_space'] },
     },
     {
       id: 'title',
@@ -264,7 +289,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         const {
           credential,
           pageId,
-          manualPageId,
           operation,
           attachmentFile,
           attachmentFileName,
@@ -272,28 +296,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           ...rest
         } = params
 
-        const effectivePageId = (pageId || manualPageId || '').trim()
-
-        const requiresPageId = [
-          'read',
-          'update',
-          'delete',
-          'create_comment',
-          'list_comments',
-          'list_attachments',
-          'list_labels',
-          'upload_attachment',
-        ]
-
-        const requiresSpaceId = ['create', 'get_space']
-
-        if (requiresPageId.includes(operation) && !effectivePageId) {
-          throw new Error('Page ID is required. Please select a page or enter a page ID manually.')
-        }
-
-        if (requiresSpaceId.includes(operation) && !rest.spaceId) {
-          throw new Error('Space ID is required for this operation.')
-        }
+        const effectivePageId = pageId ? String(pageId).trim() : ''
 
         if (operation === 'upload_attachment') {
           return {
@@ -320,8 +323,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
     credential: { type: 'string', description: 'Confluence access token' },
-    pageId: { type: 'string', description: 'Page identifier' },
-    manualPageId: { type: 'string', description: 'Manual page identifier' },
+    pageId: { type: 'string', description: 'Page identifier (canonical param)' },
     spaceId: { type: 'string', description: 'Space identifier' },
     title: { type: 'string', description: 'Page title' },
     content: { type: 'string', description: 'Page content' },
@@ -330,7 +332,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     comment: { type: 'string', description: 'Comment text' },
     commentId: { type: 'string', description: 'Comment identifier' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
-    attachmentFile: { type: 'json', description: 'File to upload as attachment' },
+    attachmentFile: { type: 'json', description: 'File to upload as attachment (canonical param)' },
     attachmentFileName: { type: 'string', description: 'Custom file name for attachment' },
     attachmentComment: { type: 'string', description: 'Comment for the attachment' },
     labelName: { type: 'string', description: 'Label name' },
@@ -486,6 +488,26 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         ],
         not: true,
       },
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'create_comment',
+          'list_comments',
+          'list_attachments',
+          'list_labels',
+          'upload_attachment',
+          'add_label',
+          'get_page_children',
+          'get_page_ancestors',
+          'list_page_versions',
+          'get_page_version',
+          'list_page_properties',
+          'create_page_property',
+        ],
+      },
     },
     {
       id: 'manualPageId',
@@ -507,6 +529,26 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'list_spaces',
         ],
         not: true,
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'create_comment',
+          'list_comments',
+          'list_attachments',
+          'list_labels',
+          'upload_attachment',
+          'add_label',
+          'get_page_children',
+          'get_page_ancestors',
+          'list_page_versions',
+          'get_page_version',
+          'list_page_properties',
+          'create_page_property',
+        ],
       },
     },
     {
@@ -620,6 +662,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Select file to upload',
       condition: { field: 'operation', value: 'upload_attachment' },
       mode: 'basic',
+      required: { field: 'operation', value: 'upload_attachment' },
     },
     {
       id: 'attachmentFileReference',
@@ -629,6 +672,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Reference file from previous blocks',
       condition: { field: 'operation', value: 'upload_attachment' },
       mode: 'advanced',
+      required: { field: 'operation', value: 'upload_attachment' },
     },
     {
       id: 'attachmentFileName',
@@ -856,10 +900,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         const {
           credential,
           pageId,
-          manualPageId,
           operation,
-          attachmentFileUpload,
-          attachmentFileReference,
           attachmentFile,
           attachmentFileName,
           attachmentComment,
@@ -875,50 +916,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           ...rest
         } = params
 
-        const effectivePageId = (pageId || manualPageId || '').trim()
-
-        const requiresPageId = [
-          'read',
-          'update',
-          'delete',
-          'create_comment',
-          'list_comments',
-          'list_attachments',
-          'list_labels',
-          'upload_attachment',
-          'add_label',
-          'get_page_children',
-          'get_page_ancestors',
-          'list_page_versions',
-          'get_page_version',
-          'list_page_properties',
-          'create_page_property',
-        ]
-
-        const requiresSpaceId = [
-          'create',
-          'get_space',
-          'list_pages_in_space',
-          'search_in_space',
-          'create_blogpost',
-          'list_blogposts_in_space',
-        ]
-
-        if (requiresPageId.includes(operation) && !effectivePageId) {
-          throw new Error('Page ID is required. Please select a page or enter a page ID manually.')
-        }
-
-        if (requiresSpaceId.includes(operation) && !rest.spaceId) {
-          throw new Error('Space ID is required for this operation.')
-        }
-
-        if (operation === 'get_blogpost' && !blogPostId) {
-          throw new Error('Blog Post ID is required for this operation.')
-        }
-
-        if (operation === 'get_page_version' && !versionNumber) {
-          throw new Error('Version number is required for this operation.')
-        }
+        // Use canonical param (serializer already handles basic/advanced mode)
+        const effectivePageId = pageId ? String(pageId).trim() : ''
 
         if (operation === 'add_label') {
           return {
@@ -998,8 +997,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         }
 
         if (operation === 'upload_attachment') {
-          const fileInput = attachmentFileUpload || attachmentFileReference || attachmentFile
-          const normalizedFile = normalizeFileInput(fileInput, { single: true })
+          const normalizedFile = normalizeFileInput(attachmentFile, { single: true })
           if (!normalizedFile) {
             throw new Error('File is required for upload attachment operation.')
           }
@@ -1029,8 +1027,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
     credential: { type: 'string', description: 'Confluence access token' },
-    pageId: { type: 'string', description: 'Page identifier' },
-    manualPageId: { type: 'string', description: 'Manual page identifier' },
+    pageId: { type: 'string', description: 'Page identifier (canonical param)' },
     spaceId: { type: 'string', description: 'Space identifier' },
     blogPostId: { type: 'string', description: 'Blog post identifier' },
     versionNumber: { type: 'number', description: 'Page version number' },
@@ -1043,9 +1040,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     comment: { type: 'string', description: 'Comment text' },
     commentId: { type: 'string', description: 'Comment identifier' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
-    attachmentFile: { type: 'json', description: 'File to upload as attachment' },
-    attachmentFileUpload: { type: 'json', description: 'Uploaded file (basic mode)' },
-    attachmentFileReference: { type: 'json', description: 'File reference (advanced mode)' },
+    attachmentFile: { type: 'json', description: 'File to upload as attachment (canonical param)' },
     attachmentFileName: { type: 'string', description: 'Custom file name for attachment' },
     attachmentComment: { type: 'string', description: 'Comment for the attachment' },
     labelName: { type: 'string', description: 'Label name' },

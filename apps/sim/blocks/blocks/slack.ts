@@ -92,6 +92,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'authMethod',
         value: 'oauth',
       },
+      required: true,
     },
     {
       id: 'botToken',
@@ -104,6 +105,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'authMethod',
         value: 'bot_token',
       },
+      required: true,
     },
     {
       id: 'channel',
@@ -124,6 +126,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           not: true,
         },
       },
+      required: true,
     },
     {
       id: 'manualChannel',
@@ -142,6 +145,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           not: true,
         },
       },
+      required: true,
     },
     {
       id: 'dmUserId',
@@ -156,6 +160,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'destinationType',
         value: 'dm',
       },
+      required: true,
     },
     {
       id: 'manualDmUserId',
@@ -168,6 +173,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'destinationType',
         value: 'dm',
       },
+      required: true,
     },
     {
       id: 'text',
@@ -547,15 +553,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           operation,
           destinationType,
           channel,
-          manualChannel,
           dmUserId,
-          manualDmUserId,
           text,
           title,
           content,
           limit,
           oldest,
-          attachmentFiles,
           files,
           threadTs,
           updateTimestamp,
@@ -576,19 +579,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         } = params
 
         const isDM = destinationType === 'dm'
-        const effectiveChannel = (channel || manualChannel || '').trim()
-        const effectiveUserId = (dmUserId || manualDmUserId || '').trim()
+        const effectiveChannel = channel ? String(channel).trim() : ''
+        const effectiveUserId = dmUserId ? String(dmUserId).trim() : ''
 
-        const noChannelOperations = ['list_channels', 'list_users', 'get_user']
         const dmSupportedOperations = ['send', 'read']
-
-        if (isDM && dmSupportedOperations.includes(operation)) {
-          if (!effectiveUserId) {
-            throw new Error('User is required for DM operations.')
-          }
-        } else if (!effectiveChannel && !noChannelOperations.includes(operation)) {
-          throw new Error('Channel is required.')
-        }
 
         const baseParams: Record<string, any> = {}
 
@@ -600,28 +594,20 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         // Handle authentication based on method
         if (authMethod === 'bot_token') {
-          if (!botToken) {
-            throw new Error('Bot token is required when using bot token authentication')
-          }
           baseParams.accessToken = botToken
         } else {
           // Default to OAuth
-          if (!credential) {
-            throw new Error('Slack account credential is required when using Sim Bot')
-          }
           baseParams.credential = credential
         }
 
         switch (operation) {
           case 'send': {
-            if (!text || text.trim() === '') {
-              throw new Error('Message text is required for send operation')
-            }
             baseParams.text = text
             if (threadTs) {
               baseParams.thread_ts = threadTs
             }
-            const normalizedFiles = normalizeFileInput(attachmentFiles || files)
+            // files is the canonical param from attachmentFiles (basic) or files (advanced)
+            const normalizedFiles = normalizeFileInput(files)
             if (normalizedFiles) {
               baseParams.files = normalizedFiles
             }
@@ -629,9 +615,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           }
 
           case 'canvas':
-            if (!title || !content) {
-              throw new Error('Title and content are required for canvas operation')
-            }
             baseParams.title = title
             baseParams.content = content
             break
@@ -649,16 +632,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           }
 
           case 'get_message':
-            if (!getMessageTimestamp) {
-              throw new Error('Message timestamp is required for get message operation')
-            }
             baseParams.timestamp = getMessageTimestamp
             break
 
           case 'get_thread': {
-            if (!getThreadTimestamp) {
-              throw new Error('Thread timestamp is required for get thread operation')
-            }
             baseParams.threadTs = getThreadTimestamp
             if (threadLimit) {
               const parsedLimit = Number.parseInt(threadLimit, 10)
@@ -688,18 +665,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           }
 
           case 'get_user':
-            if (!userId) {
-              throw new Error('User ID is required for get user operation')
-            }
             baseParams.userId = userId
             break
 
           case 'download': {
             const fileId = (rest as any).fileId
             const downloadFileName = (rest as any).downloadFileName
-            if (!fileId) {
-              throw new Error('File ID is required for download operation')
-            }
             baseParams.fileId = fileId
             if (downloadFileName) {
               baseParams.fileName = downloadFileName
@@ -708,24 +679,15 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           }
 
           case 'update':
-            if (!updateTimestamp || !updateText) {
-              throw new Error('Timestamp and text are required for update operation')
-            }
             baseParams.timestamp = updateTimestamp
             baseParams.text = updateText
             break
 
           case 'delete':
-            if (!deleteTimestamp) {
-              throw new Error('Timestamp is required for delete operation')
-            }
             baseParams.timestamp = deleteTimestamp
             break
 
           case 'react':
-            if (!reactionTimestamp || !emojiName) {
-              throw new Error('Timestamp and emoji name are required for reaction operation')
-            }
             baseParams.timestamp = reactionTimestamp
             baseParams.name = emojiName
             break
@@ -741,19 +703,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     destinationType: { type: 'string', description: 'Destination type (channel or dm)' },
     credential: { type: 'string', description: 'Slack access token' },
     botToken: { type: 'string', description: 'Bot token' },
-    channel: { type: 'string', description: 'Channel identifier' },
-    manualChannel: { type: 'string', description: 'Manual channel identifier' },
-    dmUserId: { type: 'string', description: 'User ID for DM recipient (selector)' },
-    manualDmUserId: { type: 'string', description: 'User ID for DM recipient (manual input)' },
+    channel: { type: 'string', description: 'Channel identifier (canonical param)' },
+    dmUserId: { type: 'string', description: 'User ID for DM recipient (canonical param)' },
     text: { type: 'string', description: 'Message text' },
-    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'array', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (canonical param)' },
     title: { type: 'string', description: 'Canvas title' },
     content: { type: 'string', description: 'Canvas content' },
     limit: { type: 'string', description: 'Message limit' },
     oldest: { type: 'string', description: 'Oldest timestamp' },
     fileId: { type: 'string', description: 'File ID to download' },
-    downloadFileName: { type: 'string', description: 'File name override for download' },
+    fileName: { type: 'string', description: 'File name override for download (canonical param)' },
     // Update/Delete/React operation inputs
     updateTimestamp: { type: 'string', description: 'Message timestamp for update' },
     updateText: { type: 'string', description: 'New text for update' },

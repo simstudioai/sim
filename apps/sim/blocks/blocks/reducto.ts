@@ -24,6 +24,7 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
       placeholder: 'Upload a PDF document',
       mode: 'basic',
       maxSize: 50,
+      required: true,
     },
     {
       id: 'filePath',
@@ -32,6 +33,7 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
       canonicalParamId: 'document',
       placeholder: 'Document URL',
       mode: 'advanced',
+      required: true,
     },
     {
       id: 'pages',
@@ -62,18 +64,12 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
     config: {
       tool: () => 'reducto_parser',
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Reducto API key is required')
-        }
-
         const parameters: Record<string, unknown> = {
           apiKey: params.apiKey.trim(),
         }
 
-        const documentInput = params.fileUpload || params.filePath || params.document
-        if (!documentInput) {
-          throw new Error('PDF document is required')
-        }
+        // document is the canonical param from fileUpload (basic) or filePath (advanced)
+        const documentInput = params.document
 
         if (typeof documentInput === 'object') {
           parameters.file = documentInput
@@ -118,9 +114,10 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
     },
   },
   inputs: {
-    document: { type: 'json', description: 'Document input (file upload or URL reference)' },
-    filePath: { type: 'string', description: 'PDF document URL (advanced mode)' },
-    fileUpload: { type: 'json', description: 'Uploaded PDF file (basic mode)' },
+    document: {
+      type: 'json',
+      description: 'Document input (canonical param for file upload or URL)',
+    },
     apiKey: { type: 'string', description: 'Reducto API key' },
     pages: { type: 'string', description: 'Page selection' },
     tableOutputFormat: { type: 'string', description: 'Table output format' },
@@ -135,14 +132,8 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
   },
 }
 
+// ReductoV2Block uses the same canonical param 'document' for both basic and advanced modes
 const reductoV2Inputs = ReductoBlock.inputs
-  ? {
-      ...Object.fromEntries(
-        Object.entries(ReductoBlock.inputs).filter(([key]) => key !== 'filePath')
-      ),
-      fileReference: { type: 'json', description: 'File reference (advanced mode)' },
-    }
-  : {}
 const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => {
   if (subBlock.id === 'filePath') {
     return []
@@ -157,6 +148,7 @@ const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => 
         canonicalParamId: 'document',
         placeholder: 'File reference',
         mode: 'advanced' as const,
+        required: true,
       },
     ]
   }
@@ -179,18 +171,12 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
         fallbackToolId: 'reducto_parser_v2',
       }),
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Reducto API key is required')
-        }
-
         const parameters: Record<string, unknown> = {
           apiKey: params.apiKey.trim(),
         }
 
-        const documentInput = normalizeFileInput(
-          params.fileUpload || params.fileReference || params.document,
-          { single: true }
-        )
+        // document is the canonical param from fileUpload (basic) or fileReference (advanced)
+        const documentInput = normalizeFileInput(params.document, { single: true })
         if (!documentInput) {
           throw new Error('PDF document file is required')
         }
