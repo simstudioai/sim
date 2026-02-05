@@ -294,6 +294,13 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user-follow-modify': 'Follow and unfollow artists and users',
   'user-read-playback-position': 'View playback position in podcasts',
   'ugc-image-upload': 'Upload images to Spotify playlists',
+  // TikTok scopes
+  'user.info.basic': 'View basic profile info (avatar, display name)',
+  'user.info.profile': 'View profile details (bio, verified status)',
+  'user.info.stats': 'View account statistics (likes, followers, video count)',
+  'video.list': 'View public videos',
+  'video.publish': 'Post content to profile',
+  'video.upload': 'Upload content as draft',
 }
 
 function getScopeDescription(scope: string): string {
@@ -370,6 +377,13 @@ export function OAuthRequiredModal({
         onClose()
         const returnUrl = encodeURIComponent(window.location.href)
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
+        return
+      }
+
+      if (providerId === 'tiktok') {
+        onClose()
+        const returnUrl = encodeURIComponent(window.location.href)
+        window.location.href = `/api/auth/tiktok/authorize?returnUrl=${returnUrl}`
         return
       }
 

@@ -23,6 +23,8 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
+import { SSO_TRUSTED_PROVIDERS } from '@/lib/auth/sso/constants'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
@@ -59,12 +61,15 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
-import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
-import { SSO_TRUSTED_PROVIDERS } from './sso/constants'
 
 const logger = createLogger('Auth')
 
-import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import {
+  getMicrosoftRefreshTokenExpiry,
+  getTikTokRefreshTokenExpiry,
+  isMicrosoftProvider,
+  isTikTokProvider,
+} from '@/lib/oauth/utils'
 
 const validStripeKey = env.STRIPE_SECRET_KEY
 
@@ -191,7 +196,9 @@ export const auth = betterAuth({
 
             const refreshTokenExpiresAt = isMicrosoftProvider(account.providerId)
               ? getMicrosoftRefreshTokenExpiry()
-              : account.refreshTokenExpiresAt
+              : isTikTokProvider(account.providerId)
+                ? getTikTokRefreshTokenExpiry()
+                : account.refreshTokenExpiresAt
 
             await db
               .update(schema.account)
@@ -313,6 +320,13 @@ export const auth = betterAuth({
             await db
               .update(schema.account)
               .set({ refreshTokenExpiresAt: getMicrosoftRefreshTokenExpiry() })
+              .where(eq(schema.account.id, account.id))
+          }
+
+          if (isTikTokProvider(account.providerId)) {
+            await db
+              .update(schema.account)
+              .set({ refreshTokenExpiresAt: getTikTokRefreshTokenExpiry() })
               .where(eq(schema.account.id, account.id))
           }
 
@@ -2495,66 +2509,10 @@ export const auth = betterAuth({
           },
         },
 
-        // TikTok provider
-        {
-          providerId: 'tiktok',
-          clientId: env.TIKTOK_CLIENT_ID as string,
-          clientSecret: env.TIKTOK_CLIENT_SECRET as string,
-          authorizationUrl: 'https://www.tiktok.com/v2/auth/authorize/',
-          tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
-          scopes: [
-            'user.info.basic',
-            'user.info.profile',
-            'user.info.stats',
-            'video.list',
-            'video.publish',
-          ],
-          responseType: 'code',
-          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/tiktok`,
-          getUserInfo: async (tokens) => {
-            try {
-              logger.info('Fetching TikTok user profile')
-
-              const response = await fetch(
-                'https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name',
-                {
-                  headers: {
-                    Authorization: `Bearer ${tokens.accessToken}`,
-                  },
-                }
-              )
-
-              if (!response.ok) {
-                logger.error('Failed to fetch TikTok user info', {
-                  status: response.status,
-                  statusText: response.statusText,
-                })
-                throw new Error('Failed to fetch user info')
-              }
-
-              const data = await response.json()
-              const profile = data.data?.user
-
-              if (!profile) {
-                logger.error('No user data in TikTok response')
-                return null
-              }
-
-              return {
-                id: `${profile.open_id}-${crypto.randomUUID()}`,
-                name: profile.display_name || 'TikTok User',
-                email: `${profile.open_id}@tiktok.user`,
-                emailVerified: false,
-                image: profile.avatar_url || undefined,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }
-            } catch (error) {
-              logger.error('Error in TikTok getUserInfo:', { error })
-              return null
-            }
-          },
-        },
+        // TikTok provider - REMOVED from generic OAuth
+        // TikTok uses non-standard OAuth (client_key instead of client_id)
+        // and cannot work with the generic OAuth plugin.
+        // TikTok OAuth is handled via custom routes at /api/auth/tiktok/*
 
         // WordPress.com provider
         {

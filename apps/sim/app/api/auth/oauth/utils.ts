@@ -6,9 +6,11 @@ import { getSession } from '@/lib/auth'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getMicrosoftRefreshTokenExpiry,
+  getTikTokRefreshTokenExpiry,
   isMicrosoftProvider,
+  isTikTokProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
-} from '@/lib/oauth/microsoft'
+} from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthUtilsAPI')
 
@@ -220,13 +222,13 @@ export async function refreshAccessTokenIfNeeded(
     (!credential.accessToken || (accessTokenExpiresAt && accessTokenExpiresAt <= now))
 
   // Check if we should proactively refresh to prevent refresh token expiry
-  // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity
+  // This applies to providers with expiring refresh tokens (Microsoft: 90 days, TikTok: 365 days)
   const proactiveRefreshThreshold = new Date(
     now.getTime() + PROACTIVE_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
   )
   const refreshTokenNeedsProactiveRefresh =
     !!credential.refreshToken &&
-    isMicrosoftProvider(credential.providerId) &&
+    (isMicrosoftProvider(credential.providerId) || isTikTokProvider(credential.providerId)) &&
     refreshTokenExpiresAt &&
     refreshTokenExpiresAt <= proactiveRefreshThreshold
 
@@ -271,6 +273,8 @@ export async function refreshAccessTokenIfNeeded(
 
       if (isMicrosoftProvider(credential.providerId)) {
         updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
+      } else if (isTikTokProvider(credential.providerId)) {
+        updateData.refreshTokenExpiresAt = getTikTokRefreshTokenExpiry()
       }
 
       // Update the token in the database
@@ -321,13 +325,13 @@ export async function refreshTokenIfNeeded(
     (!credential.accessToken || (accessTokenExpiresAt && accessTokenExpiresAt <= now))
 
   // Check if we should proactively refresh to prevent refresh token expiry
-  // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity
+  // This applies to providers with expiring refresh tokens (Microsoft: 90 days, TikTok: 365 days)
   const proactiveRefreshThreshold = new Date(
     now.getTime() + PROACTIVE_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
   )
   const refreshTokenNeedsProactiveRefresh =
     !!credential.refreshToken &&
-    isMicrosoftProvider(credential.providerId) &&
+    (isMicrosoftProvider(credential.providerId) || isTikTokProvider(credential.providerId)) &&
     refreshTokenExpiresAt &&
     refreshTokenExpiresAt <= proactiveRefreshThreshold
 
@@ -368,6 +372,8 @@ export async function refreshTokenIfNeeded(
 
     if (isMicrosoftProvider(credential.providerId)) {
       updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
+    } else if (isTikTokProvider(credential.providerId)) {
+      updateData.refreshTokenExpiresAt = getTikTokRefreshTokenExpiry()
     }
 
     await db.update(account).set(updateData).where(eq(account.id, credentialId))

@@ -7,6 +7,49 @@ import type {
   ScopeEvaluation,
 } from './types'
 
+// =============================================================================
+// Refresh Token Configuration
+// =============================================================================
+
+// Microsoft refresh token configuration (90 days)
+const MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS = 90
+export const PROACTIVE_REFRESH_THRESHOLD_DAYS = 7
+
+const MICROSOFT_PROVIDERS = new Set([
+  'microsoft-excel',
+  'microsoft-planner',
+  'microsoft-teams',
+  'outlook',
+  'onedrive',
+  'sharepoint',
+])
+
+export function isMicrosoftProvider(providerId: string): boolean {
+  return MICROSOFT_PROVIDERS.has(providerId)
+}
+
+export function getMicrosoftRefreshTokenExpiry(): Date {
+  return new Date(Date.now() + MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS * 24 * 60 * 60 * 1000)
+}
+
+// TikTok refresh token configuration (365 days)
+// TikTok access tokens expire in 24 hours, refresh tokens are valid for 365 days
+const TIKTOK_REFRESH_TOKEN_LIFETIME_DAYS = 365
+
+const TIKTOK_PROVIDERS = new Set(['tiktok'])
+
+export function isTikTokProvider(providerId: string): boolean {
+  return TIKTOK_PROVIDERS.has(providerId)
+}
+
+export function getTikTokRefreshTokenExpiry(): Date {
+  return new Date(Date.now() + TIKTOK_REFRESH_TOKEN_LIFETIME_DAYS * 24 * 60 * 60 * 1000)
+}
+
+// =============================================================================
+// OAuth Service Utilities
+// =============================================================================
+
 /**
  * Returns a flat list of all available OAuth services with metadata.
  * This is safe to use on the server as it doesn't include React components.

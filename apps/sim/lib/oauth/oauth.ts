@@ -832,6 +832,11 @@ interface ProviderAuthConfig {
    * instead of in the request body. Used by Cal.com.
    */
   refreshTokenInAuthHeader?: boolean
+  /**
+   * Custom parameter name for client ID in request body.
+   * Defaults to 'client_id'. TikTok uses 'client_key'.
+   */
+  clientIdParamName?: string
 }
 
 /**
@@ -1168,6 +1173,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
+        clientIdParamName: 'client_key', // TikTok uses client_key instead of client_id
       }
     }
     default:
@@ -1206,7 +1212,9 @@ function buildAuthRequest(
     headers.Authorization = `Basic ${basicAuth}`
   } else {
     // Use body credentials - include client credentials in request body
-    bodyParams.client_id = config.clientId
+    // Use custom param name if specified (e.g., TikTok uses 'client_key' instead of 'client_id')
+    const clientIdParam = config.clientIdParamName || 'client_id'
+    bodyParams[clientIdParam] = config.clientId
     if (config.clientSecret) {
       bodyParams.client_secret = config.clientSecret
     }
