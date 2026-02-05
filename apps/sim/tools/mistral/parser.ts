@@ -349,74 +349,14 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
   },
 }
 
-const mistralParserV2Params = {
-  file: {
-    type: 'file',
-    required: true,
-    visibility: 'hidden',
-    description: 'File data from a previous block',
-  },
-  resultType: mistralParserTool.params.resultType,
-  includeImageBase64: mistralParserTool.params.includeImageBase64,
-  pages: mistralParserTool.params.pages,
-  imageLimit: mistralParserTool.params.imageLimit,
-  imageMinSize: mistralParserTool.params.imageMinSize,
-  apiKey: mistralParserTool.params.apiKey,
-} satisfies ToolConfig['params']
-
-export const mistralParserV2Tool: ToolConfig<MistralParserV2Input, MistralParserV2Output> = {
+export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2Output> = {
   id: 'mistral_parser_v2',
   name: 'Mistral PDF Parser',
   description: 'Parse PDF documents using Mistral OCR API',
   version: '2.0.0',
 
-  params: mistralParserV2Params,
-  request: {
-    url: '/api/tools/mistral/parse',
-    method: 'POST',
-    headers: (params) => {
-      return {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      }
-    },
-    body: (params) => {
-      if (!params || typeof params !== 'object') {
-        throw new Error('Invalid parameters: Parameters must be provided as an object')
-      }
-      if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
-        throw new Error('Missing or invalid API key: A valid Mistral API key is required')
-      }
-
-      const file = params.file
-      if (!file || typeof file !== 'object') {
-        throw new Error('File input is required')
-      }
-
-      const requestBody: Record<string, unknown> = {
-        apiKey: params.apiKey,
-        resultType: params.resultType || 'markdown',
-      }
-
-      requestBody.file = file
-
-      if (params.pages) {
-        requestBody.pages = params.pages
-      }
-      if (params.includeImageBase64 !== undefined) {
-        requestBody.includeImageBase64 = params.includeImageBase64
-      }
-      if (params.imageLimit !== undefined) {
-        requestBody.imageLimit = params.imageLimit
-      }
-      if (params.imageMinSize !== undefined) {
-        requestBody.imageMinSize = params.imageMinSize
-      }
-
-      return requestBody
-    },
-  },
+  params: mistralParserTool.params,
+  request: mistralParserTool.request,
 
   transformResponse: async (response: Response) => {
     let ocrResult
@@ -540,6 +480,76 @@ export const mistralParserV2Tool: ToolConfig<MistralParserV2Input, MistralParser
       type: 'string',
       description: 'Structured annotation data as JSON string (when applicable)',
       optional: true,
+    },
+  },
+}
+
+/**
+ * V3 tool - Updated for new file handling pattern with UserFile normalization
+ * Used by MistralParseV3Block which uses fileUpload (basic) and fileReference (advanced) subblocks
+ */
+export const mistralParserV3Tool: ToolConfig<MistralParserV2Input, MistralParserV2Output> = {
+  ...mistralParserV2Tool,
+  id: 'mistral_parser_v3',
+  version: '3.0.0',
+  params: {
+    file: {
+      type: 'file',
+      required: true,
+      visibility: 'hidden',
+      description: 'Normalized UserFile from file upload or file reference',
+    },
+    resultType: mistralParserTool.params.resultType,
+    includeImageBase64: mistralParserTool.params.includeImageBase64,
+    pages: mistralParserTool.params.pages,
+    imageLimit: mistralParserTool.params.imageLimit,
+    imageMinSize: mistralParserTool.params.imageMinSize,
+    apiKey: mistralParserTool.params.apiKey,
+  },
+  request: {
+    url: '/api/tools/mistral/parse',
+    method: 'POST',
+    headers: (params) => {
+      return {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${params.apiKey}`,
+      }
+    },
+    body: (params) => {
+      if (!params || typeof params !== 'object') {
+        throw new Error('Invalid parameters: Parameters must be provided as an object')
+      }
+      if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
+        throw new Error('Missing or invalid API key: A valid Mistral API key is required')
+      }
+
+      // V3 expects normalized UserFile object via `file` param
+      const file = params.file
+      if (!file || typeof file !== 'object') {
+        throw new Error('File input is required: provide a file upload or file reference')
+      }
+
+      const requestBody: Record<string, unknown> = {
+        apiKey: params.apiKey,
+        resultType: params.resultType || 'markdown',
+        file: file,
+      }
+
+      if (params.pages) {
+        requestBody.pages = params.pages
+      }
+      if (params.includeImageBase64 !== undefined) {
+        requestBody.includeImageBase64 = params.includeImageBase64
+      }
+      if (params.imageLimit !== undefined) {
+        requestBody.imageLimit = params.imageLimit
+      }
+      if (params.imageMinSize !== undefined) {
+        requestBody.imageMinSize = params.imageMinSize
+      }
+
+      return requestBody
     },
   },
 }

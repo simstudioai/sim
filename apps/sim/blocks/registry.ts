@@ -79,7 +79,11 @@ import { MemoryBlock } from '@/blocks/blocks/memory'
 import { MicrosoftExcelBlock, MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
-import { MistralParseBlock, MistralParseV2Block } from '@/blocks/blocks/mistral_parse'
+import {
+  MistralParseBlock,
+  MistralParseV2Block,
+  MistralParseV3Block,
+} from '@/blocks/blocks/mistral_parse'
 import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
@@ -255,6 +259,7 @@ export const registry: Record<string, BlockConfig> = {
   microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,
   mistral_parse_v2: MistralParseV2Block,
+  mistral_parse_v3: MistralParseV3Block,
   mongodb: MongoDBBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
