@@ -106,6 +106,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
+      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
     },
     // Manual project ID input (advanced mode)
     {
@@ -116,6 +117,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
+      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
     },
     // Issue selector (basic mode)
     {
@@ -148,6 +150,28 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           'remove_watcher',
         ],
       },
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'assign',
+          'transition',
+          'add_comment',
+          'get_comments',
+          'update_comment',
+          'delete_comment',
+          'get_attachments',
+          'add_attachment',
+          'add_worklog',
+          'get_worklogs',
+          'update_worklog',
+          'delete_worklog',
+          'add_watcher',
+          'remove_watcher',
+        ],
+      },
       mode: 'basic',
     },
     // Manual issue key input (advanced mode)
@@ -159,6 +183,28 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter Jira issue key',
       dependsOn: ['credential', 'domain', 'projectId', 'manualProjectId'],
       condition: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'assign',
+          'transition',
+          'add_comment',
+          'get_comments',
+          'update_comment',
+          'delete_comment',
+          'get_attachments',
+          'add_attachment',
+          'add_worklog',
+          'get_worklogs',
+          'update_worklog',
+          'delete_worklog',
+          'add_watcher',
+          'remove_watcher',
+        ],
+      },
+      required: {
         field: 'operation',
         value: [
           'read',
@@ -690,11 +736,6 @@ Return ONLY the comment text - no explanations.`,
 
         switch (params.operation) {
           case 'write': {
-            if (!effectiveProjectId) {
-              throw new Error(
-                'Project ID is required. Please select a project or enter a project ID manually.'
-              )
-            }
             // Parse comma-separated strings into arrays
             const parseCommaSeparated = (value: string | undefined): string[] | undefined => {
               if (!value || value.trim() === '') return undefined
@@ -727,16 +768,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'update': {
-            if (!effectiveProjectId) {
-              throw new Error(
-                'Project ID is required. Please select a project or enter a project ID manually.'
-              )
-            }
-            if (!effectiveIssueKey) {
-              throw new Error(
-                'Issue Key is required. Please select an issue or enter an issue key manually.'
-              )
-            }
             const updateParams = {
               projectId: effectiveProjectId,
               issueKey: effectiveIssueKey,
@@ -749,11 +780,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'read': {
-            if (!effectiveIssueKey) {
-              throw new Error(
-                'Select a project to read issues, or provide an issue key to read a single issue.'
-              )
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -762,20 +788,12 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'read-bulk': {
-            if (!effectiveProjectId) {
-              throw new Error(
-                'Project ID is required. Please select a project or enter a project ID manually.'
-              )
-            }
             return {
               ...baseParams,
               projectId: effectiveProjectId.trim(),
             }
           }
           case 'delete': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to delete an issue.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -783,9 +801,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'assign': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to assign an issue.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -793,9 +808,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'transition': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to transition an issue.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -811,9 +823,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_comment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add a comment.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -821,9 +830,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'get_comments': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to get comments.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -831,9 +837,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'update_comment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to update a comment.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -842,9 +845,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'delete_comment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to delete a comment.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -852,9 +852,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'get_attachments': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to get attachments.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -905,9 +902,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'update_worklog': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to update a worklog.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -920,9 +914,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'delete_worklog': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to delete a worklog.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -945,9 +936,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_watcher': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add a watcher.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -955,9 +943,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'remove_watcher': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to remove a watcher.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
