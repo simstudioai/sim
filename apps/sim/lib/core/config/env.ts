@@ -35,6 +35,11 @@ export const env = createEnv({
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     AGENT_INDEXER_URL:                     z.string().url().optional(),            // URL for agent training data indexer
     AGENT_INDEXER_API_KEY:                 z.string().min(1).optional(),           // API key for agent indexer authentication
+    COPILOT_STREAM_TTL_SECONDS:            z.number().optional(),                  // Redis TTL for copilot SSE buffer
+    COPILOT_STREAM_EVENT_LIMIT:            z.number().optional(),                  // Max events retained per stream
+    COPILOT_STREAM_RESERVE_BATCH:          z.number().optional(),                  // Event ID reservation batch size
+    COPILOT_STREAM_FLUSH_INTERVAL_MS:      z.number().optional(),                  // Buffer flush interval in ms
+    COPILOT_STREAM_FLUSH_MAX_BATCH:        z.number().optional(),                  // Max events per flush batch
 
     // Database & Storage
     REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions

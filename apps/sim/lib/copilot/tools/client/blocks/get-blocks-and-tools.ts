@@ -48,7 +48,8 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
       const parsed = ExecuteResponseSuccessSchema.parse(json)
       const result = GetBlocksAndToolsResult.parse(parsed.result)
 
-      await this.markToolComplete(200, 'Successfully retrieved blocks and tools', result)
+      // TODO: Temporarily sending empty data to test 403 issue
+      await this.markToolComplete(200, 'Successfully retrieved blocks and tools', {})
       this.setState(ClientToolCallState.success)
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
