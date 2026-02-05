@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { stripWorkflowDiffMarkers, WorkflowDiffEngine } from '@/lib/workflows/diff'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
@@ -350,10 +349,12 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           findLatestEditWorkflowToolCallId().then((toolCallId) => {
             if (toolCallId) {
-              getClientTool(toolCallId)
-                ?.handleAccept?.()
-                ?.catch?.((error: Error) => {
-                  logger.warn('Failed to notify tool accept state', { error })
+              import('@/stores/panel/copilot/store')
+                .then(({ useCopilotStore }) => {
+                  useCopilotStore.getState().updatePreviewToolCallState('accepted', toolCallId)
+                })
+                .catch((error) => {
+                  logger.warn('Failed to update tool accept state', { error })
                 })
             }
           })
@@ -458,10 +459,12 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           findLatestEditWorkflowToolCallId().then((toolCallId) => {
             if (toolCallId) {
-              getClientTool(toolCallId)
-                ?.handleReject?.()
-                ?.catch?.((error: Error) => {
-                  logger.warn('Failed to notify tool reject state', { error })
+              import('@/stores/panel/copilot/store')
+                .then(({ useCopilotStore }) => {
+                  useCopilotStore.getState().updatePreviewToolCallState('rejected', toolCallId)
+                })
+                .catch((error) => {
+                  logger.warn('Failed to update tool reject state', { error })
                 })
             }
           })
