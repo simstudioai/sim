@@ -79,7 +79,9 @@ export function SearchModal({
   const router = useRouter()
   const workspaceId = params.workspaceId as string
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
+  const [search, setSearch] = useState('')
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
   const { config: permissionConfig } = usePermissionConfig()
 
@@ -142,41 +144,18 @@ export function SearchModal({
   )
 
   useEffect(() => {
-    if (open && inputRef.current) {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value'
-      )?.set
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(inputRef.current, '')
-        inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
-      }
-      inputRef.current.focus()
+    if (open) {
+      setSearch('')
+      inputRef.current?.focus()
     }
   }, [open])
 
-  const handleSearchChange = useCallback(() => {
-    requestAnimationFrame(() => {
-      const list = document.querySelector('[cmdk-list]')
-      if (list) {
-        list.scrollTop = 0
-      }
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!open) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onOpenChange(false)
-      }
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value)
+    if (listRef.current) {
+      listRef.current.scrollTop = 0
     }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, onOpenChange])
+  }, [])
 
   const handleBlockSelect = useCallback(
     (block: SearchBlockItem, type: 'block' | 'trigger' | 'tool') => {
@@ -264,7 +243,7 @@ export function SearchModal({
       {/* Overlay */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-[#E4E4E4]/50 backdrop-blur-[0.75px] transition-opacity duration-100 dark:bg-[#0D0D0D]/50',
+          'fixed inset-0 z-40 bg-[#E4E4E4]/50 transition-opacity duration-100 dark:bg-[#0D0D0D]/50',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={() => onOpenChange(false)}
@@ -281,16 +260,25 @@ export function SearchModal({
           '-translate-x-1/2 fixed top-[15%] left-1/2 z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            onOpenChange(false)
+          }
+        }}
       >
         <Command label='Search' filter={customFilter}>
           <Command.Input
             ref={inputRef}
-            autoFocus
+            value={search}
             onValueChange={handleSearchChange}
             placeholder='Search anything...'
             className='w-full border-0 border-[var(--border)] border-b bg-transparent px-[12px] py-[10px] font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
           />
-          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto p-[8px]'>
+          <Command.List
+            ref={listRef}
+            className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto p-[8px]'
+          >
             <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[15px] text-[var(--text-subtle)]'>
               No results found.
             </Command.Empty>
