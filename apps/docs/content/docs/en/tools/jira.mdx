@@ -333,6 +333,28 @@ Get all attachments from a Jira issue
 | `issueKey` | string | Issue key |
 | `attachments` | array | Array of attachments with id, filename, size, mimeType, created, author |
 
+### `jira_add_attachment`
+
+Add attachments to a Jira issue
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `issueKey` | string | Yes | Jira issue key to add attachments to \(e.g., PROJ-123\) |
+| `files` | file[] | Yes | Files to attach to the Jira issue |
+| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp of the operation |
+| `issueKey` | string | Issue key |
+| `attachmentIds` | json | IDs of uploaded attachments |
+| `files` | file[] | Uploaded attachment files |
+
 ### `jira_delete_attachment`
 
 Delete an attachment from a Jira issue

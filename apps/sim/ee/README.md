@@ -7,7 +7,7 @@ for production use.
 
 - **SSO (Single Sign-On)**: OIDC and SAML authentication integration
 - **Access Control**: Permission groups for fine-grained user access management
-- **Credential Sets**: Shared credential pools for email polling workflows
+- **Whitelabeling**: Custom branding and theming for enterprise deployments
 
 ## Licensing
 

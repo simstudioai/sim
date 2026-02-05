@@ -57,14 +57,14 @@ Generate videos using Runway Gen-4 with world consistency and visual references
 | `duration` | number | No | Video duration in seconds \(5 or 10, default: 5\) |
 | `aspectRatio` | string | No | Aspect ratio: 16:9 \(landscape\), 9:16 \(portrait\), or 1:1 \(square\) |
 | `resolution` | string | No | Video resolution \(720p output\). Note: Gen-4 Turbo outputs at 720p natively |
-| `visualReference` | json | Yes | Reference image REQUIRED for Gen-4 \(UserFile object\). Gen-4 only supports image-to-video, not text-only generation |
+| `visualReference` | file | Yes | Reference image REQUIRED for Gen-4 \(UserFile object\). Gen-4 only supports image-to-video, not text-only generation |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `videoUrl` | string | Generated video URL |
-| `videoFile` | json | Video file object with metadata |
+| `videoFile` | file | Video file object with metadata |
 | `duration` | number | Video duration in seconds |
 | `width` | number | Video width in pixels |
 | `height` | number | Video height in pixels |
@@ -93,7 +93,7 @@ Generate videos using Google Veo 3/3.1 with native audio generation
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `videoUrl` | string | Generated video URL |
-| `videoFile` | json | Video file object with metadata |
+| `videoFile` | file | Video file object with metadata |
 | `duration` | number | Video duration in seconds |
 | `width` | number | Video width in pixels |
 | `height` | number | Video height in pixels |
@@ -123,7 +123,7 @@ Generate videos using Luma Dream Machine with advanced camera controls
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `videoUrl` | string | Generated video URL |
-| `videoFile` | json | Video file object with metadata |
+| `videoFile` | file | Video file object with metadata |
 | `duration` | number | Video duration in seconds |
 | `width` | number | Video width in pixels |
 | `height` | number | Video height in pixels |
@@ -151,7 +151,7 @@ Generate videos using MiniMax Hailuo through MiniMax Platform API with advanced 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `videoUrl` | string | Generated video URL |
-| `videoFile` | json | Video file object with metadata |
+| `videoFile` | file | Video file object with metadata |
 | `duration` | number | Video duration in seconds |
 | `width` | number | Video width in pixels |
 | `height` | number | Video height in pixels |
@@ -181,7 +181,7 @@ Generate videos using Fal.ai platform with access to multiple models including V
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `videoUrl` | string | Generated video URL |
-| `videoFile` | json | Video file object with metadata |
+| `videoFile` | file | Video file object with metadata |
 | `duration` | number | Video duration in seconds |
 | `width` | number | Video width in pixels |
 | `height` | number | Video height in pixels |

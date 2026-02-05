@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
     }
 
-    // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
@@ -40,7 +39,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    // Build the URL with query parameters
     const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages`
     const queryParams = new URLSearchParams()
 
@@ -57,7 +55,6 @@ export async function POST(request: NextRequest) {
 
     logger.info(`Fetching Confluence pages from: ${url}`)
 
-    // Make the request to Confluence API with OAuth Bearer token
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -79,7 +76,6 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         logger.error('Could not parse error response as JSON:', e)
 
-        // Try to get the response text for more context
         try {
           const text = await response.text()
           logger.error('Response text:', text)

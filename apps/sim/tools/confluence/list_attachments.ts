@@ -6,6 +6,7 @@ export interface ConfluenceListAttachmentsParams {
   domain: string
   pageId: string
   limit?: number
+  cursor?: string
   cloudId?: string
 }
 
@@ -20,6 +21,7 @@ export interface ConfluenceListAttachmentsResponse {
       mediaType: string
       downloadUrl: string
     }>
+    nextCursor: string | null
   }
 }
 
@@ -60,7 +62,13 @@ export const confluenceListAttachmentsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of attachments to return (default: 25)',
+      description: 'Maximum number of attachments to return (default: 50, max: 250)',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor from previous response',
     },
     cloudId: {
       type: 'string',
@@ -77,8 +85,11 @@ export const confluenceListAttachmentsTool: ToolConfig<
         domain: params.domain,
         accessToken: params.accessToken,
         pageId: params.pageId,
-        limit: String(params.limit || 25),
+        limit: String(params.limit || 50),
       })
+      if (params.cursor) {
+        query.set('cursor', params.cursor)
+      }
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
@@ -91,15 +102,6 @@ export const confluenceListAttachmentsTool: ToolConfig<
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: (params: ConfluenceListAttachmentsParams) => {
-      return {
-        domain: params.domain,
-        accessToken: params.accessToken,
-        cloudId: params.cloudId,
-        pageId: params.pageId,
-        limit: params.limit ? Number(params.limit) : 25,
-      }
-    },
   },
 
   transformResponse: async (response: Response) => {
@@ -109,6 +111,7 @@ export const confluenceListAttachmentsTool: ToolConfig<
       output: {
         ts: new Date().toISOString(),
         attachments: data.attachments || [],
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },
@@ -116,5 +119,10 @@ export const confluenceListAttachmentsTool: ToolConfig<
   outputs: {
     ts: TIMESTAMP_OUTPUT,
     attachments: ATTACHMENTS_OUTPUT,
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for fetching the next page of results',
+      optional: true,
+    },
   },
 }

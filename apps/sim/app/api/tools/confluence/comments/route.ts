@@ -105,6 +105,8 @@ export async function GET(request: NextRequest) {
     const pageId = searchParams.get('pageId')
     const providedCloudId = searchParams.get('cloudId')
     const limit = searchParams.get('limit') || '25'
+    const bodyFormat = searchParams.get('bodyFormat') || 'storage'
+    const cursor = searchParams.get('cursor')
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -130,7 +132,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/footer-comments?limit=${limit}`
+    const queryParams = new URLSearchParams()
+    queryParams.append('limit', String(Math.min(Number(limit), 250)))
+    queryParams.append('body-format', bodyFormat)
+    if (cursor) {
+      queryParams.append('cursor', cursor)
+    }
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/footer-comments?${queryParams.toString()}`
 
     const response = await fetch(url, {
       method: 'GET',
@@ -154,14 +162,31 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json()
 
-    const comments = (data.results || []).map((comment: any) => ({
-      id: comment.id,
-      body: comment.body?.storage?.value || comment.body?.view?.value || '',
-      createdAt: comment.createdAt || '',
-      authorId: comment.authorId || '',
-    }))
+    const comments = (data.results || []).map((comment: any) => {
+      const bodyValue = comment.body?.storage?.value || comment.body?.view?.value || ''
+      return {
+        id: comment.id,
+        body: {
+          value: bodyValue,
+          representation: bodyFormat,
+        },
+        createdAt: comment.createdAt || '',
+        authorId: comment.authorId || '',
+        status: comment.status ?? null,
+        title: comment.title ?? null,
+        pageId: comment.pageId ?? null,
+        blogPostId: comment.blogPostId ?? null,
+        parentCommentId: comment.parentCommentId ?? null,
+        version: comment.version ?? null,
+      }
+    })
 
-    return NextResponse.json({ comments })
+    return NextResponse.json({
+      comments,
+      nextCursor: data._links?.next
+        ? new URL(data._links.next, 'https://placeholder').searchParams.get('cursor')
+        : null,
+    })
   } catch (error) {
     logger.error('Error listing Confluence comments:', error)
     return NextResponse.json(
