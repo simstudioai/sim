@@ -349,7 +349,15 @@ export function PreviewWorkflow({
       if (block.type === 'loop' || block.type === 'parallel') {
         const isSelected = selectedBlockId === blockId
         const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
-        const subflowExecutionStatus = getSubflowExecutionStatus(blockId)
+
+        // Check for direct error on the subflow block itself (e.g., loop resolution errors)
+        // before falling back to children-derived status
+        const directExecution = blockExecutionMap.get(blockId)
+        const subflowExecutionStatus: ExecutionStatus | undefined =
+          directExecution?.status === 'error'
+            ? 'error'
+            : (getSubflowExecutionStatus(blockId) ??
+              (directExecution ? (directExecution.status as ExecutionStatus) : undefined))
 
         nodeArray.push({
           id: blockId,

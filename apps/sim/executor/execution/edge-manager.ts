@@ -71,7 +71,13 @@ export class EdgeManager {
 
     for (const targetId of cascadeTargets) {
       if (!readyNodes.includes(targetId) && !activatedTargets.includes(targetId)) {
-        if (this.isTargetReady(targetId)) {
+        // Only queue cascade terminal control nodes when ALL outgoing edges from the
+        // current node were deactivated (dead-end scenario). When some edges are
+        // activated, terminal control nodes on deactivated branches should NOT be
+        // queued - they will be reached through the normal activated path's completion.
+        // This prevents loop/parallel sentinels on fully deactivated paths (e.g., an
+        // upstream condition took a different branch) from being spuriously executed.
+        if (activatedTargets.length === 0 && this.isTargetReady(targetId)) {
           readyNodes.push(targetId)
         }
       }
