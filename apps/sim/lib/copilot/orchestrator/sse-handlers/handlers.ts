@@ -21,6 +21,19 @@ const logger = createLogger('CopilotSseHandlers')
 
 // Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
 
+function inferToolSuccess(data: Record<string, any> | undefined): {
+  success: boolean
+  hasResultData: boolean
+  hasError: boolean
+} {
+  const hasExplicitSuccess = data?.success !== undefined || data?.result?.success !== undefined
+  const explicitSuccess = data?.success ?? data?.result?.success
+  const hasResultData = data?.result !== undefined || data?.data !== undefined
+  const hasError = !!data?.error || !!data?.result?.error
+  const success = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
+  return { success, hasResultData, hasError }
+}
+
 export type SSEHandler = (
   event: SSEEvent,
   context: StreamingContext,
@@ -47,14 +60,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const current = context.toolCalls.get(toolCallId)
     if (!current) return
 
-    // Determine success: explicit success field, or if there's result data without explicit failure.
-    const hasExplicitSuccess = data?.success !== undefined || data?.result?.success !== undefined
-    const explicitSuccess = data?.success ?? data?.result?.success
-    const hasResultData = data?.result !== undefined || data?.data !== undefined
-    const hasError = !!data?.error || !!data?.result?.error
-
-    // If explicitly set, use that; otherwise infer from data presence.
-    const success = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
+    const { success, hasResultData, hasError } = inferToolSuccess(data)
 
     current.status = success ? 'success' : 'error'
     current.endTime = Date.now()
@@ -344,12 +350,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     // Also update in main toolCalls (where we added it for execution).
     const mainToolCall = context.toolCalls.get(toolCallId)
 
-    // Use same success inference logic as main handler.
-    const hasExplicitSuccess = data?.success !== undefined || data?.result?.success !== undefined
-    const explicitSuccess = data?.success ?? data?.result?.success
-    const hasResultData = data?.result !== undefined || data?.data !== undefined
-    const hasError = !!data?.error || !!data?.result?.error
-    const success = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
+    const { success, hasResultData, hasError } = inferToolSuccess(data)
 
     const status = success ? 'success' : 'error'
     const endTime = Date.now()

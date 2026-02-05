@@ -107,7 +107,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     currentChat,
     selectChat,
     deleteChat,
-    areChatsFresh,
     workflowId: copilotWorkflowId,
     setPlanTodos,
     closePlanTodos,
@@ -142,7 +141,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       activeWorkflowId,
       copilotWorkflowId,
       loadChats,
-      areChatsFresh,
       isSendingMessage,
     }
   )

@@ -1,4 +1,10 @@
 import { createLogger } from '@sim/logger'
+
+declare global {
+  interface Window {
+    __skipDiffRecording?: boolean
+  }
+}
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { stripWorkflowDiffMarkers, WorkflowDiffEngine } from '@/lib/workflows/diff'
@@ -21,6 +27,17 @@ import {
 
 const logger = createLogger('WorkflowDiffStore')
 const diffEngine = new WorkflowDiffEngine()
+const RESET_DIFF_STATE = {
+  hasActiveDiff: false,
+  isShowingDiff: false,
+  isDiffReady: false,
+  baselineWorkflow: null,
+  baselineWorkflowId: null,
+  diffAnalysis: null,
+  diffMetadata: null,
+  diffError: null,
+  _triggerMessageId: null,
+}
 
 /**
  * Detects when a diff contains no meaningful changes.
@@ -104,17 +121,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           if (isEmptyDiffAnalysis(diffAnalysisResult)) {
             logger.info('No workflow diff detected; skipping diff view')
             diffEngine.clearDiff()
-            batchedUpdate({
-              hasActiveDiff: false,
-              isShowingDiff: false,
-              isDiffReady: false,
-              baselineWorkflow: null,
-              baselineWorkflowId: null,
-              diffAnalysis: null,
-              diffMetadata: null,
-              diffError: null,
-              _triggerMessageId: null,
-            })
+            batchedUpdate(RESET_DIFF_STATE)
             return
           }
 
@@ -205,7 +212,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             })
 
           // Emit event for undo/redo recording
-          if (!(window as any).__skipDiffRecording) {
+          if (!window.__skipDiffRecording) {
             window.dispatchEvent(
               new CustomEvent('record-diff-operation', {
                 detail: {
@@ -234,17 +241,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           diffEngine.clearDiff()
 
-          batchedUpdate({
-            hasActiveDiff: false,
-            isShowingDiff: false,
-            isDiffReady: false,
-            baselineWorkflow: null,
-            baselineWorkflowId: null,
-            diffAnalysis: null,
-            diffMetadata: null,
-            diffError: null,
-            _triggerMessageId: null,
-          })
+          batchedUpdate(RESET_DIFF_STATE)
         },
 
         toggleDiffView: () => {
@@ -301,17 +298,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           // Clear diff state FIRST to prevent flash of colors
           // This must happen synchronously before applying the cleaned state
-          set({
-            hasActiveDiff: false,
-            isShowingDiff: false,
-            isDiffReady: false,
-            baselineWorkflow: null,
-            baselineWorkflowId: null,
-            diffAnalysis: null,
-            diffMetadata: null,
-            diffError: null,
-            _triggerMessageId: null,
-          })
+          set(RESET_DIFF_STATE)
 
           // Clear the diff engine
           diffEngine.clearDiff()
@@ -320,7 +307,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           applyWorkflowStateToStores(activeWorkflowId, stateToApply)
 
           // Emit event for undo/redo recording (unless we're in an undo/redo operation)
-          if (!(window as any).__skipDiffRecording) {
+          if (!window.__skipDiffRecording) {
             window.dispatchEvent(
               new CustomEvent('record-diff-operation', {
                 detail: {
@@ -393,17 +380,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const afterReject = cloneWorkflowState(baselineWorkflow)
 
           // Clear diff state FIRST for instant UI feedback
-          set({
-            hasActiveDiff: false,
-            isShowingDiff: false,
-            isDiffReady: false,
-            baselineWorkflow: null,
-            baselineWorkflowId: null,
-            diffAnalysis: null,
-            diffMetadata: null,
-            diffError: null,
-            _triggerMessageId: null,
-          })
+          set(RESET_DIFF_STATE)
 
           // Clear the diff engine
           diffEngine.clearDiff()
@@ -412,7 +389,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           applyWorkflowStateToStores(baselineWorkflowId, baselineWorkflow)
 
           // Emit event for undo/redo recording synchronously
-          if (!(window as any).__skipDiffRecording) {
+          if (!window.__skipDiffRecording) {
             window.dispatchEvent(
               new CustomEvent('record-diff-operation', {
                 detail: {

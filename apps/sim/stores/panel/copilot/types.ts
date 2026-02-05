@@ -122,7 +122,6 @@ export interface CopilotState {
   messages: CopilotMessage[]
   workflowId: string | null
 
-  checkpoints: any[]
   messageCheckpoints: Record<string, any[]>
   messageSnapshots: Record<string, WorkflowState>
 
@@ -187,7 +186,6 @@ export interface CopilotActions {
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean
   loadChats: (forceRefresh?: boolean) => Promise<void>
-  areChatsFresh: (workflowId: string) => boolean
   selectChat: (chat: CopilotChat) => Promise<void>
   createNewChat: () => Promise<void>
   deleteChat: (chatId: string) => Promise<void>
@@ -214,10 +212,6 @@ export interface CopilotActions {
   resumeActiveStream: () => Promise<boolean>
   setToolCallState: (toolCall: any, newState: ClientToolCallState, options?: any) => void
   updateToolCallParams: (toolCallId: string, params: Record<string, any>) => void
-  sendDocsMessage: (query: string, options?: { stream?: boolean; topK?: number }) => Promise<void>
-  saveChatMessages: (chatId: string) => Promise<void>
-
-  loadCheckpoints: (chatId: string) => Promise<void>
   loadMessageCheckpoints: (chatId: string) => Promise<void>
   revertToCheckpoint: (checkpointId: string) => Promise<void>
   getCheckpointsForMessage: (messageId: string) => any[]
@@ -227,7 +221,6 @@ export interface CopilotActions {
   clearError: () => void
   clearSaveError: () => void
   clearCheckpointError: () => void
-  retrySave: (chatId: string) => Promise<void>
   cleanup: () => void
   reset: () => void
 
