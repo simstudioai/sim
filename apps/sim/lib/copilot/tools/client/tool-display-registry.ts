@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { LucideIcon } from 'lucide-react'
 import {
   Blocks,
@@ -70,7 +69,7 @@ export interface ClientToolDisplay {
 }
 
 export type DynamicTextFormatter = (
-  params: Record<string, unknown>,
+  params: Record<string, any>,
   state: ClientToolCallState
 ) => string | undefined
 
@@ -101,6 +100,9 @@ interface ToolMetadata {
     subagent?: {
       streamingLabel?: string
       completedLabel?: string
+      shouldCollapse?: boolean
+      outputArtifacts?: string[]
+      hideThinkingText?: boolean
     }
     interrupt?: any
     customRenderer?: string
@@ -113,6 +115,21 @@ interface ToolMetadata {
 interface ToolDisplayEntry {
   displayNames: Partial<Record<ClientToolCallState, ClientToolDisplay>>
   uiConfig?: ToolUIConfig
+}
+
+type WorkflowDataType = 'global_variables' | 'custom_tools' | 'mcp_tools' | 'files'
+
+type NavigationDestination = 'workflow' | 'logs' | 'templates' | 'vector_db' | 'settings'
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.round(seconds % 60)
+  if (mins < 60) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
+  const hours = Math.floor(mins / 60)
+  const remMins = mins % 60
+  if (remMins > 0) return `${hours}h ${remMins}m`
+  return `${hours}h`
 }
 
 function toUiConfig(metadata?: ToolMetadata): ToolUIConfig | undefined {
@@ -1197,7 +1214,7 @@ const META_make_api_request: ToolMetadata = {
         { key: 'method', label: 'Method', width: '26%', editable: true, mono: true },
         { key: 'url', label: 'Endpoint', width: '74%', editable: true, mono: true },
       ],
-      extractRows: (params) => {
+      extractRows: (params: Record<string, any>): Array<[string, ...any[]]> => {
         return [['request', (params.method || 'GET').toUpperCase(), params.url || '']]
       },
     },
@@ -1665,7 +1682,7 @@ const META_run_workflow: ToolMetadata = {
         { key: 'input', label: 'Input', width: '36%' },
         { key: 'value', label: 'Value', width: '64%', editable: true, mono: true },
       ],
-      extractRows: (params) => {
+      extractRows: (params: Record<string, any>): Array<[string, ...any[]]> => {
         let inputs = params.input || params.inputs || params.workflow_input
         if (typeof inputs === 'string') {
           try {
@@ -1952,7 +1969,7 @@ const META_set_environment_variables: ToolMetadata = {
         { key: 'name', label: 'Variable', width: '36%', editable: true },
         { key: 'value', label: 'Value', width: '64%', editable: true, mono: true },
       ],
-      extractRows: (params) => {
+      extractRows: (params: Record<string, any>): Array<[string, ...any[]]> => {
         const variables = params.variables || {}
         const entries = Array.isArray(variables)
           ? variables.map((v: any, i: number) => [String(i), v.name || `var_${i}`, v.value || ''])
@@ -2021,7 +2038,7 @@ const META_set_global_workflow_variables: ToolMetadata = {
         { key: 'name', label: 'Name', width: '40%', editable: true, mono: true },
         { key: 'value', label: 'Value', width: '60%', editable: true, mono: true },
       ],
-      extractRows: (params) => {
+      extractRows: (params: Record<string, any>): Array<[string, ...any[]]> => {
         const operations = params.operations || []
         return operations.map((op: any, idx: number) => [
           String(idx),

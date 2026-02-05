@@ -10,7 +10,6 @@ interface UseChatHistoryProps {
   activeWorkflowId: string | null
   copilotWorkflowId: string | null
   loadChats: (forceRefresh: boolean) => Promise<void>
-  areChatsFresh: (workflowId: string) => boolean
   isSendingMessage: boolean
 }
 
@@ -21,8 +20,7 @@ interface UseChatHistoryProps {
  * @returns Chat history utilities
  */
 export function useChatHistory(props: UseChatHistoryProps) {
-  const { chats, activeWorkflowId, copilotWorkflowId, loadChats, areChatsFresh, isSendingMessage } =
-    props
+  const { chats, activeWorkflowId, copilotWorkflowId, loadChats, isSendingMessage } = props
 
   /** Groups chats by time period (Today, Yesterday, This Week, etc.) */
   const groupedChats = useMemo(() => {
@@ -80,7 +78,7 @@ export function useChatHistory(props: UseChatHistoryProps) {
   /** Handles history dropdown opening and loads chats if needed (non-blocking) */
   const handleHistoryDropdownOpen = useCallback(
     (open: boolean) => {
-      if (open && activeWorkflowId && !isSendingMessage && !areChatsFresh(activeWorkflowId)) {
+      if (open && activeWorkflowId && !isSendingMessage) {
         loadChats(false).catch((error) => {
           logger.error('Failed to load chat history:', error)
         })
@@ -90,7 +88,7 @@ export function useChatHistory(props: UseChatHistoryProps) {
         logger.info('Chat history opened during stream - showing cached data only')
       }
     },
-    [activeWorkflowId, areChatsFresh, isSendingMessage, loadChats]
+    [activeWorkflowId, isSendingMessage, loadChats]
   )
 
   return {
