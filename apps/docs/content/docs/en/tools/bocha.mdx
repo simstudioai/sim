@@ -1,0 +1,48 @@
+---
+title: BoCha
+description: Search the web using BoCha
+---
+
+[BoCha](https://bocha.cn/) is an AI-powered search API designed specifically for LLM applications. It provides reliable real-time information retrieval and is optimized for AI-driven use cases.
+
+With BoCha in Sim, you can:
+
+- **Search the web**: Instantly find answers, facts, and overviews for search queries
+- **Get direct answers**: Retrieve precise responses for calculations, conversions, or factual queries
+- **Access summaries**: Receive concise summaries or descriptions of search topics
+- **Discover related topics**: Explore links and references related to your search
+
+These capabilities allow Sim agents to automatically access up-to-date web knowledge—from presenting facts in workflows to enriching documents and analyses with the latest information.
+
+## Usage
+
+Use the BoCha Instant Answer API to search the web. It returns direct answers, summaries, and related topics.
+
+## Tool
+
+### `bocha_search`
+
+Searches the web using the BoCha Instant Answer API and returns direct answers, summaries, and related topics.
+
+#### Inputs
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | ---- | ----------- |
+| `query` | string | Yes | The search query to execute (e.g., "latest AI research papers 2024") |
+| `freshness` | string | No | Time range for search results (noLimit / oneDay / oneWeek / oneMonth / oneYear / YYYY-MM-DD / YYYY-MM-DD..YYYY-MM-DD) |
+| `summary` | boolean | No | Whether to return a text summary |
+| `count` | number | No | Maximum number of results (1–50, e.g., 5) |
+| `include` | string | No | Domains to include in the search, separated by `|` or `,` (max 100) |
+| `exclude` | string | No | Domains to exclude from the search, separated by `|` or `,` (max 100) |
+
+#### Outputs
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `query` | string | The executed search query |
+| `results` | array | Results returned by the tool |
+
+## Notes
+
+- Category: `tools`
+- Type: `bocha`
