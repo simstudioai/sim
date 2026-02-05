@@ -90,8 +90,8 @@ export class KnowledgeBaseClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.rejected)
   }
 
-  async handleAccept(args?: KnowledgeBaseArgs): Promise<void> {
-    await this.execute(args)
+  async handleAccept(): Promise<void> {
+    await this.execute()
   }
 
   async execute(): Promise<void> {
