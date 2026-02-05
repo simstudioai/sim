@@ -319,14 +319,14 @@ Return ONLY the JSON array.`,
 
     {
       id: 'azureEndpoint',
-      title: 'Azure OpenAI Endpoint',
+      title: 'Azure Endpoint',
       type: 'short-input',
       password: true,
-      placeholder: 'https://your-resource.openai.azure.com',
+      placeholder: 'https://your-resource.services.ai.azure.com',
       connectionDroppable: false,
       condition: {
         field: 'model',
-        value: providers['azure-openai'].models,
+        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
       },
     },
     {

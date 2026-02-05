@@ -480,6 +480,15 @@ async function executeChatCompletionsRequest(
             output: accumulatedCost.output + streamCost.output,
             total: accumulatedCost.total + streamCost.total,
           }
+
+          const streamEndTime = Date.now()
+          const streamEndTimeISO = new Date(streamEndTime).toISOString()
+
+          if (streamingResult.execution.output.providerTiming) {
+            streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+            streamingResult.execution.output.providerTiming.duration =
+              streamEndTime - providerStartTime
+          }
         }),
         execution: {
           success: true,

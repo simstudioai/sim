@@ -369,6 +369,183 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       },
     ],
   },
+  anthropic: {
+    id: 'anthropic',
+    name: 'Anthropic',
+    description: "Anthropic's Claude models",
+    defaultModel: 'claude-sonnet-4-5',
+    modelPatterns: [/^claude/],
+    icon: AnthropicIcon,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'claude-opus-4-6',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 128000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'max'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-opus-4-5',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2025-11-24',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-opus-4-1',
+        pricing: {
+          input: 15.0,
+          cachedInput: 1.5,
+          output: 75.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-opus-4-0',
+        pricing: {
+          input: 15.0,
+          cachedInput: 1.5,
+          output: 75.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-sonnet-4-5',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-sonnet-4-0',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-haiku-4-5',
+        pricing: {
+          input: 1.0,
+          cachedInput: 0.1,
+          output: 5.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-3-haiku-20240307',
+        pricing: {
+          input: 0.25,
+          cachedInput: 0.025,
+          output: 1.25,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: { max: 4096, default: 4096 },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-3-7-sonnet-latest',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          computerUse: true,
+          maxOutputTokens: { max: 8192, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+    ],
+  },
   'azure-openai': {
     id: 'azure-openai',
     name: 'Azure OpenAI',
@@ -599,183 +776,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {},
         contextWindow: 1000000,
-      },
-    ],
-  },
-  anthropic: {
-    id: 'anthropic',
-    name: 'Anthropic',
-    description: "Anthropic's Claude models",
-    defaultModel: 'claude-sonnet-4-5',
-    modelPatterns: [/^claude/],
-    icon: AnthropicIcon,
-    capabilities: {
-      toolUsageControl: true,
-    },
-    models: [
-      {
-        id: 'claude-opus-4-6',
-        pricing: {
-          input: 5.0,
-          cachedInput: 0.5,
-          output: 25.0,
-          updatedAt: '2026-02-05',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 128000, default: 8192 },
-          thinking: {
-            levels: ['low', 'medium', 'high', 'max'],
-            default: 'high',
-          },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-opus-4-5',
-        pricing: {
-          input: 5.0,
-          cachedInput: 0.5,
-          output: 25.0,
-          updatedAt: '2025-11-24',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'medium',
-          },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-opus-4-1',
-        pricing: {
-          input: 15.0,
-          cachedInput: 1.5,
-          output: 75.0,
-          updatedAt: '2026-02-05',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'medium',
-          },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-opus-4-0',
-        pricing: {
-          input: 15.0,
-          cachedInput: 1.5,
-          output: 75.0,
-          updatedAt: '2026-02-05',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 64000, default: 8192 },
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'medium',
-          },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-sonnet-4-5',
-        pricing: {
-          input: 3.0,
-          cachedInput: 0.3,
-          output: 15.0,
-          updatedAt: '2026-02-05',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'medium',
-          },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-sonnet-4-0',
-        pricing: {
-          input: 3.0,
-          cachedInput: 0.3,
-          output: 15.0,
-          updatedAt: '2026-02-05',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 64000, default: 8192 },
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'medium',
-          },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-haiku-4-5',
-        pricing: {
-          input: 1.0,
-          cachedInput: 0.1,
-          output: 5.0,
-          updatedAt: '2026-02-05',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'medium',
-          },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-3-haiku-20240307',
-        pricing: {
-          input: 0.25,
-          cachedInput: 0.025,
-          output: 1.25,
-          updatedAt: '2026-02-05',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 4096, default: 4096 },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-3-7-sonnet-latest',
-        pricing: {
-          input: 3.0,
-          cachedInput: 0.3,
-          output: 15.0,
-          updatedAt: '2026-02-05',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          computerUse: true,
-          maxOutputTokens: { max: 8192, default: 8192 },
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'medium',
-          },
-        },
-        contextWindow: 200000,
       },
     ],
   },
