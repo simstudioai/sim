@@ -1,6 +1,7 @@
 import { LinearIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
 
@@ -668,17 +669,44 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         generationType: 'timestamp',
       },
     },
+    // Attachment file
+    {
+      id: 'attachmentFileUpload',
+      title: 'Attachment',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload attachment',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_attachment'],
+      },
+      mode: 'basic',
+      multiple: false,
+    },
+    {
+      id: 'file',
+      title: 'File Reference',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      placeholder: 'File reference from previous block',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_attachment'],
+      },
+      mode: 'advanced',
+    },
     // Attachment URL
     {
       id: 'url',
       title: 'URL',
       type: 'short-input',
       placeholder: 'Enter URL',
-      required: true,
+      required: false,
       condition: {
         field: 'operation',
         value: ['linear_create_attachment'],
       },
+      mode: 'advanced',
     },
     // Attachment title
     {
@@ -1742,16 +1770,34 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               teamId: effectiveTeamId,
             }
 
-          case 'linear_create_attachment':
-            if (!params.issueId?.trim() || !params.url?.trim()) {
-              throw new Error('Issue ID and URL are required.')
+          case 'linear_create_attachment': {
+            if (!params.issueId?.trim()) {
+              throw new Error('Issue ID is required.')
+            }
+            // Normalize file inputs - handles JSON stringified values from advanced mode
+            const attachmentFile =
+              normalizeFileInput(params.attachmentFileUpload, {
+                single: true,
+                errorMessage: 'Attachment file must be a single file.',
+              }) ||
+              normalizeFileInput(params.file, {
+                single: true,
+                errorMessage: 'Attachment file must be a single file.',
+              })
+            const attachmentUrl =
+              params.url?.trim() ||
+              (attachmentFile ? (attachmentFile as { url?: string }).url : undefined)
+            if (!attachmentUrl) {
+              throw new Error('URL or file is required.')
             }
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
-              url: params.url.trim(),
+              url: attachmentUrl,
+              file: attachmentFile,
               title: params.attachmentTitle,
             }
+          }
 
           case 'linear_list_attachments':
             if (!params.issueId?.trim()) {
@@ -2248,6 +2294,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     endDate: { type: 'string', description: 'End date' },
     targetDate: { type: 'string', description: 'Target date' },
     url: { type: 'string', description: 'URL' },
+    attachmentFileUpload: { type: 'json', description: 'File to attach (UI upload)' },
+    file: { type: 'json', description: 'File to attach (UserFile)' },
     attachmentTitle: { type: 'string', description: 'Attachment title' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
     relationType: { type: 'string', description: 'Relation type' },

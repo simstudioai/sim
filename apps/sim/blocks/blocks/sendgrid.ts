@@ -1,5 +1,6 @@
 import { SendgridIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SendMailResult } from '@/tools/sendgrid/types'
 
 export const SendGridBlock: BlockConfig<SendMailResult> = {
@@ -561,8 +562,13 @@ Return ONLY the HTML content.`,
           templateGenerations,
           listPageSize,
           templatePageSize,
+          attachmentFiles,
+          attachments,
           ...rest
         } = params
+
+        // Normalize attachments for send_mail operation
+        const normalizedAttachments = normalizeFileInput(attachmentFiles || attachments)
 
         // Map renamed fields back to tool parameter names
         return {
@@ -577,6 +583,7 @@ Return ONLY the HTML content.`,
           ...(templateGenerations && { generations: templateGenerations }),
           ...(listPageSize && { pageSize: listPageSize }),
           ...(templatePageSize && { pageSize: templatePageSize }),
+          ...(normalizedAttachments && { attachments: normalizedAttachments }),
         }
       },
     },

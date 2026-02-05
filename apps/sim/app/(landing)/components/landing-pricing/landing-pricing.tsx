@@ -11,7 +11,7 @@ import {
   Database,
   DollarSign,
   HardDrive,
-  Workflow,
+  Timer,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
@@ -44,7 +44,7 @@ interface PricingTier {
 const FREE_PLAN_FEATURES: PricingFeature[] = [
   { icon: DollarSign, text: '$20 usage limit' },
   { icon: HardDrive, text: '5GB file storage' },
-  { icon: Workflow, text: 'Public template access' },
+  { icon: Timer, text: '5 min execution limit' },
   { icon: Database, text: 'Limited log retention' },
   { icon: Code2, text: 'CLI/SDK Access' },
 ]

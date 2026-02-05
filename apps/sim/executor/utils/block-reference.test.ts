@@ -133,7 +133,7 @@ describe('resolveBlockReference', () => {
           'block-1': {
             input: { type: 'string' },
             conversationId: { type: 'string' },
-            files: { type: 'files' },
+            files: { type: 'file[]' },
           },
         },
       })
@@ -206,7 +206,7 @@ describe('resolveBlockReference', () => {
           },
         },
         blockOutputSchemas: {
-          'block-1': { files: { type: 'files' } },
+          'block-1': { files: { type: 'file[]' } },
         },
       })
 
@@ -218,7 +218,7 @@ describe('resolveBlockReference', () => {
       const ctx = createContext({
         blockData: { 'block-1': { files: [] } },
         blockOutputSchemas: {
-          'block-1': { files: { type: 'files' } },
+          'block-1': { files: { type: 'file[]' } },
         },
       })
 

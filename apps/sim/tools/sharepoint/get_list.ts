@@ -56,7 +56,10 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`
         const url = new URL(baseUrl)
         const finalUrl = url.toString()
-        logger.info('SharePoint List All Lists URL', { finalUrl, siteId })
+        logger.info('SharePoint List All Lists URL', {
+          finalUrl,
+          siteId,
+        })
         return finalUrl
       }
 

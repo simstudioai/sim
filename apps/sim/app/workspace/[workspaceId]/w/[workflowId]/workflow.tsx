@@ -55,7 +55,10 @@ import {
   clearDragHighlights,
   computeClampedPositionUpdates,
   estimateBlockDimensions,
+  filterProtectedBlocks,
   getClampedPositionForNode,
+  isBlockProtected,
+  isEdgeProtected,
   isInEditableElement,
   resolveParentChildSelectionConflicts,
   validateTriggerPaste,
@@ -543,6 +546,7 @@ const WorkflowContent = React.memo(() => {
     collaborativeBatchRemoveBlocks,
     collaborativeBatchToggleBlockEnabled,
     collaborativeBatchToggleBlockHandles,
+    collaborativeBatchToggleLocked,
     undo,
     redo,
   } = useCollaborativeWorkflow()
@@ -1069,8 +1073,27 @@ const WorkflowContent = React.memo(() => {
 
   const handleContextDelete = useCallback(() => {
     const blockIds = contextMenuBlocks.map((b) => b.id)
-    collaborativeBatchRemoveBlocks(blockIds)
-  }, [contextMenuBlocks, collaborativeBatchRemoveBlocks])
+    const { deletableIds, protectedIds, allProtected } = filterProtectedBlocks(blockIds, blocks)
+
+    if (protectedIds.length > 0) {
+      if (allProtected) {
+        addNotification({
+          level: 'info',
+          message: 'Cannot delete locked blocks or blocks inside locked containers',
+          workflowId: activeWorkflowId || undefined,
+        })
+        return
+      }
+      addNotification({
+        level: 'info',
+        message: `Skipped ${protectedIds.length} protected block(s)`,
+        workflowId: activeWorkflowId || undefined,
+      })
+    }
+    if (deletableIds.length > 0) {
+      collaborativeBatchRemoveBlocks(deletableIds)
+    }
+  }, [contextMenuBlocks, collaborativeBatchRemoveBlocks, addNotification, activeWorkflowId, blocks])
 
   const handleContextToggleEnabled = useCallback(() => {
     const blockIds = contextMenuBlocks.map((block) => block.id)
@@ -1081,6 +1104,11 @@ const WorkflowContent = React.memo(() => {
     const blockIds = contextMenuBlocks.map((block) => block.id)
     collaborativeBatchToggleBlockHandles(blockIds)
   }, [contextMenuBlocks, collaborativeBatchToggleBlockHandles])
+
+  const handleContextToggleLocked = useCallback(() => {
+    const blockIds = contextMenuBlocks.map((block) => block.id)
+    collaborativeBatchToggleLocked(blockIds)
+  }, [contextMenuBlocks, collaborativeBatchToggleLocked])
 
   const handleContextRemoveFromSubflow = useCallback(() => {
     const blocksToRemove = contextMenuBlocks.filter(
@@ -1104,7 +1132,7 @@ const WorkflowContent = React.memo(() => {
   const handleContextRename = useCallback(() => {
     if (contextMenuBlocks.length === 1) {
       usePanelEditorStore.getState().setCurrentBlockId(contextMenuBlocks[0].id)
-      usePanelEditorStore.getState().setShouldFocusRename(true)
+      usePanelEditorStore.getState().triggerRename()
     }
   }, [contextMenuBlocks])
 
@@ -1145,7 +1173,7 @@ const WorkflowContent = React.memo(() => {
       block.parentId && (block.parentType === 'loop' || block.parentType === 'parallel')
 
     if (isInsideSubflow) return { canRun: false, reason: 'Cannot run from inside subflow' }
-    if (!dependenciesSatisfied) return { canRun: false, reason: 'Run upstream blocks first' }
+    if (!dependenciesSatisfied) return { canRun: false, reason: 'Run previous blocks first' }
     if (isNoteBlock) return { canRun: false, reason: undefined }
     if (isExecuting) return { canRun: false, reason: undefined }
 
@@ -1951,7 +1979,6 @@ const WorkflowContent = React.memo(() => {
   const loadingWorkflowRef = useRef<string | null>(null)
   const currentWorkflowExists = Boolean(workflows[workflowIdParam])
 
-  /** Initializes workflow when it exists in registry and needs hydration. */
   useEffect(() => {
     const currentId = workflowIdParam
     const currentWorkspaceHydration = hydration.workspaceId
@@ -2128,6 +2155,7 @@ const WorkflowContent = React.memo(() => {
           parentId: block.data?.parentId,
           extent: block.data?.extent || undefined,
           dragHandle: '.workflow-drag-handle',
+          draggable: !isBlockProtected(block.id, blocks),
           data: {
             ...block.data,
             name: block.name,
@@ -2163,6 +2191,7 @@ const WorkflowContent = React.memo(() => {
         position,
         parentId: block.data?.parentId,
         dragHandle,
+        draggable: !isBlockProtected(block.id, blocks),
         extent: (() => {
           // Clamp children to subflow body (exclude header)
           const parentId = block.data?.parentId as string | undefined
@@ -2491,12 +2520,18 @@ const WorkflowContent = React.memo(() => {
       const edgeIdsToRemove = changes
         .filter((change: any) => change.type === 'remove')
         .map((change: any) => change.id)
+        .filter((edgeId: string) => {
+          // Prevent removing edges connected to protected blocks
+          const edge = edges.find((e) => e.id === edgeId)
+          if (!edge) return true
+          return !isEdgeProtected(edge, blocks)
+        })
 
       if (edgeIdsToRemove.length > 0) {
         collaborativeBatchRemoveEdges(edgeIdsToRemove)
       }
     },
-    [collaborativeBatchRemoveEdges]
+    [collaborativeBatchRemoveEdges, edges, blocks]
   )
 
   /**
@@ -2557,6 +2592,16 @@ const WorkflowContent = React.memo(() => {
         const targetNode = getNodes().find((n) => n.id === connection.target)
 
         if (!sourceNode || !targetNode) return
+
+        // Prevent connections to/from protected blocks
+        if (isEdgeProtected(connection, blocks)) {
+          addNotification({
+            level: 'info',
+            message: 'Cannot connect to locked blocks or blocks inside locked containers',
+            workflowId: activeWorkflowId || undefined,
+          })
+          return
+        }
 
         // Get parent information (handle container start node case)
         const sourceParentId =
@@ -2620,7 +2665,7 @@ const WorkflowContent = React.memo(() => {
         connectionCompletedRef.current = true
       }
     },
-    [addEdge, getNodes, blocks]
+    [addEdge, getNodes, blocks, addNotification, activeWorkflowId]
   )
 
   /**
@@ -2715,6 +2760,9 @@ const WorkflowContent = React.memo(() => {
           // Only consider container nodes that aren't the dragged node
           if (n.type !== 'subflowNode' || n.id === node.id) return false
 
+          // Don't allow dropping into locked containers
+          if (blocks[n.id]?.locked) return false
+
           // Get the container's absolute position
           const containerAbsolutePos = getNodeAbsolutePosition(n.id)
 
@@ -2807,6 +2855,8 @@ const WorkflowContent = React.memo(() => {
   /** Captures initial parent ID and position when drag starts. */
   const onNodeDragStart = useCallback(
     (_event: React.MouseEvent, node: any) => {
+      // Note: Protected blocks are already non-draggable via the `draggable` node property
+
       // Store the original parent ID when starting to drag
       const currentParentId = blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
@@ -2835,7 +2885,7 @@ const WorkflowContent = React.memo(() => {
         }
       })
     },
-    [blocks, setDragStartPosition, getNodes, potentialParentId, setPotentialParentId]
+    [blocks, setDragStartPosition, getNodes, setPotentialParentId]
   )
 
   /** Handles node drag stop to establish parent-child relationships. */
@@ -2896,6 +2946,18 @@ const WorkflowContent = React.memo(() => {
 
       // Don't process parent changes if the node hasn't actually changed parent or is being moved within same parent
       if (potentialParentId === dragStartParentId) return
+
+      // Prevent moving locked blocks out of locked containers
+      // Unlocked blocks (e.g., duplicates) can be moved out freely
+      if (dragStartParentId && blocks[dragStartParentId]?.locked && blocks[node.id]?.locked) {
+        addNotification({
+          level: 'info',
+          message: 'Cannot move locked blocks out of locked containers',
+          workflowId: activeWorkflowId || undefined,
+        })
+        setPotentialParentId(dragStartParentId) // Reset to original parent
+        return
+      }
 
       // Check if this is a starter block - starter blocks should never be in containers
       const isStarterBlock = node.data?.type === 'starter'
@@ -3293,6 +3355,16 @@ const WorkflowContent = React.memo(() => {
   /** Stable delete handler to avoid creating new function references per edge. */
   const handleEdgeDelete = useCallback(
     (edgeId: string) => {
+      // Prevent removing edges connected to protected blocks
+      const edge = edges.find((e) => e.id === edgeId)
+      if (edge && isEdgeProtected(edge, blocks)) {
+        addNotification({
+          level: 'info',
+          message: 'Cannot remove connections from locked blocks',
+          workflowId: activeWorkflowId || undefined,
+        })
+        return
+      }
       removeEdge(edgeId)
       // Remove this edge from selection (find by edge ID value)
       setSelectedEdges((prev) => {
@@ -3305,7 +3377,7 @@ const WorkflowContent = React.memo(() => {
         return next
       })
     },
-    [removeEdge]
+    [removeEdge, edges, blocks, addNotification, activeWorkflowId]
   )
 
   /** Transforms edges to include selection state and delete handlers. Memoized to prevent re-renders. */
@@ -3346,9 +3418,15 @@ const WorkflowContent = React.memo(() => {
 
       // Handle edge deletion first (edges take priority if selected)
       if (selectedEdges.size > 0) {
-        // Get all selected edge IDs and batch delete them
-        const edgeIds = Array.from(selectedEdges.values())
-        collaborativeBatchRemoveEdges(edgeIds)
+        // Get all selected edge IDs and filter out edges connected to protected blocks
+        const edgeIds = Array.from(selectedEdges.values()).filter((edgeId) => {
+          const edge = edges.find((e) => e.id === edgeId)
+          if (!edge) return true
+          return !isEdgeProtected(edge, blocks)
+        })
+        if (edgeIds.length > 0) {
+          collaborativeBatchRemoveEdges(edgeIds)
+        }
         setSelectedEdges(new Map())
         return
       }
@@ -3365,7 +3443,29 @@ const WorkflowContent = React.memo(() => {
 
       event.preventDefault()
       const selectedIds = selectedNodes.map((node) => node.id)
-      collaborativeBatchRemoveBlocks(selectedIds)
+      const { deletableIds, protectedIds, allProtected } = filterProtectedBlocks(
+        selectedIds,
+        blocks
+      )
+
+      if (protectedIds.length > 0) {
+        if (allProtected) {
+          addNotification({
+            level: 'info',
+            message: 'Cannot delete locked blocks or blocks inside locked containers',
+            workflowId: activeWorkflowId || undefined,
+          })
+          return
+        }
+        addNotification({
+          level: 'info',
+          message: `Skipped ${protectedIds.length} protected block(s)`,
+          workflowId: activeWorkflowId || undefined,
+        })
+      }
+      if (deletableIds.length > 0) {
+        collaborativeBatchRemoveBlocks(deletableIds)
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -3376,6 +3476,10 @@ const WorkflowContent = React.memo(() => {
     getNodes,
     collaborativeBatchRemoveBlocks,
     effectivePermissions.canEdit,
+    blocks,
+    edges,
+    addNotification,
+    activeWorkflowId,
   ])
 
   return (
@@ -3496,12 +3600,18 @@ const WorkflowContent = React.memo(() => {
                 (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
               )}
               canRunFromBlock={runFromBlockState.canRun}
-              disableEdit={!effectivePermissions.canEdit}
+              disableEdit={
+                !effectivePermissions.canEdit ||
+                contextMenuBlocks.some((b) => b.locked || b.isParentLocked)
+              }
+              userCanEdit={effectivePermissions.canEdit}
               isExecuting={isExecuting}
               isPositionalTrigger={
                 contextMenuBlocks.length === 1 &&
                 edges.filter((e) => e.target === contextMenuBlocks[0]?.id).length === 0
               }
+              onToggleLocked={handleContextToggleLocked}
+              canAdmin={effectivePermissions.canAdmin}
             />
 
             <CanvasMenu
@@ -3524,6 +3634,7 @@ const WorkflowContent = React.memo(() => {
               disableEdit={!effectivePermissions.canEdit}
               canUndo={canUndo}
               canRedo={canRedo}
+              hasLockedBlocks={Object.values(blocks).some((b) => b.locked)}
             />
           </>
         )}

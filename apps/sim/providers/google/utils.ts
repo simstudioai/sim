@@ -109,6 +109,7 @@ export function extractFunctionCall(candidate: Candidate | undefined): ParsedFun
 
 /**
  * Extracts the full Part containing the function call (preserves thoughtSignature)
+ * @deprecated Use extractAllFunctionCallParts for proper multi-tool handling
  */
 export function extractFunctionCallPart(candidate: Candidate | undefined): Part | null {
   if (!candidate?.content?.parts) return null
@@ -120,6 +121,17 @@ export function extractFunctionCallPart(candidate: Candidate | undefined): Part 
   }
 
   return null
+}
+
+/**
+ * Extracts ALL Parts containing function calls from a candidate.
+ * Gemini can return multiple function calls in a single response,
+ * and all should be executed before continuing the conversation.
+ */
+export function extractAllFunctionCallParts(candidate: Candidate | undefined): Part[] {
+  if (!candidate?.content?.parts) return []
+
+  return candidate.content.parts.filter((part) => part.functionCall)
 }
 
 /**

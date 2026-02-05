@@ -153,7 +153,7 @@ export function generateToolInputSchema(inputFormat: InputFormatField[]): McpToo
 
     // Handle array types
     if (fieldType === 'array') {
-      if (field.type === 'files') {
+      if (field.type === 'file[]') {
         property.items = {
           type: 'object',
           properties: {

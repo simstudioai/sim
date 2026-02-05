@@ -526,7 +526,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
       description:
         'Single hold object (for create_matters_holds or list_matters_holds with holdId)',
     },
-    file: { type: 'json', description: 'Downloaded export file (UserFile) from execution files' },
+    file: { type: 'file', description: 'Downloaded export file (UserFile) from execution files' },
     nextPageToken: {
       type: 'string',
       description: 'Token for fetching next page of results (for list operations)',

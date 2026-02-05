@@ -231,6 +231,8 @@ export function FolderItem({
     const isFolderSelected = store.selectedFolders.has(folder.id)
 
     if (!isFolderSelected) {
+      // Replace selection with just this folder (Finder/Explorer pattern)
+      store.clearAllSelection()
       store.selectFolder(folder.id)
     }
 

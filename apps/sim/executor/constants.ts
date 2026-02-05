@@ -1,3 +1,4 @@
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { LoopType, ParallelType } from '@/lib/workflows/types'
 
 /**
@@ -187,8 +188,12 @@ export const HTTP = {
 
 export const AGENT = {
   DEFAULT_MODEL: 'claude-sonnet-4-5',
-  DEFAULT_FUNCTION_TIMEOUT: 600000,
-  REQUEST_TIMEOUT: 600000,
+  get DEFAULT_FUNCTION_TIMEOUT() {
+    return getMaxExecutionTimeout()
+  },
+  get REQUEST_TIMEOUT() {
+    return getMaxExecutionTimeout()
+  },
   CUSTOM_TOOL_PREFIX: 'custom_',
 } as const
 

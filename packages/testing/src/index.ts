@@ -45,12 +45,14 @@ export * from './assertions'
 export * from './builders'
 export * from './factories'
 export {
+  clearRedisMocks,
   createEnvMock,
   createMockDb,
   createMockFetch,
   createMockFormDataRequest,
   createMockGetEnv,
   createMockLogger,
+  createMockRedis,
   createMockRequest,
   createMockResponse,
   createMockSocket,
@@ -63,6 +65,7 @@ export {
   loggerMock,
   type MockAuthResult,
   type MockFetchResponse,
+  type MockRedis,
   type MockUser,
   mockAuth,
   mockCommonSchemas,

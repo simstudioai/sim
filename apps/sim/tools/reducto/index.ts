@@ -1,3 +1,3 @@
-import { reductoParserTool } from '@/tools/reducto/parser'
+import { reductoParserTool, reductoParserV2Tool } from '@/tools/reducto/parser'
 
-export { reductoParserTool }
+export { reductoParserTool, reductoParserV2Tool }

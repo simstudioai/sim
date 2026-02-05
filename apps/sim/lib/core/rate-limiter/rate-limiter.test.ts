@@ -5,6 +5,7 @@ import type { ConsumeResult, RateLimitStorageAdapter, TokenStatus } from './stor
 import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS, RateLimitError } from './types'
 
 vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/core/config/feature-flags', () => ({ isBillingEnabled: true }))
 
 interface MockAdapter {
   consumeTokens: Mock

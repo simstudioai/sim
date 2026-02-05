@@ -92,6 +92,9 @@ export async function POST(request: NextRequest) {
       formData.append('comment', comment)
     }
 
+    // Add minorEdit field as required by Confluence API
+    formData.append('minorEdit', 'false')
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {

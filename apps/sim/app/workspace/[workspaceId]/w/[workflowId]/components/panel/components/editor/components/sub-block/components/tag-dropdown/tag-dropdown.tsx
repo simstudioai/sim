@@ -225,7 +225,7 @@ const getOutputTypeForPath = (
       const chatModeTypes: Record<string, string> = {
         input: 'string',
         conversationId: 'string',
-        files: 'files',
+        files: 'file[]',
       }
       return chatModeTypes[outputPath] || 'any'
     }
@@ -908,8 +908,10 @@ const PopoverContextCapture: React.FC<{
  * When in nested folders, goes back one level at a time.
  * At the root folder level, closes the folder.
  */
-const TagDropdownBackButton: React.FC = () => {
-  const { isInFolder, closeFolder, colorScheme, size } = usePopoverContext()
+const TagDropdownBackButton: React.FC<{ setSelectedIndex: (index: number) => void }> = ({
+  setSelectedIndex,
+}) => {
+  const { isInFolder, closeFolder, size, isKeyboardNav, setKeyboardNav } = usePopoverContext()
   const nestedNav = useNestedNavigation()
 
   if (!isInFolder) return null
@@ -922,28 +924,31 @@ const TagDropdownBackButton: React.FC = () => {
     closeFolder()
   }
 
+  const handleMouseEnter = () => {
+    if (isKeyboardNav) return
+    setKeyboardNav(false)
+    setSelectedIndex(-1)
+  }
+
   return (
-    <div
-      className={cn(
-        'flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base',
-        size === 'sm' ? 'h-[22px] text-[11px]' : 'h-[26px] text-[13px]',
-        colorScheme === 'inverted'
-          ? 'text-white hover:bg-[#363636] hover:text-white dark:text-[var(--text-primary)] dark:hover:bg-[var(--surface-5)]'
-          : 'text-[var(--text-primary)] hover:bg-[var(--border-1)]'
-      )}
-      role='button'
-      onClick={handleBackClick}
+    <PopoverItem
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        handleBackClick(e)
+      }}
+      onMouseEnter={handleMouseEnter}
     >
       <svg
-        className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'}
+        className={cn('shrink-0', size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5')}
         fill='none'
         viewBox='0 0 24 24'
         stroke='currentColor'
       >
         <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
       </svg>
-      <span>Back</span>
-    </div>
+      <span className='shrink-0'>Back</span>
+    </PopoverItem>
   )
 }
 
@@ -1563,16 +1568,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     blockTagGroups.sort((a, b) => a.distance - b.distance)
     finalBlockTagGroups.push(...blockTagGroups)
 
-    const contextualTags: string[] = []
-    if (loopBlockGroup) {
-      contextualTags.push(...loopBlockGroup.tags)
-    }
-    if (parallelBlockGroup) {
-      contextualTags.push(...parallelBlockGroup.tags)
-    }
+    const groupTags = finalBlockTagGroups.flatMap((group) => group.tags)
+    const tags = [...groupTags, ...variableTags]
 
     return {
-      tags: [...allBlockTags, ...variableTags, ...contextualTags],
+      tags,
       variableInfoMap,
       blockTagGroups: finalBlockTagGroups,
     }
@@ -1746,7 +1746,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           mergedSubBlocks
         )
 
-        if (fieldType === 'files' || fieldType === 'file[]' || fieldType === 'array') {
+        if (fieldType === 'file' || fieldType === 'file[]' || fieldType === 'array') {
           const blockName = parts[0]
           const remainingPath = parts.slice(2).join('.')
           processedTag = `${blockName}.${arrayFieldName}[0].${remainingPath}`
@@ -1961,8 +1961,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          <TagDropdownBackButton />
           <PopoverScrollArea ref={scrollAreaRef}>
+            <TagDropdownBackButton setSelectedIndex={setSelectedIndex} />
             {flatTagList.length === 0 ? (
               <div className='px-[6px] py-[8px] text-[12px] text-[var(--white)]/60'>
                 No matching tags found

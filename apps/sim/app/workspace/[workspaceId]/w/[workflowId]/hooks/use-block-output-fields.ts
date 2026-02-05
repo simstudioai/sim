@@ -188,7 +188,7 @@ export function useBlockOutputFields({
           baseOutputs = {
             input: { type: 'string', description: 'User message' },
             conversationId: { type: 'string', description: 'Conversation ID' },
-            files: { type: 'files', description: 'Uploaded files' },
+            files: { type: 'file[]', description: 'Uploaded files' },
           }
         } else {
           const inputFormatValue = mergedSubBlocks?.inputFormat?.value

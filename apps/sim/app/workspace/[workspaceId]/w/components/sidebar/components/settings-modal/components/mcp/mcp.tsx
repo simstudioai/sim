@@ -407,14 +407,12 @@ export function MCP({ initialServerId }: MCPProps) {
   const [urlScrollLeft, setUrlScrollLeft] = useState(0)
   const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
 
-  // Auto-select server when initialServerId is provided
   useEffect(() => {
     if (initialServerId && servers.some((s) => s.id === initialServerId)) {
       setSelectedServerId(initialServerId)
     }
   }, [initialServerId, servers])
 
-  // Force refresh tools when entering server detail view to detect stale schemas
   useEffect(() => {
     if (selectedServerId) {
       forceRefreshTools(workspaceId)
@@ -675,6 +673,7 @@ export function MCP({ initialServerId }: MCPProps) {
 
   /**
    * Opens the detail view for a specific server.
+   * Note: Tool refresh is handled by the useEffect that watches selectedServerId
    */
   const handleViewDetails = useCallback((serverId: string) => {
     setSelectedServerId(serverId)
@@ -717,7 +716,6 @@ export function MCP({ initialServerId }: MCPProps) {
           `Refreshed MCP server: ${serverId}, workflows updated: ${result.workflowsUpdated}`
         )
 
-        // If the active workflow was updated, reload its subblock values from DB
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (activeWorkflowId && result.updatedWorkflowIds?.includes(activeWorkflowId)) {
           logger.info(`Active workflow ${activeWorkflowId} was updated, reloading subblock values`)

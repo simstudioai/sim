@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandExtractAPI')
@@ -51,6 +52,10 @@ export async function POST(request: NextRequest) {
     const params = validationResult.data
     const { url: rawUrl, instruction, selector, provider, apiKey, schema } = params
     const url = normalizeUrl(rawUrl)
+    const urlValidation = await validateUrlWithDNS(url, 'url')
+    if (!urlValidation.isValid) {
+      return NextResponse.json({ error: urlValidation.error }, { status: 400 })
+    }
 
     logger.info('Starting Stagehand extraction process', {
       rawUrl,

@@ -21,6 +21,7 @@ const UpdateCreatorProfileSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters').optional(),
   profileImageUrl: z.string().optional().or(z.literal('')),
   details: CreatorProfileDetailsSchema.optional(),
+  verified: z.boolean().optional(), // Verification status (super users only)
 })
 
 // Helper to check if user has permission to manage profile
@@ -97,11 +98,29 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
-    // Check permissions
-    const canEdit = await hasPermission(session.user.id, existing[0])
-    if (!canEdit) {
-      logger.warn(`[${requestId}] User denied permission to update profile: ${id}`)
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    // Verification changes require super user permission
+    if (data.verified !== undefined) {
+      const { verifyEffectiveSuperUser } = await import('@/lib/templates/permissions')
+      const { effectiveSuperUser } = await verifyEffectiveSuperUser(session.user.id)
+      if (!effectiveSuperUser) {
+        logger.warn(`[${requestId}] Non-super user attempted to change creator verification: ${id}`)
+        return NextResponse.json(
+          { error: 'Only super users can change verification status' },
+          { status: 403 }
+        )
+      }
+    }
+
+    // For non-verified updates, check regular permissions
+    const hasNonVerifiedUpdates =
+      data.name !== undefined || data.profileImageUrl !== undefined || data.details !== undefined
+
+    if (hasNonVerifiedUpdates) {
+      const canEdit = await hasPermission(session.user.id, existing[0])
+      if (!canEdit) {
+        logger.warn(`[${requestId}] User denied permission to update profile: ${id}`)
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
     }
 
     const updateData: any = {
@@ -111,6 +130,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (data.name !== undefined) updateData.name = data.name
     if (data.profileImageUrl !== undefined) updateData.profileImageUrl = data.profileImageUrl
     if (data.details !== undefined) updateData.details = data.details
+    if (data.verified !== undefined) updateData.verified = data.verified
 
     const updated = await db
       .update(templateCreators)

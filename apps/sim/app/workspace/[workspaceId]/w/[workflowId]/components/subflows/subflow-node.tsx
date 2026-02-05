@@ -80,6 +80,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       : undefined
 
   const isEnabled = currentBlock?.enabled ?? true
+  const isLocked = currentBlock?.locked ?? false
   const isPreview = data?.isPreview || false
 
   // Focus state
@@ -200,7 +201,10 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
                 {blockName}
               </span>
             </div>
-            {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}
+            <div className='flex items-center gap-1'>
+              {!isEnabled && <Badge variant='gray-secondary'>disabled</Badge>}
+              {isLocked && <Badge variant='gray-secondary'>locked</Badge>}
+            </div>
           </div>
 
           {!isPreview && (

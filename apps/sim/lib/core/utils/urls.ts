@@ -25,6 +25,22 @@ export function getBaseUrl(): string {
 }
 
 /**
+ * Ensures a URL is absolute by prefixing the base URL when a relative path is provided.
+ * @param pathOrUrl - Relative path (e.g., /api/files/serve/...) or absolute URL
+ */
+export function ensureAbsoluteUrl(pathOrUrl: string): string {
+  if (!pathOrUrl) {
+    throw new Error('URL is required')
+  }
+
+  if (pathOrUrl.startsWith('/')) {
+    return `${getBaseUrl()}${pathOrUrl}`
+  }
+
+  return pathOrUrl
+}
+
+/**
  * Returns just the domain and port part of the application URL
  * @returns The domain with port if applicable (e.g., 'localhost:3000' or 'sim.ai')
  */

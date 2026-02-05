@@ -80,6 +80,7 @@ export const downloadFileTool: ToolConfig<SSHDownloadFileParams, SSHResponse> = 
       success: true,
       output: {
         downloaded: true,
+        file: data.file,
         fileContent: data.content,
         fileName: data.fileName,
         remotePath: data.remotePath,
@@ -91,6 +92,7 @@ export const downloadFileTool: ToolConfig<SSHDownloadFileParams, SSHResponse> = 
 
   outputs: {
     downloaded: { type: 'boolean', description: 'Whether the file was downloaded successfully' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     fileContent: { type: 'string', description: 'File content (base64 encoded for binary files)' },
     fileName: { type: 'string', description: 'Name of the downloaded file' },
     remotePath: { type: 'string', description: 'Source path on the remote server' },

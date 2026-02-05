@@ -1,3 +1,4 @@
+import { jiraAddAttachmentTool } from '@/tools/jira/add_attachment'
 import { jiraAddCommentTool } from '@/tools/jira/add_comment'
 import { jiraAddWatcherTool } from '@/tools/jira/add_watcher'
 import { jiraAddWorklogTool } from '@/tools/jira/add_worklog'
@@ -32,6 +33,7 @@ export {
   jiraTransitionIssueTool,
   jiraSearchIssuesTool,
   jiraAddCommentTool,
+  jiraAddAttachmentTool,
   jiraGetCommentsTool,
   jiraUpdateCommentTool,
   jiraDeleteCommentTool,

@@ -260,6 +260,9 @@ const Popover: React.FC<PopoverProps> = ({
       setIsKeyboardNav(false)
       setSelectedIndex(-1)
       registeredItemsRef.current = []
+    } else {
+      // Reset hover state when opening to prevent stale submenu from previous menu
+      setLastHoveredItem(null)
     }
   }, [open])
 

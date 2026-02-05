@@ -1,6 +1,7 @@
 import { MicrosoftTeamsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
 import { getTrigger } from '@/triggers'
 
@@ -344,9 +345,11 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         }
 
         // Add files if provided
-        const fileParam = attachmentFiles || files
-        if (fileParam && (operation === 'write_chat' || operation === 'write_channel')) {
-          baseParams.files = fileParam
+        if (operation === 'write_chat' || operation === 'write_channel') {
+          const normalizedFiles = normalizeFileInput(attachmentFiles || files)
+          if (normalizedFiles) {
+            baseParams.files = normalizedFiles
+          }
         }
 
         // Add messageId if provided
@@ -462,7 +465,8 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     messages: { type: 'json', description: 'Array of message objects' },
     totalAttachments: { type: 'number', description: 'Total number of attachments' },
     attachmentTypes: { type: 'json', description: 'Array of attachment content types' },
-    attachments: { type: 'array', description: 'Downloaded message attachments' },
+    attachments: { type: 'file[]', description: 'Downloaded message attachments' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
     updatedContent: {
       type: 'boolean',
       description: 'Whether content was successfully updated/sent',

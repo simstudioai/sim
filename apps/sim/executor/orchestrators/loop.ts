@@ -7,7 +7,11 @@ import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
-import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import {
+  type ExecutionContext,
+  getNextExecutionOrder,
+  type NormalizedBlockOutput,
+} from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
@@ -286,6 +290,7 @@ export class LoopOrchestrator {
         output,
         executionTime: DEFAULTS.EXECUTION_TIME,
         startedAt: now,
+        executionOrder: getNextExecutionOrder(ctx),
         endedAt: now,
       })
     }

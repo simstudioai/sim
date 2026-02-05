@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { sendSlackMessage } from '../utils'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,7 @@ const SlackSendMessageSchema = z
     userId: z.string().optional().nullable(),
     text: z.string().min(1, 'Message text is required'),
     thread_ts: z.string().optional().nullable(),
-    files: z.array(z.any()).optional().nullable(),
+    files: RawFileInputArraySchema.optional().nullable(),
   })
   .refine((data) => data.channel || data.userId, {
     message: 'Either channel or userId is required',

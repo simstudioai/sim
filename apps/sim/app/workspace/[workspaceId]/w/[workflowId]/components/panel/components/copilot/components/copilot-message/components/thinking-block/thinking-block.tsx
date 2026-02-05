@@ -3,6 +3,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronUp } from 'lucide-react'
+import { formatDuration } from '@/lib/core/utils/formatting'
 import { CopilotMarkdownRenderer } from '../markdown-renderer'
 
 /** Removes thinking tags (raw or escaped) and special tags from streamed content */
@@ -241,15 +242,11 @@ export function ThinkingBlock({
     return () => window.clearInterval(intervalId)
   }, [isStreaming, isExpanded, userHasScrolledAway])
 
-  /** Formats duration in milliseconds to seconds (minimum 1s) */
-  const formatDuration = (ms: number) => {
-    const seconds = Math.max(1, Math.round(ms / 1000))
-    return `${seconds}s`
-  }
-
   const hasContent = cleanContent.length > 0
   const isThinkingDone = !isStreaming || hasFollowingContent || hasSpecialTags
-  const durationText = `${label} for ${formatDuration(duration)}`
+  // Round to nearest second (minimum 1s) to match original behavior
+  const roundedMs = Math.max(1000, Math.round(duration / 1000) * 1000)
+  const durationText = `${label} for ${formatDuration(roundedMs)}`
 
   const getStreamingLabel = (lbl: string) => {
     if (lbl === 'Thought') return 'Thinking'

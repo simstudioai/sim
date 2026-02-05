@@ -20,11 +20,18 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
       description:
         'The path in Dropbox where the file should be saved (e.g., /folder/document.pdf)',
     },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The file to upload (UserFile object)',
+    },
+    // Legacy field for backwards compatibility - hidden from UI
     fileContent: {
       type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'The base64 encoded content of the file to upload',
+      required: false,
+      visibility: 'hidden',
+      description: 'Legacy: base64 encoded file content',
     },
     fileName: {
       type: 'string',
@@ -53,49 +60,37 @@ export const dropboxUploadTool: ToolConfig<DropboxUploadParams, DropboxUploadRes
   },
 
   request: {
-    url: 'https://content.dropboxapi.com/2/files/upload',
+    url: '/api/tools/dropbox/upload',
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Dropbox API request')
-      }
-
-      const dropboxApiArg = {
-        path: params.path,
-        mode: params.mode || 'add',
-        autorename: params.autorename ?? true,
-        mute: params.mute ?? false,
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/octet-stream',
-        'Dropbox-API-Arg': JSON.stringify(dropboxApiArg),
-      }
-    },
-    body: (params) => {
-      // The body should be the raw binary data
-      // In this case we're passing the base64 content which will be decoded
-      return params.fileContent
-    },
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => ({
+      accessToken: params.accessToken,
+      path: params.path,
+      file: params.file,
+      fileContent: params.fileContent,
+      fileName: params.fileName,
+      mode: params.mode,
+      autorename: params.autorename,
+      mute: params.mute,
+    }),
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response): Promise<DropboxUploadResponse> => {
     const data = await response.json()
 
-    if (!response.ok) {
+    if (!data.success) {
       return {
         success: false,
-        error: data.error_summary || data.error?.message || 'Failed to upload file',
+        error: data.error || 'Failed to upload file',
         output: {},
       }
     }
 
     return {
       success: true,
-      output: {
-        file: data,
-      },
+      output: data.output,
     }
   },
 

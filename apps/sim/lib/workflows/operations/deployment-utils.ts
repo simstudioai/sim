@@ -98,7 +98,7 @@ export function getInputFormatExample(
               case 'array':
                 exampleData[field.name] = [1, 2, 3]
                 break
-              case 'files':
+              case 'file[]':
                 exampleData[field.name] = [
                   {
                     data: 'data:application/pdf;base64,...',

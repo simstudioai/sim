@@ -412,6 +412,7 @@ export const NotionV2Block: BlockConfig<any> = {
       'notion_read_database_v2',
       'notion_write_v2',
       'notion_create_page_v2',
+      'notion_update_page_v2',
       'notion_query_database_v2',
       'notion_search_v2',
       'notion_create_database_v2',

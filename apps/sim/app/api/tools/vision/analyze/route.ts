@@ -1,10 +1,20 @@
+import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import {
+  downloadFileFromStorage,
+  resolveInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils.server'
+import { convertUsageMetadata, extractTextContent } from '@/providers/google/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,8 +23,8 @@ const logger = createLogger('VisionAnalyzeAPI')
 const VisionAnalyzeSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   imageUrl: z.string().optional().nullable(),
-  imageFile: z.any().optional().nullable(),
-  model: z.string().optional().default('gpt-4o'),
+  imageFile: RawFileInputSchema.optional().nullable(),
+  model: z.string().optional().default('gpt-5.2'),
   prompt: z.string().optional().nullable(),
 })
 
@@ -39,6 +49,7 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
+    const userId = authResult.userId
     const body = await request.json()
     const validatedData = VisionAnalyzeSchema.parse(body)
 
@@ -77,18 +88,72 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
-
-      const base64 = buffer.toString('base64')
+      let base64 = userFile.base64
+      let bufferLength = 0
+      if (!base64) {
+        const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+        base64 = buffer.toString('base64')
+        bufferLength = buffer.length
+      }
       const mimeType = userFile.type || 'image/jpeg'
       imageSource = `data:${mimeType};base64,${base64}`
-      logger.info(`[${requestId}] Converted image to base64 (${buffer.length} bytes)`)
+      if (bufferLength > 0) {
+        logger.info(`[${requestId}] Converted image to base64 (${bufferLength} bytes)`)
+      }
+    }
+
+    let imageUrlValidation: Awaited<ReturnType<typeof validateUrlWithDNS>> | null = null
+    if (imageSource && !imageSource.startsWith('data:')) {
+      if (imageSource.startsWith('/') && !isInternalFileUrl(imageSource)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Invalid file path. Only uploaded files are supported for internal paths.',
+          },
+          { status: 400 }
+        )
+      }
+
+      if (isInternalFileUrl(imageSource)) {
+        if (!userId) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Authentication required for internal file access',
+            },
+            { status: 401 }
+          )
+        }
+        const resolution = await resolveInternalFileUrl(imageSource, userId, requestId, logger)
+        if (resolution.error) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: resolution.error.message,
+            },
+            { status: resolution.error.status }
+          )
+        }
+        imageSource = resolution.fileUrl || imageSource
+      }
+
+      imageUrlValidation = await validateUrlWithDNS(imageSource, 'imageUrl')
+      if (!imageUrlValidation.isValid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: imageUrlValidation.error,
+          },
+          { status: 400 }
+        )
+      }
     }
 
     const defaultPrompt = 'Please analyze this image and describe what you see in detail.'
     const prompt = validatedData.prompt || defaultPrompt
 
-    const isClaude = validatedData.model.startsWith('claude-3')
+    const isClaude = validatedData.model.startsWith('claude-')
+    const isGemini = validatedData.model.startsWith('gemini-')
     const apiUrl = isClaude
       ? 'https://api.anthropic.com/v1/messages'
       : 'https://api.openai.com/v1/chat/completions'
@@ -105,6 +170,72 @@ export async function POST(request: NextRequest) {
     }
 
     let requestBody: any
+
+    if (isGemini) {
+      let base64Payload = imageSource
+      if (!base64Payload.startsWith('data:')) {
+        const urlValidation =
+          imageUrlValidation || (await validateUrlWithDNS(base64Payload, 'imageUrl'))
+        if (!urlValidation.isValid) {
+          return NextResponse.json({ success: false, error: urlValidation.error }, { status: 400 })
+        }
+
+        const response = await secureFetchWithPinnedIP(base64Payload, urlValidation.resolvedIP!, {
+          method: 'GET',
+        })
+        if (!response.ok) {
+          return NextResponse.json(
+            { success: false, error: 'Failed to fetch image for Gemini' },
+            { status: 400 }
+          )
+        }
+        const contentType =
+          response.headers.get('content-type') || validatedData.imageFile?.type || 'image/jpeg'
+        const arrayBuffer = await response.arrayBuffer()
+        const base64 = Buffer.from(arrayBuffer).toString('base64')
+        base64Payload = `data:${contentType};base64,${base64}`
+      }
+      const base64Marker = ';base64,'
+      const markerIndex = base64Payload.indexOf(base64Marker)
+      if (!base64Payload.startsWith('data:') || markerIndex === -1) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid base64 image format' },
+          { status: 400 }
+        )
+      }
+      const rawMimeType = base64Payload.slice('data:'.length, markerIndex)
+      const mediaType = rawMimeType.split(';')[0] || 'image/jpeg'
+      const base64Data = base64Payload.slice(markerIndex + base64Marker.length)
+      if (!base64Data) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid base64 image format' },
+          { status: 400 }
+        )
+      }
+
+      const ai = new GoogleGenAI({ apiKey: validatedData.apiKey })
+      const geminiResponse = await ai.models.generateContent({
+        model: validatedData.model,
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }, { inlineData: { mimeType: mediaType, data: base64Data } }],
+          },
+        ],
+      })
+
+      const content = extractTextContent(geminiResponse.candidates?.[0])
+      const usage = convertUsageMetadata(geminiResponse.usageMetadata)
+
+      return NextResponse.json({
+        success: true,
+        output: {
+          content,
+          model: validatedData.model,
+          tokens: usage.totalTokenCount || undefined,
+        },
+      })
+    }
 
     if (isClaude) {
       if (imageSource.startsWith('data:')) {
@@ -172,7 +303,7 @@ export async function POST(request: NextRequest) {
             ],
           },
         ],
-        max_tokens: 1000,
+        max_completion_tokens: 1000,
       }
     }
 

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, subscription } from '@sim/db/schema'
+import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { checkEnterprisePlan, checkProPlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
@@ -26,10 +26,22 @@ export async function getHighestPrioritySubscription(userId: string) {
 
     let orgSubs: typeof personalSubs = []
     if (orgIds.length > 0) {
-      orgSubs = await db
-        .select()
-        .from(subscription)
-        .where(and(inArray(subscription.referenceId, orgIds), eq(subscription.status, 'active')))
+      // Verify orgs exist to filter out orphaned subscriptions
+      const existingOrgs = await db
+        .select({ id: organization.id })
+        .from(organization)
+        .where(inArray(organization.id, orgIds))
+
+      const validOrgIds = existingOrgs.map((o) => o.id)
+
+      if (validOrgIds.length > 0) {
+        orgSubs = await db
+          .select()
+          .from(subscription)
+          .where(
+            and(inArray(subscription.referenceId, validOrgIds), eq(subscription.status, 'active'))
+          )
+      }
     }
 
     const allSubs = [...personalSubs, ...orgSubs]

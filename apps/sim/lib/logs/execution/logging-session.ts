@@ -776,11 +776,16 @@ export class LoggingSession {
       await db
         .update(workflowExecutionLogs)
         .set({
+          level: 'error',
           status: 'failed',
           executionData: sql`jsonb_set(
-            COALESCE(execution_data, '{}'::jsonb),
-            ARRAY['error'],
-            to_jsonb(${message}::text)
+            jsonb_set(
+              COALESCE(execution_data, '{}'::jsonb),
+              ARRAY['error'],
+              to_jsonb(${message}::text)
+            ),
+            ARRAY['finalOutput'],
+            jsonb_build_object('error', ${message}::text)
           )`,
         })
         .where(eq(workflowExecutionLogs.executionId, executionId))

@@ -32,7 +32,7 @@ export class InvalidFieldError extends Error {
 function isFileType(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return false
   const typed = value as { type?: string }
-  return typed.type === 'file[]' || typed.type === 'files'
+  return typed.type === 'file' || typed.type === 'file[]'
 }
 
 function isArrayType(value: unknown): value is { type: 'array'; items?: unknown } {

@@ -1,6 +1,7 @@
 import { WordpressIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { WordPressResponse } from '@/tools/wordpress/types'
 
 export const WordPressBlock: BlockConfig<WordPressResponse> = {
@@ -769,7 +770,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
           case 'wordpress_upload_media':
             return {
               ...baseParams,
-              file: params.fileUpload || params.file,
+              file: normalizeFileInput(params.fileUpload || params.file, { single: true }),
               filename: params.filename,
               title: params.mediaTitle,
               caption: params.caption,

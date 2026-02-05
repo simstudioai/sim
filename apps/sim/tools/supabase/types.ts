@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -441,7 +442,7 @@ export interface SupabaseStorageUploadParams {
   bucket: string
   fileName: string
   path?: string
-  fileData: any // UserFile object (basic mode) or string (advanced mode: base64/plain text)
+  fileData: UserFile | string
   contentType?: string
   upsert?: boolean
 }

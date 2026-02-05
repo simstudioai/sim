@@ -48,6 +48,21 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
       operationId,
     } = data
 
+    if (!roomManager.isReady()) {
+      socket.emit('operation-forbidden', {
+        type: 'ROOM_MANAGER_UNAVAILABLE',
+        message: 'Realtime unavailable',
+      })
+      if (operationId) {
+        socket.emit('operation-failed', {
+          operationId,
+          error: 'Realtime unavailable',
+          retryable: true,
+        })
+      }
+      return
+    }
+
     try {
       const sessionWorkflowId = await roomManager.getWorkflowIdForSocket(socket.id)
       const session = await roomManager.getUserSession(socket.id)
@@ -180,13 +195,40 @@ async function flushSubblockUpdate(
     let updateSuccessful = false
     await db.transaction(async (tx) => {
       const [block] = await tx
-        .select({ subBlocks: workflowBlocks.subBlocks })
+        .select({
+          subBlocks: workflowBlocks.subBlocks,
+          locked: workflowBlocks.locked,
+          data: workflowBlocks.data,
+        })
         .from(workflowBlocks)
         .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
         .limit(1)
 
       if (!block) {
         return
+      }
+
+      // Check if block is locked directly
+      if (block.locked) {
+        logger.info(`Skipping subblock update - block ${blockId} is locked`)
+        return
+      }
+
+      // Check if block is inside a locked parent container
+      const parentId = (block.data as Record<string, unknown> | null)?.parentId as
+        | string
+        | undefined
+      if (parentId) {
+        const [parentBlock] = await tx
+          .select({ locked: workflowBlocks.locked })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, parentId), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (parentBlock?.locked) {
+          logger.info(`Skipping subblock update - parent ${parentId} is locked`)
+          return
+        }
       }
 
       const subBlocks = (block.subBlocks as any) || {}

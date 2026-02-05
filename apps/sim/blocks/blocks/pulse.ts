@@ -1,11 +1,13 @@
 import { PulseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { PulseParserOutput } from '@/tools/pulse/types'
 
 export const PulseBlock: BlockConfig<PulseParserOutput> = {
   type: 'pulse',
   name: 'Pulse',
   description: 'Extract text from documents using Pulse OCR',
+  hideFromToolbar: true,
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via URL or upload.',
@@ -77,7 +79,7 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
           throw new Error('Document is required')
         }
         if (typeof documentInput === 'object') {
-          parameters.fileUpload = documentInput
+          parameters.file = documentInput
         } else if (typeof documentInput === 'string') {
           parameters.filePath = documentInput.trim()
         }
@@ -125,4 +127,89 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
     chunks: { type: 'json', description: 'Chunked content if chunking was enabled' },
     figures: { type: 'json', description: 'Extracted figures if figure extraction was enabled' },
   },
+}
+
+const pulseV2Inputs = PulseBlock.inputs
+  ? {
+      ...Object.fromEntries(
+        Object.entries(PulseBlock.inputs).filter(([key]) => key !== 'filePath')
+      ),
+      fileReference: { type: 'json', description: 'File reference (advanced mode)' },
+    }
+  : {}
+const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
+  if (subBlock.id === 'filePath') {
+    return [] // Remove the old filePath subblock
+  }
+  if (subBlock.id === 'fileUpload') {
+    // Insert fileReference right after fileUpload
+    return [
+      subBlock,
+      {
+        id: 'fileReference',
+        title: 'Document',
+        type: 'short-input' as SubBlockType,
+        canonicalParamId: 'document',
+        placeholder: 'File reference',
+        mode: 'advanced' as const,
+      },
+    ]
+  }
+  return [subBlock]
+})
+
+export const PulseV2Block: BlockConfig<PulseParserOutput> = {
+  ...PulseBlock,
+  type: 'pulse_v2',
+  name: 'Pulse',
+  hideFromToolbar: false,
+  longDescription:
+    'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.',
+  subBlocks: pulseV2SubBlocks,
+  tools: {
+    access: ['pulse_parser_v2'],
+    config: {
+      tool: createVersionedToolSelector({
+        baseToolSelector: () => 'pulse_parser',
+        suffix: '_v2',
+        fallbackToolId: 'pulse_parser_v2',
+      }),
+      params: (params) => {
+        if (!params || !params.apiKey || params.apiKey.trim() === '') {
+          throw new Error('Pulse API key is required')
+        }
+
+        const parameters: Record<string, unknown> = {
+          apiKey: params.apiKey.trim(),
+        }
+
+        const normalizedFile = normalizeFileInput(
+          params.fileUpload || params.fileReference || params.document,
+          { single: true }
+        )
+        if (!normalizedFile) {
+          throw new Error('Document file is required')
+        }
+        parameters.file = normalizedFile
+
+        if (params.pages && params.pages.trim() !== '') {
+          parameters.pages = params.pages.trim()
+        }
+
+        if (params.chunking && params.chunking.trim() !== '') {
+          parameters.chunking = params.chunking.trim()
+        }
+
+        if (params.chunkSize && params.chunkSize.trim() !== '') {
+          const size = Number.parseInt(params.chunkSize.trim(), 10)
+          if (!Number.isNaN(size) && size > 0) {
+            parameters.chunkSize = size
+          }
+        }
+
+        return parameters
+      },
+    },
+  },
+  inputs: pulseV2Inputs,
 }

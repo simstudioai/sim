@@ -179,7 +179,7 @@ export function A2aDeploy({
       newFields.push({
         id: crypto.randomUUID(),
         name: 'files',
-        type: 'files',
+        type: 'file[]',
         value: '',
         collapsed: false,
       })

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { StorageService } from '@/lib/uploads'
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
         text,
         model_id: modelId,
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(DEFAULT_EXECUTION_TIMEOUT_MS),
     })
 
     if (!response.ok) {

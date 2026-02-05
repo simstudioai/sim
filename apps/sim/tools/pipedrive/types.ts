@@ -1,4 +1,4 @@
-import type { OutputProperty, ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
  * Output property definitions for Pipedrive API responses.
@@ -435,10 +435,12 @@ export interface PipedriveGetFilesParams {
   person_id?: string
   org_id?: string
   limit?: string
+  downloadFiles?: boolean
 }
 
 export interface PipedriveGetFilesOutput {
   files: PipedriveFile[]
+  downloadedFiles?: ToolFileData[]
   total_items: number
   success: boolean
 }

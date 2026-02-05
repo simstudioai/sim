@@ -26,6 +26,28 @@ const logger = createLogger('SubscriptionCore')
 export { getHighestPrioritySubscription }
 
 /**
+ * Check if a referenceId (user ID or org ID) has an active subscription
+ * Used for duplicate subscription prevention
+ *
+ * Fails closed: returns true on error to prevent duplicate creation
+ */
+export async function hasActiveSubscription(referenceId: string): Promise<boolean> {
+  try {
+    const [activeSub] = await db
+      .select({ id: subscription.id })
+      .from(subscription)
+      .where(and(eq(subscription.referenceId, referenceId), eq(subscription.status, 'active')))
+      .limit(1)
+
+    return !!activeSub
+  } catch (error) {
+    logger.error('Error checking active subscription', { error, referenceId })
+    // Fail closed: assume subscription exists to prevent duplicate creation
+    return true
+  }
+}
+
+/**
  * Check if user is on Pro plan (direct or via organization)
  */
 export async function isProPlan(userId: string): Promise<boolean> {

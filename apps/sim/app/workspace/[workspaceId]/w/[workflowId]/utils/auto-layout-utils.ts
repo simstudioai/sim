@@ -52,6 +52,16 @@ export async function applyAutoLayoutAndUpdateStore(
       return { success: false, error: 'No blocks to layout' }
     }
 
+    // Check for locked blocks - auto-layout is disabled when blocks are locked
+    const hasLockedBlocks = Object.values(blocks).some((block) => block.locked)
+    if (hasLockedBlocks) {
+      logger.info('Auto layout skipped: workflow contains locked blocks', { workflowId })
+      return {
+        success: false,
+        error: 'Auto-layout is disabled when blocks are locked. Unlock blocks to use auto-layout.',
+      }
+    }
+
     // Merge with default options
     const layoutOptions = {
       spacing: {

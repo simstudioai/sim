@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
@@ -16,7 +17,7 @@ const SupabaseStorageUploadSchema = z.object({
   bucket: z.string().min(1, 'Bucket name is required'),
   fileName: z.string().min(1, 'File name is required'),
   path: z.string().optional().nullable(),
-  fileData: z.any(),
+  fileData: FileInputSchema,
   contentType: z.string().optional().nullable(),
   upsert: z.boolean().optional().default(false),
 })

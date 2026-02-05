@@ -45,11 +45,13 @@ import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useChatStore } from '@/stores/chat/store'
+import { useNotificationStore } from '@/stores/notifications/store'
 import type { PanelTab } from '@/stores/panel'
 import { usePanelStore, useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Panel')
 /**
@@ -118,6 +120,11 @@ export const Panel = memo(function Panel() {
     hydration.phase === 'metadata-loading' ||
     hydration.phase === 'state-loading'
   const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
+
+  // Check for locked blocks (disables auto-layout)
+  const hasLockedBlocks = useWorkflowStore((state) =>
+    Object.values(state.blocks).some((block) => block.locked)
+  )
 
   // Delete workflow hook
   const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
@@ -230,11 +237,24 @@ export const Panel = memo(function Panel() {
 
     setIsAutoLayouting(true)
     try {
-      await autoLayoutWithFitView()
+      const result = await autoLayoutWithFitView()
+      if (!result.success && result.error) {
+        useNotificationStore.getState().addNotification({
+          level: 'info',
+          message: result.error,
+          workflowId: activeWorkflowId || undefined,
+        })
+      }
     } finally {
       setIsAutoLayouting(false)
     }
-  }, [isExecuting, userPermissions.canEdit, isAutoLayouting, autoLayoutWithFitView])
+  }, [
+    isExecuting,
+    userPermissions.canEdit,
+    isAutoLayouting,
+    autoLayoutWithFitView,
+    activeWorkflowId,
+  ])
 
   /**
    * Handles exporting workflow as JSON
@@ -404,7 +424,10 @@ export const Panel = memo(function Panel() {
                 <PopoverContent align='start' side='bottom' sideOffset={8}>
                   <PopoverItem
                     onClick={handleAutoLayout}
-                    disabled={isExecuting || !userPermissions.canEdit || isAutoLayouting}
+                    disabled={
+                      isExecuting || !userPermissions.canEdit || isAutoLayouting || hasLockedBlocks
+                    }
+                    title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
                   >
                     <Layout className='h-3 w-3' animate={isAutoLayouting} variant='clockwise' />
                     <span>Auto layout</span>

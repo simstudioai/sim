@@ -213,6 +213,25 @@ Different subscription plans have different usage limits:
 | **Team** | $40/seat (pooled, adjustable) | 300 sync, 2,500 async |
 | **Enterprise** | Custom | Custom |
 
+## Execution Time Limits
+
+Workflows have maximum execution time limits based on your subscription plan:
+
+| Plan | Sync Execution | Async Execution |
+|------|----------------|-----------------|
+| **Free** | 5 minutes | 10 minutes |
+| **Pro** | 50 minutes | 90 minutes |
+| **Team** | 50 minutes | 90 minutes |
+| **Enterprise** | 50 minutes | 90 minutes |
+
+**Sync executions** run immediately and return results directly. These are triggered via the API with `async: false` (default) or through the UI.
+**Async executions** (triggered via API with `async: true`, webhooks, or schedules) run in the background. Async time limits are up to 2x the sync limit, capped at 90 minutes.
+
+
+<Callout type="info">
+  If a workflow exceeds its time limit, it will be terminated and marked as failed with a timeout error. Design long-running workflows to use async execution or break them into smaller workflows.
+</Callout>
+
 ## Billing Model
 
 Sim uses a **base subscription + overage** billing model:

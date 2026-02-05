@@ -58,13 +58,28 @@ export interface McpSecurityPolicy {
 }
 
 /**
+ * JSON Schema property definition for tool parameters.
+ * Follows JSON Schema specification with description support.
+ */
+export interface McpToolSchemaProperty {
+  type: string
+  description?: string
+  items?: McpToolSchemaProperty
+  properties?: Record<string, McpToolSchemaProperty>
+  required?: string[]
+  enum?: Array<string | number | boolean>
+  default?: unknown
+}
+
+/**
  * JSON Schema for tool input parameters.
  * Aligns with MCP SDK's Tool.inputSchema structure.
  */
 export interface McpToolSchema {
   type: 'object'
-  properties?: Record<string, unknown>
+  properties?: Record<string, McpToolSchemaProperty>
   required?: string[]
+  description?: string
 }
 
 /**

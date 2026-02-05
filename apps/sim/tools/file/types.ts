@@ -2,11 +2,19 @@ import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface FileParserInput {
-  filePath: string | string[]
+  filePath?: string | string[]
+  file?: UserFile | UserFile[] | FileUploadInput | FileUploadInput[]
   fileType?: string
   workspaceId?: string
   workflowId?: string
   executionId?: string
+}
+
+export interface FileUploadInput {
+  path: string
+  name?: string
+  size?: number
+  type?: string
 }
 
 export interface FileParseResult {
@@ -32,6 +40,17 @@ export interface FileParserOutputData {
 
 export interface FileParserOutput extends ToolResponse {
   output: FileParserOutputData
+}
+
+export interface FileParserV3OutputData {
+  /** Array of parsed files as UserFile objects */
+  files: UserFile[]
+  /** Combined text content from all files */
+  combinedContent: string
+}
+
+export interface FileParserV3Output extends ToolResponse {
+  output: FileParserV3OutputData
 }
 
 /** API response structure for single file parse */

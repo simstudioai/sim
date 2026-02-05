@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SharepointResponse } from '@/tools/sharepoint/types'
 
 const logger = createLogger('SharepointBlock')
@@ -449,7 +450,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
         }
 
         // Handle file upload files parameter
-        const fileParam = uploadFiles || files
+        const normalizedFiles = normalizeFileInput(uploadFiles || files)
         const baseParams: Record<string, any> = {
           credential,
           siteId: effectiveSiteId || undefined,
@@ -463,8 +464,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
         }
 
         // Add files if provided
-        if (fileParam) {
-          baseParams.files = fileParam
+        if (normalizedFiles) {
+          baseParams.files = normalizedFiles
         }
 
         if (columnDefinitions) {

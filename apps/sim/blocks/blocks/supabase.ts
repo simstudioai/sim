@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { SupabaseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SupabaseResponse } from '@/tools/supabase/types'
 
 const logger = createLogger('SupabaseBlock')
@@ -675,9 +676,9 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     {
       id: 'fileContent',
       title: 'File Content',
-      type: 'code',
+      type: 'short-input',
       canonicalParamId: 'fileData',
-      placeholder: 'Base64 encoded for binary files, or plain text',
+      placeholder: 'File reference from previous block',
       condition: { field: 'operation', value: 'storage_upload' },
       mode: 'advanced',
       required: true,
@@ -973,8 +974,17 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           allowedMimeTypes,
           upsert,
           download,
+          file,
+          fileContent,
+          fileData,
           ...rest
         } = params
+
+        // Normalize file input for storage_upload operation
+        // normalizeFileInput handles JSON stringified values from advanced mode
+        const normalizedFileData = normalizeFileInput(file || fileContent || fileData, {
+          single: true,
+        })
 
         // Parse JSON data if it's a string
         let parsedData
@@ -1102,6 +1112,10 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           result.isPublic = parsedIsPublic
         }
 
+        if (normalizedFileData !== undefined) {
+          result.fileData = normalizedFileData
+        }
+
         return result
       },
     },
@@ -1173,7 +1187,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       description: 'Row count for count operations',
     },
     file: {
-      type: 'files',
+      type: 'file',
       description: 'Downloaded file stored in execution files',
     },
     publicUrl: {

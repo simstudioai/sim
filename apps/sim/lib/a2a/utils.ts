@@ -7,6 +7,7 @@ import {
   ClientFactoryOptions,
 } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { A2A_TERMINAL_STATES } from './constants'
 
 const logger = createLogger('A2AUtils')
@@ -94,11 +95,13 @@ export function extractFileContent(message: Message): A2AFile[] {
     .map((part) => {
       const file = part.file as unknown as Record<string, unknown>
       const uri = (file.url as string) || (file.uri as string)
+      const hasBytes = Boolean(file.bytes)
+      const canUseUri = Boolean(uri) && (!hasBytes || (uri ? !isInternalFileUrl(uri) : true))
       return {
         name: file.name as string | undefined,
         mimeType: file.mimeType as string | undefined,
-        ...(uri ? { uri } : {}),
-        ...(file.bytes ? { bytes: file.bytes as string } : {}),
+        ...(canUseUri ? { uri } : {}),
+        ...(hasBytes ? { bytes: file.bytes as string } : {}),
       }
     })
 }

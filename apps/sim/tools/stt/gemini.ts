@@ -1,4 +1,4 @@
-import type { SttParams, SttResponse } from '@/tools/stt/types'
+import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
@@ -114,5 +114,41 @@ export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
     confidence: { type: 'number', description: 'Overall confidence score' },
+  },
+}
+
+const geminiSttV2Params = {
+  provider: geminiSttTool.params.provider,
+  apiKey: geminiSttTool.params.apiKey,
+  model: geminiSttTool.params.model,
+  audioFile: geminiSttTool.params.audioFile,
+  audioFileReference: geminiSttTool.params.audioFileReference,
+  language: geminiSttTool.params.language,
+  timestamps: geminiSttTool.params.timestamps,
+} satisfies ToolConfig['params']
+
+export const geminiSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+  ...geminiSttTool,
+  id: 'stt_gemini_v2',
+  name: 'Gemini STT',
+  params: geminiSttV2Params,
+  request: {
+    ...geminiSttTool.request,
+    body: (
+      params: SttV2Params & {
+        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
+      }
+    ) => ({
+      provider: 'gemini',
+      apiKey: params.apiKey,
+      model: params.model,
+      audioFile: params.audioFile,
+      audioFileReference: params.audioFileReference,
+      language: params.language || 'auto',
+      timestamps: params.timestamps || 'none',
+      workspaceId: params._context?.workspaceId,
+      workflowId: params._context?.workflowId,
+      executionId: params._context?.executionId,
+    }),
   },
 }

@@ -10,7 +10,8 @@ import {
   type SecureFetchResponse,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
-} from '@/lib/core/security/input-validation'
+} from '@/lib/core/security/input-validation.server'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import type { DbOrTx } from '@/lib/db/types'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
@@ -114,7 +115,7 @@ async function fetchWithDNSPinning(
     const urlValidation = await validateUrlWithDNS(url, 'contentUrl')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid content URL: ${urlValidation.error}`, {
-        url: url.substring(0, 100),
+        url,
       })
       return null
     }
@@ -133,7 +134,7 @@ async function fetchWithDNSPinning(
   } catch (error) {
     logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
       error: error instanceof Error ? error.message : String(error),
-      url: url.substring(0, 100),
+      url: sanitizeUrlForLog(url),
     })
     return null
   }
