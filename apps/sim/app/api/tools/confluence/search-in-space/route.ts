@@ -53,15 +53,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    // Build CQL query
-    let cql = `space = "${spaceKey}"`
+    const escapeCqlValue = (value: string) => value.replace(/"/g, '\\"')
+
+    let cql = `space = "${escapeCqlValue(spaceKey)}"`
 
     if (query) {
-      cql += ` AND text ~ "${query}"`
+      cql += ` AND text ~ "${escapeCqlValue(query)}"`
     }
 
     if (contentType) {
-      cql += ` AND type = "${contentType}"`
+      cql += ` AND type = "${escapeCqlValue(contentType)}"`
     }
 
     const searchParams = new URLSearchParams({

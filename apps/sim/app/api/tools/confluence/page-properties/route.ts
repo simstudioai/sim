@@ -238,6 +238,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
     }
 
+    const propertyIdValidation = validateAlphanumericId(propertyId, 'propertyId', 255)
+    if (!propertyIdValidation.isValid) {
+      return NextResponse.json({ error: propertyIdValidation.error }, { status: 400 })
+    }
+
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
@@ -313,6 +318,11 @@ export async function DELETE(request: NextRequest) {
     const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
     if (!pageIdValidation.isValid) {
       return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
+    }
+
+    const propertyIdValidation = validateAlphanumericId(propertyId, 'propertyId', 255)
+    if (!propertyIdValidation.isValid) {
+      return NextResponse.json({ error: propertyIdValidation.error }, { status: 400 })
     }
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
