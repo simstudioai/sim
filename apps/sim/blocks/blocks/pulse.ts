@@ -25,6 +25,7 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
       placeholder: 'Upload a document',
       mode: 'basic',
       maxSize: 50,
+      required: true,
     },
     {
       id: 'filePath',
@@ -33,6 +34,7 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
       canonicalParamId: 'document',
       placeholder: 'Document URL',
       mode: 'advanced',
+      required: true,
     },
     {
       id: 'pages',
@@ -66,19 +68,12 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
     config: {
       tool: () => 'pulse_parser',
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Pulse API key is required')
-        }
-
         const parameters: Record<string, unknown> = {
           apiKey: params.apiKey.trim(),
         }
 
         // document is the canonical param from fileUpload (basic) or filePath (advanced)
         const documentInput = params.document
-        if (!documentInput) {
-          throw new Error('Document is required')
-        }
         if (typeof documentInput === 'object') {
           parameters.file = documentInput
         } else if (typeof documentInput === 'string') {
@@ -148,6 +143,7 @@ const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
         canonicalParamId: 'document',
         placeholder: 'File reference',
         mode: 'advanced' as const,
+        required: true,
       },
     ]
   }
@@ -171,10 +167,6 @@ export const PulseV2Block: BlockConfig<PulseParserOutput> = {
         fallbackToolId: 'pulse_parser_v2',
       }),
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Pulse API key is required')
-        }
-
         const parameters: Record<string, unknown> = {
           apiKey: params.apiKey.trim(),
         }

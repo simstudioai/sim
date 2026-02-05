@@ -256,7 +256,6 @@ Example for "Add a required multiple choice question about favorite color":
 
         switch (operation) {
           case 'get_responses':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
             return {
               ...baseParams,
               formId: effectiveFormId,
@@ -265,10 +264,8 @@ Example for "Add a required multiple choice question about favorite color":
             }
           case 'get_form':
           case 'list_watches':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
             return { ...baseParams, formId: effectiveFormId }
           case 'create_form':
-            if (!title) throw new Error('Form title is required.')
             return {
               ...baseParams,
               title: String(title).trim(),
@@ -276,8 +273,6 @@ Example for "Add a required multiple choice question about favorite color":
               unpublished: unpublished ?? false,
             }
           case 'batch_update':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
-            if (!requests) throw new Error('Update requests are required.')
             return {
               ...baseParams,
               formId: effectiveFormId,
@@ -285,7 +280,6 @@ Example for "Add a required multiple choice question about favorite color":
               includeFormInResponse: includeFormInResponse ?? false,
             }
           case 'set_publish_settings':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
             return {
               ...baseParams,
               formId: effectiveFormId,
@@ -293,9 +287,6 @@ Example for "Add a required multiple choice question about favorite color":
               isAcceptingResponses: isAcceptingResponses,
             }
           case 'create_watch':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
-            if (!eventType) throw new Error('Event type is required.')
-            if (!topicName) throw new Error('Pub/Sub topic is required.')
             return {
               ...baseParams,
               formId: effectiveFormId,
@@ -305,8 +296,6 @@ Example for "Add a required multiple choice question about favorite color":
             }
           case 'delete_watch':
           case 'renew_watch':
-            if (!effectiveFormId) throw new Error('Form ID is required.')
-            if (!watchId) throw new Error('Watch ID is required.')
             return {
               ...baseParams,
               formId: effectiveFormId,

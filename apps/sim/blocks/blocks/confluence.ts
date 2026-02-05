@@ -88,6 +88,19 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Select Confluence page',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'create_comment',
+          'list_comments',
+          'list_attachments',
+          'list_labels',
+          'upload_attachment',
+        ],
+      },
     },
     {
       id: 'manualPageId',
@@ -96,14 +109,26 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
       mode: 'advanced',
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'create_comment',
+          'list_comments',
+          'list_attachments',
+          'list_labels',
+          'upload_attachment',
+        ],
+      },
     },
     {
       id: 'spaceId',
       title: 'Space ID',
       type: 'short-input',
       placeholder: 'Enter Confluence space ID',
-      required: true,
-      condition: { field: 'operation', value: ['create', 'get_space'] },
+      required: { field: 'operation', value: ['create', 'get_space'] },
     },
     {
       id: 'title',
@@ -267,27 +292,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
 
         const effectivePageId = pageId ? String(pageId).trim() : ''
 
-        const requiresPageId = [
-          'read',
-          'update',
-          'delete',
-          'create_comment',
-          'list_comments',
-          'list_attachments',
-          'list_labels',
-          'upload_attachment',
-        ]
-
-        const requiresSpaceId = ['create', 'get_space']
-
-        if (requiresPageId.includes(operation) && !effectivePageId) {
-          throw new Error('Page ID is required. Please select a page or enter a page ID manually.')
-        }
-
-        if (requiresSpaceId.includes(operation) && !rest.spaceId) {
-          throw new Error('Space ID is required for this operation.')
-        }
-
         if (operation === 'upload_attachment') {
           return {
             credential,
@@ -435,6 +439,19 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Select Confluence page',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'create_comment',
+          'list_comments',
+          'list_attachments',
+          'list_labels',
+          'upload_attachment',
+        ],
+      },
     },
     {
       id: 'manualPageId',
@@ -443,14 +460,26 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
       mode: 'advanced',
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'create_comment',
+          'list_comments',
+          'list_attachments',
+          'list_labels',
+          'upload_attachment',
+        ],
+      },
     },
     {
       id: 'spaceId',
       title: 'Space ID',
       type: 'short-input',
       placeholder: 'Enter Confluence space ID',
-      required: true,
-      condition: { field: 'operation', value: ['create', 'get_space'] },
+      required: { field: 'operation', value: ['create', 'get_space'] },
     },
     {
       id: 'title',
@@ -513,6 +542,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Select file to upload',
       condition: { field: 'operation', value: 'upload_attachment' },
       mode: 'basic',
+      required: { field: 'operation', value: 'upload_attachment' },
     },
     {
       id: 'attachmentFileReference',
@@ -522,6 +552,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Reference file from previous blocks',
       condition: { field: 'operation', value: 'upload_attachment' },
       mode: 'advanced',
+      required: { field: 'operation', value: 'upload_attachment' },
     },
     {
       id: 'attachmentFileName',
@@ -623,27 +654,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         } = params
 
         const effectivePageId = pageId ? String(pageId).trim() : ''
-
-        const requiresPageId = [
-          'read',
-          'update',
-          'delete',
-          'create_comment',
-          'list_comments',
-          'list_attachments',
-          'list_labels',
-          'upload_attachment',
-        ]
-
-        const requiresSpaceId = ['create', 'get_space']
-
-        if (requiresPageId.includes(operation) && !effectivePageId) {
-          throw new Error('Page ID is required. Please select a page or enter a page ID manually.')
-        }
-
-        if (requiresSpaceId.includes(operation) && !rest.spaceId) {
-          throw new Error('Space ID is required for this operation.')
-        }
 
         if (operation === 'upload_attachment') {
           const normalizedFile = normalizeFileInput(attachmentFile, { single: true })

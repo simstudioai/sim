@@ -24,6 +24,7 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
       placeholder: 'Upload a PDF document',
       mode: 'basic',
       maxSize: 50,
+      required: true,
     },
     {
       id: 'filePath',
@@ -32,6 +33,7 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
       canonicalParamId: 'document',
       placeholder: 'Document URL',
       mode: 'advanced',
+      required: true,
     },
     {
       id: 'pages',
@@ -62,19 +64,12 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
     config: {
       tool: () => 'reducto_parser',
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Reducto API key is required')
-        }
-
         const parameters: Record<string, unknown> = {
           apiKey: params.apiKey.trim(),
         }
 
         // document is the canonical param from fileUpload (basic) or filePath (advanced)
         const documentInput = params.document
-        if (!documentInput) {
-          throw new Error('PDF document is required')
-        }
 
         if (typeof documentInput === 'object') {
           parameters.file = documentInput
@@ -153,6 +148,7 @@ const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => 
         canonicalParamId: 'document',
         placeholder: 'File reference',
         mode: 'advanced' as const,
+        required: true,
       },
     ]
   }
@@ -175,10 +171,6 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
         fallbackToolId: 'reducto_parser_v2',
       }),
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Reducto API key is required')
-        }
-
         const parameters: Record<string, unknown> = {
           apiKey: params.apiKey.trim(),
         }

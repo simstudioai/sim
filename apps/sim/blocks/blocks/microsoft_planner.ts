@@ -84,6 +84,10 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         field: 'operation',
         value: ['create_task', 'read_task', 'read_plan', 'list_buckets', 'create_bucket'],
       },
+      required: {
+        field: 'operation',
+        value: ['read_plan', 'list_buckets', 'create_bucket', 'create_task'],
+      },
       dependsOn: ['credential'],
     },
 
@@ -122,6 +126,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         field: 'operation',
         value: ['update_task', 'delete_task', 'get_task_details', 'update_task_details'],
       },
+      required: true,
       dependsOn: ['credential'],
     },
 
@@ -132,6 +137,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       type: 'short-input',
       placeholder: 'Enter the bucket ID',
       condition: { field: 'operation', value: ['read_bucket', 'update_bucket', 'delete_bucket'] },
+      required: true,
       dependsOn: ['credential'],
     },
 
@@ -162,6 +168,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       type: 'short-input',
       placeholder: 'Enter the task title',
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
+      required: { field: 'operation', value: 'create_task' },
     },
 
     // Name for bucket operations
@@ -171,6 +178,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       type: 'short-input',
       placeholder: 'Enter the bucket name',
       condition: { field: 'operation', value: ['create_bucket', 'update_bucket'] },
+      required: { field: 'operation', value: 'create_bucket' },
     },
 
     // Description for task details
@@ -382,31 +390,22 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         // Read Plan
         if (operation === 'read_plan') {
-          if (!planId?.trim()) {
-            throw new Error('Plan ID is required to read a plan.')
-          }
           return {
             ...baseParams,
-            planId: planId.trim(),
+            planId: planId?.trim(),
           }
         }
 
         // List Buckets
         if (operation === 'list_buckets') {
-          if (!planId?.trim()) {
-            throw new Error('Plan ID is required to list buckets.')
-          }
           return {
             ...baseParams,
-            planId: planId.trim(),
+            planId: planId?.trim(),
           }
         }
 
         // Read Bucket
         if (operation === 'read_bucket') {
-          if (!effectiveBucketId) {
-            throw new Error('Bucket ID is required to read a bucket.')
-          }
           return {
             ...baseParams,
             bucketId: effectiveBucketId,
@@ -415,31 +414,19 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         // Create Bucket
         if (operation === 'create_bucket') {
-          if (!planId?.trim()) {
-            throw new Error('Plan ID is required to create a bucket.')
-          }
-          if (!name?.trim()) {
-            throw new Error('Bucket name is required to create a bucket.')
-          }
           return {
             ...baseParams,
-            planId: planId.trim(),
-            name: name.trim(),
+            planId: planId?.trim(),
+            name: name?.trim(),
           }
         }
 
         // Update Bucket
         if (operation === 'update_bucket') {
-          if (!effectiveBucketId) {
-            throw new Error('Bucket ID is required to update a bucket.')
-          }
-          if (!etag?.trim()) {
-            throw new Error('ETag is required to update a bucket.')
-          }
           const updateBucketParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
             bucketId: effectiveBucketId,
-            etag: etag.trim(),
+            etag: etag?.trim(),
           }
           if (name?.trim()) {
             updateBucketParams.name = name.trim()
@@ -449,16 +436,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         // Delete Bucket
         if (operation === 'delete_bucket') {
-          if (!effectiveBucketId) {
-            throw new Error('Bucket ID is required to delete a bucket.')
-          }
-          if (!etag?.trim()) {
-            throw new Error('ETag is required to delete a bucket.')
-          }
           return {
             ...baseParams,
             bucketId: effectiveBucketId,
-            etag: etag.trim(),
+            etag: etag?.trim(),
           }
         }
 
@@ -477,17 +458,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         // Create Task
         if (operation === 'create_task') {
-          if (!planId?.trim()) {
-            throw new Error('Plan ID is required to create a task.')
-          }
-          if (!title?.trim()) {
-            throw new Error('Task title is required to create a task.')
-          }
-
           const createParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
-            planId: planId.trim(),
-            title: title.trim(),
+            planId: planId?.trim(),
+            title: title?.trim(),
           }
 
           if (description?.trim()) {
@@ -508,17 +482,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         // Update Task
         if (operation === 'update_task') {
-          if (!effectiveUpdateTaskId) {
-            throw new Error('Task ID is required to update a task.')
-          }
-          if (!etag?.trim()) {
-            throw new Error('ETag is required to update a task.')
-          }
-
           const updateParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
             taskId: effectiveUpdateTaskId,
-            etag: etag.trim(),
+            etag: etag?.trim(),
           }
 
           if (title?.trim()) {
@@ -548,24 +515,15 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         // Delete Task
         if (operation === 'delete_task') {
-          if (!effectiveUpdateTaskId) {
-            throw new Error('Task ID is required to delete a task.')
-          }
-          if (!etag?.trim()) {
-            throw new Error('ETag is required to delete a task.')
-          }
           return {
             ...baseParams,
             taskId: effectiveUpdateTaskId,
-            etag: etag.trim(),
+            etag: etag?.trim(),
           }
         }
 
         // Get Task Details
         if (operation === 'get_task_details') {
-          if (!effectiveUpdateTaskId) {
-            throw new Error('Task ID is required to get task details.')
-          }
           return {
             ...baseParams,
             taskId: effectiveUpdateTaskId,
@@ -574,17 +532,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
         // Update Task Details
         if (operation === 'update_task_details') {
-          if (!effectiveUpdateTaskId) {
-            throw new Error('Task ID is required to update task details.')
-          }
-          if (!etag?.trim()) {
-            throw new Error('ETag is required to update task details.')
-          }
-
           const updateDetailsParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
             taskId: effectiveUpdateTaskId,
-            etag: etag.trim(),
+            etag: etag?.trim(),
           }
 
           if (description?.trim()) {

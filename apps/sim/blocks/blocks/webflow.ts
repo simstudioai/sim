@@ -177,14 +177,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
         const effectiveCollectionId = collectionId ? String(collectionId).trim() : ''
         const effectiveItemId = itemId ? String(itemId).trim() : ''
 
-        if (!effectiveSiteId) {
-          throw new Error('Site ID is required')
-        }
-
-        if (!effectiveCollectionId) {
-          throw new Error('Collection ID is required')
-        }
-
         const baseParams = {
           credential,
           siteId: effectiveSiteId,
@@ -195,9 +187,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
         switch (params.operation) {
           case 'create':
           case 'update':
-            if (params.operation === 'update' && !effectiveItemId) {
-              throw new Error('Item ID is required for update operation')
-            }
             return {
               ...baseParams,
               itemId: effectiveItemId || undefined,
@@ -205,9 +194,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
             }
           case 'get':
           case 'delete':
-            if (!effectiveItemId) {
-              throw new Error(`Item ID is required for ${params.operation} operation`)
-            }
             return { ...baseParams, itemId: effectiveItemId }
           default:
             return baseParams

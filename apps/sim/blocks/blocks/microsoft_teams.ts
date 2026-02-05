@@ -92,6 +92,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           'list_channel_members',
         ],
       },
+      required: true,
     },
     {
       id: 'manualTeamId',
@@ -112,6 +113,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           'list_channel_members',
         ],
       },
+      required: true,
     },
     {
       id: 'chatSelector',
@@ -127,6 +129,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         field: 'operation',
         value: ['read_chat', 'write_chat', 'update_chat_message', 'delete_chat_message'],
       },
+      required: true,
     },
     {
       id: 'manualChatId',
@@ -139,6 +142,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         field: 'operation',
         value: ['read_chat', 'write_chat', 'update_chat_message', 'delete_chat_message'],
       },
+      required: true,
     },
     {
       id: 'channelSelector',
@@ -161,6 +165,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           'list_channel_members',
         ],
       },
+      required: true,
     },
     {
       id: 'manualChannelId',
@@ -180,6 +185,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           'list_channel_members',
         ],
       },
+      required: true,
     },
     {
       id: 'messageId',
@@ -365,9 +371,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           operation === 'update_chat_message' ||
           operation === 'delete_chat_message'
         ) {
-          if (!effectiveChatId) {
-            throw new Error('Chat ID is required. Please select a chat or enter a chat ID.')
-          }
           return { ...baseParams, chatId: effectiveChatId }
         }
 
@@ -379,31 +382,16 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           operation === 'delete_channel_message' ||
           operation === 'reply_to_message'
         ) {
-          if (!effectiveTeamId) {
-            throw new Error('Team ID is required for channel operations.')
-          }
-          if (!effectiveChannelId) {
-            throw new Error('Channel ID is required for channel operations.')
-          }
           return { ...baseParams, teamId: effectiveTeamId, channelId: effectiveChannelId }
         }
 
         // Team member operations
         if (operation === 'list_team_members') {
-          if (!effectiveTeamId) {
-            throw new Error('Team ID is required for team member operations.')
-          }
           return { ...baseParams, teamId: effectiveTeamId }
         }
 
         // Channel member operations
         if (operation === 'list_channel_members') {
-          if (!effectiveTeamId) {
-            throw new Error('Team ID is required for channel member operations.')
-          }
-          if (!effectiveChannelId) {
-            throw new Error('Channel ID is required for channel member operations.')
-          }
           return { ...baseParams, teamId: effectiveTeamId, channelId: effectiveChannelId }
         }
 

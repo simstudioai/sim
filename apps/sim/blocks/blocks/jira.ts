@@ -858,9 +858,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_attachment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add attachments.')
-            }
             const normalizedFiles = normalizeFileInput(params.files)
             if (!normalizedFiles || normalizedFiles.length === 0) {
               throw new Error('At least one attachment file is required.')
@@ -878,9 +875,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_worklog': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add a worklog.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -892,9 +886,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'get_worklogs': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to get worklogs.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
