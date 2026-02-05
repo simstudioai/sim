@@ -87,7 +87,10 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
     query: { type: 'string', description: 'Search query text' },
     apiKey: { type: 'string', description: 'Airweave API key' },
     limit: { type: 'number', description: 'Maximum number of results' },
-    retrievalStrategy: { type: 'string', description: 'Retrieval strategy (hybrid/neural/keyword)' },
+    retrievalStrategy: {
+      type: 'string',
+      description: 'Retrieval strategy (hybrid/neural/keyword)',
+    },
     expandQuery: { type: 'boolean', description: 'Generate query variations' },
     rerank: { type: 'boolean', description: 'Rerank results with LLM' },
     generateAnswer: { type: 'boolean', description: 'Generate AI answer' },
