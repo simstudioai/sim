@@ -5,6 +5,11 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
 import type { CopilotTransportMode } from '@/lib/copilot/models'
+import {
+  normalizeSseEvent,
+  shouldSkipToolCallEvent,
+  shouldSkipToolResultEvent,
+} from '@/lib/copilot/orchestrator/sse-utils'
 import type {
   BaseClientToolMetadata,
   ClientToolDisplay,
@@ -2045,6 +2050,12 @@ async function applySseEvent(
   get: () => CopilotStore,
   set: (next: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)) => void
 ): Promise<boolean> {
+  const normalizedEvent = normalizeSseEvent(data)
+  if (shouldSkipToolCallEvent(normalizedEvent) || shouldSkipToolResultEvent(normalizedEvent)) {
+    return true
+  }
+  data = normalizedEvent
+
   if (data.type === 'subagent_start') {
     const toolCallId = data.data?.tool_call_id
     if (toolCallId) {

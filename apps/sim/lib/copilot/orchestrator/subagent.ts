@@ -1,16 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
+import { handleSubagentRouting, sseHandlers, subAgentHandlers } from '@/lib/copilot/orchestrator/sse-handlers'
 import {
-  getToolCallIdFromEvent,
-  handleSubagentRouting,
-  markToolCallSeen,
-  markToolResultSeen,
   normalizeSseEvent,
-  sseHandlers,
-  subAgentHandlers,
-  wasToolCallSeen,
-  wasToolResultSeen,
-} from '@/lib/copilot/orchestrator/sse-handlers'
+  shouldSkipToolCallEvent,
+  shouldSkipToolResultEvent,
+} from '@/lib/copilot/orchestrator/sse-utils'
 import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
@@ -115,38 +110,9 @@ export async function orchestrateSubagentStream(
 
         const normalizedEvent = normalizeSseEvent(event)
 
-        // Skip tool_result events for tools the sim-side already executed.
-        // The sim-side emits its own tool_result with complete data.
-        // For server-side tools (not executed by sim), we still forward the Go backend's tool_result.
-        const toolCallId = getToolCallIdFromEvent(normalizedEvent)
-        const eventData = normalizedEvent.data
-
-        const isPartialToolCall =
-          normalizedEvent.type === 'tool_call' && eventData?.partial === true
-
-        const shouldSkipToolCall =
-          normalizedEvent.type === 'tool_call' &&
-          !!toolCallId &&
-          !isPartialToolCall &&
-          (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId))
-
-        if (
-          normalizedEvent.type === 'tool_call' &&
-          toolCallId &&
-          !isPartialToolCall &&
-          !shouldSkipToolCall
-        ) {
-          markToolCallSeen(toolCallId)
-        }
-
-        const shouldSkipToolResult =
-          normalizedEvent.type === 'tool_result' &&
-          (() => {
-            if (!toolCallId) return false
-            if (wasToolResultSeen(toolCallId)) return true
-            markToolResultSeen(toolCallId)
-            return false
-          })()
+        // Skip duplicate tool events to prevent state regressions.
+        const shouldSkipToolCall = shouldSkipToolCallEvent(normalizedEvent)
+        const shouldSkipToolResult = shouldSkipToolResultEvent(normalizedEvent)
 
         if (!shouldSkipToolCall && !shouldSkipToolResult) {
           await forwardEvent(normalizedEvent, options)

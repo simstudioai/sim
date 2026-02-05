@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { INTERRUPT_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
 import { getToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
+import {
+  getEventData,
+  markToolResultSeen,
+  wasToolResultSeen,
+} from '@/lib/copilot/orchestrator/sse-utils'
 import { executeToolServerSide, markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ContentBlock,
@@ -13,109 +18,7 @@ import type {
 
 const logger = createLogger('CopilotSseHandlers')
 
-/**
- * Tracks tool call IDs for which a tool_call has already been forwarded/emitted (non-partial).
- */
-const seenToolCalls = new Set<string>()
-
-/**
- * Tracks tool call IDs for which a tool_result has already been emitted or forwarded.
- */
-const seenToolResults = new Set<string>()
-
-export function markToolCallSeen(toolCallId: string): void {
-  seenToolCalls.add(toolCallId)
-  setTimeout(
-    () => {
-      seenToolCalls.delete(toolCallId)
-    },
-    5 * 60 * 1000
-  )
-}
-
-export function wasToolCallSeen(toolCallId: string): boolean {
-  return seenToolCalls.has(toolCallId)
-}
-
-type EventDataObject = Record<string, any> | undefined
-
-const parseEventData = (data: unknown): EventDataObject => {
-  if (!data) return undefined
-  if (typeof data !== 'string') {
-    return data as EventDataObject
-  }
-  try {
-    return JSON.parse(data) as EventDataObject
-  } catch {
-    return undefined
-  }
-}
-
-const hasToolFields = (data: EventDataObject): boolean => {
-  if (!data) return false
-  return (
-    data.id !== undefined ||
-    data.toolCallId !== undefined ||
-    data.name !== undefined ||
-    data.success !== undefined ||
-    data.result !== undefined ||
-    data.arguments !== undefined
-  )
-}
-
-const getEventData = (event: SSEEvent): EventDataObject => {
-  const topLevel = parseEventData(event.data)
-  if (!topLevel) return undefined
-  if (hasToolFields(topLevel)) return topLevel
-  const nested = parseEventData(topLevel.data)
-  return nested || topLevel
-}
-
-export function getToolCallIdFromEvent(event: SSEEvent): string | undefined {
-  const data = getEventData(event)
-  return event.toolCallId || data?.id || data?.toolCallId
-}
-
-/** Normalizes SSE events so tool metadata is available at the top level. */
-export function normalizeSseEvent(event: SSEEvent): SSEEvent {
-  if (!event) return event
-  const data = getEventData(event)
-  if (!data) return event
-  const toolCallId = event.toolCallId || data.id || data.toolCallId
-  const toolName = event.toolName || data.name || data.toolName
-  const success = event.success ?? data.success
-  const result = event.result ?? data.result
-  const normalizedData = typeof event.data === 'string' ? data : event.data
-  return {
-    ...event,
-    data: normalizedData,
-    toolCallId,
-    toolName,
-    success,
-    result,
-  }
-}
-
-/**
- * Mark a tool call as executed by the sim-side.
- * This prevents the Go backend's duplicate tool_result from being forwarded.
- */
-export function markToolResultSeen(toolCallId: string): void {
-  seenToolResults.add(toolCallId)
-  setTimeout(
-    () => {
-      seenToolResults.delete(toolCallId)
-    },
-    5 * 60 * 1000
-  )
-}
-
-/**
- * Check if a tool call was executed by the sim-side.
- */
-export function wasToolResultSeen(toolCallId: string): boolean {
-  return seenToolResults.has(toolCallId)
-}
+// Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
 
 /**
  * Respond tools are internal to the copilot's subagent system.
