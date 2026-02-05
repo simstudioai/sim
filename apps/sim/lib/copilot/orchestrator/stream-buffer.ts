@@ -1,13 +1,40 @@
 import { createLogger } from '@sim/logger'
+import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('CopilotStreamBuffer')
 
-const STREAM_TTL_SECONDS = 60 * 60
-const STREAM_EVENT_LIMIT = 5000
-const STREAM_RESERVE_BATCH = 200
-const STREAM_FLUSH_INTERVAL_MS = 15
-const STREAM_FLUSH_MAX_BATCH = 200
+const STREAM_DEFAULTS = {
+  ttlSeconds: 60 * 60,
+  eventLimit: 5000,
+  reserveBatch: 200,
+  flushIntervalMs: 15,
+  flushMaxBatch: 200,
+}
+
+export type StreamBufferConfig = {
+  ttlSeconds: number
+  eventLimit: number
+  reserveBatch: number
+  flushIntervalMs: number
+  flushMaxBatch: number
+}
+
+const parseNumber = (value: number | string | undefined, fallback: number): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+export function getStreamBufferConfig(): StreamBufferConfig {
+  return {
+    ttlSeconds: parseNumber(env.COPILOT_STREAM_TTL_SECONDS, STREAM_DEFAULTS.ttlSeconds),
+    eventLimit: parseNumber(env.COPILOT_STREAM_EVENT_LIMIT, STREAM_DEFAULTS.eventLimit),
+    reserveBatch: parseNumber(env.COPILOT_STREAM_RESERVE_BATCH, STREAM_DEFAULTS.reserveBatch),
+    flushIntervalMs: parseNumber(env.COPILOT_STREAM_FLUSH_INTERVAL_MS, STREAM_DEFAULTS.flushIntervalMs),
+    flushMaxBatch: parseNumber(env.COPILOT_STREAM_FLUSH_MAX_BATCH, STREAM_DEFAULTS.flushMaxBatch),
+  }
+}
 
 const APPEND_STREAM_EVENT_LUA = `
 local seqKey = KEYS[1]
@@ -82,6 +109,7 @@ export async function setStreamMeta(streamId: string, meta: StreamMeta): Promise
   const redis = getRedisClient()
   if (!redis) return
   try {
+    const config = getStreamBufferConfig()
     const payload: Record<string, string> = {
       status: meta.status,
       updatedAt: meta.updatedAt || new Date().toISOString(),
@@ -89,7 +117,7 @@ export async function setStreamMeta(streamId: string, meta: StreamMeta): Promise
     if (meta.userId) payload.userId = meta.userId
     if (meta.error) payload.error = meta.error
     await redis.hset(getMetaKey(streamId), payload)
-    await redis.expire(getMetaKey(streamId), STREAM_TTL_SECONDS)
+    await redis.expire(getMetaKey(streamId), config.ttlSeconds)
   } catch (error) {
     logger.warn('Failed to update stream meta', {
       streamId,
@@ -124,14 +152,15 @@ export async function appendStreamEvent(
   }
 
   try {
+    const config = getStreamBufferConfig()
     const eventJson = JSON.stringify(event)
     const nextId = await redis.eval(
       APPEND_STREAM_EVENT_LUA,
       2,
       getSeqKey(streamId),
       getEventsKey(streamId),
-      STREAM_TTL_SECONDS,
-      STREAM_EVENT_LIMIT,
+      config.ttlSeconds,
+      config.eventLimit,
       streamId,
       eventJson
     )
@@ -156,6 +185,7 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
     }
   }
 
+  const config = getStreamBufferConfig()
   let pending: StreamEventEntry[] = []
   let nextEventId = 0
   let maxReservedId = 0
@@ -167,11 +197,11 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
     flushTimer = setTimeout(() => {
       flushTimer = null
       void flush()
-    }, STREAM_FLUSH_INTERVAL_MS)
+    }, config.flushIntervalMs)
   }
 
   const reserveIds = async (minCount: number) => {
-    const reserveCount = Math.max(STREAM_RESERVE_BATCH, minCount)
+    const reserveCount = Math.max(config.reserveBatch, minCount)
     const newMax = await redis.incrby(getSeqKey(streamId), reserveCount)
     const startId = newMax - reserveCount + 1
     if (nextEventId === 0 || nextEventId > maxReservedId) {
@@ -193,9 +223,9 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
       }
       const pipeline = redis.pipeline()
       pipeline.zadd(key, ...(zaddArgs as any))
-      pipeline.expire(key, STREAM_TTL_SECONDS)
-      pipeline.expire(getSeqKey(streamId), STREAM_TTL_SECONDS)
-      pipeline.zremrangebyrank(key, 0, -STREAM_EVENT_LIMIT - 1)
+      pipeline.expire(key, config.ttlSeconds)
+      pipeline.expire(getSeqKey(streamId), config.ttlSeconds)
+      pipeline.zremrangebyrank(key, 0, -config.eventLimit - 1)
       await pipeline.exec()
     } catch (error) {
       logger.warn('Failed to flush stream events', {
@@ -216,7 +246,7 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
     const eventId = nextEventId++
     const entry: StreamEventEntry = { eventId, streamId, event }
     pending.push(entry)
-    if (pending.length >= STREAM_FLUSH_MAX_BATCH) {
+    if (pending.length >= config.flushMaxBatch) {
       await flush()
     } else {
       scheduleFlush()

@@ -836,6 +836,15 @@ describe('POST /api/v1/copilot/chat', () => {
 - Save checkpoints to resume
 - Handle partial completions gracefully
 
+### Risk 6: Process-Local Dedupe
+
+**Risk**: Tool call/result dedupe caches are in-memory and scoped to a single process, so duplicate events can still appear across ECS tasks.
+
+**Mitigation**:
+- Treat dedupe as best-effort, not global
+- Prefer idempotent state updates on the client
+- Use Redis-backed stream replay for authoritative ordering
+
 ---
 
 ## File Inventory
