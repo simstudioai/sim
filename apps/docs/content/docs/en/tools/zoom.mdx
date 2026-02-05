@@ -335,6 +335,7 @@ Get all recordings for a specific Zoom meeting
 | `meetingId` | string | Yes | The meeting ID or meeting UUID \(e.g., "1234567890" or "4444AAABBBccccc12345=="\) |
 | `includeFolderItems` | boolean | No | Include items within a folder |
 | `ttl` | number | No | Time to live for download URLs in seconds \(max 604800\) |
+| `downloadFiles` | boolean | No | Download recording files into file outputs |
 
 #### Output
 
@@ -364,6 +365,7 @@ Get all recordings for a specific Zoom meeting
 |     ↳ `download_url` | string | URL to download the recording |
 |     ↳ `status` | string | Recording status |
 |     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
+| `files` | file[] | Downloaded recording files |
 
 ### `zoom_delete_recording`
 

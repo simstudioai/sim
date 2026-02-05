@@ -1,4 +1,9 @@
 import type { ConfluenceRetrieveParams, ConfluenceRetrieveResponse } from '@/tools/confluence/types'
+import {
+  CONTENT_BODY_OUTPUT_PROPERTIES,
+  TIMESTAMP_OUTPUT,
+  VERSION_OUTPUT_PROPERTIES,
+} from '@/tools/confluence/types'
 import { transformPageData } from '@/tools/confluence/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -71,9 +76,35 @@ export const confluenceRetrieveTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of retrieval' },
+    ts: TIMESTAMP_OUTPUT,
     pageId: { type: 'string', description: 'Confluence page ID' },
-    content: { type: 'string', description: 'Page content with HTML tags stripped' },
     title: { type: 'string', description: 'Page title' },
+    content: { type: 'string', description: 'Page content with HTML tags stripped' },
+    status: {
+      type: 'string',
+      description: 'Page status (current, archived, trashed, draft)',
+      optional: true,
+    },
+    spaceId: { type: 'string', description: 'ID of the space containing the page', optional: true },
+    parentId: { type: 'string', description: 'ID of the parent page', optional: true },
+    authorId: { type: 'string', description: 'Account ID of the page author', optional: true },
+    createdAt: {
+      type: 'string',
+      description: 'ISO 8601 timestamp when the page was created',
+      optional: true,
+    },
+    url: { type: 'string', description: 'URL to view the page in Confluence', optional: true },
+    body: {
+      type: 'object',
+      description: 'Raw page body content in requested format(s)',
+      properties: CONTENT_BODY_OUTPUT_PROPERTIES,
+      optional: true,
+    },
+    version: {
+      type: 'object',
+      description: 'Page version information',
+      properties: VERSION_OUTPUT_PROPERTIES,
+      optional: true,
+    },
   },
 }

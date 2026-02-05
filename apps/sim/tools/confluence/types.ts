@@ -27,6 +27,52 @@ export const VERSION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
+ * Detailed version object properties for get_page_version endpoint.
+ * Based on Confluence API v2 DetailedVersion schema.
+ */
+export const DETAILED_VERSION_OUTPUT_PROPERTIES = {
+  number: { type: 'number', description: 'Version number' },
+  message: { type: 'string', description: 'Version message', optional: true },
+  minorEdit: { type: 'boolean', description: 'Whether this is a minor edit' },
+  authorId: { type: 'string', description: 'Account ID of the version author', optional: true },
+  createdAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp of version creation',
+    optional: true,
+  },
+  contentTypeModified: {
+    type: 'boolean',
+    description: 'Whether the content type was modified in this version',
+    optional: true,
+  },
+  collaborators: {
+    type: 'array',
+    description: 'List of collaborator account IDs for this version',
+    items: { type: 'string' },
+    optional: true,
+  },
+  prevVersion: {
+    type: 'number',
+    description: 'Previous version number',
+    optional: true,
+  },
+  nextVersion: {
+    type: 'number',
+    description: 'Next version number',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete detailed version object output definition.
+ */
+export const DETAILED_VERSION_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Detailed version information',
+  properties: DETAILED_VERSION_OUTPUT_PROPERTIES,
+}
+
+/**
  * Complete version object output definition.
  */
 export const VERSION_OUTPUT: OutputProperty = {
@@ -135,6 +181,54 @@ export const SPACES_OUTPUT: OutputProperty = {
     type: 'object',
     properties: SPACE_ITEM_PROPERTIES,
   },
+}
+
+/**
+ * Body format inner object properties (storage, view, atlas_doc_format).
+ * Based on Confluence API v2 body structure.
+ */
+export const BODY_FORMAT_PROPERTIES = {
+  value: { type: 'string', description: 'The content value in the specified format' },
+  representation: {
+    type: 'string',
+    description: 'Content representation type',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Page/Blog post body object properties.
+ * Based on Confluence API v2 body structure with multiple format options.
+ */
+export const CONTENT_BODY_OUTPUT_PROPERTIES = {
+  storage: {
+    type: 'object',
+    description: 'Body in storage format (Confluence markup)',
+    properties: BODY_FORMAT_PROPERTIES,
+    optional: true,
+  },
+  view: {
+    type: 'object',
+    description: 'Body in view format (rendered HTML)',
+    properties: BODY_FORMAT_PROPERTIES,
+    optional: true,
+  },
+  atlas_doc_format: {
+    type: 'object',
+    description: 'Body in Atlassian Document Format (ADF)',
+    properties: BODY_FORMAT_PROPERTIES,
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Complete body object output definition for pages and blog posts.
+ */
+export const CONTENT_BODY_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Page or blog post body content in requested format(s)',
+  properties: CONTENT_BODY_OUTPUT_PROPERTIES,
+  optional: true,
 }
 
 /**

@@ -1,3 +1,4 @@
+import { CONTENT_BODY_OUTPUT_PROPERTIES, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreatePageParams {
@@ -16,6 +17,11 @@ export interface ConfluenceCreatePageResponse {
     ts: string
     pageId: string
     title: string
+    status: string | null
+    spaceId: string | null
+    parentId: string | null
+    body: Record<string, any> | null
+    version: Record<string, any> | null
     url: string
   }
 }
@@ -109,8 +115,13 @@ export const confluenceCreatePageTool: ToolConfig<
       success: true,
       output: {
         ts: new Date().toISOString(),
-        pageId: data.id,
-        title: data.title,
+        pageId: data.id ?? '',
+        title: data.title ?? '',
+        status: data.status ?? null,
+        spaceId: data.spaceId ?? null,
+        parentId: data.parentId ?? null,
+        body: data.body ?? null,
+        version: data.version ?? null,
         url: data.url || data._links?.webui || '',
       },
     }
@@ -120,6 +131,21 @@ export const confluenceCreatePageTool: ToolConfig<
     ts: { type: 'string', description: 'Timestamp of creation' },
     pageId: { type: 'string', description: 'Created page ID' },
     title: { type: 'string', description: 'Page title' },
+    status: { type: 'string', description: 'Page status', optional: true },
+    spaceId: { type: 'string', description: 'Space ID', optional: true },
+    parentId: { type: 'string', description: 'Parent page ID', optional: true },
+    body: {
+      type: 'object',
+      description: 'Page body content',
+      properties: CONTENT_BODY_OUTPUT_PROPERTIES,
+      optional: true,
+    },
+    version: {
+      type: 'object',
+      description: 'Page version information',
+      properties: VERSION_OUTPUT_PROPERTIES,
+      optional: true,
+    },
     url: { type: 'string', description: 'Page URL' },
   },
 }

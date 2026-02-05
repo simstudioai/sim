@@ -70,13 +70,27 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
 
-    const results = (data.results || []).map((result: any) => ({
-      id: result.content?.id || result.id,
-      title: result.content?.title || result.title,
-      type: result.content?.type || result.type,
-      url: result.url || result._links?.webui || '',
-      excerpt: result.excerpt || '',
-    }))
+    const results = (data.results || []).map((result: any) => {
+      const spaceData = result.resultGlobalContainer || result.content?.space
+      return {
+        id: result.content?.id || result.id,
+        title: result.content?.title || result.title,
+        type: result.content?.type || result.type,
+        url: result.url || result._links?.webui || '',
+        excerpt: result.excerpt || '',
+        status: result.content?.status ?? null,
+        spaceKey: result.resultGlobalContainer?.key ?? result.content?.space?.key ?? null,
+        space: spaceData
+          ? {
+              id: spaceData.id ?? null,
+              key: spaceData.key ?? null,
+              name: spaceData.name ?? spaceData.title ?? null,
+            }
+          : null,
+        lastModified: result.lastModified ?? result.content?.history?.lastUpdated?.when ?? null,
+        entityType: result.entityType ?? null,
+      }
+    })
 
     return NextResponse.json({ results })
   } catch (error) {

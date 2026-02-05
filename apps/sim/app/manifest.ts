@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next'
-import { getBrandConfig } from '@/lib/branding/branding'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 export default function manifest(): MetadataRoute.Manifest {
   const brand = getBrandConfig()

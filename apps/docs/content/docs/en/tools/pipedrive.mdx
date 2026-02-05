@@ -152,6 +152,7 @@ Retrieve files from Pipedrive with optional filters
 | `person_id` | string | No | Filter files by person ID \(e.g., "456"\) |
 | `org_id` | string | No | Filter files by organization ID \(e.g., "789"\) |
 | `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `downloadFiles` | boolean | No | Download file contents into file outputs |
 
 #### Output
 
@@ -168,6 +169,7 @@ Retrieve files from Pipedrive with optional filters
 |   ↳ `person_id` | number | Associated person ID |
 |   ↳ `org_id` | number | Associated organization ID |
 |   ↳ `url` | string | File download URL |
+| `downloadedFiles` | file[] | Downloaded files from Pipedrive |
 | `total_items` | number | Total number of files returned |
 | `success` | boolean | Operation success status |
 

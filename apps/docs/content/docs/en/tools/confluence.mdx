@@ -49,10 +49,32 @@ Retrieve content from Confluence pages using the Confluence API.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of retrieval |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `pageId` | string | Confluence page ID |
-| `content` | string | Page content with HTML tags stripped |
 | `title` | string | Page title |
+| `content` | string | Page content with HTML tags stripped |
+| `status` | string | Page status \(current, archived, trashed, draft\) |
+| `spaceId` | string | ID of the space containing the page |
+| `parentId` | string | ID of the parent page |
+| `authorId` | string | Account ID of the page author |
+| `createdAt` | string | ISO 8601 timestamp when the page was created |
+| `url` | string | URL to view the page in Confluence |
+| `body` | object | Raw page body content in requested format\(s\) |
+|   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `view` | object | Body in view format \(rendered HTML\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+| `version` | object | Page version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 
 ### `confluence_update`
 
@@ -76,6 +98,25 @@ Update a Confluence page using the Confluence API.
 | `ts` | string | Timestamp of update |
 | `pageId` | string | Confluence page ID |
 | `title` | string | Updated page title |
+| `status` | string | Page status |
+| `spaceId` | string | Space ID |
+| `body` | object | Page body content in storage format |
+|   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `view` | object | Body in view format \(rendered HTML\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+| `version` | object | Page version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `url` | string | URL to view the page in Confluence |
 | `success` | boolean | Update operation success status |
 
 ### `confluence_create_page`
@@ -100,11 +141,30 @@ Create a new page in a Confluence space.
 | `ts` | string | Timestamp of creation |
 | `pageId` | string | Created page ID |
 | `title` | string | Page title |
+| `status` | string | Page status |
+| `spaceId` | string | Space ID |
+| `parentId` | string | Parent page ID |
+| `body` | object | Page body content |
+|   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `view` | object | Body in view format \(rendered HTML\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+| `version` | object | Page version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `url` | string | Page URL |
 
 ### `confluence_delete_page`
 
-Delete a Confluence page (moves it to trash where it can be restored).
+Delete a Confluence page. By default moves to trash; use purge=true to permanently delete.
 
 #### Input
 
@@ -112,6 +172,7 @@ Delete a Confluence page (moves it to trash where it can be restored).
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to delete |
+| `purge` | boolean | No | If true, permanently deletes the page instead of moving to trash \(default: false\) |
 | `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -121,6 +182,229 @@ Delete a Confluence page (moves it to trash where it can be restored).
 | `ts` | string | Timestamp of deletion |
 | `pageId` | string | Deleted page ID |
 | `deleted` | boolean | Deletion status |
+
+### `confluence_list_pages_in_space`
+
+List all pages within a specific Confluence space. Supports pagination and filtering by status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | The ID of the Confluence space to list pages from |
+| `limit` | number | No | Maximum number of pages to return \(default: 50, max: 250\) |
+| `status` | string | No | Filter pages by status: current, archived, trashed, or draft |
+| `bodyFormat` | string | No | Format for page body content: storage, atlas_doc_format, or view. If not specified, body is not included. |
+| `cursor` | string | No | Pagination cursor from previous response to get the next page of results |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `pages` | array | Array of pages in the space |
+|   ↳ `id` | string | Unique page identifier |
+|   ↳ `title` | string | Page title |
+|   ↳ `status` | string | Page status \(e.g., current, archived, trashed, draft\) |
+|   ↳ `spaceId` | string | ID of the space containing the page |
+|   ↳ `parentId` | string | ID of the parent page \(null if top-level\) |
+|   ↳ `authorId` | string | Account ID of the page author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp when the page was created |
+|   ↳ `version` | object | Page version information |
+|     ↳ `number` | number | Version number |
+|     ↳ `message` | string | Version message |
+|     ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|     ↳ `authorId` | string | Account ID of the version author |
+|     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+|   ↳ `body` | object | Page body content \(if bodyFormat was specified\) |
+|     ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|       ↳ `value` | string | The content value in the specified format |
+|       ↳ `representation` | string | Content representation type |
+|     ↳ `view` | object | Body in view format \(rendered HTML\) |
+|       ↳ `value` | string | The content value in the specified format |
+|       ↳ `representation` | string | Content representation type |
+|     ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
+|       ↳ `value` | string | The content value in the specified format |
+|       ↳ `representation` | string | Content representation type |
+|   ↳ `webUrl` | string | URL to view the page in Confluence |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_get_page_children`
+
+Get all child pages of a specific Confluence page. Useful for navigating page hierarchies.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | The ID of the parent page to get children from |
+| `limit` | number | No | Maximum number of child pages to return \(default: 50, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response to get the next page of results |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `parentId` | string | ID of the parent page |
+| `children` | array | Array of child pages |
+|   ↳ `id` | string | Child page ID |
+|   ↳ `title` | string | Child page title |
+|   ↳ `status` | string | Page status |
+|   ↳ `spaceId` | string | Space ID |
+|   ↳ `childPosition` | number | Position among siblings |
+|   ↳ `webUrl` | string | URL to view the page |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_get_page_ancestors`
+
+Get the ancestor (parent) pages of a specific Confluence page. Returns the full hierarchy from the page up to the root.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | The ID of the page to get ancestors for |
+| `limit` | number | No | Maximum number of ancestors to return \(default: 25, max: 250\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `pageId` | string | ID of the page whose ancestors were retrieved |
+| `ancestors` | array | Array of ancestor pages, ordered from direct parent to root |
+|   ↳ `id` | string | Ancestor page ID |
+|   ↳ `title` | string | Ancestor page title |
+|   ↳ `status` | string | Page status |
+|   ↳ `spaceId` | string | Space ID |
+|   ↳ `webUrl` | string | URL to view the page |
+
+### `confluence_list_page_versions`
+
+List all versions (revision history) of a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | The ID of the page to get versions for |
+| `limit` | number | No | Maximum number of versions to return \(default: 50, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `pageId` | string | ID of the page |
+| `versions` | array | Array of page versions |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_get_page_version`
+
+Get details about a specific version of a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | The ID of the page |
+| `versionNumber` | number | Yes | The version number to retrieve \(e.g., 1, 2, 3\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `pageId` | string | ID of the page |
+| `version` | object | Detailed version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+|   ↳ `contentTypeModified` | boolean | Whether the content type was modified in this version |
+|   ↳ `collaborators` | array | List of collaborator account IDs for this version |
+|   ↳ `prevVersion` | number | Previous version number |
+|   ↳ `nextVersion` | number | Next version number |
+
+### `confluence_list_page_properties`
+
+List all custom properties (metadata) attached to a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | The ID of the page to list properties from |
+| `limit` | number | No | Maximum number of properties to return \(default: 50, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `pageId` | string | ID of the page |
+| `properties` | array | Array of content properties |
+|   ↳ `id` | string | Property ID |
+|   ↳ `key` | string | Property key |
+|   ↳ `value` | json | Property value \(can be any JSON\) |
+|   ↳ `version` | object | Version information |
+|     ↳ `number` | number | Version number |
+|     ↳ `message` | string | Version message |
+|     ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|     ↳ `authorId` | string | Account ID of the version author |
+|     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_create_page_property`
+
+Create a new custom property (metadata) on a Confluence page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | The ID of the page to add the property to |
+| `key` | string | Yes | The key/name for the property |
+| `value` | json | Yes | The value for the property \(can be any JSON value\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `pageId` | string | ID of the page |
+| `propertyId` | string | ID of the created property |
+| `key` | string | Property key |
+| `value` | json | Property value |
+| `version` | object | Version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 
 ### `confluence_search`
 
@@ -155,6 +439,211 @@ Search for content across Confluence pages, blog posts, and other content.
 |   ↳ `lastModified` | string | ISO 8601 timestamp of last modification |
 |   ↳ `entityType` | string | Entity type identifier \(e.g., content, space\) |
 
+### `confluence_search_in_space`
+
+Search for content within a specific Confluence space. Optionally filter by text query and content type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceKey` | string | Yes | The key of the Confluence space to search in \(e.g., "ENG", "HR"\) |
+| `query` | string | No | Text search query. If not provided, returns all content in the space. |
+| `contentType` | string | No | Filter by content type: page, blogpost, attachment, or comment |
+| `limit` | number | No | Maximum number of results to return \(default: 25, max: 250\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `spaceKey` | string | The space key that was searched |
+| `totalSize` | number | Total number of matching results |
+| `results` | array | Array of search results |
+|   ↳ `id` | string | Unique content identifier |
+|   ↳ `title` | string | Content title |
+|   ↳ `type` | string | Content type \(e.g., page, blogpost, attachment, comment\) |
+|   ↳ `status` | string | Content status \(e.g., current\) |
+|   ↳ `url` | string | URL to view the content in Confluence |
+|   ↳ `excerpt` | string | Text excerpt matching the search query |
+|   ↳ `spaceKey` | string | Key of the space containing the content |
+|   ↳ `space` | object | Space information for the content |
+|     ↳ `id` | string | Space identifier |
+|     ↳ `key` | string | Space key |
+|     ↳ `name` | string | Space name |
+|   ↳ `lastModified` | string | ISO 8601 timestamp of last modification |
+|   ↳ `entityType` | string | Entity type identifier \(e.g., content, space\) |
+
+### `confluence_list_blogposts`
+
+List all blog posts across all accessible Confluence spaces.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `limit` | number | No | Maximum number of blog posts to return \(default: 25, max: 250\) |
+| `status` | string | No | Filter by status: current, archived, trashed, or draft |
+| `sort` | string | No | Sort order: created-date, -created-date, modified-date, -modified-date, title, -title |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `blogPosts` | array | Array of blog posts |
+|   ↳ `id` | string | Blog post ID |
+|   ↳ `title` | string | Blog post title |
+|   ↳ `status` | string | Blog post status |
+|   ↳ `spaceId` | string | Space ID |
+|   ↳ `authorId` | string | Author account ID |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `version` | object | Version information |
+|     ↳ `number` | number | Version number |
+|     ↳ `message` | string | Version message |
+|     ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|     ↳ `authorId` | string | Account ID of the version author |
+|     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+|   ↳ `webUrl` | string | URL to view the blog post |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_get_blogpost`
+
+Get a specific Confluence blog post by ID, including its content.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `blogPostId` | string | Yes | The ID of the blog post to retrieve |
+| `bodyFormat` | string | No | Format for blog post body: storage, atlas_doc_format, or view |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `id` | string | Blog post ID |
+| `title` | string | Blog post title |
+| `status` | string | Blog post status |
+| `spaceId` | string | Space ID |
+| `authorId` | string | Author account ID |
+| `createdAt` | string | Creation timestamp |
+| `version` | object | Version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `body` | object | Blog post body content in requested format\(s\) |
+|   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `view` | object | Body in view format \(rendered HTML\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+| `webUrl` | string | URL to view the blog post |
+
+### `confluence_create_blogpost`
+
+Create a new blog post in a Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | The ID of the space to create the blog post in |
+| `title` | string | Yes | Title of the blog post |
+| `content` | string | Yes | Blog post content in Confluence storage format \(HTML\) |
+| `status` | string | No | Blog post status: current \(default\) or draft |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `id` | string | Created blog post ID |
+| `title` | string | Blog post title |
+| `status` | string | Blog post status |
+| `spaceId` | string | Space ID |
+| `authorId` | string | Author account ID |
+| `body` | object | Blog post body content |
+|   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `view` | object | Body in view format \(rendered HTML\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+|   ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
+| `version` | object | Blog post version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `webUrl` | string | URL to view the blog post |
+
+### `confluence_list_blogposts_in_space`
+
+List all blog posts within a specific Confluence space.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `spaceId` | string | Yes | The ID of the Confluence space to list blog posts from |
+| `limit` | number | No | Maximum number of blog posts to return \(default: 25, max: 250\) |
+| `status` | string | No | Filter by status: current, archived, trashed, or draft |
+| `bodyFormat` | string | No | Format for blog post body: storage, atlas_doc_format, or view |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `blogPosts` | array | Array of blog posts in the space |
+|   ↳ `id` | string | Blog post ID |
+|   ↳ `title` | string | Blog post title |
+|   ↳ `status` | string | Blog post status |
+|   ↳ `spaceId` | string | Space ID |
+|   ↳ `authorId` | string | Author account ID |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `version` | object | Version information |
+|     ↳ `number` | number | Version number |
+|     ↳ `message` | string | Version message |
+|     ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|     ↳ `authorId` | string | Account ID of the version author |
+|     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+|   ↳ `body` | object | Blog post body content |
+|     ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|       ↳ `value` | string | The content value in the specified format |
+|       ↳ `representation` | string | Content representation type |
+|     ↳ `view` | object | Body in view format \(rendered HTML\) |
+|       ↳ `value` | string | The content value in the specified format |
+|       ↳ `representation` | string | Content representation type |
+|     ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
+|       ↳ `value` | string | The content value in the specified format |
+|       ↳ `representation` | string | Content representation type |
+|   ↳ `webUrl` | string | URL to view the blog post |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
 ### `confluence_create_comment`
 
 Add a comment to a Confluence page.
@@ -187,6 +676,8 @@ List all comments on a Confluence page.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to list comments from |
 | `limit` | number | No | Maximum number of comments to return \(default: 25\) |
+| `bodyFormat` | string | No | Format for the comment body: storage, atlas_doc_format, view, or export_view \(default: storage\) |
+| `cursor` | string | No | Pagination cursor from previous response |
 | `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -212,6 +703,7 @@ List all comments on a Confluence page.
 |     ↳ `minorEdit` | boolean | Whether this is a minor edit |
 |     ↳ `authorId` | string | Account ID of the version author |
 |     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `nextCursor` | string | Cursor for fetching the next page of results |
 
 ### `confluence_update_comment`
 
@@ -291,7 +783,8 @@ List all attachments on a Confluence page.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to list attachments from |
-| `limit` | number | No | Maximum number of attachments to return \(default: 25\) |
+| `limit` | number | No | Maximum number of attachments to return \(default: 50, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
 | `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -316,6 +809,7 @@ List all attachments on a Confluence page.
 |     ↳ `minorEdit` | boolean | Whether this is a minor edit |
 |     ↳ `authorId` | string | Account ID of the version author |
 |     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `nextCursor` | string | Cursor for fetching the next page of results |
 
 ### `confluence_delete_attachment`
 
@@ -347,6 +841,8 @@ List all labels on a Confluence page.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to list labels from |
+| `limit` | number | No | Maximum number of labels to return \(default: 25, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
 | `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -358,6 +854,30 @@ List all labels on a Confluence page.
 |   ↳ `id` | string | Unique label identifier |
 |   ↳ `name` | string | Label name |
 |   ↳ `prefix` | string | Label prefix/type \(e.g., global, my, team\) |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `confluence_add_label`
+
+Add a label to a Confluence page for organization and categorization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to add the label to |
+| `labelName` | string | Yes | Name of the label to add |
+| `prefix` | string | No | Label prefix: global \(default\), my, team, or system |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | ISO 8601 timestamp of the operation |
+| `pageId` | string | Page ID that the label was added to |
+| `labelName` | string | Name of the added label |
+| `labelId` | string | ID of the added label |
 
 ### `confluence_get_space`
 
@@ -375,13 +895,19 @@ Get details about a specific Confluence space.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp of retrieval |
+| `ts` | string | ISO 8601 timestamp of the operation |
 | `spaceId` | string | Space ID |
 | `name` | string | Space name |
 | `key` | string | Space key |
-| `type` | string | Space type |
-| `status` | string | Space status |
-| `url` | string | Space URL |
+| `type` | string | Space type \(global, personal\) |
+| `status` | string | Space status \(current, archived\) |
+| `url` | string | URL to view the space in Confluence |
+| `authorId` | string | Account ID of the space creator |
+| `createdAt` | string | ISO 8601 timestamp when the space was created |
+| `homepageId` | string | ID of the space homepage |
+| `description` | object | Space description content |
+|   ↳ `value` | string | Description text content |
+|   ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
 
 ### `confluence_list_spaces`
 
@@ -392,7 +918,8 @@ List all Confluence spaces accessible to the user.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
-| `limit` | number | No | Maximum number of spaces to return \(default: 25\) |
+| `limit` | number | No | Maximum number of spaces to return \(default: 25, max: 250\) |
+| `cursor` | string | No | Pagination cursor from previous response |
 | `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
@@ -412,5 +939,6 @@ List all Confluence spaces accessible to the user.
 |   ↳ `description` | object | Space description |
 |     ↳ `value` | string | Description text content |
 |     ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
+| `nextCursor` | string | Cursor for fetching the next page of results |
 
 

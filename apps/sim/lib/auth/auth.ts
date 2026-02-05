@@ -151,7 +151,8 @@ export const auth = betterAuth({
       create: {
         before: async (account) => {
           // Only one credential per (userId, providerId) is allowed
-          // If user reconnects (even with a different external account), replace the existing one
+          // If user reconnects (even with a different external account), delete the old one
+          // and let Better Auth create the new one (returning false breaks account linking flow)
           const existing = await db.query.account.findFirst({
             where: and(
               eq(schema.account.userId, account.userId),
@@ -159,101 +160,59 @@ export const auth = betterAuth({
             ),
           })
 
-          if (existing) {
-            let scopeToStore = account.scope
+          const modifiedAccount = { ...account }
 
-            if (account.providerId === 'salesforce' && account.accessToken) {
-              try {
-                const response = await fetch(
-                  'https://login.salesforce.com/services/oauth2/userinfo',
-                  {
-                    headers: {
-                      Authorization: `Bearer ${account.accessToken}`,
-                    },
-                  }
-                )
-
-                if (response.ok) {
-                  const data = await response.json()
-
-                  if (data.profile) {
-                    const match = data.profile.match(/^(https:\/\/[^/]+)/)
-                    if (match && match[1] !== 'https://login.salesforce.com') {
-                      const instanceUrl = match[1]
-                      scopeToStore = `__sf_instance__:${instanceUrl} ${account.scope}`
-                    }
-                  }
+          if (account.providerId === 'salesforce' && account.accessToken) {
+            try {
+              const response = await fetch(
+                'https://login.salesforce.com/services/oauth2/userinfo',
+                {
+                  headers: {
+                    Authorization: `Bearer ${account.accessToken}`,
+                  },
                 }
-              } catch (error) {
-                logger.error('Failed to fetch Salesforce instance URL', { error })
-              }
-            }
-
-            const refreshTokenExpiresAt = isMicrosoftProvider(account.providerId)
-              ? getMicrosoftRefreshTokenExpiry()
-              : account.refreshTokenExpiresAt
-
-            await db
-              .update(schema.account)
-              .set({
-                accountId: account.accountId,
-                accessToken: account.accessToken,
-                refreshToken: account.refreshToken,
-                idToken: account.idToken,
-                accessTokenExpiresAt: account.accessTokenExpiresAt,
-                refreshTokenExpiresAt,
-                scope: scopeToStore,
-                updatedAt: new Date(),
-              })
-              .where(eq(schema.account.id, existing.id))
-
-            // Sync webhooks for credential sets after reconnecting
-            const requestId = crypto.randomUUID().slice(0, 8)
-            const userMemberships = await db
-              .select({
-                credentialSetId: schema.credentialSetMember.credentialSetId,
-                providerId: schema.credentialSet.providerId,
-              })
-              .from(schema.credentialSetMember)
-              .innerJoin(
-                schema.credentialSet,
-                eq(schema.credentialSetMember.credentialSetId, schema.credentialSet.id)
-              )
-              .where(
-                and(
-                  eq(schema.credentialSetMember.userId, account.userId),
-                  eq(schema.credentialSetMember.status, 'active')
-                )
               )
 
-            for (const membership of userMemberships) {
-              if (membership.providerId === account.providerId) {
-                try {
-                  await syncAllWebhooksForCredentialSet(membership.credentialSetId, requestId)
-                  logger.info(
-                    '[account.create.before] Synced webhooks after credential reconnect',
-                    {
-                      credentialSetId: membership.credentialSetId,
-                      providerId: account.providerId,
-                    }
-                  )
-                } catch (error) {
-                  logger.error(
-                    '[account.create.before] Failed to sync webhooks after credential reconnect',
-                    {
-                      credentialSetId: membership.credentialSetId,
-                      providerId: account.providerId,
-                      error,
-                    }
-                  )
+              if (response.ok) {
+                const data = await response.json()
+
+                if (data.profile) {
+                  const match = data.profile.match(/^(https:\/\/[^/]+)/)
+                  if (match && match[1] !== 'https://login.salesforce.com') {
+                    const instanceUrl = match[1]
+                    modifiedAccount.scope = `__sf_instance__:${instanceUrl} ${account.scope}`
+                  }
                 }
               }
+            } catch (error) {
+              logger.error('Failed to fetch Salesforce instance URL', { error })
             }
-
-            return false
           }
 
-          return { data: account }
+          // Handle Microsoft refresh token expiry
+          if (isMicrosoftProvider(account.providerId)) {
+            modifiedAccount.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
+          }
+
+          if (existing) {
+            // Delete the existing account so Better Auth can create the new one
+            // This allows account linking/re-authorization to succeed
+            await db.delete(schema.account).where(eq(schema.account.id, existing.id))
+
+            // Preserve the existing account ID so references (like workspace notifications) continue to work
+            modifiedAccount.id = existing.id
+
+            logger.info('[account.create.before] Deleted existing account for re-authorization', {
+              userId: account.userId,
+              providerId: account.providerId,
+              existingAccountId: existing.id,
+              preservingId: true,
+            })
+
+            // Sync webhooks for credential sets after reconnecting (in after hook)
+          }
+
+          return { data: modifiedAccount }
         },
         after: async (account) => {
           try {
@@ -1687,6 +1646,12 @@ export const auth = betterAuth({
             'search:confluence',
             'read:me',
             'offline_access',
+            'read:blogpost:confluence',
+            'write:blogpost:confluence',
+            'read:content.property:confluence',
+            'write:content.property:confluence',
+            'read:hierarchical-content:confluence',
+            'read:content.metadata:confluence',
           ],
           responseType: 'code',
           pkce: true,

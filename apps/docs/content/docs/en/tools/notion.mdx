@@ -113,6 +113,26 @@ Create a new page in Notion
 | `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `title` | string | Page title |
 
+### `notion_update_page`
+
+Update properties of a Notion page
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageId` | string | Yes | The UUID of the Notion page to update |
+| `properties` | json | Yes | JSON object of properties to update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Page UUID |
+| `url` | string | Notion page URL |
+| `last_edited_time` | string | ISO 8601 last edit timestamp |
+| `title` | string | Page title |
+
 ### `notion_query_database`
 
 Query and filter Notion database entries with advanced filtering
