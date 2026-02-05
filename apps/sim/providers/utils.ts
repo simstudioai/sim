@@ -123,6 +123,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
       getProviderModelsFromDefinitions('anthropic').includes(model)
     ),
   },
+  'azure-anthropic': buildProviderMetadata('azure-anthropic'),
   google: buildProviderMetadata('google'),
   vertex: buildProviderMetadata('vertex'),
   deepseek: buildProviderMetadata('deepseek'),

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const escapeCqlValue = (value: string) => value.replace(/"/g, '\\"')
+    const escapeCqlValue = (value: string) => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 
     const searchParams = new URLSearchParams({
       cql: `text ~ "${escapeCqlValue(query)}"`,
