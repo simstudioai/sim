@@ -40,4 +40,3 @@ describe('sse-utils', () => {
     expect(shouldSkipToolResultEvent(event as any)).toBe(true)
   })
 })
-

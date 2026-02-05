@@ -355,13 +355,23 @@ async function handleBuildToolCall(
     const { model } = getCopilotModel('chat')
     const workflowId = args.workflowId as string | undefined
 
-    const resolved = workflowId
-      ? { workflowId }
-      : await resolveWorkflowIdForUser(userId)
+    const resolved = workflowId ? { workflowId } : await resolveWorkflowIdForUser(userId)
 
     if (!resolved?.workflowId) {
       const response: CallToolResult = {
-        content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'workflowId is required for build. Call create_workflow first.' }, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: false,
+                error: 'workflowId is required for build. Call create_workflow first.',
+              },
+              null,
+              2
+            ),
+          },
+        ],
         isError: true,
       }
       return NextResponse.json(createResponse(id, response))
@@ -410,10 +420,9 @@ async function handleBuildToolCall(
     return NextResponse.json(createResponse(id, response))
   } catch (error) {
     logger.error('Build tool call failed', { error })
-    return NextResponse.json(
-      createError(id, ErrorCode.InternalError, `Build failed: ${error}`),
-      { status: 500 }
-    )
+    return NextResponse.json(createError(id, ErrorCode.InternalError, `Build failed: ${error}`), {
+      status: 500,
+    })
   }
 }
 

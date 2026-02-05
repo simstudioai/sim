@@ -127,4 +127,3 @@ export async function getAccessibleWorkflowsForUser(
     .where(or(...workflowConditions))
     .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
 }
-

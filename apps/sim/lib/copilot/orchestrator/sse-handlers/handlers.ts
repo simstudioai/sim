@@ -1,17 +1,12 @@
 import { createLogger } from '@sim/logger'
-import {
-  INTERRUPT_TOOL_SET,
-  RESPOND_TOOL_SET,
-  SUBAGENT_TOOL_SET,
-} from '@/lib/copilot/orchestrator/config'
-import { getToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
+import { RESPOND_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
 import {
   asRecord,
   getEventData,
   markToolResultSeen,
   wasToolResultSeen,
 } from '@/lib/copilot/orchestrator/sse-utils'
-import { executeToolServerSide, markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
+import { markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ContentBlock,
   ExecutionContext,
@@ -20,6 +15,7 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
+import { executeToolAndReport, isInterruptToolName, waitForToolDecision } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
 
@@ -39,100 +35,6 @@ function addContentBlock(context: StreamingContext, block: Omit<ContentBlock, 't
   })
 }
 
-async function executeToolAndReport(
-  toolCallId: string,
-  context: StreamingContext,
-  execContext: ExecutionContext,
-  options?: OrchestratorOptions
-): Promise<void> {
-  const toolCall = context.toolCalls.get(toolCallId)
-  if (!toolCall) return
-
-  if (toolCall.status === 'executing') return
-  if (wasToolResultSeen(toolCall.id)) return
-
-  toolCall.status = 'executing'
-  try {
-    const result = await executeToolServerSide(toolCall, execContext)
-    toolCall.status = result.success ? 'success' : 'error'
-    toolCall.result = result
-    toolCall.error = result.error
-    toolCall.endTime = Date.now()
-
-    // If create_workflow was successful, update the execution context with the new workflowId
-    // This ensures subsequent tools in the same stream have access to the workflowId
-    const output = asRecord(result.output)
-    if (
-      toolCall.name === 'create_workflow' &&
-      result.success &&
-      output.workflowId &&
-      !execContext.workflowId
-    ) {
-      execContext.workflowId = output.workflowId as string
-      if (output.workspaceId) {
-        execContext.workspaceId = output.workspaceId as string
-      }
-    }
-
-    markToolResultSeen(toolCall.id)
-
-    await markToolComplete(
-      toolCall.id,
-      toolCall.name,
-      result.success ? 200 : 500,
-      result.error || (result.success ? 'Tool completed' : 'Tool failed'),
-      result.output
-    )
-
-    await options?.onEvent?.({
-      type: 'tool_result',
-      toolCallId: toolCall.id,
-      toolName: toolCall.name,
-      success: result.success,
-      result: result.output,
-      data: {
-        id: toolCall.id,
-        name: toolCall.name,
-        success: result.success,
-        result: result.output,
-      },
-    })
-  } catch (error) {
-    toolCall.status = 'error'
-    toolCall.error = error instanceof Error ? error.message : String(error)
-    toolCall.endTime = Date.now()
-
-    markToolResultSeen(toolCall.id)
-
-    await markToolComplete(toolCall.id, toolCall.name, 500, toolCall.error)
-
-    await options?.onEvent?.({
-      type: 'tool_error',
-      toolCallId: toolCall.id,
-      data: {
-        id: toolCall.id,
-        name: toolCall.name,
-        error: toolCall.error,
-      },
-    })
-  }
-}
-
-async function waitForToolDecision(
-  toolCallId: string,
-  timeoutMs: number
-): Promise<{ status: string; message?: string } | null> {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    const decision = await getToolConfirmation(toolCallId)
-    if (decision?.status) {
-      return decision
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100))
-  }
-  return null
-}
-
 export const sseHandlers: Record<string, SSEHandler> = {
   chat_id: (event, context) => {
     context.chatId = asRecord(event.data).chatId
@@ -145,13 +47,13 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const current = context.toolCalls.get(toolCallId)
     if (!current) return
 
-    // Determine success: explicit success field, or if there's result data without explicit failure
+    // Determine success: explicit success field, or if there's result data without explicit failure.
     const hasExplicitSuccess = data?.success !== undefined || data?.result?.success !== undefined
     const explicitSuccess = data?.success ?? data?.result?.success
     const hasResultData = data?.result !== undefined || data?.data !== undefined
     const hasError = !!data?.error || !!data?.result?.error
 
-    // If explicitly set, use that; otherwise infer from data presence
+    // If explicitly set, use that; otherwise infer from data presence.
     const success = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
 
     current.status = success ? 'success' : 'error'
@@ -232,13 +134,13 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const toolCall = context.toolCalls.get(toolCallId)
     if (!toolCall) return
 
-    // Subagent tools are executed by the copilot backend, not sim side
+    // Subagent tools are executed by the copilot backend, not sim side.
     if (SUBAGENT_TOOL_SET.has(toolName)) {
       return
     }
 
-    // Respond tools are internal to copilot's subagent system - skip execution
-    // The copilot backend handles these internally to signal subagent completion
+    // Respond tools are internal to copilot's subagent system - skip execution.
+    // The copilot backend handles these internally to signal subagent completion.
     if (RESPOND_TOOL_SET.has(toolName)) {
       toolCall.status = 'success'
       toolCall.endTime = Date.now()
@@ -249,7 +151,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    const isInterruptTool = INTERRUPT_TOOL_SET.has(toolName)
+    const isInterruptTool = isInterruptToolName(toolName)
     const isInteractive = options.interactive === true
 
     if (isInterruptTool && isInteractive) {
@@ -358,8 +260,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   error: (event, context) => {
     const d = asRecord(event.data)
-    const message =
-      d.message || d.error || (typeof event.data === 'string' ? event.data : null)
+    const message = d.message || d.error || (typeof event.data === 'string' ? event.data : null)
     if (message) {
       context.errors.push(message)
     }
@@ -388,7 +289,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const args = toolData.arguments || toolData.input || asRecord(event.data).input
 
     const existing = context.toolCalls.get(toolCallId)
-    // Ignore late/duplicate tool_call events once we already have a result
+    // Ignore late/duplicate tool_call events once we already have a result.
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
       return
     }
@@ -401,7 +302,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       startTime: Date.now(),
     }
 
-    // Store in both places - but do NOT overwrite existing tool call state for the same id
+    // Store in both places - but do NOT overwrite existing tool call state for the same id.
     if (!context.subAgentToolCalls[parentToolCallId]) {
       context.subAgentToolCalls[parentToolCallId] = []
     }
@@ -414,7 +315,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) return
 
-    // Respond tools are internal to copilot's subagent system - skip execution
+    // Respond tools are internal to copilot's subagent system - skip execution.
     if (RESPOND_TOOL_SET.has(toolName)) {
       toolCall.status = 'success'
       toolCall.endTime = Date.now()
@@ -436,14 +337,14 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const toolCallId = event.toolCallId || data?.id
     if (!toolCallId) return
 
-    // Update in subAgentToolCalls
+    // Update in subAgentToolCalls.
     const toolCalls = context.subAgentToolCalls[parentToolCallId] || []
     const subAgentToolCall = toolCalls.find((tc) => tc.id === toolCallId)
 
-    // Also update in main toolCalls (where we added it for execution)
+    // Also update in main toolCalls (where we added it for execution).
     const mainToolCall = context.toolCalls.get(toolCallId)
 
-    // Use same success inference logic as main handler
+    // Use same success inference logic as main handler.
     const hasExplicitSuccess = data?.success !== undefined || data?.result?.success !== undefined
     const explicitSuccess = data?.success ?? data?.result?.success
     const hasResultData = data?.result !== undefined || data?.data !== undefined

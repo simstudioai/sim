@@ -1,13 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { handleSubagentRouting, sseHandlers, subAgentHandlers } from '@/lib/copilot/orchestrator/sse-handlers'
-import { env } from '@/lib/core/config/env'
-import {
-  normalizeSseEvent,
-  shouldSkipToolCallEvent,
-  shouldSkipToolResultEvent,
-} from '@/lib/copilot/orchestrator/sse-utils'
-import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ExecutionContext,
@@ -16,7 +8,9 @@ import type {
   StreamingContext,
   ToolCallSummary,
 } from '@/lib/copilot/orchestrator/types'
+import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream-core'
 
 const logger = createLogger('CopilotSubagentOrchestrator')
 
@@ -46,131 +40,58 @@ export async function orchestrateSubagentStream(
   requestPayload: Record<string, any>,
   options: SubagentOrchestratorOptions
 ): Promise<SubagentOrchestratorResult> {
-  const { userId, workflowId, workspaceId, timeout = 300000, abortSignal } = options
+  const { userId, workflowId, workspaceId } = options
   const execContext = await buildExecutionContext(userId, workflowId, workspaceId)
 
-  const context: StreamingContext = {
-    chatId: undefined,
-    conversationId: undefined,
+  const context = createStreamingContext({
     messageId: requestPayload?.messageId || crypto.randomUUID(),
-    accumulatedContent: '',
-    contentBlocks: [],
-    toolCalls: new Map(),
-    currentThinkingBlock: null,
-    isInThinkingBlock: false,
-    subAgentParentToolCallId: undefined,
-    subAgentContent: {},
-    subAgentToolCalls: {},
-    pendingContent: '',
-    streamComplete: false,
-    wasAborted: false,
-    errors: [],
-  }
+  })
 
   let structuredResult: SubagentOrchestratorResult['structuredResult']
 
   try {
-    const response = await fetch(`${SIM_AGENT_API_URL}/api/subagent/${agentId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+    await runStreamLoop(
+      `${SIM_AGENT_API_URL}/api/subagent/${agentId}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+        },
+        body: JSON.stringify({ ...requestPayload, stream: true }),
       },
-      body: JSON.stringify({ ...requestPayload, stream: true }),
-      signal: abortSignal,
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
-      throw new Error(
-        `Copilot backend error (${response.status}): ${errorText || response.statusText}`
-      )
-    }
-
-    if (!response.body) {
-      throw new Error('Copilot backend response missing body')
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-
-    const timeoutId = setTimeout(() => {
-      context.errors.push('Request timed out')
-      context.streamComplete = true
-      reader.cancel().catch(() => {})
-    }, timeout)
-
-    try {
-      for await (const event of parseSSEStream(reader, decoder, abortSignal)) {
-        if (abortSignal?.aborted) {
-          context.wasAborted = true
-          break
-        }
-
-        const normalizedEvent = normalizeSseEvent(event)
-
-        // Skip duplicate tool events to prevent state regressions.
-        const shouldSkipToolCall = shouldSkipToolCallEvent(normalizedEvent)
-        const shouldSkipToolResult = shouldSkipToolResultEvent(normalizedEvent)
-
-        if (!shouldSkipToolCall && !shouldSkipToolResult) {
-          await forwardEvent(normalizedEvent, options)
-        }
-
-        if (
-          normalizedEvent.type === 'structured_result' ||
-          normalizedEvent.type === 'subagent_result'
-        ) {
-          structuredResult = normalizeStructuredResult(normalizedEvent.data)
-          context.streamComplete = true
-          continue
-        }
-
-        // Handle subagent_start/subagent_end events to track nested subagent calls
-        if (normalizedEvent.type === 'subagent_start') {
-          const eventData = normalizedEvent.data as Record<string, unknown> | undefined
-          const toolCallId = eventData?.tool_call_id as string | undefined
-          if (toolCallId) {
-            context.subAgentParentToolCallId = toolCallId
-            context.subAgentContent[toolCallId] = ''
-            context.subAgentToolCalls[toolCallId] = []
+      context,
+      execContext,
+      {
+        ...options,
+        onBeforeDispatch: (event: SSEEvent, ctx: StreamingContext) => {
+          // Handle structured_result / subagent_result - subagent-specific.
+          if (event.type === 'structured_result' || event.type === 'subagent_result') {
+            structuredResult = normalizeStructuredResult(event.data)
+            ctx.streamComplete = true
+            return true // skip default dispatch
           }
-          continue
-        }
 
-        if (normalizedEvent.type === 'subagent_end') {
-          context.subAgentParentToolCallId = undefined
-          continue
-        }
-
-        // For direct subagent calls, events may have the subagent field set (e.g., subagent: "discovery")
-        // but no subagent_start event because this IS the top-level agent. Skip subagent routing
-        // for events where the subagent field matches the current agentId - these are top-level events.
-        const isTopLevelSubagentEvent =
-          normalizedEvent.subagent === agentId && !context.subAgentParentToolCallId
-
-        // Only route to subagent handlers for nested subagent events (not matching current agentId)
-        if (!isTopLevelSubagentEvent && handleSubagentRouting(normalizedEvent, context)) {
-          const handler = subAgentHandlers[normalizedEvent.type]
-          if (handler) {
-            await handler(normalizedEvent, context, execContext, options)
+          // For direct subagent calls, events may have the subagent field set
+          // but no subagent_start because this IS the top-level agent.
+          // Skip subagent routing for events where the subagent field matches
+          // the current agentId - these are top-level events.
+          if (event.subagent === agentId && !ctx.subAgentParentToolCallId) {
+            return false // let default dispatch handle it
           }
-          if (context.streamComplete) break
-          continue
-        }
 
-        // Process as a regular SSE event (including top-level subagent events)
-        const handler = sseHandlers[normalizedEvent.type]
-        if (handler) {
-          await handler(normalizedEvent, context, execContext, options)
-        }
-        if (context.streamComplete) break
+          return false // let default dispatch handle it
+        },
       }
-    } finally {
-      clearTimeout(timeoutId)
-    }
+    )
 
-    const result = buildResult(context, structuredResult)
+    const result: SubagentOrchestratorResult = {
+      success: context.errors.length === 0 && !context.wasAborted,
+      content: context.accumulatedContent,
+      toolCalls: buildToolCallSummaries(context),
+      structuredResult,
+      errors: context.errors.length ? context.errors : undefined,
+    }
     await options.onComplete?.(result)
     return result
   } catch (error) {
@@ -186,26 +107,14 @@ export async function orchestrateSubagentStream(
   }
 }
 
-async function forwardEvent(event: SSEEvent, options: OrchestratorOptions): Promise<void> {
-  try {
-    await options.onEvent?.(event)
-  } catch (error) {
-    logger.warn('Failed to forward SSE event', {
-      type: event.type,
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-}
-
-function normalizeStructuredResult(data: any): SubagentOrchestratorResult['structuredResult'] {
-  if (!data || typeof data !== 'object') {
-    return undefined
-  }
+function normalizeStructuredResult(data: unknown): SubagentOrchestratorResult['structuredResult'] {
+  if (!data || typeof data !== 'object') return undefined
+  const d = data as Record<string, any>
   return {
-    type: data.result_type || data.type,
-    summary: data.summary,
-    data: data.data ?? data,
-    success: data.success,
+    type: d.result_type || d.type,
+    summary: d.summary,
+    data: d.data ?? d,
+    success: d.success,
   }
 }
 
@@ -217,36 +126,11 @@ async function buildExecutionContext(
   if (workflowId) {
     return prepareExecutionContext(userId, workflowId)
   }
-
   const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
   return {
     userId,
     workflowId: workflowId || '',
     workspaceId,
     decryptedEnvVars,
-  }
-}
-
-function buildResult(
-  context: StreamingContext,
-  structuredResult?: SubagentOrchestratorResult['structuredResult']
-): SubagentOrchestratorResult {
-  const toolCalls: ToolCallSummary[] = Array.from(context.toolCalls.values()).map((toolCall) => ({
-    id: toolCall.id,
-    name: toolCall.name,
-    status: toolCall.status,
-    params: toolCall.params,
-    result: toolCall.result?.output,
-    error: toolCall.error,
-    durationMs:
-      toolCall.endTime && toolCall.startTime ? toolCall.endTime - toolCall.startTime : undefined,
-  }))
-
-  return {
-    success: context.errors.length === 0 && !context.wasAborted,
-    content: context.accumulatedContent,
-    toolCalls,
-    structuredResult,
-    errors: context.errors.length ? context.errors : undefined,
   }
 }

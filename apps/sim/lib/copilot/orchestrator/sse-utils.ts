@@ -120,4 +120,3 @@ export function shouldSkipToolResultEvent(event: SSEEvent): boolean {
   markToolResultSeen(toolCallId)
   return false
 }
-

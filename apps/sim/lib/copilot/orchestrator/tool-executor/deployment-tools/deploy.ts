@@ -1,15 +1,16 @@
 import crypto from 'crypto'
 import { db } from '@sim/db'
-import { chat, workflow, workflowMcpTool } from '@sim/db/schema'
+import { chat, workflowMcpTool } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { ensureWorkflowAccess } from '../access'
+import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
 
 export async function executeDeployApi(
-  params: Record<string, any>,
+  params: DeployApiParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -52,7 +53,7 @@ export async function executeDeployApi(
 }
 
 export async function executeDeployChat(
-  params: Record<string, any>,
+  params: DeployChatParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -126,10 +127,12 @@ export async function executeDeployChat(
       description: String(params.description || existingDeployment?.description || ''),
       customizations: {
         primaryColor:
-          params.customizations?.primaryColor || existingCustomizations.primaryColor ||
+          params.customizations?.primaryColor ||
+          existingCustomizations.primaryColor ||
           'var(--brand-primary-hover-hex)',
         welcomeMessage:
-          params.customizations?.welcomeMessage || existingCustomizations.welcomeMessage ||
+          params.customizations?.welcomeMessage ||
+          existingCustomizations.welcomeMessage ||
           'Hi there! How can I help you today?',
       },
       authType: params.authType || existingDeployment?.authType || 'public',
@@ -184,7 +187,7 @@ export async function executeDeployChat(
 }
 
 export async function executeDeployMcp(
-  params: Record<string, any>,
+  params: DeployMcpParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -217,14 +220,18 @@ export async function executeDeployMcp(
     const existingTool = await db
       .select()
       .from(workflowMcpTool)
-      .where(and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId)))
+      .where(
+        and(eq(workflowMcpTool.serverId, serverId), eq(workflowMcpTool.workflowId, workflowId))
+      )
       .limit(1)
 
     const toolName = sanitizeToolName(
       params.toolName || workflowRecord.name || `workflow_${workflowId}`
     )
     const toolDescription =
-      params.toolDescription || workflowRecord.description || `Execute ${workflowRecord.name} workflow`
+      params.toolDescription ||
+      workflowRecord.description ||
+      `Execute ${workflowRecord.name} workflow`
     const parameterSchema = params.parameterSchema || {}
 
     if (existingTool.length > 0) {

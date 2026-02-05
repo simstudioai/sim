@@ -18,9 +18,11 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ success: true, result })
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to load credentials' },
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to load credentials',
+      },
       { status: 500 }
     )
   }
 }
-
