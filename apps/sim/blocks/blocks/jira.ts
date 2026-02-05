@@ -769,7 +769,7 @@ Return ONLY the comment text - no explanations.`,
             }
             return {
               ...baseParams,
-              projectId: finalProjectId.trim(),
+              projectId: effectiveProjectId.trim(),
             }
           }
           case 'delete': {
