@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
+import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import type {
   ExecutionContext,
   ToolCallResult,
@@ -11,7 +11,7 @@ import type {
 import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { executeIntegrationToolDirect } from '@/lib/copilot/orchestrator/tool-executor/integration-tools'
+import { executeIntegrationToolDirect } from './integration-tools'
 import {
   executeGetBlockOutputs,
   executeGetBlockUpstreamReferences,
@@ -25,7 +25,7 @@ import {
   executeCreateFolder,
   executeRunWorkflow,
   executeSetGlobalWorkflowVariables,
-} from '@/lib/copilot/orchestrator/tool-executor/workflow-tools'
+} from './workflow-tools'
 import {
   executeCheckDeploymentStatus,
   executeCreateWorkspaceMcpServer,
@@ -34,11 +34,10 @@ import {
   executeDeployMcp,
   executeListWorkspaceMcpServers,
   executeRedeploy,
-} from '@/lib/copilot/orchestrator/tool-executor/deployment-tools'
+} from './deployment-tools'
 import { getTool, resolveToolId } from '@/tools/utils'
 
 const logger = createLogger('CopilotToolExecutor')
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 const SERVER_TOOLS = new Set<string>([
   'get_blocks_and_tools',

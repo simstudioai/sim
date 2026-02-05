@@ -19,12 +19,12 @@ export type SSEEventType =
 
 export interface SSEEvent {
   type: SSEEventType
-  data?: any
+  data?: unknown
   subagent?: string
   toolCallId?: string
   toolName?: string
   success?: boolean
-  result?: any
+  result?: unknown
 }
 
 export type ToolCallStatus = 'pending' | 'executing' | 'success' | 'error' | 'skipped' | 'rejected'
@@ -33,16 +33,16 @@ export interface ToolCallState {
   id: string
   name: string
   status: ToolCallStatus
-  params?: Record<string, any>
+  params?: Record<string, unknown>
   result?: ToolCallResult
   error?: string
   startTime?: number
   endTime?: number
 }
 
-export interface ToolCallResult {
+export interface ToolCallResult<T = unknown> {
   success: boolean
-  output?: any
+  output?: T
   error?: string
 }
 
@@ -73,6 +73,14 @@ export interface StreamingContext {
   errors: string[]
 }
 
+export interface FileAttachment {
+  id: string
+  key: string
+  name: string
+  mimeType: string
+  size: number
+}
+
 export interface OrchestratorRequest {
   message: string
   workflowId: string
@@ -82,7 +90,7 @@ export interface OrchestratorRequest {
   model?: string
   conversationId?: string
   contexts?: Array<{ type: string; content: string }>
-  fileAttachments?: any[]
+  fileAttachments?: FileAttachment[]
   commands?: string[]
   provider?: CopilotProviderConfig
   streamToolCalls?: boolean
@@ -116,8 +124,8 @@ export interface ToolCallSummary {
   id: string
   name: string
   status: ToolCallStatus
-  params?: Record<string, any>
-  result?: any
+  params?: Record<string, unknown>
+  result?: unknown
   error?: string
   durationMs?: number
 }

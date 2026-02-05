@@ -1,19 +1,9 @@
-import { createLogger } from '@sim/logger'
 import { ListFilter, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import {
-  ExecuteResponseSuccessSchema,
-  GetBlocksMetadataInput,
-  GetBlocksMetadataResult,
-} from '@/lib/copilot/tools/shared/schemas'
-
-interface GetBlocksMetadataArgs {
-  blockIds: string[]
-}
 
 export class GetBlocksMetadataClientTool extends BaseClientTool {
   static readonly id = 'get_blocks_metadata'
@@ -63,33 +53,9 @@ export class GetBlocksMetadataClientTool extends BaseClientTool {
     },
   }
 
-  async execute(args?: GetBlocksMetadataArgs): Promise<void> {
-    const logger = createLogger('GetBlocksMetadataClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-
-      const { blockIds } = GetBlocksMetadataInput.parse(args || {})
-
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'get_blocks_metadata', payload: { blockIds } }),
-      })
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => '')
-        throw new Error(errorText || `Server error (${res.status})`)
-      }
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-      const result = GetBlocksMetadataResult.parse(parsed.result)
-
-      await this.markToolComplete(200, { retrieved: Object.keys(result.metadata).length }, result)
-      this.setState(ClientToolCallState.success)
-    } catch (error: any) {
-      const message = error instanceof Error ? error.message : String(error)
-      logger.error('Execute failed', { message })
-      await this.markToolComplete(500, message)
-      this.setState(ClientToolCallState.error)
-    }
+  async execute(): Promise<void> {
+    // Tool execution is handled server-side by the orchestrator.
+    // Client tool classes are retained for UI display configuration only.
+    this.setState(ClientToolCallState.success)
   }
 }

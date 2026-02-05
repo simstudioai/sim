@@ -147,67 +147,13 @@ export class BaseClientTool {
   }
 
   /**
-   * Mark a tool as complete on the server (proxies to server-side route).
-   * Once called, the tool is considered complete and won't be marked again.
+   * Mark a tool as complete. Tool completion is now handled server-side by the
+   * orchestrator (which calls the Go backend directly). Client tools are retained
+   * for UI display only — this method just tracks local state.
    */
-  async markToolComplete(status: number, message?: any, data?: any): Promise<boolean> {
-    // Prevent double-marking
-    if (this.isMarkedComplete) {
-      baseToolLogger.warn('markToolComplete called but tool already marked complete', {
-        toolCallId: this.toolCallId,
-        toolName: this.name,
-        existingState: this.state,
-        attemptedStatus: status,
-      })
-      return true
-    }
-
+  async markToolComplete(_status: number, _message?: unknown, _data?: unknown): Promise<boolean> {
     this.isMarkedComplete = true
-
-    try {
-      baseToolLogger.info('markToolComplete called', {
-        toolCallId: this.toolCallId,
-        toolName: this.name,
-        state: this.state,
-        status,
-        hasMessage: message !== undefined,
-        hasData: data !== undefined,
-      })
-    } catch {}
-
-    try {
-      const res = await fetch('/api/copilot/tools/mark-complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: this.toolCallId,
-          name: this.name,
-          status,
-          message,
-          data,
-        }),
-      })
-
-      if (!res.ok) {
-        // Try to surface server error
-        let errorText = `Failed to mark tool complete (status ${res.status})`
-        try {
-          const { error } = await res.json()
-          if (error) errorText = String(error)
-        } catch {}
-        throw new Error(errorText)
-      }
-
-      const json = (await res.json()) as { success?: boolean }
-      return json?.success === true
-    } catch (e) {
-      // Default failure path - but tool is still marked complete locally
-      baseToolLogger.error('Failed to mark tool complete on server', {
-        toolCallId: this.toolCallId,
-        error: e instanceof Error ? e.message : String(e),
-      })
-      return false
-    }
+    return true
   }
 
   // Accept (continue) for interrupt flows: move pending -> executing

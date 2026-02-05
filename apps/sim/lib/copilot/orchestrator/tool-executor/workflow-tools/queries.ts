@@ -1,26 +1,24 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import { customTools, permissions, workflow, workflowFolder, workspace } from '@sim/db/schema'
-import { and, asc, desc, eq, inArray, isNull, max, or } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import {
   extractWorkflowNames,
   formatNormalizedWorkflowForCopilot,
   normalizeWorkflowName,
 } from '@/lib/copilot/tools/shared/workflow-utils'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
-import {
-  loadWorkflowFromNormalizedTables,
-  saveWorkflowToNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
-import { ensureWorkflowAccess, ensureWorkspaceAccess, getAccessibleWorkflowsForUser, getDefaultWorkspaceId } from './access'
+import {
+  ensureWorkflowAccess,
+  ensureWorkspaceAccess,
+  getAccessibleWorkflowsForUser,
+  getDefaultWorkspaceId,
+} from '../access'
 import { normalizeName } from '@/executor/constants'
 
 export async function executeGetUserWorkflow(
@@ -175,112 +173,6 @@ export async function executeListFolders(
         folders,
       },
     }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeCreateWorkflow(
-  params: Record<string, any>,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const name = typeof params?.name === 'string' ? params.name.trim() : ''
-    if (!name) {
-      return { success: false, error: 'name is required' }
-    }
-
-    const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    const folderId = params?.folderId || null
-    const description = typeof params?.description === 'string' ? params.description : null
-
-    await ensureWorkspaceAccess(workspaceId, context.userId, true)
-
-    const workflowId = crypto.randomUUID()
-    const now = new Date()
-
-    const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
-    const [maxResult] = await db
-      .select({ maxOrder: max(workflow.sortOrder) })
-      .from(workflow)
-      .where(and(eq(workflow.workspaceId, workspaceId), folderCondition))
-    const sortOrder = (maxResult?.maxOrder ?? 0) + 1
-
-    await db.insert(workflow).values({
-      id: workflowId,
-      userId: context.userId,
-      workspaceId,
-      folderId,
-      sortOrder,
-      name,
-      description,
-      color: '#3972F6',
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
-    })
-
-    const { workflowState } = buildDefaultWorkflowArtifacts()
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
-    if (!saveResult.success) {
-      throw new Error(saveResult.error || 'Failed to save workflow state')
-    }
-
-    return {
-      success: true,
-      output: {
-        workflowId,
-        workflowName: name,
-        workspaceId,
-        folderId,
-      },
-    }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeCreateFolder(
-  params: Record<string, any>,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const name = typeof params?.name === 'string' ? params.name.trim() : ''
-    if (!name) {
-      return { success: false, error: 'name is required' }
-    }
-
-    const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    const parentId = params?.parentId || null
-
-    await ensureWorkspaceAccess(workspaceId, context.userId, true)
-
-    const [maxResult] = await db
-      .select({ maxOrder: max(workflowFolder.sortOrder) })
-      .from(workflowFolder)
-      .where(
-        and(
-          eq(workflowFolder.workspaceId, workspaceId),
-          parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
-        )
-      )
-    const sortOrder = (maxResult?.maxOrder ?? 0) + 1
-
-    const folderId = crypto.randomUUID()
-    await db.insert(workflowFolder).values({
-      id: folderId,
-      workspaceId,
-      parentId,
-      name,
-      sortOrder,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-
-    return { success: true, output: { folderId, name, workspaceId, parentId } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -582,140 +474,6 @@ export async function executeGetBlockUpstreamReferences(
 
     const payload = { results }
     return { success: true, output: payload }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeRunWorkflow(
-  params: Record<string, any>,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
-
-    const result = await executeWorkflow(
-      {
-        id: workflowRecord.id,
-        userId: workflowRecord.userId,
-        workspaceId: workflowRecord.workspaceId,
-        variables: workflowRecord.variables || {},
-      },
-      generateRequestId(),
-      params.workflow_input || params.input || undefined,
-      context.userId
-    )
-
-    return {
-      success: result.success,
-      output: {
-        executionId: result.executionId,
-        success: result.success,
-        output: result.output,
-        logs: result.logs,
-      },
-      error: result.success ? undefined : result.error || 'Workflow execution failed',
-    }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-}
-
-export async function executeSetGlobalWorkflowVariables(
-  params: Record<string, any>,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
-    const operations = Array.isArray(params.operations) ? params.operations : []
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
-
-    const currentVarsRecord = (workflowRecord.variables as Record<string, any>) || {}
-    const byName: Record<string, any> = {}
-    Object.values(currentVarsRecord).forEach((v: any) => {
-      if (v && typeof v === 'object' && v.id && v.name) byName[String(v.name)] = v
-    })
-
-    for (const op of operations) {
-      const key = String(op?.name || '')
-      if (!key) continue
-      const nextType = op?.type || byName[key]?.type || 'plain'
-      const coerceValue = (value: any, type: string) => {
-        if (value === undefined) return value
-        if (type === 'number') {
-          const n = Number(value)
-          return Number.isNaN(n) ? value : n
-        }
-        if (type === 'boolean') {
-          const v = String(value).trim().toLowerCase()
-          if (v === 'true') return true
-          if (v === 'false') return false
-          return value
-        }
-        if (type === 'array' || type === 'object') {
-          try {
-            const parsed = JSON.parse(String(value))
-            if (type === 'array' && Array.isArray(parsed)) return parsed
-            if (type === 'object' && parsed && typeof parsed === 'object' && !Array.isArray(parsed))
-              return parsed
-          } catch {}
-          return value
-        }
-        return value
-      }
-
-      if (op.operation === 'delete') {
-        delete byName[key]
-        continue
-      }
-      const typedValue = coerceValue(op.value, nextType)
-      if (op.operation === 'add') {
-        byName[key] = {
-          id: crypto.randomUUID(),
-          workflowId,
-          name: key,
-          type: nextType,
-          value: typedValue,
-        }
-        continue
-      }
-      if (op.operation === 'edit') {
-        if (!byName[key]) {
-          byName[key] = {
-            id: crypto.randomUUID(),
-            workflowId,
-            name: key,
-            type: nextType,
-            value: typedValue,
-          }
-        } else {
-          byName[key] = {
-            ...byName[key],
-            type: nextType,
-            value: typedValue,
-          }
-        }
-      }
-    }
-
-    const nextVarsRecord = Object.fromEntries(
-      Object.values(byName).map((v: any) => [String(v.id), v])
-    )
-
-    await db
-      .update(workflow)
-      .set({ variables: nextVarsRecord, updatedAt: new Date() })
-      .where(eq(workflow.id, workflowId))
-
-    return { success: true, output: { updated: Object.values(byName).length } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }

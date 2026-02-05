@@ -4169,10 +4169,8 @@ export const useCopilotStore = create<CopilotStore>()(
     // Credential masking
     loadSensitiveCredentialIds: async () => {
       try {
-        const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ toolName: 'get_credentials', payload: {} }),
+        const res = await fetch('/api/copilot/credentials', {
+          credentials: 'include',
         })
         if (!res.ok) {
           logger.warn('[loadSensitiveCredentialIds] Failed to fetch credentials', {

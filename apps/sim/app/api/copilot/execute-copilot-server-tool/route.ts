@@ -17,6 +17,12 @@ const ExecuteSchema = z.object({
   payload: z.unknown().optional(),
 })
 
+/**
+ * @deprecated Transitional route used by the legacy client-side tool execution path
+ * (Zustand store → client tool classes → this route). Will be removed once the
+ * interactive browser path is fully migrated to server-side orchestration.
+ * New server-side code should use lib/copilot/orchestrator/tool-executor directly.
+ */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
   try {

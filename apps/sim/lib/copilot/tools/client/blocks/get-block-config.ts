@@ -1,22 +1,10 @@
-import { createLogger } from '@sim/logger'
 import { FileCode, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import {
-  ExecuteResponseSuccessSchema,
-  GetBlockConfigInput,
-  GetBlockConfigResult,
-} from '@/lib/copilot/tools/shared/schemas'
 import { getLatestBlock } from '@/blocks/registry'
-
-interface GetBlockConfigArgs {
-  blockType: string
-  operation?: string
-  trigger?: boolean
-}
 
 export class GetBlockConfigClientTool extends BaseClientTool {
   static readonly id = 'get_block_config'
@@ -63,38 +51,9 @@ export class GetBlockConfigClientTool extends BaseClientTool {
     },
   }
 
-  async execute(args?: GetBlockConfigArgs): Promise<void> {
-    const logger = createLogger('GetBlockConfigClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-
-      const { blockType, operation, trigger } = GetBlockConfigInput.parse(args || {})
-
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toolName: 'get_block_config',
-          payload: { blockType, operation, trigger },
-        }),
-      })
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => '')
-        throw new Error(errorText || `Server error (${res.status})`)
-      }
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-      const result = GetBlockConfigResult.parse(parsed.result)
-
-      const inputCount = Object.keys(result.inputs).length
-      const outputCount = Object.keys(result.outputs).length
-      await this.markToolComplete(200, { inputs: inputCount, outputs: outputCount }, result)
-      this.setState(ClientToolCallState.success)
-    } catch (error: any) {
-      const message = error instanceof Error ? error.message : String(error)
-      logger.error('Execute failed', { message })
-      await this.markToolComplete(500, message)
-      this.setState(ClientToolCallState.error)
-    }
+  async execute(): Promise<void> {
+    // Tool execution is handled server-side by the orchestrator.
+    // Client tool classes are retained for UI display configuration only.
+    this.setState(ClientToolCallState.success)
   }
 }
