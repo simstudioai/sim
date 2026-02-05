@@ -2,8 +2,8 @@ import { Text } from '@react-email/components'
 import { format } from 'date-fns'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
-import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface CareersConfirmationEmailProps {
   name: string

@@ -1,4 +1,6 @@
-// Helper to detect if background is dark
+/**
+ * Helper to detect if background is dark
+ */
 function isDarkBackground(hexColor: string): boolean {
   const hex = hexColor.replace('#', '')
   const r = Number.parseInt(hex.substr(0, 2), 16)

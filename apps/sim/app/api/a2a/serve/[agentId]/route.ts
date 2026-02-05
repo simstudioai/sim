@@ -14,7 +14,6 @@ import {
   parseWorkflowSSEChunk,
 } from '@/lib/a2a/utils'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { getBrandConfig } from '@/lib/branding/branding'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
@@ -35,6 +34,7 @@ import {
   type PushNotificationSetParams,
   type TaskIdParams,
 } from '@/app/api/a2a/serve/[agentId]/utils'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('A2AServeAPI')
 

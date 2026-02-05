@@ -233,6 +233,17 @@ export function buildTraceSpans(result: ExecutionResult): {
       const timeSegments = log.output.providerTiming.timeSegments
       const toolCallsData = log.output?.toolCalls?.list || log.output?.toolCalls || []
 
+      const toolCallsByName = new Map<string, Array<Record<string, unknown>>>()
+      for (const tc of toolCallsData as Array<{ name?: string; [key: string]: unknown }>) {
+        const normalizedName = stripCustomToolPrefix(tc.name || '')
+        if (!toolCallsByName.has(normalizedName)) {
+          toolCallsByName.set(normalizedName, [])
+        }
+        toolCallsByName.get(normalizedName)!.push(tc)
+      }
+
+      const toolCallIndices = new Map<string, number>()
+
       span.children = timeSegments.map(
         (
           segment: {
@@ -259,14 +270,25 @@ export function buildTraceSpans(result: ExecutionResult): {
           }
 
           if (segment.type === 'tool') {
-            const matchingToolCall = toolCallsData.find(
-              (tc: { name?: string; [key: string]: unknown }) =>
-                tc.name === segment.name || stripCustomToolPrefix(tc.name || '') === segment.name
-            )
+            const normalizedName = stripCustomToolPrefix(segment.name || '')
+
+            const toolCallsForName = toolCallsByName.get(normalizedName) || []
+            const currentIndex = toolCallIndices.get(normalizedName) || 0
+            const matchingToolCall = toolCallsForName[currentIndex] as
+              | {
+                  error?: string
+                  arguments?: Record<string, unknown>
+                  input?: Record<string, unknown>
+                  result?: Record<string, unknown>
+                  output?: Record<string, unknown>
+                }
+              | undefined
+
+            toolCallIndices.set(normalizedName, currentIndex + 1)
 
             return {
               id: `${span.id}-segment-${index}`,
-              name: stripCustomToolPrefix(segment.name || ''),
+              name: normalizedName,
               type: 'tool',
               duration: segment.duration,
               startTime: segmentStartTime,
