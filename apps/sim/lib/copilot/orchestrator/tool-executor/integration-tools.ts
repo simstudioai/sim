@@ -15,7 +15,10 @@ import { resolveToolId } from '@/tools/utils'
 
 export async function executeIntegrationToolDirect(
   toolCall: ToolCallState,
-  toolConfig: any,
+  toolConfig: {
+    oauth?: { required?: boolean; provider?: string }
+    params?: { apiKey?: { required?: boolean } }
+  },
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   const { userId, workflowId } = context
@@ -35,6 +38,9 @@ export async function executeIntegrationToolDirect(
   const decryptedEnvVars =
     context.decryptedEnvVars || (await getEffectiveDecryptedEnv(userId, workspaceId))
 
+  // Deep resolution walks nested objects to replace {{ENV_VAR}} references.
+  // Safe because tool arguments originate from the LLM (not direct user input)
+  // and env vars belong to the user themselves.
   const executionParams: Record<string, any> = resolveEnvVarReferences(toolArgs, decryptedEnvVars, {
     deep: true,
   }) as Record<string, any>
@@ -97,4 +103,3 @@ export async function executeIntegrationToolDirect(
     error: result.error,
   }
 }
-

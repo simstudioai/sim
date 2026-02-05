@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { loggerMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/logger', () => loggerMock)
 
@@ -92,4 +93,3 @@ describe('sse-handlers tool lifecycle', () => {
     expect(markToolComplete).toHaveBeenCalledTimes(1)
   })
 })
-

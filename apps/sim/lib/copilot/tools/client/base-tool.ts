@@ -20,7 +20,10 @@ export interface ClientToolDisplay {
 export interface BaseClientToolMetadata {
   displayNames: Partial<Record<ClientToolCallState, ClientToolDisplay>>
   uiConfig?: Record<string, unknown>
-  getDynamicText?: (params: Record<string, unknown>, state: ClientToolCallState) => string | undefined
+  getDynamicText?: (
+    params: Record<string, unknown>,
+    state: ClientToolCallState
+  ) => string | undefined
 }
 
 export type DynamicTextFormatter = (

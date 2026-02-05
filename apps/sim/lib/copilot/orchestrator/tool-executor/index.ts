@@ -11,21 +11,7 @@ import type {
 import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { executeIntegrationToolDirect } from './integration-tools'
-import {
-  executeGetBlockOutputs,
-  executeGetBlockUpstreamReferences,
-  executeGetUserWorkflow,
-  executeGetWorkflowData,
-  executeGetWorkflowFromName,
-  executeListFolders,
-  executeListUserWorkflows,
-  executeListUserWorkspaces,
-  executeCreateWorkflow,
-  executeCreateFolder,
-  executeRunWorkflow,
-  executeSetGlobalWorkflowVariables,
-} from './workflow-tools'
+import { getTool, resolveToolId } from '@/tools/utils'
 import {
   executeCheckDeploymentStatus,
   executeCreateWorkspaceMcpServer,
@@ -35,7 +21,40 @@ import {
   executeListWorkspaceMcpServers,
   executeRedeploy,
 } from './deployment-tools'
-import { getTool, resolveToolId } from '@/tools/utils'
+import { executeIntegrationToolDirect } from './integration-tools'
+import type {
+  CheckDeploymentStatusParams,
+  CreateFolderParams,
+  CreateWorkflowParams,
+  CreateWorkspaceMcpServerParams,
+  DeployApiParams,
+  DeployChatParams,
+  DeployMcpParams,
+  GetBlockOutputsParams,
+  GetBlockUpstreamReferencesParams,
+  GetUserWorkflowParams,
+  GetWorkflowDataParams,
+  GetWorkflowFromNameParams,
+  ListFoldersParams,
+  ListUserWorkflowsParams,
+  ListWorkspaceMcpServersParams,
+  RunWorkflowParams,
+  SetGlobalWorkflowVariablesParams,
+} from './param-types'
+import {
+  executeCreateFolder,
+  executeCreateWorkflow,
+  executeGetBlockOutputs,
+  executeGetBlockUpstreamReferences,
+  executeGetUserWorkflow,
+  executeGetWorkflowData,
+  executeGetWorkflowFromName,
+  executeListFolders,
+  executeListUserWorkflows,
+  executeListUserWorkspaces,
+  executeRunWorkflow,
+  executeSetGlobalWorkflowVariables,
+} from './workflow-tools'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -144,43 +163,43 @@ async function executeSimWorkflowTool(
 ): Promise<ToolCallResult> {
   switch (toolName) {
     case 'get_user_workflow':
-      return executeGetUserWorkflow(params, context)
+      return executeGetUserWorkflow(params as GetUserWorkflowParams, context)
     case 'get_workflow_from_name':
-      return executeGetWorkflowFromName(params, context)
+      return executeGetWorkflowFromName(params as GetWorkflowFromNameParams, context)
     case 'list_user_workflows':
-      return executeListUserWorkflows(params, context)
+      return executeListUserWorkflows(params as ListUserWorkflowsParams, context)
     case 'list_user_workspaces':
       return executeListUserWorkspaces(context)
     case 'list_folders':
-      return executeListFolders(params, context)
+      return executeListFolders(params as ListFoldersParams, context)
     case 'create_workflow':
-      return executeCreateWorkflow(params, context)
+      return executeCreateWorkflow(params as CreateWorkflowParams, context)
     case 'create_folder':
-      return executeCreateFolder(params, context)
+      return executeCreateFolder(params as CreateFolderParams, context)
     case 'get_workflow_data':
-      return executeGetWorkflowData(params, context)
+      return executeGetWorkflowData(params as GetWorkflowDataParams, context)
     case 'get_block_outputs':
-      return executeGetBlockOutputs(params, context)
+      return executeGetBlockOutputs(params as GetBlockOutputsParams, context)
     case 'get_block_upstream_references':
-      return executeGetBlockUpstreamReferences(params, context)
+      return executeGetBlockUpstreamReferences(params as GetBlockUpstreamReferencesParams, context)
     case 'run_workflow':
-      return executeRunWorkflow(params, context)
+      return executeRunWorkflow(params as RunWorkflowParams, context)
     case 'set_global_workflow_variables':
-      return executeSetGlobalWorkflowVariables(params, context)
+      return executeSetGlobalWorkflowVariables(params as SetGlobalWorkflowVariablesParams, context)
     case 'deploy_api':
-      return executeDeployApi(params, context)
+      return executeDeployApi(params as DeployApiParams, context)
     case 'deploy_chat':
-      return executeDeployChat(params, context)
+      return executeDeployChat(params as DeployChatParams, context)
     case 'deploy_mcp':
-      return executeDeployMcp(params, context)
+      return executeDeployMcp(params as DeployMcpParams, context)
     case 'redeploy':
       return executeRedeploy(context)
     case 'check_deployment_status':
-      return executeCheckDeploymentStatus(params, context)
+      return executeCheckDeploymentStatus(params as CheckDeploymentStatusParams, context)
     case 'list_workspace_mcp_servers':
-      return executeListWorkspaceMcpServers(params, context)
+      return executeListWorkspaceMcpServers(params as ListWorkspaceMcpServersParams, context)
     case 'create_workspace_mcp_server':
-      return executeCreateWorkspaceMcpServer(params, context)
+      return executeCreateWorkspaceMcpServer(params as CreateWorkspaceMcpServerParams, context)
     default:
       return { success: false, error: `Unsupported workflow tool: ${toolName}` }
   }

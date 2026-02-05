@@ -8,9 +8,16 @@ import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
+import type {
+  CreateFolderParams,
+  CreateWorkflowParams,
+  RunWorkflowParams,
+  SetGlobalWorkflowVariablesParams,
+  VariableOperation,
+} from '../param-types'
 
 export async function executeCreateWorkflow(
-  params: Record<string, any>,
+  params: CreateWorkflowParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -18,10 +25,16 @@ export async function executeCreateWorkflow(
     if (!name) {
       return { success: false, error: 'name is required' }
     }
+    if (name.length > 200) {
+      return { success: false, error: 'Workflow name must be 200 characters or less' }
+    }
+    const description = typeof params?.description === 'string' ? params.description : null
+    if (description && description.length > 2000) {
+      return { success: false, error: 'Description must be 2000 characters or less' }
+    }
 
     const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
     const folderId = params?.folderId || null
-    const description = typeof params?.description === 'string' ? params.description : null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
 
@@ -73,13 +86,16 @@ export async function executeCreateWorkflow(
 }
 
 export async function executeCreateFolder(
-  params: Record<string, any>,
+  params: CreateFolderParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
     const name = typeof params?.name === 'string' ? params.name.trim() : ''
     if (!name) {
       return { success: false, error: 'name is required' }
+    }
+    if (name.length > 200) {
+      return { success: false, error: 'Folder name must be 200 characters or less' }
     }
 
     const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
@@ -117,7 +133,7 @@ export async function executeCreateFolder(
 }
 
 export async function executeRunWorkflow(
-  params: Record<string, any>,
+  params: RunWorkflowParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -156,7 +172,7 @@ export async function executeRunWorkflow(
 }
 
 export async function executeSetGlobalWorkflowVariables(
-  params: Record<string, any>,
+  params: SetGlobalWorkflowVariablesParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -164,7 +180,9 @@ export async function executeSetGlobalWorkflowVariables(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    const operations = Array.isArray(params.operations) ? params.operations : []
+    const operations: VariableOperation[] = Array.isArray(params.operations)
+      ? params.operations
+      : []
     const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
 
     const currentVarsRecord = (workflowRecord.variables as Record<string, any>) || {}

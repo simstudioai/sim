@@ -13,16 +13,25 @@ import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
+import { normalizeName } from '@/executor/constants'
 import {
   ensureWorkflowAccess,
   ensureWorkspaceAccess,
   getAccessibleWorkflowsForUser,
   getDefaultWorkspaceId,
 } from '../access'
-import { normalizeName } from '@/executor/constants'
+import type {
+  GetBlockOutputsParams,
+  GetBlockUpstreamReferencesParams,
+  GetUserWorkflowParams,
+  GetWorkflowDataParams,
+  GetWorkflowFromNameParams,
+  ListFoldersParams,
+  ListUserWorkflowsParams,
+} from '../param-types'
 
 export async function executeGetUserWorkflow(
-  params: Record<string, any>,
+  params: GetUserWorkflowParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -57,7 +66,7 @@ export async function executeGetUserWorkflow(
 }
 
 export async function executeGetWorkflowFromName(
-  params: Record<string, any>,
+  params: GetWorkflowFromNameParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -95,7 +104,7 @@ export async function executeGetWorkflowFromName(
 }
 
 export async function executeListUserWorkflows(
-  params: Record<string, any>,
+  params: ListUserWorkflowsParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -119,7 +128,9 @@ export async function executeListUserWorkflows(
   }
 }
 
-export async function executeListUserWorkspaces(context: ExecutionContext): Promise<ToolCallResult> {
+export async function executeListUserWorkspaces(
+  context: ExecutionContext
+): Promise<ToolCallResult> {
   try {
     const workspaces = await db
       .select({
@@ -146,7 +157,7 @@ export async function executeListUserWorkspaces(context: ExecutionContext): Prom
 }
 
 export async function executeListFolders(
-  params: Record<string, any>,
+  params: ListFoldersParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -179,7 +190,7 @@ export async function executeListFolders(
 }
 
 export async function executeGetWorkflowData(
-  params: Record<string, any>,
+  params: GetWorkflowDataParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -271,7 +282,7 @@ export async function executeGetWorkflowData(
 }
 
 export async function executeGetBlockOutputs(
-  params: Record<string, any>,
+  params: GetBlockOutputsParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -343,7 +354,7 @@ export async function executeGetBlockOutputs(
 }
 
 export async function executeGetBlockUpstreamReferences(
-  params: Record<string, any>,
+  params: GetBlockUpstreamReferencesParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -524,4 +535,3 @@ function formatOutputsWithPrefix(paths: string[], blockName: string): string[] {
   const normalizedName = normalizeName(blockName)
   return paths.map((path) => `${normalizedName}.${path}`)
 }
-

@@ -6,9 +6,14 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrato
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
 import { ensureWorkflowAccess } from '../access'
+import type {
+  CheckDeploymentStatusParams,
+  CreateWorkspaceMcpServerParams,
+  ListWorkspaceMcpServersParams,
+} from '../param-types'
 
 export async function executeCheckDeploymentStatus(
-  params: Record<string, any>,
+  params: CheckDeploymentStatusParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -85,7 +90,7 @@ export async function executeCheckDeploymentStatus(
 }
 
 export async function executeListWorkspaceMcpServers(
-  params: Record<string, any>,
+  params: ListWorkspaceMcpServersParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -141,7 +146,7 @@ export async function executeListWorkspaceMcpServers(
 }
 
 export async function executeCreateWorkspaceMcpServer(
-  params: Record<string, any>,
+  params: CreateWorkspaceMcpServerParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {

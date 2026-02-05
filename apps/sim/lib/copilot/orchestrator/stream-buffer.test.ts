@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { loggerMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/logger', () => loggerMock)
 
@@ -25,27 +26,29 @@ const createRedisStub = () => {
     hset: vi.fn().mockResolvedValue(1),
     hgetall: vi.fn().mockResolvedValue({}),
     expire: vi.fn().mockResolvedValue(1),
-    eval: vi.fn().mockImplementation(
-      (
-        _lua: string,
-        _keysCount: number,
-        seqKey: string,
-        eventsKey: string,
-        _ttl: number,
-        _limit: number,
-        streamId: string,
-        eventJson: string
-      ) => {
-        const current = counters.get(seqKey) || 0
-        const next = current + 1
-        counters.set(seqKey, next)
-        const entry = JSON.stringify({ eventId: next, streamId, event: JSON.parse(eventJson) })
-        const list = events.get(eventsKey) || []
-        list.push({ score: next, value: entry })
-        events.set(eventsKey, list)
-        return next
-      }
-    ),
+    eval: vi
+      .fn()
+      .mockImplementation(
+        (
+          _lua: string,
+          _keysCount: number,
+          seqKey: string,
+          eventsKey: string,
+          _ttl: number,
+          _limit: number,
+          streamId: string,
+          eventJson: string
+        ) => {
+          const current = counters.get(seqKey) || 0
+          const next = current + 1
+          counters.set(seqKey, next)
+          const entry = JSON.stringify({ eventId: next, streamId, event: JSON.parse(eventJson) })
+          const list = events.get(eventsKey) || []
+          list.push({ score: next, value: entry })
+          events.set(eventsKey, list)
+          return next
+        }
+      ),
     incrby: vi.fn().mockImplementation((key: string, amount: number) => {
       const current = counters.get(key) || 0
       const next = current + amount
@@ -58,19 +61,18 @@ const createRedisStub = () => {
       return Promise.resolve(readEntries(key, minVal, maxVal))
     }),
     pipeline: vi.fn().mockImplementation(() => {
-      const api = {
-        zadd: vi.fn().mockImplementation((key: string, ...args: Array<string | number>) => {
-          const list = events.get(key) || []
-          for (let i = 0; i < args.length; i += 2) {
-            list.push({ score: Number(args[i]), value: String(args[i + 1]) })
-          }
-          events.set(key, list)
-          return api
-        }),
-        expire: vi.fn().mockReturnValue(api),
-        zremrangebyrank: vi.fn().mockReturnValue(api),
-        exec: vi.fn().mockResolvedValue([]),
-      }
+      const api: Record<string, any> = {}
+      api.zadd = vi.fn().mockImplementation((key: string, ...args: Array<string | number>) => {
+        const list = events.get(key) || []
+        for (let i = 0; i < args.length; i += 2) {
+          list.push({ score: Number(args[i]), value: String(args[i + 1]) })
+        }
+        events.set(key, list)
+        return api
+      })
+      api.expire = vi.fn().mockReturnValue(api)
+      api.zremrangebyrank = vi.fn().mockReturnValue(api)
+      api.exec = vi.fn().mockResolvedValue([])
       return api
     }),
   }
@@ -115,4 +117,3 @@ describe('stream-buffer', () => {
     expect(events.map((entry) => entry.event.data)).toEqual(['a', 'b'])
   })
 })
-

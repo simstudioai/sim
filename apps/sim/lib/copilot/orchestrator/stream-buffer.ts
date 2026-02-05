@@ -31,7 +31,10 @@ export function getStreamBufferConfig(): StreamBufferConfig {
     ttlSeconds: parseNumber(env.COPILOT_STREAM_TTL_SECONDS, STREAM_DEFAULTS.ttlSeconds),
     eventLimit: parseNumber(env.COPILOT_STREAM_EVENT_LIMIT, STREAM_DEFAULTS.eventLimit),
     reserveBatch: parseNumber(env.COPILOT_STREAM_RESERVE_BATCH, STREAM_DEFAULTS.reserveBatch),
-    flushIntervalMs: parseNumber(env.COPILOT_STREAM_FLUSH_INTERVAL_MS, STREAM_DEFAULTS.flushIntervalMs),
+    flushIntervalMs: parseNumber(
+      env.COPILOT_STREAM_FLUSH_INTERVAL_MS,
+      STREAM_DEFAULTS.flushIntervalMs
+    ),
     flushMaxBatch: parseNumber(env.COPILOT_STREAM_FLUSH_MAX_BATCH, STREAM_DEFAULTS.flushMaxBatch),
   }
 }
@@ -190,8 +193,6 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
   let nextEventId = 0
   let maxReservedId = 0
   let flushTimer: ReturnType<typeof setTimeout> | null = null
-  let isFlushing = false
-
   const scheduleFlush = () => {
     if (flushTimer) return
     flushTimer = setTimeout(() => {
@@ -210,9 +211,11 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
     }
   }
 
-  const flush = async () => {
-    if (isFlushing || pending.length === 0) return
-    isFlushing = true
+  let flushPromise: Promise<void> | null = null
+  let closed = false
+
+  const doFlush = async () => {
+    if (pending.length === 0) return
     const batch = pending
     pending = []
     try {
@@ -233,13 +236,25 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
         error: error instanceof Error ? error.message : String(error),
       })
       pending = batch.concat(pending)
+    }
+  }
+
+  const flush = async () => {
+    if (flushPromise) {
+      await flushPromise
+      return
+    }
+    flushPromise = doFlush()
+    try {
+      await flushPromise
     } finally {
-      isFlushing = false
+      flushPromise = null
       if (pending.length > 0) scheduleFlush()
     }
   }
 
   const write = async (event: Record<string, any>) => {
+    if (closed) return { eventId: 0, streamId, event }
     if (nextEventId === 0 || nextEventId > maxReservedId) {
       await reserveIds(1)
     }
@@ -255,6 +270,7 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
   }
 
   const close = async () => {
+    closed = true
     if (flushTimer) {
       clearTimeout(flushTimer)
       flushTimer = null
