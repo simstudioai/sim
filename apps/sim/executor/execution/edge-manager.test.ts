@@ -2478,6 +2478,9 @@ describe('EdgeManager', () => {
       expect(readyNodes).toContain(otherBranchId)
       expect(readyNodes).not.toContain(sentinelStartId)
 
+      // sentinel_end should NOT be ready - it's on a fully deactivated path
+      expect(readyNodes).not.toContain(sentinelEndId)
+
       // afterLoop should NOT be ready - its incoming edge from sentinel_end should be deactivated
       expect(readyNodes).not.toContain(afterLoopId)
 
@@ -2543,6 +2546,84 @@ describe('EdgeManager', () => {
       expect(readyNodes).not.toContain(afterParallelId)
       // isNodeReady returns true when all edges are deactivated (no pending deps)
       expect(edgeManager.isNodeReady(afterParallelNode)).toBe(true)
+    })
+
+    it('should not queue loop sentinel-end when upstream condition deactivates entire loop branch', () => {
+      // Regression test for: upstream condition → (if) → ... many blocks ... → sentinel_start → body → sentinel_end
+      //                                        → (else) → exit_block
+      // When condition takes "else", the deep cascade deactivation should NOT queue sentinel_end.
+      // Previously, sentinel_end was flagged as a cascadeTarget (terminal control node) and
+      // spuriously queued, causing it to attempt loop scope initialization and fail.
+
+      const conditionId = 'condition'
+      const intermediateId = 'intermediate'
+      const sentinelStartId = 'sentinel-start'
+      const loopBodyId = 'loop-body'
+      const sentinelEndId = 'sentinel-end'
+      const afterLoopId = 'after-loop'
+      const exitBlockId = 'exit-block'
+
+      const conditionNode = createMockNode(conditionId, [
+        { target: intermediateId, sourceHandle: 'condition-if' },
+        { target: exitBlockId, sourceHandle: 'condition-else' },
+      ])
+
+      const intermediateNode = createMockNode(
+        intermediateId,
+        [{ target: sentinelStartId }],
+        [conditionId]
+      )
+
+      const sentinelStartNode = createMockNode(
+        sentinelStartId,
+        [{ target: loopBodyId }],
+        [intermediateId]
+      )
+
+      const loopBodyNode = createMockNode(
+        loopBodyId,
+        [{ target: sentinelEndId }],
+        [sentinelStartId]
+      )
+
+      const sentinelEndNode = createMockNode(
+        sentinelEndId,
+        [
+          { target: sentinelStartId, sourceHandle: 'loop_continue' },
+          { target: afterLoopId, sourceHandle: 'loop_exit' },
+        ],
+        [loopBodyId]
+      )
+
+      const afterLoopNode = createMockNode(afterLoopId, [], [sentinelEndId])
+      const exitBlockNode = createMockNode(exitBlockId, [], [conditionId])
+
+      const nodes = new Map<string, DAGNode>([
+        [conditionId, conditionNode],
+        [intermediateId, intermediateNode],
+        [sentinelStartId, sentinelStartNode],
+        [loopBodyId, loopBodyNode],
+        [sentinelEndId, sentinelEndNode],
+        [afterLoopId, afterLoopNode],
+        [exitBlockId, exitBlockNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      const readyNodes = edgeManager.processOutgoingEdges(conditionNode, {
+        selectedOption: 'else',
+      })
+
+      // Only exitBlock should be ready
+      expect(readyNodes).toContain(exitBlockId)
+
+      // Nothing on the deactivated path should be queued
+      expect(readyNodes).not.toContain(intermediateId)
+      expect(readyNodes).not.toContain(sentinelStartId)
+      expect(readyNodes).not.toContain(loopBodyId)
+      expect(readyNodes).not.toContain(sentinelEndId)
+      expect(readyNodes).not.toContain(afterLoopId)
     })
 
     it('should still correctly handle normal loop exit (not deactivate when loop runs)', () => {
