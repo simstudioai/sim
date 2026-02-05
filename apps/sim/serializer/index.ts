@@ -520,7 +520,9 @@ export class Serializer {
       }
 
       // Check if value is missing
-      const fieldValue = params[subBlockConfig.id]
+      // For canonical subBlocks, look up the canonical param value (original IDs were deleted)
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
+      const fieldValue = canonicalId ? params[canonicalId] : params[subBlockConfig.id]
       if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
         missingFields.push(subBlockConfig.title || subBlockConfig.id)
       }
