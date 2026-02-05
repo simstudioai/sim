@@ -367,7 +367,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           values,
           downloadFileName,
           file,
-          fileReference,
           ...rest
         } = params
 
@@ -376,8 +375,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
           normalizedValues = normalizeExcelValuesForToolParams(values)
         }
 
-        // Normalize file input from both basic (file-upload) and advanced (short-input) modes
-        const normalizedFile = normalizeFileInput(file || fileReference, { single: true })
+        // Normalize file input from the canonical param
+        const normalizedFile = normalizeFileInput(file, { single: true })
 
         // Resolve folderId based on operation
         let resolvedFolderId: string | undefined

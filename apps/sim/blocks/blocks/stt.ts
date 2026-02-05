@@ -259,8 +259,8 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
         }
       },
       params: (params) => {
-        // Normalize file input from basic (file-upload) or advanced (short-input) mode
-        const audioFile = normalizeFileInput(params.audioFile || params.audioFileReference, {
+        // Normalize file input - audioFile is the canonical param for both basic and advanced modes
+        const audioFile = normalizeFileInput(params.audioFile, {
           single: true,
         })
 
@@ -269,7 +269,6 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
           apiKey: params.apiKey,
           model: params.model,
           audioFile,
-          audioFileReference: undefined,
           audioUrl: params.audioUrl,
           language: params.language,
           timestamps: params.timestamps,
@@ -296,7 +295,6 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
         'Provider-specific model (e.g., scribe_v1 for ElevenLabs, nova-3 for Deepgram, best for AssemblyAI, gemini-2.0-flash-exp for Gemini)',
     },
     audioFile: { type: 'json', description: 'Audio/video file (UserFile)' },
-    audioFileReference: { type: 'json', description: 'Audio/video file reference' },
     audioUrl: { type: 'string', description: 'Audio/video URL' },
     language: { type: 'string', description: 'Language code or auto' },
     timestamps: { type: 'string', description: 'Timestamp granularity (none, sentence, word)' },
@@ -393,8 +391,8 @@ export const SttV2Block: BlockConfig<SttBlockResponse> = {
         fallbackToolId: 'stt_whisper_v2',
       }),
       params: (params) => {
-        // Normalize file input from basic (file-upload) or advanced (short-input) mode
-        const audioFile = normalizeFileInput(params.audioFile || params.audioFileReference, {
+        // Normalize file input - audioFile is the canonical param for both basic and advanced modes
+        const audioFile = normalizeFileInput(params.audioFile, {
           single: true,
         })
 
@@ -403,7 +401,6 @@ export const SttV2Block: BlockConfig<SttBlockResponse> = {
           apiKey: params.apiKey,
           model: params.model,
           audioFile,
-          audioFileReference: undefined,
           language: params.language,
           timestamps: params.timestamps,
           diarization: params.diarization,

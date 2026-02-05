@@ -562,13 +562,12 @@ Return ONLY the HTML content.`,
           templateGenerations,
           listPageSize,
           templatePageSize,
-          attachmentFiles,
           attachments,
           ...rest
         } = params
 
         // Normalize attachments for send_mail operation
-        const normalizedAttachments = normalizeFileInput(attachmentFiles || attachments)
+        const normalizedAttachments = normalizeFileInput(attachments)
 
         // Map renamed fields back to tool parameter names
         return {
@@ -606,8 +605,7 @@ Return ONLY the HTML content.`,
     replyToName: { type: 'string', description: 'Reply-to name' },
     mailTemplateId: { type: 'string', description: 'Template ID for sending mail' },
     dynamicTemplateData: { type: 'json', description: 'Dynamic template data' },
-    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
+    attachments: { type: 'array', description: 'Files to attach (canonical param)' },
     // Contact inputs
     email: { type: 'string', description: 'Contact email' },
     firstName: { type: 'string', description: 'Contact first name' },

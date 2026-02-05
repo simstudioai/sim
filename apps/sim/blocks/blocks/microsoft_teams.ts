@@ -71,7 +71,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       required: true,
     },
     {
-      id: 'teamId',
+      id: 'teamSelector',
       title: 'Select Team',
       type: 'file-selector',
       canonicalParamId: 'teamId',
@@ -114,7 +114,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       },
     },
     {
-      id: 'chatId',
+      id: 'chatSelector',
       title: 'Select Chat',
       type: 'file-selector',
       canonicalParamId: 'chatId',
@@ -141,14 +141,14 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       },
     },
     {
-      id: 'channelId',
+      id: 'channelSelector',
       title: 'Select Channel',
       type: 'file-selector',
       canonicalParamId: 'channelId',
       serviceId: 'microsoft-teams',
       requiredScopes: [],
       placeholder: 'Select a channel',
-      dependsOn: ['credential', 'teamId'],
+      dependsOn: ['credential', 'teamSelector'],
       mode: 'basic',
       condition: {
         field: 'operation',
@@ -249,7 +249,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     },
     // Variable reference (advanced mode)
     {
-      id: 'files',
+      id: 'fileReferences',
       title: 'File Attachments',
       type: 'short-input',
       canonicalParamId: 'files',
@@ -317,23 +317,19 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         const {
           credential,
           operation,
-          teamId,
-          manualTeamId,
-          chatId,
-          manualChatId,
-          channelId,
-          manualChannelId,
-          attachmentFiles,
-          files,
+          teamId, // Canonical param from teamSelector (basic) or manualTeamId (advanced)
+          chatId, // Canonical param from chatSelector (basic) or manualChatId (advanced)
+          channelId, // Canonical param from channelSelector (basic) or manualChannelId (advanced)
+          files, // Canonical param from attachmentFiles (basic) or fileReferences (advanced)
           messageId,
           reactionType,
           includeAttachments,
           ...rest
         } = params
 
-        const effectiveTeamId = (teamId || manualTeamId || '').trim()
-        const effectiveChatId = (chatId || manualChatId || '').trim()
-        const effectiveChannelId = (channelId || manualChannelId || '').trim()
+        const effectiveTeamId = teamId ? String(teamId).trim() : ''
+        const effectiveChatId = chatId ? String(chatId).trim() : ''
+        const effectiveChannelId = channelId ? String(channelId).trim() : ''
 
         const baseParams: Record<string, any> = {
           ...rest,
@@ -344,9 +340,9 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           baseParams.includeAttachments = true
         }
 
-        // Add files if provided
+        // Add files if provided (canonical param from attachmentFiles or fileReferences)
         if (operation === 'write_chat' || operation === 'write_channel') {
-          const normalizedFiles = normalizeFileInput(attachmentFiles || files)
+          const normalizedFiles = normalizeFileInput(files)
           if (normalizedFiles) {
             baseParams.files = normalizedFiles
           }
@@ -440,12 +436,11 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       type: 'string',
       description: 'Message identifier for update/delete/reply/reaction operations',
     },
-    chatId: { type: 'string', description: 'Chat identifier' },
-    manualChatId: { type: 'string', description: 'Manual chat identifier' },
-    channelId: { type: 'string', description: 'Channel identifier' },
-    manualChannelId: { type: 'string', description: 'Manual channel identifier' },
+    // Canonical params (used by params function)
     teamId: { type: 'string', description: 'Team identifier' },
-    manualTeamId: { type: 'string', description: 'Manual team identifier' },
+    chatId: { type: 'string', description: 'Chat identifier' },
+    channelId: { type: 'string', description: 'Channel identifier' },
+    files: { type: 'array', description: 'Files to attach' },
     content: {
       type: 'string',
       description: 'Message content. Mention users with <at>userName</at>',
@@ -455,8 +450,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       type: 'boolean',
       description: 'Download and include message attachments',
     },
-    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'array', description: 'Files to attach (UserFile array)' },
   },
   outputs: {
     content: { type: 'string', description: 'Formatted message content from chat/channel' },

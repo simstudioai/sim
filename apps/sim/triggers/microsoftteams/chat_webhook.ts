@@ -47,7 +47,7 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'chatId',
+      id: 'triggerChatId',
       title: 'Chat ID',
       type: 'short-input',
       placeholder: 'Enter chat ID',

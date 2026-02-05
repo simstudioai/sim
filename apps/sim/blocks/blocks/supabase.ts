@@ -974,15 +974,13 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           allowedMimeTypes,
           upsert,
           download,
-          file,
-          fileContent,
           fileData,
           ...rest
         } = params
 
         // Normalize file input for storage_upload operation
-        // normalizeFileInput handles JSON stringified values from advanced mode
-        const normalizedFileData = normalizeFileInput(file || fileContent || fileData, {
+        // fileData is the canonical param for both basic (file) and advanced (fileContent) modes
+        const normalizedFileData = normalizeFileInput(fileData, {
           single: true,
         })
 
@@ -1156,7 +1154,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     // Storage operation inputs
     bucket: { type: 'string', description: 'Storage bucket name' },
     path: { type: 'string', description: 'File or folder path in storage' },
-    fileContent: { type: 'string', description: 'File content (base64 for binary)' },
+    fileData: { type: 'json', description: 'File data (UserFile)' },
     contentType: { type: 'string', description: 'MIME type of the file' },
     fileName: { type: 'string', description: 'File name for upload or download override' },
     upsert: { type: 'boolean', description: 'Whether to overwrite existing file' },

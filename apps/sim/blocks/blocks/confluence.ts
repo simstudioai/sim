@@ -258,7 +258,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         const {
           credential,
           pageId,
-          manualPageId,
           operation,
           attachmentFile,
           attachmentFileName,
@@ -266,7 +265,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           ...rest
         } = params
 
-        const effectivePageId = (pageId || manualPageId || '').trim()
+        const effectivePageId = pageId ? String(pageId).trim() : ''
 
         const requiresPageId = [
           'read',
@@ -314,8 +313,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
     credential: { type: 'string', description: 'Confluence access token' },
-    pageId: { type: 'string', description: 'Page identifier' },
-    manualPageId: { type: 'string', description: 'Manual page identifier' },
+    pageId: { type: 'string', description: 'Page identifier (canonical param)' },
     spaceId: { type: 'string', description: 'Space identifier' },
     title: { type: 'string', description: 'Page title' },
     content: { type: 'string', description: 'Page content' },
@@ -324,7 +322,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     comment: { type: 'string', description: 'Comment text' },
     commentId: { type: 'string', description: 'Comment identifier' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
-    attachmentFile: { type: 'json', description: 'File to upload as attachment' },
+    attachmentFile: { type: 'json', description: 'File to upload as attachment (canonical param)' },
     attachmentFileName: { type: 'string', description: 'Custom file name for attachment' },
     attachmentComment: { type: 'string', description: 'Comment for the attachment' },
     labelName: { type: 'string', description: 'Label name' },
@@ -617,17 +615,14 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         const {
           credential,
           pageId,
-          manualPageId,
           operation,
-          attachmentFileUpload,
-          attachmentFileReference,
           attachmentFile,
           attachmentFileName,
           attachmentComment,
           ...rest
         } = params
 
-        const effectivePageId = (pageId || manualPageId || '').trim()
+        const effectivePageId = pageId ? String(pageId).trim() : ''
 
         const requiresPageId = [
           'read',
@@ -651,8 +646,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
         }
 
         if (operation === 'upload_attachment') {
-          const fileInput = attachmentFileUpload || attachmentFileReference || attachmentFile
-          const normalizedFile = normalizeFileInput(fileInput, { single: true })
+          const normalizedFile = normalizeFileInput(attachmentFile, { single: true })
           if (!normalizedFile) {
             throw new Error('File is required for upload attachment operation.')
           }
@@ -680,8 +674,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Confluence domain' },
     credential: { type: 'string', description: 'Confluence access token' },
-    pageId: { type: 'string', description: 'Page identifier' },
-    manualPageId: { type: 'string', description: 'Manual page identifier' },
+    pageId: { type: 'string', description: 'Page identifier (canonical param)' },
     spaceId: { type: 'string', description: 'Space identifier' },
     title: { type: 'string', description: 'Page title' },
     content: { type: 'string', description: 'Page content' },
@@ -690,9 +683,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     comment: { type: 'string', description: 'Comment text' },
     commentId: { type: 'string', description: 'Comment identifier' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
-    attachmentFile: { type: 'json', description: 'File to upload as attachment' },
-    attachmentFileUpload: { type: 'json', description: 'Uploaded file (basic mode)' },
-    attachmentFileReference: { type: 'json', description: 'File reference (advanced mode)' },
+    attachmentFile: { type: 'json', description: 'File to upload as attachment (canonical param)' },
     attachmentFileName: { type: 'string', description: 'Custom file name for attachment' },
     attachmentComment: { type: 'string', description: 'Comment for the attachment' },
     labelName: { type: 'string', description: 'Label name' },

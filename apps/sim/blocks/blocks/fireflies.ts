@@ -461,12 +461,11 @@ Return ONLY the summary text - no quotes, no labels.`,
             return baseParams
 
           case 'fireflies_upload_audio': {
-            // Support both file upload and URL
+            // Support both file upload and URL - use canonical 'audioFile' param
             const audioUrl = params.audioUrl?.trim()
             const audioFile = params.audioFile
-            const audioFileReference = params.audioFileReference
 
-            if (!audioUrl && !audioFile && !audioFileReference) {
+            if (!audioUrl && !audioFile) {
               throw new Error('Either audio file or audio URL is required.')
             }
 
@@ -474,7 +473,6 @@ Return ONLY the summary text - no quotes, no labels.`,
               ...baseParams,
               audioUrl: audioUrl || undefined,
               audioFile: audioFile || undefined,
-              audioFileReference: audioFileReference || undefined,
               title: params.title?.trim() || undefined,
               language: params.language?.trim() || undefined,
               attendees: params.attendees?.trim() || undefined,
@@ -548,8 +546,7 @@ Return ONLY the summary text - no quotes, no labels.`,
     hostEmail: { type: 'string', description: 'Filter by host email' },
     participants: { type: 'string', description: 'Filter by participants (comma-separated)' },
     limit: { type: 'number', description: 'Maximum results to return' },
-    audioFile: { type: 'json', description: 'Audio/video file (UserFile)' },
-    audioFileReference: { type: 'json', description: 'Audio/video file reference' },
+    audioFile: { type: 'json', description: 'Audio/video file (canonical param)' },
     audioUrl: { type: 'string', description: 'Public URL to audio file' },
     title: { type: 'string', description: 'Meeting title' },
     language: { type: 'string', description: 'Language code for transcription' },
@@ -620,9 +617,8 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
         }
 
         if (params.operation === 'fireflies_upload_audio') {
-          const audioFile = normalizeFileInput(params.audioFile || params.audioFileReference, {
-            single: true,
-          })
+          // Use canonical 'audioFile' param directly
+          const audioFile = normalizeFileInput(params.audioFile, { single: true })
           if (!audioFile) {
             throw new Error('Audio file is required.')
           }
@@ -635,7 +631,6 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
             ...params,
             audioUrl,
             audioFile: undefined,
-            audioFileReference: undefined,
           })
         }
 
@@ -643,8 +638,5 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
       },
     },
   },
-  inputs: {
-    ...firefliesV2Inputs,
-    audioFileReference: { type: 'json', description: 'Audio/video file reference' },
-  },
+  inputs: firefliesV2Inputs,
 }

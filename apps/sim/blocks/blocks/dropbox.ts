@@ -317,12 +317,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           params.maxResults = Number(params.maxResults)
         }
 
-        // Normalize file input for upload operation
-        // Check all possible field IDs: uploadFile (basic), fileRef (advanced), fileContent (legacy)
-        const normalizedFile = normalizeFileInput(
-          params.uploadFile || params.fileRef || params.fileContent,
-          { single: true }
-        )
+        // Normalize file input for upload operation - use canonical 'file' param
+        const normalizedFile = normalizeFileInput(params.file, { single: true })
         if (normalizedFile) {
           params.file = normalizedFile
         }
@@ -361,10 +357,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     path: { type: 'string', description: 'Path in Dropbox' },
     autorename: { type: 'boolean', description: 'Auto-rename on conflict' },
     // Upload inputs
-    uploadFile: { type: 'json', description: 'Uploaded file (UserFile)' },
-    file: { type: 'json', description: 'File to upload (UserFile object)' },
-    fileRef: { type: 'json', description: 'File reference from previous block' },
-    fileContent: { type: 'string', description: 'Legacy: base64 encoded file content' },
+    file: { type: 'json', description: 'File to upload (canonical param)' },
     fileName: { type: 'string', description: 'Optional filename' },
     mode: { type: 'string', description: 'Write mode: add or overwrite' },
     mute: { type: 'boolean', description: 'Mute notifications' },

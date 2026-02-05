@@ -768,9 +768,10 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
               parent: params.parent ? Number(params.parent) : undefined,
             }
           case 'wordpress_upload_media':
+            // file is the canonical param for both basic (fileUpload) and advanced modes
             return {
               ...baseParams,
-              file: normalizeFileInput(params.fileUpload || params.file, { single: true }),
+              file: normalizeFileInput(params.file, { single: true }),
               filename: params.filename,
               title: params.mediaTitle,
               caption: params.caption,
@@ -905,8 +906,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     parent: { type: 'number', description: 'Parent page ID' },
     menuOrder: { type: 'number', description: 'Menu order' },
     // Media inputs
-    fileUpload: { type: 'json', description: 'File to upload (UserFile object)' },
-    file: { type: 'json', description: 'File reference from previous block' },
+    file: { type: 'json', description: 'File to upload (UserFile)' },
     filename: { type: 'string', description: 'Optional filename override' },
     mediaTitle: { type: 'string', description: 'Media title' },
     caption: { type: 'string', description: 'Media caption' },

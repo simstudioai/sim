@@ -824,8 +824,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     description: { type: 'string', description: 'Playlist description' },
     public: { type: 'boolean', description: 'Whether playlist is public' },
     coverImage: { type: 'json', description: 'Cover image (UserFile)' },
-    coverImageFile: { type: 'json', description: 'Cover image upload (basic mode)' },
-    coverImageRef: { type: 'json', description: 'Cover image reference (advanced mode)' },
     range_start: { type: 'number', description: 'Start index for reorder' },
     insert_before: { type: 'number', description: 'Insert before index' },
     range_length: { type: 'number', description: 'Number of items to move' },

@@ -44,7 +44,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'siteId',
+      id: 'triggerSiteId',
       title: 'Site',
       type: 'dropdown',
       placeholder: 'Select a site',
@@ -110,7 +110,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
       dependsOn: ['triggerCredentials'],
     },
     {
-      id: 'collectionId',
+      id: 'triggerCollectionId',
       title: 'Collection',
       type: 'dropdown',
       placeholder: 'Select a collection (optional)',
@@ -126,7 +126,9 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
-        const siteId = useSubBlockStore.getState().getValue(blockId, 'siteId') as string | null
+        const siteId = useSubBlockStore.getState().getValue(blockId, 'triggerSiteId') as
+          | string
+          | null
         if (!credentialId || !siteId) {
           return []
         }
@@ -156,7 +158,9 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
-        const siteId = useSubBlockStore.getState().getValue(blockId, 'siteId') as string | null
+        const siteId = useSubBlockStore.getState().getValue(blockId, 'triggerSiteId') as
+          | string
+          | null
         if (!credentialId || !siteId) return null
         try {
           const response = await fetch('/api/tools/webflow/collections', {
@@ -175,7 +179,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
           return null
         }
       },
-      dependsOn: ['triggerCredentials', 'siteId'],
+      dependsOn: ['triggerCredentials', 'triggerSiteId'],
     },
     {
       id: 'triggerSave',

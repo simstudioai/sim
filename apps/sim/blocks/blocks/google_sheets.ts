@@ -246,11 +246,11 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
       },
       params: (params) => {
-        const { credential, values, spreadsheetId, manualSpreadsheetId, ...rest } = params
+        const { credential, values, spreadsheetId, ...rest } = params
 
         const parsedValues = values ? JSON.parse(values as string) : undefined
 
-        const effectiveSpreadsheetId = (spreadsheetId || manualSpreadsheetId || '').trim()
+        const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
 
         if (!effectiveSpreadsheetId) {
           throw new Error('Spreadsheet ID is required.')
@@ -268,8 +268,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Google Sheets access token' },
-    spreadsheetId: { type: 'string', description: 'Spreadsheet identifier' },
-    manualSpreadsheetId: { type: 'string', description: 'Manual spreadsheet identifier' },
+    spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
     range: { type: 'string', description: 'Cell range' },
     values: { type: 'string', description: 'Cell values data' },
     valueInputOption: { type: 'string', description: 'Value input option' },
@@ -719,9 +718,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           credential,
           values,
           spreadsheetId,
-          manualSpreadsheetId,
           sheetName,
-          manualSheetName,
           cellRange,
           title,
           sheetTitles,
@@ -746,9 +743,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           }
         }
 
-        const effectiveSpreadsheetId = (
-          (spreadsheetId || manualSpreadsheetId || '') as string
-        ).trim()
+        const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
 
         if (!effectiveSpreadsheetId) {
           throw new Error('Spreadsheet ID is required.')
@@ -804,7 +799,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         // Handle read/write/update/append/clear operations (require sheet name)
-        const effectiveSheetName = ((sheetName || manualSheetName || '') as string).trim()
+        const effectiveSheetName = sheetName ? String(sheetName).trim() : ''
 
         if (!effectiveSheetName) {
           throw new Error('Sheet name is required. Please select or enter a sheet name.')
@@ -826,10 +821,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Google Sheets access token' },
-    spreadsheetId: { type: 'string', description: 'Spreadsheet identifier' },
-    manualSpreadsheetId: { type: 'string', description: 'Manual spreadsheet identifier' },
-    sheetName: { type: 'string', description: 'Name of the sheet/tab' },
-    manualSheetName: { type: 'string', description: 'Manual sheet name entry' },
+    spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
+    sheetName: { type: 'string', description: 'Name of the sheet/tab (canonical param)' },
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },
     values: { type: 'string', description: 'Cell values data' },
     valueInputOption: { type: 'string', description: 'Value input option' },

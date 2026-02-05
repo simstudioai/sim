@@ -137,7 +137,8 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
           }
           parameters.s3Uri = params.s3Uri.trim()
         } else {
-          const documentInput = params.fileUpload || params.filePath || params.document
+          // document is the canonical param for both basic (fileUpload) and advanced (filePath) modes
+          const documentInput = params.document
           if (!documentInput) {
             throw new Error('Document is required')
           }
@@ -165,8 +166,6 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   inputs: {
     processingMode: { type: 'string', description: 'Document type: single-page or multi-page' },
     document: { type: 'json', description: 'Document input (file upload or URL reference)' },
-    filePath: { type: 'string', description: 'Document URL (advanced mode)' },
-    fileUpload: { type: 'json', description: 'Uploaded document file (basic mode)' },
     s3Uri: { type: 'string', description: 'S3 URI for multi-page processing (s3://bucket/key)' },
     extractTables: { type: 'boolean', description: 'Extract tables from document' },
     extractForms: { type: 'boolean', description: 'Extract form key-value pairs' },
@@ -192,14 +191,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   },
 }
 
-const textractV2Inputs = TextractBlock.inputs
-  ? {
-      ...Object.fromEntries(
-        Object.entries(TextractBlock.inputs).filter(([key]) => key !== 'filePath')
-      ),
-      fileReference: { type: 'json', description: 'File reference (advanced mode)' },
-    }
-  : {}
+const textractV2Inputs = TextractBlock.inputs ? { ...TextractBlock.inputs } : {}
 const textractV2SubBlocks = (TextractBlock.subBlocks || []).flatMap((subBlock) => {
   if (subBlock.id === 'filePath') {
     return [] // Remove the old filePath subblock
@@ -265,10 +257,8 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
           }
           parameters.s3Uri = params.s3Uri.trim()
         } else {
-          const file = normalizeFileInput(
-            params.fileUpload || params.fileReference || params.document,
-            { single: true }
-          )
+          // document is the canonical param for both basic (fileUpload) and advanced (fileReference) modes
+          const file = normalizeFileInput(params.document, { single: true })
           if (!file) {
             throw new Error('Document file is required')
           }

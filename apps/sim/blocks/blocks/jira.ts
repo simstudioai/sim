@@ -615,8 +615,9 @@ Return ONLY the comment text - no explanations.`,
     ],
     config: {
       tool: (params) => {
-        const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
-        const effectiveIssueKey = (params.issueKey || params.manualIssueKey || '').trim()
+        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
+        const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
+        const effectiveIssueKey = params.issueKey ? String(params.issueKey).trim() : ''
 
         switch (params.operation) {
           case 'read':
@@ -676,11 +677,11 @@ Return ONLY the comment text - no explanations.`,
         }
       },
       params: (params) => {
-        const { credential, projectId, manualProjectId, issueKey, manualIssueKey, ...rest } = params
+        const { credential, projectId, issueKey, ...rest } = params
 
-        // Use the selected IDs or the manually entered ones
-        const effectiveProjectId = (projectId || manualProjectId || '').trim()
-        const effectiveIssueKey = (issueKey || manualIssueKey || '').trim()
+        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
+        const effectiveProjectId = projectId ? String(projectId).trim() : ''
+        const effectiveIssueKey = issueKey ? String(issueKey).trim() : ''
 
         const baseParams = {
           credential,
@@ -748,27 +749,20 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'read': {
-            // Check for project ID from either source
-            const projectForRead = (params.projectId || params.manualProjectId || '').trim()
-            const issueForRead = (params.issueKey || params.manualIssueKey || '').trim()
-
-            if (!issueForRead) {
+            if (!effectiveIssueKey) {
               throw new Error(
                 'Select a project to read issues, or provide an issue key to read a single issue.'
               )
             }
             return {
               ...baseParams,
-              issueKey: issueForRead,
+              issueKey: effectiveIssueKey,
               // Include projectId if available for context
-              ...(projectForRead && { projectId: projectForRead }),
+              ...(effectiveProjectId && { projectId: effectiveProjectId }),
             }
           }
           case 'read-bulk': {
-            // Check both projectId and manualProjectId directly from params
-            const finalProjectId = params.projectId || params.manualProjectId || ''
-
-            if (!finalProjectId) {
+            if (!effectiveProjectId) {
               throw new Error(
                 'Project ID is required. Please select a project or enter a project ID manually.'
               )
@@ -870,7 +864,7 @@ Return ONLY the comment text - no explanations.`,
             if (!effectiveIssueKey) {
               throw new Error('Issue Key is required to add attachments.')
             }
-            const normalizedFiles = normalizeFileInput(params.attachmentFiles || params.files)
+            const normalizedFiles = normalizeFileInput(params.files)
             if (!normalizedFiles || normalizedFiles.length === 0) {
               throw new Error('At least one attachment file is required.')
             }
@@ -990,10 +984,8 @@ Return ONLY the comment text - no explanations.`,
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Jira domain' },
     credential: { type: 'string', description: 'Jira access token' },
-    issueKey: { type: 'string', description: 'Issue key identifier' },
-    projectId: { type: 'string', description: 'Project identifier' },
-    manualProjectId: { type: 'string', description: 'Manual project identifier' },
-    manualIssueKey: { type: 'string', description: 'Manual issue key' },
+    issueKey: { type: 'string', description: 'Issue key identifier (canonical param)' },
+    projectId: { type: 'string', description: 'Project identifier (canonical param)' },
     // Update/Write operation inputs
     summary: { type: 'string', description: 'Issue summary' },
     description: { type: 'string', description: 'Issue description' },
@@ -1024,8 +1016,7 @@ Return ONLY the comment text - no explanations.`,
     commentBody: { type: 'string', description: 'Text content for comment operations' },
     commentId: { type: 'string', description: 'Comment ID for update/delete operations' },
     // Attachment operation inputs
-    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'array', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (canonical param)' },
     attachmentId: { type: 'string', description: 'Attachment ID for delete operation' },
     // Worklog operation inputs
     timeSpentSeconds: {

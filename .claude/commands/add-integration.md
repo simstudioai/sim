@@ -206,10 +206,15 @@ export const {Service}Block: BlockConfig = {
 }
 ```
 
-**Critical:**
-- `canonicalParamId` must NOT match any other subblock's `id`, must be unique per block, and should only be used to link basic/advanced alternatives for the same parameter.
-- `mode` only controls UI visibility, NOT serialization. Without `canonicalParamId`, both basic and advanced field values would be sent.
-- Every subblock `id` must be unique within the block. Duplicate IDs cause conflicts even with different conditions.
+**Critical Canonical Param Rules:**
+- `canonicalParamId` must NOT match any subblock's `id` in the block
+- `canonicalParamId` must be unique per operation/condition context
+- Only use `canonicalParamId` to link basic/advanced alternatives for the same logical parameter
+- `mode` only controls UI visibility, NOT serialization. Without `canonicalParamId`, both basic and advanced field values would be sent
+- Every subblock `id` must be unique within the block. Duplicate IDs cause conflicts even with different conditions
+- **Required consistency:** If one subblock in a canonical group has `required: true`, ALL subblocks in that group must have `required: true` (prevents bypassing validation by switching modes)
+- **Inputs section:** Must list canonical param IDs (e.g., `fileId`), NOT raw subblock IDs (e.g., `fileSelector`, `manualFileId`)
+- **Params function:** Must use canonical param IDs, NOT raw subblock IDs (raw IDs are deleted after canonical transformation)
 
 ## Step 4: Add Icon
 

@@ -804,7 +804,6 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           listPermissionsFileId,
           // File upload
           file,
-          fileUpload,
           mimeType,
           shareType,
           starred,
@@ -813,7 +812,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
         } = params
 
         // Normalize file input - handles both basic (file-upload) and advanced (short-input) modes
-        const normalizedFile = normalizeFileInput(file ?? fileUpload, { single: true })
+        const normalizedFile = normalizeFileInput(file, { single: true })
 
         // Resolve folderId based on operation
         let effectiveFolderId: string | undefined

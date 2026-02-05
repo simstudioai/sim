@@ -155,6 +155,36 @@ dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] }
 - `'both'` - Show in both modes (default)
 - `'trigger'` - Only when block is used as trigger
 
+### `canonicalParamId` - Link basic/advanced alternatives
+
+Use to map multiple UI inputs to a single logical parameter:
+
+```typescript
+// Basic mode: Visual selector
+{
+  id: 'fileSelector',
+  type: 'file-selector',
+  mode: 'basic',
+  canonicalParamId: 'fileId',
+  required: true,
+},
+// Advanced mode: Manual input
+{
+  id: 'manualFileId',
+  type: 'short-input',
+  mode: 'advanced',
+  canonicalParamId: 'fileId',
+  required: true,
+},
+```
+
+**Critical Rules:**
+- `canonicalParamId` must NOT match any subblock's `id`
+- `canonicalParamId` must be unique per operation/condition context
+- **Required consistency:** All subblocks in a canonical group must have the same `required` status
+- **Inputs section:** Must list canonical param IDs (e.g., `fileId`), NOT raw subblock IDs
+- **Params function:** Must use canonical param IDs (raw IDs are deleted after canonical transformation)
+
 **Register in `blocks/registry.ts`:**
 
 ```typescript

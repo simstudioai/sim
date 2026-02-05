@@ -269,7 +269,8 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
               messageId: params.messageId,
             }
           case 'telegram_send_photo': {
-            const photoSource = normalizeFileInput(params.photoFile || params.photo, {
+            // photo is the canonical param for both basic (photoFile) and advanced modes
+            const photoSource = normalizeFileInput(params.photo, {
               single: true,
             })
             if (!photoSource) {
@@ -282,7 +283,8 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_video': {
-            const videoSource = normalizeFileInput(params.videoFile || params.video, {
+            // video is the canonical param for both basic (videoFile) and advanced modes
+            const videoSource = normalizeFileInput(params.video, {
               single: true,
             })
             if (!videoSource) {
@@ -295,7 +297,8 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_audio': {
-            const audioSource = normalizeFileInput(params.audioFile || params.audio, {
+            // audio is the canonical param for both basic (audioFile) and advanced modes
+            const audioSource = normalizeFileInput(params.audio, {
               single: true,
             })
             if (!audioSource) {
@@ -308,7 +311,8 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_animation': {
-            const animationSource = normalizeFileInput(params.animationFile || params.animation, {
+            // animation is the canonical param for both basic (animationFile) and advanced modes
+            const animationSource = normalizeFileInput(params.animation, {
               single: true,
             })
             if (!animationSource) {
@@ -321,9 +325,10 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
           }
           case 'telegram_send_document': {
+            // files is the canonical param for both basic (attachmentFiles) and advanced modes
             return {
               ...commonParams,
-              files: normalizeFileInput(params.attachmentFiles || params.files),
+              files: normalizeFileInput(params.files),
               caption: params.caption,
             }
           }
@@ -341,18 +346,10 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
     botToken: { type: 'string', description: 'Telegram bot token' },
     chatId: { type: 'string', description: 'Chat identifier' },
     text: { type: 'string', description: 'Message text' },
-    photoFile: { type: 'json', description: 'Uploaded photo (UserFile)' },
-    photo: { type: 'json', description: 'Photo reference or URL/file_id' },
-    videoFile: { type: 'json', description: 'Uploaded video (UserFile)' },
-    video: { type: 'json', description: 'Video reference or URL/file_id' },
-    audioFile: { type: 'json', description: 'Uploaded audio (UserFile)' },
-    audio: { type: 'json', description: 'Audio reference or URL/file_id' },
-    animationFile: { type: 'json', description: 'Uploaded animation (UserFile)' },
-    animation: { type: 'json', description: 'Animation reference or URL/file_id' },
-    attachmentFiles: {
-      type: 'json',
-      description: 'Files to attach (UI upload)',
-    },
+    photo: { type: 'json', description: 'Photo (UserFile or URL/file_id)' },
+    video: { type: 'json', description: 'Video (UserFile or URL/file_id)' },
+    audio: { type: 'json', description: 'Audio (UserFile or URL/file_id)' },
+    animation: { type: 'json', description: 'Animation (UserFile or URL/file_id)' },
     files: { type: 'array', description: 'Files to attach (UserFile array)' },
     caption: { type: 'string', description: 'Caption for media' },
     messageId: { type: 'string', description: 'Message ID to delete' },

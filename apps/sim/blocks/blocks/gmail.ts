@@ -362,10 +362,10 @@ Return ONLY the search query - no explanations, no extra text.`,
     },
     // Add/Remove Label - Label selector (basic mode)
     {
-      id: 'labelManagement',
+      id: 'labelSelector',
       title: 'Label',
       type: 'folder-selector',
-      canonicalParamId: 'labelIds',
+      canonicalParamId: 'manageLabelId',
       serviceId: 'gmail',
       requiredScopes: ['https://www.googleapis.com/auth/gmail.labels'],
       placeholder: 'Select label',
@@ -376,10 +376,10 @@ Return ONLY the search query - no explanations, no extra text.`,
     },
     // Add/Remove Label - Manual label input (advanced mode)
     {
-      id: 'manualLabelManagement',
+      id: 'manualLabelId',
       title: 'Label',
       type: 'short-input',
-      canonicalParamId: 'labelIds',
+      canonicalParamId: 'manageLabelId',
       placeholder: 'Enter label ID (e.g., INBOX, Label_123)',
       mode: 'advanced',
       condition: { field: 'operation', value: ['add_label_gmail', 'remove_label_gmail'] },
@@ -408,38 +408,33 @@ Return ONLY the search query - no explanations, no extra text.`,
         const {
           credential,
           folder,
-          manualFolder,
-          destinationLabel,
-          manualDestinationLabel,
-          sourceLabel,
-          manualSourceLabel,
+          addLabelIds,
+          removeLabelIds,
           moveMessageId,
           actionMessageId,
           labelActionMessageId,
-          labelManagement,
-          manualLabelManagement,
-          attachmentFiles,
+          manageLabelId,
           attachments,
           ...rest
         } = params
 
-        // Handle both selector and manual folder input
-        const effectiveFolder = (folder || manualFolder || '').trim()
+        // Use canonical 'folder' param directly
+        const effectiveFolder = folder ? String(folder).trim() : ''
 
         if (rest.operation === 'read_gmail') {
           rest.folder = effectiveFolder || 'INBOX'
         }
 
-        // Handle move operation
+        // Handle move operation - use canonical params addLabelIds and removeLabelIds
         if (rest.operation === 'move_gmail') {
           if (moveMessageId) {
             rest.messageId = moveMessageId
           }
-          if (!rest.addLabelIds) {
-            rest.addLabelIds = (destinationLabel || manualDestinationLabel || '').trim()
+          if (addLabelIds) {
+            rest.addLabelIds = String(addLabelIds).trim()
           }
-          if (!rest.removeLabelIds) {
-            rest.removeLabelIds = (sourceLabel || manualSourceLabel || '').trim()
+          if (removeLabelIds) {
+            rest.removeLabelIds = String(removeLabelIds).trim()
           }
         }
 
@@ -462,13 +457,13 @@ Return ONLY the search query - no explanations, no extra text.`,
           if (labelActionMessageId) {
             rest.messageId = labelActionMessageId
           }
-          if (!rest.labelIds) {
-            rest.labelIds = (labelManagement || manualLabelManagement || '').trim()
+          if (manageLabelId) {
+            rest.labelIds = String(manageLabelId).trim()
           }
         }
 
-        // Normalize attachments for send/draft operations
-        const normalizedAttachments = normalizeFileInput(attachmentFiles || attachments)
+        // Normalize attachments for send/draft operations - use canonical 'attachments' param
+        const normalizedAttachments = normalizeFileInput(attachments)
 
         return {
           ...rest,
@@ -493,10 +488,9 @@ Return ONLY the search query - no explanations, no extra text.`,
     },
     cc: { type: 'string', description: 'CC recipients (comma-separated)' },
     bcc: { type: 'string', description: 'BCC recipients (comma-separated)' },
-    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
+    attachments: { type: 'array', description: 'Files to attach (canonical param)' },
     // Read operation inputs
-    folder: { type: 'string', description: 'Gmail folder' },
-    manualFolder: { type: 'string', description: 'Manual folder name' },
+    folder: { type: 'string', description: 'Gmail folder (canonical param)' },
     readMessageId: { type: 'string', description: 'Message identifier for reading specific email' },
     unreadOnly: { type: 'boolean', description: 'Unread messages only' },
     includeAttachments: { type: 'boolean', description: 'Include email attachments' },
@@ -505,18 +499,16 @@ Return ONLY the search query - no explanations, no extra text.`,
     maxResults: { type: 'number', description: 'Maximum results' },
     // Move operation inputs
     moveMessageId: { type: 'string', description: 'Message ID to move' },
-    destinationLabel: { type: 'string', description: 'Destination label ID' },
-    manualDestinationLabel: { type: 'string', description: 'Manual destination label ID' },
-    sourceLabel: { type: 'string', description: 'Source label ID to remove' },
-    manualSourceLabel: { type: 'string', description: 'Manual source label ID' },
-    addLabelIds: { type: 'string', description: 'Label IDs to add' },
-    removeLabelIds: { type: 'string', description: 'Label IDs to remove' },
+    addLabelIds: { type: 'string', description: 'Label IDs to add (canonical param)' },
+    removeLabelIds: { type: 'string', description: 'Label IDs to remove (canonical param)' },
     // Action operation inputs
     actionMessageId: { type: 'string', description: 'Message ID for actions' },
     labelActionMessageId: { type: 'string', description: 'Message ID for label actions' },
-    labelManagement: { type: 'string', description: 'Label ID for management' },
-    manualLabelManagement: { type: 'string', description: 'Manual label ID' },
-    labelIds: { type: 'string', description: 'Label IDs for add/remove operations' },
+    manageLabelId: {
+      type: 'string',
+      description: 'Label ID for add/remove operations (canonical param)',
+    },
+    labelIds: { type: 'string', description: 'Label IDs to monitor (trigger)' },
   },
   outputs: {
     // Tool outputs

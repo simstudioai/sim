@@ -194,7 +194,8 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
         fallbackToolId: 'file_parser_v2',
       }),
       params: (params) => {
-        const fileInput = params.file || params.filePath || params.fileInput
+        // Use canonical 'fileInput' param directly
+        const fileInput = params.fileInput
         if (!fileInput) {
           logger.error('No file input provided')
           throw new Error('File is required')
@@ -228,9 +229,7 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
     },
   },
   inputs: {
-    fileInput: { type: 'json', description: 'File input (upload or URL reference)' },
-    filePath: { type: 'string', description: 'File URL (advanced mode)' },
-    file: { type: 'json', description: 'Uploaded file data (basic mode)' },
+    fileInput: { type: 'json', description: 'File input (canonical param)' },
     fileType: { type: 'string', description: 'File type' },
   },
   outputs: {
@@ -283,7 +282,8 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     config: {
       tool: () => 'file_parser_v3',
       params: (params) => {
-        const fileInput = params.fileInput ?? params.file ?? params.fileUrl ?? params.filePath
+        // Use canonical 'fileInput' param directly
+        const fileInput = params.fileInput
         if (!fileInput) {
           logger.error('No file input provided')
           throw new Error('File input is required')
@@ -321,9 +321,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   },
   inputs: {
-    fileInput: { type: 'json', description: 'File input (upload or URL)' },
-    fileUrl: { type: 'string', description: 'External file URL (advanced mode)' },
-    file: { type: 'json', description: 'Uploaded file data (basic mode)' },
+    fileInput: { type: 'json', description: 'File input (canonical param)' },
     fileType: { type: 'string', description: 'File type' },
   },
   outputs: {

@@ -216,8 +216,8 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     config: {
       tool: (params) => params.operation as string,
       params: (params) => {
-        const { fileUpload, fileReference, ...rest } = params
-        const normalizedFiles = normalizeFileInput(fileUpload || fileReference || params.files)
+        const { files, ...rest } = params
+        const normalizedFiles = normalizeFileInput(files)
         return {
           ...rest,
           ...(normalizedFiles && { files: normalizedFiles }),
@@ -252,15 +252,7 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     },
     files: {
       type: 'array',
-      description: 'Files to include with the message',
-    },
-    fileUpload: {
-      type: 'array',
-      description: 'Uploaded files (basic mode)',
-    },
-    fileReference: {
-      type: 'json',
-      description: 'File reference from previous blocks (advanced mode)',
+      description: 'Files to include with the message (canonical param)',
     },
     historyLength: {
       type: 'number',

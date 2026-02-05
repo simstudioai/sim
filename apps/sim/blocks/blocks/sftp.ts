@@ -223,7 +223,8 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
             return {
               ...connectionConfig,
               remotePath: params.remotePath,
-              files: normalizeFileInput(params.uploadFiles || params.files),
+              // files is the canonical param from uploadFiles (basic) or files (advanced)
+              files: normalizeFileInput(params.files),
               overwrite: params.overwrite !== false,
               permissions: params.permissions,
             }
