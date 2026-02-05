@@ -59,16 +59,9 @@ Retrieve content from Confluence pages using the Confluence API.
 | `authorId` | string | Account ID of the page author |
 | `createdAt` | string | ISO 8601 timestamp when the page was created |
 | `url` | string | URL to view the page in Confluence |
-| `body` | object | Raw page body content in requested format\(s\) |
-|   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
-|     ↳ `value` | string | The content value in the specified format |
-|     ↳ `representation` | string | Content representation type |
-|   ↳ `view` | object | Body in view format \(rendered HTML\) |
-|     ↳ `value` | string | The content value in the specified format |
-|     ↳ `representation` | string | Content representation type |
-|   ↳ `atlas_doc_format` | object | Body in Atlassian Document Format \(ADF\) |
-|     ↳ `value` | string | The content value in the specified format |
-|     ↳ `representation` | string | Content representation type |
+| `body` | object | Raw page body content in storage format |
+|   ↳ `value` | string | The content value in the specified format |
+|   ↳ `representation` | string | Content representation type |
 | `version` | object | Page version information |
 |   ↳ `number` | number | Version number |
 |   ↳ `message` | string | Version message |

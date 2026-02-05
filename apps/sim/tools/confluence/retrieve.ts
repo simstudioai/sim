@@ -1,6 +1,6 @@
 import type { ConfluenceRetrieveParams, ConfluenceRetrieveResponse } from '@/tools/confluence/types'
 import {
-  CONTENT_BODY_OUTPUT_PROPERTIES,
+  BODY_FORMAT_PROPERTIES,
   TIMESTAMP_OUTPUT,
   VERSION_OUTPUT_PROPERTIES,
 } from '@/tools/confluence/types'
@@ -96,8 +96,15 @@ export const confluenceRetrieveTool: ToolConfig<
     url: { type: 'string', description: 'URL to view the page in Confluence', optional: true },
     body: {
       type: 'object',
-      description: 'Raw page body content in requested format(s)',
-      properties: CONTENT_BODY_OUTPUT_PROPERTIES,
+      description: 'Raw page body content in storage format',
+      properties: {
+        storage: {
+          type: 'object',
+          description: 'Body in storage format (Confluence markup)',
+          properties: BODY_FORMAT_PROPERTIES,
+          optional: true,
+        },
+      },
       optional: true,
     },
     version: {

@@ -206,7 +206,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   microsoft_excel_v2: MicrosoftExcelIcon,
   microsoft_planner: MicrosoftPlannerIcon,
   microsoft_teams: MicrosoftTeamsIcon,
-  mistral_parse_v2: MistralIcon,
+  mistral_parse_v3: MistralIcon,
   mongodb: MongoDBIcon,
   mysql: MySQLIcon,
   neo4j: Neo4jIcon,

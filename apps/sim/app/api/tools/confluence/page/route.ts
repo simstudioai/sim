@@ -135,14 +135,6 @@ export async function POST(request: NextRequest) {
           value: data.body?.storage?.value ?? null,
           representation: 'storage',
         },
-        view: {
-          value: data.body?.view?.value ?? null,
-          representation: 'view',
-        },
-        atlas_doc_format: {
-          value: data.body?.atlas_doc_format?.value ?? null,
-          representation: 'atlas_doc_format',
-        },
       },
       status: data.status ?? null,
       spaceId: data.spaceId ?? null,
