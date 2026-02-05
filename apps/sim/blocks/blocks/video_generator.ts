@@ -691,6 +691,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       condition: { field: 'provider', value: 'runway' },
       placeholder: 'Reference image from previous blocks',
       mode: 'advanced',
+      required: true,
     },
     {
       id: 'cameraControl',
@@ -734,29 +735,25 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
             return 'video_runway'
         }
       },
-      params: (params) => {
-        const visualRef =
-          params.visualReferenceUpload || params.visualReferenceInput || params.visualReference
-        return {
-          provider: params.provider,
-          apiKey: params.apiKey,
-          model: params.model,
-          endpoint: params.endpoint,
-          prompt: params.prompt,
-          duration: params.duration ? Number(params.duration) : undefined,
-          aspectRatio: params.aspectRatio,
-          resolution: params.resolution,
-          visualReference: normalizeFileInput(visualRef, { single: true }),
-          consistencyMode: params.consistencyMode,
-          stylePreset: params.stylePreset,
-          promptOptimizer: params.promptOptimizer,
-          cameraControl: params.cameraControl
-            ? typeof params.cameraControl === 'string'
-              ? JSON.parse(params.cameraControl)
-              : params.cameraControl
-            : undefined,
-        }
-      },
+      params: (params) => ({
+        provider: params.provider,
+        apiKey: params.apiKey,
+        model: params.model,
+        endpoint: params.endpoint,
+        prompt: params.prompt,
+        duration: params.duration ? Number(params.duration) : undefined,
+        aspectRatio: params.aspectRatio,
+        resolution: params.resolution,
+        visualReference: normalizeFileInput(params.visualReference, { single: true }),
+        consistencyMode: params.consistencyMode,
+        stylePreset: params.stylePreset,
+        promptOptimizer: params.promptOptimizer,
+        cameraControl: params.cameraControl
+          ? typeof params.cameraControl === 'string'
+            ? JSON.parse(params.cameraControl)
+            : params.cameraControl
+          : undefined,
+      }),
     },
   },
   inputs: {
@@ -784,11 +781,6 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       description: 'Video resolution - not available for MiniMax (fixed per endpoint)',
     },
     visualReference: { type: 'json', description: 'Reference image for Runway (UserFile)' },
-    visualReferenceUpload: { type: 'json', description: 'Uploaded reference image (basic mode)' },
-    visualReferenceInput: {
-      type: 'json',
-      description: 'Reference image from previous blocks (advanced mode)',
-    },
     consistencyMode: {
       type: 'string',
       description: 'Consistency mode for Runway (character, object, style, location)',

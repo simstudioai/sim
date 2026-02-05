@@ -122,7 +122,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     },
     // Variable reference (advanced mode)
     {
-      id: 'attachments',
+      id: 'attachmentReference',
       title: 'Attachments',
       type: 'short-input',
       canonicalParamId: 'attachments',
@@ -171,7 +171,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     },
     // Read Email Fields - Add folder selector (basic mode)
     {
-      id: 'folder',
+      id: 'folderSelector',
       title: 'Folder',
       type: 'folder-selector',
       canonicalParamId: 'folder',
@@ -328,24 +328,20 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         const {
           credential,
           folder,
-          manualFolder,
-          destinationFolder,
-          manualDestinationFolder,
+          destinationId,
+          copyDestinationId,
+          attachments,
           moveMessageId,
           actionMessageId,
           copyMessageId,
-          copyDestinationFolder,
-          manualCopyDestinationFolder,
-          attachmentFiles,
-          attachments,
           ...rest
         } = params
 
-        // Handle both selector and manual folder input
-        const effectiveFolder = (folder || manualFolder || '').trim()
+        // folder is already the canonical param - use it directly
+        const effectiveFolder = folder ? String(folder).trim() : ''
 
-        // Normalize file attachments from either basic (file-upload) or advanced (short-input) mode
-        const normalizedAttachments = normalizeFileInput(attachmentFiles || attachments)
+        // Normalize file attachments from the canonical attachments param
+        const normalizedAttachments = normalizeFileInput(attachments)
         if (normalizedAttachments) {
           rest.attachments = normalizedAttachments
         }
@@ -359,8 +355,10 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           if (moveMessageId) {
             rest.messageId = moveMessageId
           }
-          if (!rest.destinationId) {
-            rest.destinationId = (destinationFolder || manualDestinationFolder || '').trim()
+          // destinationId is already the canonical param
+          const effectiveDestinationId = destinationId ? String(destinationId).trim() : ''
+          if (effectiveDestinationId) {
+            rest.destinationId = effectiveDestinationId
           }
         }
 
@@ -376,12 +374,12 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
           if (copyMessageId) {
             rest.messageId = copyMessageId
           }
-          // Handle copyDestinationId (from UI canonical param) or destinationId (from trigger)
-          if (rest.copyDestinationId) {
-            rest.destinationId = rest.copyDestinationId
-            rest.copyDestinationId = undefined
-          } else if (!rest.destinationId) {
-            rest.destinationId = (copyDestinationFolder || manualCopyDestinationFolder || '').trim()
+          // copyDestinationId is the canonical param - map it to destinationId for the tool
+          const effectiveCopyDestinationId = copyDestinationId
+            ? String(copyDestinationId).trim()
+            : ''
+          if (effectiveCopyDestinationId) {
+            rest.destinationId = effectiveCopyDestinationId
           }
         }
 
@@ -400,30 +398,24 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
     contentType: { type: 'string', description: 'Content type (Text or HTML)' },
-    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    attachments: { type: 'array', description: 'Files to attach (UserFile array)' },
+    attachments: { type: 'array', description: 'Files to attach (canonical param)' },
     // Forward operation inputs
     messageId: { type: 'string', description: 'Message ID to forward' },
     comment: { type: 'string', description: 'Optional comment for forwarding' },
     // Read operation inputs
-    folder: { type: 'string', description: 'Email folder' },
-    manualFolder: { type: 'string', description: 'Manual folder name' },
+    folder: { type: 'string', description: 'Email folder (canonical param)' },
     maxResults: { type: 'number', description: 'Maximum emails' },
     includeAttachments: { type: 'boolean', description: 'Include email attachments' },
     // Move operation inputs
     moveMessageId: { type: 'string', description: 'Message ID to move' },
-    destinationFolder: { type: 'string', description: 'Destination folder ID' },
-    manualDestinationFolder: { type: 'string', description: 'Manual destination folder ID' },
-    destinationId: { type: 'string', description: 'Destination folder ID for move' },
+    destinationId: { type: 'string', description: 'Destination folder ID (canonical param)' },
     // Action operation inputs
     actionMessageId: { type: 'string', description: 'Message ID for actions' },
     copyMessageId: { type: 'string', description: 'Message ID to copy' },
-    copyDestinationFolder: { type: 'string', description: 'Copy destination folder ID' },
-    manualCopyDestinationFolder: {
+    copyDestinationId: {
       type: 'string',
-      description: 'Manual copy destination folder ID',
+      description: 'Destination folder ID for copy (canonical param)',
     },
-    copyDestinationId: { type: 'string', description: 'Destination folder ID for copy' },
   },
   outputs: {
     // Common outputs

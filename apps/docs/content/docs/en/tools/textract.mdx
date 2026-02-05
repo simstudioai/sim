@@ -6,7 +6,7 @@ description: Extract text, tables, and forms from documents
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="textract"
+  type="textract_v2"
   color="linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)"
 />
 
@@ -35,8 +35,6 @@ Integrate AWS Textract into your workflow to extract text, tables, forms, and ke
 
 ### `textract_parser`
 
-Parse documents using AWS Textract OCR and document analysis
-
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -46,8 +44,8 @@ Parse documents using AWS Textract OCR and document analysis
 | `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
 | `processingMode` | string | No | Document type: single-page or multi-page. Defaults to single-page. |
 | `filePath` | string | No | URL to a document to be processed \(JPEG, PNG, or single-page PDF\). |
+| `file` | file | No | Document file to be processed \(JPEG, PNG, or single-page PDF\). |
 | `s3Uri` | string | No | S3 URI for multi-page processing \(s3://bucket/key\). |
-| `fileUpload` | object | No | File upload data from file-upload component |
 | `featureTypes` | array | No | Feature types to detect: TABLES, FORMS, QUERIES, SIGNATURES, LAYOUT. If not specified, only text detection is performed. |
 | `items` | string | No | Feature type |
 | `queries` | array | No | Custom queries to extract specific information. Only used when featureTypes includes QUERIES. |
@@ -58,39 +56,6 @@ Parse documents using AWS Textract OCR and document analysis
 
 #### Output
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `blocks` | array | Array of Block objects containing detected text, tables, forms, and other elements |
-|   ↳ `BlockType` | string | Type of block \(PAGE, LINE, WORD, TABLE, CELL, KEY_VALUE_SET, etc.\) |
-|   ↳ `Id` | string | Unique identifier for the block |
-|   ↳ `Text` | string | The text content \(for LINE and WORD blocks\) |
-|   ↳ `TextType` | string | Type of text \(PRINTED or HANDWRITING\) |
-|   ↳ `Confidence` | number | Confidence score \(0-100\) |
-|   ↳ `Page` | number | Page number |
-|   ↳ `Geometry` | object | Location and bounding box information |
-|     ↳ `BoundingBox` | object | Height as ratio of document height |
-|       ↳ `Height` | number | Height as ratio of document height |
-|       ↳ `Left` | number | Left position as ratio of document width |
-|       ↳ `Top` | number | Top position as ratio of document height |
-|       ↳ `Width` | number | Width as ratio of document width |
-|     ↳ `Polygon` | array | Polygon coordinates |
-|       ↳ `X` | number | X coordinate |
-|       ↳ `Y` | number | Y coordinate |
-|   ↳ `Relationships` | array | Relationships to other blocks |
-|     ↳ `Type` | string | Relationship type \(CHILD, VALUE, ANSWER, etc.\) |
-|     ↳ `Ids` | array | IDs of related blocks |
-|   ↳ `EntityTypes` | array | Entity types for KEY_VALUE_SET \(KEY or VALUE\) |
-|   ↳ `SelectionStatus` | string | For checkboxes: SELECTED or NOT_SELECTED |
-|   ↳ `RowIndex` | number | Row index for table cells |
-|   ↳ `ColumnIndex` | number | Column index for table cells |
-|   ↳ `RowSpan` | number | Row span for merged cells |
-|   ↳ `ColumnSpan` | number | Column span for merged cells |
-|   ↳ `Query` | object | Query information for QUERY blocks |
-|     ↳ `Text` | string | Query text |
-|     ↳ `Alias` | string | Query alias |
-|     ↳ `Pages` | array | Pages to search |
-| `documentMetadata` | object | Metadata about the analyzed document |
-|   ↳ `pages` | number | Number of pages in the document |
-| `modelVersion` | string | Version of the Textract model used for processing |
+This tool does not produce any outputs.
 
 

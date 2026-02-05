@@ -584,7 +584,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               ...commonParams,
               channelId: params.channelId,
               content: params.content,
-              files: normalizeFileInput(params.attachmentFiles || params.files),
+              files: normalizeFileInput(params.files),
             }
           }
           case 'discord_get_messages':
@@ -773,8 +773,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     nick: { type: 'string', description: 'Member nickname' },
     reason: { type: 'string', description: 'Reason for moderation action' },
     archived: { type: 'string', description: 'Archive status (true/false)' },
-    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
-    files: { type: 'array', description: 'Files to attach (UserFile array)' },
+    files: { type: 'array', description: 'Files to attach (canonical param)' },
     limit: { type: 'number', description: 'Message limit' },
     autoArchiveDuration: { type: 'number', description: 'Thread auto-archive duration in minutes' },
     channelType: { type: 'number', description: 'Discord channel type (0=text, 2=voice, etc.)' },

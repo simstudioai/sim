@@ -6,7 +6,7 @@ description: Extract text from PDF documents
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="reducto"
+  type="reducto_v2"
   color="#5c0c5c"
 />
 
@@ -29,7 +29,7 @@ Looking for reliable and scalable PDF parsing? Reducto is optimized for develope
 
 ## Usage Instructions
 
-Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.
+Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents or file references.
 
 
 
@@ -37,13 +37,12 @@ Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF do
 
 ### `reducto_parser`
 
-Parse PDF documents using Reducto OCR API
-
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filePath` | string | Yes | URL to a PDF document to be processed |
+| `filePath` | string | No | URL to a PDF document to be processed |
+| `file` | file | No | Document file to be processed |
 | `fileUpload` | object | No | File upload data from file-upload component |
 | `pages` | array | No | Specific pages to process \(1-indexed page numbers\) |
 | `tableOutputFormat` | string | No | Table output format \(html or markdown\). Defaults to markdown. |
@@ -51,13 +50,6 @@ Parse PDF documents using Reducto OCR API
 
 #### Output
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `job_id` | string | Unique identifier for the processing job |
-| `duration` | number | Processing time in seconds |
-| `usage` | json | Resource consumption data |
-| `result` | json | Parsed document content with chunks and blocks |
-| `pdf_url` | string | Storage URL of converted PDF |
-| `studio_link` | string | Link to Reducto studio interface |
+This tool does not produce any outputs.
 
 

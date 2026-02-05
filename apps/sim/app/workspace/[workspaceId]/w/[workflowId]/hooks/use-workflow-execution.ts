@@ -1288,6 +1288,13 @@ export function useWorkflowExecution() {
           onBlockCompleteCallback: onBlockComplete,
         })
 
+        const clientWorkflowState = executionWorkflowState || {
+          blocks: filteredStates,
+          edges: workflowEdges,
+          loops: latestWorkflowState.loops,
+          parallels: latestWorkflowState.parallels,
+        }
+
         await executionStream.execute({
           workflowId: activeWorkflowId,
           input: finalWorkflowInput,
@@ -1297,14 +1304,12 @@ export function useWorkflowExecution() {
           useDraftState: true,
           isClientSession: true,
           stopAfterBlockId,
-          workflowStateOverride: executionWorkflowState
-            ? {
-                blocks: executionWorkflowState.blocks,
-                edges: executionWorkflowState.edges,
-                loops: executionWorkflowState.loops,
-                parallels: executionWorkflowState.parallels,
-              }
-            : undefined,
+          workflowStateOverride: {
+            blocks: clientWorkflowState.blocks,
+            edges: clientWorkflowState.edges,
+            loops: clientWorkflowState.loops,
+            parallels: clientWorkflowState.parallels,
+          },
           callbacks: {
             onExecutionStarted: (data) => {
               logger.info('Server execution started:', data)

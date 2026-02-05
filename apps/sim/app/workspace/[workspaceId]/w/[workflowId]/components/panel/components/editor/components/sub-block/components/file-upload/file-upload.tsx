@@ -34,6 +34,103 @@ interface UploadedFile {
   type: string
 }
 
+interface SingleFileSelectorProps {
+  file: UploadedFile
+  options: Array<{ label: string; value: string; disabled?: boolean }>
+  selectedValue: string
+  inputValue: string
+  onInputChange: (value: string) => void
+  onClear: (e: React.MouseEvent) => void
+  onOpenChange: (open: boolean) => void
+  disabled: boolean
+  isLoading: boolean
+  formatFileSize: (bytes: number) => string
+  truncateMiddle: (text: string, start?: number, end?: number) => string
+  isDeleting: boolean
+}
+
+/**
+ * Single file selector component that shows the selected file with both
+ * a clear button (X) and a chevron to change the selection.
+ * Follows the same pattern as SelectorCombobox for consistency.
+ */
+function SingleFileSelector({
+  file,
+  options,
+  selectedValue,
+  inputValue,
+  onInputChange,
+  onClear,
+  onOpenChange,
+  disabled,
+  isLoading,
+  formatFileSize,
+  truncateMiddle,
+  isDeleting,
+}: SingleFileSelectorProps) {
+  const displayLabel = `${truncateMiddle(file.name, 20, 12)} (${formatFileSize(file.size)})`
+  const [localInputValue, setLocalInputValue] = useState(displayLabel)
+  const [isEditing, setIsEditing] = useState(false)
+
+  // Sync display label when file changes
+  useEffect(() => {
+    if (!isEditing) {
+      setLocalInputValue(displayLabel)
+    }
+  }, [displayLabel, isEditing])
+
+  return (
+    <div className='relative w-full'>
+      <Combobox
+        options={options}
+        value={localInputValue}
+        selectedValue={selectedValue}
+        onChange={(newValue) => {
+          // Check if user selected an option
+          const matched = options.find((opt) => opt.value === newValue || opt.label === newValue)
+          if (matched) {
+            setIsEditing(false)
+            setLocalInputValue(displayLabel)
+            onInputChange(matched.value)
+            return
+          }
+          // User is typing to search
+          setIsEditing(true)
+          setLocalInputValue(newValue)
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsEditing(false)
+            setLocalInputValue(displayLabel)
+          }
+          onOpenChange(open)
+        }}
+        placeholder={isLoading ? 'Loading files...' : 'Select or upload file'}
+        disabled={disabled || isDeleting}
+        editable={true}
+        filterOptions={isEditing}
+        isLoading={isLoading}
+        inputProps={{
+          className: 'pr-[60px]',
+        }}
+      />
+      <Button
+        type='button'
+        variant='ghost'
+        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 h-6 w-6 p-0'
+        onClick={onClear}
+        disabled={isDeleting}
+      >
+        {isDeleting ? (
+          <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+        ) : (
+          <X className='h-4 w-4 opacity-50 hover:opacity-100' />
+        )}
+      </Button>
+    </div>
+  )
+}
+
 interface UploadingFile {
   id: string
   name: string
@@ -500,6 +597,7 @@ export function FileUpload({
   const hasFiles = filesArray.length > 0
   const isUploading = uploadingFiles.length > 0
 
+  // Options for multiple file mode (filters out already selected files)
   const comboboxOptions = useMemo(
     () => [
       { label: 'Upload New File', value: '__upload_new__' },
@@ -516,10 +614,43 @@ export function FileUpload({
     [availableWorkspaceFiles, acceptedTypes]
   )
 
+  // Options for single file mode (includes all files, selected one will be highlighted)
+  const singleFileOptions = useMemo(
+    () => [
+      { label: 'Upload New File', value: '__upload_new__' },
+      ...workspaceFiles.map((file) => {
+        const isAccepted =
+          !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
+        return {
+          label: file.name,
+          value: file.id,
+          disabled: !isAccepted,
+        }
+      }),
+    ],
+    [workspaceFiles, acceptedTypes]
+  )
+
+  // Find the selected file's workspace ID for highlighting in single file mode
+  const selectedFileId = useMemo(() => {
+    if (!hasFiles || multiple) return ''
+    const currentFile = filesArray[0]
+    if (!currentFile) return ''
+    // Match by key or path
+    const matchedWorkspaceFile = workspaceFiles.find(
+      (wf) =>
+        wf.key === currentFile.key ||
+        wf.name === currentFile.name ||
+        currentFile.path?.includes(wf.key)
+    )
+    return matchedWorkspaceFile?.id || ''
+  }, [filesArray, workspaceFiles, hasFiles, multiple])
+
   const handleComboboxChange = (value: string) => {
     setInputValue(value)
 
-    const selectedFile = availableWorkspaceFiles.find((file) => file.id === value)
+    // Look in full workspaceFiles list (not filtered) to allow re-selecting same file in single mode
+    const selectedFile = workspaceFiles.find((file) => file.id === value)
     const isAcceptedType =
       selectedFile &&
       (!acceptedTypes ||
@@ -559,16 +690,17 @@ export function FileUpload({
       {/* Error message */}
       {uploadError && <div className='mb-2 text-red-600 text-sm'>{uploadError}</div>}
 
-      {/* File list with consistent spacing */}
-      {(hasFiles || isUploading) && (
+      {/* File list with consistent spacing - only show for multiple mode or when uploading */}
+      {((hasFiles && multiple) || isUploading) && (
         <div className={cn('space-y-2', multiple && 'mb-2')}>
-          {/* Only show files that aren't currently uploading */}
-          {filesArray.map((file) => {
-            const isCurrentlyUploading = uploadingFiles.some(
-              (uploadingFile) => uploadingFile.name === file.name
-            )
-            return !isCurrentlyUploading && renderFileItem(file)
-          })}
+          {/* Only show files that aren't currently uploading (for multiple mode only) */}
+          {multiple &&
+            filesArray.map((file) => {
+              const isCurrentlyUploading = uploadingFiles.some(
+                (uploadingFile) => uploadingFile.name === file.name
+              )
+              return !isCurrentlyUploading && renderFileItem(file)
+            })}
           {isUploading && (
             <>
               {uploadingFiles.map(renderUploadingItem)}
@@ -601,6 +733,26 @@ export function FileUpload({
           editable={true}
           filterOptions={true}
           isLoading={loadingWorkspaceFiles}
+        />
+      )}
+
+      {/* Single file mode with file selected: show combobox-style UI with X and chevron */}
+      {hasFiles && !multiple && !isUploading && (
+        <SingleFileSelector
+          file={filesArray[0]}
+          options={singleFileOptions}
+          selectedValue={selectedFileId}
+          inputValue={inputValue}
+          onInputChange={handleComboboxChange}
+          onClear={(e) => handleRemoveFile(filesArray[0], e)}
+          onOpenChange={(open) => {
+            if (open) void loadWorkspaceFiles()
+          }}
+          disabled={disabled}
+          isLoading={loadingWorkspaceFiles}
+          formatFileSize={formatFileSize}
+          truncateMiddle={truncateMiddle}
+          isDeleting={deletingFiles[filesArray[0]?.path || '']}
         />
       )}
 

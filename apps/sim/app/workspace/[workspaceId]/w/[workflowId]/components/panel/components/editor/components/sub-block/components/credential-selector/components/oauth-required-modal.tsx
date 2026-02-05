@@ -74,6 +74,12 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'write:label:confluence': 'Add and remove labels',
   'search:confluence': 'Search Confluence content',
   'readonly:content.attachment:confluence': 'View attachments',
+  'read:blogpost:confluence': 'View Confluence blog posts',
+  'write:blogpost:confluence': 'Create and update Confluence blog posts',
+  'read:content.property:confluence': 'View properties on Confluence content',
+  'write:content.property:confluence': 'Create and manage content properties',
+  'read:hierarchical-content:confluence': 'View page hierarchy (children and ancestors)',
+  'read:content.metadata:confluence': 'View content metadata (required for ancestors)',
   'read:me': 'Read profile information',
   'database.read': 'Read database',
   'database.write': 'Write to database',
@@ -358,6 +364,7 @@ export function OAuthRequiredModal({
       logger.info('Linking OAuth2:', {
         providerId,
         requiredScopes,
+        hasNewScopes: newScopes.length > 0,
       })
 
       if (providerId === 'trello') {

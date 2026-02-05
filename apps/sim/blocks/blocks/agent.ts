@@ -274,6 +274,7 @@ Return ONLY the JSON array.`,
         { label: 'low', id: 'low' },
         { label: 'medium', id: 'medium' },
         { label: 'high', id: 'high' },
+        { label: 'max', id: 'max' },
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
@@ -318,14 +319,14 @@ Return ONLY the JSON array.`,
 
     {
       id: 'azureEndpoint',
-      title: 'Azure OpenAI Endpoint',
+      title: 'Azure Endpoint',
       type: 'short-input',
       password: true,
-      placeholder: 'https://your-resource.openai.azure.com',
+      placeholder: 'https://your-resource.services.ai.azure.com',
       connectionDroppable: false,
       condition: {
         field: 'model',
-        value: providers['azure-openai'].models,
+        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
       },
     },
     {
@@ -763,7 +764,10 @@ Example 3 (Array Input):
     maxTokens: { type: 'number', description: 'Maximum number of tokens in the response' },
     reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
     verbosity: { type: 'string', description: 'Verbosity level for GPT-5 models' },
-    thinkingLevel: { type: 'string', description: 'Thinking level for Gemini 3 models' },
+    thinkingLevel: {
+      type: 'string',
+      description: 'Thinking level for models with extended thinking (Anthropic Claude, Gemini 3)',
+    },
     tools: { type: 'json', description: 'Available tools configuration' },
   },
   outputs: {

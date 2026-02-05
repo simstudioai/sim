@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { getBrandConfig } from '@/lib/branding/branding'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface BrandedLayoutProps {
   children: React.ReactNode

@@ -1,7 +1,7 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles, colors } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
-import { getBrandConfig } from '@/lib/branding/branding'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface PaymentFailedEmailProps {
   userName?: string

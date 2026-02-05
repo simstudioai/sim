@@ -2,9 +2,12 @@ import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { PublicEnvScript } from 'next-runtime-env'
 import { BrandedLayout } from '@/components/branded-layout'
-import { generateThemeCSS } from '@/lib/branding/inject-theme'
-import { generateBrandedMetadata, generateStructuredData } from '@/lib/branding/metadata'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
+import {
+  generateBrandedMetadata,
+  generateStructuredData,
+  generateThemeCSS,
+} from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
 import { OneDollarStats } from '@/components/analytics/onedollarstats'
 import { isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/feature-flags'

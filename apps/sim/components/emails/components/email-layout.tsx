@@ -1,8 +1,8 @@
 import { Body, Container, Head, Html, Img, Preview, Section } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailFooter } from '@/components/emails/components/email-footer'
-import { getBrandConfig } from '@/lib/branding/branding'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface EmailLayoutProps {
   /** Preview text shown in email client list view */

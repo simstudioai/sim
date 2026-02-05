@@ -100,7 +100,7 @@ const BlockRow = memo(function BlockRow({
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <div
-          className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+          className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
           style={{ background: bgColor }}
         >
           {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
@@ -276,7 +276,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
       >
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           <div
-            className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
             style={{ background: bgColor }}
           >
             {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}

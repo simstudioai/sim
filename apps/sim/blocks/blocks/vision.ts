@@ -91,7 +91,6 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
     apiKey: { type: 'string', description: 'Provider API key' },
     imageUrl: { type: 'string', description: 'Image URL' },
     imageFile: { type: 'json', description: 'Image file (UserFile)' },
-    imageFileReference: { type: 'json', description: 'Image file reference' },
     model: { type: 'string', description: 'Vision model' },
     prompt: { type: 'string', description: 'Analysis prompt' },
   },
@@ -117,15 +116,13 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
         fallbackToolId: 'vision_tool_v2',
       }),
       params: (params) => {
-        // normalizeFileInput handles JSON stringified values from advanced mode
-        // Vision expects a single file
-        const imageFile = normalizeFileInput(params.imageFile || params.imageFileReference, {
+        // imageFile is the canonical param for both basic and advanced modes
+        const imageFile = normalizeFileInput(params.imageFile, {
           single: true,
         })
         return {
           ...params,
           imageFile,
-          imageFileReference: undefined,
         }
       },
     },
@@ -177,7 +174,6 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
   inputs: {
     apiKey: { type: 'string', description: 'Provider API key' },
     imageFile: { type: 'json', description: 'Image file (UserFile)' },
-    imageFileReference: { type: 'json', description: 'Image file reference' },
     model: { type: 'string', description: 'Vision model' },
     prompt: { type: 'string', description: 'Analysis prompt' },
   },

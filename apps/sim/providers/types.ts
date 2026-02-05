@@ -4,6 +4,7 @@ export type ProviderId =
   | 'openai'
   | 'azure-openai'
   | 'anthropic'
+  | 'azure-anthropic'
   | 'google'
   | 'vertex'
   | 'deepseek'

@@ -177,7 +177,7 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
         cc: params.cc,
         bcc: params.bcc,
         replyTo: params.replyTo,
-        attachments: normalizeFileInput(params.attachmentFiles || params.attachments),
+        attachments: normalizeFileInput(params.attachments),
       }),
     },
   },

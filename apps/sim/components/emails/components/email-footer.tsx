@@ -1,8 +1,8 @@
 import { Container, Img, Link, Section } from '@react-email/components'
 import { baseStyles, colors, spacing, typography } from '@/components/emails/_styles'
-import { getBrandConfig } from '@/lib/branding/branding'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface EmailFooterProps {
   baseUrl?: string
