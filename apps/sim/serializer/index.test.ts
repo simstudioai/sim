@@ -464,6 +464,108 @@ describe('Serializer', () => {
       }).not.toThrow()
     })
 
+    it.concurrent(
+      'should validate required fields for blocks without tools (empty tools.access)',
+      () => {
+        const serializer = new Serializer()
+
+        const waitBlockMissingRequired: any = {
+          id: 'wait-block',
+          type: 'wait',
+          name: 'Wait Block',
+          position: { x: 0, y: 0 },
+          subBlocks: {
+            timeValue: { value: '' },
+            timeUnit: { value: 'seconds' },
+          },
+          outputs: {},
+          enabled: true,
+        }
+
+        expect(() => {
+          serializer.serializeWorkflow(
+            { 'wait-block': waitBlockMissingRequired },
+            [],
+            {},
+            undefined,
+            true
+          )
+        }).toThrow('Wait Block is missing required fields: Wait Amount')
+      }
+    )
+
+    it.concurrent(
+      'should pass validation for blocks without tools when required fields are present',
+      () => {
+        const serializer = new Serializer()
+
+        const waitBlockWithFields: any = {
+          id: 'wait-block',
+          type: 'wait',
+          name: 'Wait Block',
+          position: { x: 0, y: 0 },
+          subBlocks: {
+            timeValue: { value: '10' },
+            timeUnit: { value: 'seconds' },
+          },
+          outputs: {},
+          enabled: true,
+        }
+
+        expect(() => {
+          serializer.serializeWorkflow(
+            { 'wait-block': waitBlockWithFields },
+            [],
+            {},
+            undefined,
+            true
+          )
+        }).not.toThrow()
+      }
+    )
+
+    it.concurrent('should report all missing required fields for blocks without tools', () => {
+      const serializer = new Serializer()
+
+      const waitBlockAllMissing: any = {
+        id: 'wait-block',
+        type: 'wait',
+        name: 'Wait Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          timeValue: { value: null },
+          timeUnit: { value: '' },
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => {
+        serializer.serializeWorkflow({ 'wait-block': waitBlockAllMissing }, [], {}, undefined, true)
+      }).toThrow('Wait Block is missing required fields: Wait Amount, Unit')
+    })
+
+    it.concurrent('should skip validation for disabled blocks without tools', () => {
+      const serializer = new Serializer()
+
+      const disabledWaitBlock: any = {
+        id: 'wait-block',
+        type: 'wait',
+        name: 'Wait Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          timeValue: { value: null },
+          timeUnit: { value: null },
+        },
+        outputs: {},
+        enabled: false,
+      }
+
+      expect(() => {
+        serializer.serializeWorkflow({ 'wait-block': disabledWaitBlock }, [], {}, undefined, true)
+      }).not.toThrow()
+    })
+
     it.concurrent('should handle empty string values as missing', () => {
       const serializer = new Serializer()
 

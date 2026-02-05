@@ -185,6 +185,10 @@ export function formatDuration(
   const precision = options?.precision ?? 0
 
   if (ms < 1) {
+    // Zero or near-zero: show "0ms" instead of "0.00ms"
+    if (ms === 0 || ms < 0.005) {
+      return '0ms'
+    }
     // Sub-millisecond: show with 2 decimal places
     return `${ms.toFixed(2)}ms`
   }
