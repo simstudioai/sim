@@ -6,16 +6,10 @@ import clsx from 'clsx'
 import { ChevronUp, LayoutList } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { Button, Code, getCodeEditorProps, highlight, languages } from '@/components/emcn'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
-import { getClientTool } from '@/lib/copilot/tools/client/manager'
-import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
-import '@/lib/copilot/tools/client/init-tool-configs'
 import {
-  getSubagentLabels as getSubagentLabelsFromConfig,
-  getToolUIConfig,
-  hasInterrupt as hasInterruptFromConfig,
-  isSpecialTool as isSpecialToolFromConfig,
-} from '@/lib/copilot/tools/client/ui-config'
+  ClientToolCallState,
+  TOOL_DISPLAY_REGISTRY,
+} from '@/lib/copilot/tools/client/tool-display-registry'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { CopilotMarkdownRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import { SmoothStreamingText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
@@ -26,7 +20,6 @@ import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/co
 import { getBlock } from '@/blocks/registry'
 import type { CopilotToolCall } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
-import { CLASS_TOOL_METADATA } from '@/stores/panel/copilot/store'
 import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -711,8 +704,8 @@ const ShimmerOverlayText = memo(function ShimmerOverlayText({
  * @returns The completion label from UI config, defaults to 'Thought'
  */
 function getSubagentCompletionLabel(toolName: string): string {
-  const labels = getSubagentLabelsFromConfig(toolName, false)
-  return labels?.completed ?? 'Thought'
+  const labels = TOOL_DISPLAY_REGISTRY[toolName]?.uiConfig?.subagentLabels
+  return labels?.completed || 'Thought'
 }
 
 /**
@@ -944,7 +937,7 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
  * Determines if a tool call should display with special gradient styling.
  */
 function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
-  return isSpecialToolFromConfig(toolCall.name)
+  return TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.isSpecial === true
 }
 
 /**
@@ -1224,28 +1217,11 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
 
 /** Checks if a tool is server-side executed (not a client tool) */
 function isIntegrationTool(toolName: string): boolean {
-  return !CLASS_TOOL_METADATA[toolName]
+  return !TOOL_DISPLAY_REGISTRY[toolName]
 }
 
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
-  if (hasInterruptFromConfig(toolCall.name) && toolCall.state === 'pending') {
-    return true
-  }
-
-  const instance = getClientTool(toolCall.id)
-  let hasInterrupt = !!instance?.getInterruptDisplays?.()
-  if (!hasInterrupt) {
-    try {
-      const def = getRegisteredTools()[toolCall.name]
-      if (def) {
-        hasInterrupt =
-          typeof def.hasInterrupt === 'function'
-            ? !!def.hasInterrupt(toolCall.params || {})
-            : !!def.hasInterrupt
-      }
-    } catch {}
-  }
-
+  const hasInterrupt = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.interrupt === true
   if (hasInterrupt && toolCall.state === 'pending') {
     return true
   }
@@ -1299,11 +1275,9 @@ async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onSt
 function getDisplayName(toolCall: CopilotToolCall): string {
   const fromStore = (toolCall as any).display?.text
   if (fromStore) return fromStore
-  try {
-    const def = getRegisteredTools()[toolCall.name] as any
-    const byState = def?.metadata?.displayNames?.[toolCall.state]
-    if (byState?.text) return byState.text
-  } catch {}
+  const registryEntry = TOOL_DISPLAY_REGISTRY[toolCall.name]
+  const byState = registryEntry?.displayNames?.[toolCall.state as ClientToolCallState]
+  if (byState?.text) return byState.text
 
   const stateVerb = getStateVerb(toolCall.state)
   const formattedName = formatToolName(toolCall.name)
@@ -1481,23 +1455,7 @@ export function ToolCall({
     return null
 
   // Special rendering for subagent tools - show as thinking text with tool calls at top level
-  const SUBAGENT_TOOLS = [
-    'plan',
-    'edit',
-    'debug',
-    'test',
-    'deploy',
-    'evaluate',
-    'auth',
-    'research',
-    'knowledge',
-    'custom_tool',
-    'tour',
-    'info',
-    'workflow',
-    'superagent',
-  ]
-  const isSubagentTool = SUBAGENT_TOOLS.includes(toolCall.name)
+  const isSubagentTool = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.subagent === true
 
   // For ALL subagent tools, don't show anything until we have blocks with content
   if (isSubagentTool) {
@@ -1537,17 +1495,18 @@ export function ToolCall({
     stateStr === 'aborted'
 
   // Allow rendering if:
-  // 1. Tool is in CLASS_TOOL_METADATA (client tools), OR
+  // 1. Tool is in TOOL_DISPLAY_REGISTRY (client tools), OR
   // 2. We're in build mode (integration tools are executed server-side), OR
   // 3. Tool call is already completed (historical - should always render)
-  const isClientTool = !!CLASS_TOOL_METADATA[toolCall.name]
+  const isClientTool = !!TOOL_DISPLAY_REGISTRY[toolCall.name]
   const isIntegrationToolInBuildMode = mode === 'build' && !isClientTool
 
   if (!isClientTool && !isIntegrationToolInBuildMode && !isCompletedToolCall) {
     return null
   }
+  const toolUIConfig = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig
   // Check if tool has params table config (meaning it's expandable)
-  const hasParamsTable = !!getToolUIConfig(toolCall.name)?.paramsTable
+  const hasParamsTable = !!toolUIConfig?.paramsTable
   const isRunWorkflow = toolCall.name === 'run_workflow'
   const isExpandableTool =
     hasParamsTable ||
@@ -1557,7 +1516,6 @@ export function ToolCall({
   const showButtons = isCurrentMessage && shouldShowRunSkipButtons(toolCall)
 
   // Check UI config for secondary action - only show for current message tool calls
-  const toolUIConfig = getToolUIConfig(toolCall.name)
   const secondaryAction = toolUIConfig?.secondaryAction
   const showSecondaryAction = secondaryAction?.showInStates.includes(
     toolCall.state as ClientToolCallState
