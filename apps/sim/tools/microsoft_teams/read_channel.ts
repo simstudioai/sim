@@ -34,14 +34,16 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     teamId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the team to read from',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the team to read from (e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings)',
     },
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the channel to read from',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the channel to read from (e.g., "19:abc123def456@thread.tacv2" - from channel listings)',
     },
     includeAttachments: {
       type: 'boolean',

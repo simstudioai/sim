@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { NodeProps } from 'reactflow'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/core/utils/cn'
 import { BLOCK_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
@@ -305,7 +306,7 @@ function getEmbedInfo(url: string): EmbedInfo | null {
 const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkBreaks]}
       components={{
         p: ({ children }: any) => (
           <p className='mb-1 break-words text-[var(--text-primary)] text-sm leading-[1.25rem] last:mb-0'>
@@ -530,18 +531,13 @@ export const NoteBlock = memo(function NoteBlock({
     <div className='group relative'>
       <div
         className={cn(
-          'relative z-[20] w-[250px] cursor-default select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)]'
+          'note-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
         )}
         onClick={handleClick}
       >
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
 
-        <div
-          className='note-drag-handle flex cursor-grab items-center justify-between border-[var(--divider)] border-b p-[8px] [&:active]:cursor-grabbing'
-          onMouseDown={(event) => {
-            event.stopPropagation()
-          }}
-        >
+        <div className='flex items-center justify-between border-[var(--divider)] border-b p-[8px]'>
           <div className='flex min-w-0 flex-1 items-center'>
             <span
               className={cn(

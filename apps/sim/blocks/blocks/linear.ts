@@ -1,6 +1,7 @@
 import { LinearIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
 
@@ -668,17 +669,44 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         generationType: 'timestamp',
       },
     },
+    // Attachment file
+    {
+      id: 'attachmentFileUpload',
+      title: 'Attachment',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload attachment',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_attachment'],
+      },
+      mode: 'basic',
+      multiple: false,
+    },
+    {
+      id: 'file',
+      title: 'File Reference',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      placeholder: 'File reference from previous block',
+      condition: {
+        field: 'operation',
+        value: ['linear_create_attachment'],
+      },
+      mode: 'advanced',
+    },
     // Attachment URL
     {
       id: 'url',
       title: 'URL',
       type: 'short-input',
       placeholder: 'Enter URL',
-      required: true,
+      required: false,
       condition: {
         field: 'operation',
         value: ['linear_create_attachment'],
       },
+      mode: 'advanced',
     },
     // Attachment title
     {
@@ -1448,9 +1476,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         return params.operation || 'linear_read_issues'
       },
       params: (params) => {
-        // Handle both selector and manual inputs
-        const effectiveTeamId = (params.teamId || params.manualTeamId || '').trim()
-        const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
+        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
+        const effectiveTeamId = params.teamId ? String(params.teamId).trim() : ''
+        const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
 
         // Base params that most operations need
         const baseParams: Record<string, any> = {
@@ -1742,16 +1770,29 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               teamId: effectiveTeamId,
             }
 
-          case 'linear_create_attachment':
-            if (!params.issueId?.trim() || !params.url?.trim()) {
-              throw new Error('Issue ID and URL are required.')
+          case 'linear_create_attachment': {
+            if (!params.issueId?.trim()) {
+              throw new Error('Issue ID is required.')
+            }
+            // Normalize file input - use canonical param 'file' (raw subBlock IDs are deleted after serialization)
+            const attachmentFile = normalizeFileInput(params.file, {
+              single: true,
+              errorMessage: 'Attachment file must be a single file.',
+            })
+            const attachmentUrl =
+              params.url?.trim() ||
+              (attachmentFile ? (attachmentFile as { url?: string }).url : undefined)
+            if (!attachmentUrl) {
+              throw new Error('URL or file is required.')
             }
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
-              url: params.url.trim(),
+              url: attachmentUrl,
+              file: attachmentFile,
               title: params.attachmentTitle,
             }
+          }
 
           case 'linear_list_attachments':
             if (!params.issueId?.trim()) {
@@ -2215,10 +2256,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Linear access token' },
-    teamId: { type: 'string', description: 'Linear team identifier' },
-    projectId: { type: 'string', description: 'Linear project identifier' },
-    manualTeamId: { type: 'string', description: 'Manual team identifier' },
-    manualProjectId: { type: 'string', description: 'Manual project identifier' },
+    teamId: { type: 'string', description: 'Linear team identifier (canonical param)' },
+    projectId: { type: 'string', description: 'Linear project identifier (canonical param)' },
     issueId: { type: 'string', description: 'Issue identifier' },
     title: { type: 'string', description: 'Title' },
     description: { type: 'string', description: 'Description' },
@@ -2248,6 +2287,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     endDate: { type: 'string', description: 'End date' },
     targetDate: { type: 'string', description: 'Target date' },
     url: { type: 'string', description: 'URL' },
+    file: { type: 'json', description: 'File to attach (canonical param)' },
     attachmentTitle: { type: 'string', description: 'Attachment title' },
     attachmentId: { type: 'string', description: 'Attachment identifier' },
     relationType: { type: 'string', description: 'Relation type' },

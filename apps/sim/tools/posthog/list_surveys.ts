@@ -57,7 +57,7 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'PostHog Project ID',
+      description: 'PostHog Project ID (e.g., "12345" or project UUID)',
     },
     region: {
       type: 'string',
@@ -69,14 +69,14 @@ export const listSurveysTool: ToolConfig<PostHogListSurveysParams, PostHogListSu
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (default: 100, e.g., 10, 50, 100)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to skip for pagination',
+      visibility: 'user-or-llm',
+      description: 'Number of results to skip for pagination (e.g., 0, 100, 200)',
     },
   },
 

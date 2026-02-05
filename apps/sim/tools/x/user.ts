@@ -27,7 +27,7 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Username to look up (without @ symbol)',
+      description: 'Username to look up without @ symbol (e.g., elonmusk, openai)',
     },
   },
 

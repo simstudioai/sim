@@ -155,6 +155,36 @@ dependsOn: { all: ['authMethod'], any: ['credential', 'botToken'] }
 - `'both'` - Show in both modes (default)
 - `'trigger'` - Only when block is used as trigger
 
+### `canonicalParamId` - Link basic/advanced alternatives
+
+Use to map multiple UI inputs to a single logical parameter:
+
+```typescript
+// Basic mode: Visual selector
+{
+  id: 'fileSelector',
+  type: 'file-selector',
+  mode: 'basic',
+  canonicalParamId: 'fileId',
+  required: true,
+},
+// Advanced mode: Manual input
+{
+  id: 'manualFileId',
+  type: 'short-input',
+  mode: 'advanced',
+  canonicalParamId: 'fileId',
+  required: true,
+},
+```
+
+**Critical Rules:**
+- `canonicalParamId` must NOT match any subblock's `id`
+- `canonicalParamId` must be unique per operation/condition context
+- **Required consistency:** All subblocks in a canonical group must have the same `required` status
+- **Inputs section:** Must list canonical param IDs (e.g., `fileId`), NOT raw subblock IDs
+- **Params function:** Must use canonical param IDs (raw IDs are deleted after canonical transformation)
+
 **Register in `blocks/registry.ts`:**
 
 ```typescript
@@ -193,6 +223,52 @@ import { {service}WebhookTrigger } from '@/triggers/{service}'
 {service}_webhook: {service}WebhookTrigger,
 ```
 
+## File Handling
+
+When integrations handle file uploads/downloads, use `UserFile` objects consistently.
+
+### File Input (Uploads)
+
+1. **Block subBlocks:** Use basic/advanced mode pattern with `canonicalParamId`
+2. **Normalize in block config:** Use `normalizeFileInput` from `@/blocks/utils`
+3. **Internal API route:** Create route that uses `downloadFileFromStorage` to get file content
+4. **Tool routes to internal API:** Don't call external APIs directly with files
+
+```typescript
+// In block tools.config:
+import { normalizeFileInput } from '@/blocks/utils'
+
+const normalizedFile = normalizeFileInput(
+  params.uploadFile || params.fileRef || params.fileContent,
+  { single: true }
+)
+if (normalizedFile) params.file = normalizedFile
+```
+
+### File Output (Downloads)
+
+Use `FileToolProcessor` in tool `transformResponse` to store files:
+
+```typescript
+import { FileToolProcessor } from '@/executor/utils/file-tool-processor'
+
+const processor = new FileToolProcessor(context)
+const file = await processor.processFileData({
+  data: base64Content,
+  mimeType: 'application/pdf',
+  filename: 'doc.pdf',
+})
+```
+
+### Key Helpers
+
+| Helper | Location | Purpose |
+|--------|----------|---------|
+| `normalizeFileInput` | `@/blocks/utils` | Normalize file params in block config |
+| `processFilesToUserFiles` | `@/lib/uploads/utils/file-utils` | Convert raw inputs to UserFile[] |
+| `downloadFileFromStorage` | `@/lib/uploads/utils/file-utils.server` | Get Buffer from UserFile |
+| `FileToolProcessor` | `@/executor/utils/file-tool-processor` | Process tool output files |
+
 ## Checklist
 
 - [ ] Look up API docs for the service
@@ -205,3 +281,5 @@ import { {service}WebhookTrigger } from '@/triggers/{service}'
 - [ ] Register block in `blocks/registry.ts`
 - [ ] (Optional) Create triggers in `triggers/{service}/`
 - [ ] (Optional) Register triggers in `triggers/registry.ts`
+- [ ] (If file uploads) Create internal API route with `downloadFileFromStorage`
+- [ ] (If file uploads) Use `normalizeFileInput` in block config

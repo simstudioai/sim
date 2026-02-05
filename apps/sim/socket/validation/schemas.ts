@@ -208,6 +208,17 @@ export const BatchToggleHandlesSchema = z.object({
   operationId: z.string().optional(),
 })
 
+export const BatchToggleLockedSchema = z.object({
+  operation: z.literal(BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED),
+  target: z.literal(OPERATION_TARGETS.BLOCKS),
+  payload: z.object({
+    blockIds: z.array(z.string()),
+    previousStates: z.record(z.boolean()),
+  }),
+  timestamp: z.number(),
+  operationId: z.string().optional(),
+})
+
 export const BatchUpdateParentSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
@@ -231,6 +242,7 @@ export const WorkflowOperationSchema = z.union([
   BatchRemoveBlocksSchema,
   BatchToggleEnabledSchema,
   BatchToggleHandlesSchema,
+  BatchToggleLockedSchema,
   BatchUpdateParentSchema,
   EdgeOperationSchema,
   BatchAddEdgesSchema,
@@ -239,5 +251,3 @@ export const WorkflowOperationSchema = z.union([
   VariableOperationSchema,
   WorkflowStateOperationSchema,
 ])
-
-export { PositionSchema, AutoConnectEdgeSchema }

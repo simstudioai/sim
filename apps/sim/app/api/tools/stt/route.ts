@@ -2,7 +2,16 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
+import { getMimeTypeFromExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import {
+  downloadFileFromStorage,
+  resolveInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { TranscriptSegment } from '@/tools/stt/types'
 
@@ -45,6 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userId = authResult.userId
     const body: SttRequestBody = await request.json()
     const {
       provider,
@@ -72,13 +82,25 @@ export async function POST(request: NextRequest) {
     let audioMimeType: string
 
     if (body.audioFile) {
+      if (Array.isArray(body.audioFile) && body.audioFile.length !== 1) {
+        return NextResponse.json({ error: 'audioFile must be a single file' }, { status: 400 })
+      }
       const file = Array.isArray(body.audioFile) ? body.audioFile[0] : body.audioFile
       logger.info(`[${requestId}] Processing uploaded file: ${file.name}`)
 
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
-      audioMimeType = file.type
+      // file.type may be missing if the file came from a block that doesn't preserve it
+      // Infer from filename extension as fallback
+      const ext = file.name.split('.').pop()?.toLowerCase() || ''
+      audioMimeType = file.type || getMimeTypeFromExtension(ext)
     } else if (body.audioFileReference) {
+      if (Array.isArray(body.audioFileReference) && body.audioFileReference.length !== 1) {
+        return NextResponse.json(
+          { error: 'audioFileReference must be a single file' },
+          { status: 400 }
+        )
+      }
       const file = Array.isArray(body.audioFileReference)
         ? body.audioFileReference[0]
         : body.audioFileReference
@@ -86,18 +108,54 @@ export async function POST(request: NextRequest) {
 
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
-      audioMimeType = file.type
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || ''
+      audioMimeType = file.type || getMimeTypeFromExtension(ext)
     } else if (body.audioUrl) {
       logger.info(`[${requestId}] Downloading from URL: ${body.audioUrl}`)
 
-      const response = await fetch(body.audioUrl)
+      let audioUrl = body.audioUrl.trim()
+      if (audioUrl.startsWith('/') && !isInternalFileUrl(audioUrl)) {
+        return NextResponse.json(
+          {
+            error: 'Invalid file path. Only uploaded files are supported for internal paths.',
+          },
+          { status: 400 }
+        )
+      }
+
+      if (isInternalFileUrl(audioUrl)) {
+        if (!userId) {
+          return NextResponse.json(
+            { error: 'Authentication required for internal file access' },
+            { status: 401 }
+          )
+        }
+        const resolution = await resolveInternalFileUrl(audioUrl, userId, requestId, logger)
+        if (resolution.error) {
+          return NextResponse.json(
+            { error: resolution.error.message },
+            { status: resolution.error.status }
+          )
+        }
+        audioUrl = resolution.fileUrl || audioUrl
+      }
+
+      const urlValidation = await validateUrlWithDNS(audioUrl, 'audioUrl')
+      if (!urlValidation.isValid) {
+        return NextResponse.json({ error: urlValidation.error }, { status: 400 })
+      }
+
+      const response = await secureFetchWithPinnedIP(audioUrl, urlValidation.resolvedIP!, {
+        method: 'GET',
+      })
       if (!response.ok) {
         throw new Error(`Failed to download audio from URL: ${response.statusText}`)
       }
 
       const arrayBuffer = await response.arrayBuffer()
       audioBuffer = Buffer.from(arrayBuffer)
-      audioFileName = body.audioUrl.split('/').pop() || 'audio_file'
+      audioFileName = audioUrl.split('/').pop() || 'audio_file'
       audioMimeType = response.headers.get('content-type') || 'audio/mpeg'
     } else {
       return NextResponse.json(
@@ -149,7 +207,9 @@ export async function POST(request: NextRequest) {
           translateToEnglish,
           model,
           body.prompt,
-          body.temperature
+          body.temperature,
+          audioMimeType,
+          audioFileName
         )
         transcript = result.transcript
         segments = result.segments
@@ -162,7 +222,8 @@ export async function POST(request: NextRequest) {
           language,
           timestamps,
           diarization,
-          model
+          model,
+          audioMimeType
         )
         transcript = result.transcript
         segments = result.segments
@@ -252,7 +313,9 @@ async function transcribeWithWhisper(
   translate?: boolean,
   model?: string,
   prompt?: string,
-  temperature?: number
+  temperature?: number,
+  mimeType?: string,
+  fileName?: string
 ): Promise<{
   transcript: string
   segments?: TranscriptSegment[]
@@ -261,8 +324,11 @@ async function transcribeWithWhisper(
 }> {
   const formData = new FormData()
 
-  const blob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' })
-  formData.append('file', blob, 'audio.mp3')
+  // Use actual MIME type and filename if provided
+  const actualMimeType = mimeType || 'audio/mpeg'
+  const actualFileName = fileName || 'audio.mp3'
+  const blob = new Blob([new Uint8Array(audioBuffer)], { type: actualMimeType })
+  formData.append('file', blob, actualFileName)
   formData.append('model', model || 'whisper-1')
 
   if (language && language !== 'auto') {
@@ -279,10 +345,11 @@ async function transcribeWithWhisper(
 
   formData.append('response_format', 'verbose_json')
 
+  // OpenAI API uses array notation for timestamp_granularities
   if (timestamps === 'word') {
-    formData.append('timestamp_granularities', 'word')
+    formData.append('timestamp_granularities[]', 'word')
   } else if (timestamps === 'sentence') {
-    formData.append('timestamp_granularities', 'segment')
+    formData.append('timestamp_granularities[]', 'segment')
   }
 
   const endpoint = translate ? 'translations' : 'transcriptions'
@@ -325,7 +392,8 @@ async function transcribeWithDeepgram(
   language?: string,
   timestamps?: 'none' | 'sentence' | 'word',
   diarization?: boolean,
-  model?: string
+  model?: string,
+  mimeType?: string
 ): Promise<{
   transcript: string
   segments?: TranscriptSegment[]
@@ -357,7 +425,7 @@ async function transcribeWithDeepgram(
     method: 'POST',
     headers: {
       Authorization: `Token ${apiKey}`,
-      'Content-Type': 'audio/mpeg',
+      'Content-Type': mimeType || 'audio/mpeg',
     },
     body: new Uint8Array(audioBuffer),
   })
@@ -513,7 +581,8 @@ async function transcribeWithAssemblyAI(
     audio_url: upload_url,
   }
 
-  if (model === 'best' || model === 'nano') {
+  // AssemblyAI supports 'best', 'slam-1', or 'universal' for speech_model
+  if (model === 'best' || model === 'slam-1' || model === 'universal') {
     transcriptRequest.speech_model = model
   }
 
@@ -568,7 +637,8 @@ async function transcribeWithAssemblyAI(
 
   let transcript: any
   let attempts = 0
-  const maxAttempts = 60 // 5 minutes with 5-second intervals
+  const pollIntervalMs = 5000
+  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
 
   while (attempts < maxAttempts) {
     const statusResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${id}`, {

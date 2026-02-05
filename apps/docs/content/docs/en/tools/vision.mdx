@@ -6,7 +6,7 @@ description: Analyze images with vision models
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="vision"
+  type="vision_v2"
   color="#4D5FFF"
 />
 
@@ -35,8 +35,6 @@ Integrate Vision into the workflow. Can analyze images with vision models.
 
 ### `vision_tool`
 
-Process and analyze images using advanced vision models. Capable of understanding image content, extracting text, identifying objects, and providing detailed visual descriptions.
-
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -49,14 +47,6 @@ Process and analyze images using advanced vision models. Capable of understandin
 
 #### Output
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `content` | string | The analyzed content and description of the image |
-| `model` | string | The vision model that was used for analysis |
-| `tokens` | number | Total tokens used for the analysis |
-| `usage` | object | Detailed token usage breakdown |
-|   ↳ `input_tokens` | number | Tokens used for input processing |
-|   ↳ `output_tokens` | number | Tokens used for response generation |
-|   ↳ `total_tokens` | number | Total tokens consumed |
+This tool does not produce any outputs.
 
 

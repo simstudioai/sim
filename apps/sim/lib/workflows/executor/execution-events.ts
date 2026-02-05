@@ -1,7 +1,3 @@
-/**
- * SSE Event types for workflow execution
- */
-
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export type ExecutionEventType =
@@ -62,9 +58,6 @@ export interface ExecutionErrorEvent extends BaseExecutionEvent {
   }
 }
 
-/**
- * Execution cancelled event
- */
 export interface ExecutionCancelledEvent extends BaseExecutionEvent {
   type: 'execution:cancelled'
   workflowId: string
@@ -83,7 +76,7 @@ export interface BlockStartedEvent extends BaseExecutionEvent {
     blockId: string
     blockName: string
     blockType: string
-    // Iteration context for loops and parallels
+    executionOrder: number
     iterationCurrent?: number
     iterationTotal?: number
     iterationType?: SubflowType
@@ -103,7 +96,9 @@ export interface BlockCompletedEvent extends BaseExecutionEvent {
     input?: any
     output: any
     durationMs: number
-    // Iteration context for loops and parallels
+    startedAt: string
+    executionOrder: number
+    endedAt: string
     iterationCurrent?: number
     iterationTotal?: number
     iterationType?: SubflowType
@@ -123,7 +118,9 @@ export interface BlockErrorEvent extends BaseExecutionEvent {
     input?: any
     error: string
     durationMs: number
-    // Iteration context for loops and parallels
+    startedAt: string
+    executionOrder: number
+    endedAt: string
     iterationCurrent?: number
     iterationTotal?: number
     iterationType?: SubflowType
@@ -166,6 +163,16 @@ export type ExecutionEvent =
   | BlockErrorEvent
   | StreamChunkEvent
   | StreamDoneEvent
+
+export type ExecutionStartedData = ExecutionStartedEvent['data']
+export type ExecutionCompletedData = ExecutionCompletedEvent['data']
+export type ExecutionErrorData = ExecutionErrorEvent['data']
+export type ExecutionCancelledData = ExecutionCancelledEvent['data']
+export type BlockStartedData = BlockStartedEvent['data']
+export type BlockCompletedData = BlockCompletedEvent['data']
+export type BlockErrorData = BlockErrorEvent['data']
+export type StreamChunkData = StreamChunkEvent['data']
+export type StreamDoneData = StreamDoneEvent['data']
 
 /**
  * Helper to create SSE formatted message
@@ -211,6 +218,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
     blockId: string,
     blockName: string,
     blockType: string,
+    executionOrder: number,
     iterationContext?: { iterationCurrent: number; iterationTotal: number; iterationType: string }
   ) => {
     sendEvent({
@@ -222,6 +230,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
         blockId,
         blockName,
         blockType,
+        executionOrder,
         ...(iterationContext && {
           iterationCurrent: iterationContext.iterationCurrent,
           iterationTotal: iterationContext.iterationTotal,
@@ -235,7 +244,14 @@ export function createSSECallbacks(options: SSECallbackOptions) {
     blockId: string,
     blockName: string,
     blockType: string,
-    callbackData: { input?: unknown; output: any; executionTime: number },
+    callbackData: {
+      input?: unknown
+      output: any
+      executionTime: number
+      startedAt: string
+      executionOrder: number
+      endedAt: string
+    },
     iterationContext?: { iterationCurrent: number; iterationTotal: number; iterationType: string }
   ) => {
     const hasError = callbackData.output?.error
@@ -260,6 +276,9 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           input: callbackData.input,
           error: callbackData.output.error,
           durationMs: callbackData.executionTime || 0,
+          startedAt: callbackData.startedAt,
+          executionOrder: callbackData.executionOrder,
+          endedAt: callbackData.endedAt,
           ...iterationData,
         },
       })
@@ -276,6 +295,9 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           input: callbackData.input,
           output: callbackData.output,
           durationMs: callbackData.executionTime || 0,
+          startedAt: callbackData.startedAt,
+          executionOrder: callbackData.executionOrder,
+          endedAt: callbackData.endedAt,
           ...iterationData,
         },
       })

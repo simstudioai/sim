@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 // Shared type definitions
@@ -48,6 +49,14 @@ export interface SendGridPersonalization {
   dynamic_template_data?: Record<string, unknown>
 }
 
+export interface SendGridAttachment {
+  content: string
+  filename: string
+  type?: string
+  disposition?: string
+  content_id?: string
+}
+
 export interface SendGridMailBody {
   personalizations: SendGridPersonalization[]
   from: { email: string; name?: string }
@@ -55,7 +64,7 @@ export interface SendGridMailBody {
   template_id?: string
   content?: Array<{ type: 'text/plain' | 'text/html'; value?: string }>
   reply_to?: { email: string; name?: string }
-  attachments?: any[]
+  attachments?: SendGridAttachment[] | UserFile[]
 }
 
 export interface SendGridContactObject {
@@ -95,7 +104,7 @@ export interface SendMailParams extends SendGridBaseParams {
   bcc?: string
   replyTo?: string
   replyToName?: string
-  attachments?: string
+  attachments?: UserFile[] | SendGridAttachment[] | string
   templateId?: string
   dynamicTemplateData?: string
 }

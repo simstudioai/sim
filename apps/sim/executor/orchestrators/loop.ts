@@ -7,7 +7,11 @@ import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
-import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
+import {
+  type ExecutionContext,
+  getNextExecutionOrder,
+  type NormalizedBlockOutput,
+} from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
@@ -281,9 +285,13 @@ export class LoopOrchestrator {
 
     // Emit onBlockComplete for the loop container so the UI can track it
     if (this.contextExtensions?.onBlockComplete) {
+      const now = new Date().toISOString()
       this.contextExtensions.onBlockComplete(loopId, 'Loop', 'loop', {
         output,
         executionTime: DEFAULTS.EXECUTION_TIME,
+        startedAt: now,
+        executionOrder: getNextExecutionOrder(ctx),
+        endedAt: now,
       })
     }
 

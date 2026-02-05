@@ -19,7 +19,14 @@ import { useSession } from '@/lib/auth/auth-client'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionsTable } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal/components/permissions-table'
-import { API_ENDPOINTS } from '@/stores/constants'
+import {
+  useBatchSendWorkspaceInvitations,
+  useCancelWorkspaceInvitation,
+  usePendingInvitations,
+  useRemoveWorkspaceMember,
+  useResendWorkspaceInvitation,
+  useUpdateWorkspacePermissions,
+} from '@/hooks/queries/invitations'
 import type { PermissionType, UserPermissions } from './components/types'
 
 const logger = createLogger('InviteModal')
@@ -30,41 +37,25 @@ interface InviteModalProps {
   workspaceName?: string
 }
 
-interface PendingInvitation {
-  id: string
-  workspaceId: string
-  email: string
-  permissions: PermissionType
-  status: string
-  createdAt: string
-}
-
 export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalProps) {
   const formRef = useRef<HTMLFormElement>(null)
   const [emailItems, setEmailItems] = useState<TagItem[]>([])
   const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
-  const [pendingInvitations, setPendingInvitations] = useState<UserPermissions[]>([])
-  const [isPendingInvitationsLoading, setIsPendingInvitationsLoading] = useState(false)
   const [existingUserPermissionChanges, setExistingUserPermissionChanges] = useState<
     Record<string, Partial<UserPermissions>>
   >({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [showSent, setShowSent] = useState(false)
+  const cooldownIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [memberToRemove, setMemberToRemove] = useState<{ userId: string; email: string } | null>(
     null
   )
-  const [isRemovingMember, setIsRemovingMember] = useState(false)
   const [invitationToRemove, setInvitationToRemove] = useState<{
     invitationId: string
     email: string
   } | null>(null)
-  const [isRemovingInvitation, setIsRemovingInvitation] = useState(false)
-  const [resendingInvitationIds, setResendingInvitationIds] = useState<Record<string, boolean>>({})
   const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({})
   const [resentInvitationIds, setResentInvitationIds] = useState<Record<string, boolean>>({})
+  const [resendingInvitationIds, setResendingInvitationIds] = useState<Record<string, boolean>>({})
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -73,57 +64,40 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     workspacePermissions,
     permissionsLoading,
     updatePermissions,
-    refetchPermissions,
     userPermissions: userPerms,
   } = useWorkspacePermissionsContext()
+
+  const { data: pendingInvitations = [], isLoading: isPendingInvitationsLoading } =
+    usePendingInvitations(open ? workspaceId : undefined)
+
+  const batchSendInvitations = useBatchSendWorkspaceInvitations()
+  const cancelInvitation = useCancelWorkspaceInvitation()
+  const resendInvitation = useResendWorkspaceInvitation()
+  const removeMember = useRemoveWorkspaceMember()
+  const updatePermissionsMutation = useUpdateWorkspacePermissions()
 
   const hasPendingChanges = Object.keys(existingUserPermissionChanges).length > 0
   const validEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
   const hasNewInvites = validEmails.length > 0
 
-  const fetchPendingInvitations = useCallback(async () => {
-    if (!workspaceId) return
-
-    setIsPendingInvitationsLoading(true)
-    try {
-      const response = await fetch('/api/workspaces/invitations')
-      if (response.ok) {
-        const data = await response.json()
-        const workspacePendingInvitations =
-          data.invitations
-            ?.filter(
-              (inv: PendingInvitation) =>
-                inv.status === 'pending' && inv.workspaceId === workspaceId
-            )
-            .map((inv: PendingInvitation) => ({
-              email: inv.email,
-              permissionType: inv.permissions,
-              isPendingInvitation: true,
-              invitationId: inv.id,
-            })) || []
-
-        setPendingInvitations(workspacePendingInvitations)
-      }
-    } catch (error) {
-      logger.error('Error fetching pending invitations:', error)
-    } finally {
-      setIsPendingInvitationsLoading(false)
-    }
-  }, [workspaceId])
-
-  useEffect(() => {
-    if (open && workspaceId) {
-      fetchPendingInvitations()
-      refetchPermissions()
-    }
-  }, [open, workspaceId, fetchPendingInvitations, refetchPermissions])
+  const isSubmitting = batchSendInvitations.isPending
+  const isSaving = updatePermissionsMutation.isPending
+  const isRemovingMember = removeMember.isPending
+  const isRemovingInvitation = cancelInvitation.isPending
 
   useEffect(() => {
     if (open) {
       setErrorMessage(null)
-      setSuccessMessage(null)
     }
   }, [open])
+
+  useEffect(() => {
+    const intervalsRef = cooldownIntervalsRef.current
+    return () => {
+      intervalsRef.forEach((interval) => clearInterval(interval))
+      intervalsRef.clear()
+    }
+  }, [])
 
   const addEmail = useCallback(
     (email: string) => {
@@ -174,16 +148,12 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     [emailItems, pendingInvitations, workspacePermissions?.users, session?.user?.email]
   )
 
-  const removeEmailItem = useCallback(
-    (_value: string, index: number, isValid?: boolean) => {
-      const itemToRemove = emailItems[index]
-      setEmailItems((prev) => prev.filter((_, i) => i !== index))
-      if (isValid ?? itemToRemove?.isValid) {
-        setUserPermissions((prev) => prev.filter((user) => user.email !== itemToRemove?.value))
-      }
-    },
-    [emailItems]
-  )
+  const removeEmailItem = useCallback((value: string, index: number, isValid?: boolean) => {
+    setEmailItems((prev) => prev.filter((_, i) => i !== index))
+    if (isValid) {
+      setUserPermissions((prev) => prev.filter((user) => user.email !== value))
+    }
+  }, [])
 
   const fileInputOptions: FileInputOptions = useMemo(
     () => ({
@@ -192,7 +162,8 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       extractValues: (text: string) => {
         const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
         const matches = text.match(emailRegex) || []
-        return [...new Set(matches.map((e) => e.toLowerCase()))]
+        const uniqueEmails = [...new Set(matches.map((e) => e.toLowerCase()))]
+        return uniqueEmails.filter((email) => quickValidateEmail(email).isValid)
       },
       tooltip: 'Upload emails',
     }),
@@ -224,132 +195,101 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     [workspacePermissions?.users]
   )
 
-  const handleSaveChanges = useCallback(async () => {
+  const handleSaveChanges = useCallback(() => {
     if (!userPerms.canAdmin || !hasPendingChanges || !workspaceId) return
 
-    setIsSaving(true)
     setErrorMessage(null)
 
-    try {
-      const updates = Object.entries(existingUserPermissionChanges).map(([userId, changes]) => ({
-        userId,
-        permissions: changes.permissionType || 'read',
-      }))
+    const updates = Object.entries(existingUserPermissionChanges).map(([userId, changes]) => ({
+      userId,
+      permissions: (changes.permissionType || 'read') as 'admin' | 'write' | 'read',
+    }))
 
-      const response = await fetch(API_ENDPOINTS.WORKSPACE_PERMISSIONS(workspaceId), {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+    updatePermissionsMutation.mutate(
+      { workspaceId, updates },
+      {
+        onSuccess: (data) => {
+          if (data.users && data.total !== undefined) {
+            updatePermissions({ users: data.users, total: data.total })
+          }
+          setExistingUserPermissionChanges({})
         },
-        body: JSON.stringify({ updates }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update permissions')
+        onError: (error) => {
+          logger.error('Error saving permission changes:', error)
+          setErrorMessage(error.message || 'Failed to save permission changes. Please try again.')
+        },
       }
-
-      if (data.users && data.total !== undefined) {
-        updatePermissions({ users: data.users, total: data.total })
-      }
-
-      setExistingUserPermissionChanges({})
-
-      setSuccessMessage(
-        `Permission changes saved for ${updates.length} user${updates.length !== 1 ? 's' : ''}!`
-      )
-      setTimeout(() => setSuccessMessage(null), 3000)
-    } catch (error) {
-      logger.error('Error saving permission changes:', error)
-      const errorMsg =
-        error instanceof Error
-          ? error.message
-          : 'Failed to save permission changes. Please try again.'
-      setErrorMessage(errorMsg)
-    } finally {
-      setIsSaving(false)
-    }
+    )
   }, [
     userPerms.canAdmin,
     hasPendingChanges,
     workspaceId,
     existingUserPermissionChanges,
     updatePermissions,
+    updatePermissionsMutation,
   ])
 
   const handleRestoreChanges = useCallback(() => {
     if (!userPerms.canAdmin || !hasPendingChanges) return
 
     setExistingUserPermissionChanges({})
-    setSuccessMessage('Changes restored to original permissions!')
-
-    setTimeout(() => setSuccessMessage(null), 3000)
   }, [userPerms.canAdmin, hasPendingChanges])
 
   const handleRemoveMemberClick = useCallback((userId: string, email: string) => {
     setMemberToRemove({ userId, email })
   }, [])
 
-  const handleRemoveMemberConfirm = useCallback(async () => {
+  const handleRemoveMemberConfirm = useCallback(() => {
     if (!memberToRemove || !workspaceId || !userPerms.canAdmin) return
 
-    setIsRemovingMember(true)
     setErrorMessage(null)
 
-    try {
-      const userRecord = workspacePermissions?.users?.find(
-        (user) => user.userId === memberToRemove.userId
-      )
+    const userRecord = workspacePermissions?.users?.find(
+      (user) => user.userId === memberToRemove.userId
+    )
 
-      if (!userRecord) {
-        throw new Error('User is not a member of this workspace')
-      }
-
-      const response = await fetch(`/api/workspaces/members/${memberToRemove.userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          workspaceId: workspaceId,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to remove member')
-      }
-
-      if (workspacePermissions) {
-        const updatedUsers = workspacePermissions.users.filter(
-          (user) => user.userId !== memberToRemove.userId
-        )
-        updatePermissions({
-          users: updatedUsers,
-          total: workspacePermissions.total - 1,
-        })
-      }
-
-      setExistingUserPermissionChanges((prev) => {
-        const updated = { ...prev }
-        delete updated[memberToRemove.userId]
-        return updated
-      })
-
-      setSuccessMessage(`${memberToRemove.email} has been removed from the workspace`)
-      setTimeout(() => setSuccessMessage(null), 3000)
-    } catch (error) {
-      logger.error('Error removing member:', error)
-      const errorMsg =
-        error instanceof Error ? error.message : 'Failed to remove member. Please try again.'
-      setErrorMessage(errorMsg)
-    } finally {
-      setIsRemovingMember(false)
+    if (!userRecord) {
+      setErrorMessage('User is not a member of this workspace')
       setMemberToRemove(null)
+      return
     }
-  }, [memberToRemove, workspaceId, userPerms.canAdmin, workspacePermissions, updatePermissions])
+
+    removeMember.mutate(
+      { userId: memberToRemove.userId, workspaceId },
+      {
+        onSuccess: () => {
+          if (workspacePermissions) {
+            const updatedUsers = workspacePermissions.users.filter(
+              (user) => user.userId !== memberToRemove.userId
+            )
+            updatePermissions({
+              users: updatedUsers,
+              total: workspacePermissions.total - 1,
+            })
+          }
+
+          setExistingUserPermissionChanges((prev) => {
+            const updated = { ...prev }
+            delete updated[memberToRemove.userId]
+            return updated
+          })
+          setMemberToRemove(null)
+        },
+        onError: (error) => {
+          logger.error('Error removing member:', error)
+          setErrorMessage(error.message || 'Failed to remove member. Please try again.')
+          setMemberToRemove(null)
+        },
+      }
+    )
+  }, [
+    memberToRemove,
+    workspaceId,
+    userPerms.canAdmin,
+    workspacePermissions,
+    updatePermissions,
+    removeMember,
+  ])
 
   const handleRemoveMemberCancel = useCallback(() => {
     setMemberToRemove(null)
@@ -359,243 +299,167 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     setInvitationToRemove({ invitationId, email })
   }, [])
 
-  const handleRemoveInvitationConfirm = useCallback(async () => {
+  const handleRemoveInvitationConfirm = useCallback(() => {
     if (!invitationToRemove || !workspaceId || !userPerms.canAdmin) return
 
-    setIsRemovingInvitation(true)
     setErrorMessage(null)
 
-    try {
-      const response = await fetch(
-        `/api/workspaces/invitations/${invitationToRemove.invitationId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to cancel invitation')
+    cancelInvitation.mutate(
+      { invitationId: invitationToRemove.invitationId, workspaceId },
+      {
+        onSuccess: () => {
+          setInvitationToRemove(null)
+        },
+        onError: (error) => {
+          logger.error('Error cancelling invitation:', error)
+          setErrorMessage(error.message || 'Failed to cancel invitation. Please try again.')
+          setInvitationToRemove(null)
+        },
       }
-
-      setPendingInvitations((prev) =>
-        prev.filter((inv) => inv.invitationId !== invitationToRemove.invitationId)
-      )
-
-      setSuccessMessage(`Invitation for ${invitationToRemove.email} has been cancelled`)
-      setTimeout(() => setSuccessMessage(null), 3000)
-    } catch (error) {
-      logger.error('Error cancelling invitation:', error)
-      const errorMsg =
-        error instanceof Error ? error.message : 'Failed to cancel invitation. Please try again.'
-      setErrorMessage(errorMsg)
-    } finally {
-      setIsRemovingInvitation(false)
-      setInvitationToRemove(null)
-    }
-  }, [invitationToRemove, workspaceId, userPerms.canAdmin])
+    )
+  }, [invitationToRemove, workspaceId, userPerms.canAdmin, cancelInvitation])
 
   const handleRemoveInvitationCancel = useCallback(() => {
     setInvitationToRemove(null)
   }, [])
 
   const handleResendInvitation = useCallback(
-    async (invitationId: string, email: string) => {
+    (invitationId: string) => {
       if (!workspaceId || !userPerms.canAdmin) return
 
       const secondsLeft = resendCooldowns[invitationId]
       if (secondsLeft && secondsLeft > 0) return
 
-      setResendingInvitationIds((prev) => ({ ...prev, [invitationId]: true }))
+      if (resendingInvitationIds[invitationId]) return
+
       setErrorMessage(null)
+      setResendingInvitationIds((prev) => ({ ...prev, [invitationId]: true }))
 
-      try {
-        const response = await fetch(`/api/workspaces/invitations/${invitationId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to resend invitation')
-        }
-
-        setSuccessMessage(`Invitation resent to ${email}`)
-        setTimeout(() => setSuccessMessage(null), 3000)
-
-        setResentInvitationIds((prev) => ({ ...prev, [invitationId]: true }))
-        setTimeout(() => {
-          setResentInvitationIds((prev) => {
-            const next = { ...prev }
-            delete next[invitationId]
-            return next
-          })
-        }, 4000)
-      } catch (error) {
-        logger.error('Error resending invitation:', error)
-        const errorMsg =
-          error instanceof Error ? error.message : 'Failed to resend invitation. Please try again.'
-        setErrorMessage(errorMsg)
-      } finally {
-        setResendingInvitationIds((prev) => {
-          const next = { ...prev }
-          delete next[invitationId]
-          return next
-        })
-        setResendCooldowns((prev) => ({ ...prev, [invitationId]: 60 }))
-        const interval = setInterval(() => {
-          setResendCooldowns((prev) => {
-            const current = prev[invitationId]
-            if (current === undefined) return prev
-            if (current <= 1) {
+      resendInvitation.mutate(
+        { invitationId, workspaceId },
+        {
+          onSuccess: () => {
+            setResendingInvitationIds((prev) => {
               const next = { ...prev }
               delete next[invitationId]
-              clearInterval(interval)
               return next
+            })
+            setResentInvitationIds((prev) => ({ ...prev, [invitationId]: true }))
+            setTimeout(() => {
+              setResentInvitationIds((prev) => {
+                const next = { ...prev }
+                delete next[invitationId]
+                return next
+              })
+            }, 4000)
+
+            setResendCooldowns((prev) => ({ ...prev, [invitationId]: 60 }))
+
+            const existingInterval = cooldownIntervalsRef.current.get(invitationId)
+            if (existingInterval) {
+              clearInterval(existingInterval)
             }
-            return { ...prev, [invitationId]: current - 1 }
-          })
-        }, 1000)
-      }
+
+            const interval = setInterval(() => {
+              setResendCooldowns((prev) => {
+                const current = prev[invitationId]
+                if (current === undefined) return prev
+                if (current <= 1) {
+                  const next = { ...prev }
+                  delete next[invitationId]
+                  clearInterval(interval)
+                  cooldownIntervalsRef.current.delete(invitationId)
+                  return next
+                }
+                return { ...prev, [invitationId]: current - 1 }
+              })
+            }, 1000)
+
+            cooldownIntervalsRef.current.set(invitationId, interval)
+          },
+          onError: (error) => {
+            setResendingInvitationIds((prev) => {
+              const next = { ...prev }
+              delete next[invitationId]
+              return next
+            })
+            logger.error('Error resending invitation:', error)
+            setErrorMessage(error.message || 'Failed to resend invitation. Please try again.')
+          },
+        }
+      )
     },
-    [workspaceId, userPerms.canAdmin, resendCooldowns]
+    [workspaceId, userPerms.canAdmin, resendCooldowns, resendingInvitationIds, resendInvitation]
   )
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    (e: React.FormEvent) => {
       e.preventDefault()
 
       setErrorMessage(null)
-      setSuccessMessage(null)
 
       if (validEmails.length === 0 || !workspaceId) {
         return
       }
 
-      setIsSubmitting(true)
-
-      try {
-        const failedInvites: string[] = []
-
-        const results = await Promise.all(
-          validEmails.map(async (email) => {
-            try {
-              const userPermission = userPermissions.find((up) => up.email === email)
-              const permissionType = userPermission?.permissionType || 'read'
-
-              const response = await fetch('/api/workspaces/invitations', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  workspaceId,
-                  email: email,
-                  role: 'member',
-                  permission: permissionType,
-                }),
-              })
-
-              const data = await response.json()
-
-              if (!response.ok) {
-                failedInvites.push(email)
-
-                if (data.error) {
-                  setErrorMessage(data.error)
-                }
-
-                return false
-              }
-
-              return true
-            } catch {
-              failedInvites.push(email)
-              return false
-            }
-          })
-        )
-
-        const successCount = results.filter(Boolean).length
-        const successfulEmails = validEmails.filter((_, index) => results[index])
-
-        if (successCount > 0) {
-          if (successfulEmails.length > 0) {
-            const newPendingInvitations: UserPermissions[] = successfulEmails.map((email) => {
-              const userPermission = userPermissions.find((up) => up.email === email)
-              const permissionType = userPermission?.permissionType || 'read'
-
-              return {
-                email,
-                permissionType,
-                isPendingInvitation: true,
-              }
-            })
-
-            setPendingInvitations((prev) => {
-              const existingEmails = new Set(prev.map((inv) => inv.email))
-              const merged = [...prev]
-
-              newPendingInvitations.forEach((inv) => {
-                if (!existingEmails.has(inv.email)) {
-                  merged.push(inv)
-                }
-              })
-
-              return merged
-            })
-          }
-
-          fetchPendingInvitations()
-
-          if (failedInvites.length > 0) {
-            setEmailItems(failedInvites.map((email) => ({ value: email, isValid: true })))
-            setUserPermissions((prev) => prev.filter((user) => failedInvites.includes(user.email)))
-          } else {
-            setEmailItems([])
-            setUserPermissions([])
-          }
-          setShowSent(true)
-
-          setTimeout(() => {
-            setShowSent(false)
-          }, 4000)
+      const invitations = validEmails.map((email) => {
+        const userPermission = userPermissions.find((up) => up.email === email)
+        return {
+          email,
+          permission: (userPermission?.permissionType || 'read') as 'admin' | 'write' | 'read',
         }
-      } catch (err) {
-        logger.error('Error inviting members:', err)
-        const errorMessage =
-          err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.'
-        setErrorMessage(errorMessage)
-      } finally {
-        setIsSubmitting(false)
-      }
+      })
+
+      batchSendInvitations.mutate(
+        { workspaceId, invitations },
+        {
+          onSuccess: (result) => {
+            if (result.failed.length > 0) {
+              setEmailItems(result.failed.map((f) => ({ value: f.email, isValid: true })))
+              setUserPermissions((prev) =>
+                prev.filter((user) => result.failed.some((f) => f.email === user.email))
+              )
+              setErrorMessage(result.failed[0].error)
+            } else {
+              setEmailItems([])
+              setUserPermissions([])
+            }
+          },
+          onError: (error) => {
+            logger.error('Error inviting members:', error)
+            setErrorMessage(error.message || 'An unexpected error occurred. Please try again.')
+          },
+        }
+      )
     },
-    [validEmails, workspaceId, userPermissions, fetchPendingInvitations]
+    [validEmails, workspaceId, userPermissions, batchSendInvitations]
   )
 
   const resetState = useCallback(() => {
     setEmailItems([])
     setUserPermissions([])
-    setPendingInvitations([])
-    setIsPendingInvitationsLoading(false)
     setExistingUserPermissionChanges({})
-    setIsSubmitting(false)
-    setIsSaving(false)
-    setShowSent(false)
     setErrorMessage(null)
-    setSuccessMessage(null)
     setMemberToRemove(null)
-    setIsRemovingMember(false)
     setInvitationToRemove(null)
-    setIsRemovingInvitation(false)
+    setResendCooldowns({})
+    setResentInvitationIds({})
+    setResendingInvitationIds({})
+
+    cooldownIntervalsRef.current.forEach((interval) => clearInterval(interval))
+    cooldownIntervalsRef.current.clear()
   }, [])
+
+  const pendingInvitationsForTable: UserPermissions[] = useMemo(
+    () =>
+      pendingInvitations.map((inv) => ({
+        email: inv.email,
+        permissionType: inv.permissionType,
+        isPendingInvitation: true,
+        invitationId: inv.invitationId,
+      })),
+    [pendingInvitations]
+  )
 
   return (
     <Modal
@@ -686,7 +550,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                 isSaving={isSaving}
                 workspacePermissions={workspacePermissions}
                 permissionsLoading={permissionsLoading}
-                pendingInvitations={pendingInvitations}
+                pendingInvitations={pendingInvitationsForTable}
                 isPendingInvitationsLoading={isPendingInvitationsLoading}
                 resendingInvitationIds={resendingInvitationIds}
                 resentInvitationIds={resentInvitationIds}
@@ -696,28 +560,29 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           </ModalBody>
 
           <ModalFooter className='justify-between'>
-            {hasPendingChanges && userPerms.canAdmin && (
-              <div className='flex gap-[8px]'>
-                <Button
-                  type='button'
-                  variant='default'
-                  disabled={isSaving || isSubmitting}
-                  onClick={handleRestoreChanges}
-                  className='h-[32px] gap-[8px] px-[12px] font-medium'
-                >
-                  Restore Changes
-                </Button>
-                <Button
-                  type='button'
-                  variant='tertiary'
-                  disabled={isSaving || isSubmitting}
-                  onClick={handleSaveChanges}
-                  className='h-[32px] gap-[8px] px-[12px] font-medium'
-                >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </div>
-            )}
+            <div
+              className={`flex gap-[8px] ${hasPendingChanges && userPerms.canAdmin ? '' : 'pointer-events-none invisible'}`}
+              aria-hidden={!(hasPendingChanges && userPerms.canAdmin)}
+            >
+              <Button
+                type='button'
+                variant='default'
+                disabled={isSaving || isSubmitting}
+                onClick={handleRestoreChanges}
+                tabIndex={hasPendingChanges && userPerms.canAdmin ? 0 : -1}
+              >
+                Restore Changes
+              </Button>
+              <Button
+                type='button'
+                variant='tertiary'
+                disabled={isSaving || isSubmitting}
+                onClick={handleSaveChanges}
+                tabIndex={hasPendingChanges && userPerms.canAdmin ? 0 : -1}
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
 
             <Button
               type='button'

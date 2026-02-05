@@ -40,8 +40,8 @@ export const createTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesCreateRe
     folderSelector: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Select the folder to create the presentation in',
+      visibility: 'user-or-llm',
+      description: 'Google Drive folder ID to create the presentation in (e.g., 1ABCxyz...)',
     },
     folderId: {
       type: 'string',

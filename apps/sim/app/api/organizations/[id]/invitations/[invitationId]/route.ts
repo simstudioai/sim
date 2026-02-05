@@ -20,6 +20,7 @@ import { z } from 'zod'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
+import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -497,6 +498,18 @@ export async function PUT(
           userId: session.user.id,
           subscriptionId: personalProToCancel.id,
           error: dbError,
+        })
+      }
+    }
+
+    if (status === 'accepted') {
+      try {
+        await syncUsageLimitsFromSubscription(session.user.id)
+      } catch (syncError) {
+        logger.error('Failed to sync usage limits after joining org', {
+          userId: session.user.id,
+          organizationId,
+          error: syncError,
         })
       }
     }

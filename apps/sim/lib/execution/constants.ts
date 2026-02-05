@@ -1,7 +1,3 @@
-/**
- * Execution timeout constants
- *
- * DEFAULT_EXECUTION_TIMEOUT_MS: The default timeout for executing user code (10 minutes)
- */
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 
-export const DEFAULT_EXECUTION_TIMEOUT_MS = 600000 // 10 minutes (600 seconds)
+export { DEFAULT_EXECUTION_TIMEOUT_MS }

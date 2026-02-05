@@ -43,7 +43,7 @@ Extract and process web content into clean, LLM-friendly text using Jina AI Read
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | The URL to read and convert to markdown |
+| `url` | string | Yes | The URL to read and convert to markdown \(e.g., "https://example.com/page"\) |
 | `useReaderLMv2` | boolean | No | Whether to use ReaderLM-v2 for better quality \(3x token cost\) |
 | `gatherLinks` | boolean | No | Whether to gather all links at the end |
 | `jsonResponse` | boolean | No | Whether to return response in JSON format |
@@ -73,7 +73,7 @@ Search the web and return top 5 results with LLM-friendly content. Each result i
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `q` | string | Yes | Search query string |
+| `q` | string | Yes | Search query string \(e.g., "machine learning tutorials"\) |
 | `apiKey` | string | Yes | Your Jina AI API key |
 | `num` | number | No | Maximum number of results per page \(default: 5\) |
 | `site` | string | No | Restrict results to specific domain\(s\). Can be comma-separated for multiple sites \(e.g., "jina.ai,github.com"\) |

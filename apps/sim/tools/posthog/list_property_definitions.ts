@@ -53,8 +53,8 @@ export const listPropertyDefinitionsTool: ToolConfig<
     projectId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'PostHog Project ID',
+      visibility: 'user-or-llm',
+      description: 'PostHog Project ID (e.g., "12345" or project UUID)',
     },
     region: {
       type: 'string',
@@ -71,14 +71,14 @@ export const listPropertyDefinitionsTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return per page (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return per page (default: 100, e.g., 10, 50, 100)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'The initial index from which to return results',
+      visibility: 'user-or-llm',
+      description: 'The initial index from which to return results (e.g., 0, 100, 200)',
     },
     search: {
       type: 'string',

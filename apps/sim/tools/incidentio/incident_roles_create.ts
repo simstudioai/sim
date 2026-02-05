@@ -24,7 +24,7 @@ export const incidentRolesCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the incident role',
+      description: 'Name of the incident role (e.g., "Incident Commander")',
     },
     description: {
       type: 'string',

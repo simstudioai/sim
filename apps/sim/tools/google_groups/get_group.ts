@@ -1,5 +1,5 @@
+import type { GoogleGroupsGetParams, GoogleGroupsResponse } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsGetParams, GoogleGroupsResponse } from './types'
 
 export const getGroupTool: ToolConfig<GoogleGroupsGetParams, GoogleGroupsResponse> = {
   id: 'google_groups_get_group',
@@ -23,7 +23,8 @@ export const getGroupTool: ToolConfig<GoogleGroupsGetParams, GoogleGroupsRespons
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
   },
 

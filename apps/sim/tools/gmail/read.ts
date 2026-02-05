@@ -31,32 +31,33 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
     messageId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ID of the message to read',
+      visibility: 'user-or-llm',
+      description: 'Gmail message ID to read (e.g., 18f1a2b3c4d5e6f7)',
     },
     folder: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Folder/label to read emails from',
+      visibility: 'user-or-llm',
+      description:
+        'Folder/label to read emails from (e.g., INBOX, SENT, DRAFT, TRASH, SPAM, or custom label name)',
     },
     unreadOnly: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
-      description: 'Only retrieve unread messages',
+      visibility: 'user-or-llm',
+      description: 'Set to true to only retrieve unread messages',
     },
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Maximum number of messages to retrieve (default: 1, max: 10)',
     },
     includeAttachments: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
-      description: 'Download and include email attachments',
+      visibility: 'user-or-llm',
+      description: 'Set to true to download and include email attachments',
     },
   },
 

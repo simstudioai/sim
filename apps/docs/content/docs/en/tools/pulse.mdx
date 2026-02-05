@@ -6,12 +6,12 @@ description: Extract text from documents using Pulse OCR
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="pulse"
+  type="pulse_v2"
   color="#E0E0E0"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-The [Pulse](https://www.pulseapi.com/) tool enables seamless extraction of text and structured content from a wide variety of documents—including PDFs, images, and Office files—using state-of-the-art OCR (Optical Character Recognition) powered by Pulse. Designed for automated agentic workflows, Pulse Parser makes it easy to unlock valuable information trapped in unstructured documents and integrate the extracted content directly into your workflow.
+The [Pulse](https://www.runpulse.com) tool enables seamless extraction of text and structured content from a wide variety of documents—including PDFs, images, and Office files—using state-of-the-art OCR (Optical Character Recognition) powered by Pulse. Designed for automated agentic workflows, Pulse Parser makes it easy to unlock valuable information trapped in unstructured documents and integrate the extracted content directly into your workflow.
 
 With Pulse, you can:
 
@@ -31,7 +31,7 @@ If you need accurate, scalable, and developer-friendly document parsing capabili
 
 ## Usage Instructions
 
-Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via URL or upload.
+Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.
 
 
 
@@ -39,13 +39,12 @@ Integrate Pulse into the workflow. Extract text from PDF documents, images, and 
 
 ### `pulse_parser`
 
-Parse documents (PDF, images, Office docs) using Pulse OCR API
-
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filePath` | string | Yes | URL to a document to be processed |
+| `filePath` | string | No | URL to a document to be processed |
+| `file` | file | No | Document file to be processed |
 | `fileUpload` | object | No | File upload data from file-upload component |
 | `pages` | string | No | Page range to process \(1-indexed, e.g., "1-2,5"\) |
 | `extractFigure` | boolean | No | Enable figure extraction from the document |
@@ -57,16 +56,6 @@ Parse documents (PDF, images, Office docs) using Pulse OCR API
 
 #### Output
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `markdown` | string | Extracted content in markdown format |
-| `page_count` | number | Number of pages in the document |
-| `job_id` | string | Unique job identifier |
-| `bounding_boxes` | json | Bounding box layout information |
-| `extraction_url` | string | URL for extraction results \(for large documents\) |
-| `html` | string | HTML content if requested |
-| `structured_output` | json | Structured output if schema was provided |
-| `chunks` | json | Chunked content if chunking was enabled |
-| `figures` | json | Extracted figures if figure extraction was enabled |
+This tool does not produce any outputs.
 
 

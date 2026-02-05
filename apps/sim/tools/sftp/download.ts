@@ -94,6 +94,7 @@ export const sftpDownloadTool: ToolConfig<SftpDownloadParams, SftpDownloadResult
       output: {
         success: true,
         fileName: data.fileName,
+        file: data.file,
         content: data.content,
         size: data.size,
         encoding: data.encoding,
@@ -104,6 +105,7 @@ export const sftpDownloadTool: ToolConfig<SftpDownloadParams, SftpDownloadResult
 
   outputs: {
     success: { type: 'boolean', description: 'Whether the download was successful' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     fileName: { type: 'string', description: 'Name of the downloaded file' },
     content: { type: 'string', description: 'File content (text or base64 encoded)' },
     size: { type: 'number', description: 'File size in bytes' },

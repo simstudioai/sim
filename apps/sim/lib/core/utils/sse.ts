@@ -45,6 +45,7 @@ export async function readSSEStream(
   const reader = body.getReader()
   const decoder = new TextDecoder()
   let accumulatedContent = ''
+  let buffer = ''
 
   try {
     while (true) {
@@ -53,10 +54,18 @@ export async function readSSEStream(
       }
 
       const { done, value } = await reader.read()
-      if (done) break
 
-      const chunk = decoder.decode(value)
-      const lines = chunk.split('\n\n')
+      if (done) {
+        const remaining = decoder.decode()
+        if (remaining) {
+          buffer += remaining
+        }
+        break
+      }
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n\n')
+      buffer = lines.pop() || ''
 
       for (const line of lines) {
         if (line.startsWith('data: ')) {

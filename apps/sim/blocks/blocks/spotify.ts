@@ -1,6 +1,7 @@
 import { SpotifyIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { ToolResponse } from '@/tools/types'
 
 export const SpotifyBlock: BlockConfig<ToolResponse> = {
@@ -450,10 +451,24 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
 
     // === PLAYLIST COVER ===
     {
-      id: 'imageBase64',
-      title: 'Image (Base64)',
-      type: 'long-input',
-      placeholder: 'Base64-encoded JPEG image (max 256KB)',
+      id: 'coverImageFile',
+      title: 'Cover Image',
+      type: 'file-upload',
+      canonicalParamId: 'coverImage',
+      placeholder: 'Upload cover image (JPEG, max 256KB)',
+      mode: 'basic',
+      multiple: false,
+      required: true,
+      acceptedTypes: '.jpg,.jpeg',
+      condition: { field: 'operation', value: 'spotify_add_playlist_cover' },
+    },
+    {
+      id: 'coverImageRef',
+      title: 'Cover Image',
+      type: 'short-input',
+      canonicalParamId: 'coverImage',
+      placeholder: 'Reference image from previous blocks',
+      mode: 'advanced',
       required: true,
       condition: { field: 'operation', value: 'spotify_add_playlist_cover' },
     },
@@ -771,6 +786,10 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         if (params.playUris) {
           params.uris = params.playUris
         }
+        // Normalize file input for cover image
+        if (params.coverImage !== undefined) {
+          params.coverImage = normalizeFileInput(params.coverImage, { single: true })
+        }
         return params.operation || 'spotify_search'
       },
     },
@@ -804,7 +823,7 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     newName: { type: 'string', description: 'New playlist name' },
     description: { type: 'string', description: 'Playlist description' },
     public: { type: 'boolean', description: 'Whether playlist is public' },
-    imageBase64: { type: 'string', description: 'Base64-encoded JPEG image' },
+    coverImage: { type: 'json', description: 'Cover image (UserFile)' },
     range_start: { type: 'number', description: 'Start index for reorder' },
     insert_before: { type: 'number', description: 'Insert before index' },
     range_length: { type: 'number', description: 'Number of items to move' },

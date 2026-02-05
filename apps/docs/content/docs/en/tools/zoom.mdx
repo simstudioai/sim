@@ -49,14 +49,14 @@ Create a new Zoom meeting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Yes | The user ID or email address. Use "me" for the authenticated user. |
-| `topic` | string | Yes | Meeting topic |
+| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
+| `topic` | string | Yes | Meeting topic \(e.g., "Weekly Team Standup" or "Project Review"\) |
 | `type` | number | No | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
 | `startTime` | string | No | Meeting start time in ISO 8601 format \(e.g., 2025-06-03T10:00:00Z\) |
-| `duration` | number | No | Meeting duration in minutes |
+| `duration` | number | No | Meeting duration in minutes \(e.g., 30, 60, 90\) |
 | `timezone` | string | No | Timezone for the meeting \(e.g., America/Los_Angeles\) |
 | `password` | string | No | Meeting password |
-| `agenda` | string | No | Meeting agenda |
+| `agenda` | string | No | Meeting agenda or description text |
 | `hostVideo` | boolean | No | Start with host video on |
 | `participantVideo` | boolean | No | Start with participant video on |
 | `joinBeforeHost` | boolean | No | Allow participants to join before host |
@@ -121,9 +121,9 @@ List all meetings for a Zoom user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Yes | The user ID or email address. Use "me" for the authenticated user. |
+| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
 | `type` | string | No | Meeting type filter: scheduled, live, upcoming, upcoming_meetings, or previous_meetings |
-| `pageSize` | number | No | Number of records per page \(max 300\) |
+| `pageSize` | number | No | Number of records per page, 1-300 \(e.g., 30, 50, 100\) |
 | `nextPageToken` | string | No | Token for pagination to get next page of results |
 
 #### Output
@@ -157,7 +157,7 @@ Get details of a specific Zoom meeting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Yes | The meeting ID |
+| `meetingId` | string | Yes | The meeting ID \(e.g., "1234567890" or "85746065432"\) |
 | `occurrenceId` | string | No | Occurrence ID for recurring meetings |
 | `showPreviousOccurrences` | boolean | No | Show previous occurrences for recurring meetings |
 
@@ -218,14 +218,14 @@ Update an existing Zoom meeting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Yes | The meeting ID to update |
-| `topic` | string | No | Meeting topic |
+| `meetingId` | string | Yes | The meeting ID to update \(e.g., "1234567890" or "85746065432"\) |
+| `topic` | string | No | Meeting topic \(e.g., "Weekly Team Standup" or "Project Review"\) |
 | `type` | number | No | Meeting type: 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time |
 | `startTime` | string | No | Meeting start time in ISO 8601 format \(e.g., 2025-06-03T10:00:00Z\) |
-| `duration` | number | No | Meeting duration in minutes |
+| `duration` | number | No | Meeting duration in minutes \(e.g., 30, 60, 90\) |
 | `timezone` | string | No | Timezone for the meeting \(e.g., America/Los_Angeles\) |
 | `password` | string | No | Meeting password |
-| `agenda` | string | No | Meeting agenda |
+| `agenda` | string | No | Meeting agenda or description text |
 | `hostVideo` | boolean | No | Start with host video on |
 | `participantVideo` | boolean | No | Start with participant video on |
 | `joinBeforeHost` | boolean | No | Allow participants to join before host |
@@ -247,7 +247,7 @@ Delete or cancel a Zoom meeting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Yes | The meeting ID to delete |
+| `meetingId` | string | Yes | The meeting ID to delete \(e.g., "1234567890" or "85746065432"\) |
 | `occurrenceId` | string | No | Occurrence ID for deleting a specific occurrence of a recurring meeting |
 | `scheduleForReminder` | boolean | No | Send cancellation reminder email to registrants |
 | `cancelMeetingReminder` | boolean | No | Send cancellation email to registrants and alternative hosts |
@@ -266,7 +266,7 @@ Get the meeting invitation text for a Zoom meeting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Yes | The meeting ID |
+| `meetingId` | string | Yes | The meeting ID \(e.g., "1234567890" or "85746065432"\) |
 
 #### Output
 
@@ -282,10 +282,10 @@ List all cloud recordings for a Zoom user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Yes | The user ID or email address. Use "me" for the authenticated user. |
+| `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user. |
 | `from` | string | No | Start date in yyyy-mm-dd format \(within last 6 months\) |
 | `to` | string | No | End date in yyyy-mm-dd format |
-| `pageSize` | number | No | Number of records per page \(max 300\) |
+| `pageSize` | number | No | Number of records per page, 1-300 \(e.g., 30, 50, 100\) |
 | `nextPageToken` | string | No | Token for pagination to get next page of results |
 | `trash` | boolean | No | Set to true to list recordings from trash |
 
@@ -332,9 +332,10 @@ Get all recordings for a specific Zoom meeting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Yes | The meeting ID or meeting UUID |
+| `meetingId` | string | Yes | The meeting ID or meeting UUID \(e.g., "1234567890" or "4444AAABBBccccc12345=="\) |
 | `includeFolderItems` | boolean | No | Include items within a folder |
 | `ttl` | number | No | Time to live for download URLs in seconds \(max 604800\) |
+| `downloadFiles` | boolean | No | Download recording files into file outputs |
 
 #### Output
 
@@ -364,6 +365,7 @@ Get all recordings for a specific Zoom meeting
 |     ↳ `download_url` | string | URL to download the recording |
 |     ↳ `status` | string | Recording status |
 |     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
+| `files` | file[] | Downloaded recording files |
 
 ### `zoom_delete_recording`
 
@@ -373,7 +375,7 @@ Delete cloud recordings for a Zoom meeting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Yes | The meeting ID or meeting UUID |
+| `meetingId` | string | Yes | The meeting ID or meeting UUID \(e.g., "1234567890" or "4444AAABBBccccc12345=="\) |
 | `recordingId` | string | No | Specific recording file ID to delete. If not provided, deletes all recordings. |
 | `action` | string | No | Delete action: "trash" \(move to trash\) or "delete" \(permanently delete\) |
 
@@ -391,8 +393,8 @@ List participants from a past Zoom meeting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `meetingId` | string | Yes | The past meeting ID or UUID |
-| `pageSize` | number | No | Number of records per page \(max 300\) |
+| `meetingId` | string | Yes | The past meeting ID or UUID \(e.g., "1234567890" or "4444AAABBBccccc12345=="\) |
+| `pageSize` | number | No | Number of records per page, 1-300 \(e.g., 30, 50, 100\) |
 | `nextPageToken` | string | No | Token for pagination to get next page of results |
 
 #### Output

@@ -44,11 +44,11 @@ Retrieve all deals from Pipedrive with optional filters
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `status` | string | No | Only fetch deals with a specific status. Values: open, won, lost. If omitted, all not deleted deals are returned |
-| `person_id` | string | No | If supplied, only deals linked to the specified person are returned |
-| `org_id` | string | No | If supplied, only deals linked to the specified organization are returned |
-| `pipeline_id` | string | No | If supplied, only deals in the specified pipeline are returned |
+| `person_id` | string | No | If supplied, only deals linked to the specified person are returned \(e.g., "456"\) |
+| `org_id` | string | No | If supplied, only deals linked to the specified organization are returned \(e.g., "789"\) |
+| `pipeline_id` | string | No | If supplied, only deals in the specified pipeline are returned \(e.g., "1"\) |
 | `updated_since` | string | No | If set, only deals updated after this time are returned. Format: 2025-01-01T10:20:00Z |
-| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
 
 #### Output
 
@@ -84,7 +84,7 @@ Retrieve detailed information about a specific deal
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deal_id` | string | Yes | The ID of the deal to retrieve |
+| `deal_id` | string | Yes | The ID of the deal to retrieve \(e.g., "123"\) |
 
 #### Output
 
@@ -101,15 +101,15 @@ Create a new deal in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `title` | string | Yes | The title of the deal |
-| `value` | string | No | The monetary value of the deal |
-| `currency` | string | No | Currency code \(e.g., USD, EUR\) |
-| `person_id` | string | No | ID of the person this deal is associated with |
-| `org_id` | string | No | ID of the organization this deal is associated with |
-| `pipeline_id` | string | No | ID of the pipeline this deal should be placed in |
-| `stage_id` | string | No | ID of the stage this deal should be placed in |
+| `title` | string | Yes | The title of the deal \(e.g., "Enterprise Software License"\) |
+| `value` | string | No | The monetary value of the deal \(e.g., "5000"\) |
+| `currency` | string | No | Currency code \(e.g., "USD", "EUR", "GBP"\) |
+| `person_id` | string | No | ID of the person this deal is associated with \(e.g., "456"\) |
+| `org_id` | string | No | ID of the organization this deal is associated with \(e.g., "789"\) |
+| `pipeline_id` | string | No | ID of the pipeline this deal should be placed in \(e.g., "1"\) |
+| `stage_id` | string | No | ID of the stage this deal should be placed in \(e.g., "2"\) |
 | `status` | string | No | Status of the deal: open, won, lost |
-| `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format |
+| `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format \(e.g., "2025-06-30"\) |
 
 #### Output
 
@@ -126,12 +126,12 @@ Update an existing deal in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deal_id` | string | Yes | The ID of the deal to update |
-| `title` | string | No | New title for the deal |
-| `value` | string | No | New monetary value for the deal |
+| `deal_id` | string | Yes | The ID of the deal to update \(e.g., "123"\) |
+| `title` | string | No | New title for the deal \(e.g., "Updated Enterprise License"\) |
+| `value` | string | No | New monetary value for the deal \(e.g., "7500"\) |
 | `status` | string | No | New status: open, won, lost |
-| `stage_id` | string | No | New stage ID for the deal |
-| `expected_close_date` | string | No | New expected close date in YYYY-MM-DD format |
+| `stage_id` | string | No | New stage ID for the deal \(e.g., "3"\) |
+| `expected_close_date` | string | No | New expected close date in YYYY-MM-DD format \(e.g., "2025-07-15"\) |
 
 #### Output
 
@@ -148,10 +148,11 @@ Retrieve files from Pipedrive with optional filters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deal_id` | string | No | Filter files by deal ID |
-| `person_id` | string | No | Filter files by person ID |
-| `org_id` | string | No | Filter files by organization ID |
-| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+| `deal_id` | string | No | Filter files by deal ID \(e.g., "123"\) |
+| `person_id` | string | No | Filter files by person ID \(e.g., "456"\) |
+| `org_id` | string | No | Filter files by organization ID \(e.g., "789"\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
+| `downloadFiles` | boolean | No | Download file contents into file outputs |
 
 #### Output
 
@@ -168,6 +169,7 @@ Retrieve files from Pipedrive with optional filters
 |   ↳ `person_id` | number | Associated person ID |
 |   ↳ `org_id` | number | Associated organization ID |
 |   ↳ `url` | string | File download URL |
+| `downloadedFiles` | file[] | Downloaded files from Pipedrive |
 | `total_items` | number | Total number of files returned |
 | `success` | boolean | Operation success status |
 
@@ -180,7 +182,7 @@ Retrieve mail threads from Pipedrive mailbox
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `folder` | string | No | Filter by folder: inbox, drafts, sent, archive \(default: inbox\) |
-| `limit` | string | No | Number of results to return \(default: 50\) |
+| `limit` | string | No | Number of results to return \(e.g., "25", default: 50\) |
 
 #### Output
 
@@ -198,7 +200,7 @@ Retrieve all messages from a specific mail thread
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `thread_id` | string | Yes | The ID of the mail thread |
+| `thread_id` | string | Yes | The ID of the mail thread \(e.g., "12345"\) |
 
 #### Output
 
@@ -218,7 +220,7 @@ Retrieve all pipelines from Pipedrive
 | --------- | ---- | -------- | ----------- |
 | `sort_by` | string | No | Field to sort by: id, update_time, add_time \(default: id\) |
 | `sort_direction` | string | No | Sorting direction: asc, desc \(default: asc\) |
-| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
 | `cursor` | string | No | For pagination, the marker representing the first item on the next page |
 
 #### Output
@@ -245,10 +247,10 @@ Retrieve all deals in a specific pipeline
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `pipeline_id` | string | Yes | The ID of the pipeline |
-| `stage_id` | string | No | Filter by specific stage within the pipeline |
+| `pipeline_id` | string | Yes | The ID of the pipeline \(e.g., "1"\) |
+| `stage_id` | string | No | Filter by specific stage within the pipeline \(e.g., "2"\) |
 | `status` | string | No | Filter by deal status: open, won, lost |
-| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
 
 #### Output
 
@@ -266,9 +268,9 @@ Retrieve all projects or a specific project from Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `project_id` | string | No | Optional: ID of a specific project to retrieve |
+| `project_id` | string | No | Optional: ID of a specific project to retrieve \(e.g., "123"\) |
 | `status` | string | No | Filter by project status: open, completed, deleted \(only for listing all\) |
-| `limit` | string | No | Number of results to return \(default: 100, max: 500, only for listing all\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500, only for listing all\) |
 
 #### Output
 
@@ -287,10 +289,10 @@ Create a new project in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `title` | string | Yes | The title of the project |
+| `title` | string | Yes | The title of the project \(e.g., "Q2 Marketing Campaign"\) |
 | `description` | string | No | Description of the project |
-| `start_date` | string | No | Project start date in YYYY-MM-DD format |
-| `end_date` | string | No | Project end date in YYYY-MM-DD format |
+| `start_date` | string | No | Project start date in YYYY-MM-DD format \(e.g., "2025-04-01"\) |
+| `end_date` | string | No | Project end date in YYYY-MM-DD format \(e.g., "2025-06-30"\) |
 
 #### Output
 
@@ -307,12 +309,12 @@ Retrieve activities (tasks) from Pipedrive with optional filters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deal_id` | string | No | Filter activities by deal ID |
-| `person_id` | string | No | Filter activities by person ID |
-| `org_id` | string | No | Filter activities by organization ID |
+| `deal_id` | string | No | Filter activities by deal ID \(e.g., "123"\) |
+| `person_id` | string | No | Filter activities by person ID \(e.g., "456"\) |
+| `org_id` | string | No | Filter activities by organization ID \(e.g., "789"\) |
 | `type` | string | No | Filter by activity type \(call, meeting, task, deadline, email, lunch\) |
 | `done` | string | No | Filter by completion status: 0 for not done, 1 for done |
-| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
 
 #### Output
 
@@ -343,14 +345,14 @@ Create a new activity (task) in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `subject` | string | Yes | The subject/title of the activity |
+| `subject` | string | Yes | The subject/title of the activity \(e.g., "Follow up call with John"\) |
 | `type` | string | Yes | Activity type: call, meeting, task, deadline, email, lunch |
-| `due_date` | string | Yes | Due date in YYYY-MM-DD format |
-| `due_time` | string | No | Due time in HH:MM format |
-| `duration` | string | No | Duration in HH:MM format |
-| `deal_id` | string | No | ID of the deal to associate with |
-| `person_id` | string | No | ID of the person to associate with |
-| `org_id` | string | No | ID of the organization to associate with |
+| `due_date` | string | Yes | Due date in YYYY-MM-DD format \(e.g., "2025-03-15"\) |
+| `due_time` | string | No | Due time in HH:MM format \(e.g., "14:30"\) |
+| `duration` | string | No | Duration in HH:MM format \(e.g., "01:00" for 1 hour\) |
+| `deal_id` | string | No | ID of the deal to associate with \(e.g., "123"\) |
+| `person_id` | string | No | ID of the person to associate with \(e.g., "456"\) |
+| `org_id` | string | No | ID of the organization to associate with \(e.g., "789"\) |
 | `note` | string | No | Notes for the activity |
 
 #### Output
@@ -368,11 +370,11 @@ Update an existing activity (task) in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `activity_id` | string | Yes | The ID of the activity to update |
-| `subject` | string | No | New subject/title for the activity |
-| `due_date` | string | No | New due date in YYYY-MM-DD format |
-| `due_time` | string | No | New due time in HH:MM format |
-| `duration` | string | No | New duration in HH:MM format |
+| `activity_id` | string | Yes | The ID of the activity to update \(e.g., "12345"\) |
+| `subject` | string | No | New subject/title for the activity \(e.g., "Updated meeting with client"\) |
+| `due_date` | string | No | New due date in YYYY-MM-DD format \(e.g., "2025-03-20"\) |
+| `due_time` | string | No | New due time in HH:MM format \(e.g., "15:00"\) |
+| `duration` | string | No | New duration in HH:MM format \(e.g., "00:30" for 30 minutes\) |
 | `done` | string | No | Mark as done: 0 for not done, 1 for done |
 | `note` | string | No | New notes for the activity |
 
@@ -391,12 +393,12 @@ Retrieve all leads or a specific lead from Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `lead_id` | string | No | Optional: ID of a specific lead to retrieve |
-| `archived` | string | No | Get archived leads instead of active ones |
-| `owner_id` | string | No | Filter by owner user ID |
-| `person_id` | string | No | Filter by person ID |
-| `organization_id` | string | No | Filter by organization ID |
-| `limit` | string | No | Number of results to return \(default: 100, max: 500\) |
+| `lead_id` | string | No | Optional: ID of a specific lead to retrieve \(e.g., "abc123-def456-ghi789"\) |
+| `archived` | string | No | Get archived leads instead of active ones \(e.g., "true" or "false"\) |
+| `owner_id` | string | No | Filter by owner user ID \(e.g., "123"\) |
+| `person_id` | string | No | Filter by person ID \(e.g., "456"\) |
+| `organization_id` | string | No | Filter by organization ID \(e.g., "789"\) |
+| `limit` | string | No | Number of results to return \(e.g., "50", default: 100, max: 500\) |
 
 #### Output
 
@@ -441,13 +443,13 @@ Create a new lead in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `title` | string | Yes | The name of the lead |
-| `person_id` | string | No | ID of the person \(REQUIRED unless organization_id is provided\) |
-| `organization_id` | string | No | ID of the organization \(REQUIRED unless person_id is provided\) |
-| `owner_id` | string | No | ID of the user who will own the lead |
-| `value_amount` | string | No | Potential value amount |
-| `value_currency` | string | No | Currency code \(e.g., USD, EUR\) |
-| `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format |
+| `title` | string | Yes | The name of the lead \(e.g., "Acme Corp - Website Redesign"\) |
+| `person_id` | string | No | ID of the person \(REQUIRED unless organization_id is provided\) \(e.g., "456"\) |
+| `organization_id` | string | No | ID of the organization \(REQUIRED unless person_id is provided\) \(e.g., "789"\) |
+| `owner_id` | string | No | ID of the user who will own the lead \(e.g., "123"\) |
+| `value_amount` | string | No | Potential value amount \(e.g., "10000"\) |
+| `value_currency` | string | No | Currency code \(e.g., "USD", "EUR", "GBP"\) |
+| `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format \(e.g., "2025-04-15"\) |
 | `visible_to` | string | No | Visibility: 1 \(Owner & followers\), 3 \(Entire company\) |
 
 #### Output
@@ -465,14 +467,14 @@ Update an existing lead in Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `lead_id` | string | Yes | The ID of the lead to update |
-| `title` | string | No | New name for the lead |
-| `person_id` | string | No | New person ID |
-| `organization_id` | string | No | New organization ID |
-| `owner_id` | string | No | New owner user ID |
-| `value_amount` | string | No | New value amount |
-| `value_currency` | string | No | New currency code \(e.g., USD, EUR\) |
-| `expected_close_date` | string | No | New expected close date in YYYY-MM-DD format |
+| `lead_id` | string | Yes | The ID of the lead to update \(e.g., "abc123-def456-ghi789"\) |
+| `title` | string | No | New name for the lead \(e.g., "Updated Lead - Premium Package"\) |
+| `person_id` | string | No | New person ID \(e.g., "456"\) |
+| `organization_id` | string | No | New organization ID \(e.g., "789"\) |
+| `owner_id` | string | No | New owner user ID \(e.g., "123"\) |
+| `value_amount` | string | No | New value amount \(e.g., "15000"\) |
+| `value_currency` | string | No | New currency code \(e.g., "USD", "EUR", "GBP"\) |
+| `expected_close_date` | string | No | New expected close date in YYYY-MM-DD format \(e.g., "2025-05-01"\) |
 | `is_archived` | string | No | Archive the lead: true or false |
 
 #### Output
@@ -490,7 +492,7 @@ Delete a specific lead from Pipedrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `lead_id` | string | Yes | The ID of the lead to delete |
+| `lead_id` | string | Yes | The ID of the lead to delete \(e.g., "abc123-def456-ghi789"\) |
 
 #### Output
 

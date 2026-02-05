@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, ORGANIZATION_OUTPUT_PROPERTIES } from './types'
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  ORGANIZATION_OUTPUT_PROPERTIES,
+} from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskUpdateOrganization')
 
@@ -57,44 +61,44 @@ export const zendeskUpdateOrganizationTool: ToolConfig<
     organizationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Organization ID to update',
+      visibility: 'user-or-llm',
+      description: 'Organization ID to update as a numeric string (e.g., "12345")',
     },
     name: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'New organization name',
+      visibility: 'user-or-llm',
+      description: 'New organization name (e.g., "Acme Corporation")',
     },
     domainNames: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated domain names',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated domain names (e.g., "acme.com, acme.org")',
     },
     details: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization details',
+      visibility: 'user-or-llm',
+      description: 'Organization details text',
     },
     notes: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Organization notes',
+      visibility: 'user-or-llm',
+      description: 'Organization notes text',
     },
     tags: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated tags',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated tags (e.g., "enterprise, priority")',
     },
     customFields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Custom fields as JSON object',
+      visibility: 'user-or-llm',
+      description: 'Custom fields as JSON object (e.g., {"field_id": "value"})',
     },
   },
 

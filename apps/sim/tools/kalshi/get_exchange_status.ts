@@ -1,6 +1,6 @@
+import type { KalshiExchangeStatus } from '@/tools/kalshi/types'
+import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiExchangeStatus } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
 
 export type KalshiGetExchangeStatusParams = Record<string, never>
 

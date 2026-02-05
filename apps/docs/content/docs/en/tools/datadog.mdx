@@ -60,9 +60,9 @@ Query metric timeseries data from Datadog. Use for analyzing trends, creating re
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Datadog metrics query \(e.g., "avg:system.cpu.user\{*\}"\) |
-| `from` | number | Yes | Start time as Unix timestamp in seconds |
-| `to` | number | Yes | End time as Unix timestamp in seconds |
+| `query` | string | Yes | Datadog metrics query \(e.g., "avg:system.cpu.user\{*\}", "sum:nginx.requests\{env:prod\}.as_count\(\)"\) |
+| `from` | number | Yes | Start time as Unix timestamp in seconds \(e.g., 1705320000\) |
+| `to` | number | Yes | End time as Unix timestamp in seconds \(e.g., 1705323600\) |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
@@ -86,11 +86,11 @@ Post an event to the Datadog event stream. Use for deployment notifications, ale
 | `text` | string | Yes | Event body/description. Supports markdown. |
 | `alertType` | string | No | Alert type: error, warning, info, success, user_update, recommendation, or snapshot |
 | `priority` | string | No | Event priority: normal or low |
-| `host` | string | No | Host name to associate with this event |
-| `tags` | string | No | Comma-separated list of tags \(e.g., "env:production,service:api"\) |
+| `host` | string | No | Host name to associate with this event \(e.g., "web-server-01", "prod-api-1"\) |
+| `tags` | string | No | Comma-separated list of tags \(e.g., "env:production,service:api", "team:backend,priority:high"\) |
 | `aggregationKey` | string | No | Key to aggregate events together |
 | `sourceTypeName` | string | No | Source type name for the event |
-| `dateHappened` | number | No | Unix timestamp when the event occurred \(defaults to now\) |
+| `dateHappened` | number | No | Unix timestamp in seconds when the event occurred \(e.g., 1705320000, defaults to now\) |
 | `apiKey` | string | Yes | Datadog API key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
 
@@ -119,7 +119,7 @@ Create a new monitor/alert in Datadog. Monitors can track metrics, service check
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Monitor name |
 | `type` | string | Yes | Monitor type: metric alert, service check, event alert, process alert, log alert, query alert, composite, synthetics alert, slo alert |
-| `query` | string | Yes | Monitor query \(e.g., "avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20"\) |
+| `query` | string | Yes | Monitor query \(e.g., "avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20", "logs\(\"status:error\"\).index\(\"main\"\).rollup\(\"count\"\).last\(\"5m\"\) &gt; 100"\) |
 | `message` | string | No | Message to include with notifications. Can include @-mentions and markdown. |
 | `tags` | string | No | Comma-separated list of tags |
 | `priority` | number | No | Monitor priority \(1-5, where 1 is highest\) |
@@ -152,8 +152,8 @@ Retrieve details of a specific monitor by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `monitorId` | string | Yes | The ID of the monitor to retrieve |
-| `groupStates` | string | No | Comma-separated group states to include: alert, warn, no data, ok |
+| `monitorId` | string | Yes | The ID of the monitor to retrieve \(e.g., "12345678"\) |
+| `groupStates` | string | No | Comma-separated group states to include \(e.g., "alert,warn", "alert,warn,no data,ok"\) |
 | `withDowntimes` | boolean | No | Include downtime data with the monitor |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
@@ -183,13 +183,13 @@ List all monitors in Datadog with optional filtering by name, tags, or state.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `groupStates` | string | No | Comma-separated group states to filter by: alert, warn, no data, ok |
-| `name` | string | No | Filter monitors by name \(partial match\) |
-| `tags` | string | No | Comma-separated list of tags to filter by |
-| `monitorTags` | string | No | Comma-separated list of monitor tags to filter by |
+| `groupStates` | string | No | Comma-separated group states to filter by \(e.g., "alert,warn", "alert,warn,no data,ok"\) |
+| `name` | string | No | Filter monitors by name with partial match \(e.g., "CPU", "Production"\) |
+| `tags` | string | No | Comma-separated list of tags to filter by \(e.g., "env:prod,team:backend"\) |
+| `monitorTags` | string | No | Comma-separated list of monitor tags to filter by \(e.g., "service:api,priority:high"\) |
 | `withDowntimes` | boolean | No | Include downtime data with monitors |
-| `page` | number | No | Page number for pagination \(0-indexed\) |
-| `pageSize` | number | No | Number of monitors per page \(max 1000\) |
+| `page` | number | No | Page number for pagination \(0-indexed, e.g., 0, 1, 2\) |
+| `pageSize` | number | No | Number of monitors per page \(e.g., 50, max: 1000\) |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
@@ -214,9 +214,9 @@ Mute a monitor to temporarily suppress notifications.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `monitorId` | string | Yes | The ID of the monitor to mute |
-| `scope` | string | No | Scope to mute \(e.g., "host:myhost"\). If not specified, mutes all scopes. |
-| `end` | number | No | Unix timestamp when the mute should end. If not specified, mutes indefinitely. |
+| `monitorId` | string | Yes | The ID of the monitor to mute \(e.g., "12345678"\) |
+| `scope` | string | No | Scope to mute \(e.g., "host:myhost", "env:prod"\). If not specified, mutes all scopes. |
+| `end` | number | No | Unix timestamp in seconds when the mute should end \(e.g., 1705323600\). If not specified, mutes indefinitely. |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
@@ -235,11 +235,11 @@ Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or mon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Log search query \(e.g., "service:web-app status:error"\) |
-| `from` | string | Yes | Start time in ISO-8601 format or relative \(e.g., "now-1h"\) |
-| `to` | string | Yes | End time in ISO-8601 format or relative \(e.g., "now"\) |
-| `limit` | number | No | Maximum number of logs to return \(default: 50, max: 1000\) |
-| `sort` | string | No | Sort order: timestamp \(oldest first\) or -timestamp \(newest first\) |
+| `query` | string | Yes | Log search query using Datadog query syntax \(e.g., "service:web-app status:error", "host:prod-* @http.status_code:500"\) |
+| `from` | string | Yes | Start time in ISO-8601 format or relative time \(e.g., "now-1h", "now-15m", "2024-01-15T10:00:00Z"\) |
+| `to` | string | Yes | End time in ISO-8601 format or relative time \(e.g., "now", "now-5m", "2024-01-15T12:00:00Z"\) |
+| `limit` | number | No | Maximum number of logs to return \(e.g., 50, 100, max: 1000\) |
+| `sort` | string | No | Sort order: "timestamp" for oldest first, "-timestamp" for newest first |
 | `indexes` | string | No | Comma-separated list of log indexes to search |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
@@ -287,10 +287,10 @@ Schedule a downtime to suppress monitor notifications during maintenance windows
 | --------- | ---- | -------- | ----------- |
 | `scope` | string | Yes | Scope to apply downtime to \(e.g., "host:myhost", "env:production", or "*" for all\) |
 | `message` | string | No | Message to display during downtime |
-| `start` | number | No | Unix timestamp for downtime start \(defaults to now\) |
-| `end` | number | No | Unix timestamp for downtime end |
-| `timezone` | string | No | Timezone for the downtime \(e.g., "America/New_York"\) |
-| `monitorId` | string | No | Specific monitor ID to mute |
+| `start` | number | No | Unix timestamp for downtime start in seconds \(e.g., 1705320000, defaults to now\) |
+| `end` | number | No | Unix timestamp for downtime end in seconds \(e.g., 1705323600\) |
+| `timezone` | string | No | Timezone for the downtime \(e.g., "America/New_York", "UTC", "Europe/London"\) |
+| `monitorId` | string | No | Specific monitor ID to mute \(e.g., "12345678"\) |
 | `monitorTags` | string | No | Comma-separated monitor tags to match \(e.g., "team:backend,priority:high"\) |
 | `muteFirstRecoveryNotification` | boolean | No | Mute the first recovery notification |
 | `apiKey` | string | Yes | Datadog API key |
@@ -318,7 +318,7 @@ List all scheduled downtimes in Datadog.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `currentOnly` | boolean | No | Only return currently active downtimes |
-| `monitorId` | string | No | Filter by monitor ID |
+| `monitorId` | string | No | Filter by monitor ID \(e.g., "12345678"\) |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
@@ -343,7 +343,7 @@ Cancel a scheduled downtime.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `downtimeId` | string | Yes | The ID of the downtime to cancel |
+| `downtimeId` | string | Yes | The ID of the downtime to cancel \(e.g., "abc123def456"\) |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |

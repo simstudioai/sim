@@ -19,6 +19,7 @@ export interface ExecuteWorkflowOptions {
   skipLoggingComplete?: boolean
   includeFileBase64?: boolean
   base64MaxBytes?: number
+  abortSignal?: AbortSignal
 }
 
 export interface WorkflowInfo {
@@ -82,6 +83,7 @@ export async function executeWorkflow(
       loggingSession,
       includeFileBase64: streamConfig?.includeFileBase64,
       base64MaxBytes: streamConfig?.base64MaxBytes,
+      abortSignal: streamConfig?.abortSignal,
     })
 
     if (result.status === 'paused') {

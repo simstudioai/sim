@@ -1,6 +1,9 @@
+import type {
+  SpotifyGetArtistTopTracksParams,
+  SpotifyGetArtistTopTracksResponse,
+} from '@/tools/spotify/types'
+import { ARTIST_TOP_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetArtistTopTracksParams, SpotifyGetArtistTopTracksResponse } from './types'
-import { ARTIST_TOP_TRACK_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetArtistTopTracksTool: ToolConfig<
   SpotifyGetArtistTopTracksParams,
@@ -26,9 +29,10 @@ export const spotifyGetArtistTopTracksTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 'US',
-      description: 'ISO 3166-1 alpha-2 country code (required for this endpoint)',
+      description:
+        'ISO 3166-1 alpha-2 country code (e.g., "US", "GB") - required for this endpoint',
     },
   },
 

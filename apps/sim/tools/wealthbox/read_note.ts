@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WealthboxReadParams, WealthboxReadResponse } from '@/tools/wealthbox/types'
-
-const logger = createLogger('WealthboxReadNote')
 
 export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxReadResponse> = {
   id: 'wealthbox_read_note',
@@ -20,8 +17,8 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
     noteId: {
       type: 'string',
       required: false,
-      description: 'The ID of the note to read',
-      visibility: 'user-only',
+      description: 'The ID of the note to read (e.g., "11111")',
+      visibility: 'user-or-llm',
     },
   },
 

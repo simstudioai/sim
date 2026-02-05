@@ -24,8 +24,8 @@ export const introspectTool: ToolConfig<Neo4jIntrospectParams, Neo4jIntrospectRe
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., "neo4j", "movies", "social")',
     },
     username: {
       type: 'string',

@@ -50,7 +50,7 @@ Capture a single event in PostHog. Use this to track user actions, page views, o
 | `projectApiKey` | string | Yes | PostHog Project API Key \(public token for event ingestion\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
 | `event` | string | Yes | The name of the event to capture \(e.g., "page_view", "button_clicked"\) |
-| `distinctId` | string | Yes | Unique identifier for the user or device. Can be user ID, device ID, or anonymous ID |
+| `distinctId` | string | Yes | Unique identifier for the user or device \(e.g., "user123", email, or device UUID\) |
 | `properties` | string | No | JSON string of event properties \(e.g., \{"button_name": "signup", "page": "homepage"\}\) |
 | `timestamp` | string | No | ISO 8601 timestamp for when the event occurred. If not provided, uses current time |
 
@@ -89,9 +89,9 @@ List persons (users) in PostHog. Returns user profiles with their properties and
 | --------- | ---- | -------- | ----------- |
 | `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `limit` | number | No | Number of persons to return \(default: 100, max: 100\) |
-| `offset` | number | No | Number of persons to skip for pagination |
+| `offset` | number | No | Number of persons to skip for pagination \(e.g., 0, 100, 200\) |
 | `search` | string | No | Search persons by email, name, or distinct ID |
 | `distinctId` | string | No | Filter by specific distinct_id |
 
@@ -117,8 +117,8 @@ Get detailed information about a specific person in PostHog by their ID or UUID.
 | --------- | ---- | -------- | ----------- |
 | `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
-| `projectId` | string | Yes | PostHog Project ID |
-| `personId` | string | Yes | Person ID or UUID to retrieve |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `personId` | string | Yes | Person ID or UUID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 
 #### Output
 
@@ -141,8 +141,8 @@ Delete a person from PostHog. This will remove all associated events and data. U
 | --------- | ---- | -------- | ----------- |
 | `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
-| `projectId` | string | Yes | PostHog Project ID |
-| `personId` | string | Yes | Person ID or UUID to delete |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `personId` | string | Yes | Person ID or UUID to delete \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 
 #### Output
 
@@ -160,11 +160,9 @@ Execute a HogQL query in PostHog. HogQL is PostHog
 | --------- | ---- | -------- | ----------- |
 | `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `query` | string | Yes | HogQL query to execute. Example: \{"kind": "HogQLQuery", "query": "SELECT event, count\(\) FROM events WHERE timestamp &gt; now\(\) - INTERVAL 1 DAY GROUP BY event"\} |
-| `Example` | string | No | No description |
 | `values` | string | No | Optional JSON string of parameter values for parameterized queries. Example: \{"user_id": "123"\} |
-| `Example` | string | No | No description |
 
 #### Output
 
@@ -185,10 +183,10 @@ List all insights in a PostHog project. Returns insight configurations, filters,
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
-| `limit` | number | No | Number of results to return per page \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -219,8 +217,8 @@ Get a specific insight by ID from PostHog. Returns detailed insight configuratio
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
-| `insightId` | string | Yes | The insight ID to retrieve |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `insightId` | string | Yes | The insight ID to retrieve \(e.g., "42" or short ID like "abc123"\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
 
 #### Output
@@ -250,7 +248,7 @@ Create a new insight in PostHog. Requires insight name and configuration filters
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
 | `name` | string | No | Name for the insight \(optional - PostHog will generate a derived name if not provided\) |
 | `description` | string | No | Description of the insight |
@@ -284,10 +282,10 @@ List all dashboards in a PostHog project. Returns dashboard configurations, tile
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
-| `limit` | number | No | Number of results to return per page \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -318,8 +316,8 @@ Get a specific dashboard by ID from PostHog. Returns detailed dashboard configur
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
-| `dashboardId` | string | Yes | The dashboard ID to retrieve |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `dashboardId` | string | Yes | The dashboard ID to retrieve \(e.g., "42"\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
 
 #### Output
@@ -348,10 +346,10 @@ List all actions in a PostHog project. Returns action definitions, steps, and me
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
-| `limit` | number | No | Number of results to return per page \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -383,10 +381,10 @@ List all cohorts in a PostHog project. Returns cohort definitions, filters, and 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
-| `limit` | number | No | Number of results to return per page \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -420,8 +418,8 @@ Get a specific cohort by ID from PostHog. Returns detailed cohort definition, fi
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
-| `cohortId` | string | Yes | The cohort ID to retrieve |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `cohortId` | string | Yes | The cohort ID to retrieve \(e.g., "42"\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
 
 #### Output
@@ -453,7 +451,7 @@ Create a new cohort in PostHog. Requires cohort name and filter or query configu
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
 | `name` | string | No | Name for the cohort \(optional - PostHog will use "Untitled cohort" if not provided\) |
 | `description` | string | No | Description of the cohort |
@@ -489,10 +487,10 @@ List all annotations in a PostHog project. Returns annotation content, timestamp
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
-| `limit` | number | No | Number of results to return per page \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -523,7 +521,7 @@ Create a new annotation in PostHog. Mark important events on your graphs with da
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
 | `content` | string | Yes | Content/text of the annotation |
 | `date_marker` | string | Yes | ISO timestamp marking when the annotation applies \(e.g., "2024-01-15T10:00:00Z"\) |
@@ -555,11 +553,11 @@ List all feature flags in a PostHog project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `limit` | number | No | Number of results to return |
-| `offset` | number | No | Number of results to skip |
+| `limit` | number | No | Number of results to return \(e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -589,8 +587,8 @@ Get details of a specific feature flag
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
-| `flagId` | string | Yes | The feature flag ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `flagId` | string | Yes | The feature flag ID \(e.g., "42"\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 
@@ -621,7 +619,7 @@ Create a new feature flag in PostHog
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `name` | string | No | Feature flag name \(optional - can be empty\) |
@@ -656,8 +654,8 @@ Update an existing feature flag in PostHog
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
-| `flagId` | string | Yes | The feature flag ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `flagId` | string | Yes | The feature flag ID \(e.g., "42"\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `name` | string | No | Feature flag name |
@@ -692,8 +690,8 @@ Delete a feature flag from PostHog
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
-| `flagId` | string | Yes | The feature flag ID to delete |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `flagId` | string | Yes | The feature flag ID to delete \(e.g., "42"\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 
@@ -714,7 +712,7 @@ Evaluate feature flags for a specific user or group. This is a public endpoint t
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `projectApiKey` | string | Yes | PostHog Project API Key \(not personal API key\) |
-| `distinctId` | string | Yes | The distinct ID of the user to evaluate flags for |
+| `distinctId` | string | Yes | The distinct ID of the user to evaluate flags for \(e.g., "user123" or email\) |
 | `groups` | string | No | Groups as JSON string \(e.g., \{"company": "company_id_in_your_db"\}\) |
 | `personProperties` | string | No | Person properties as JSON string |
 | `groupProperties` | string | No | Group properties as JSON string |
@@ -735,11 +733,11 @@ List all experiments in a PostHog project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `limit` | number | No | Number of results to return |
-| `offset` | number | No | Number of results to skip |
+| `limit` | number | No | Number of results to return \(e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -771,8 +769,8 @@ Get details of a specific experiment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
-| `experimentId` | string | Yes | The experiment ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `experimentId` | string | Yes | The experiment ID \(e.g., "42"\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 
@@ -805,7 +803,7 @@ Create a new experiment in PostHog
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | The PostHog project ID |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `name` | string | No | Experiment name \(optional\) |
@@ -845,10 +843,10 @@ List all surveys in a PostHog project. Surveys allow you to collect feedback fro
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
-| `limit` | number | No | Number of results to return \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results to return \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -877,8 +875,8 @@ Get details of a specific survey in PostHog by ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | PostHog Project ID |
-| `surveyId` | string | Yes | Survey ID to retrieve |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `surveyId` | string | Yes | Survey ID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
 
 #### Output
@@ -909,7 +907,7 @@ Create a new survey in PostHog. Supports question types: Basic (open), Link, Rat
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
 | `name` | string | No | Survey name \(optional\) |
 | `description` | string | No | Survey description |
@@ -946,8 +944,8 @@ Update an existing survey in PostHog. Can modify questions, appearance, conditio
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | PostHog Project ID |
-| `surveyId` | string | Yes | Survey ID to update |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `surveyId` | string | Yes | Survey ID to update \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
 | `name` | string | No | Survey name |
 | `description` | string | No | Survey description |
@@ -986,10 +984,10 @@ List session recordings in a PostHog project. Session recordings capture user in
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
-| `limit` | number | No | Number of results to return \(default: 50\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results to return \(default: 50, e.g., 10, 25, 50\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 50, 100\) |
 
 #### Output
 
@@ -1023,8 +1021,8 @@ Get details of a specific session recording in PostHog by ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | PostHog Project ID |
-| `recordingId` | string | Yes | Session recording ID to retrieve |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `recordingId` | string | Yes | Session recording ID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
 
 #### Output
@@ -1058,10 +1056,10 @@ List session recording playlists in a PostHog project. Playlists allow you to or
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
-| `limit` | number | No | Number of results to return \(default: 100\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results to return \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
 #### Output
 
@@ -1091,11 +1089,11 @@ List all event definitions in a PostHog project. Event definitions represent tra
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `limit` | number | No | Number of results to return per page \(default: 100\) |
-| `offset` | number | No | The initial index from which to return results |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | The initial index from which to return results \(e.g., 0, 100, 200\) |
 | `search` | string | No | Search term to filter event definitions by name |
 
 #### Output
@@ -1125,7 +1123,7 @@ Get details of a specific event definition in PostHog. Returns comprehensive inf
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `eventDefinitionId` | string | Yes | Event Definition ID to retrieve |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
@@ -1156,7 +1154,7 @@ Update an event definition in PostHog. Can modify description, tags, and verific
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `eventDefinitionId` | string | Yes | Event Definition ID to update |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
@@ -1190,11 +1188,11 @@ List all property definitions in a PostHog project. Property definitions represe
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `limit` | number | No | Number of results to return per page \(default: 100\) |
-| `offset` | number | No | The initial index from which to return results |
+| `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
+| `offset` | number | No | The initial index from which to return results \(e.g., 0, 100, 200\) |
 | `search` | string | No | Search term to filter property definitions by name |
 | `type` | string | No | Filter by property type: event, person, or group |
 
@@ -1228,7 +1226,7 @@ Get details of a specific property definition in PostHog. Returns comprehensive 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `propertyDefinitionId` | string | Yes | Property Definition ID to retrieve |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
@@ -1263,7 +1261,7 @@ Update a property definition in PostHog. Can modify description, tags, property 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | PostHog Project ID |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `propertyDefinitionId` | string | Yes | Property Definition ID to update |
 | `region` | string | Yes | PostHog cloud region: us or eu |
 | `apiKey` | string | Yes | PostHog Personal API Key |
@@ -1335,7 +1333,7 @@ Get detailed information about a specific project by ID. Returns comprehensive p
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Project ID \(numeric ID or UUID\) |
+| `projectId` | string | Yes | Project ID \(e.g., "12345" or project UUID\) |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `region` | string | No | Cloud region: us or eu \(default: us\) |
 
@@ -1402,7 +1400,7 @@ Get detailed information about a specific organization by ID. Returns comprehens
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `organizationId` | string | Yes | Organization ID \(UUID\) |
+| `organizationId` | string | Yes | Organization ID \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `region` | string | No | Cloud region: us or eu \(default: us\) |
 

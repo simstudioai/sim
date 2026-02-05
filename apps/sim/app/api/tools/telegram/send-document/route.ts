@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { convertMarkdownToHTML } from '@/tools/telegram/utils'
@@ -14,7 +15,7 @@ const logger = createLogger('TelegramSendDocumentAPI')
 const TelegramSendDocumentSchema = z.object({
   botToken: z.string().min(1, 'Bot token is required'),
   chatId: z.string().min(1, 'Chat ID is required'),
-  files: z.array(z.any()).optional().nullable(),
+  files: RawFileInputArraySchema.optional().nullable(),
   caption: z.string().optional().nullable(),
 })
 
@@ -93,6 +94,14 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Uploading document: ${userFile.name}`)
 
     const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+    const filesOutput = [
+      {
+        name: userFile.name,
+        mimeType: userFile.type || 'application/octet-stream',
+        data: buffer.toString('base64'),
+        size: buffer.length,
+      },
+    ]
 
     logger.info(`[${requestId}] Downloaded file: ${buffer.length} bytes`)
 
@@ -135,6 +144,7 @@ export async function POST(request: NextRequest) {
       output: {
         message: 'Document sent successfully',
         data: data.result,
+        files: filesOutput,
       },
     })
   } catch (error) {

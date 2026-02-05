@@ -23,8 +23,8 @@ export const executeTool: ToolConfig<MySQLExecuteParams, MySQLResponse> = {
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Database name to connect to',
+      visibility: 'user-or-llm',
+      description: 'Database name to connect to (e.g., my_database)',
     },
     username: {
       type: 'string',
@@ -48,7 +48,8 @@ export const executeTool: ToolConfig<MySQLExecuteParams, MySQLResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Raw SQL query to execute',
+      description:
+        'Raw SQL query to execute (e.g., CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255)))',
     },
   },
 

@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AGENT, isCustomTool } from '@/executor/constants'
 import { getCustomTool } from '@/hooks/queries/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
-import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ToolsUtils')
 
@@ -70,7 +70,7 @@ export function resolveToolId(toolName: string): string {
   return toolName
 }
 
-interface RequestParams {
+export interface RequestParams {
   url: string
   method: string
   headers: Record<string, string>
@@ -123,9 +123,7 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     }
   }
 
-  // Get timeout from params (if specified) and validate
-  // Must be a finite positive number, max 600000ms (10 minutes) as documented
-  const MAX_TIMEOUT_MS = 600000
+  const MAX_TIMEOUT_MS = getMaxExecutionTimeout()
   const rawTimeout = params.timeout
   const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
   const validTimeout =
@@ -134,57 +132,6 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
       : undefined
 
   return { url, method, headers, body, timeout: validTimeout }
-}
-
-/**
- * Execute the actual request and transform the response
- */
-export async function executeRequest(
-  toolId: string,
-  tool: ToolConfig,
-  requestParams: RequestParams
-): Promise<ToolResponse> {
-  try {
-    const { url, method, headers, body } = requestParams
-
-    const externalResponse = await fetch(url, { method, headers, body })
-
-    if (!externalResponse.ok) {
-      let errorData: any
-      try {
-        errorData = await externalResponse.json()
-      } catch (_e) {
-        try {
-          errorData = await externalResponse.text()
-        } catch (_e2) {
-          errorData = null
-        }
-      }
-
-      const error = extractErrorMessage({
-        status: externalResponse.status,
-        statusText: externalResponse.statusText,
-        data: errorData,
-      })
-      logger.error(`${toolId} error:`, { error })
-      throw new Error(error)
-    }
-
-    const transformResponse =
-      tool.transformResponse ||
-      (async (resp: Response) => ({
-        success: true,
-        output: await resp.json(),
-      }))
-
-    return await transformResponse(externalResponse)
-  } catch (error: any) {
-    return {
-      success: false,
-      output: {},
-      error: error.message || 'Unknown error',
-    }
-  }
 }
 
 /**

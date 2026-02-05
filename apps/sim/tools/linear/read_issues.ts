@@ -17,14 +17,14 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     teamId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Linear team ID to filter by',
+      visibility: 'user-or-llm',
+      description: 'Linear team ID (UUID format) to filter issues by team',
     },
     projectId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Linear project ID to filter by',
+      visibility: 'user-or-llm',
+      description: 'Linear project ID (UUID format) to filter issues by project',
     },
     assigneeId: {
       type: 'string',

@@ -125,8 +125,20 @@ app:
     
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
-    RATE_LIMIT_FREE_SYNC: "10"                            # Sync API executions per minute
-    RATE_LIMIT_FREE_ASYNC: "50"                           # Async API executions per minute
+    RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC: "200"                          # Async API executions per minute
+
+    # Execution Timeout Configuration (in seconds)
+    # Sync timeouts apply to synchronous API calls
+    EXECUTION_TIMEOUT_FREE: "300"                         # Free tier sync timeout (5 minutes)
+    EXECUTION_TIMEOUT_PRO: "3000"                         # Pro tier sync timeout (50 minutes)
+    EXECUTION_TIMEOUT_TEAM: "3000"                        # Team tier sync timeout (50 minutes)
+    EXECUTION_TIMEOUT_ENTERPRISE: "3000"                  # Enterprise tier sync timeout (50 minutes)
+    # Async timeouts apply to async/background job executions
+    EXECUTION_TIMEOUT_ASYNC_FREE: "5400"                  # Free tier async timeout (90 minutes)
+    EXECUTION_TIMEOUT_ASYNC_PRO: "5400"                   # Pro tier async timeout (90 minutes)
+    EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
+    EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
     
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name

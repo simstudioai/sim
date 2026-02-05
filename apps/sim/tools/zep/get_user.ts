@@ -12,8 +12,8 @@ export const zepGetUserTool: ToolConfig<any, ZepResponse> = {
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID to retrieve',
+      visibility: 'user-or-llm',
+      description: 'User ID to retrieve (e.g., "user_123")',
     },
     apiKey: {
       type: 'string',

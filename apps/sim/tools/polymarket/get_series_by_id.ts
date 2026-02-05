@@ -26,7 +26,7 @@ export const polymarketGetSeriesByIdTool: ToolConfig<
     seriesId: {
       type: 'string',
       required: true,
-      description: 'The series ID',
+      description: 'The series ID (e.g., "12345" or UUID format).',
       visibility: 'user-or-llm',
     },
   },

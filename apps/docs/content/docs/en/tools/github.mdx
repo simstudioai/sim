@@ -10,6 +10,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#181C1E"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[GitHub](https://github.com/) is the world’s leading platform for hosting, collaborating on, and managing source code. GitHub offers powerful tools for version control, code review, branching strategies, and team collaboration within the rich Git ecosystem, underpinning both open source and enterprise development worldwide.
+
+The GitHub integration in Sim allows your agents to seamlessly automate, interact with, and orchestrate workflows across your repositories. Using this integration, agents can perform an extended set of code and collaboration operations, enabling:
+
+- **Fetch pull request details:** Retrieve a full overview of any pull request, including file diffs, branch information, metadata, approvals, and a summary of changes, for automation or review workflows.
+- **Create pull request comments:** Automatically generate or post comments on PRs—such as reviews, suggestions, or status updates—enabling speedy feedback, documentation, or policy enforcement.
+- **Get repository information:** Access comprehensive repository metadata, including descriptions, visibility, topics, default branches, and contributors. This supports intelligent project analysis, dynamic workflow routing, and organizational reporting.
+- **Fetch the latest commit:** Quickly obtain details from the newest commit on any branch, including hashes, messages, authors, and timestamps. This is useful for monitoring development velocity, triggering downstream actions, or enforcing quality checks.
+- **Trigger workflows from GitHub events:** Set up Sim workflows to start automatically from key GitHub events, including pull request creation, review comments, or when new commits are pushed, through easy webhook integration. Automate actions such as deployments, notifications, compliance checks, or documentation updates in real time.
+- **Monitor and manage repository activity:** Programmatically track contributions, manage PR review states, analyze branch histories, and audit code changes. Empower agents to enforce requirements, coordinate releases, and respond dynamically to development patterns.
+- **Support for advanced automations:** Combine these operations—for example, fetch PR data, leave context-aware comments, and kick off multi-step Sim workflows on code pushes or PR merges—to automate your team’s engineering processes from end to end.
+
+By leveraging all of these capabilities, the Sim GitHub integration enables agents to engage deeply in the development lifecycle. Automate code reviews, streamline team feedback, synchronize project artifacts, accelerate CI/CD, and enforce best practices with ease. Bring security, speed, and reliability to your workflows—directly within your Sim-powered automation environment, with full integration into your organization’s GitHub strategy.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Github into the workflow. Can get get PR details, create PR comment, get repository info, and get latest commit. Can be used in trigger mode to trigger a workflow when a PR is created, commented on, or a commit is pushed.
@@ -675,6 +692,7 @@ Get the content of a file from a GitHub repository. Supports files up to 1MB. Co
 | `download_url` | string | Direct download URL |
 | `git_url` | string | Git blob API URL |
 | `_links` | json | Related links |
+| `file` | file | Downloaded file stored in execution files |
 
 ### `github_create_file`
 
@@ -2509,7 +2527,6 @@ Create a new gist with one or more files
 | --------- | ---- | -------- | ----------- |
 | `description` | string | No | Description of the gist |
 | `files` | json | Yes | JSON object with filenames as keys and content as values. Example: \{"file.txt": \{"content": "Hello"\}\} |
-| `Example` | string | No | No description |
 | `public` | boolean | No | Whether the gist is public \(default: false\) |
 | `apiKey` | string | Yes | GitHub API token |
 

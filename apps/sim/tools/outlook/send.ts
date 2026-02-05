@@ -22,8 +22,8 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
     to: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Recipient email address',
+      visibility: 'user-or-llm',
+      description: 'Recipient email address (comma-separated for multiple recipients)',
     },
     subject: {
       type: 'string',

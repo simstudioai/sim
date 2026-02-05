@@ -100,6 +100,7 @@ function buildStartBlockState(
     triggerMode: false,
     height: 0,
     data: {},
+    locked: false,
   }
 
   return { blockState, subBlockValues }

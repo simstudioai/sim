@@ -63,11 +63,13 @@ export const clusterStatsTool: ToolConfig<
     host: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elasticsearch host URL (for self-hosted)',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elastic Cloud ID (for cloud deployments)',
     },
     authMethod: {
@@ -84,6 +86,7 @@ export const clusterStatsTool: ToolConfig<
     username: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Username for basic auth',
     },
     password: {

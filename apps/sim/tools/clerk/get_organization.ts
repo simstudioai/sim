@@ -29,7 +29,8 @@ export const clerkGetOrganizationTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID or slug of the organization to retrieve',
+      description:
+        'The ID or slug of the organization to retrieve (e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC or my-org-slug)',
     },
   },
 

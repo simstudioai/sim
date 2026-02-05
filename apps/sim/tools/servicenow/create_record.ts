@@ -40,7 +40,8 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Fields to set on the record (JSON object)',
+      description:
+        'Fields to set on the record as JSON object (e.g., {"short_description": "Issue title", "priority": "1"})',
     },
   },
 

@@ -27,7 +27,8 @@ export const clerkListSessionsTool: ToolConfig<ClerkListSessionsParams, ClerkLis
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'User ID to list sessions for (required if clientId not provided)',
+        description:
+          'User ID to list sessions for (e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC; required if clientId not provided)',
       },
       clientId: {
         type: 'string',
@@ -46,13 +47,13 @@ export const clerkListSessionsTool: ToolConfig<ClerkListSessionsParams, ClerkLis
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of results per page (1-500, default: 10)',
+        description: 'Number of results per page (e.g., 10, 50, 100; range: 1-500, default: 10)',
       },
       offset: {
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of results to skip for pagination',
+        description: 'Number of results to skip for pagination (e.g., 0, 10, 20)',
       },
     },
 

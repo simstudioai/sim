@@ -40,13 +40,14 @@ export const polymarketGetTradesTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      description: 'Market/condition ID to filter trades (mutually exclusive with eventId)',
+      description:
+        'Market/condition ID to filter trades (e.g., "0x1234...abcd"). Mutually exclusive with eventId.',
       visibility: 'user-or-llm',
     },
     eventId: {
       type: 'string',
       required: false,
-      description: 'Event ID to filter trades (mutually exclusive with market)',
+      description: 'Event ID to filter trades (e.g., "12345"). Mutually exclusive with market.',
       visibility: 'user-or-llm',
     },
     side: {
@@ -76,13 +77,13 @@ export const polymarketGetTradesTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page (default: 100, max: 10000)',
+      description: 'Number of results per page (e.g., "50"). Default: 100, max: 10000.',
       visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
-      description: 'Pagination offset (skip this many results)',
+      description: 'Number of results to skip for pagination (e.g., "100").',
       visibility: 'user-or-llm',
     },
   },

@@ -27,14 +27,14 @@ export const polymarketGetEventTool: ToolConfig<
     eventId: {
       type: 'string',
       required: false,
-      description: 'The event ID. Required if slug is not provided.',
+      description: 'The event ID (e.g., "12345" or UUID format). Required if slug is not provided.',
       visibility: 'user-or-llm',
     },
     slug: {
       type: 'string',
       required: false,
       description:
-        'The event slug (e.g., "2024-presidential-election"). Required if eventId is not provided.',
+        'The event slug (e.g., "2024-presidential-election"). URL-friendly identifier. Required if eventId is not provided.',
       visibility: 'user-or-llm',
     },
   },

@@ -17,15 +17,15 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 5,
       description: 'Maximum number of videos to return (1-50)',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination (use nextPageToken from previous response)',
+      visibility: 'user-or-llm',
+      description: 'Page token for pagination (from previous response nextPageToken)',
     },
     apiKey: {
       type: 'string',
@@ -37,7 +37,8 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter results to a specific YouTube channel ID',
+      description:
+        'Filter results to a specific YouTube channel ID starting with "UC" (24-character string)',
     },
     publishedAfter: {
       type: 'string',
@@ -97,20 +98,20 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
     regionCode: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Return results relevant to a specific region (ISO 3166-1 alpha-2 country code, e.g., "US", "GB")',
     },
     relevanceLanguage: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Return results most relevant to a language (ISO 639-1 code, e.g., "en", "es")',
     },
     safeSearch: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Content filtering level: "moderate" (default), "none", "strict"',
     },
   },

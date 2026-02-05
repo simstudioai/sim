@@ -259,6 +259,38 @@ export const mockBlockConfigs: Record<string, any> = {
     ],
     inputs: {},
   },
+  wait: {
+    name: 'Wait',
+    description: 'Pause workflow execution for a specified time delay',
+    category: 'blocks',
+    bgColor: '#F59E0B',
+    tools: {
+      access: [],
+    },
+    subBlocks: [
+      {
+        id: 'timeValue',
+        title: 'Wait Amount',
+        type: 'short-input',
+        placeholder: '10',
+        required: true,
+      },
+      {
+        id: 'timeUnit',
+        title: 'Unit',
+        type: 'dropdown',
+        required: true,
+      },
+    ],
+    inputs: {
+      timeValue: { type: 'string' },
+      timeUnit: { type: 'string' },
+    },
+    outputs: {
+      waitDuration: { type: 'number' },
+      status: { type: 'string' },
+    },
+  },
 }
 
 /**

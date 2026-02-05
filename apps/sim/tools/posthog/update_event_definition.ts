@@ -46,8 +46,8 @@ export const updateEventDefinitionTool: ToolConfig<
     projectId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'PostHog Project ID',
+      visibility: 'user-or-llm',
+      description: 'PostHog Project ID (e.g., "12345" or project UUID)',
     },
     eventDefinitionId: {
       type: 'string',

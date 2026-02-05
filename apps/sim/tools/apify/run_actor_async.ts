@@ -1,8 +1,9 @@
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import type { RunActorParams, RunActorResult } from '@/tools/apify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { RunActorParams, RunActorResult } from './types'
 
-const POLL_INTERVAL_MS = 5000 // 5 seconds between polls
-const MAX_POLL_TIME_MS = 300000 // 5 minutes maximum polling time
+const POLL_INTERVAL_MS = 5000
+const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
 export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> = {
   id: 'apify_run_actor_async',
@@ -21,38 +22,48 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Actor ID or username/actor-name (e.g., "janedoe/my-actor" or actor ID)',
+      description:
+        'Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN"',
     },
     input: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Actor input as JSON string',
+      description:
+        'Actor input as JSON string. Example: {"startUrls": [{"url": "https://example.com"}], "maxPages": 10}',
     },
     waitForFinish: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Initial wait time in seconds (0-60) before polling starts',
+      description: 'Initial wait time in seconds (0-60) before polling starts. Example: 30',
     },
     itemLimit: {
       type: 'number',
       required: false,
       default: 100,
       visibility: 'user-or-llm',
-      description: 'Max dataset items to fetch (1-250000, default 100)',
+      description: 'Max dataset items to fetch (1-250000). Default: 100. Example: 500',
+    },
+    memory: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Memory in megabytes allocated for the actor run (128-32768). Example: 1024 for 1GB, 2048 for 2GB',
     },
     timeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Timeout in seconds (default: actor default)',
+      description:
+        'Timeout in seconds for the actor run. Example: 300 for 5 minutes, 3600 for 1 hour',
     },
     build: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Actor build to run (e.g., "latest", "beta", or build tag/number)',
+      description: 'Actor build to run. Examples: "latest", "beta", "1.2.3", "build-tag-name"',
     },
   },
 
@@ -67,6 +78,9 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       if (params.waitForFinish !== undefined) {
         const waitTime = Math.max(0, Math.min(params.waitForFinish, 60))
         queryParams.set('waitForFinish', waitTime.toString())
+      }
+      if (params.memory) {
+        queryParams.set('memory', params.memory.toString())
       }
       if (params.timeout) {
         queryParams.set('timeout', params.timeout.toString())

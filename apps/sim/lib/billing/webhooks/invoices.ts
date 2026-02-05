@@ -8,12 +8,13 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalance, removeCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
+import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -502,24 +503,7 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
     }
 
     if (sub.plan === 'team' || sub.plan === 'enterprise') {
-      const members = await db
-        .select({ userId: member.userId })
-        .from(member)
-        .where(eq(member.organizationId, sub.referenceId))
-      const memberIds = members.map((m) => m.userId)
-
-      if (memberIds.length > 0) {
-        // Only unblock users blocked for payment_failed, not disputes
-        await db
-          .update(userStats)
-          .set({ billingBlocked: false, billingBlockedReason: null })
-          .where(
-            and(
-              inArray(userStats.userId, memberIds),
-              eq(userStats.billingBlockedReason, 'payment_failed')
-            )
-          )
-      }
+      await unblockOrgMembers(sub.referenceId, 'payment_failed')
     } else {
       // Only unblock users blocked for payment_failed, not disputes
       await db
@@ -616,28 +600,26 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
       if (records.length > 0) {
         const sub = records[0]
         if (sub.plan === 'team' || sub.plan === 'enterprise') {
-          const members = await db
-            .select({ userId: member.userId })
-            .from(member)
-            .where(eq(member.organizationId, sub.referenceId))
-          const memberIds = members.map((m) => m.userId)
-
-          if (memberIds.length > 0) {
-            await db
-              .update(userStats)
-              .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
-              .where(inArray(userStats.userId, memberIds))
-          }
+          const memberCount = await blockOrgMembers(sub.referenceId, 'payment_failed')
           logger.info('Blocked team/enterprise members due to payment failure', {
             organizationId: sub.referenceId,
-            memberCount: members.length,
+            memberCount,
             isOverageInvoice,
           })
         } else {
+          // Don't overwrite dispute blocks (dispute > payment_failed priority)
           await db
             .update(userStats)
             .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
-            .where(eq(userStats.userId, sub.referenceId))
+            .where(
+              and(
+                eq(userStats.userId, sub.referenceId),
+                or(
+                  ne(userStats.billingBlockedReason, 'dispute'),
+                  isNull(userStats.billingBlockedReason)
+                )
+              )
+            )
           logger.info('Blocked user due to payment failure', {
             userId: sub.referenceId,
             isOverageInvoice,

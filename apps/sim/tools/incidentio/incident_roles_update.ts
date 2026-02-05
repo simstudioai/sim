@@ -24,13 +24,13 @@ export const incidentRolesUpdateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the incident role to update',
+      description: 'The ID of the incident role to update (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
     name: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the incident role',
+      description: 'Name of the incident role (e.g., "Incident Commander")',
     },
     description: {
       type: 'string',

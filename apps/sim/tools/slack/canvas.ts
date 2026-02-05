@@ -36,8 +36,8 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
     channel: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Target Slack channel (e.g., #general)',
+      visibility: 'user-or-llm',
+      description: 'Slack channel ID (e.g., C1234567890)',
     },
     title: {
       type: 'string',

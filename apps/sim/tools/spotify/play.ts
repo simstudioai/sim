@@ -1,5 +1,5 @@
+import type { SpotifyPlayParams, SpotifyPlayResponse } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyPlayParams, SpotifyPlayResponse } from './types'
 
 export const spotifyPlayTool: ToolConfig<SpotifyPlayParams, SpotifyPlayResponse> = {
   id: 'spotify_play',
@@ -37,13 +37,13 @@ export const spotifyPlayTool: ToolConfig<SpotifyPlayParams, SpotifyPlayResponse>
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Position in context to start playing (0-based index)',
     },
     position_ms: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Position in track to start from (in milliseconds)',
     },
   },

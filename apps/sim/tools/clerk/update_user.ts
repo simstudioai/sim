@@ -28,7 +28,7 @@ export const clerkUpdateUserTool: ToolConfig<ClerkUpdateUserParams, ClerkUpdateU
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the user to update',
+      description: 'The ID of the user to update (e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC)',
     },
     firstName: {
       type: 'string',

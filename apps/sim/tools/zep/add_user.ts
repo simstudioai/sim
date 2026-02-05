@@ -12,8 +12,8 @@ export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Unique identifier for the user',
+      visibility: 'user-or-llm',
+      description: 'Unique identifier for the user (e.g., "user_123")',
     },
     email: {
       type: 'string',
@@ -36,8 +36,8 @@ export const zepAddUserTool: ToolConfig<any, ZepResponse> = {
     metadata: {
       type: 'json',
       required: false,
-      visibility: 'user-only',
-      description: 'Additional metadata as JSON object',
+      visibility: 'user-or-llm',
+      description: 'Additional metadata as JSON object (e.g., {"key": "value"})',
     },
     apiKey: {
       type: 'string',

@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
     const accessToken = searchParams.get('accessToken')
     const pageId = searchParams.get('pageId')
     const providedCloudId = searchParams.get('cloudId')
-    const limit = searchParams.get('limit') || '25'
+    const limit = searchParams.get('limit') || '50'
+    const cursor = searchParams.get('cursor')
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -47,7 +48,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/attachments?limit=${limit}`
+    const queryParams = new URLSearchParams()
+    queryParams.append('limit', String(Math.min(Number(limit), 250)))
+    if (cursor) {
+      queryParams.append('cursor', cursor)
+    }
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/attachments?${queryParams.toString()}`
 
     const response = await fetch(url, {
       method: 'GET',
@@ -77,9 +83,20 @@ export async function GET(request: NextRequest) {
       fileSize: attachment.fileSize || 0,
       mediaType: attachment.mediaType || '',
       downloadUrl: attachment.downloadLink || attachment._links?.download || '',
+      status: attachment.status ?? null,
+      webuiUrl: attachment._links?.webui ?? null,
+      pageId: attachment.pageId ?? null,
+      blogPostId: attachment.blogPostId ?? null,
+      comment: attachment.comment ?? null,
+      version: attachment.version ?? null,
     }))
 
-    return NextResponse.json({ attachments })
+    return NextResponse.json({
+      attachments,
+      nextCursor: data._links?.next
+        ? new URL(data._links.next, 'https://placeholder').searchParams.get('cursor')
+        : null,
+    })
   } catch (error) {
     logger.error('Error listing Confluence attachments:', error)
     return NextResponse.json(

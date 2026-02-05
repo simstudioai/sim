@@ -1,6 +1,6 @@
+import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
+import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiAuthParams, KalshiOrder } from './types'
-import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiCreateOrderParams extends KalshiAuthParams {
   ticker: string // Market ticker (required)
@@ -53,31 +53,31 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Market ticker (e.g., KXBTC-24DEC31)',
+        description: 'Market ticker identifier (e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99")',
       },
       side: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: "Side of the order: 'yes' or 'no'",
+        description: 'Side of the order: "yes" or "no"',
       },
       action: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: "Action type: 'buy' or 'sell'",
+        description: 'Action type: "buy" or "sell"',
       },
       count: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Number of contracts (minimum 1)',
+        description: 'Number of contracts to trade (e.g., "10", "100")',
       },
       type: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: "Order type: 'limit' or 'market' (default: limit)",
+        description: 'Order type: "limit" or "market" (default: "limit")',
       },
       yesPrice: {
         type: 'string',
@@ -300,31 +300,31 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Market ticker (e.g., KXBTC-24DEC31)',
+      description: 'Market ticker identifier (e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99")',
     },
     side: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "Side of the order: 'yes' or 'no'",
+      description: 'Side of the order: "yes" or "no"',
     },
     action: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: "Action type: 'buy' or 'sell'",
+      description: 'Action type: "buy" or "sell"',
     },
     count: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of contracts (provide count or countFp)',
+      description: 'Number of contracts to trade (e.g., "10", "100"). Provide count or countFp',
     },
     type: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "Order type: 'limit' or 'market' (default: limit)",
+      description: 'Order type: "limit" or "market" (default: "limit")',
     },
     yesPrice: {
       type: 'string',

@@ -1,5 +1,5 @@
+import type { WorkflowsShowParams, WorkflowsShowResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
-import type { WorkflowsShowParams, WorkflowsShowResponse } from './types'
 
 export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowResponse> = {
   id: 'incidentio_workflows_show',
@@ -18,7 +18,7 @@ export const workflowsShowTool: ToolConfig<WorkflowsShowParams, WorkflowsShowRes
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the workflow to retrieve',
+      description: 'The ID of the workflow to retrieve (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

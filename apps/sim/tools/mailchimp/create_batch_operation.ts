@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import type { MailchimpBatchOperation } from '@/tools/mailchimp/types'
+import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import type { ToolConfig } from '@/tools/types'
-import type { MailchimpBatchOperation } from './types'
-import { buildMailchimpUrl, handleMailchimpError } from './types'
 
 const logger = createLogger('MailchimpCreateBatchOperation')
 
@@ -38,8 +38,9 @@ export const mailchimpCreateBatchOperationTool: ToolConfig<
     operations: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'JSON array of operations',
+      visibility: 'user-or-llm',
+      description:
+        'JSON array of batch operations (e.g., [{"method": "POST", "path": "/lists/{list_id}/members", "body": "..."}])',
     },
   },
 

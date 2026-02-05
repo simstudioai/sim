@@ -1,5 +1,8 @@
+import type {
+  GoogleGroupsRemoveMemberParams,
+  GoogleGroupsResponse,
+} from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsRemoveMemberParams, GoogleGroupsResponse } from './types'
 
 export const removeMemberTool: ToolConfig<GoogleGroupsRemoveMemberParams, GoogleGroupsResponse> = {
   id: 'google_groups_remove_member',
@@ -23,13 +26,15 @@ export const removeMemberTool: ToolConfig<GoogleGroupsRemoveMemberParams, Google
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
     memberKey: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Email address or unique ID of the member to remove',
+      description:
+        'Member identifier to remove. Can be the member email address (e.g., user@example.com) or the unique member ID',
     },
   },
 

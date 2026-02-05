@@ -4,6 +4,7 @@ export interface ConfluenceDeletePageParams {
   accessToken: string
   domain: string
   pageId: string
+  purge?: boolean
   cloudId?: string
 }
 
@@ -22,7 +23,8 @@ export const confluenceDeletePageTool: ToolConfig<
 > = {
   id: 'confluence_delete_page',
   name: 'Confluence Delete Page',
-  description: 'Delete a Confluence page (moves it to trash where it can be restored).',
+  description:
+    'Delete a Confluence page. By default moves to trash; use purge=true to permanently delete.',
   version: '1.0.0',
 
   oauth: {
@@ -49,6 +51,13 @@ export const confluenceDeletePageTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Confluence page ID to delete',
     },
+    purge: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'If true, permanently deletes the page instead of moving to trash (default: false)',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -72,6 +81,7 @@ export const confluenceDeletePageTool: ToolConfig<
         domain: params.domain,
         accessToken: params.accessToken,
         pageId: params.pageId,
+        purge: params.purge || false,
         cloudId: params.cloudId,
       }
     },

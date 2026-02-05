@@ -1,6 +1,6 @@
+import type { ShopifyOrderResponse, ShopifyUpdateOrderParams } from '@/tools/shopify/types'
+import { ORDER_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { ShopifyOrderResponse, ShopifyUpdateOrderParams } from './types'
-import { ORDER_OUTPUT_PROPERTIES } from './types'
 
 export const shopifyUpdateOrderTool: ToolConfig<ShopifyUpdateOrderParams, ShopifyOrderResponse> = {
   id: 'shopify_update_order',

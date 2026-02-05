@@ -1,4 +1,4 @@
-import type { SttParams, SttResponse } from '@/tools/stt/types'
+import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import { STT_SEGMENT_OUTPUT_PROPERTIES } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -30,13 +30,13 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
     audioFile: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Audio or video file to transcribe',
+      visibility: 'user-only',
+      description: 'Audio or video file to transcribe (e.g., MP3, WAV, M4A, WEBM)',
     },
     audioFileReference: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Reference to audio/video file from previous blocks',
     },
     audioUrl: {
@@ -77,6 +77,13 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       description:
         'Sampling temperature between 0 and 1. Higher values make output more random, lower values more focused and deterministic.',
     },
+    responseFormat: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Output format for the transcription (e.g., "json", "text", "srt", "verbose_json", "vtt")',
+    },
   },
 
   request: {
@@ -101,6 +108,7 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
       translateToEnglish: params.translateToEnglish || false,
       prompt: (params as any).prompt,
       temperature: (params as any).temperature,
+      responseFormat: (params as any).responseFormat,
       workspaceId: params._context?.workspaceId,
       workflowId: params._context?.workflowId,
       executionId: params._context?.executionId,
@@ -143,5 +151,49 @@ export const whisperSttTool: ToolConfig<SttParams, SttResponse> = {
     },
     language: { type: 'string', description: 'Detected or specified language' },
     duration: { type: 'number', description: 'Audio duration in seconds' },
+  },
+}
+
+const whisperSttV2Params = {
+  provider: whisperSttTool.params.provider,
+  apiKey: whisperSttTool.params.apiKey,
+  model: whisperSttTool.params.model,
+  audioFile: whisperSttTool.params.audioFile,
+  audioFileReference: whisperSttTool.params.audioFileReference,
+  language: whisperSttTool.params.language,
+  timestamps: whisperSttTool.params.timestamps,
+  translateToEnglish: whisperSttTool.params.translateToEnglish,
+  prompt: whisperSttTool.params.prompt,
+  temperature: whisperSttTool.params.temperature,
+  responseFormat: whisperSttTool.params.responseFormat,
+} satisfies ToolConfig['params']
+
+export const whisperSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+  ...whisperSttTool,
+  id: 'stt_whisper_v2',
+  name: 'OpenAI Whisper STT',
+  params: whisperSttV2Params,
+  request: {
+    ...whisperSttTool.request,
+    body: (
+      params: SttV2Params & {
+        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
+      }
+    ) => ({
+      provider: 'whisper',
+      apiKey: params.apiKey,
+      model: params.model,
+      audioFile: params.audioFile,
+      audioFileReference: params.audioFileReference,
+      language: params.language || 'auto',
+      timestamps: params.timestamps || 'none',
+      translateToEnglish: params.translateToEnglish || false,
+      prompt: (params as any).prompt,
+      temperature: (params as any).temperature,
+      responseFormat: (params as any).responseFormat,
+      workspaceId: params._context?.workspaceId,
+      workflowId: params._context?.workflowId,
+      executionId: params._context?.executionId,
+    }),
   },
 }

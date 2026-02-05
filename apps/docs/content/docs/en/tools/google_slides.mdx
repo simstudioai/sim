@@ -6,7 +6,7 @@ description: Read, write, and create presentations
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="google_slides"
+  type="google_slides_v2"
   color="#E0E0E0"
 />
 
@@ -44,7 +44,7 @@ Read content from a Google Slides presentation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation to read |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 
 #### Output
 
@@ -68,7 +68,7 @@ Write or update content in a Google Slides presentation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation to write to |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `content` | string | Yes | The content to write to the slide |
 | `slideIndex` | number | No | The index of the slide to write to \(defaults to first slide\) |
 
@@ -93,7 +93,7 @@ Create a new Google Slides presentation
 | --------- | ---- | -------- | ----------- |
 | `title` | string | Yes | The title of the presentation to create |
 | `content` | string | No | The content to add to the first slide |
-| `folderSelector` | string | No | Select the folder to create the presentation in |
+| `folderSelector` | string | No | Google Drive folder ID to create the presentation in \(e.g., 1ABCxyz...\) |
 | `folderId` | string | No | The ID of the folder to create the presentation in \(internal use\) |
 
 #### Output
@@ -114,7 +114,7 @@ Find and replace all occurrences of text throughout a Google Slides presentation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `findText` | string | Yes | The text to find \(e.g., \{\{placeholder\}\}\) |
 | `replaceText` | string | Yes | The text to replace with |
 | `matchCase` | boolean | No | Whether the search should be case-sensitive \(default: true\) |
@@ -139,7 +139,7 @@ Add a new slide to a Google Slides presentation with a specified layout
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `layout` | string | No | The predefined layout for the slide \(BLANK, TITLE, TITLE_AND_BODY, TITLE_ONLY, SECTION_HEADER, etc.\). Defaults to BLANK. |
 | `insertionIndex` | number | No | The optional zero-based index indicating where to insert the slide. If not specified, the slide is added at the end. |
 | `placeholderIdMappings` | string | No | JSON array of placeholder mappings to assign custom object IDs to placeholders. Format: \[\{"layoutPlaceholder":\{"type":"TITLE"\},"objectId":"custom_title_id"\}\] |
@@ -163,7 +163,7 @@ Insert an image into a specific slide in a Google Slides presentation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `pageObjectId` | string | Yes | The object ID of the slide/page to add the image to |
 | `imageUrl` | string | Yes | The publicly accessible URL of the image \(must be PNG, JPEG, or GIF, max 50MB\) |
 | `width` | number | No | Width of the image in points \(default: 300\) |
@@ -190,7 +190,7 @@ Generate a thumbnail image of a specific slide in a Google Slides presentation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `pageObjectId` | string | Yes | The object ID of the slide/page to get a thumbnail for |
 | `thumbnailSize` | string | No | The size of the thumbnail: SMALL \(200px\), MEDIUM \(800px\), or LARGE \(1600px\). Defaults to MEDIUM. |
 | `mimeType` | string | No | The MIME type of the thumbnail image: PNG or GIF. Defaults to PNG. |
@@ -216,7 +216,7 @@ Get detailed information about a specific slide/page in a Google Slides presenta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `pageObjectId` | string | Yes | The object ID of the slide/page to retrieve |
 
 #### Output
@@ -242,7 +242,7 @@ Delete a page element (shape, image, table, etc.) or an entire slide from a Goog
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `objectId` | string | Yes | The object ID of the element or slide to delete |
 
 #### Output
@@ -263,10 +263,9 @@ Duplicate an object (slide, shape, image, table, etc.) in a Google Slides presen
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `objectId` | string | Yes | The object ID of the element or slide to duplicate |
 | `objectIds` | string | No | Optional JSON object mapping source object IDs \(within the slide being duplicated\) to new object IDs for the duplicates. Format: \{"sourceId1":"newId1","sourceId2":"newId2"\} |
-| `Format` | string | No | No description |
 
 #### Output
 
@@ -286,7 +285,7 @@ Move one or more slides to a new position in a Google Slides presentation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `slideObjectIds` | string | Yes | Comma-separated list of slide object IDs to move. The slides will maintain their relative order. |
 | `insertionIndex` | number | Yes | The zero-based index where the slides should be moved. All slides with indices greater than or equal to this will be shifted right. |
 
@@ -309,7 +308,7 @@ Create a new table on a slide in a Google Slides presentation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `pageObjectId` | string | Yes | The object ID of the slide/page to add the table to |
 | `rows` | number | Yes | Number of rows in the table \(minimum 1\) |
 | `columns` | number | Yes | Number of columns in the table \(minimum 1\) |
@@ -338,7 +337,7 @@ Create a shape (rectangle, ellipse, text box, arrow, etc.) on a slide in a Googl
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `pageObjectId` | string | Yes | The object ID of the slide/page to add the shape to |
 | `shapeType` | string | Yes | The type of shape to create. Common types: TEXT_BOX, RECTANGLE, ROUND_RECTANGLE, ELLIPSE, TRIANGLE, DIAMOND, STAR_5, ARROW_EAST, HEART, CLOUD |
 | `width` | number | No | Width of the shape in points \(default: 200\) |
@@ -365,7 +364,7 @@ Insert text into a shape or table cell in a Google Slides presentation. Use this
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `presentationId` | string | Yes | The ID of the presentation |
+| `presentationId` | string | Yes | Google Slides presentation ID |
 | `objectId` | string | Yes | The object ID of the shape or table cell to insert text into. For table cells, use the cell object ID. |
 | `text` | string | Yes | The text to insert |
 | `insertionIndex` | number | No | The zero-based index at which to insert the text. If not specified, text is inserted at the beginning \(index 0\). |

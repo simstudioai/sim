@@ -14,7 +14,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Search query string',
+      description: 'Search query string (e.g., "machine learning tutorials")',
     },
     apiKey: {
       type: 'string',

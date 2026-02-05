@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, TICKET_OUTPUT_PROPERTIES } from './types'
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  TICKET_OUTPUT_PROPERTIES,
+} from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskUpdateTicket')
 
@@ -60,62 +64,62 @@ export const zendeskUpdateTicketTool: ToolConfig<
     ticketId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Ticket ID to update',
+      visibility: 'user-or-llm',
+      description: 'Ticket ID to update as a numeric string (e.g., "12345")',
     },
     subject: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'New ticket subject',
+      visibility: 'user-or-llm',
+      description: 'New ticket subject text',
     },
     comment: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Add a comment to the ticket',
+      visibility: 'user-or-llm',
+      description: 'Comment text to add to the ticket',
     },
     priority: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Priority (low, normal, high, urgent)',
+      visibility: 'user-or-llm',
+      description: 'Priority: "low", "normal", "high", or "urgent"',
     },
     status: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Status (new, open, pending, hold, solved, closed)',
+      visibility: 'user-or-llm',
+      description: 'Status: "new", "open", "pending", "hold", "solved", or "closed"',
     },
     type: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Type (problem, incident, question, task)',
+      visibility: 'user-or-llm',
+      description: 'Type: "problem", "incident", "question", or "task"',
     },
     tags: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated tags',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated tags (e.g., "billing, urgent")',
     },
     assigneeId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Assignee user ID',
+      visibility: 'user-or-llm',
+      description: 'Assignee user ID as a numeric string (e.g., "12345")',
     },
     groupId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Group ID',
+      visibility: 'user-or-llm',
+      description: 'Group ID as a numeric string (e.g., "67890")',
     },
     customFields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Custom fields as JSON object',
+      visibility: 'user-or-llm',
+      description: 'Custom fields as JSON object (e.g., {"field_id": "value"})',
     },
   },
 

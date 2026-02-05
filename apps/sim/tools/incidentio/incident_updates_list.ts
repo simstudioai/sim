@@ -25,19 +25,19 @@ export const incidentUpdatesListTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the incident to get updates for (optional - if not provided, returns all updates)',
+        'The ID of the incident to get updates for (e.g., "01FCNDV6P870EA6S7TK1DSYDG0"). If not provided, returns all updates',
     },
     page_size: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to return per page',
+      description: 'Number of results to return per page (e.g., 10, 25, 50)',
     },
     after: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Cursor for pagination',
+      description: 'Cursor for pagination (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

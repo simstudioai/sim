@@ -32,9 +32,11 @@ export function sanitizeHeaders(
 
 /**
  * Client-safe MCP constants
+ * Note: CLIENT_TIMEOUT should match DEFAULT_EXECUTION_TIMEOUT_MS from @/lib/core/execution-limits
+ * (5 minutes = 300 seconds for free tier). Keep in sync if that value changes.
  */
 export const MCP_CLIENT_CONSTANTS = {
-  CLIENT_TIMEOUT: 60000,
+  CLIENT_TIMEOUT: 5 * 60 * 1000, // 5 minutes - matches DEFAULT_EXECUTION_TIMEOUT_MS
   MAX_RETRIES: 3,
   RECONNECT_DELAY: 1000,
 } as const

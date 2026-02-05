@@ -27,8 +27,8 @@ export const salesforceDeleteContactTool: ToolConfig<
     contactId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Contact ID to delete (required)',
+      visibility: 'user-or-llm',
+      description: 'Salesforce Contact ID to delete (18-character string starting with 003)',
     },
   },
 

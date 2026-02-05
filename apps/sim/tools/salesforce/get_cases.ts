@@ -24,26 +24,27 @@ export const salesforceGetCasesTool: ToolConfig<
     caseId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Case ID (optional)',
+      visibility: 'user-or-llm',
+      description:
+        'Salesforce Case ID (18-character string starting with 500) to get a single case',
     },
     limit: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Max results (default: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return (default: 100)',
     },
     fields: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated fields',
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of field API names to return',
     },
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Order by field',
+      visibility: 'user-or-llm',
+      description: 'Field and direction for sorting (e.g., CreatedDate DESC)',
     },
   },
 

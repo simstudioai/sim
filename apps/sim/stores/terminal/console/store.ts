@@ -287,6 +287,14 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
                 return entry
               }
 
+              if (
+                typeof update === 'object' &&
+                update.iterationCurrent !== undefined &&
+                entry.iterationCurrent !== update.iterationCurrent
+              ) {
+                return entry
+              }
+
               if (typeof update === 'string') {
                 const newOutput = updateBlockOutput(entry.output, update)
                 return { ...entry, output: newOutput }
@@ -322,6 +330,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
               if (update.success !== undefined) {
                 updatedEntry.success = update.success
+              }
+
+              if (update.startedAt !== undefined) {
+                updatedEntry.startedAt = update.startedAt
               }
 
               if (update.endedAt !== undefined) {
@@ -368,13 +380,18 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
         cancelRunningEntries: (workflowId: string) => {
           set((state) => {
+            const now = new Date()
             const updatedEntries = state.entries.map((entry) => {
               if (entry.workflowId === workflowId && entry.isRunning) {
+                const durationMs = entry.startedAt
+                  ? now.getTime() - new Date(entry.startedAt).getTime()
+                  : entry.durationMs
                 return {
                   ...entry,
                   isRunning: false,
                   isCanceled: true,
-                  endedAt: new Date().toISOString(),
+                  endedAt: now.toISOString(),
+                  durationMs,
                 }
               }
               return entry
@@ -397,9 +414,15 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         },
         merge: (persistedState, currentState) => {
           const persisted = persistedState as Partial<ConsoleStore> | undefined
+          const entries = (persisted?.entries ?? currentState.entries).map((entry, index) => {
+            if (entry.executionOrder === undefined) {
+              return { ...entry, executionOrder: index + 1 }
+            }
+            return entry
+          })
           return {
             ...currentState,
-            entries: persisted?.entries ?? currentState.entries,
+            entries,
             isOpen: persisted?.isOpen ?? currentState.isOpen,
           }
         },

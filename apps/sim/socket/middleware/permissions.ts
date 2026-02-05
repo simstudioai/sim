@@ -14,7 +14,10 @@ import {
 
 const logger = createLogger('SocketPermissions')
 
-// All write operations (admin and write roles have same permissions)
+// Admin-only operations (require admin role)
+const ADMIN_ONLY_OPERATIONS: string[] = [BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED]
+
+// Write operations (admin and write roles both have these permissions)
 const WRITE_OPERATIONS: string[] = [
   // Block operations
   BLOCK_OPERATIONS.UPDATE_POSITION,
@@ -51,7 +54,7 @@ const READ_OPERATIONS: string[] = [
 
 // Define operation permissions based on role
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  admin: WRITE_OPERATIONS,
+  admin: [...ADMIN_ONLY_OPERATIONS, ...WRITE_OPERATIONS],
   write: WRITE_OPERATIONS,
   read: READ_OPERATIONS,
 }
@@ -73,7 +76,7 @@ export function checkRolePermission(
   return { allowed: true }
 }
 
-export async function verifyWorkspaceMembership(
+async function verifyWorkspaceMembership(
   userId: string,
   workspaceId: string
 ): Promise<string | null> {

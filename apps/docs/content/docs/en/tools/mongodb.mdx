@@ -43,7 +43,7 @@ Execute find operation on MongoDB collection
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | MongoDB server hostname or IP address |
 | `port` | number | Yes | MongoDB server port \(default: 27017\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "mydb"\) |
 | `username` | string | No | MongoDB username |
 | `password` | string | No | MongoDB password |
 | `authSource` | string | No | Authentication database |
@@ -71,7 +71,7 @@ Insert documents into MongoDB collection
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | MongoDB server hostname or IP address |
 | `port` | number | Yes | MongoDB server port \(default: 27017\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "mydb"\) |
 | `username` | string | No | MongoDB username |
 | `password` | string | No | MongoDB password |
 | `authSource` | string | No | Authentication database |
@@ -98,7 +98,7 @@ Update documents in MongoDB collection
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | MongoDB server hostname or IP address |
 | `port` | number | Yes | MongoDB server port \(default: 27017\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "mydb"\) |
 | `username` | string | No | MongoDB username |
 | `password` | string | No | MongoDB password |
 | `authSource` | string | No | Authentication database |
@@ -129,7 +129,7 @@ Delete documents from MongoDB collection
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | MongoDB server hostname or IP address |
 | `port` | number | Yes | MongoDB server port \(default: 27017\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "mydb"\) |
 | `username` | string | No | MongoDB username |
 | `password` | string | No | MongoDB password |
 | `authSource` | string | No | Authentication database |
@@ -156,7 +156,7 @@ Execute MongoDB aggregation pipeline
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | MongoDB server hostname or IP address |
 | `port` | number | Yes | MongoDB server port \(default: 27017\) |
-| `database` | string | Yes | Database name to connect to |
+| `database` | string | Yes | Database name to connect to \(e.g., "mydb"\) |
 | `username` | string | No | MongoDB username |
 | `password` | string | No | MongoDB password |
 | `authSource` | string | No | Authentication database |
@@ -182,7 +182,7 @@ Introspect MongoDB database to list databases, collections, and indexes
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | MongoDB server hostname or IP address |
 | `port` | number | Yes | MongoDB server port \(default: 27017\) |
-| `database` | string | No | Database name to introspect \(optional - if not provided, lists all databases\) |
+| `database` | string | No | Database name to introspect \(e.g., "mydb"\). If not provided, lists all databases |
 | `username` | string | No | MongoDB username |
 | `password` | string | No | MongoDB password |
 | `authSource` | string | No | Authentication database |

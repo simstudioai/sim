@@ -24,8 +24,9 @@ export const searchTool: ToolConfig<PerplexitySearchParams, PerplexitySearchResp
     search_domain_filter: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
-      description: 'List of domains/URLs to limit search results to (max 20)',
+      visibility: 'user-or-llm',
+      description:
+        'List of domains/URLs to limit search results to (e.g., ["github.com", "stackoverflow.com"], max 20)',
     },
     max_tokens_per_page: {
       type: 'number',
@@ -42,8 +43,8 @@ export const searchTool: ToolConfig<PerplexitySearchParams, PerplexitySearchResp
     search_recency_filter: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter results by recency: hour, day, week, month, or year',
+      visibility: 'user-or-llm',
+      description: 'Filter results by recency (e.g., "hour", "day", "week", "month", "year")',
     },
     search_after_date: {
       type: 'string',

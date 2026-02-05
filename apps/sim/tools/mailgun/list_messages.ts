@@ -18,7 +18,7 @@ export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessage
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Mailgun domain',
+      description: 'Mailgun domain for listing events (e.g., mg.example.com)',
     },
     event: {
       type: 'string',

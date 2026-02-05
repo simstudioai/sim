@@ -1,6 +1,6 @@
+import type { KalshiMarket } from '@/tools/kalshi/types'
+import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
-import type { KalshiMarket } from './types'
-import { buildKalshiUrl, handleKalshiError } from './types'
 
 export interface KalshiGetMarketParams {
   ticker: string // Market ticker
@@ -24,7 +24,7 @@ export const kalshiGetMarketTool: ToolConfig<KalshiGetMarketParams, KalshiGetMar
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The market ticker (e.g., "KXBTC-24DEC31")',
+      description: 'Market ticker identifier (e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99")',
     },
   },
 
@@ -133,7 +133,7 @@ export const kalshiGetMarketV2Tool: ToolConfig<KalshiGetMarketParams, KalshiGetM
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The market ticker (e.g., "KXBTC-24DEC31")',
+      description: 'Market ticker identifier (e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99")',
     },
   },
 

@@ -50,3 +50,13 @@ export function getInvalidCharacters(name: string): string[] {
   const invalidChars = name.match(/[^a-zA-Z0-9_\s]/g)
   return invalidChars ? [...new Set(invalidChars)] : []
 }
+
+/**
+ * Escapes non-ASCII characters in JSON string for HTTP header safety.
+ * Dropbox API requires characters 0x7F and all non-ASCII to be escaped as \uXXXX.
+ */
+export function httpHeaderSafeJson(value: object): string {
+  return JSON.stringify(value).replace(/[\u007f-\uffff]/g, (c) => {
+    return `\\u${(`0000${c.charCodeAt(0).toString(16)}`).slice(-4)}`
+  })
+}

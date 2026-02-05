@@ -24,7 +24,7 @@ export const escalationPathsCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the escalation path',
+      description: 'Name of the escalation path (e.g., "Critical Incident Path")',
     },
     path: {
       type: 'json',

@@ -28,8 +28,8 @@ export const copySheetV2Tool: ToolConfig<
     sourceSpreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the source spreadsheet',
+      visibility: 'user-or-llm',
+      description: 'Source Google Sheets spreadsheet ID',
     },
     sheetId: {
       type: 'number',

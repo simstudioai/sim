@@ -42,8 +42,8 @@ Fetch and filter issues from Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | No | Linear team ID to filter by |
-| `projectId` | string | No | Linear project ID to filter by |
+| `teamId` | string | No | Linear team ID \(UUID format\) to filter issues by team |
+| `projectId` | string | No | Linear project ID \(UUID format\) to filter issues by project |
 | `assigneeId` | string | No | User ID to filter by assignee |
 | `stateId` | string | No | Workflow state ID to filter by status |
 | `priority` | number | No | Priority to filter by \(0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low\) |
@@ -142,8 +142,8 @@ Create a new issue in Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Yes | Linear team ID |
-| `projectId` | string | No | Linear project ID |
+| `teamId` | string | Yes | Linear team ID \(UUID format\) where the issue will be created |
+| `projectId` | string | No | Linear project ID \(UUID format\) to associate with the issue |
 | `title` | string | Yes | Issue title |
 | `description` | string | No | Issue description |
 | `stateId` | string | No | Workflow state ID \(status\) |
@@ -1022,7 +1022,8 @@ Add an attachment to an issue in Linear
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `issueId` | string | Yes | Issue ID to attach to |
-| `url` | string | Yes | URL of the attachment |
+| `url` | string | No | URL of the attachment |
+| `file` | file | No | File to attach |
 | `title` | string | Yes | Attachment title |
 | `subtitle` | string | No | Attachment subtitle/description |
 

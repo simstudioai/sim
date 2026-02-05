@@ -39,8 +39,8 @@ export const batchUpdateTool: ToolConfig<
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the Google Form to update',
+      visibility: 'user-or-llm',
+      description: 'Google Forms form ID',
     },
     requests: {
       type: 'json',

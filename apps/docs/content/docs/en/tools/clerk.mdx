@@ -43,15 +43,15 @@ List all users in your Clerk application with optional filtering and pagination
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
-| `limit` | number | No | Number of results per page \(1-500, default: 10\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
 | `orderBy` | string | No | Sort field with optional +/- prefix for direction \(default: -created_at\) |
-| `emailAddress` | string | No | Filter by email address \(comma-separated for multiple\) |
+| `emailAddress` | string | No | Filter by email address \(e.g., user@example.com or user1@example.com,user2@example.com\) |
 | `phoneNumber` | string | No | Filter by phone number \(comma-separated for multiple\) |
 | `externalId` | string | No | Filter by external ID \(comma-separated for multiple\) |
 | `username` | string | No | Filter by username \(comma-separated for multiple\) |
-| `userId` | string | No | Filter by user ID \(comma-separated for multiple\) |
-| `query` | string | No | Search query to match across email, phone, username, and names |
+| `userId` | string | No | Filter by user ID \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC or comma-separated for multiple\) |
+| `query` | string | No | Search query to match across email, phone, username, and names \(e.g., john or john@example.com\) |
 
 #### Output
 
@@ -94,7 +94,7 @@ Retrieve a single user by their ID from Clerk
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
-| `userId` | string | Yes | The ID of the user to retrieve |
+| `userId` | string | Yes | The ID of the user to retrieve \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
 
@@ -191,7 +191,7 @@ Update an existing user in your Clerk application
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
-| `userId` | string | Yes | The ID of the user to update |
+| `userId` | string | Yes | The ID of the user to update \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `firstName` | string | No | First name of the user |
 | `lastName` | string | No | Last name of the user |
 | `username` | string | No | Username \(must be unique\) |
@@ -240,7 +240,7 @@ Delete a user from your Clerk application
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
-| `userId` | string | Yes | The ID of the user to delete |
+| `userId` | string | Yes | The ID of the user to delete \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
 
@@ -260,10 +260,10 @@ List all organizations in your Clerk application with optional filtering
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
-| `limit` | number | No | Number of results per page \(1-500, default: 10\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
 | `includeMembersCount` | boolean | No | Include member count for each organization |
-| `query` | string | No | Search by organization ID, name, or slug |
+| `query` | string | No | Search by organization ID, name, or slug \(e.g., Acme Corp or acme-corp\) |
 | `orderBy` | string | No | Sort field \(name, created_at, members_count\) with +/- prefix |
 
 #### Output
@@ -296,7 +296,7 @@ Retrieve a single organization by ID or slug from Clerk
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
-| `organizationId` | string | Yes | The ID or slug of the organization to retrieve |
+| `organizationId` | string | Yes | The ID or slug of the organization to retrieve \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC or my-org-slug\) |
 
 #### Output
 
@@ -327,7 +327,7 @@ Create a new organization in your Clerk application
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `name` | string | Yes | Name of the organization |
-| `createdBy` | string | Yes | User ID of the creator \(will become admin\) |
+| `createdBy` | string | Yes | User ID of the creator who will become admin \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `slug` | string | No | Slug identifier for the organization |
 | `maxAllowedMemberships` | number | No | Maximum member capacity \(0 for unlimited\) |
 | `publicMetadata` | json | No | Public metadata \(JSON object\) |
@@ -361,11 +361,11 @@ List sessions for a user or client in your Clerk application
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
-| `userId` | string | No | User ID to list sessions for \(required if clientId not provided\) |
+| `userId` | string | No | User ID to list sessions for \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC; required if clientId not provided\) |
 | `clientId` | string | No | Client ID to list sessions for \(required if userId not provided\) |
 | `status` | string | No | Filter by session status \(abandoned, active, ended, expired, pending, removed, replaced, revoked\) |
-| `limit` | number | No | Number of results per page \(1-500, default: 10\) |
-| `offset` | number | No | Number of results to skip for pagination |
+| `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
+| `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
 
 #### Output
 
@@ -394,7 +394,7 @@ Retrieve a single session by ID from Clerk
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
-| `sessionId` | string | Yes | The ID of the session to retrieve |
+| `sessionId` | string | Yes | The ID of the session to retrieve \(e.g., sess_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
 
@@ -421,7 +421,7 @@ Revoke a session to immediately invalidate it
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
-| `sessionId` | string | Yes | The ID of the session to revoke |
+| `sessionId` | string | Yes | The ID of the session to revoke \(e.g., sess_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
 

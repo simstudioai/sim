@@ -37,20 +37,20 @@ export const jsmGetOrganizationsTool: ToolConfig<
     serviceDeskId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Service Desk ID to get organizations for',
+      visibility: 'user-or-llm',
+      description: 'Service Desk ID (e.g., "1", "2")',
     },
     start: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Start index for pagination (default: 0)',
+      visibility: 'user-or-llm',
+      description: 'Start index for pagination (e.g., 0, 50, 100)',
     },
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum results to return (default: 50)',
+      visibility: 'user-or-llm',
+      description: 'Maximum results to return (e.g., 10, 25, 50)',
     },
   },
 

@@ -101,7 +101,7 @@ export class ExecutionEngine {
   }
 
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
-    const startTime = Date.now()
+    const startTime = performance.now()
     try {
       this.initializeQueue(triggerBlockId)
 
@@ -125,11 +125,12 @@ export class ExecutionEngine {
         return this.buildPausedResult(startTime)
       }
 
-      const endTime = Date.now()
-      this.context.metadata.endTime = new Date(endTime).toISOString()
+      const endTime = performance.now()
+      this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
 
       if (this.cancelledFlag) {
+        this.finalizeIncompleteLogs()
         return {
           success: false,
           output: this.finalOutput,
@@ -146,11 +147,12 @@ export class ExecutionEngine {
         metadata: this.context.metadata,
       }
     } catch (error) {
-      const endTime = Date.now()
-      this.context.metadata.endTime = new Date(endTime).toISOString()
+      const endTime = performance.now()
+      this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
 
       if (this.cancelledFlag) {
+        this.finalizeIncompleteLogs()
         return {
           success: false,
           output: this.finalOutput,
@@ -159,6 +161,8 @@ export class ExecutionEngine {
           status: 'cancelled',
         }
       }
+
+      this.finalizeIncompleteLogs()
 
       const errorMessage = normalizeError(error)
       logger.error('Execution failed', { error: errorMessage })
@@ -433,8 +437,8 @@ export class ExecutionEngine {
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {
-    const endTime = Date.now()
-    this.context.metadata.endTime = new Date(endTime).toISOString()
+    const endTime = performance.now()
+    this.context.metadata.endTime = new Date().toISOString()
     this.context.metadata.duration = endTime - startTime
     this.context.metadata.status = 'paused'
 
@@ -472,6 +476,22 @@ export class ExecutionEngine {
     return {
       pausedBlocks: responses,
       pauseCount: responses.length,
+    }
+  }
+
+  /**
+   * Finalizes any block logs that were still running when execution was cancelled.
+   * Sets their endedAt to now and calculates the actual elapsed duration.
+   */
+  private finalizeIncompleteLogs(): void {
+    const now = new Date()
+    const nowIso = now.toISOString()
+
+    for (const log of this.context.blockLogs) {
+      if (!log.endedAt) {
+        log.endedAt = nowIso
+        log.durationMs = now.getTime() - new Date(log.startedAt).getTime()
+      }
     }
   }
 }

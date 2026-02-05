@@ -24,8 +24,9 @@ export const youtubeVideoCategoriesTool: ToolConfig<
     hl: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Language for category titles (e.g., "en", "es", "fr"). Defaults to English.',
+      visibility: 'user-or-llm',
+      description:
+        'Language for category titles (ISO 639-1 code, e.g., "en", "es", "fr"). Defaults to English.',
     },
     apiKey: {
       type: 'string',

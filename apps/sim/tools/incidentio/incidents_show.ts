@@ -25,7 +25,7 @@ export const incidentsShowTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the incident to retrieve',
+      description: 'ID of the incident to retrieve (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

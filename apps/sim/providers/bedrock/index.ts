@@ -20,11 +20,7 @@ import {
   generateToolUseId,
   getBedrockInferenceProfileId,
 } from '@/providers/bedrock/utils'
-import {
-  getMaxOutputTokensForModel,
-  getProviderDefaultModel,
-  getProviderModels,
-} from '@/providers/models'
+import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -261,11 +257,11 @@ export const bedrockProvider: ProviderConfig = {
 
     const systemPromptWithSchema = systemContent
 
-    const inferenceConfig = {
+    const inferenceConfig: { temperature: number; maxTokens?: number } = {
       temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
-      maxTokens:
-        Number.parseInt(String(request.maxTokens)) ||
-        getMaxOutputTokensForModel(request.model, request.stream ?? false),
+    }
+    if (request.maxTokens != null) {
+      inferenceConfig.maxTokens = Number.parseInt(String(request.maxTokens))
     }
 
     const shouldStreamToolCalls = request.streamToolCalls ?? false

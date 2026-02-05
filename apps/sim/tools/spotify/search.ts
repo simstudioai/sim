@@ -1,11 +1,11 @@
-import type { ToolConfig } from '@/tools/types'
-import type { SpotifySearchParams, SpotifySearchResponse } from './types'
+import type { SpotifySearchParams, SpotifySearchResponse } from '@/tools/spotify/types'
 import {
   SEARCH_ALBUM_OUTPUT_PROPERTIES,
   SEARCH_ARTIST_OUTPUT_PROPERTIES,
   SEARCH_PLAYLIST_OUTPUT_PROPERTIES,
   SEARCH_TRACK_OUTPUT_PROPERTIES,
-} from './types'
+} from '@/tools/spotify/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchResponse> = {
   id: 'spotify_search',
@@ -37,21 +37,21 @@ export const spotifySearchTool: ToolConfig<SpotifySearchParams, SpotifySearchRes
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Maximum number of results to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
       description: 'Index of the first result to return for pagination',
     },
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'ISO 3166-1 alpha-2 country code to filter results (e.g., "US", "GB")',
     },
   },

@@ -24,14 +24,16 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
     chatId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the chat to write to',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the chat to write to (e.g., "19:abc123def456@thread.v2" - from chat listings)',
     },
     content: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The content to write to the message',
+      description:
+        'The content to write to the message (plain text or HTML formatted, supports @mentions)',
     },
     files: {
       type: 'file[]',
@@ -48,6 +50,7 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
     createdTime: { type: 'string', description: 'Timestamp when message was created' },
     url: { type: 'string', description: 'Web URL to the message' },
     updatedContent: { type: 'boolean', description: 'Whether content was successfully updated' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
   },
 
   request: {

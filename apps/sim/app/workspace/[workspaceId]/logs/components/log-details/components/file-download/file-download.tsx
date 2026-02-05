@@ -104,14 +104,12 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
   }
 
   return (
-    <div className='flex flex-col gap-[8px] rounded-[6px] bg-[var(--surface-1)] px-[10px] py-[8px]'>
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[8px]'>
-          <span className='truncate font-medium text-[12px] text-[var(--text-secondary)]'>
-            {file.name}
-          </span>
-        </div>
-        <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+    <div className='flex flex-col gap-[4px] rounded-[6px] bg-[var(--surface-1)] px-[8px] py-[6px]'>
+      <div className='flex min-w-0 items-center justify-between gap-[8px]'>
+        <span className='min-w-0 flex-1 truncate font-medium text-[12px] text-[var(--text-secondary)]'>
+          {file.name}
+        </span>
+        <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
           {formatFileSize(file.size)}
         </span>
       </div>
@@ -142,20 +140,18 @@ export function FileCards({ files, isExecutionFile = false, workspaceId }: FileC
   }
 
   return (
-    <div className='flex w-full flex-col gap-[6px] rounded-[6px] bg-[var(--surface-2)] px-[10px] py-[8px]'>
+    <div className='mt-[4px] flex flex-col gap-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] py-[8px] dark:bg-transparent'>
       <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
         Files ({files.length})
       </span>
-      <div className='flex flex-col gap-[8px]'>
-        {files.map((file, index) => (
-          <FileCard
-            key={file.id || `file-${index}`}
-            file={file}
-            isExecutionFile={isExecutionFile}
-            workspaceId={workspaceId}
-          />
-        ))}
-      </div>
+      {files.map((file, index) => (
+        <FileCard
+          key={file.id || `file-${index}`}
+          file={file}
+          isExecutionFile={isExecutionFile}
+          workspaceId={workspaceId}
+        />
+      ))}
     </div>
   )
 }

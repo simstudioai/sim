@@ -12,7 +12,7 @@ export const openaiTtsTool: ToolConfig<OpenAiTtsParams, TtsBlockResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text to convert to speech',
+      description: 'The text content to convert to speech (e.g., "Hello, welcome to our service!")',
     },
     apiKey: {
       type: 'string',
@@ -24,14 +24,14 @@ export const openaiTtsTool: ToolConfig<OpenAiTtsParams, TtsBlockResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'TTS model to use (tts-1, tts-1-hd, or gpt-4o-mini-tts)',
+      description: 'OpenAI TTS model identifier (e.g., "tts-1", "tts-1-hd", "gpt-4o-mini-tts")',
     },
     voice: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Voice to use (alloy, ash, ballad, cedar, coral, echo, marin, sage, shimmer, verse)',
+        'OpenAI voice identifier (e.g., "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer")',
     },
     responseFormat: {
       type: 'string',
@@ -43,7 +43,8 @@ export const openaiTtsTool: ToolConfig<OpenAiTtsParams, TtsBlockResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Speech speed (0.25 to 4.0, default: 1.0)',
+      description:
+        'Speech speed multiplier from 0.25 to 4.0 (e.g., 0.5 for slower, 1.0 for normal, 2.0 for faster)',
     },
   },
 

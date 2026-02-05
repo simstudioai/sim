@@ -250,8 +250,8 @@ export const appendV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Ap
     spreadsheetId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the spreadsheet to append to',
+      visibility: 'user-or-llm',
+      description: 'Google Sheets spreadsheet ID',
     },
     sheetName: {
       type: 'string',

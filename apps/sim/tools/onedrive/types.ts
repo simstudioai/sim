@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface MicrosoftGraphDriveItem {
@@ -91,7 +92,7 @@ export interface OneDriveToolParams {
   folderName?: string
   fileId?: string
   fileName?: string
-  file?: unknown // UserFile or UserFile array
+  file?: UserFile
   content?: string
   mimeType?: string
   query?: string

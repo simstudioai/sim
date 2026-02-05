@@ -21,6 +21,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('WorkflowMcpServeAPI')
@@ -264,7 +265,7 @@ async function handleToolsCall(
       method: 'POST',
       headers,
       body: JSON.stringify({ input: params.arguments || {}, triggerType: 'mcp' }),
-      signal: AbortSignal.timeout(300000), // 5 minute timeout
+      signal: AbortSignal.timeout(getMaxExecutionTimeout()),
     })
 
     const executeResult = await response.json()
@@ -284,7 +285,7 @@ async function handleToolsCall(
       content: [
         { type: 'text', text: JSON.stringify(executeResult.output || executeResult, null, 2) },
       ],
-      isError: !executeResult.success,
+      isError: executeResult.success === false,
     }
 
     return NextResponse.json(createResponse(id, result))

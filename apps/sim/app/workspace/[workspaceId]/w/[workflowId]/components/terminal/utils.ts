@@ -1,5 +1,5 @@
 import type React from 'react'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { AlertTriangleIcon, BanIcon, RepeatIcon, SplitIcon, XCircleIcon } from 'lucide-react'
 import { getBlock } from '@/blocks'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -10,6 +10,15 @@ import type { ConsoleEntry } from '@/stores/terminal'
 const SUBFLOW_COLORS = {
   loop: '#2FB3FF',
   parallel: '#FEE12B',
+} as const
+
+/**
+ * Special block type colors for errors and system messages
+ */
+const SPECIAL_BLOCK_COLORS = {
+  error: '#ef4444',
+  validation: '#f59e0b',
+  cancelled: '#6b7280',
 } as const
 
 /**
@@ -32,6 +41,18 @@ export function getBlockIcon(
     return SplitIcon
   }
 
+  if (blockType === 'error') {
+    return XCircleIcon
+  }
+
+  if (blockType === 'validation') {
+    return AlertTriangleIcon
+  }
+
+  if (blockType === 'cancelled') {
+    return BanIcon
+  }
+
   return null
 }
 
@@ -50,16 +71,17 @@ export function getBlockColor(blockType: string): string {
   if (blockType === 'parallel') {
     return SUBFLOW_COLORS.parallel
   }
+  // Special block types for errors and system messages
+  if (blockType === 'error') {
+    return SPECIAL_BLOCK_COLORS.error
+  }
+  if (blockType === 'validation') {
+    return SPECIAL_BLOCK_COLORS.validation
+  }
+  if (blockType === 'cancelled') {
+    return SPECIAL_BLOCK_COLORS.cancelled
+  }
   return '#6b7280'
-}
-
-/**
- * Formats duration from milliseconds to readable format
- */
-export function formatDuration(ms?: number): string {
-  if (ms === undefined || ms === null) return '-'
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(2)}s`
 }
 
 /**
@@ -193,13 +215,9 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     group.blocks.push(entry)
   }
 
-  // Sort blocks within each iteration by start time ascending (oldest first, top-down)
+  // Sort blocks within each iteration by executionOrder ascending (oldest first, top-down)
   for (const group of iterationGroupsMap.values()) {
-    group.blocks.sort((a, b) => {
-      const aStart = new Date(a.startedAt || a.timestamp).getTime()
-      const bStart = new Date(b.startedAt || b.timestamp).getTime()
-      return aStart - bStart
-    })
+    group.blocks.sort((a, b) => a.executionOrder - b.executionOrder)
   }
 
   // Group iterations by iterationType to create subflow parents
@@ -234,6 +252,8 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     const totalDuration = allBlocks.reduce((sum, b) => sum + (b.durationMs || 0), 0)
 
     // Create synthetic subflow parent entry
+    // Use the minimum executionOrder from all child blocks for proper ordering
+    const subflowExecutionOrder = Math.min(...allBlocks.map((b) => b.executionOrder))
     const syntheticSubflow: ConsoleEntry = {
       id: `subflow-${iterationType}-${firstIteration.blocks[0]?.executionId || 'unknown'}`,
       timestamp: new Date(subflowStartMs).toISOString(),
@@ -243,6 +263,7 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
       blockType: iterationType,
       executionId: firstIteration.blocks[0]?.executionId,
       startedAt: new Date(subflowStartMs).toISOString(),
+      executionOrder: subflowExecutionOrder,
       endedAt: new Date(subflowEndMs).toISOString(),
       durationMs: totalDuration,
       success: !allBlocks.some((b) => b.error),
@@ -260,6 +281,8 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
       )
       const iterDuration = iterBlocks.reduce((sum, b) => sum + (b.durationMs || 0), 0)
 
+      // Use the minimum executionOrder from blocks in this iteration
+      const iterExecutionOrder = Math.min(...iterBlocks.map((b) => b.executionOrder))
       const syntheticIteration: ConsoleEntry = {
         id: `iteration-${iterationType}-${iterGroup.iterationCurrent}-${iterBlocks[0]?.executionId || 'unknown'}`,
         timestamp: new Date(iterStartMs).toISOString(),
@@ -269,6 +292,7 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
         blockType: iterationType,
         executionId: iterBlocks[0]?.executionId,
         startedAt: new Date(iterStartMs).toISOString(),
+        executionOrder: iterExecutionOrder,
         endedAt: new Date(iterEndMs).toISOString(),
         durationMs: iterDuration,
         success: !iterBlocks.some((b) => b.error),
@@ -309,14 +333,9 @@ function buildEntryTree(entries: ConsoleEntry[]): EntryNode[] {
     nodeType: 'block' as const,
   }))
 
-  // Combine all nodes and sort by start time ascending (oldest first, top-down)
+  // Combine all nodes and sort by executionOrder ascending (oldest first, top-down)
   const allNodes = [...subflowNodes, ...regularNodes]
-  allNodes.sort((a, b) => {
-    const aStart = new Date(a.entry.startedAt || a.entry.timestamp).getTime()
-    const bStart = new Date(b.entry.startedAt || b.entry.timestamp).getTime()
-    return aStart - bStart
-  })
-
+  allNodes.sort((a, b) => a.entry.executionOrder - b.entry.executionOrder)
   return allNodes
 }
 

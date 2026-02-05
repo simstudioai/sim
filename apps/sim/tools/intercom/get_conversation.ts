@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('IntercomGetConversation')
 
 export interface IntercomGetConversationParams {
   accessToken: string

@@ -31,8 +31,8 @@ export const deleteBucketTool: ToolConfig<
     bucketId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the bucket to delete',
+      visibility: 'user-or-llm',
+      description: 'The ID of the bucket to delete (e.g., "hsOf2dhOJkC6Fey9VjDg1JgAC9Rq")',
     },
     etag: {
       type: 'string',

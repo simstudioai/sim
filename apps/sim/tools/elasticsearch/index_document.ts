@@ -63,11 +63,13 @@ export const indexDocumentTool: ToolConfig<
     host: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elasticsearch host URL (for self-hosted)',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Elastic Cloud ID (for cloud deployments)',
     },
     authMethod: {
@@ -84,6 +86,7 @@ export const indexDocumentTool: ToolConfig<
     username: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Username for basic auth',
     },
     password: {
@@ -95,12 +98,14 @@ export const indexDocumentTool: ToolConfig<
     index: {
       type: 'string',
       required: true,
-      description: 'Target index name',
+      visibility: 'user-or-llm',
+      description: 'Target index name (e.g., "products", "logs-2024")',
     },
     documentId: {
       type: 'string',
       required: false,
-      description: 'Document ID (auto-generated if not provided)',
+      visibility: 'user-or-llm',
+      description: 'Document ID (e.g., "abc123", "user_456"). Auto-generated if not provided',
     },
     document: {
       type: 'string',

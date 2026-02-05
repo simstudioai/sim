@@ -1,5 +1,5 @@
+import type { GoogleGroupsHasMemberParams, GoogleGroupsResponse } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
-import type { GoogleGroupsHasMemberParams, GoogleGroupsResponse } from './types'
 
 export const hasMemberTool: ToolConfig<GoogleGroupsHasMemberParams, GoogleGroupsResponse> = {
   id: 'google_groups_has_member',
@@ -23,13 +23,15 @@ export const hasMemberTool: ToolConfig<GoogleGroupsHasMemberParams, GoogleGroups
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group email address or unique group ID',
+      description:
+        'Group identifier. Can be the group email address (e.g., team@example.com) or the unique group ID',
     },
     memberKey: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Member email address or unique member ID to check',
+      description:
+        'Member identifier to check. Can be the member email address (e.g., user@example.com) or the unique member ID',
     },
   },
 

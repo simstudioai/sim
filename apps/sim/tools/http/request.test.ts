@@ -286,6 +286,30 @@ describe('HTTP Request Tool', () => {
       )
     })
 
+    it('should handle nested objects and arrays in URL-encoded form data', async () => {
+      tester.setup({ result: 'success' })
+
+      const body = {
+        name: 'test',
+        data: { nested: 'value' },
+        items: [1, 2, 3],
+      }
+
+      await tester.execute({
+        url: 'https://api.example.com/submit',
+        method: 'POST',
+        body,
+        headers: [{ cells: { Key: 'Content-Type', Value: 'application/x-www-form-urlencoded' } }],
+      })
+
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const bodyStr = fetchCall[1].body
+
+      expect(bodyStr).toContain('name=test')
+      expect(bodyStr).toContain('data=%7B%22nested%22%3A%22value%22%7D')
+      expect(bodyStr).toContain('items=%5B1%2C2%2C3%5D')
+    })
+
     it('should handle OAuth client credentials requests', async () => {
       tester.setup({ access_token: 'token123', token_type: 'Bearer' })
 

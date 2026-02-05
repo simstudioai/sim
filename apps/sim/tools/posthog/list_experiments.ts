@@ -42,7 +42,7 @@ export const listExperimentsTool: ToolConfig<ListExperimentsParams, ListExperime
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The PostHog project ID',
+      description: 'The PostHog project ID (e.g., "12345" or project UUID)',
     },
     region: {
       type: 'string',
@@ -59,14 +59,14 @@ export const listExperimentsTool: ToolConfig<ListExperimentsParams, ListExperime
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to return',
+      visibility: 'user-or-llm',
+      description: 'Number of results to return (e.g., 10, 50, 100)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Number of results to skip',
+      visibility: 'user-or-llm',
+      description: 'Number of results to skip for pagination (e.g., 0, 100, 200)',
     },
   },
 

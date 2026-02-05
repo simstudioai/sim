@@ -25,15 +25,15 @@ export const youtubeTrendingTool: ToolConfig<YouTubeTrendingParams, YouTubeTrend
     maxResults: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 10,
       description: 'Maximum number of trending videos to return (1-50)',
     },
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page token for pagination',
+      visibility: 'user-or-llm',
+      description: 'Page token for pagination (from previous response nextPageToken)',
     },
     apiKey: {
       type: 'string',

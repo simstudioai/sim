@@ -36,7 +36,7 @@ export const slackGetThreadTool: ToolConfig<SlackGetThreadParams, SlackGetThread
     channel: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Slack channel ID (e.g., C1234567890)',
     },
     threadTs: {

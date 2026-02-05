@@ -1,5 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
-import type { VisionParams, VisionResponse } from '@/tools/vision/types'
+import type { VisionParams, VisionResponse, VisionV2Params } from '@/tools/vision/types'
 
 export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
   id: 'vision_tool',
@@ -52,7 +52,7 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
         apiKey: params.apiKey,
         imageUrl: params.imageUrl || null,
         imageFile: params.imageFile || null,
-        model: params.model || 'gpt-4o',
+        model: params.model || 'gpt-5.2',
         prompt: params.prompt || null,
       }
     },
@@ -94,5 +94,31 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
         total_tokens: { type: 'number', description: 'Total tokens consumed' },
       },
     },
+  },
+}
+
+export const visionToolV2: ToolConfig<VisionV2Params, VisionResponse> = {
+  ...visionTool,
+  id: 'vision_tool_v2',
+  name: 'Vision Tool',
+  params: {
+    apiKey: visionTool.params.apiKey,
+    imageFile: {
+      type: 'file',
+      required: true,
+      visibility: 'hidden',
+      description: 'Image file to analyze',
+    },
+    model: visionTool.params.model,
+    prompt: visionTool.params.prompt,
+  },
+  request: {
+    ...visionTool.request,
+    body: (params: VisionV2Params) => ({
+      apiKey: params.apiKey,
+      imageFile: params.imageFile,
+      model: params.model || 'gpt-5.2',
+      prompt: params.prompt || null,
+    }),
   },
 }

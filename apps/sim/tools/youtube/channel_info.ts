@@ -15,7 +15,8 @@ export const youtubeChannelInfoTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'YouTube channel ID (use either channelId or username)',
+      description:
+        'YouTube channel ID starting with "UC" (24-character string, use either channelId or username)',
     },
     username: {
       type: 'string',

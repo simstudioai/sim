@@ -11,14 +11,14 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     formId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Typeform form ID',
+      visibility: 'user-or-llm',
+      description: 'Typeform form ID (e.g., "abc123XYZ")',
     },
     responseId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Response ID containing the files',
+      visibility: 'user-or-llm',
+      description: 'Response ID containing the files (e.g., "resp_xyz789")',
     },
     fieldId: {
       type: 'string',
@@ -73,12 +73,20 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     // For file downloads, we get the file directly
     const contentType = response.headers.get('content-type') || 'application/octet-stream'
     const contentDisposition = response.headers.get('content-disposition') || ''
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
 
     // Try to extract filename from content-disposition if possible
     let filename = ''
     const filenameMatch = contentDisposition.match(/filename="(.+?)"/)
     if (filenameMatch?.[1]) {
       filename = filenameMatch[1]
+    }
+    if (!filename && params?.filename) {
+      filename = params.filename
+    }
+    if (!filename) {
+      filename = 'typeform-file'
     }
 
     // Get file URL from the response URL or construct it from parameters if not available
@@ -102,6 +110,12 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       success: true,
       output: {
         fileUrl: fileUrl || '',
+        file: {
+          name: filename,
+          mimeType: contentType,
+          data: buffer.toString('base64'),
+          size: buffer.length,
+        },
         contentType,
         filename,
       },
@@ -110,6 +124,7 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
 
   outputs: {
     fileUrl: { type: 'string', description: 'Direct download URL for the uploaded file' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     contentType: { type: 'string', description: 'MIME type of the uploaded file' },
     filename: { type: 'string', description: 'Original filename of the uploaded file' },
   },

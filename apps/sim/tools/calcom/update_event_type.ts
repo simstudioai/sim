@@ -28,8 +28,8 @@ export const updateEventTypeTool: ToolConfig<
     eventTypeId: {
       type: 'number',
       required: true,
-      visibility: 'user-only',
-      description: 'Event type ID to update',
+      visibility: 'user-or-llm',
+      description: 'Event type ID to update (e.g., 12345)',
     },
     title: {
       type: 'string',

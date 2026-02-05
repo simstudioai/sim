@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   extractBlockFieldsForComparison,
@@ -12,6 +13,9 @@ import {
   normalizeVariables,
   sanitizeVariable,
 } from './normalize'
+import { formatValueForDisplay, resolveValueForDisplay } from './resolve-values'
+
+const logger = createLogger('WorkflowComparison')
 
 /**
  * Compare the current workflow state with the deployed state to detect meaningful changes.
@@ -153,7 +157,7 @@ export function generateWorkflowDiffSummary(
       }
       // Check other block properties (boolean fields)
       // Use !! to normalize: null/undefined/false are all equivalent (falsy)
-      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode'] as const
+      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode', 'locked'] as const
       for (const field of blockFields) {
         if (!!currentBlock[field] !== !!previousBlock[field]) {
           changes.push({
@@ -318,19 +322,6 @@ export function generateWorkflowDiffSummary(
   return result
 }
 
-function formatValueForDisplay(value: unknown): string {
-  if (value === null || value === undefined) return '(none)'
-  if (typeof value === 'string') {
-    if (value.length > 50) return `${value.slice(0, 50)}...`
-    return value || '(empty)'
-  }
-  if (typeof value === 'boolean') return value ? 'enabled' : 'disabled'
-  if (typeof value === 'number') return String(value)
-  if (Array.isArray(value)) return `[${value.length} items]`
-  if (typeof value === 'object') return `${JSON.stringify(value).slice(0, 50)}...`
-  return String(value)
-}
-
 /**
  * Convert a WorkflowDiffSummary to a human-readable string for AI description generation
  */
@@ -403,6 +394,133 @@ export function formatDiffSummaryForDescription(summary: WorkflowDiffSummary): s
   if (varChanges.length > 0) {
     changes.push(`Variables: ${varChanges.join(', ')}`)
   }
+
+  return changes.join('\n')
+}
+
+/**
+ * Converts a WorkflowDiffSummary to a human-readable string with resolved display names.
+ * Resolves IDs (credentials, channels, workflows, etc.) to human-readable names using
+ * the selector registry infrastructure.
+ *
+ * @param summary - The diff summary to format
+ * @param currentState - The current workflow state for context extraction
+ * @param workflowId - The workflow ID for API calls
+ * @returns A formatted string describing the changes with resolved names
+ */
+export async function formatDiffSummaryForDescriptionAsync(
+  summary: WorkflowDiffSummary,
+  currentState: WorkflowState,
+  workflowId: string
+): Promise<string> {
+  if (!summary.hasChanges) {
+    return 'No structural changes detected (configuration may have changed)'
+  }
+
+  const changes: string[] = []
+
+  for (const block of summary.addedBlocks) {
+    const name = block.name || block.type
+    changes.push(`Added block: ${name} (${block.type})`)
+  }
+
+  for (const block of summary.removedBlocks) {
+    const name = block.name || block.type
+    changes.push(`Removed block: ${name} (${block.type})`)
+  }
+
+  const modifiedBlockPromises = summary.modifiedBlocks.map(async (block) => {
+    const name = block.name || block.type
+    const blockChanges: string[] = []
+
+    const changesToProcess = block.changes.slice(0, 3)
+    const resolvedChanges = await Promise.all(
+      changesToProcess.map(async (change) => {
+        const context = {
+          blockType: block.type,
+          subBlockId: change.field,
+          workflowId,
+          currentState,
+          blockId: block.id,
+        }
+
+        const [oldResolved, newResolved] = await Promise.all([
+          resolveValueForDisplay(change.oldValue, context),
+          resolveValueForDisplay(change.newValue, context),
+        ])
+
+        return {
+          field: change.field,
+          oldLabel: oldResolved.displayLabel,
+          newLabel: newResolved.displayLabel,
+        }
+      })
+    )
+
+    for (const resolved of resolvedChanges) {
+      blockChanges.push(
+        `Modified ${name}: ${resolved.field} changed from "${resolved.oldLabel}" to "${resolved.newLabel}"`
+      )
+    }
+
+    if (block.changes.length > 3) {
+      blockChanges.push(`  ...and ${block.changes.length - 3} more changes in ${name}`)
+    }
+
+    return blockChanges
+  })
+
+  const allModifiedBlockChanges = await Promise.all(modifiedBlockPromises)
+  for (const blockChanges of allModifiedBlockChanges) {
+    changes.push(...blockChanges)
+  }
+
+  if (summary.edgeChanges.added > 0) {
+    changes.push(`Added ${summary.edgeChanges.added} connection(s)`)
+  }
+  if (summary.edgeChanges.removed > 0) {
+    changes.push(`Removed ${summary.edgeChanges.removed} connection(s)`)
+  }
+
+  if (summary.loopChanges.added > 0) {
+    changes.push(`Added ${summary.loopChanges.added} loop(s)`)
+  }
+  if (summary.loopChanges.removed > 0) {
+    changes.push(`Removed ${summary.loopChanges.removed} loop(s)`)
+  }
+  if (summary.loopChanges.modified > 0) {
+    changes.push(`Modified ${summary.loopChanges.modified} loop(s)`)
+  }
+
+  if (summary.parallelChanges.added > 0) {
+    changes.push(`Added ${summary.parallelChanges.added} parallel group(s)`)
+  }
+  if (summary.parallelChanges.removed > 0) {
+    changes.push(`Removed ${summary.parallelChanges.removed} parallel group(s)`)
+  }
+  if (summary.parallelChanges.modified > 0) {
+    changes.push(`Modified ${summary.parallelChanges.modified} parallel group(s)`)
+  }
+
+  const varChanges: string[] = []
+  if (summary.variableChanges.added > 0) {
+    varChanges.push(`${summary.variableChanges.added} added`)
+  }
+  if (summary.variableChanges.removed > 0) {
+    varChanges.push(`${summary.variableChanges.removed} removed`)
+  }
+  if (summary.variableChanges.modified > 0) {
+    varChanges.push(`${summary.variableChanges.modified} modified`)
+  }
+  if (varChanges.length > 0) {
+    changes.push(`Variables: ${varChanges.join(', ')}`)
+  }
+
+  logger.info('Generated async diff description', {
+    workflowId,
+    changeCount: changes.length,
+    modifiedBlocks: summary.modifiedBlocks.length,
+  })
 
   return changes.join('\n')
 }

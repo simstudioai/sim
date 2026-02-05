@@ -43,7 +43,8 @@ Upload a file to Dropbox
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `path` | string | Yes | The path in Dropbox where the file should be saved \(e.g., /folder/document.pdf\) |
-| `fileContent` | string | Yes | The base64 encoded content of the file to upload |
+| `file` | file | No | The file to upload \(UserFile object\) |
+| `fileContent` | string | No | Legacy: base64 encoded file content |
 | `fileName` | string | No | Optional filename \(used if path is a folder\) |
 | `mode` | string | No | Write mode: add \(default\) or overwrite |
 | `autorename` | boolean | No | If true, rename the file if there is a conflict |
@@ -66,7 +67,7 @@ Upload a file to Dropbox
 
 ### `dropbox_download`
 
-Download a file from Dropbox and get a temporary link
+Download a file from Dropbox with metadata and content
 
 #### Input
 
@@ -78,11 +79,8 @@ Download a file from Dropbox and get a temporary link
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | object | The file metadata |
-|   ↳ `id` | string | Unique identifier for the file |
-|   ↳ `name` | string | Name of the file |
-|   ↳ `path_display` | string | Display path of the file |
-|   ↳ `size` | number | Size of the file in bytes |
+| `file` | file | Downloaded file stored in execution files |
+| `metadata` | json | The file metadata |
 | `temporaryLink` | string | Temporary link to download the file \(valid for ~4 hours\) |
 | `content` | string | Base64 encoded file content \(if fetched\) |
 
@@ -256,7 +254,7 @@ Search for files and folders in Dropbox
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query |
-| `path` | string | No | Limit search to a specific folder path |
+| `path` | string | No | Dropbox folder path to limit search scope \(e.g., /folder/subfolder\) |
 | `fileExtensions` | string | No | Comma-separated list of file extensions to filter by \(e.g., pdf,xlsx\) |
 | `maxResults` | number | No | Maximum number of results to return \(default: 100\) |
 

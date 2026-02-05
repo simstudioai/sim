@@ -43,8 +43,8 @@ export const deleteObjectTool: ToolConfig<DeleteObjectParams, DeleteObjectRespon
     presentationId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the presentation',
+      visibility: 'user-or-llm',
+      description: 'Google Slides presentation ID',
     },
     objectId: {
       type: 'string',

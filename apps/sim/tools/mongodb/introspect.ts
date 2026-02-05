@@ -23,8 +23,9 @@ export const introspectTool: ToolConfig<MongoDBIntrospectParams, MongoDBIntrospe
     database: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Database name to introspect (optional - if not provided, lists all databases)',
+      visibility: 'user-or-llm',
+      description:
+        'Database name to introspect (e.g., "mydb"). If not provided, lists all databases',
     },
     username: {
       type: 'string',

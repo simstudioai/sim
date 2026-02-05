@@ -54,8 +54,8 @@ List issues from Sentry for a specific organization and optionally a specific pr
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
-| `projectSlug` | string | No | Filter issues by specific project slug \(optional\) |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | No | Filter issues by specific project slug \(e.g., "my-project"\) |
 | `query` | string | No | Search query to filter issues. Supports Sentry search syntax \(e.g., "is:unresolved", "level:error"\) |
 | `statsPeriod` | string | No | Time period for stats \(e.g., "24h", "7d", "30d"\). Defaults to 24h if not specified. |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
@@ -117,8 +117,8 @@ Retrieve detailed information about a specific Sentry issue by its ID. Returns c
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
-| `issueId` | string | Yes | The unique ID of the issue to retrieve |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `issueId` | string | Yes | The unique ID of the issue to retrieve \(e.g., "12345"\) |
 
 #### Output
 
@@ -171,8 +171,8 @@ Update a Sentry issue by changing its status, assignment, bookmark state, or oth
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
-| `issueId` | string | Yes | The unique ID of the issue to update |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `issueId` | string | Yes | The unique ID of the issue to update \(e.g., "12345"\) |
 | `status` | string | No | New status for the issue: resolved, unresolved, ignored, or resolvedInNextRelease |
 | `assignedTo` | string | No | User ID or email to assign the issue to. Use empty string to unassign. |
 | `isBookmarked` | boolean | No | Whether to bookmark the issue |
@@ -206,7 +206,7 @@ List all projects in a Sentry organization. Returns project details including na
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
 | `limit` | number | No | Number of projects to return per page \(default: 25, max: 100\) |
 
@@ -246,8 +246,8 @@ Retrieve detailed information about a specific Sentry project by its slug. Retur
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
-| `projectSlug` | string | Yes | The ID or slug of the project to retrieve |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | Yes | The slug of the project to retrieve \(e.g., "my-project"\) |
 
 #### Output
 
@@ -297,7 +297,7 @@ Create a new Sentry project in an organization. Requires a team to associate the
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
 | `name` | string | Yes | The name of the project |
 | `teamSlug` | string | Yes | The slug of the team that will own this project |
 | `slug` | string | No | URL-friendly project identifier \(auto-generated from name if not provided\) |
@@ -344,8 +344,8 @@ Update a Sentry project by changing its name, slug, platform, or other settings.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
-| `projectSlug` | string | Yes | The slug of the project to update |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | Yes | The slug of the project to update \(e.g., "my-project"\) |
 | `name` | string | No | New name for the project |
 | `slug` | string | No | New URL-friendly project identifier |
 | `platform` | string | No | New platform/language for the project \(e.g., javascript, python, node\) |
@@ -381,9 +381,9 @@ List events from a Sentry project. Can be filtered by issue ID, query, or time p
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
-| `projectSlug` | string | Yes | The slug of the project to list events from |
-| `issueId` | string | No | Filter events by a specific issue ID |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | Yes | The slug of the project to list events from \(e.g., "my-project"\) |
+| `issueId` | string | No | Filter events by a specific issue ID \(e.g., "12345"\) |
 | `query` | string | No | Search query to filter events. Supports Sentry search syntax \(e.g., "user.email:*@example.com"\) |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
 | `limit` | number | No | Number of events to return per page \(default: 50, max: 100\) |
@@ -440,9 +440,9 @@ Retrieve detailed information about a specific Sentry event by its ID. Returns c
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
-| `projectSlug` | string | Yes | The slug of the project |
-| `eventId` | string | Yes | The unique ID of the event to retrieve |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | Yes | The slug of the project \(e.g., "my-project"\) |
+| `eventId` | string | Yes | The unique ID of the event to retrieve \(e.g., "abc123def456"\) |
 
 #### Output
 
@@ -492,9 +492,9 @@ List releases for a Sentry organization or project. Returns release details incl
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
-| `projectSlug` | string | No | Filter releases by specific project slug \(optional\) |
-| `query` | string | No | Search query to filter releases \(e.g., version name pattern\) |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `projectSlug` | string | No | Filter releases by specific project slug \(e.g., "my-project"\) |
+| `query` | string | No | Search query to filter releases \(e.g., "1.0" to match version patterns\) |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
 | `limit` | number | No | Number of releases to return per page \(default: 25, max: 100\) |
 
@@ -556,7 +556,7 @@ Create a new release in Sentry. A release is a version of your code deployed to 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
 | `version` | string | Yes | Version identifier for the release \(e.g., "2.0.0", "my-app@1.0.0", or a git commit SHA\) |
 | `projects` | string | Yes | Comma-separated list of project slugs to associate with this release |
 | `ref` | string | No | Git reference \(commit SHA, tag, or branch\) for this release |
@@ -619,8 +619,8 @@ Create a deploy record for a Sentry release in a specific environment. Deploys t
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
-| `organizationSlug` | string | Yes | The slug of the organization |
-| `version` | string | Yes | Version identifier of the release being deployed |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `version` | string | Yes | Version identifier of the release being deployed \(e.g., "1.0.0" or "abc123"\) |
 | `environment` | string | Yes | Environment name where the release is being deployed \(e.g., "production", "staging"\) |
 | `name` | string | No | Optional name for this deploy \(e.g., "Deploy v2.0 to Production"\) |
 | `url` | string | No | URL pointing to the deploy \(e.g., CI/CD pipeline URL\) |

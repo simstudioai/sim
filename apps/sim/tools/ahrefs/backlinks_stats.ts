@@ -16,14 +16,15 @@ export const backlinksStatsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The target domain or URL to analyze',
+      description:
+        'The target domain or URL to analyze. Example: "example.com" or "https://example.com/page"',
     },
     mode: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match)',
+        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains), exact (exact URL match). Example: "domain"',
     },
     date: {
       type: 'string',

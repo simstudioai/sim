@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from './types'
+import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskCreateTicketsBulk')
 
@@ -51,9 +51,9 @@ export const zendeskCreateTicketsBulkTool: ToolConfig<
     tickets: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
-        'JSON array of ticket objects to create (max 100). Each ticket should have subject and comment properties.',
+        'JSON array of ticket objects to create (max 100). Each ticket should have subject and comment properties (e.g., [{"subject": "Issue 1", "comment": {"body": "Description"}}])',
     },
   },
 

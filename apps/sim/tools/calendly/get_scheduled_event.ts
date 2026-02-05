@@ -23,8 +23,9 @@ export const getScheduledEventTool: ToolConfig<
     eventUuid: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Scheduled event UUID (can be full URI or just the UUID)',
+      visibility: 'user-or-llm',
+      description:
+        'Scheduled event UUID. Format: UUID (e.g., "abc123-def456") or full URI (e.g., "https://api.calendly.com/scheduled_events/abc123-def456")',
     },
   },
 

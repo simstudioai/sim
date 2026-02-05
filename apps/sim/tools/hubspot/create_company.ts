@@ -32,14 +32,16 @@ export const hubspotCreateCompanyTool: ToolConfig<
     properties: {
       type: 'object',
       required: true,
-      visibility: 'user-only',
-      description: 'Company properties as JSON object (e.g., name, domain, city, industry)',
+      visibility: 'user-or-llm',
+      description:
+        'Company properties as JSON object (e.g., {"name": "Acme Inc", "domain": "acme.com", "industry": "Technology"})',
     },
     associations: {
       type: 'array',
       required: false,
-      visibility: 'user-only',
-      description: 'Array of associations to create with the company',
+      visibility: 'user-or-llm',
+      description:
+        'Array of associations to create with the company as JSON (each with "to.id" and "types" containing "associationCategory" and "associationTypeId")',
     },
   },
 

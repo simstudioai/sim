@@ -33,6 +33,7 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 export interface ToolCall {
   name: string
@@ -260,10 +261,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
       models: costSummary.models,
     }
 
-    const totalDuration =
+    const rawDurationMs =
       isResume && existingLog?.startedAt
         ? new Date(endedAt).getTime() - new Date(existingLog.startedAt).getTime()
         : totalDurationMs
+    const totalDuration =
+      typeof rawDurationMs === 'number' && Number.isFinite(rawDurationMs)
+        ? Math.max(0, Math.round(rawDurationMs))
+        : 0
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
@@ -503,7 +508,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
 
     try {
-      // Get the workflow record to get the userId
+      // Get the workflow record to get workspace and fallback userId
       const [workflowRecord] = await db
         .select()
         .from(workflow)
@@ -515,7 +520,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
         return
       }
 
-      const userId = workflowRecord.userId
+      let billingUserId: string | null = null
+      if (workflowRecord.workspaceId) {
+        billingUserId = await getWorkspaceBilledAccountUserId(workflowRecord.workspaceId)
+      }
+
+      const userId = billingUserId || workflowRecord.userId
       const costToStore = costSummary.totalCost
 
       const existing = await db.select().from(userStats).where(eq(userStats.userId, userId))

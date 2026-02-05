@@ -24,20 +24,23 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
     teamId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the team to write to',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the team to write to (e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings)',
     },
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'The ID of the channel to write to',
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the channel to write to (e.g., "19:abc123def456@thread.tacv2" - from channel listings)',
     },
     content: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The content to write to the channel',
+      description:
+        'The content to write to the channel (plain text or HTML formatted, supports @mentions)',
     },
     files: {
       type: 'file[]',
@@ -55,6 +58,7 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
     createdTime: { type: 'string', description: 'Timestamp when message was created' },
     url: { type: 'string', description: 'Web URL to the message' },
     updatedContent: { type: 'boolean', description: 'Whether content was successfully updated' },
+    files: { type: 'file[]', description: 'Files attached to the message' },
   },
 
   request: {

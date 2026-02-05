@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { SharepointResponse } from '@/tools/sharepoint/types'
 
 const logger = createLogger('SharepointBlock')
@@ -251,7 +252,19 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       placeholder: 'Enter site ID (leave empty for root site)',
       dependsOn: ['credential'],
       mode: 'advanced',
-      condition: { field: 'operation', value: 'create_page' },
+      condition: {
+        field: 'operation',
+        value: [
+          'create_page',
+          'read_page',
+          'list_sites',
+          'create_list',
+          'read_list',
+          'update_list',
+          'add_list_items',
+          'upload_file',
+        ],
+      },
     },
 
     {
@@ -390,18 +403,17 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
         }
       },
       params: (params) => {
-        const { credential, siteSelector, manualSiteId, mimeType, ...rest } = params
+        const { credential, siteId, mimeType, ...rest } = params
 
-        const effectiveSiteId = (siteSelector || manualSiteId || '').trim()
+        // siteId is the canonical param from siteSelector (basic) or manualSiteId (advanced)
+        const effectiveSiteId = siteId ? String(siteId).trim() : ''
 
         const {
-          itemId: providedItemId,
-          listItemId,
-          listItemFields,
+          itemId, // canonical param from listItemId
+          listItemFields, // canonical param
           includeColumns,
           includeItems,
-          uploadFiles,
-          files,
+          files, // canonical param from uploadFiles (basic) or files (advanced)
           columnDefinitions,
           ...others
         } = rest as any
@@ -420,11 +432,9 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           parsedItemFields = undefined
         }
 
-        const rawItemId = providedItemId ?? listItemId
+        // itemId is the canonical param from listItemId
         const sanitizedItemId =
-          rawItemId === undefined || rawItemId === null
-            ? undefined
-            : String(rawItemId).trim() || undefined
+          itemId === undefined || itemId === null ? undefined : String(itemId).trim() || undefined
 
         const coerceBoolean = (value: any) => {
           if (typeof value === 'boolean') return value
@@ -448,8 +458,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           } catch {}
         }
 
-        // Handle file upload files parameter
-        const fileParam = uploadFiles || files
+        // Handle file upload files parameter using canonical param
+        const normalizedFiles = normalizeFileInput(files)
         const baseParams: Record<string, any> = {
           credential,
           siteId: effectiveSiteId || undefined,
@@ -463,8 +473,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
         }
 
         // Add files if provided
-        if (fileParam) {
-          baseParams.files = fileParam
+        if (normalizedFiles) {
+          baseParams.files = normalizedFiles
         }
 
         if (columnDefinitions) {
@@ -485,8 +495,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     },
     pageTitle: { type: 'string', description: 'Page title' },
     pageId: { type: 'string', description: 'Page ID' },
-    siteSelector: { type: 'string', description: 'Site selector' },
-    manualSiteId: { type: 'string', description: 'Manual site ID' },
+    siteId: { type: 'string', description: 'Site ID' },
     pageSize: { type: 'number', description: 'Results per page' },
     listDisplayName: { type: 'string', description: 'List display name' },
     listDescription: { type: 'string', description: 'List description' },
@@ -495,13 +504,12 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     listTitle: { type: 'string', description: 'List title' },
     includeColumns: { type: 'boolean', description: 'Include columns in response' },
     includeItems: { type: 'boolean', description: 'Include items in response' },
-    listItemId: { type: 'string', description: 'List item ID' },
-    listItemFields: { type: 'string', description: 'List item fields' },
-    driveId: { type: 'string', description: 'Document library (drive) ID' },
+    itemId: { type: 'string', description: 'List item ID (canonical param)' },
+    listItemFields: { type: 'string', description: 'List item fields (canonical param)' },
+    driveId: { type: 'string', description: 'Document library (drive) ID (canonical param)' },
     folderPath: { type: 'string', description: 'Folder path for file upload' },
     fileName: { type: 'string', description: 'File name override' },
-    uploadFiles: { type: 'json', description: 'Files to upload (UI upload)' },
-    files: { type: 'array', description: 'Files to upload (UserFile array)' },
+    files: { type: 'array', description: 'Files to upload (canonical param)' },
   },
   outputs: {
     sites: {

@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import type { AgentParams, AgentResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FirecrawlAgentTool')
 
-const POLL_INTERVAL_MS = 5000 // 5 seconds between polls
-const MAX_POLL_TIME_MS = 300000 // 5 minutes maximum polling time
+const POLL_INTERVAL_MS = 5000
+const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
 export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
   id: 'firecrawl_agent',
@@ -25,7 +26,8 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional array of URLs to focus the agent on',
+      description:
+        'Optional array of URLs to focus the agent on (e.g., ["https://example.com", "https://docs.example.com"])',
     },
     schema: {
       type: 'json',

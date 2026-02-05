@@ -12,14 +12,14 @@ export const zepCreateThreadTool: ToolConfig<any, ZepResponse> = {
     threadId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Unique identifier for the thread',
+      visibility: 'user-or-llm',
+      description: 'Unique identifier for the thread (e.g., "thread_abc123")',
     },
     userId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'User ID associated with the thread',
+      visibility: 'user-or-llm',
+      description: 'User ID associated with the thread (e.g., "user_123")',
     },
     apiKey: {
       type: 'string',

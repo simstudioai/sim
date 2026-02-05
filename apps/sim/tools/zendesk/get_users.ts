@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import {
   buildZendeskUrl,
@@ -6,9 +5,7 @@ import {
   METADATA_OUTPUT,
   PAGING_OUTPUT,
   USERS_ARRAY_OUTPUT,
-} from './types'
-
-const logger = createLogger('ZendeskGetUsers')
+} from '@/tools/zendesk/types'
 
 export interface ZendeskGetUsersParams {
   email: string
@@ -65,26 +62,26 @@ export const zendeskGetUsersTool: ToolConfig<ZendeskGetUsersParams, ZendeskGetUs
     role: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by role (end-user, agent, admin)',
+      visibility: 'user-or-llm',
+      description: 'Filter by role: "end-user", "agent", or "admin"',
     },
     permissionSet: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter by permission set ID',
+      visibility: 'user-or-llm',
+      description: 'Filter by permission set ID as a numeric string (e.g., "12345")',
     },
     perPage: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Results per page (default: 100, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Results per page as a number string (default: "100", max: "100")',
     },
     page: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Page number',
+      visibility: 'user-or-llm',
+      description: 'Page number as a string (e.g., "1", "2")',
     },
   },
 

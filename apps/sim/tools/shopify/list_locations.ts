@@ -1,6 +1,6 @@
+import type { ShopifyBaseParams } from '@/tools/shopify/types'
+import { LOCATION_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { ShopifyBaseParams } from './types'
-import { LOCATION_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from './types'
 
 interface ShopifyListLocationsParams extends ShopifyBaseParams {
   first?: number

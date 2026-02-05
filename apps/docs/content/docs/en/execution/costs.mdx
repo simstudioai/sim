@@ -170,16 +170,16 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
   "rateLimit": {
     "sync": {
       "isLimited": false,
-      "requestsPerMinute": 25,
-      "maxBurst": 50,
-      "remaining": 50,
+      "requestsPerMinute": 150,
+      "maxBurst": 300,
+      "remaining": 300,
       "resetAt": "2025-09-08T22:51:55.999Z"
     },
     "async": {
       "isLimited": false,
-      "requestsPerMinute": 200,
-      "maxBurst": 400,
-      "remaining": 400,
+      "requestsPerMinute": 1000,
+      "maxBurst": 2000,
+      "remaining": 2000,
       "resetAt": "2025-09-08T22:51:56.155Z"
     },
     "authType": "api"
@@ -206,12 +206,31 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 
 Different subscription plans have different usage limits:
 
-| Plan | Monthly Usage Limit | Rate Limits (per minute) |
-|------|-------------------|-------------------------|
-| **Free** | $20 | 5 sync, 10 async |
-| **Pro** | $100 | 10 sync, 50 async |
-| **Team** | $500 (pooled) | 50 sync, 100 async |
+| Plan | Monthly Usage Included | Rate Limits (per minute) |
+|------|------------------------|-------------------------|
+| **Free** | $20 | 50 sync, 200 async |
+| **Pro** | $20 (adjustable) | 150 sync, 1,000 async |
+| **Team** | $40/seat (pooled, adjustable) | 300 sync, 2,500 async |
 | **Enterprise** | Custom | Custom |
+
+## Execution Time Limits
+
+Workflows have maximum execution time limits based on your subscription plan:
+
+| Plan | Sync Execution | Async Execution |
+|------|----------------|-----------------|
+| **Free** | 5 minutes | 10 minutes |
+| **Pro** | 50 minutes | 90 minutes |
+| **Team** | 50 minutes | 90 minutes |
+| **Enterprise** | 50 minutes | 90 minutes |
+
+**Sync executions** run immediately and return results directly. These are triggered via the API with `async: false` (default) or through the UI.
+**Async executions** (triggered via API with `async: true`, webhooks, or schedules) run in the background. Async time limits are up to 2x the sync limit, capped at 90 minutes.
+
+
+<Callout type="info">
+  If a workflow exceeds its time limit, it will be terminated and marked as failed with a timeout error. Design long-running workflows to use async execution or break them into smaller workflows.
+</Callout>
 
 ## Billing Model
 

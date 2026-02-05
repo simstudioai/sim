@@ -1,8 +1,8 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
-import type { WordPressUploadMediaParams, WordPressUploadMediaResponse } from './types'
-
-const logger = createLogger('WordPressUploadMediaTool')
+import type {
+  WordPressUploadMediaParams,
+  WordPressUploadMediaResponse,
+} from '@/tools/wordpress/types'
 
 export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUploadMediaResponse> =
   {
@@ -21,13 +21,13 @@ export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUp
       siteId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
       },
       file: {
         type: 'file',
         required: false,
-        visibility: 'user-only',
+        visibility: 'hidden',
         description: 'File to upload (UserFile object)',
       },
       filename: {
@@ -84,9 +84,6 @@ export const uploadMediaTool: ToolConfig<WordPressUploadMediaParams, WordPressUp
       const data = await response.json()
 
       if (!data.success) {
-        logger.error('Failed to upload media via custom API route', {
-          error: data.error,
-        })
         throw new Error(data.error || 'Failed to upload media to WordPress')
       }
 

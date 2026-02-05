@@ -6,7 +6,7 @@ description: Interact with Fireflies.ai meeting transcripts and recordings
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="fireflies"
+  type="fireflies_v2"
   color="#100730"
 />
 
@@ -44,13 +44,13 @@ List meeting transcripts from Fireflies.ai with optional filtering
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Fireflies API key |
-| `keyword` | string | No | Search keyword in meeting title or transcript |
+| `keyword` | string | No | Search keyword in meeting title or transcript \(e.g., "quarterly review"\) |
 | `fromDate` | string | No | Filter transcripts from this date \(ISO 8601 format\) |
 | `toDate` | string | No | Filter transcripts until this date \(ISO 8601 format\) |
 | `hostEmail` | string | No | Filter by meeting host email |
 | `participants` | string | No | Filter by participant emails \(comma-separated\) |
-| `limit` | number | No | Maximum number of transcripts to return \(max 50\) |
-| `skip` | number | No | Number of transcripts to skip for pagination |
+| `limit` | number | No | Maximum number of transcripts to return \(e.g., 10, max 50\) |
+| `skip` | number | No | Number of transcripts to skip for pagination \(e.g., 0, 10, 20\) |
 
 #### Output
 
@@ -68,7 +68,7 @@ Get a single transcript with full details including summary, action items, and a
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Fireflies API key |
-| `transcriptId` | string | Yes | The transcript ID to retrieve |
+| `transcriptId` | string | Yes | The transcript ID to retrieve \(e.g., "abc123def456"\) |
 
 #### Output
 
@@ -97,7 +97,7 @@ Get user information from Fireflies.ai. Returns current user if no ID specified.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Fireflies API key |
-| `userId` | string | No | User ID to retrieve \(optional, defaults to API key owner\) |
+| `userId` | string | No | User ID to retrieve \(e.g., "user_abc123", defaults to API key owner\) |
 
 #### Output
 
@@ -164,7 +164,7 @@ Delete a transcript from Fireflies.ai
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Fireflies API key |
-| `transcriptId` | string | Yes | The transcript ID to delete |
+| `transcriptId` | string | Yes | The transcript ID to delete \(e.g., "abc123def456"\) |
 
 #### Output
 
@@ -202,7 +202,7 @@ Create a soundbite/highlight from a specific time range in a transcript
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Fireflies API key |
-| `transcriptId` | string | Yes | ID of the transcript to create the bite from |
+| `transcriptId` | string | Yes | ID of the transcript to create the bite from \(e.g., "abc123def456"\) |
 | `startTime` | number | Yes | Start time of the bite in seconds |
 | `endTime` | number | Yes | End time of the bite in seconds |
 | `name` | string | No | Name for the bite \(max 256 characters\) |
@@ -227,10 +227,10 @@ List soundbites/highlights from Fireflies.ai
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Fireflies API key |
-| `transcriptId` | string | No | Filter bites for a specific transcript |
+| `transcriptId` | string | No | Filter bites for a specific transcript \(e.g., "abc123def456"\) |
 | `mine` | boolean | No | Only return bites owned by the API key owner \(default: true\) |
-| `limit` | number | No | Maximum number of bites to return \(max 50\) |
-| `skip` | number | No | Number of bites to skip for pagination |
+| `limit` | number | No | Maximum number of bites to return \(e.g., 10, max 50\) |
+| `skip` | number | No | Number of bites to skip for pagination \(e.g., 0, 10, 20\) |
 
 #### Output
 

@@ -1,8 +1,5 @@
 import crypto from 'crypto'
-import { createLogger } from '@sim/logger'
 import type { OutputProperty } from '@/tools/types'
-
-const logger = createLogger('Kalshi')
 
 // Base URL for Kalshi API
 export const KALSHI_BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2'
@@ -598,8 +595,6 @@ export function buildKalshiAuthHeaders(
 
 // Helper function for consistent error handling
 export function handleKalshiError(data: any, status: number, operation: string): never {
-  logger.error(`Kalshi API request failed for ${operation}`, { data, status })
-
   const errorMessage =
     data.error?.message || data.error || data.message || data.detail || 'Unknown error'
   throw new Error(`Kalshi ${operation} failed: ${errorMessage}`)

@@ -149,7 +149,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   },
   outputs: {
     content: { type: 'string', description: 'Generation response' },
-    image: { type: 'string', description: 'Generated image URL' },
+    image: { type: 'file', description: 'Generated image file (UserFile)' },
     metadata: { type: 'json', description: 'Generation metadata' },
   },
 }

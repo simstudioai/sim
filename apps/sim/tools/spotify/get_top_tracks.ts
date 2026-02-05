@@ -1,6 +1,9 @@
+import type { SpotifyGetTopItemsParams, SpotifyGetTopTracksResponse } from '@/tools/spotify/types'
+import {
+  SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
+  SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES,
+} from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetTopItemsParams, SpotifyGetTopTracksResponse } from './types'
-import { SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES, SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetTopTracksTool: ToolConfig<
   SpotifyGetTopItemsParams,
@@ -28,16 +31,16 @@ export const spotifyGetTopTracksTool: ToolConfig<
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 20,
       description: 'Number of tracks to return (1-50)',
     },
     offset: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       default: 0,
-      description: 'Index of the first track to return',
+      description: 'Index of the first track to return for pagination',
     },
   },
 

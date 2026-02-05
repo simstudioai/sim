@@ -1,6 +1,7 @@
 import { JiraIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { JiraResponse } from '@/tools/jira/types'
 import { getTrigger } from '@/triggers'
 
@@ -34,6 +35,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         { label: 'Update Comment', id: 'update_comment' },
         { label: 'Delete Comment', id: 'delete_comment' },
         { label: 'Get Attachments', id: 'get_attachments' },
+        { label: 'Add Attachment', id: 'add_attachment' },
         { label: 'Delete Attachment', id: 'delete_attachment' },
         { label: 'Add Worklog', id: 'add_worklog' },
         { label: 'Get Worklogs', id: 'get_worklogs' },
@@ -104,6 +106,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
+      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
     },
     // Manual project ID input (advanced mode)
     {
@@ -114,6 +117,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
+      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
     },
     // Issue selector (basic mode)
     {
@@ -137,6 +141,29 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           'update_comment',
           'delete_comment',
           'get_attachments',
+          'add_attachment',
+          'add_worklog',
+          'get_worklogs',
+          'update_worklog',
+          'delete_worklog',
+          'add_watcher',
+          'remove_watcher',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'assign',
+          'transition',
+          'add_comment',
+          'get_comments',
+          'update_comment',
+          'delete_comment',
+          'get_attachments',
+          'add_attachment',
           'add_worklog',
           'get_worklogs',
           'update_worklog',
@@ -168,6 +195,29 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           'update_comment',
           'delete_comment',
           'get_attachments',
+          'add_attachment',
+          'add_worklog',
+          'get_worklogs',
+          'update_worklog',
+          'delete_worklog',
+          'add_watcher',
+          'remove_watcher',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'update',
+          'delete',
+          'assign',
+          'transition',
+          'add_comment',
+          'get_comments',
+          'update_comment',
+          'delete_comment',
+          'get_attachments',
+          'add_attachment',
           'add_worklog',
           'get_worklogs',
           'update_worklog',
@@ -408,6 +458,27 @@ Return ONLY the comment text - no explanations.`,
     },
     // Attachment fields
     {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      canonicalParamId: 'files',
+      placeholder: 'Upload files',
+      condition: { field: 'operation', value: 'add_attachment' },
+      mode: 'basic',
+      multiple: true,
+      required: true,
+    },
+    {
+      id: 'files',
+      title: 'File References',
+      type: 'short-input',
+      canonicalParamId: 'files',
+      placeholder: 'File reference from previous block',
+      condition: { field: 'operation', value: 'add_attachment' },
+      mode: 'advanced',
+      required: true,
+    },
+    {
       id: 'attachmentId',
       title: 'Attachment ID',
       type: 'short-input',
@@ -576,6 +647,7 @@ Return ONLY the comment text - no explanations.`,
       'jira_update_comment',
       'jira_delete_comment',
       'jira_get_attachments',
+      'jira_add_attachment',
       'jira_delete_attachment',
       'jira_add_worklog',
       'jira_get_worklogs',
@@ -589,8 +661,9 @@ Return ONLY the comment text - no explanations.`,
     ],
     config: {
       tool: (params) => {
-        const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
-        const effectiveIssueKey = (params.issueKey || params.manualIssueKey || '').trim()
+        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
+        const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
+        const effectiveIssueKey = params.issueKey ? String(params.issueKey).trim() : ''
 
         switch (params.operation) {
           case 'read':
@@ -623,6 +696,8 @@ Return ONLY the comment text - no explanations.`,
             return 'jira_delete_comment'
           case 'get_attachments':
             return 'jira_get_attachments'
+          case 'add_attachment':
+            return 'jira_add_attachment'
           case 'delete_attachment':
             return 'jira_delete_attachment'
           case 'add_worklog':
@@ -648,11 +723,11 @@ Return ONLY the comment text - no explanations.`,
         }
       },
       params: (params) => {
-        const { credential, projectId, manualProjectId, issueKey, manualIssueKey, ...rest } = params
+        const { credential, projectId, issueKey, ...rest } = params
 
-        // Use the selected IDs or the manually entered ones
-        const effectiveProjectId = (projectId || manualProjectId || '').trim()
-        const effectiveIssueKey = (issueKey || manualIssueKey || '').trim()
+        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
+        const effectiveProjectId = projectId ? String(projectId).trim() : ''
+        const effectiveIssueKey = issueKey ? String(issueKey).trim() : ''
 
         const baseParams = {
           credential,
@@ -661,11 +736,6 @@ Return ONLY the comment text - no explanations.`,
 
         switch (params.operation) {
           case 'write': {
-            if (!effectiveProjectId) {
-              throw new Error(
-                'Project ID is required. Please select a project or enter a project ID manually.'
-              )
-            }
             // Parse comma-separated strings into arrays
             const parseCommaSeparated = (value: string | undefined): string[] | undefined => {
               if (!value || value.trim() === '') return undefined
@@ -698,16 +768,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'update': {
-            if (!effectiveProjectId) {
-              throw new Error(
-                'Project ID is required. Please select a project or enter a project ID manually.'
-              )
-            }
-            if (!effectiveIssueKey) {
-              throw new Error(
-                'Issue Key is required. Please select an issue or enter an issue key manually.'
-              )
-            }
             const updateParams = {
               projectId: effectiveProjectId,
               issueKey: effectiveIssueKey,
@@ -720,40 +780,20 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'read': {
-            // Check for project ID from either source
-            const projectForRead = (params.projectId || params.manualProjectId || '').trim()
-            const issueForRead = (params.issueKey || params.manualIssueKey || '').trim()
-
-            if (!issueForRead) {
-              throw new Error(
-                'Select a project to read issues, or provide an issue key to read a single issue.'
-              )
-            }
             return {
               ...baseParams,
-              issueKey: issueForRead,
+              issueKey: effectiveIssueKey,
               // Include projectId if available for context
-              ...(projectForRead && { projectId: projectForRead }),
+              ...(effectiveProjectId && { projectId: effectiveProjectId }),
             }
           }
           case 'read-bulk': {
-            // Check both projectId and manualProjectId directly from params
-            const finalProjectId = params.projectId || params.manualProjectId || ''
-
-            if (!finalProjectId) {
-              throw new Error(
-                'Project ID is required. Please select a project or enter a project ID manually.'
-              )
-            }
             return {
               ...baseParams,
-              projectId: finalProjectId.trim(),
+              projectId: effectiveProjectId.trim(),
             }
           }
           case 'delete': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to delete an issue.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -761,9 +801,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'assign': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to assign an issue.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -771,9 +808,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'transition': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to transition an issue.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -789,9 +823,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_comment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add a comment.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -799,9 +830,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'get_comments': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to get comments.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -809,9 +837,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'update_comment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to update a comment.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -820,9 +845,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'delete_comment': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to delete a comment.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -830,12 +852,20 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'get_attachments': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to get attachments.')
+            return {
+              ...baseParams,
+              issueKey: effectiveIssueKey,
+            }
+          }
+          case 'add_attachment': {
+            const normalizedFiles = normalizeFileInput(params.files)
+            if (!normalizedFiles || normalizedFiles.length === 0) {
+              throw new Error('At least one attachment file is required.')
             }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
+              files: normalizedFiles,
             }
           }
           case 'delete_attachment': {
@@ -845,9 +875,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_worklog': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add a worklog.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -859,9 +886,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'get_worklogs': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to get worklogs.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -869,9 +893,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'update_worklog': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to update a worklog.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -884,9 +905,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'delete_worklog': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to delete a worklog.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -909,9 +927,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_watcher': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to add a watcher.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -919,9 +934,6 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'remove_watcher': {
-            if (!effectiveIssueKey) {
-              throw new Error('Issue Key is required to remove a watcher.')
-            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
@@ -948,10 +960,8 @@ Return ONLY the comment text - no explanations.`,
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Jira domain' },
     credential: { type: 'string', description: 'Jira access token' },
-    issueKey: { type: 'string', description: 'Issue key identifier' },
-    projectId: { type: 'string', description: 'Project identifier' },
-    manualProjectId: { type: 'string', description: 'Manual project identifier' },
-    manualIssueKey: { type: 'string', description: 'Manual issue key' },
+    issueKey: { type: 'string', description: 'Issue key identifier (canonical param)' },
+    projectId: { type: 'string', description: 'Project identifier (canonical param)' },
     // Update/Write operation inputs
     summary: { type: 'string', description: 'Issue summary' },
     description: { type: 'string', description: 'Issue description' },
@@ -982,6 +992,7 @@ Return ONLY the comment text - no explanations.`,
     commentBody: { type: 'string', description: 'Text content for comment operations' },
     commentId: { type: 'string', description: 'Comment ID for update/delete operations' },
     // Attachment operation inputs
+    files: { type: 'array', description: 'Files to attach (canonical param)' },
     attachmentId: { type: 'string', description: 'Attachment ID for delete operation' },
     // Worklog operation inputs
     timeSpentSeconds: {
@@ -1052,6 +1063,8 @@ Return ONLY the comment text - no explanations.`,
       type: 'json',
       description: 'Array of attachments with id, filename, size, mimeType, created, author',
     },
+    files: { type: 'file[]', description: 'Uploaded attachment files' },
+    attachmentIds: { type: 'json', description: 'Uploaded attachment IDs' },
 
     // jira_delete_attachment, jira_delete_comment, jira_delete_issue, jira_delete_worklog, jira_delete_issue_link outputs
     attachmentId: { type: 'string', description: 'Deleted attachment ID' },

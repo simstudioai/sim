@@ -35,7 +35,8 @@ export const clerkCreateOrganizationTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID of the creator (will become admin)',
+      description:
+        'User ID of the creator who will become admin (e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC)',
     },
     slug: {
       type: 'string',

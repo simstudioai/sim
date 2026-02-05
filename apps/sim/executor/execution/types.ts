@@ -55,7 +55,13 @@ export interface IterationContext {
 
 export interface ExecutionCallbacks {
   onStream?: (streamingExec: any) => Promise<void>
-  onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
+  onBlockStart?: (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    executionOrder: number,
+    iterationContext?: IterationContext
+  ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
     blockName: string,
@@ -97,13 +103,21 @@ export interface ContextExtensions {
     blockId: string,
     blockName: string,
     blockType: string,
+    executionOrder: number,
     iterationContext?: IterationContext
   ) => Promise<void>
   onBlockComplete?: (
     blockId: string,
     blockName: string,
     blockType: string,
-    output: { input?: any; output: NormalizedBlockOutput; executionTime: number },
+    output: {
+      input?: any
+      output: NormalizedBlockOutput
+      executionTime: number
+      startedAt: string
+      executionOrder: number
+      endedAt: string
+    },
     iterationContext?: IterationContext
   ) => Promise<void>
 

@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import {
   buildZendeskUrl,
@@ -6,9 +5,7 @@ import {
   METADATA_OUTPUT,
   PAGING_OUTPUT,
   TICKETS_ARRAY_OUTPUT,
-} from './types'
-
-const logger = createLogger('ZendeskGetTickets')
+} from '@/tools/zendesk/types'
 
 export interface ZendeskGetTicketsParams {
   email: string
@@ -71,56 +68,56 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
       status: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Filter by status (new, open, pending, hold, solved, closed)',
+        visibility: 'user-or-llm',
+        description: 'Filter by status: "new", "open", "pending", "hold", "solved", or "closed"',
       },
       priority: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Filter by priority (low, normal, high, urgent)',
+        visibility: 'user-or-llm',
+        description: 'Filter by priority: "low", "normal", "high", or "urgent"',
       },
       type: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Filter by type (problem, incident, question, task)',
+        visibility: 'user-or-llm',
+        description: 'Filter by type: "problem", "incident", "question", or "task"',
       },
       assigneeId: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Filter by assignee user ID',
+        visibility: 'user-or-llm',
+        description: 'Filter by assignee user ID as a numeric string (e.g., "12345")',
       },
       organizationId: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Filter by organization ID',
+        visibility: 'user-or-llm',
+        description: 'Filter by organization ID as a numeric string (e.g., "67890")',
       },
       sortBy: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Sort field (created_at, updated_at, priority, status)',
+        visibility: 'user-or-llm',
+        description: 'Sort field: "created_at", "updated_at", "priority", or "status"',
       },
       sortOrder: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Sort order (asc or desc)',
+        visibility: 'user-or-llm',
+        description: 'Sort order: "asc" or "desc"',
       },
       perPage: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Results per page (default: 100, max: 100)',
+        visibility: 'user-or-llm',
+        description: 'Results per page as a number string (default: "100", max: "100")',
       },
       page: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
-        description: 'Page number',
+        visibility: 'user-or-llm',
+        description: 'Page number as a string (e.g., "1", "2")',
       },
     },
 

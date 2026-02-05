@@ -1,4 +1,4 @@
-import type { SttParams, SttResponse } from '@/tools/stt/types'
+import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import {
   STT_ENTITY_OUTPUT_PROPERTIES,
   STT_SEGMENT_OUTPUT_PROPERTIES,
@@ -34,13 +34,13 @@ export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
     audioFile: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Audio or video file to transcribe',
+      visibility: 'user-only',
+      description: 'Audio or video file to transcribe (e.g., MP3, WAV, M4A, WEBM)',
     },
     audioFileReference: {
       type: 'file',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Reference to audio/video file from previous blocks',
     },
     audioUrl: {
@@ -181,5 +181,51 @@ export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
       },
     },
     summary: { type: 'string', description: 'Auto-generated summary' },
+  },
+}
+
+const assemblyaiSttV2Params = {
+  provider: assemblyaiSttTool.params.provider,
+  apiKey: assemblyaiSttTool.params.apiKey,
+  model: assemblyaiSttTool.params.model,
+  audioFile: assemblyaiSttTool.params.audioFile,
+  audioFileReference: assemblyaiSttTool.params.audioFileReference,
+  language: assemblyaiSttTool.params.language,
+  timestamps: assemblyaiSttTool.params.timestamps,
+  diarization: assemblyaiSttTool.params.diarization,
+  sentiment: assemblyaiSttTool.params.sentiment,
+  entityDetection: assemblyaiSttTool.params.entityDetection,
+  piiRedaction: assemblyaiSttTool.params.piiRedaction,
+  summarization: assemblyaiSttTool.params.summarization,
+} satisfies ToolConfig['params']
+
+export const assemblyaiSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+  ...assemblyaiSttTool,
+  id: 'stt_assemblyai_v2',
+  name: 'AssemblyAI STT',
+  params: assemblyaiSttV2Params,
+  request: {
+    ...assemblyaiSttTool.request,
+    body: (
+      params: SttV2Params & {
+        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
+      }
+    ) => ({
+      provider: 'assemblyai',
+      apiKey: params.apiKey,
+      model: params.model,
+      audioFile: params.audioFile,
+      audioFileReference: params.audioFileReference,
+      language: params.language || 'auto',
+      timestamps: params.timestamps || 'none',
+      diarization: params.diarization || false,
+      sentiment: params.sentiment || false,
+      entityDetection: params.entityDetection || false,
+      piiRedaction: params.piiRedaction || false,
+      summarization: params.summarization || false,
+      workspaceId: params._context?.workspaceId,
+      workflowId: params._context?.workflowId,
+      executionId: params._context?.executionId,
+    }),
   },
 }

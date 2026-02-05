@@ -24,7 +24,7 @@ export const followUpsShowTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Follow-up ID',
+      description: 'Follow-up ID (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 

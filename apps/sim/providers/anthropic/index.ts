@@ -6,7 +6,6 @@ import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
-  generateToolUseId,
 } from '@/providers/anthropic/utils'
 import {
   getMaxOutputTokensForModel,
@@ -302,13 +301,21 @@ export const anthropicProvider: ProviderConfig = {
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
+      // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
+      // but allow users to set lower values if desired
+      const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
+      const nonStreamingMaxTokens = request.maxTokens
+        ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
+        : nonStreamingLimit
+      const intermediatePayload = { ...payload, max_tokens: nonStreamingMaxTokens }
+
       try {
         const initialCallTime = Date.now()
-        const originalToolChoice = payload.tool_choice
+        const originalToolChoice = intermediatePayload.tool_choice
         const forcedTools = preparedTools?.forcedTools || []
         let usedForcedTools: string[] = []
 
-        let currentResponse = await anthropic.messages.create(payload)
+        let currentResponse = await anthropic.messages.create(intermediatePayload)
         const firstResponseTime = Date.now() - initialCallTime
 
         let content = ''
@@ -425,11 +432,32 @@ export const anthropicProvider: ProviderConfig = {
 
             const executionResults = await Promise.allSettled(toolExecutionPromises)
 
+            // Collect all tool_use and tool_result blocks for batching
+            const toolUseBlocks: Array<{
+              type: 'tool_use'
+              id: string
+              name: string
+              input: Record<string, unknown>
+            }> = []
+            const toolResultBlocks: Array<{
+              type: 'tool_result'
+              tool_use_id: string
+              content: string
+            }> = []
+
             for (const settledResult of executionResults) {
               if (settledResult.status === 'rejected' || !settledResult.value) continue
 
-              const { toolName, toolArgs, toolParams, result, startTime, endTime, duration } =
-                settledResult.value
+              const {
+                toolUse,
+                toolName,
+                toolArgs,
+                toolParams,
+                result,
+                startTime,
+                endTime,
+                duration,
+              } = settledResult.value
 
               timeSegments.push({
                 type: 'tool',
@@ -439,7 +467,7 @@ export const anthropicProvider: ProviderConfig = {
                 duration: duration,
               })
 
-              let resultContent: any
+              let resultContent: unknown
               if (result.success) {
                 toolResults.push(result.output)
                 resultContent = result.output
@@ -461,29 +489,34 @@ export const anthropicProvider: ProviderConfig = {
                 success: result.success,
               })
 
-              const toolUseId = generateToolUseId(toolName)
-
-              currentMessages.push({
-                role: 'assistant',
-                content: [
-                  {
-                    type: 'tool_use',
-                    id: toolUseId,
-                    name: toolName,
-                    input: toolArgs,
-                  } as any,
-                ],
+              // Add to batched arrays using the ORIGINAL ID from Claude's response
+              toolUseBlocks.push({
+                type: 'tool_use',
+                id: toolUse.id,
+                name: toolName,
+                input: toolArgs,
               })
 
+              toolResultBlocks.push({
+                type: 'tool_result',
+                tool_use_id: toolUse.id,
+                content: JSON.stringify(resultContent),
+              })
+            }
+
+            // Add ONE assistant message with ALL tool_use blocks
+            if (toolUseBlocks.length > 0) {
+              currentMessages.push({
+                role: 'assistant',
+                content: toolUseBlocks as unknown as Anthropic.Messages.ContentBlock[],
+              })
+            }
+
+            // Add ONE user message with ALL tool_result blocks
+            if (toolResultBlocks.length > 0) {
               currentMessages.push({
                 role: 'user',
-                content: [
-                  {
-                    type: 'tool_result',
-                    tool_use_id: toolUseId,
-                    content: JSON.stringify(resultContent),
-                  } as any,
-                ],
+                content: toolResultBlocks as unknown as Anthropic.Messages.ContentBlockParam[],
               })
             }
 
@@ -491,7 +524,7 @@ export const anthropicProvider: ProviderConfig = {
             toolsTime += thisToolsTime
 
             const nextPayload = {
-              ...payload,
+              ...intermediatePayload,
               messages: currentMessages,
             }
 
@@ -674,13 +707,21 @@ export const anthropicProvider: ProviderConfig = {
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
+    // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
+    // but allow users to set lower values if desired
+    const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
+    const toolLoopMaxTokens = request.maxTokens
+      ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
+      : nonStreamingLimit
+    const toolLoopPayload = { ...payload, max_tokens: toolLoopMaxTokens }
+
     try {
       const initialCallTime = Date.now()
-      const originalToolChoice = payload.tool_choice
+      const originalToolChoice = toolLoopPayload.tool_choice
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await anthropic.messages.create(payload)
+      let currentResponse = await anthropic.messages.create(toolLoopPayload)
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = ''
@@ -761,6 +802,8 @@ export const anthropicProvider: ProviderConfig = {
             const toolCallStartTime = Date.now()
             const toolName = toolUse.name
             const toolArgs = toolUse.input as Record<string, any>
+            // Preserve the original tool_use ID from Claude's response
+            const toolUseId = toolUse.id
 
             try {
               const tool = request.tools?.find((t) => t.id === toolName)
@@ -771,6 +814,7 @@ export const anthropicProvider: ProviderConfig = {
               const toolCallEndTime = Date.now()
 
               return {
+                toolUseId,
                 toolName,
                 toolArgs,
                 toolParams,
@@ -784,6 +828,7 @@ export const anthropicProvider: ProviderConfig = {
               logger.error('Error processing tool call:', { error, toolName })
 
               return {
+                toolUseId,
                 toolName,
                 toolArgs,
                 toolParams: {},
@@ -801,11 +846,32 @@ export const anthropicProvider: ProviderConfig = {
 
           const executionResults = await Promise.allSettled(toolExecutionPromises)
 
+          // Collect all tool_use and tool_result blocks for batching
+          const toolUseBlocks: Array<{
+            type: 'tool_use'
+            id: string
+            name: string
+            input: Record<string, unknown>
+          }> = []
+          const toolResultBlocks: Array<{
+            type: 'tool_result'
+            tool_use_id: string
+            content: string
+          }> = []
+
           for (const settledResult of executionResults) {
             if (settledResult.status === 'rejected' || !settledResult.value) continue
 
-            const { toolName, toolArgs, toolParams, result, startTime, endTime, duration } =
-              settledResult.value
+            const {
+              toolUseId,
+              toolName,
+              toolArgs,
+              toolParams,
+              result,
+              startTime,
+              endTime,
+              duration,
+            } = settledResult.value
 
             timeSegments.push({
               type: 'tool',
@@ -815,7 +881,7 @@ export const anthropicProvider: ProviderConfig = {
               duration: duration,
             })
 
-            let resultContent: any
+            let resultContent: unknown
             if (result.success) {
               toolResults.push(result.output)
               resultContent = result.output
@@ -837,29 +903,34 @@ export const anthropicProvider: ProviderConfig = {
               success: result.success,
             })
 
-            const toolUseId = generateToolUseId(toolName)
-
-            currentMessages.push({
-              role: 'assistant',
-              content: [
-                {
-                  type: 'tool_use',
-                  id: toolUseId,
-                  name: toolName,
-                  input: toolArgs,
-                } as any,
-              ],
+            // Add to batched arrays using the ORIGINAL ID from Claude's response
+            toolUseBlocks.push({
+              type: 'tool_use',
+              id: toolUseId,
+              name: toolName,
+              input: toolArgs,
             })
 
+            toolResultBlocks.push({
+              type: 'tool_result',
+              tool_use_id: toolUseId,
+              content: JSON.stringify(resultContent),
+            })
+          }
+
+          // Add ONE assistant message with ALL tool_use blocks
+          if (toolUseBlocks.length > 0) {
+            currentMessages.push({
+              role: 'assistant',
+              content: toolUseBlocks as unknown as Anthropic.Messages.ContentBlock[],
+            })
+          }
+
+          // Add ONE user message with ALL tool_result blocks
+          if (toolResultBlocks.length > 0) {
             currentMessages.push({
               role: 'user',
-              content: [
-                {
-                  type: 'tool_result',
-                  tool_use_id: toolUseId,
-                  content: JSON.stringify(resultContent),
-                } as any,
-              ],
+              content: toolResultBlocks as unknown as Anthropic.Messages.ContentBlockParam[],
             })
           }
 
@@ -867,7 +938,7 @@ export const anthropicProvider: ProviderConfig = {
           toolsTime += thisToolsTime
 
           const nextPayload = {
-            ...payload,
+            ...toolLoopPayload,
             messages: currentMessages,
           }
 
@@ -1045,7 +1116,7 @@ export const anthropicProvider: ProviderConfig = {
                 startTime: tc.startTime,
                 endTime: tc.endTime,
                 duration: tc.duration,
-                result: tc.result,
+                result: tc.result as Record<string, unknown> | undefined,
               }))
             : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,

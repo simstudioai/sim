@@ -24,7 +24,7 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The name of the subreddit to fetch posts from (without the r/ prefix)',
+      description: 'The subreddit to fetch posts from (e.g., "technology", "news")',
     },
     time: {
       type: 'string',
@@ -36,8 +36,8 @@ export const getControversialTool: ToolConfig<RedditControversialParams, RedditP
     limit: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
-      description: 'Maximum number of posts to return (default: 10, max: 100)',
+      visibility: 'user-or-llm',
+      description: 'Maximum number of posts to return (e.g., 25). Default: 10, max: 100',
     },
     after: {
       type: 'string',

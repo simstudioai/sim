@@ -30,7 +30,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'siteId',
+      id: 'triggerSiteId',
       title: 'Site',
       type: 'dropdown',
       placeholder: 'Select a site',

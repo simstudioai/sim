@@ -1,2 +1,2 @@
-export { pulseParserTool } from '@/tools/pulse/parser'
+export { pulseParserTool, pulseParserV2Tool } from '@/tools/pulse/parser'
 export * from './types'

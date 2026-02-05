@@ -1,6 +1,6 @@
+import type { SpotifyGetPlaylistParams, SpotifyGetPlaylistResponse } from '@/tools/spotify/types'
+import { PLAYLIST_OWNER_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
-import type { SpotifyGetPlaylistParams, SpotifyGetPlaylistResponse } from './types'
-import { PLAYLIST_OWNER_OUTPUT_PROPERTIES } from './types'
 
 export const spotifyGetPlaylistTool: ToolConfig<
   SpotifyGetPlaylistParams,
@@ -26,8 +26,8 @@ export const spotifyGetPlaylistTool: ToolConfig<
     market: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'ISO 3166-1 alpha-2 country code for track availability',
+      visibility: 'user-or-llm',
+      description: 'ISO 3166-1 alpha-2 country code for track availability (e.g., "US", "GB")',
     },
   },
 

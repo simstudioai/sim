@@ -3,7 +3,7 @@ import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeleteMediaParams,
   type WordPressDeleteMediaResponse,
-} from './types'
+} from '@/tools/wordpress/types'
 
 export const deleteMediaTool: ToolConfig<WordPressDeleteMediaParams, WordPressDeleteMediaResponse> =
   {
@@ -22,7 +22,7 @@ export const deleteMediaTool: ToolConfig<WordPressDeleteMediaParams, WordPressDe
       siteId: {
         type: 'string',
         required: true,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)',
       },
       mediaId: {
