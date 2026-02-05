@@ -812,7 +812,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'user.info.profile',
           'user.info.stats',
           'video.list',
-          'video.publish',
         ],
       },
     },
@@ -832,6 +831,11 @@ interface ProviderAuthConfig {
    * instead of in the request body. Used by Cal.com.
    */
   refreshTokenInAuthHeader?: boolean
+  /**
+   * If true, use 'client_key' instead of 'client_id' in OAuth requests.
+   * TikTok uses this non-standard parameter name.
+   */
+  useClientKey?: boolean
 }
 
 /**
@@ -1158,8 +1162,9 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
       }
     }
     case 'tiktok': {
+      // TikTok uses 'client_key' instead of 'client_id'
       const { clientId, clientSecret } = getCredentials(
-        env.TIKTOK_CLIENT_ID,
+        env.TIKTOK_CLIENT_KEY,
         env.TIKTOK_CLIENT_SECRET
       )
       return {
@@ -1168,6 +1173,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
+        useClientKey: true,
       }
     }
     default:
@@ -1206,7 +1212,9 @@ function buildAuthRequest(
     headers.Authorization = `Basic ${basicAuth}`
   } else {
     // Use body credentials - include client credentials in request body
-    bodyParams.client_id = config.clientId
+    // TikTok uses 'client_key' instead of 'client_id'
+    const clientIdParam = config.useClientKey ? 'client_key' : 'client_id'
+    bodyParams[clientIdParam] = config.clientId
     if (config.clientSecret) {
       bodyParams.client_secret = config.clientSecret
     }
@@ -1280,8 +1288,10 @@ export async function refreshOAuthToken(
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }
 
-    const data = await response.json()
+    const raw = await response.json()
 
+    // TikTok wraps token responses in 'data'
+    const data = raw.data || raw
     const accessToken = data.access_token
 
     let newRefreshToken = null

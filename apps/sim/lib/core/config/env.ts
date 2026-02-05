@@ -244,7 +244,7 @@ export const env = createEnv({
     SPOTIFY_CLIENT_ID:                     z.string().optional(),                  // Spotify OAuth client ID
     SPOTIFY_CLIENT_SECRET:                 z.string().optional(),                  // Spotify OAuth client secret
     CALCOM_CLIENT_ID:                      z.string().optional(),                  // Cal.com OAuth client ID
-    TIKTOK_CLIENT_ID:                      z.string().optional(),                  // TikTok OAuth client ID
+    TIKTOK_CLIENT_KEY:                     z.string().optional(),                  // TikTok OAuth client key (TikTok uses 'client_key' not 'client_id')
     TIKTOK_CLIENT_SECRET:                  z.string().optional(),                  // TikTok OAuth client secret
 
     // E2B Remote Code Execution

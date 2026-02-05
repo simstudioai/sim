@@ -2496,62 +2496,40 @@ export const auth = betterAuth({
         },
 
         // TikTok provider
+        // Uses a local proxy for token exchange because TikTok requires 'client_key'
+        // instead of 'client_id' and wraps responses in 'data'.
+        // The proxy handles both quirks so Better Auth persists tokens normally.
         {
           providerId: 'tiktok',
-          clientId: env.TIKTOK_CLIENT_ID as string,
+          clientId: env.TIKTOK_CLIENT_KEY as string,
           clientSecret: env.TIKTOK_CLIENT_SECRET as string,
           authorizationUrl: 'https://www.tiktok.com/v2/auth/authorize/',
-          tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
-          scopes: [
-            'user.info.basic',
-            'user.info.profile',
-            'user.info.stats',
-            'video.list',
-            'video.publish',
-          ],
+          tokenUrl: `${getBaseUrl()}/api/auth/tiktok-token-proxy`,
+          scopes: ['user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list'],
           responseType: 'code',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/tiktok`,
+          authorizationUrlParams: {
+            client_key: env.TIKTOK_CLIENT_KEY as string,
+            scope: 'user.info.basic,user.info.profile,user.info.stats,video.list',
+          },
           getUserInfo: async (tokens) => {
-            try {
-              logger.info('Fetching TikTok user profile')
+            const response = await fetch(
+              'https://open.tiktokapis.com/v2/user/info/?fields=open_id,avatar_url,display_name,username',
+              { headers: { Authorization: `Bearer ${tokens.accessToken}` } }
+            )
+            const json = await response.json()
+            const profile = json.data?.user
 
-              const response = await fetch(
-                'https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name',
-                {
-                  headers: {
-                    Authorization: `Bearer ${tokens.accessToken}`,
-                  },
-                }
-              )
+            if (!profile?.open_id) return null
 
-              if (!response.ok) {
-                logger.error('Failed to fetch TikTok user info', {
-                  status: response.status,
-                  statusText: response.statusText,
-                })
-                throw new Error('Failed to fetch user info')
-              }
-
-              const data = await response.json()
-              const profile = data.data?.user
-
-              if (!profile) {
-                logger.error('No user data in TikTok response')
-                return null
-              }
-
-              return {
-                id: `${profile.open_id}-${crypto.randomUUID()}`,
-                name: profile.display_name || 'TikTok User',
-                email: `${profile.open_id}@tiktok.user`,
-                emailVerified: false,
-                image: profile.avatar_url || undefined,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }
-            } catch (error) {
-              logger.error('Error in TikTok getUserInfo:', { error })
-              return null
+            return {
+              id: profile.open_id,
+              name: profile.display_name || profile.username || 'TikTok User',
+              email: `${profile.username || profile.open_id}@tiktok.user`,
+              emailVerified: false,
+              image: profile.avatar_url,
+              createdAt: new Date(),
+              updatedAt: new Date(),
             }
           },
         },
