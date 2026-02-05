@@ -173,7 +173,6 @@ describe('Model Capabilities', () => {
         'claude-sonnet-4-0',
         'claude-opus-4-0',
         'claude-3-7-sonnet-latest',
-        'claude-3-5-sonnet-latest',
         'grok-3-latest',
         'grok-3-fast-latest',
         'deepseek-v3',
@@ -256,7 +255,6 @@ describe('Model Capabilities', () => {
         'claude-sonnet-4-0',
         'claude-opus-4-0',
         'claude-3-7-sonnet-latest',
-        'claude-3-5-sonnet-latest',
         'grok-3-latest',
         'grok-3-fast-latest',
       ]
