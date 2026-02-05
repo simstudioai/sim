@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
+import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { handleSubagentRouting, sseHandlers, subAgentHandlers } from '@/lib/copilot/orchestrator/sse-handlers'
+import { env } from '@/lib/core/config/env'
 import {
   normalizeSseEvent,
   shouldSkipToolCallEvent,
@@ -15,11 +16,9 @@ import type {
   StreamingContext,
   ToolCallSummary,
 } from '@/lib/copilot/orchestrator/types'
-import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 
 const logger = createLogger('CopilotSubagentOrchestrator')
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export interface SubagentOrchestratorOptions extends Omit<OrchestratorOptions, 'onComplete'> {
   userId: string
@@ -77,7 +76,7 @@ export async function orchestrateSubagentStream(
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
-      body: JSON.stringify({ ...requestPayload, stream: true, userId }),
+      body: JSON.stringify({ ...requestPayload, stream: true }),
       signal: abortSignal,
     })
 
@@ -129,7 +128,8 @@ export async function orchestrateSubagentStream(
 
         // Handle subagent_start/subagent_end events to track nested subagent calls
         if (normalizedEvent.type === 'subagent_start') {
-          const toolCallId = normalizedEvent.data?.tool_call_id
+          const eventData = normalizedEvent.data as Record<string, unknown> | undefined
+          const toolCallId = eventData?.tool_call_id as string | undefined
           if (toolCallId) {
             context.subAgentParentToolCallId = toolCallId
             context.subAgentContent[toolCallId] = ''

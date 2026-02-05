@@ -2,6 +2,10 @@ import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 
 type EventDataObject = Record<string, any> | undefined
 
+/** Safely cast event.data to a record for property access. */
+export const asRecord = (data: unknown): Record<string, any> =>
+  (data && typeof data === 'object' && !Array.isArray(data) ? data : {}) as Record<string, any>
+
 const DEFAULT_TOOL_EVENT_TTL_MS = 5 * 60 * 1000
 
 /**
@@ -45,7 +49,7 @@ export const getEventData = (event: SSEEvent): EventDataObject => {
   return nested || topLevel
 }
 
-export function getToolCallIdFromEvent(event: SSEEvent): string | undefined {
+function getToolCallIdFromEvent(event: SSEEvent): string | undefined {
   const data = getEventData(event)
   return event.toolCallId || data?.id || data?.toolCallId
 }
@@ -70,14 +74,14 @@ export function normalizeSseEvent(event: SSEEvent): SSEEvent {
   }
 }
 
-export function markToolCallSeen(toolCallId: string, ttlMs: number = DEFAULT_TOOL_EVENT_TTL_MS): void {
+function markToolCallSeen(toolCallId: string, ttlMs: number = DEFAULT_TOOL_EVENT_TTL_MS): void {
   seenToolCalls.add(toolCallId)
   setTimeout(() => {
     seenToolCalls.delete(toolCallId)
   }, ttlMs)
 }
 
-export function wasToolCallSeen(toolCallId: string): boolean {
+function wasToolCallSeen(toolCallId: string): boolean {
   return seenToolCalls.has(toolCallId)
 }
 

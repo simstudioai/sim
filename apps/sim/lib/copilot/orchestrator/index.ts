@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
+import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { handleSubagentRouting, sseHandlers, subAgentHandlers } from '@/lib/copilot/orchestrator/sse-handlers'
+import { env } from '@/lib/core/config/env'
 import {
   normalizeSseEvent,
   shouldSkipToolCallEvent,
@@ -15,10 +16,7 @@ import type {
   StreamingContext,
   ToolCallSummary,
 } from '@/lib/copilot/orchestrator/types'
-import { env } from '@/lib/core/config/env'
-
 const logger = createLogger('CopilotOrchestrator')
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export interface OrchestrateStreamOptions extends OrchestratorOptions {
   userId: string
@@ -103,7 +101,8 @@ export async function orchestrateCopilotStream(
         }
 
         if (normalizedEvent.type === 'subagent_start') {
-          const toolCallId = normalizedEvent.data?.tool_call_id
+          const eventData = normalizedEvent.data as Record<string, unknown> | undefined
+          const toolCallId = eventData?.tool_call_id as string | undefined
           if (toolCallId) {
             context.subAgentParentToolCallId = toolCallId
             context.subAgentContent[toolCallId] = ''

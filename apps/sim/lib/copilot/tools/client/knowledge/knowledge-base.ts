@@ -1,16 +1,11 @@
-import { createLogger } from '@sim/logger'
 import { Database, Loader2, MinusCircle, PlusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
-import {
-  ExecuteResponseSuccessSchema,
-  type KnowledgeBaseArgs,
-} from '@/lib/copilot/tools/shared/schemas'
+import { type KnowledgeBaseArgs } from '@/lib/copilot/tools/shared/schemas'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
  * Client tool for knowledge base operations
@@ -99,45 +94,9 @@ export class KnowledgeBaseClientTool extends BaseClientTool {
     await this.execute(args)
   }
 
-  async execute(args?: KnowledgeBaseArgs): Promise<void> {
-    const logger = createLogger('KnowledgeBaseClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-
-      // Get the workspace ID from the workflow registry hydration state
-      const { hydration } = useWorkflowRegistry.getState()
-      const workspaceId = hydration.workspaceId
-
-      // Build payload with workspace ID included in args
-      const payload: KnowledgeBaseArgs = {
-        ...(args || { operation: 'list' }),
-        args: {
-          ...(args?.args || {}),
-          workspaceId: workspaceId || undefined,
-        },
-      }
-
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'knowledge_base', payload }),
-      })
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(txt || `Server error (${res.status})`)
-      }
-
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-
-      this.setState(ClientToolCallState.success)
-      await this.markToolComplete(200, 'Knowledge base operation completed', parsed.result)
-      this.setState(ClientToolCallState.success)
-    } catch (e: any) {
-      logger.error('execute failed', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'Failed to access knowledge base')
-    }
+  async execute(): Promise<void> {
+    // Tool execution is handled server-side by the orchestrator.
+    // Client tool classes are retained for UI display configuration only.
+    this.setState(ClientToolCallState.success)
   }
 }

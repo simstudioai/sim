@@ -14,12 +14,15 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getCopilotModel } from '@/lib/copilot/config'
+import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
 import {
   executeToolServerSide,
   prepareExecutionContext,
 } from '@/lib/copilot/orchestrator/tool-executor'
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
+import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotMcpAPI')
 
@@ -336,12 +339,95 @@ async function handleDirectToolCall(
   }
 }
 
+/**
+ * Build mode uses the main chat orchestrator with the 'fast' command instead of
+ * the subagent endpoint. In Go, 'build' is not a registered subagent — it's a mode
+ * (ModeFast) on the main chat processor that bypasses subagent orchestration and
+ * executes all tools directly.
+ */
+async function handleBuildToolCall(
+  id: RequestId,
+  args: Record<string, unknown>,
+  userId: string
+): Promise<NextResponse> {
+  try {
+    const requestText = (args.request as string) || JSON.stringify(args)
+    const { model } = getCopilotModel('chat')
+    const workflowId = args.workflowId as string | undefined
+
+    const resolved = workflowId
+      ? { workflowId }
+      : await resolveWorkflowIdForUser(userId)
+
+    if (!resolved?.workflowId) {
+      const response: CallToolResult = {
+        content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'workflowId is required for build. Call create_workflow first.' }, null, 2) }],
+        isError: true,
+      }
+      return NextResponse.json(createResponse(id, response))
+    }
+
+    const chatId = crypto.randomUUID()
+    const context = (args.context as Record<string, unknown>) || {}
+
+    const requestPayload = {
+      message: requestText,
+      workflowId: resolved.workflowId,
+      userId,
+      stream: true,
+      streamToolCalls: true,
+      model,
+      mode: 'agent',
+      commands: ['fast'],
+      messageId: crypto.randomUUID(),
+      version: SIM_AGENT_VERSION,
+      headless: true,
+      chatId,
+      context,
+    }
+
+    const result = await orchestrateCopilotStream(requestPayload, {
+      userId,
+      workflowId: resolved.workflowId,
+      chatId,
+      autoExecuteTools: true,
+      timeout: 300000,
+      interactive: false,
+    })
+
+    const responseData = {
+      success: result.success,
+      content: result.content,
+      toolCalls: result.toolCalls,
+      error: result.error,
+    }
+
+    const response: CallToolResult = {
+      content: [{ type: 'text', text: JSON.stringify(responseData, null, 2) }],
+      isError: !result.success,
+    }
+
+    return NextResponse.json(createResponse(id, response))
+  } catch (error) {
+    logger.error('Build tool call failed', { error })
+    return NextResponse.json(
+      createError(id, ErrorCode.InternalError, `Build failed: ${error}`),
+      { status: 500 }
+    )
+  }
+}
+
 async function handleSubagentToolCall(
   id: RequestId,
   toolDef: (typeof SUBAGENT_TOOL_DEFS)[number],
   args: Record<string, unknown>,
   userId: string
 ): Promise<NextResponse> {
+  // Build mode uses the main chat endpoint, not the subagent endpoint
+  if (toolDef.agentId === 'build') {
+    return handleBuildToolCall(id, args, userId)
+  }
+
   const requestText =
     (args.request as string) ||
     (args.message as string) ||
@@ -363,8 +449,6 @@ async function handleSubagentToolCall(
       workspaceId: args.workspaceId,
       context,
       model,
-      // Signal to the copilot backend that this is a headless request
-      // so it can enforce workflowId requirements on tools
       headless: true,
     },
     {
@@ -374,9 +458,6 @@ async function handleSubagentToolCall(
     }
   )
 
-  // When a respond tool (plan_respond, edit_respond, etc.) was used,
-  // return only the structured result - not the full result with all internal tool calls.
-  // This provides clean output for MCP consumers.
   let responseData: unknown
   if (result.structuredResult) {
     responseData = {
@@ -392,7 +473,6 @@ async function handleSubagentToolCall(
       errors: result.errors,
     }
   } else {
-    // Fallback: return content if no structured result
     responseData = {
       success: result.success,
       content: result.content,

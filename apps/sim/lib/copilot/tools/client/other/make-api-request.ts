@@ -93,33 +93,15 @@ export class MakeApiRequestClientTool extends BaseClientTool {
     this.setState(ClientToolCallState.rejected)
   }
 
-  async handleAccept(args?: MakeApiRequestArgs): Promise<void> {
-    const logger = createLogger('MakeApiRequestClientTool')
-    try {
-      this.setState(ClientToolCallState.executing)
-      const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'make_api_request', payload: args || {} }),
-      })
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(txt || `Server error (${res.status})`)
-      }
-      const json = await res.json()
-      const parsed = ExecuteResponseSuccessSchema.parse(json)
-      this.setState(ClientToolCallState.success)
-      await this.markToolComplete(200, 'API request executed', parsed.result)
-      this.setState(ClientToolCallState.success)
-    } catch (e: any) {
-      logger.error('execute failed', { message: e?.message })
-      this.setState(ClientToolCallState.error)
-      await this.markToolComplete(500, e?.message || 'API request failed')
-    }
+  async handleAccept(_args?: MakeApiRequestArgs): Promise<void> {
+    // Tool execution is handled server-side by the orchestrator.
+    this.setState(ClientToolCallState.executing)
   }
 
-  async execute(args?: MakeApiRequestArgs): Promise<void> {
-    await this.handleAccept(args)
+  async execute(): Promise<void> {
+    // Tool execution is handled server-side by the orchestrator.
+    // Client tool classes are retained for UI display configuration only.
+    this.setState(ClientToolCallState.success)
   }
 }
 

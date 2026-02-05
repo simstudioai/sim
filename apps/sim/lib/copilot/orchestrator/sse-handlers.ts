@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
-import { INTERRUPT_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
+import {
+  INTERRUPT_TOOL_SET,
+  RESPOND_TOOL_SET,
+  SUBAGENT_TOOL_SET,
+} from '@/lib/copilot/orchestrator/config'
 import { getToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
 import {
+  asRecord,
   getEventData,
   markToolResultSeen,
   wasToolResultSeen,
@@ -19,22 +24,6 @@ import type {
 const logger = createLogger('CopilotSseHandlers')
 
 // Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
-
-/**
- * Respond tools are internal to the copilot's subagent system.
- * They're used by subagents to signal completion and should NOT be executed by the sim side.
- * The copilot backend handles these internally.
- */
-const RESPOND_TOOL_SET = new Set([
-  'plan_respond',
-  'edit_respond',
-  'debug_respond',
-  'info_respond',
-  'research_respond',
-  'deploy_respond',
-  'superagent_respond',
-  'discovery_respond',
-])
 
 export type SSEHandler = (
   event: SSEEvent,
@@ -72,15 +61,16 @@ async function executeToolAndReport(
 
     // If create_workflow was successful, update the execution context with the new workflowId
     // This ensures subsequent tools in the same stream have access to the workflowId
+    const output = asRecord(result.output)
     if (
       toolCall.name === 'create_workflow' &&
       result.success &&
-      result.output?.workflowId &&
+      output.workflowId &&
       !execContext.workflowId
     ) {
-      execContext.workflowId = result.output.workflowId
-      if (result.output.workspaceId) {
-        execContext.workspaceId = result.output.workspaceId
+      execContext.workflowId = output.workflowId as string
+      if (output.workspaceId) {
+        execContext.workspaceId = output.workspaceId as string
       }
     }
 
@@ -145,7 +135,7 @@ async function waitForToolDecision(
 
 export const sseHandlers: Record<string, SSEHandler> = {
   chat_id: (event, context) => {
-    context.chatId = event.data?.chatId
+    context.chatId = asRecord(event.data).chatId
   },
   title_updated: () => {},
   tool_result: (event, context) => {
@@ -206,7 +196,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const toolName = toolData.name || event.toolName
     if (!toolCallId || !toolName) return
 
-    const args = toolData.arguments || toolData.input || event.data?.input
+    const args = toolData.arguments || toolData.input || asRecord(event.data).input
     const isPartial = toolData.partial === true
     const existing = context.toolCalls.get(toolCallId)
 
@@ -323,7 +313,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
   },
   reasoning: (event, context) => {
-    const phase = event.data?.phase || event.data?.data?.phase
+    const phase = asRecord(event.data).phase || asRecord(asRecord(event.data).data).phase
     if (phase === 'start') {
       context.isInThinkingBlock = true
       context.currentThinkingBlock = {
@@ -341,34 +331,35 @@ export const sseHandlers: Record<string, SSEHandler> = {
       context.currentThinkingBlock = null
       return
     }
-    const chunk =
-      typeof event.data === 'string' ? event.data : event.data?.data || event.data?.content
+    const d = asRecord(event.data)
+    const chunk = typeof event.data === 'string' ? event.data : d.data || d.content
     if (!chunk || !context.currentThinkingBlock) return
     context.currentThinkingBlock.content = `${context.currentThinkingBlock.content || ''}${chunk}`
   },
   content: (event, context) => {
-    const chunk =
-      typeof event.data === 'string' ? event.data : event.data?.content || event.data?.data
+    const d = asRecord(event.data)
+    const chunk = typeof event.data === 'string' ? event.data : d.content || d.data
     if (!chunk) return
     context.accumulatedContent += chunk
-    addContentBlock(context, { type: 'text', content: chunk })
+    addContentBlock(context, { type: 'text', content: chunk as string })
   },
   done: (event, context) => {
-    if (event.data?.responseId) {
-      context.conversationId = event.data.responseId
+    const d = asRecord(event.data)
+    if (d.responseId) {
+      context.conversationId = d.responseId as string
     }
     context.streamComplete = true
   },
   start: (event, context) => {
-    if (event.data?.responseId) {
-      context.conversationId = event.data.responseId
+    const d = asRecord(event.data)
+    if (d.responseId) {
+      context.conversationId = d.responseId as string
     }
   },
   error: (event, context) => {
+    const d = asRecord(event.data)
     const message =
-      event.data?.message ||
-      event.data?.error ||
-      (typeof event.data === 'string' ? event.data : null)
+      d.message || d.error || (typeof event.data === 'string' ? event.data : null)
     if (message) {
       context.errors.push(message)
     }
@@ -380,7 +371,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
   content: (event, context) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId || !event.data) return
-    const chunk = typeof event.data === 'string' ? event.data : event.data?.content || ''
+    const chunk = typeof event.data === 'string' ? event.data : asRecord(event.data).content || ''
     if (!chunk) return
     context.subAgentContent[parentToolCallId] =
       (context.subAgentContent[parentToolCallId] || '') + chunk
@@ -394,7 +385,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const toolName = toolData.name || event.toolName
     if (!toolCallId || !toolName) return
     const isPartial = toolData.partial === true
-    const args = toolData.arguments || toolData.input || event.data?.input
+    const args = toolData.arguments || toolData.input || asRecord(event.data).input
 
     const existing = context.toolCalls.get(toolCallId)
     // Ignore late/duplicate tool_call events once we already have a result
