@@ -274,6 +274,7 @@ Return ONLY the JSON array.`,
         { label: 'low', id: 'low' },
         { label: 'medium', id: 'medium' },
         { label: 'high', id: 'high' },
+        { label: 'max', id: 'max' },
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
