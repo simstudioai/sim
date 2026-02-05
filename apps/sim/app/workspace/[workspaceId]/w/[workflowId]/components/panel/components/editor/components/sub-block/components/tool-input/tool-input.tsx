@@ -1,7 +1,7 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2, WrenchIcon, XIcon } from 'lucide-react'
+import { ChevronRight, Loader2, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -111,18 +111,33 @@ interface ToolInputProps {
  * Represents a tool selected and configured in the workflow
  *
  * @remarks
+ * Valid types include:
+ * - Standard block types (e.g., 'api', 'search', 'function')
+ * - 'custom-tool': User-defined tools with custom code
+ * - 'mcp': Individual MCP tool from a connected server
+ * - 'mcp-server': All tools from an MCP server (agent discovery mode).
+ *   At execution time, this expands into individual tool definitions for
+ *   all tools available on the server.
+ *
  * For custom tools (new format), we only store: type, customToolId, usageControl, isExpanded.
  * Everything else (title, schema, code) is loaded dynamically from the database.
  * Legacy custom tools with inline schema/code are still supported for backwards compatibility.
  */
 interface StoredTool {
-  /** Block type identifier */
+  /**
+   * Block type identifier.
+   * 'mcp-server' enables server-level selection where all tools from
+   * the server are made available to the LLM at execution time.
+   */
   type: string
   /** Display title for the tool (optional for new custom tool format) */
   title?: string
   /** Direct tool ID for execution (optional for new custom tool format) */
   toolId?: string
-  /** Parameter values configured by the user (optional for new custom tool format) */
+  /**
+   * Parameter values configured by the user.
+   * For 'mcp-server' type, includes: serverId, serverUrl, serverName, toolCount
+   */
   params?: Record<string, string>
   /** Whether the tool details are expanded in UI */
   isExpanded?: boolean
@@ -1007,6 +1022,7 @@ export const ToolInput = memo(function ToolInput({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [usageControlPopoverIndex, setUsageControlPopoverIndex] = useState<number | null>(null)
+  const [expandedMcpServers, setExpandedMcpServers] = useState<Set<string>>(new Set())
 
   const value = isPreview ? previewValue : storeValue
 
@@ -1237,6 +1253,18 @@ export const ToolInput = memo(function ToolInput({
   }
 
   /**
+   * Checks if an MCP server is already selected (all tools mode).
+   *
+   * @param serverId - The MCP server identifier to check
+   * @returns `true` if the MCP server is already selected
+   */
+  const isMcpServerAlreadySelected = (serverId: string): boolean => {
+    return selectedTools.some(
+      (tool) => tool.type === 'mcp-server' && tool.params?.serverId === serverId
+    )
+  }
+
+  /**
    * Checks if a custom tool is already selected.
    *
    * @param customToolId - The custom tool identifier to check
@@ -1259,6 +1287,37 @@ export const ToolInput = memo(function ToolInput({
       (tool) => tool.type === 'workflow_input' && tool.params?.workflowId === workflowId
     )
   }
+
+  /**
+   * Groups MCP tools by their parent server.
+   *
+   * @returns Map of serverId to array of tools
+   */
+  const mcpToolsByServer = useMemo(() => {
+    const grouped = new Map<string, typeof availableMcpTools>()
+    for (const tool of availableMcpTools) {
+      if (!grouped.has(tool.serverId)) {
+        grouped.set(tool.serverId, [])
+      }
+      grouped.get(tool.serverId)!.push(tool)
+    }
+    return grouped
+  }, [availableMcpTools])
+
+  /**
+   * Toggles the expanded state of an MCP server in the dropdown.
+   */
+  const toggleMcpServerExpanded = useCallback((serverId: string) => {
+    setExpandedMcpServers((prev) => {
+      const next = new Set(prev)
+      if (next.has(serverId)) {
+        next.delete(serverId)
+      } else {
+        next.add(serverId)
+      }
+      return next
+    })
+  }, [])
 
   /**
    * Checks if a block supports multiple operations.
@@ -1805,41 +1864,125 @@ export const ToolInput = memo(function ToolInput({
       })
     }
 
-    // MCP Tools section
-    if (!permissionConfig.disableMcpTools && availableMcpTools.length > 0) {
-      groups.push({
-        section: 'MCP Tools',
-        items: availableMcpTools.map((mcpTool) => {
-          const server = mcpServers.find((s) => s.id === mcpTool.serverId)
-          const alreadySelected = isMcpToolAlreadySelected(mcpTool.id)
-          return {
-            label: mcpTool.name,
-            value: `mcp-${mcpTool.id}`,
-            iconElement: createToolIcon(mcpTool.bgColor || '#6366F1', mcpTool.icon || McpIcon),
+    // MCP Servers section - grouped by server with expandable folders
+    if (!permissionConfig.disableMcpTools && mcpToolsByServer.size > 0) {
+      // Create items for each server (as expandable folders)
+      const serverItems: ComboboxOption[] = []
+
+      for (const [serverId, tools] of mcpToolsByServer) {
+        const server = mcpServers.find((s) => s.id === serverId)
+        const serverName = tools[0]?.serverName || server?.name || 'Unknown Server'
+        const isExpanded = expandedMcpServers.has(serverId)
+        const serverAlreadySelected = isMcpServerAlreadySelected(serverId)
+        const toolCount = tools.length
+
+        // Server folder header (clickable to expand/collapse)
+        serverItems.push({
+          label: serverName,
+          value: `mcp-server-folder-${serverId}`,
+          iconElement: (
+            <div className='flex items-center gap-[4px]'>
+              <ChevronRight
+                className={cn(
+                  'h-[12px] w-[12px] text-[var(--text-tertiary)] transition-transform',
+                  isExpanded && 'rotate-90'
+                )}
+              />
+              <div
+                className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                style={{ background: '#6366F1' }}
+              >
+                <ServerIcon className='h-[10px] w-[10px] text-white' />
+              </div>
+            </div>
+          ),
+          onSelect: () => {
+            toggleMcpServerExpanded(serverId)
+          },
+          disabled: false,
+          keepOpen: true, // Keep dropdown open when toggling folder expansion
+        })
+
+        // If expanded, show "Use all tools" option and individual tools
+        if (isExpanded) {
+          // "Use all tools from server" option
+          serverItems.push({
+            label: `Use all ${toolCount} tools`,
+            value: `mcp-server-all-${serverId}`,
+            iconElement: (
+              <div className='ml-[20px] flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[#6366F1]'>
+                <McpIcon className='h-[10px] w-[10px] text-white' />
+              </div>
+            ),
             onSelect: () => {
-              if (alreadySelected) return
+              if (serverAlreadySelected) return
+              // Remove any individual tools from this server that were previously selected
+              const filteredTools = selectedTools.filter(
+                (tool) => !(tool.type === 'mcp' && tool.params?.serverId === serverId)
+              )
               const newTool: StoredTool = {
-                type: 'mcp',
-                title: mcpTool.name,
-                toolId: mcpTool.id,
+                type: 'mcp-server',
+                title: `${serverName} (all tools)`,
+                toolId: `mcp-server-${serverId}`,
                 params: {
-                  serverId: mcpTool.serverId,
+                  serverId,
                   ...(server?.url && { serverUrl: server.url }),
-                  toolName: mcpTool.name,
-                  serverName: mcpTool.serverName,
+                  serverName,
+                  toolCount: String(toolCount),
                 },
-                isExpanded: true,
+                isExpanded: false,
                 usageControl: 'auto',
-                schema: {
-                  ...mcpTool.inputSchema,
-                  description: mcpTool.description,
-                },
               }
-              handleMcpToolSelect(newTool, true)
+              setStoreValue([
+                ...filteredTools.map((tool) => ({ ...tool, isExpanded: false })),
+                newTool,
+              ])
+              setOpen(false)
             },
-            disabled: isPreview || disabled || alreadySelected,
+            disabled: isPreview || disabled || serverAlreadySelected,
+          })
+
+          // Individual tools from this server
+          for (const mcpTool of tools) {
+            const alreadySelected = isMcpToolAlreadySelected(mcpTool.id) || serverAlreadySelected
+            serverItems.push({
+              label: mcpTool.name,
+              value: `mcp-${mcpTool.id}`,
+              iconElement: (
+                <div className='ml-[20px]'>
+                  {createToolIcon(mcpTool.bgColor || '#6366F1', mcpTool.icon || McpIcon)}
+                </div>
+              ),
+              onSelect: () => {
+                if (alreadySelected) return
+                const newTool: StoredTool = {
+                  type: 'mcp',
+                  title: mcpTool.name,
+                  toolId: mcpTool.id,
+                  params: {
+                    serverId: mcpTool.serverId,
+                    ...(server?.url && { serverUrl: server.url }),
+                    toolName: mcpTool.name,
+                    serverName: mcpTool.serverName,
+                  },
+                  isExpanded: true,
+                  usageControl: 'auto',
+                  schema: {
+                    ...mcpTool.inputSchema,
+                    description: mcpTool.description,
+                  },
+                }
+                handleMcpToolSelect(newTool, true)
+              },
+              disabled: isPreview || disabled || alreadySelected,
+            })
           }
-        }),
+        }
+      }
+
+      groups.push({
+        section: 'MCP Servers',
+        items: serverItems,
       })
     }
 
@@ -1922,6 +2065,8 @@ export const ToolInput = memo(function ToolInput({
     customTools,
     availableMcpTools,
     mcpServers,
+    mcpToolsByServer,
+    expandedMcpServers,
     toolBlocks,
     isPreview,
     disabled,
@@ -1935,8 +2080,10 @@ export const ToolInput = memo(function ToolInput({
     getToolIdForOperation,
     isToolAlreadySelected,
     isMcpToolAlreadySelected,
+    isMcpServerAlreadySelected,
     isCustomToolAlreadySelected,
     isWorkflowAlreadySelected,
+    toggleMcpServerExpanded,
   ])
 
   const toolRequiresOAuth = (toolId: string): boolean => {
@@ -2363,24 +2510,25 @@ export const ToolInput = memo(function ToolInput({
       {/* Selected Tools List */}
       {selectedTools.length > 0 &&
         selectedTools.map((tool, toolIndex) => {
-          // Handle custom tools, MCP tools, and workflow tools differently
+          // Handle custom tools, MCP tools, MCP servers, and workflow tools differently
           const isCustomTool = tool.type === 'custom-tool'
           const isMcpTool = tool.type === 'mcp'
+          const isMcpServer = tool.type === 'mcp-server'
           const isWorkflowTool = tool.type === 'workflow'
           const toolBlock =
-            !isCustomTool && !isMcpTool
+            !isCustomTool && !isMcpTool && !isMcpServer
               ? toolBlocks.find((block) => block.type === tool.type)
               : null
 
           // Get the current tool ID (may change based on operation)
           const currentToolId =
-            !isCustomTool && !isMcpTool
+            !isCustomTool && !isMcpTool && !isMcpServer
               ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId || ''
               : tool.toolId || ''
 
           // Get tool parameters using the new utility with block type for UI components
           const toolParams =
-            !isCustomTool && !isMcpTool && currentToolId
+            !isCustomTool && !isMcpTool && !isMcpServer && currentToolId
               ? getToolParametersConfig(currentToolId, tool.type, {
                   operation: tool.operation,
                   ...tool.params,
@@ -2449,21 +2597,32 @@ export const ToolInput = memo(function ToolInput({
             ? customToolParams
             : isMcpTool
               ? mcpToolParams
-              : toolParams?.userInputParameters || []
+              : isMcpServer
+                ? [] // MCP servers have no user-configurable params
+                : toolParams?.userInputParameters || []
 
           // Check if tool requires OAuth
           const requiresOAuth =
-            !isCustomTool && !isMcpTool && currentToolId && toolRequiresOAuth(currentToolId)
+            !isCustomTool &&
+            !isMcpTool &&
+            !isMcpServer &&
+            currentToolId &&
+            toolRequiresOAuth(currentToolId)
           const oauthConfig =
-            !isCustomTool && !isMcpTool && currentToolId ? getToolOAuthConfig(currentToolId) : null
+            !isCustomTool && !isMcpTool && !isMcpServer && currentToolId
+              ? getToolOAuthConfig(currentToolId)
+              : null
 
           // Determine if tool has expandable body content
-          const hasOperations = !isCustomTool && !isMcpTool && hasMultipleOperations(tool.type)
+          const hasOperations =
+            !isCustomTool && !isMcpTool && !isMcpServer && hasMultipleOperations(tool.type)
           const filteredDisplayParams = displayParams.filter((param) =>
             evaluateParameterCondition(param, tool)
           )
-          const hasToolBody =
-            hasOperations || (requiresOAuth && oauthConfig) || filteredDisplayParams.length > 0
+          // MCP servers are expandable to show tool list
+          const hasToolBody = isMcpServer
+            ? true
+            : hasOperations || (requiresOAuth && oauthConfig) || filteredDisplayParams.length > 0
 
           // Only show expansion if tool has body content
           const isExpandedForDisplay = hasToolBody
@@ -2471,6 +2630,11 @@ export const ToolInput = memo(function ToolInput({
               ? (previewExpanded[toolIndex] ?? !!tool.isExpanded)
               : !!tool.isExpanded
             : false
+
+          // For MCP servers, get the list of tools for display
+          const mcpServerTools = isMcpServer
+            ? availableMcpTools.filter((t) => t.serverId === tool.params?.serverId)
+            : []
 
           return (
             <div
@@ -2508,7 +2672,7 @@ export const ToolInput = memo(function ToolInput({
                     style={{
                       backgroundColor: isCustomTool
                         ? '#3B82F6'
-                        : isMcpTool
+                        : isMcpTool || isMcpServer
                           ? mcpTool?.bgColor || '#6366F1'
                           : isWorkflowTool
                             ? '#6366F1'
@@ -2519,6 +2683,8 @@ export const ToolInput = memo(function ToolInput({
                       <WrenchIcon className='h-[10px] w-[10px] text-white' />
                     ) : isMcpTool ? (
                       <IconComponent icon={McpIcon} className='h-[10px] w-[10px] text-white' />
+                    ) : isMcpServer ? (
+                      <ServerIcon className='h-[10px] w-[10px] text-white' />
                     ) : isWorkflowTool ? (
                       <IconComponent icon={WorkflowIcon} className='h-[10px] w-[10px] text-white' />
                     ) : (
@@ -2531,6 +2697,11 @@ export const ToolInput = memo(function ToolInput({
                   <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
                     {isCustomTool ? customToolTitle : tool.title}
                   </span>
+                  {isMcpServer && (
+                    <Badge variant='default' size='sm'>
+                      {tool.params?.toolCount || mcpServerTools.length} tools
+                    </Badge>
+                  )}
                   {isMcpTool &&
                     !mcpDataLoading &&
                     (() => {
@@ -2636,31 +2807,53 @@ export const ToolInput = memo(function ToolInput({
 
               {!isCustomTool && isExpandedForDisplay && (
                 <div className='flex flex-col gap-[10px] overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t px-[8px] py-[8px]'>
-                  {/* Operation dropdown for tools with multiple operations */}
-                  {(() => {
-                    const hasOperations = hasMultipleOperations(tool.type)
-                    const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
-
-                    return hasOperations && operationOptions.length > 0 ? (
-                      <div className='relative space-y-[6px]'>
-                        <div className='font-medium text-[13px] text-[var(--text-primary)]'>
-                          Operation
-                        </div>
-                        <Combobox
-                          options={operationOptions
-                            .filter((option) => option.id !== '')
-                            .map((option) => ({
-                              label: option.label,
-                              value: option.id,
-                            }))}
-                          value={tool.operation || operationOptions[0].id}
-                          onChange={(value) => handleOperationChange(toolIndex, value)}
-                          placeholder='Select operation'
-                          disabled={disabled}
-                        />
+                  {/* MCP Server tool list (read-only) */}
+                  {isMcpServer && mcpServerTools.length > 0 && (
+                    <div className='flex flex-col gap-[4px]'>
+                      <div className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                        Available tools:
                       </div>
-                    ) : null
-                  })()}
+                      <div className='flex flex-wrap gap-[4px]'>
+                        {mcpServerTools.map((serverTool) => (
+                          <Badge
+                            key={serverTool.id}
+                            variant='outline'
+                            size='sm'
+                            className='text-[11px]'
+                          >
+                            {serverTool.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Operation dropdown for tools with multiple operations */}
+                  {!isMcpServer &&
+                    (() => {
+                      const hasOperations = hasMultipleOperations(tool.type)
+                      const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
+
+                      return hasOperations && operationOptions.length > 0 ? (
+                        <div className='relative space-y-[6px]'>
+                          <div className='font-medium text-[13px] text-[var(--text-primary)]'>
+                            Operation
+                          </div>
+                          <Combobox
+                            options={operationOptions
+                              .filter((option) => option.id !== '')
+                              .map((option) => ({
+                                label: option.label,
+                                value: option.id,
+                              }))}
+                            value={tool.operation || operationOptions[0].id}
+                            onChange={(value) => handleOperationChange(toolIndex, value)}
+                            placeholder='Select operation'
+                            disabled={disabled}
+                          />
+                        </div>
+                      ) : null
+                    })()}
 
                   {/* OAuth credential selector if required */}
                   {requiresOAuth && oauthConfig && (
