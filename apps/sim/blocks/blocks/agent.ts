@@ -763,7 +763,10 @@ Example 3 (Array Input):
     maxTokens: { type: 'number', description: 'Maximum number of tokens in the response' },
     reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
     verbosity: { type: 'string', description: 'Verbosity level for GPT-5 models' },
-    thinkingLevel: { type: 'string', description: 'Thinking level for Gemini 3 models' },
+    thinkingLevel: {
+      type: 'string',
+      description: 'Thinking level for models with extended thinking (Anthropic Claude, Gemini 3)',
+    },
     tools: { type: 'json', description: 'Available tools configuration' },
   },
   outputs: {

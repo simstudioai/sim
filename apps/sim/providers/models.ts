@@ -614,46 +614,21 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
-        id: 'claude-haiku-4-5',
+        id: 'claude-opus-4-6',
         pricing: {
-          input: 1.0,
+          input: 5.0,
           cachedInput: 0.5,
-          output: 5.0,
-          updatedAt: '2025-10-11',
+          output: 25.0,
+          updatedAt: '2026-02-05',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-sonnet-4-5',
-        pricing: {
-          input: 3.0,
-          cachedInput: 1.5,
-          output: 15.0,
-          updatedAt: '2025-10-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'claude-sonnet-4-0',
-        pricing: {
-          input: 3.0,
-          cachedInput: 1.5,
-          output: 15.0,
-          updatedAt: '2025-06-17',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: { max: 128000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'max'],
+            default: 'high',
+          },
         },
         contextWindow: 200000,
       },
@@ -669,6 +644,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
         contextWindow: 200000,
       },
@@ -676,14 +655,18 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'claude-opus-4-1',
         pricing: {
           input: 15.0,
-          cachedInput: 7.5,
+          cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-02-05',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
         contextWindow: 200000,
       },
@@ -691,13 +674,87 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'claude-opus-4-0',
         pricing: {
           input: 15.0,
-          cachedInput: 7.5,
+          cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-02-05',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-sonnet-4-5',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-sonnet-4-0',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-haiku-4-5',
+        pricing: {
+          input: 1.0,
+          cachedInput: 0.1,
+          output: 5.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'claude-3-haiku-20240307',
+        pricing: {
+          input: 0.25,
+          cachedInput: 0.025,
+          output: 1.25,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: { max: 4096, default: 4096 },
         },
         contextWindow: 200000,
       },
@@ -705,29 +762,107 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'claude-3-7-sonnet-latest',
         pricing: {
           input: 3.0,
-          cachedInput: 1.5,
+          cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-02-05',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           computerUse: true,
           maxOutputTokens: { max: 8192, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+    ],
+  },
+  'azure-anthropic': {
+    id: 'azure-anthropic',
+    name: 'Azure Anthropic',
+    description: 'Anthropic Claude models via Azure AI Foundry',
+    defaultModel: 'azure-anthropic/claude-sonnet-4-5',
+    modelPatterns: [/^azure-anthropic\//],
+    icon: AzureIcon,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'azure-anthropic/claude-opus-4-5',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
         contextWindow: 200000,
       },
       {
-        id: 'claude-3-5-sonnet-latest',
+        id: 'azure-anthropic/claude-sonnet-4-5',
         pricing: {
           input: 3.0,
-          cachedInput: 1.5,
+          cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-02-05',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
-          computerUse: true,
-          maxOutputTokens: { max: 8192, default: 8192 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'azure-anthropic/claude-opus-4-1',
+        pricing: {
+          input: 15.0,
+          cachedInput: 1.5,
+          output: 75.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'azure-anthropic/claude-haiku-4-5',
+        pricing: {
+          input: 1.0,
+          cachedInput: 0.1,
+          output: 5.0,
+          updatedAt: '2026-02-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: { max: 64000, default: 8192 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
         contextWindow: 200000,
       },
