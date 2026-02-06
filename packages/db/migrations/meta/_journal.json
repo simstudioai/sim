@@ -1065,6 +1065,13 @@
       "when": 1770336289511,
       "tag": "0152_parallel_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1770410282842,
+      "tag": "0153_complete_arclight",
+      "breakpoints": true
     }
   ]
 }

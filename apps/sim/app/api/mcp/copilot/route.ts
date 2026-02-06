@@ -10,9 +10,13 @@ import {
   type ListToolsResult,
   type RequestId,
 } from '@modelcontextprotocol/sdk/types.js'
+import { db } from '@sim/db'
+import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
+import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
@@ -97,10 +101,27 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // API-key-only auth — MCP clients must provide x-api-key header
+    const apiKeyHeader = request.headers.get('x-api-key')
+    if (!apiKeyHeader) {
+      return NextResponse.json(
+        createError(0, -32000, 'API key required. Set the x-api-key header with a valid Sim API key.'),
+        { status: 401 }
+      )
     }
+
+    const authResult = await authenticateApiKeyFromHeader(apiKeyHeader)
+    if (!authResult.success || !authResult.userId) {
+      return NextResponse.json(
+        createError(0, -32000, authResult.error || 'Invalid API key'),
+        { status: 401 }
+      )
+    }
+
+    // Fire-and-forget last-used update
+    updateApiKeyLastUsed(authResult.keyId!)
+
+    const userId = authResult.userId
 
     const body = (await request.json()) as JSONRPCMessage
 
@@ -117,6 +138,17 @@ export async function POST(request: NextRequest) {
 
     const { id, method, params } = body
 
+    // Pre-flight usage limit check for tool calls
+    if (method === 'tools/call') {
+      const usageCheck = await checkServerSideUsageLimits(userId)
+      if (usageCheck.isExceeded) {
+        return NextResponse.json(
+          createError(id, -32000, `Usage limit exceeded: ${usageCheck.message || 'Upgrade your plan.'}`),
+          { status: 402 }
+        )
+      }
+    }
+
     switch (method) {
       case 'initialize': {
         const result: InitializeResult = {
@@ -131,12 +163,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(createResponse(id, {}))
       case 'tools/list':
         return handleToolsList(id)
-      case 'tools/call':
-        return handleToolsCall(
+      case 'tools/call': {
+        const response = await handleToolsCall(
           id,
           params as { name: string; arguments?: Record<string, unknown> },
-          auth.userId
+          userId
         )
+        // Track MCP copilot call (fire-and-forget)
+        trackMcpCopilotCall(userId)
+        return response
+      }
       default:
         return NextResponse.json(
           createError(id, ErrorCode.MethodNotFound, `Method not found: ${method}`),
@@ -149,6 +185,22 @@ export async function POST(request: NextRequest) {
       status: 500,
     })
   }
+}
+
+/**
+ * Increment MCP copilot call counter in userStats (fire-and-forget).
+ */
+function trackMcpCopilotCall(userId: string): void {
+  db.update(userStats)
+    .set({
+      totalMcpCopilotCalls: sql`total_mcp_copilot_calls + 1`,
+      lastActive: new Date(),
+    })
+    .where(eq(userStats.userId, userId))
+    .then(() => {})
+    .catch((error) => {
+      logger.error('Failed to track MCP copilot call', { error, userId })
+    })
 }
 
 async function handleToolsList(id: RequestId): Promise<NextResponse> {
@@ -351,6 +403,7 @@ async function handleSubagentToolCall(
       context,
       model,
       headless: true,
+      source: 'mcp_copilot',
     },
     {
       userId,
