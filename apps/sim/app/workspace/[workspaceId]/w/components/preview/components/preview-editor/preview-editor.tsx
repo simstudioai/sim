@@ -1196,7 +1196,7 @@ function PreviewEditorContent({
         <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
           <div className='flex-1 overflow-y-auto overflow-x-hidden'>
             {/* Not Executed Banner - shown when in execution mode but block wasn't executed */}
-            {isExecutionMode && !executionData && (
+            {isBlockNotExecuted && (
               <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
                 <div className='flex items-center justify-between'>
                   <Badge variant='gray-secondary' size='sm' dot>

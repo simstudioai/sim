@@ -33,10 +33,20 @@ export class SnapshotService implements ISnapshotService {
 
     const existingSnapshot = await this.getSnapshotByHash(workflowId, stateHash)
     if (existingSnapshot) {
-      await db
-        .update(workflowExecutionSnapshots)
-        .set({ stateData: state })
-        .where(eq(workflowExecutionSnapshots.id, existingSnapshot.id))
+      // The hash covers functional data only (blocks, edges, loops, etc.).
+      // Refresh the stored state so that presentation-only fields like
+      // metadata.name and positions stay up to date.
+      try {
+        await db
+          .update(workflowExecutionSnapshots)
+          .set({ stateData: state })
+          .where(eq(workflowExecutionSnapshots.id, existingSnapshot.id))
+      } catch (error) {
+        logger.warn(
+          `Failed to refresh snapshot stateData for ${existingSnapshot.id}, continuing with existing data`,
+          error
+        )
+      }
 
       logger.info(
         `Reusing existing snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}...)`
