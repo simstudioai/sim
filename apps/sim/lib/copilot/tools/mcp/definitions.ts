@@ -438,7 +438,7 @@ DEPLOYMENT TYPES:
     name: 'copilot_info',
     agentId: 'info',
     description:
-      'Inspect a workflow\'s blocks, connections, outputs, variables, and metadata. Always provide workflowId to scope results to a specific workflow.',
+      'Inspect a workflow\'s blocks, connections, outputs, variables, and metadata. Use for questions about the Sim platform itself — how blocks work, what integrations are available, platform concepts, etc. Always provide workflowId to scope results to a specific workflow.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -453,7 +453,7 @@ DEPLOYMENT TYPES:
     name: 'copilot_workflow',
     agentId: 'workflow',
     description:
-      'Manage workflow-level configuration: environment variables, settings, scheduling, and deployment status.',
+      'Manage workflow-level configuration: environment variables, settings, scheduling, and deployment status. Use for any data about a specific workflow — its settings, credentials, variables, or deployment state.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -468,21 +468,7 @@ DEPLOYMENT TYPES:
     name: 'copilot_research',
     agentId: 'research',
     description:
-      'Research external APIs and documentation. Use when building workflows that integrate with third-party services and you need to understand their API, authentication, or data formats.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-  },
-  {
-    name: 'copilot_tour',
-    agentId: 'tour',
-    description:
-      'Explain platform features, concepts, and usage patterns. Use when the user asks "how does X work?" about the Sim platform, block types, triggers, deployments, or workflow concepts.',
+      'Research external APIs and documentation. Use when you need to understand third-party services, external APIs, authentication flows, or data formats OUTSIDE of Sim. For questions about Sim itself, use copilot_info instead.',
     inputSchema: {
       type: 'object',
       properties: {
