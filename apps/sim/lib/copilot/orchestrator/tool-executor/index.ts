@@ -30,8 +30,10 @@ import type {
   DeployApiParams,
   DeployChatParams,
   DeployMcpParams,
+  GenerateApiKeyParams,
   GetBlockOutputsParams,
   GetBlockUpstreamReferencesParams,
+  GetDeployedWorkflowStateParams,
   GetUserWorkflowParams,
   GetWorkflowDataParams,
   GetWorkflowFromNameParams,
@@ -41,14 +43,19 @@ import type {
   MoveFolderParams,
   MoveWorkflowParams,
   RenameWorkflowParams,
+  RunBlockParams,
+  RunFromBlockParams,
   RunWorkflowParams,
+  RunWorkflowUntilBlockParams,
   SetGlobalWorkflowVariablesParams,
 } from './param-types'
 import {
   executeCreateFolder,
   executeCreateWorkflow,
+  executeGenerateApiKey,
   executeGetBlockOutputs,
   executeGetBlockUpstreamReferences,
+  executeGetDeployedWorkflowState,
   executeGetUserWorkflow,
   executeGetWorkflowData,
   executeGetWorkflowFromName,
@@ -58,7 +65,10 @@ import {
   executeMoveFolder,
   executeMoveWorkflow,
   executeRenameWorkflow,
+  executeRunBlock,
+  executeRunFromBlock,
   executeRunWorkflow,
+  executeRunWorkflowUntilBlock,
   executeSetGlobalWorkflowVariables,
 } from './workflow-tools'
 
@@ -99,6 +109,13 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   get_block_upstream_references: (p, c) =>
     executeGetBlockUpstreamReferences(p as unknown as GetBlockUpstreamReferencesParams, c),
   run_workflow: (p, c) => executeRunWorkflow(p as RunWorkflowParams, c),
+  run_workflow_until_block: (p, c) =>
+    executeRunWorkflowUntilBlock(p as unknown as RunWorkflowUntilBlockParams, c),
+  run_from_block: (p, c) => executeRunFromBlock(p as unknown as RunFromBlockParams, c),
+  run_block: (p, c) => executeRunBlock(p as unknown as RunBlockParams, c),
+  get_deployed_workflow_state: (p, c) =>
+    executeGetDeployedWorkflowState(p as GetDeployedWorkflowStateParams, c),
+  generate_api_key: (p, c) => executeGenerateApiKey(p as unknown as GenerateApiKeyParams, c),
   set_global_workflow_variables: (p, c) =>
     executeSetGlobalWorkflowVariables(p as SetGlobalWorkflowVariablesParams, c),
   deploy_api: (p, c) => executeDeployApi(p as DeployApiParams, c),

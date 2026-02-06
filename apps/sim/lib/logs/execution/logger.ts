@@ -21,6 +21,7 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import type {
@@ -188,6 +189,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
     workflowInput?: any
+    executionState?: SerializableExecutionState
     isResume?: boolean
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
@@ -200,6 +202,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       finalOutput,
       traceSpans,
       workflowInput,
+      executionState,
       isResume,
       level: levelOverride,
       status: statusOverride,
@@ -287,6 +290,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
             total: executionCost.tokens.total,
           },
           models: executionCost.models,
+          ...(executionState ? { executionState } : {}),
         },
         cost: executionCost,
       })

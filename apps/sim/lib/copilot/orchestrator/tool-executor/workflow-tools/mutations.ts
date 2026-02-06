@@ -1,21 +1,31 @@
 import crypto from 'crypto'
+import { nanoid } from 'nanoid'
 import { createLogger } from '@sim/logger'
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { apiKey, workflow, workflowFolder } from '@sim/db/schema'
 import { and, eq, isNull, max } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
+import { createApiKey } from '@/lib/api-key/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
+import {
+  getExecutionState,
+  getLatestExecutionState,
+} from '@/lib/workflows/executor/execution-state'
 import type {
   CreateFolderParams,
   CreateWorkflowParams,
+  GenerateApiKeyParams,
   MoveFolderParams,
   MoveWorkflowParams,
   RenameWorkflowParams,
+  RunBlockParams,
+  RunFromBlockParams,
   RunWorkflowParams,
+  RunWorkflowUntilBlockParams,
   SetGlobalWorkflowVariablesParams,
   VariableOperation,
 } from '../param-types'
@@ -150,6 +160,8 @@ export async function executeRunWorkflow(
 
     const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
 
+    const useDraftState = !params.useDeployedState
+
     const result = await executeWorkflow(
       {
         id: workflowRecord.id,
@@ -160,7 +172,7 @@ export async function executeRunWorkflow(
       generateRequestId(),
       params.workflow_input || params.input || undefined,
       context.userId,
-      { enabled: true, useDraftState: true }
+      { enabled: true, useDraftState }
     )
 
     return {
@@ -364,6 +376,248 @@ export async function executeMoveFolder(
       .where(eq(workflowFolder.id, folderId))
 
     return { success: true, output: { folderId, parentId } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeRunWorkflowUntilBlock(
+  params: RunWorkflowUntilBlockParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    if (!params.stopAfterBlockId) {
+      return { success: false, error: 'stopAfterBlockId is required' }
+    }
+
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+
+    const useDraftState = !params.useDeployedState
+
+    const result = await executeWorkflow(
+      {
+        id: workflowRecord.id,
+        userId: workflowRecord.userId,
+        workspaceId: workflowRecord.workspaceId,
+        variables: workflowRecord.variables || {},
+      },
+      generateRequestId(),
+      params.workflow_input || params.input || undefined,
+      context.userId,
+      { enabled: true, useDraftState, stopAfterBlockId: params.stopAfterBlockId }
+    )
+
+    return {
+      success: result.success,
+      output: {
+        executionId: result.metadata?.executionId,
+        success: result.success,
+        stoppedAfterBlockId: params.stopAfterBlockId,
+        output: result.output,
+        logs: result.logs,
+      },
+      error: result.success ? undefined : result.error || 'Workflow execution failed',
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeGenerateApiKey(
+  params: GenerateApiKeyParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const name = typeof params.name === 'string' ? params.name.trim() : ''
+    if (!name) {
+      return { success: false, error: 'name is required' }
+    }
+    if (name.length > 200) {
+      return { success: false, error: 'API key name must be 200 characters or less' }
+    }
+
+    const workspaceId = params.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    await ensureWorkspaceAccess(workspaceId, context.userId, true)
+
+    const existingKey = await db
+      .select({ id: apiKey.id })
+      .from(apiKey)
+      .where(
+        and(
+          eq(apiKey.workspaceId, workspaceId),
+          eq(apiKey.name, name),
+          eq(apiKey.type, 'workspace')
+        )
+      )
+      .limit(1)
+
+    if (existingKey.length > 0) {
+      return {
+        success: false,
+        error: `A workspace API key named "${name}" already exists. Choose a different name.`,
+      }
+    }
+
+    const { key: plainKey, encryptedKey } = await createApiKey(true)
+    if (!encryptedKey) {
+      return { success: false, error: 'Failed to encrypt API key for storage' }
+    }
+
+    const [newKey] = await db
+      .insert(apiKey)
+      .values({
+        id: nanoid(),
+        workspaceId,
+        userId: context.userId,
+        createdBy: context.userId,
+        name,
+        key: encryptedKey,
+        type: 'workspace',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning({ id: apiKey.id, name: apiKey.name, createdAt: apiKey.createdAt })
+
+    return {
+      success: true,
+      output: {
+        id: newKey.id,
+        name: newKey.name,
+        key: plainKey,
+        workspaceId,
+        message:
+          'API key created successfully. Copy this key now — it will not be shown again. Use this key in the x-api-key header when calling workflow API endpoints.',
+      },
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeRunFromBlock(
+  params: RunFromBlockParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    if (!params.startBlockId) {
+      return { success: false, error: 'startBlockId is required' }
+    }
+
+    const snapshot = params.executionId
+      ? await getExecutionState(params.executionId)
+      : await getLatestExecutionState(workflowId)
+
+    if (!snapshot) {
+      return {
+        success: false,
+        error: params.executionId
+          ? `No execution state found for execution ${params.executionId}. Run the full workflow first.`
+          : `No execution state found for workflow ${workflowId}. Run the full workflow first to create a snapshot.`,
+      }
+    }
+
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const useDraftState = !params.useDeployedState
+
+    const result = await executeWorkflow(
+      {
+        id: workflowRecord.id,
+        userId: workflowRecord.userId,
+        workspaceId: workflowRecord.workspaceId,
+        variables: workflowRecord.variables || {},
+      },
+      generateRequestId(),
+      params.workflow_input || params.input || undefined,
+      context.userId,
+      {
+        enabled: true,
+        useDraftState,
+        runFromBlock: { startBlockId: params.startBlockId, sourceSnapshot: snapshot },
+      }
+    )
+
+    return {
+      success: result.success,
+      output: {
+        executionId: result.metadata?.executionId,
+        success: result.success,
+        startBlockId: params.startBlockId,
+        output: result.output,
+        logs: result.logs,
+      },
+      error: result.success ? undefined : result.error || 'Workflow execution failed',
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeRunBlock(
+  params: RunBlockParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    if (!params.blockId) {
+      return { success: false, error: 'blockId is required' }
+    }
+
+    const snapshot = params.executionId
+      ? await getExecutionState(params.executionId)
+      : await getLatestExecutionState(workflowId)
+
+    if (!snapshot) {
+      return {
+        success: false,
+        error: params.executionId
+          ? `No execution state found for execution ${params.executionId}. Run the full workflow first.`
+          : `No execution state found for workflow ${workflowId}. Run the full workflow first to create a snapshot.`,
+      }
+    }
+
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const useDraftState = !params.useDeployedState
+
+    const result = await executeWorkflow(
+      {
+        id: workflowRecord.id,
+        userId: workflowRecord.userId,
+        workspaceId: workflowRecord.workspaceId,
+        variables: workflowRecord.variables || {},
+      },
+      generateRequestId(),
+      params.workflow_input || params.input || undefined,
+      context.userId,
+      {
+        enabled: true,
+        useDraftState,
+        runFromBlock: { startBlockId: params.blockId, sourceSnapshot: snapshot },
+        stopAfterBlockId: params.blockId,
+      }
+    )
+
+    return {
+      success: result.success,
+      output: {
+        executionId: result.metadata?.executionId,
+        success: result.success,
+        blockId: params.blockId,
+        output: result.output,
+        logs: result.logs,
+      },
+      error: result.success ? undefined : result.error || 'Workflow execution failed',
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
