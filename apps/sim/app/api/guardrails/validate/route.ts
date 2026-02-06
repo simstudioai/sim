@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       bedrockSecretKey,
       bedrockRegion,
       workflowId,
+      workspaceId,
       piiEntityTypes,
       piiMode,
       piiLanguage,
@@ -129,6 +130,7 @@ export async function POST(request: NextRequest) {
         bedrockRegion,
       },
       workflowId,
+      workspaceId,
       piiEntityTypes,
       piiMode,
       piiLanguage,
@@ -207,6 +209,7 @@ async function executeValidation(
     bedrockRegion?: string
   },
   workflowId: string | undefined,
+  workspaceId: string | undefined,
   piiEntityTypes: string[] | undefined,
   piiMode: string | undefined,
   piiLanguage: string | undefined,
@@ -249,6 +252,7 @@ async function executeValidation(
       apiKey,
       providerCredentials,
       workflowId,
+      workspaceId,
       requestId,
     })
   }

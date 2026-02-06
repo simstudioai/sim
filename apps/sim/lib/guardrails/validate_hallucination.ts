@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { executeProviderRequest } from '@/providers'
-import { getApiKey, getProviderFromModel } from '@/providers/utils'
+import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('HallucinationValidator')
 
@@ -34,6 +34,7 @@ export interface HallucinationValidationInput {
     bedrockRegion?: string
   }
   workflowId?: string
+  workspaceId?: string
   requestId: string
 }
 
@@ -103,8 +104,9 @@ async function scoreHallucinationWithLLM(
   userInput: string,
   ragContext: string[],
   model: string,
-  apiKey: string,
+  apiKey: string | undefined,
   providerCredentials: HallucinationValidationInput['providerCredentials'],
+  workspaceId: string | undefined,
   requestId: string
 ): Promise<{ score: number; reasoning: string }> {
   try {
@@ -142,8 +144,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
 
     const providerId = getProviderFromModel(model)
 
-    // Resolve Vertex AI OAuth credential to access token if needed
-    let finalApiKey = apiKey
+    let finalApiKey: string | undefined = apiKey
     if (providerId === 'vertex' && providerCredentials?.vertexCredential) {
       const credential = await db.query.account.findFirst({
         where: eq(account.id, providerCredentials.vertexCredential),
@@ -178,6 +179,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
       bedrockSecretKey: providerCredentials?.bedrockSecretKey,
       bedrockRegion: providerCredentials?.bedrockRegion,
+      workspaceId,
     })
 
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {
@@ -233,6 +235,7 @@ export async function validateHallucination(
     apiKey,
     providerCredentials,
     workflowId,
+    workspaceId,
     requestId,
   } = input
 
@@ -248,17 +251,6 @@ export async function validateHallucination(
       return {
         passed: false,
         error: 'Knowledge base ID is required',
-      }
-    }
-
-    let finalApiKey: string
-    try {
-      const providerId = getProviderFromModel(model)
-      finalApiKey = getApiKey(providerId, model, apiKey)
-    } catch (error: any) {
-      return {
-        passed: false,
-        error: `API key error: ${error.message}`,
       }
     }
 
@@ -283,8 +275,9 @@ export async function validateHallucination(
       userInput,
       ragContext,
       model,
-      finalApiKey,
+      apiKey,
       providerCredentials,
+      workspaceId,
       requestId
     )
 
