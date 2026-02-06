@@ -130,39 +130,52 @@ export function SkillInput({
           onOpenChange={setOpen}
         />
 
-        {selectedSkills.length > 0 && (
-          <div className='flex flex-wrap gap-[4px]'>
-            {selectedSkills.map((stored) => {
-              const fullSkill = workspaceSkills.find((s) => s.id === stored.skillId)
-              return (
+        {selectedSkills.length > 0 &&
+          selectedSkills.map((stored) => {
+            const fullSkill = workspaceSkills.find((s) => s.id === stored.skillId)
+            return (
+              <div
+                key={stored.skillId}
+                className='group relative flex flex-col overflow-hidden rounded-[4px] border border-[var(--border-1)] transition-all duration-200 ease-in-out'
+              >
                 <div
-                  key={stored.skillId}
-                  className='flex cursor-pointer items-center gap-[4px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[2px] font-medium text-[12px] text-[var(--text-secondary)] hover:bg-[var(--surface-6)]'
+                  className='flex cursor-pointer items-center justify-between gap-[8px] rounded-t-[4px] bg-[var(--surface-4)] px-[8px] py-[6.5px]'
                   onClick={() => {
                     if (fullSkill && !disabled && !isPreview) {
                       setEditingSkill(fullSkill)
                     }
                   }}
                 >
-                  <AgentSkillsIcon className='h-[10px] w-[10px] text-[var(--text-tertiary)]' />
-                  <span className='max-w-[140px] truncate'>{resolveSkillName(stored)}</span>
-                  {!disabled && !isPreview && (
-                    <button
-                      type='button'
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemove(stored.skillId)
-                      }}
-                      className='ml-[2px] rounded-[2px] p-[1px] text-[var(--text-tertiary)] hover:bg-[var(--surface-7)] hover:text-[var(--text-secondary)]'
+                  <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+                    <div
+                      className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                      style={{ backgroundColor: '#e0e0e0' }}
                     >
-                      <XIcon className='h-[10px] w-[10px]' />
-                    </button>
-                  )}
+                      <AgentSkillsIcon className='h-[10px] w-[10px] text-[#333]' />
+                    </div>
+                    <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                      {resolveSkillName(stored)}
+                    </span>
+                  </div>
+                  <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                    {!disabled && !isPreview && (
+                      <button
+                        type='button'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRemove(stored.skillId)
+                        }}
+                        className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                        aria-label='Remove skill'
+                      >
+                        <XIcon className='h-[13px] w-[13px]' />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
+              </div>
+            )
+          })}
       </div>
 
       <SkillModal
