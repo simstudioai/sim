@@ -55,6 +55,24 @@ function getInputFormatFields(block: SerializedBlock): OutputSchema {
   return schema
 }
 
+function getEvaluatorMetricsSchema(block: SerializedBlock): OutputSchema | undefined {
+  if (block.metadata?.id !== 'evaluator') return undefined
+
+  const metrics = block.config?.params?.metrics
+  if (!Array.isArray(metrics) || metrics.length === 0) return undefined
+
+  const validMetrics = metrics.filter(
+    (m: { name?: string }) => m?.name && typeof m.name === 'string'
+  )
+  if (validMetrics.length === 0) return undefined
+
+  const schema: OutputSchema = { ...(block.outputs as OutputSchema) }
+  for (const metric of validMetrics) {
+    schema[metric.name.toLowerCase()] = { type: 'number' }
+  }
+  return schema
+}
+
 function getResponseFormatSchema(block: SerializedBlock): OutputSchema | undefined {
   const responseFormatValue = block.config?.params?.responseFormat
   if (!responseFormatValue) return undefined
@@ -92,6 +110,11 @@ export function getBlockSchema(
     if (Object.keys(merged).length > 0) {
       return merged
     }
+  }
+
+  const evaluatorSchema = getEvaluatorMetricsSchema(block)
+  if (evaluatorSchema) {
+    return evaluatorSchema
   }
 
   const responseFormatSchema = getResponseFormatSchema(block)
