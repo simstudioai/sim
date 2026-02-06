@@ -468,7 +468,6 @@ function selectOwnerForDispatch(): OwnerState | null {
     if (owner.queueLength === 0) {
       owner.burstRemaining = 0
       removeOwnerFromRing(ownerKey)
-      visited++
       continue
     }
 
