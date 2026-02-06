@@ -812,6 +812,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'user.info.profile',
           'user.info.stats',
           'video.list',
+          'video.publish',
         ],
       },
     },

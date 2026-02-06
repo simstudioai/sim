@@ -88,13 +88,13 @@ export const tiktokDirectPostVideoTool: ToolConfig<
         postInfo.title = params.title
       }
       if (params.disableDuet !== undefined) {
-        postInfo.disable_duet = params.disableDuet
+        postInfo.disable_duet = params.disableDuet === true || params.disableDuet === 'true'
       }
       if (params.disableStitch !== undefined) {
-        postInfo.disable_stitch = params.disableStitch
+        postInfo.disable_stitch = params.disableStitch === true || params.disableStitch === 'true'
       }
       if (params.disableComment !== undefined) {
-        postInfo.disable_comment = params.disableComment
+        postInfo.disable_comment = params.disableComment === true || params.disableComment === 'true'
       }
       if (params.videoCoverTimestampMs !== undefined) {
         postInfo.video_cover_timestamp_ms = params.videoCoverTimestampMs

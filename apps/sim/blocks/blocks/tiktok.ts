@@ -126,7 +126,7 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
         { label: 'Followers', id: 'FOLLOWER_OF_CREATOR' },
         { label: 'Only Me', id: 'SELF_ONLY' },
       ],
-      value: () => 'PUBLIC_TO_EVERYONE',
+      value: () => 'SELF_ONLY',
       condition: {
         field: 'operation',
         value: 'direct_post_video',

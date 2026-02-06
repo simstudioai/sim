@@ -2505,12 +2505,13 @@ export const auth = betterAuth({
           clientSecret: env.TIKTOK_CLIENT_SECRET as string,
           authorizationUrl: 'https://www.tiktok.com/v2/auth/authorize/',
           tokenUrl: `${getBaseUrl()}/api/auth/tiktok-token-proxy`,
-          scopes: ['user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list'],
+          scopes: ['user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list', 'video.publish'],
           responseType: 'code',
+          pkce: true,
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/tiktok`,
           authorizationUrlParams: {
             client_key: env.TIKTOK_CLIENT_KEY as string,
-            scope: 'user.info.basic,user.info.profile,user.info.stats,video.list',
+            scope: 'user.info.basic,user.info.profile,user.info.stats,video.list,video.publish',
           },
           getUserInfo: async (tokens) => {
             const response = await fetch(
