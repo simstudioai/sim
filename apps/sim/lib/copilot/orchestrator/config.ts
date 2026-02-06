@@ -52,6 +52,12 @@ export const RESPOND_TOOL_NAMES = [
   'deploy_respond',
   'superagent_respond',
   'discovery_respond',
+  'tour_respond',
+  'auth_respond',
+  'workflow_respond',
+  'knowledge_respond',
+  'custom_tool_respond',
+  'test_respond',
 ] as const
 
 export const RESPOND_TOOL_SET = new Set<string>(RESPOND_TOOL_NAMES)
