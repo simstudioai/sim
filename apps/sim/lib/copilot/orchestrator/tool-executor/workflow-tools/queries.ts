@@ -13,6 +13,7 @@ import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
+import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { normalizeName } from '@/executor/constants'
 import {
   ensureWorkflowAccess,
@@ -209,12 +210,15 @@ export async function executeGetWorkflowData(
     )
 
     if (dataType === 'global_variables') {
-      const variablesRecord = (workflowRecord.variables as Record<string, any>) || {}
-      const variables = Object.values(variablesRecord).map((v: any) => ({
-        id: String(v?.id || ''),
-        name: String(v?.name || ''),
-        value: v?.value,
-      }))
+      const variablesRecord = (workflowRecord.variables as Record<string, unknown>) || {}
+      const variables = Object.values(variablesRecord).map((v) => {
+        const variable = v as Record<string, unknown> | null
+        return {
+          id: String(variable?.id || ''),
+          name: String(variable?.name || ''),
+          value: variable?.value,
+        }
+      })
       return { success: true, output: { variables } }
     }
 
@@ -232,13 +236,17 @@ export async function executeGetWorkflowData(
         .where(or(...conditions))
         .orderBy(desc(customTools.createdAt))
 
-      const customToolsData = toolsRows.map((tool) => ({
-        id: String(tool.id || ''),
-        title: String(tool.title || ''),
-        functionName: String((tool.schema as any)?.function?.name || ''),
-        description: String((tool.schema as any)?.function?.description || ''),
-        parameters: (tool.schema as any)?.function?.parameters,
-      }))
+      const customToolsData = toolsRows.map((tool) => {
+        const schema = tool.schema as Record<string, unknown> | null
+        const fn = (schema?.function ?? {}) as Record<string, unknown>
+        return {
+          id: String(tool.id || ''),
+          title: String(tool.title || ''),
+          functionName: String(fn.name || ''),
+          description: String(fn.description || ''),
+          parameters: fn.parameters,
+        }
+      })
 
       return { success: true, output: { customTools: customToolsData } }
     }
@@ -377,10 +385,28 @@ export async function executeGetBlockUpstreamReferences(
     const loops = normalized.loops || {}
     const parallels = normalized.parallels || {}
 
-    const graphEdges = edges.map((edge: any) => ({ source: edge.source, target: edge.target }))
+    const graphEdges = edges.map((edge) => ({ source: edge.source, target: edge.target }))
     const variableOutputs = await getWorkflowVariablesForTool(workflowId)
 
-    const results: any[] = []
+    interface AccessibleBlockEntry {
+      blockId: string
+      blockName: string
+      blockType: string
+      outputs: string[]
+      triggerMode?: boolean
+      accessContext?: 'inside' | 'outside'
+    }
+
+    interface UpstreamReferenceResult {
+      blockId: string
+      blockName: string
+      blockType: string
+      accessibleBlocks: AccessibleBlockEntry[]
+      insideSubflows: Array<{ blockId: string; blockName: string; blockType: string }>
+      variables: Array<{ id: string; name: string; type: string; tag: string }>
+    }
+
+    const results: UpstreamReferenceResult[] = []
 
     for (const blockId of params.blockIds) {
       const targetBlock = blocks[blockId]
@@ -390,7 +416,7 @@ export async function executeGetBlockUpstreamReferences(
       const containingLoopIds = new Set<string>()
       const containingParallelIds = new Set<string>()
 
-      Object.values(loops as Record<string, any>).forEach((loop) => {
+      Object.values(loops).forEach((loop) => {
         if (loop?.nodes?.includes(blockId)) {
           containingLoopIds.add(loop.id)
           const loopBlock = blocks[loop.id]
@@ -404,7 +430,7 @@ export async function executeGetBlockUpstreamReferences(
         }
       })
 
-      Object.values(parallels as Record<string, any>).forEach((parallel) => {
+      Object.values(parallels).forEach((parallel) => {
         if (parallel?.nodes?.includes(blockId)) {
           containingParallelIds.add(parallel.id)
           const parallelBlock = blocks[parallel.id]
@@ -422,9 +448,9 @@ export async function executeGetBlockUpstreamReferences(
       const accessibleIds = new Set<string>(ancestorIds)
       accessibleIds.add(blockId)
 
-      const starterBlock = Object.values(blocks).find((b: any) => isInputDefinitionTrigger(b.type))
-      if (starterBlock && ancestorIds.includes((starterBlock as any).id)) {
-        accessibleIds.add((starterBlock as any).id)
+      const starterBlock = Object.values(blocks).find((b) => isInputDefinitionTrigger(b.type))
+      if (starterBlock && ancestorIds.includes(starterBlock.id)) {
+        accessibleIds.add(starterBlock.id)
       }
 
       containingLoopIds.forEach((loopId) => {
@@ -437,7 +463,7 @@ export async function executeGetBlockUpstreamReferences(
         parallels[parallelId]?.nodes?.forEach((nodeId: string) => accessibleIds.add(nodeId))
       })
 
-      const accessibleBlocks: any[] = []
+      const accessibleBlocks: AccessibleBlockEntry[] = []
 
       for (const accessibleBlockId of accessibleIds) {
         const block = blocks[accessibleBlockId]
@@ -462,14 +488,14 @@ export async function executeGetBlockUpstreamReferences(
         }
 
         const formattedOutputs = formatOutputsWithPrefix(outputPaths, blockName)
-        const entry: any = {
+        const entry: AccessibleBlockEntry = {
           blockId: accessibleBlockId,
           blockName,
           blockType: block.type,
           outputs: formattedOutputs,
+          ...(block.triggerMode ? { triggerMode: true } : {}),
+          ...(accessContext ? { accessContext } : {}),
         }
-        if (block.triggerMode) entry.triggerMode = true
-        if (accessContext) entry.accessContext = accessContext
         accessibleBlocks.push(entry)
       }
 
@@ -499,10 +525,14 @@ async function getWorkflowVariablesForTool(
     .where(eq(workflow.id, workflowId))
     .limit(1)
 
-  const variablesRecord = (workflowRecord?.variables as Record<string, any>) || {}
+  const variablesRecord = (workflowRecord?.variables as Record<string, unknown>) || {}
   return Object.values(variablesRecord)
-    .filter((v: any) => v?.name && String(v.name).trim() !== '')
-    .map((v: any) => ({
+    .filter((v): v is Record<string, unknown> => {
+      if (!v || typeof v !== 'object') return false
+      const variable = v as Record<string, unknown>
+      return !!variable.name && String(variable.name).trim() !== ''
+    })
+    .map((v) => ({
       id: String(v.id || ''),
       name: String(v.name || ''),
       type: String(v.type || 'plain'),
@@ -513,8 +543,8 @@ async function getWorkflowVariablesForTool(
 function getSubflowInsidePaths(
   blockType: 'loop' | 'parallel',
   blockId: string,
-  loops: Record<string, any>,
-  parallels: Record<string, any>
+  loops: Record<string, Loop>,
+  parallels: Record<string, Parallel>
 ): string[] {
   const paths = ['index']
   if (blockType === 'loop') {

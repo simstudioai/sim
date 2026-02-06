@@ -1,12 +1,7 @@
 import { createLogger } from '@sim/logger'
-
-declare global {
-  interface Window {
-    __skipDiffRecording?: boolean
-  }
-}
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { COPILOT_STATS_API_PATH } from '@/lib/copilot/constants'
 import { stripWorkflowDiffMarkers, WorkflowDiffEngine } from '@/lib/workflows/diff'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
@@ -82,7 +77,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
         _triggerMessageId: null,
         _batchedStateUpdate: batchedUpdate,
 
-        setProposedChanges: async (proposedState, diffAnalysis) => {
+        setProposedChanges: async (proposedState, diffAnalysis, options) => {
           const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
           if (!activeWorkflowId) {
             logger.error('Cannot apply diff without an active workflow')
@@ -212,7 +207,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             })
 
           // Emit event for undo/redo recording
-          if (!window.__skipDiffRecording) {
+          if (!options?.skipRecording) {
             window.dispatchEvent(
               new CustomEvent('record-diff-operation', {
                 detail: {
@@ -257,7 +252,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           batchedUpdate({ isShowingDiff: !isShowingDiff })
         },
 
-        acceptChanges: async () => {
+        acceptChanges: async (options) => {
           const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
           if (!activeWorkflowId) {
             logger.error('No active workflow ID found when accepting diff')
@@ -307,7 +302,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           applyWorkflowStateToStores(activeWorkflowId, stateToApply)
 
           // Emit event for undo/redo recording (unless we're in an undo/redo operation)
-          if (!window.__skipDiffRecording) {
+          if (!options?.skipRecording) {
             window.dispatchEvent(
               new CustomEvent('record-diff-operation', {
                 detail: {
@@ -323,7 +318,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           // Background operations (fire-and-forget) - don't block
           if (triggerMessageId) {
-            fetch('/api/copilot/stats', {
+            fetch(COPILOT_STATS_API_PATH, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -331,7 +326,12 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                 diffCreated: true,
                 diffAccepted: true,
               }),
-            }).catch(() => {})
+            }).catch((error) => {
+              logger.warn('Failed to send diff-accepted stats', {
+                error: error instanceof Error ? error.message : String(error),
+                messageId: triggerMessageId,
+              })
+            })
           }
 
           findLatestEditWorkflowToolCallId().then((toolCallId) => {
@@ -347,7 +347,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           })
         },
 
-        rejectChanges: async () => {
+        rejectChanges: async (options) => {
           const { baselineWorkflow, baselineWorkflowId, _triggerMessageId, diffAnalysis } = get()
           const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
@@ -389,7 +389,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           applyWorkflowStateToStores(baselineWorkflowId, baselineWorkflow)
 
           // Emit event for undo/redo recording synchronously
-          if (!window.__skipDiffRecording) {
+          if (!options?.skipRecording) {
             window.dispatchEvent(
               new CustomEvent('record-diff-operation', {
                 detail: {
@@ -423,7 +423,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           })
 
           if (_triggerMessageId) {
-            fetch('/api/copilot/stats', {
+            fetch(COPILOT_STATS_API_PATH, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -431,7 +431,12 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                 diffCreated: true,
                 diffAccepted: false,
               }),
-            }).catch(() => {})
+            }).catch((error) => {
+              logger.warn('Failed to send diff-rejected stats', {
+                error: error instanceof Error ? error.message : String(error),
+                messageId: _triggerMessageId,
+              })
+            })
           }
 
           findLatestEditWorkflowToolCallId().then((toolCallId) => {
@@ -460,11 +465,13 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const needsUpdate =
             diffAnalysis.new_blocks?.some((blockId) => {
               const block = currentBlocks[blockId]
-              return block && (block as any).is_diff !== 'new'
+              const blockDiffState = (block as { is_diff?: string } | undefined)?.is_diff
+              return block && blockDiffState !== 'new'
             }) ||
             diffAnalysis.edited_blocks?.some((blockId) => {
               const block = currentBlocks[blockId]
-              return block && (block as any).is_diff !== 'edited'
+              const blockDiffState = (block as { is_diff?: string } | undefined)?.is_diff
+              return block && blockDiffState !== 'edited'
             })
 
           if (!needsUpdate) {
@@ -478,11 +485,12 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           Object.entries(currentBlocks).forEach(([blockId, block]) => {
             const isNewBlock = diffAnalysis.new_blocks?.includes(blockId)
             const isEditedBlock = diffAnalysis.edited_blocks?.includes(blockId)
+            const blockDiffState = (block as { is_diff?: string } | undefined)?.is_diff
 
-            if (isNewBlock && (block as any).is_diff !== 'new') {
+            if (isNewBlock && blockDiffState !== 'new') {
               updatedBlocks[blockId] = { ...block, is_diff: 'new' }
               hasChanges = true
-            } else if (isEditedBlock && (block as any).is_diff !== 'edited') {
+            } else if (isEditedBlock && blockDiffState !== 'edited') {
               updatedBlocks[blockId] = { ...block, is_diff: 'edited' }
 
               // Re-apply field_diffs if available

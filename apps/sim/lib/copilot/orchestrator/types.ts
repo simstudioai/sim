@@ -19,12 +19,24 @@ export type SSEEventType =
 
 export interface SSEEvent {
   type: SSEEventType
-  data?: unknown
+  data?: Record<string, unknown>
   subagent?: string
   toolCallId?: string
   toolName?: string
   success?: boolean
   result?: unknown
+  /** Set on chat_id events */
+  chatId?: string
+  /** Set on title_updated events */
+  title?: string
+  /** Set on error events */
+  error?: string
+  /** Set on content/reasoning events */
+  content?: string
+  /** Set on reasoning events */
+  phase?: string
+  /** Set on tool_result events */
+  failedDependency?: boolean
 }
 
 export type ToolCallStatus = 'pending' | 'executing' | 'success' | 'error' | 'skipped' | 'rejected'

@@ -58,7 +58,17 @@ export async function executeCheckDeploymentStatus(
       hasPassword: Boolean(chatDeploy[0]?.password),
     }
 
-    const mcpDetails = { isDeployed: false, servers: [] as any[] }
+    const mcpDetails: {
+      isDeployed: boolean
+      servers: Array<{
+        serverId: string
+        serverName: string
+        toolName: string
+        toolDescription: string | null
+        parameterSchema: unknown
+        toolId: string
+      }>
+    } = { isDeployed: false, servers: [] }
     if (workspaceId) {
       const servers = await db
         .select({

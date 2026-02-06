@@ -1,19 +1,25 @@
 import { createLogger } from '@sim/logger'
 import {
+  asRecord,
   normalizeSseEvent,
   shouldSkipToolCallEvent,
   shouldSkipToolResultEvent,
 } from '@/lib/copilot/orchestrator/sse-utils'
+import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import { resolveToolDisplay } from '@/lib/copilot/store-utils'
 import type { CopilotStore, CopilotToolCall } from '@/stores/panel/copilot/types'
-import type { StreamingContext } from './types'
+import type { ClientStreamingContext } from './types'
 import { sseHandlers, type SSEHandler, updateStreamingMessage } from './handlers'
 
 const logger = createLogger('CopilotClientSubagentHandlers')
 
+type StoreSet = (
+  partial: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)
+) => void
+
 export function appendSubAgentContent(
-  context: StreamingContext,
+  context: ClientStreamingContext,
   parentToolCallId: string,
   text: string
 ) {
@@ -38,9 +44,9 @@ export function appendSubAgentContent(
 }
 
 export function updateToolCallWithSubAgentData(
-  context: StreamingContext,
+  context: ClientStreamingContext,
   get: () => CopilotStore,
-  set: any,
+  set: StoreSet,
   parentToolCallId: string
 ) {
   const { toolCallsById } = get()
@@ -76,7 +82,7 @@ export function updateToolCallWithSubAgentData(
 
   let foundInContentBlocks = false
   for (let i = 0; i < context.contentBlocks.length; i++) {
-    const b = context.contentBlocks[i] as any
+    const b = context.contentBlocks[i]
     if (b.type === 'tool_call' && b.toolCall?.id === parentToolCallId) {
       context.contentBlocks[i] = { ...b, toolCall: updatedToolCall }
       foundInContentBlocks = true
@@ -89,8 +95,8 @@ export function updateToolCallWithSubAgentData(
       parentToolCallId,
       contentBlocksCount: context.contentBlocks.length,
       toolCallBlockIds: context.contentBlocks
-        .filter((b: any) => b.type === 'tool_call')
-        .map((b: any) => b.toolCall?.id),
+        .filter((b) => b.type === 'tool_call')
+        .map((b) => b.toolCall?.id),
     })
   }
 
@@ -104,27 +110,29 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
   content: (data, context, get, set) => {
     const parentToolCallId = context.subAgentParentToolCallId
+    const contentStr = typeof data.data === 'string' ? data.data : (data.content || '')
     logger.info('[SubAgent] content event', {
       parentToolCallId,
-      hasData: !!data.data,
-      dataPreview: typeof data.data === 'string' ? data.data.substring(0, 50) : null,
+      hasData: !!contentStr,
+      dataPreview: contentStr ? contentStr.substring(0, 50) : null,
     })
-    if (!parentToolCallId || !data.data) {
+    if (!parentToolCallId || !contentStr) {
       logger.warn('[SubAgent] content missing parentToolCallId or data', {
         parentToolCallId,
-        hasData: !!data.data,
+        hasData: !!contentStr,
       })
       return
     }
 
-    appendSubAgentContent(context, parentToolCallId, data.data)
+    appendSubAgentContent(context, parentToolCallId, contentStr)
 
     updateToolCallWithSubAgentData(context, get, set, parentToolCallId)
   },
 
   reasoning: (data, context, get, set) => {
     const parentToolCallId = context.subAgentParentToolCallId
-    const phase = data?.phase || data?.data?.phase
+    const dataObj = asRecord(data?.data)
+    const phase = data?.phase || (dataObj.phase as string | undefined)
     if (!parentToolCallId) return
 
     if (phase === 'start' || phase === 'end') return
@@ -145,17 +153,18 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
 
-    const toolData = data?.data ?? {}
-    const id: string | undefined = toolData.id || data?.toolCallId
-    const name: string | undefined = toolData.name || data?.toolName
+    const toolData = asRecord(data?.data)
+    const id: string | undefined = (toolData.id as string | undefined) || data?.toolCallId
+    const name: string | undefined = (toolData.name as string | undefined) || data?.toolName
     if (!id || !name) return
     const isPartial = toolData.partial === true
 
-    let args = toolData.arguments || toolData.input || data?.arguments || data?.input
+    let args: Record<string, unknown> | undefined =
+      (toolData.arguments || toolData.input) as Record<string, unknown> | undefined
 
     if (typeof args === 'string') {
       try {
-        args = JSON.parse(args)
+        args = JSON.parse(args) as Record<string, unknown>
       } catch {
         logger.warn('[SubAgent] Failed to parse arguments string', { args })
       }
@@ -177,7 +186,9 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
       context.subAgentBlocks[parentToolCallId] = []
     }
 
-    const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex((tc) => tc.id === id)
+    const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex(
+      (tc: CopilotToolCall) => tc.id === id
+    )
     const subAgentToolCall: CopilotToolCall = {
       id,
       name,
@@ -213,7 +224,8 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
 
-    const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+    const resultData = asRecord(data?.data)
+    const toolCallId: string | undefined = data?.toolCallId || (resultData.id as string | undefined)
     const success: boolean | undefined = data?.success !== false
     if (!toolCallId) return
 
@@ -222,7 +234,7 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
     const targetState = success ? ClientToolCallState.success : ClientToolCallState.error
     const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex(
-      (tc) => tc.id === toolCallId
+      (tc: CopilotToolCall) => tc.id === toolCallId
     )
 
     if (existingIndex >= 0) {
@@ -268,19 +280,20 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
 }
 
 export async function applySseEvent(
-  data: any,
-  context: StreamingContext,
+  rawData: SSEEvent,
+  context: ClientStreamingContext,
   get: () => CopilotStore,
   set: (next: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)) => void
 ): Promise<boolean> {
-  const normalizedEvent = normalizeSseEvent(data)
+  const normalizedEvent = normalizeSseEvent(rawData)
   if (shouldSkipToolCallEvent(normalizedEvent) || shouldSkipToolResultEvent(normalizedEvent)) {
     return true
   }
-  data = normalizedEvent
+  const data = normalizedEvent
 
   if (data.type === 'subagent_start') {
-    const toolCallId = data.data?.tool_call_id
+    const startData = asRecord(data.data)
+    const toolCallId = startData.tool_call_id as string | undefined
     if (toolCallId) {
       context.subAgentParentToolCallId = toolCallId
       const { toolCallsById } = get()

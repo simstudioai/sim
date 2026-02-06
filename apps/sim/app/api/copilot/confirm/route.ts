@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { REDIS_TOOL_CALL_PREFIX, REDIS_TOOL_CALL_TTL_SECONDS } from '@/lib/copilot/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -38,13 +39,13 @@ async function updateToolCallStatus(
   }
 
   try {
-    const key = `tool_call:${toolCallId}`
+    const key = `${REDIS_TOOL_CALL_PREFIX}${toolCallId}`
     const payload = {
       status,
       message: message || null,
       timestamp: new Date().toISOString(),
     }
-    await redis.set(key, JSON.stringify(payload), 'EX', 86400)
+    await redis.set(key, JSON.stringify(payload), 'EX', REDIS_TOOL_CALL_TTL_SECONDS)
     return true
   } catch (error) {
     logger.error('Failed to update tool call status', {

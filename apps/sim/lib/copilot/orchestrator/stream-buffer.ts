@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { REDIS_COPILOT_STREAM_PREFIX } from '@/lib/copilot/constants'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 
@@ -59,7 +60,7 @@ return id
 `
 
 function getStreamKeyPrefix(streamId: string) {
-  return `copilot_stream:${streamId}`
+  return `${REDIS_COPILOT_STREAM_PREFIX}${streamId}`
 }
 
 function getEventsKey(streamId: string) {
@@ -86,11 +87,11 @@ export type StreamMeta = {
 export type StreamEventEntry = {
   eventId: number
   streamId: string
-  event: Record<string, any>
+  event: Record<string, unknown>
 }
 
 export type StreamEventWriter = {
-  write: (event: Record<string, any>) => Promise<StreamEventEntry>
+  write: (event: Record<string, unknown>) => Promise<StreamEventEntry>
   flush: () => Promise<void>
   close: () => Promise<void>
 }
@@ -147,7 +148,7 @@ export async function getStreamMeta(streamId: string): Promise<StreamMeta | null
 
 export async function appendStreamEvent(
   streamId: string,
-  event: Record<string, any>
+  event: Record<string, unknown>
 ): Promise<StreamEventEntry> {
   const redis = getRedisClient()
   if (!redis) {
@@ -225,7 +226,7 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
         zaddArgs.push(entry.eventId, JSON.stringify(entry))
       }
       const pipeline = redis.pipeline()
-      pipeline.zadd(key, ...(zaddArgs as any))
+      pipeline.zadd(key, ...(zaddArgs as [number, string]))
       pipeline.expire(key, config.ttlSeconds)
       pipeline.expire(getSeqKey(streamId), config.ttlSeconds)
       pipeline.zremrangebyrank(key, 0, -config.eventLimit - 1)
@@ -253,7 +254,7 @@ export function createStreamEventWriter(streamId: string): StreamEventWriter {
     }
   }
 
-  const write = async (event: Record<string, any>) => {
+  const write = async (event: Record<string, unknown>) => {
     if (closed) return { eventId: 0, streamId, event }
     if (nextEventId === 0 || nextEventId > maxReservedId) {
       await reserveIds(1)

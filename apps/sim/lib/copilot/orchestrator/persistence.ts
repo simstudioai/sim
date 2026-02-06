@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { REDIS_TOOL_CALL_PREFIX } from '@/lib/copilot/constants'
 import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('CopilotOrchestratorPersistence')
@@ -15,7 +16,7 @@ export async function getToolConfirmation(toolCallId: string): Promise<{
   if (!redis) return null
 
   try {
-    const data = await redis.get(`tool_call:${toolCallId}`)
+    const data = await redis.get(`${REDIS_TOOL_CALL_PREFIX}${toolCallId}`)
     if (!data) return null
     return JSON.parse(data) as { status: string; message?: string; timestamp?: string }
   } catch (error) {

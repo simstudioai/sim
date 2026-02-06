@@ -3,7 +3,7 @@ import type {
   CopilotMessage,
   MessageFileAttachment,
 } from '@/stores/panel/copilot/types'
-import type { StreamingContext } from './types'
+import type { ClientContentBlock, ClientStreamingContext } from './types'
 
 const TEXT_BLOCK_TYPE = 'text'
 const THINKING_BLOCK_TYPE = 'thinking'
@@ -25,8 +25,8 @@ export function createUserMessage(
     ...(contexts &&
       contexts.length > 0 && {
         contentBlocks: [
-          { type: 'contexts', contexts: contexts as any, timestamp: Date.now() },
-        ] as any,
+          { type: 'contexts', contexts, timestamp: Date.now() },
+        ],
       }),
   }
 }
@@ -61,7 +61,7 @@ export function createErrorMessage(
   }
 }
 
-export function appendTextBlock(context: StreamingContext, text: string) {
+export function appendTextBlock(context: ClientStreamingContext, text: string) {
   if (!text) return
   context.accumulatedContent += text
   if (context.currentTextBlock && context.contentBlocks.length > 0) {
@@ -71,11 +71,9 @@ export function appendTextBlock(context: StreamingContext, text: string) {
       return
     }
   }
-  context.currentTextBlock = { type: '', content: '', timestamp: 0, toolCall: null }
-  context.currentTextBlock.type = TEXT_BLOCK_TYPE
-  context.currentTextBlock.content = text
-  context.currentTextBlock.timestamp = Date.now()
-  context.contentBlocks.push(context.currentTextBlock)
+  const newBlock: ClientContentBlock = { type: 'text', content: text, timestamp: Date.now() }
+  context.currentTextBlock = newBlock
+  context.contentBlocks.push(newBlock)
 }
 
 export function appendContinueOption(content: string): string {
@@ -84,7 +82,7 @@ export function appendContinueOption(content: string): string {
   return `${content}${suffix}${CONTINUE_OPTIONS_TAG}`
 }
 
-export function appendContinueOptionBlock(blocks: any[]): any[] {
+export function appendContinueOptionBlock(blocks: ClientContentBlock[]): ClientContentBlock[] {
   if (!Array.isArray(blocks)) return blocks
   const hasOptions = blocks.some(
     (block) =>
@@ -109,7 +107,7 @@ export function stripContinueOption(content: string): string {
   return next.replace(/\n{2,}\s*$/g, '\n').trimEnd()
 }
 
-export function stripContinueOptionFromBlocks(blocks: any[]): any[] {
+export function stripContinueOptionFromBlocks(blocks: ClientContentBlock[]): ClientContentBlock[] {
   if (!Array.isArray(blocks)) return blocks
   return blocks.flatMap((block) => {
     if (
@@ -125,20 +123,17 @@ export function stripContinueOptionFromBlocks(blocks: any[]): any[] {
   })
 }
 
-export function beginThinkingBlock(context: StreamingContext) {
+export function beginThinkingBlock(context: ClientStreamingContext) {
   if (!context.currentThinkingBlock) {
-    context.currentThinkingBlock = { type: '', content: '', timestamp: 0, toolCall: null }
-    context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
-    context.currentThinkingBlock.content = ''
-    context.currentThinkingBlock.timestamp = Date.now()
-    ;(context.currentThinkingBlock as any).startTime = Date.now()
-    context.contentBlocks.push(context.currentThinkingBlock)
+    const newBlock: ClientContentBlock = { type: 'thinking', content: '', timestamp: Date.now(), startTime: Date.now() }
+    context.currentThinkingBlock = newBlock
+    context.contentBlocks.push(newBlock)
   }
   context.isInThinkingBlock = true
   context.currentTextBlock = null
 }
 
-export function finalizeThinkingBlock(context: StreamingContext) {
+export function finalizeThinkingBlock(context: ClientStreamingContext) {
   if (context.currentThinkingBlock) {
     context.currentThinkingBlock.duration =
       Date.now() - (context.currentThinkingBlock.startTime || Date.now())

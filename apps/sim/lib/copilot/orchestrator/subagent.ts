@@ -28,7 +28,7 @@ export interface SubagentOrchestratorResult {
   structuredResult?: {
     type?: string
     summary?: string
-    data?: any
+    data?: unknown
     success?: boolean
   }
   error?: string
@@ -37,14 +37,15 @@ export interface SubagentOrchestratorResult {
 
 export async function orchestrateSubagentStream(
   agentId: string,
-  requestPayload: Record<string, any>,
+  requestPayload: Record<string, unknown>,
   options: SubagentOrchestratorOptions
 ): Promise<SubagentOrchestratorResult> {
   const { userId, workflowId, workspaceId } = options
   const execContext = await buildExecutionContext(userId, workflowId, workspaceId)
 
+  const msgId = requestPayload?.messageId
   const context = createStreamingContext({
-    messageId: requestPayload?.messageId || crypto.randomUUID(),
+    messageId: typeof msgId === 'string' ? msgId : crypto.randomUUID(),
   })
 
   let structuredResult: SubagentOrchestratorResult['structuredResult']
@@ -109,12 +110,12 @@ export async function orchestrateSubagentStream(
 
 function normalizeStructuredResult(data: unknown): SubagentOrchestratorResult['structuredResult'] {
   if (!data || typeof data !== 'object') return undefined
-  const d = data as Record<string, any>
+  const d = data as Record<string, unknown>
   return {
-    type: d.result_type || d.type,
-    summary: d.summary,
+    type: (d.result_type || d.type) as string | undefined,
+    summary: d.summary as string | undefined,
     data: d.data ?? d,
-    success: d.success,
+    success: d.success as boolean | undefined,
   }
 }
 

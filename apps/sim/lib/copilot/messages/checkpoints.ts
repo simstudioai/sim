@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { COPILOT_CHECKPOINTS_API_PATH } from '@/lib/copilot/constants'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -58,7 +59,7 @@ export async function saveMessageCheckpoint(
   set({ messageSnapshots: nextSnapshots })
 
   try {
-    const response = await fetch('/api/copilot/checkpoints', {
+    const response = await fetch(COPILOT_CHECKPOINTS_API_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -117,7 +118,7 @@ export function buildToolCallsById(messages: CopilotMessage[]): Record<string, C
   const toolCallsById: Record<string, CopilotToolCall> = {}
   for (const msg of messages) {
     if (msg.contentBlocks) {
-      for (const block of msg.contentBlocks as any[]) {
+      for (const block of msg.contentBlocks) {
         if (block?.type === 'tool_call' && block.toolCall?.id) {
           extractToolCallsRecursively(block.toolCall, toolCallsById)
         }

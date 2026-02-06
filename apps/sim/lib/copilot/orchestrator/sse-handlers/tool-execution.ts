@@ -1,4 +1,9 @@
 import { createLogger } from '@sim/logger'
+import {
+  TOOL_DECISION_INITIAL_POLL_MS,
+  TOOL_DECISION_MAX_POLL_MS,
+  TOOL_DECISION_POLL_BACKOFF,
+} from '@/lib/copilot/constants'
 import { INTERRUPT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
 import { getToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
 import {
@@ -103,15 +108,20 @@ export async function executeToolAndReport(
 
 export async function waitForToolDecision(
   toolCallId: string,
-  timeoutMs: number
+  timeoutMs: number,
+  abortSignal?: AbortSignal
 ): Promise<{ status: string; message?: string } | null> {
   const start = Date.now()
+  let interval = TOOL_DECISION_INITIAL_POLL_MS
+  const maxInterval = TOOL_DECISION_MAX_POLL_MS
   while (Date.now() - start < timeoutMs) {
+    if (abortSignal?.aborted) return null
     const decision = await getToolConfirmation(toolCallId)
     if (decision?.status) {
       return decision
     }
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await new Promise((resolve) => setTimeout(resolve, interval))
+    interval = Math.min(interval * TOOL_DECISION_POLL_BACKOFF, maxInterval)
   }
   return null
 }

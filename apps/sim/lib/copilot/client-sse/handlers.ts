@@ -1,28 +1,30 @@
 import { createLogger } from '@sim/logger'
+import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
+import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
+import { asRecord } from '@/lib/copilot/orchestrator/sse-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import type { CopilotStore, CopilotToolCall } from '@/stores/panel/copilot/types'
-import {
-  appendTextBlock,
-  beginThinkingBlock,
-  finalizeThinkingBlock,
-} from './content-blocks'
-import type { StreamingContext } from './types'
 import {
   isBackgroundState,
   isRejectedState,
   isReviewState,
   resolveToolDisplay,
 } from '@/lib/copilot/store-utils'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import type { CopilotStore, CopilotStreamInfo, CopilotToolCall } from '@/stores/panel/copilot/types'
+import {
+  appendTextBlock,
+  beginThinkingBlock,
+  finalizeThinkingBlock,
+} from './content-blocks'
+import type { ClientContentBlock, ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSseHandlers')
-const STREAM_STORAGE_KEY = 'copilot_active_stream'
 const TEXT_BLOCK_TYPE = 'text'
 const MAX_BATCH_INTERVAL = 50
 const MIN_BATCH_INTERVAL = 16
 const MAX_QUEUE_SIZE = 5
 
-function writeActiveStreamToStorage(info: any): void {
+function writeActiveStreamToStorage(info: CopilotStreamInfo | null): void {
   if (typeof window === 'undefined') return
   try {
     if (!info) {
@@ -30,17 +32,25 @@ function writeActiveStreamToStorage(info: any): void {
       return
     }
     window.sessionStorage.setItem(STREAM_STORAGE_KEY, JSON.stringify(info))
-  } catch {}
+  } catch (error) {
+    logger.warn('Failed to write active stream to storage', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
+type StoreSet = (
+  partial: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)
+) => void
+
 export type SSEHandler = (
-  data: any,
-  context: StreamingContext,
+  data: SSEEvent,
+  context: ClientStreamingContext,
   get: () => CopilotStore,
-  set: any
+  set: StoreSet
 ) => Promise<void> | void
 
-const streamingUpdateQueue = new Map<string, StreamingContext>()
+const streamingUpdateQueue = new Map<string, ClientStreamingContext>()
 let streamingUpdateRAF: number | null = null
 let lastBatchTime = 0
 
@@ -52,8 +62,8 @@ export function stopStreamingUpdates() {
   streamingUpdateQueue.clear()
 }
 
-function createOptimizedContentBlocks(contentBlocks: any[]): any[] {
-  const result: any[] = new Array(contentBlocks.length)
+function createOptimizedContentBlocks(contentBlocks: ClientContentBlock[]): ClientContentBlock[] {
+  const result: ClientContentBlock[] = new Array(contentBlocks.length)
   for (let i = 0; i < contentBlocks.length; i++) {
     const block = contentBlocks[i]
     result[i] = { ...block }
@@ -61,7 +71,7 @@ function createOptimizedContentBlocks(contentBlocks: any[]): any[] {
   return result
 }
 
-export function flushStreamingUpdates(set: any) {
+export function flushStreamingUpdates(set: StoreSet) {
   if (streamingUpdateRAF !== null) {
     cancelAnimationFrame(streamingUpdateRAF)
     streamingUpdateRAF = null
@@ -90,7 +100,7 @@ export function flushStreamingUpdates(set: any) {
   })
 }
 
-export function updateStreamingMessage(set: any, context: StreamingContext) {
+export function updateStreamingMessage(set: StoreSet, context: ClientStreamingContext) {
   if (context.suppressStreamingUpdates) return
   const now = performance.now()
   streamingUpdateQueue.set(context.messageId, context)
@@ -146,10 +156,10 @@ export function updateStreamingMessage(set: any, context: StreamingContext) {
   }
 }
 
-export function upsertToolCallBlock(context: StreamingContext, toolCall: CopilotToolCall) {
+export function upsertToolCallBlock(context: ClientStreamingContext, toolCall: CopilotToolCall) {
   let found = false
   for (let i = 0; i < context.contentBlocks.length; i++) {
-    const b = context.contentBlocks[i] as any
+    const b = context.contentBlocks[i]
     if (b.type === 'tool_call' && b.toolCall?.id === toolCall.id) {
       context.contentBlocks[i] = { ...b, toolCall }
       found = true
@@ -165,19 +175,16 @@ function stripThinkingTags(text: string): string {
   return text.replace(/<\/?thinking[^>]*>/gi, '').replace(/&lt;\/?thinking[^&]*&gt;/gi, '')
 }
 
-function appendThinkingContent(context: StreamingContext, text: string) {
+function appendThinkingContent(context: ClientStreamingContext, text: string) {
   if (!text) return
   const cleanedText = stripThinkingTags(text)
   if (!cleanedText) return
   if (context.currentThinkingBlock) {
     context.currentThinkingBlock.content += cleanedText
   } else {
-    context.currentThinkingBlock = { type: '', content: '', timestamp: 0, toolCall: null }
-    context.currentThinkingBlock.type = 'thinking'
-    context.currentThinkingBlock.content = cleanedText
-    context.currentThinkingBlock.timestamp = Date.now()
-    context.currentThinkingBlock.startTime = Date.now()
-    context.contentBlocks.push(context.currentThinkingBlock)
+    const newBlock: ClientContentBlock = { type: 'thinking', content: cleanedText, timestamp: Date.now(), startTime: Date.now() }
+    context.currentThinkingBlock = newBlock
+    context.contentBlocks.push(newBlock)
   }
   context.isInThinkingBlock = true
   context.currentTextBlock = null
@@ -209,10 +216,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   tool_result: (data, context, get, set) => {
     try {
-      const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+      const eventData = asRecord(data?.data)
+      const toolCallId: string | undefined = data?.toolCallId || (eventData.id as string | undefined)
       const success: boolean | undefined = data?.success
       const failedDependency: boolean = data?.failedDependency === true
-      const skipped: boolean = data?.result?.skipped === true
+      const resultObj = asRecord(data?.result)
+      const skipped: boolean = resultObj.skipped === true
       if (!toolCallId) return
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
@@ -233,24 +242,24 @@ export const sseHandlers: Record<string, SSEHandler> = {
         updatedMap[toolCallId] = {
           ...current,
           state: targetState,
-          display: resolveToolDisplay(
-            current.name,
-            targetState,
-            current.id,
-            (current as any).params
-          ),
+          display: resolveToolDisplay(current.name, targetState, current.id, current.params),
         }
         set({ toolCallsById: updatedMap })
 
         if (targetState === ClientToolCallState.success && current.name === 'checkoff_todo') {
           try {
-            const result = (data?.result || data?.data?.result) ?? {}
-            const input = ((current as any).params || (current as any).input) ?? {}
-            const todoId = input.id || input.todoId || result.id || result.todoId
+            const result = asRecord(data?.result) || asRecord(eventData.result)
+            const input = asRecord(current.params || current.input)
+            const todoId = (input.id || input.todoId || result.id || result.todoId) as string | undefined
             if (todoId) {
               get().updatePlanTodoStatus(todoId, 'completed')
             }
-          } catch {}
+          } catch (error) {
+            logger.warn('Failed to process checkoff_todo tool result', {
+              error: error instanceof Error ? error.message : String(error),
+              toolCallId,
+            })
+          }
         }
 
         if (
@@ -258,28 +267,35 @@ export const sseHandlers: Record<string, SSEHandler> = {
           current.name === 'mark_todo_in_progress'
         ) {
           try {
-            const result = (data?.result || data?.data?.result) ?? {}
-            const input = ((current as any).params || (current as any).input) ?? {}
-            const todoId = input.id || input.todoId || result.id || result.todoId
+            const result = asRecord(data?.result) || asRecord(eventData.result)
+            const input = asRecord(current.params || current.input)
+            const todoId = (input.id || input.todoId || result.id || result.todoId) as string | undefined
             if (todoId) {
               get().updatePlanTodoStatus(todoId, 'executing')
             }
-          } catch {}
+          } catch (error) {
+            logger.warn('Failed to process mark_todo_in_progress tool result', {
+              error: error instanceof Error ? error.message : String(error),
+              toolCallId,
+            })
+          }
         }
 
         if (current.name === 'edit_workflow') {
           try {
-            const resultPayload =
-              (data?.result || data?.data?.result || data?.data?.data || data?.data) ?? {}
-            const workflowState = resultPayload?.workflowState
+            const resultPayload = asRecord(
+              data?.result || eventData.result || eventData.data || data?.data
+            )
+            const workflowState = asRecord(resultPayload?.workflowState)
+            const hasWorkflowState = !!resultPayload?.workflowState
             logger.info('[SSE] edit_workflow result received', {
-              hasWorkflowState: !!workflowState,
-              blockCount: workflowState ? Object.keys(workflowState.blocks ?? {}).length : 0,
-              edgeCount: workflowState?.edges?.length ?? 0,
+              hasWorkflowState,
+              blockCount: hasWorkflowState ? Object.keys(workflowState.blocks ?? {}).length : 0,
+              edgeCount: Array.isArray(workflowState.edges) ? workflowState.edges.length : 0,
             })
-            if (workflowState) {
+            if (hasWorkflowState) {
               const diffStore = useWorkflowDiffStore.getState()
-              diffStore.setProposedChanges(workflowState).catch((err) => {
+              diffStore.setProposedChanges(resultPayload.workflowState).catch((err) => {
                 logger.error('[SSE] Failed to apply edit_workflow diff', {
                   error: err instanceof Error ? err.message : String(err),
                 })
@@ -294,7 +310,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       }
 
       for (let i = 0; i < context.contentBlocks.length; i++) {
-        const b = context.contentBlocks[i] as any
+        const b = context.contentBlocks[i]
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
           if (
             isRejectedState(b.toolCall?.state) ||
@@ -324,11 +340,16 @@ export const sseHandlers: Record<string, SSEHandler> = {
         }
       }
       updateStreamingMessage(set, context)
-    } catch {}
+    } catch (error) {
+      logger.warn('Failed to process tool_result SSE event', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   },
   tool_error: (data, context, get, set) => {
     try {
-      const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+      const errorData = asRecord(data?.data)
+      const toolCallId: string | undefined = data?.toolCallId || (errorData.id as string | undefined)
       const failedDependency: boolean = data?.failedDependency === true
       if (!toolCallId) return
       const { toolCallsById } = get()
@@ -348,17 +369,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
         updatedMap[toolCallId] = {
           ...current,
           state: targetState,
-          display: resolveToolDisplay(
-            current.name,
-            targetState,
-            current.id,
-            (current as any).params
-          ),
+          display: resolveToolDisplay(current.name, targetState, current.id, current.params),
         }
         set({ toolCallsById: updatedMap })
       }
       for (let i = 0; i < context.contentBlocks.length; i++) {
-        const b = context.contentBlocks[i] as any
+        const b = context.contentBlocks[i]
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
           if (
             isRejectedState(b.toolCall?.state) ||
@@ -386,7 +402,11 @@ export const sseHandlers: Record<string, SSEHandler> = {
         }
       }
       updateStreamingMessage(set, context)
-    } catch {}
+    } catch (error) {
+      logger.warn('Failed to process tool_error SSE event', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   },
   tool_generating: (data, context, get, set) => {
     const { toolCallId, toolName } = data
@@ -410,11 +430,11 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
   },
   tool_call: (data, context, get, set) => {
-    const toolData = data?.data ?? {}
-    const id: string | undefined = toolData.id || data?.toolCallId
-    const name: string | undefined = toolData.name || data?.toolName
+    const toolData = asRecord(data?.data)
+    const id: string | undefined = (toolData.id as string | undefined) || data?.toolCallId
+    const name: string | undefined = (toolData.name as string | undefined) || data?.toolName
     if (!id) return
-    const args = toolData.arguments
+    const args = toolData.arguments as Record<string, unknown> | undefined
     const isPartial = toolData.partial === true
     const { toolCallsById } = get()
 

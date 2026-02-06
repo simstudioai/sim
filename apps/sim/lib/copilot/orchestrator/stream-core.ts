@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   handleSubagentRouting,
   sseHandlers,
@@ -68,7 +69,7 @@ export async function runStreamLoop(
   execContext: ExecutionContext,
   options: StreamLoopOptions
 ): Promise<void> {
-  const { timeout = 300000, abortSignal } = options
+  const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options
 
   const response = await fetch(fetchUrl, {
     ...fetchOptions,

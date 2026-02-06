@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { desc, eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 
+const logger = createLogger('GetWorkflowConsoleServerTool')
+
 interface GetWorkflowConsoleArgs {
   workflowId: string
   limit?: number
@@ -87,7 +89,9 @@ function normalizeErrorMessage(errorValue: unknown): string | undefined {
   if (typeof errorValue === 'object') {
     try {
       return JSON.stringify(errorValue)
-    } catch {}
+    } catch (error) {
+      logger.warn('Failed to stringify error value', { error: error instanceof Error ? error.message : String(error) })
+    }
   }
   try {
     return String(errorValue)
@@ -217,7 +221,6 @@ function deriveExecutionErrorSummary(params: {
 export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs, any> = {
   name: 'get_workflow_console',
   async execute(rawArgs: GetWorkflowConsoleArgs): Promise<any> {
-    const logger = createLogger('GetWorkflowConsoleServerTool')
     const {
       workflowId,
       limit = 2,

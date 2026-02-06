@@ -41,9 +41,9 @@ export async function executeIntegrationToolDirect(
   // Deep resolution walks nested objects to replace {{ENV_VAR}} references.
   // Safe because tool arguments originate from the LLM (not direct user input)
   // and env vars belong to the user themselves.
-  const executionParams: Record<string, any> = resolveEnvVarReferences(toolArgs, decryptedEnvVars, {
+  const executionParams = resolveEnvVarReferences(toolArgs, decryptedEnvVars, {
     deep: true,
-  }) as Record<string, any>
+  }) as Record<string, unknown>
 
   if (toolConfig.oauth?.required && toolConfig.oauth.provider) {
     const provider = toolConfig.oauth.provider
@@ -62,7 +62,7 @@ export async function executeIntegrationToolDirect(
 
     const acc = accounts[0]
     const requestId = generateRequestId()
-    const { accessToken } = await refreshTokenIfNeeded(requestId, acc as any, acc.id)
+    const { accessToken } = await refreshTokenIfNeeded(requestId, acc, acc.id)
 
     if (!accessToken) {
       return {

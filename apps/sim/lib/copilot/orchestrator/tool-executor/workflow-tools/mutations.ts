@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { createLogger } from '@sim/logger'
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { and, eq, isNull, max } from 'drizzle-orm'
@@ -15,6 +16,8 @@ import type {
   SetGlobalWorkflowVariablesParams,
   VariableOperation,
 } from '../param-types'
+
+const logger = createLogger('WorkflowMutations')
 
 export async function executeCreateWorkflow(
   params: CreateWorkflowParams,
@@ -185,17 +188,27 @@ export async function executeSetGlobalWorkflowVariables(
       : []
     const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
 
-    const currentVarsRecord = (workflowRecord.variables as Record<string, any>) || {}
-    const byName: Record<string, any> = {}
-    Object.values(currentVarsRecord).forEach((v: any) => {
-      if (v && typeof v === 'object' && v.id && v.name) byName[String(v.name)] = v
+    interface WorkflowVariable {
+      id: string
+      workflowId?: string
+      name: string
+      type: string
+      value?: unknown
+    }
+    const currentVarsRecord = (workflowRecord.variables as Record<string, unknown>) || {}
+    const byName: Record<string, WorkflowVariable> = {}
+    Object.values(currentVarsRecord).forEach((v) => {
+      if (v && typeof v === 'object' && 'id' in v && 'name' in v) {
+        const variable = v as WorkflowVariable
+        byName[String(variable.name)] = variable
+      }
     })
 
     for (const op of operations) {
       const key = String(op?.name || '')
       if (!key) continue
       const nextType = op?.type || byName[key]?.type || 'plain'
-      const coerceValue = (value: any, type: string) => {
+      const coerceValue = (value: unknown, type: string): unknown => {
         if (value === undefined) return value
         if (type === 'number') {
           const n = Number(value)
@@ -213,7 +226,9 @@ export async function executeSetGlobalWorkflowVariables(
             if (type === 'array' && Array.isArray(parsed)) return parsed
             if (type === 'object' && parsed && typeof parsed === 'object' && !Array.isArray(parsed))
               return parsed
-          } catch {}
+          } catch (error) {
+            logger.warn('Failed to parse JSON value for variable coercion', { error: error instanceof Error ? error.message : String(error) })
+          }
           return value
         }
         return value
@@ -254,7 +269,7 @@ export async function executeSetGlobalWorkflowVariables(
     }
 
     const nextVarsRecord = Object.fromEntries(
-      Object.values(byName).map((v: any) => [String(v.id), v])
+      Object.values(byName).map((v) => [String(v.id), v])
     )
 
     await db

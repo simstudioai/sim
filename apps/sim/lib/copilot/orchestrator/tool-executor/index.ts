@@ -138,7 +138,7 @@ export async function executeToolServerSide(
  */
 async function executeServerToolDirect(
   toolName: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -180,8 +180,8 @@ export async function markToolComplete(
   toolCallId: string,
   toolName: string,
   status: number,
-  message?: any,
-  data?: any
+  message?: unknown,
+  data?: unknown
 ): Promise<boolean> {
   try {
     const response = await fetch(`${SIM_AGENT_API_URL}/api/tools/mark-complete`, {
