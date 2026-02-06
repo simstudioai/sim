@@ -12,6 +12,7 @@ const VALID_PROVIDER_IDS: readonly ProviderId[] = [
   'openai',
   'azure-openai',
   'anthropic',
+  'azure-anthropic',
   'google',
   'deepseek',
   'xai',

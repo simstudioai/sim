@@ -80,7 +80,7 @@ export function getApiKeyCondition() {
 
 /**
  * Returns the standard provider credential subblocks used by LLM-based blocks.
- * This includes: Vertex AI OAuth, API Key, Azure OpenAI, Vertex AI config, and Bedrock config.
+ * This includes: Vertex AI OAuth, API Key, Azure (OpenAI + Anthropic), Vertex AI config, and Bedrock config.
  *
  * Usage: Spread into your block's subBlocks array after block-specific fields
  */
@@ -111,14 +111,14 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
     },
     {
       id: 'azureEndpoint',
-      title: 'Azure OpenAI Endpoint',
+      title: 'Azure Endpoint',
       type: 'short-input',
       password: true,
-      placeholder: 'https://your-resource.openai.azure.com',
+      placeholder: 'https://your-resource.services.ai.azure.com',
       connectionDroppable: false,
       condition: {
         field: 'model',
-        value: providers['azure-openai'].models,
+        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
       },
     },
     {
@@ -202,7 +202,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
  */
 export const PROVIDER_CREDENTIAL_INPUTS = {
   apiKey: { type: 'string', description: 'Provider API key' },
-  azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
+  azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
   azureApiVersion: { type: 'string', description: 'Azure API version' },
   vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
   vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },

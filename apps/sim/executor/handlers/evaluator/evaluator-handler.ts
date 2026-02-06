@@ -130,9 +130,11 @@ export class EvaluatorBlockHandler implements BlockHandler {
         providerRequest.vertexLocation = evaluatorConfig.vertexLocation
       }
 
-      if (providerId === 'azure-openai') {
+      if (providerId === 'azure-openai' || providerId === 'azure-anthropic') {
         providerRequest.azureEndpoint = inputs.azureEndpoint
-        providerRequest.azureApiVersion = inputs.azureApiVersion
+        if (providerId === 'azure-openai') {
+          providerRequest.azureApiVersion = inputs.azureApiVersion
+        }
       }
 
       if (providerId === 'bedrock') {
