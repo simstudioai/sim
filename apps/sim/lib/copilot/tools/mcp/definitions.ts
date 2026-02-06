@@ -63,20 +63,17 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
   },
   {
     name: 'get_workflow',
-    toolId: 'get_workflow_from_name',
-    description: 'Get a workflow by name or ID. Returns the full workflow definition.',
+    toolId: 'get_user_workflow',
+    description: 'Get a workflow by ID. Returns the full workflow definition.',
     inputSchema: {
       type: 'object',
       properties: {
-        name: {
-          type: 'string',
-          description: 'Workflow name to search for.',
-        },
         workflowId: {
           type: 'string',
-          description: 'Workflow ID to retrieve directly.',
+          description: 'Workflow ID to retrieve.',
         },
       },
+      required: ['workflowId'],
     },
   },
   {

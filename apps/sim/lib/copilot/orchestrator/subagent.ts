@@ -59,7 +59,7 @@ export async function orchestrateSubagentStream(
           'Content-Type': 'application/json',
           ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
         },
-        body: JSON.stringify({ ...requestPayload, stream: true }),
+        body: JSON.stringify({ ...requestPayload, userId, stream: true }),
       },
       context,
       execContext,
