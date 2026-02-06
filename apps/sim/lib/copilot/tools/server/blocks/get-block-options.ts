@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import {
+  GetBlockOptionsInput,
   type GetBlockOptionsInputType,
   GetBlockOptionsResult,
   type GetBlockOptionsResultType,

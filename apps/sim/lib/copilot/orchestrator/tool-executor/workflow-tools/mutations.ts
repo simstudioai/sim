@@ -156,7 +156,8 @@ export async function executeRunWorkflow(
       },
       generateRequestId(),
       params.workflow_input || params.input || undefined,
-      context.userId
+      context.userId,
+      { enabled: true, useDraftState: true }
     )
 
     return {

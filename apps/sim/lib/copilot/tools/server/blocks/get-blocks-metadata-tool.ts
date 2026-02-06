@@ -3,7 +3,7 @@ import { join } from 'path'
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import {
-  type GetBlocksMetadataInput,
+  GetBlocksMetadataInput,
   GetBlocksMetadataResult,
 } from '@/lib/copilot/tools/shared/schemas'
 import { registry as blockRegistry } from '@/blocks/registry'

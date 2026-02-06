@@ -73,13 +73,11 @@ export async function POST(req: NextRequest) {
       message: parsed.message,
       workflowId: resolved.workflowId,
       userId: auth.userId,
-      stream: true,
-      streamToolCalls: true,
       model: selectedModel,
       mode: transportMode,
       messageId: crypto.randomUUID(),
       version: SIM_AGENT_VERSION,
-      headless: true, // Enable cross-workflow operations via workflowId params
+      headless: true,
       chatId,
     }
 
