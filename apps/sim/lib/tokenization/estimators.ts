@@ -204,6 +204,7 @@ export function estimateTokenCount(text: string, providerId?: string): TokenEsti
       estimatedTokens = estimateOpenAITokens(text)
       break
     case 'anthropic':
+    case 'azure-anthropic':
       estimatedTokens = estimateAnthropicTokens(text)
       break
     case 'google':

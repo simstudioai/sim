@@ -105,9 +105,11 @@ export class RouterBlockHandler implements BlockHandler {
         providerRequest.vertexLocation = routerConfig.vertexLocation
       }
 
-      if (providerId === 'azure-openai') {
+      if (providerId === 'azure-openai' || providerId === 'azure-anthropic') {
         providerRequest.azureEndpoint = inputs.azureEndpoint
-        providerRequest.azureApiVersion = inputs.azureApiVersion
+        if (providerId === 'azure-openai') {
+          providerRequest.azureApiVersion = inputs.azureApiVersion
+        }
       }
 
       if (providerId === 'bedrock') {
@@ -262,9 +264,11 @@ export class RouterBlockHandler implements BlockHandler {
         providerRequest.vertexLocation = routerConfig.vertexLocation
       }
 
-      if (providerId === 'azure-openai') {
+      if (providerId === 'azure-openai' || providerId === 'azure-anthropic') {
         providerRequest.azureEndpoint = inputs.azureEndpoint
-        providerRequest.azureApiVersion = inputs.azureApiVersion
+        if (providerId === 'azure-openai') {
+          providerRequest.azureApiVersion = inputs.azureApiVersion
+        }
       }
 
       if (providerId === 'bedrock') {

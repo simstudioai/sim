@@ -148,6 +148,12 @@ export type CopilotProviderConfig =
       endpoint?: string
     }
   | {
+      provider: 'azure-anthropic'
+      model: string
+      apiKey?: string
+      endpoint?: string
+    }
+  | {
       provider: 'vertex'
       model: string
       apiKey?: string
@@ -155,7 +161,7 @@ export type CopilotProviderConfig =
       vertexLocation?: string
     }
   | {
-      provider: Exclude<ProviderId, 'azure-openai' | 'vertex'>
+      provider: Exclude<ProviderId, 'azure-openai' | 'azure-anthropic' | 'vertex'>
       model?: string
       apiKey?: string
     }
