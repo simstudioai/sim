@@ -57,6 +57,49 @@ export interface RunWorkflowParams {
   workflowId?: string
   workflow_input?: unknown
   input?: unknown
+  /** When true, runs the deployed version instead of the draft. Default: false (draft). */
+  useDeployedState?: boolean
+}
+
+export interface RunWorkflowUntilBlockParams {
+  workflowId?: string
+  workflow_input?: unknown
+  input?: unknown
+  /** The block ID to stop after. Execution halts once this block completes. */
+  stopAfterBlockId: string
+  /** When true, runs the deployed version instead of the draft. Default: false (draft). */
+  useDeployedState?: boolean
+}
+
+export interface RunFromBlockParams {
+  workflowId?: string
+  /** The block ID to start execution from. */
+  startBlockId: string
+  /** Optional execution ID to load the snapshot from. If omitted, uses the latest execution. */
+  executionId?: string
+  workflow_input?: unknown
+  input?: unknown
+  useDeployedState?: boolean
+}
+
+export interface RunBlockParams {
+  workflowId?: string
+  /** The block ID to run. Only this block executes using cached upstream outputs. */
+  blockId: string
+  /** Optional execution ID to load the snapshot from. If omitted, uses the latest execution. */
+  executionId?: string
+  workflow_input?: unknown
+  input?: unknown
+  useDeployedState?: boolean
+}
+
+export interface GetDeployedWorkflowStateParams {
+  workflowId?: string
+}
+
+export interface GenerateApiKeyParams {
+  name: string
+  workspaceId?: string
 }
 
 export interface VariableOperation {

@@ -1,6 +1,9 @@
 export const INTERRUPT_TOOL_NAMES = [
   'set_global_workflow_variables',
   'run_workflow',
+  'run_workflow_until_block',
+  'run_from_block',
+  'run_block',
   'manage_mcp_tool',
   'manage_custom_tool',
   'deploy_mcp',
@@ -12,6 +15,7 @@ export const INTERRUPT_TOOL_NAMES = [
   'oauth_request_access',
   'navigate_ui',
   'knowledge_base',
+  'generate_api_key',
 ] as const
 
 export const INTERRUPT_TOOL_SET = new Set<string>(INTERRUPT_TOOL_NAMES)

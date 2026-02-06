@@ -10,7 +10,10 @@ import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { normalizeName } from '@/executor/constants'
@@ -23,6 +26,7 @@ import {
 import type {
   GetBlockOutputsParams,
   GetBlockUpstreamReferencesParams,
+  GetDeployedWorkflowStateParams,
   GetUserWorkflowParams,
   GetWorkflowDataParams,
   GetWorkflowFromNameParams,
@@ -561,4 +565,51 @@ function getSubflowInsidePaths(
 function formatOutputsWithPrefix(paths: string[], blockName: string): string[] {
   const normalizedName = normalizeName(blockName)
   return paths.map((path) => `${normalizedName}.${path}`)
+}
+
+export async function executeGetDeployedWorkflowState(
+  params: GetDeployedWorkflowStateParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+
+    try {
+      const deployedState = await loadDeployedWorkflowState(workflowId)
+      const formatted = formatNormalizedWorkflowForCopilot({
+        blocks: deployedState.blocks,
+        edges: deployedState.edges,
+        loops: deployedState.loops as Record<string, Loop>,
+        parallels: deployedState.parallels as Record<string, Parallel>,
+      })
+
+      return {
+        success: true,
+        output: {
+          workflowId,
+          workflowName: workflowRecord.name || '',
+          isDeployed: true,
+          deploymentVersionId: deployedState.deploymentVersionId,
+          deployedState: formatted,
+        },
+      }
+    } catch {
+      return {
+        success: true,
+        output: {
+          workflowId,
+          workflowName: workflowRecord.name || '',
+          isDeployed: false,
+          message: 'Workflow has not been deployed yet.',
+        },
+      }
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
 }

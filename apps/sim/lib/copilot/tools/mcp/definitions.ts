@@ -189,6 +189,158 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       required: ['folderId'],
     },
   },
+  {
+    name: 'run_workflow',
+    toolId: 'run_workflow',
+    description:
+      'Run a workflow and return its output. Works on both draft and deployed states. By default runs the draft (live) state.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description: 'REQUIRED. The workflow ID to run.',
+        },
+        workflow_input: {
+          type: 'object',
+          description: 'JSON object with input values. Keys should match the workflow start block input field names.',
+        },
+        useDeployedState: {
+          type: 'boolean',
+          description: 'When true, runs the deployed version instead of the draft. Default: false.',
+        },
+      },
+      required: ['workflowId'],
+    },
+  },
+  {
+    name: 'run_workflow_until_block',
+    toolId: 'run_workflow_until_block',
+    description:
+      'Run a workflow and stop after a specific block completes. Useful for testing partial execution or debugging specific blocks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description: 'REQUIRED. The workflow ID to run.',
+        },
+        stopAfterBlockId: {
+          type: 'string',
+          description: 'REQUIRED. The block ID to stop after. Execution halts once this block completes.',
+        },
+        workflow_input: {
+          type: 'object',
+          description: 'JSON object with input values for the workflow.',
+        },
+        useDeployedState: {
+          type: 'boolean',
+          description: 'When true, runs the deployed version instead of the draft. Default: false.',
+        },
+      },
+      required: ['workflowId', 'stopAfterBlockId'],
+    },
+  },
+  {
+    name: 'run_from_block',
+    toolId: 'run_from_block',
+    description:
+      'Run a workflow starting from a specific block, using cached outputs from a prior execution for upstream blocks. The workflow must have been run at least once first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description: 'REQUIRED. The workflow ID to run.',
+        },
+        startBlockId: {
+          type: 'string',
+          description: 'REQUIRED. The block ID to start execution from.',
+        },
+        executionId: {
+          type: 'string',
+          description: 'Optional. Specific execution ID to load the snapshot from. Uses latest if omitted.',
+        },
+        workflow_input: {
+          type: 'object',
+          description: 'Optional input values for the workflow.',
+        },
+        useDeployedState: {
+          type: 'boolean',
+          description: 'When true, runs the deployed version instead of the draft. Default: false.',
+        },
+      },
+      required: ['workflowId', 'startBlockId'],
+    },
+  },
+  {
+    name: 'run_block',
+    toolId: 'run_block',
+    description:
+      'Run a single block in isolation using cached outputs from a prior execution. Only the specified block executes — nothing upstream or downstream. The workflow must have been run at least once first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description: 'REQUIRED. The workflow ID.',
+        },
+        blockId: {
+          type: 'string',
+          description: 'REQUIRED. The block ID to run in isolation.',
+        },
+        executionId: {
+          type: 'string',
+          description: 'Optional. Specific execution ID to load the snapshot from. Uses latest if omitted.',
+        },
+        workflow_input: {
+          type: 'object',
+          description: 'Optional input values for the workflow.',
+        },
+        useDeployedState: {
+          type: 'boolean',
+          description: 'When true, runs the deployed version instead of the draft. Default: false.',
+        },
+      },
+      required: ['workflowId', 'blockId'],
+    },
+  },
+  {
+    name: 'get_deployed_workflow_state',
+    toolId: 'get_deployed_workflow_state',
+    description:
+      'Get the deployed (production) state of a workflow. Returns the full workflow definition as deployed, or indicates if the workflow is not yet deployed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description: 'REQUIRED. The workflow ID to get the deployed state for.',
+        },
+      },
+      required: ['workflowId'],
+    },
+  },
+  {
+    name: 'generate_api_key',
+    toolId: 'generate_api_key',
+    description:
+      'Generate a new workspace API key for calling workflow API endpoints. The key is only shown once — tell the user to save it immediately.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'A descriptive name for the API key (e.g., "production-key", "dev-testing").',
+        },
+        workspaceId: {
+          type: 'string',
+          description: 'Optional workspace ID. Defaults to user\'s default workspace.',
+        },
+      },
+      required: ['name'],
+    },
+  },
 ]
 
 export const SUBAGENT_TOOL_DEFS: SubagentToolDef[] = [

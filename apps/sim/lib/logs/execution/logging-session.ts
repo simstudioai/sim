@@ -3,6 +3,7 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
   calculateCostSummary,
@@ -35,6 +36,7 @@ export interface SessionCompleteParams {
   finalOutput?: any
   traceSpans?: TraceSpan[]
   workflowInput?: any
+  executionState?: SerializableExecutionState
 }
 
 export interface SessionErrorCompleteParams {
@@ -269,7 +271,8 @@ export class LoggingSession {
       return
     }
 
-    const { endedAt, totalDurationMs, finalOutput, traceSpans, workflowInput } = params
+    const { endedAt, totalDurationMs, finalOutput, traceSpans, workflowInput, executionState } =
+      params
 
     try {
       const costSummary = calculateCostSummary(traceSpans || [])
@@ -284,6 +287,7 @@ export class LoggingSession {
         finalOutput: finalOutput || {},
         traceSpans: traceSpans || [],
         workflowInput,
+        executionState,
         isResume: this.isResume,
       })
 
