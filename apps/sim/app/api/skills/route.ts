@@ -89,14 +89,7 @@ export async function POST(req: NextRequest) {
       }
 
       const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (!userPermission) {
-        logger.warn(
-          `[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-      }
-
-      if (userPermission !== 'admin' && userPermission !== 'write') {
+      if (!userPermission || (userPermission !== 'admin' && userPermission !== 'write')) {
         logger.warn(
           `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
         )
@@ -159,12 +152,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-    if (!userPermission) {
-      logger.warn(`[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`)
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
-
-    if (userPermission !== 'admin' && userPermission !== 'write') {
+    if (!userPermission || (userPermission !== 'admin' && userPermission !== 'write')) {
       logger.warn(
         `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
       )
