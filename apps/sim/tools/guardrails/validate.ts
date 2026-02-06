@@ -9,6 +9,14 @@ export interface GuardrailsValidateInput {
   topK?: string
   model?: string
   apiKey?: string
+  azureEndpoint?: string
+  azureApiVersion?: string
+  vertexProject?: string
+  vertexLocation?: string
+  vertexCredential?: string
+  bedrockAccessKeyId?: string
+  bedrockSecretKey?: string
+  bedrockRegion?: string
   piiEntityTypes?: string[]
   piiMode?: string
   piiLanguage?: string
@@ -166,6 +174,14 @@ export const guardrailsValidateTool: ToolConfig<GuardrailsValidateInput, Guardra
         topK: params.topK,
         model: params.model,
         apiKey: params.apiKey,
+        azureEndpoint: params.azureEndpoint,
+        azureApiVersion: params.azureApiVersion,
+        vertexProject: params.vertexProject,
+        vertexLocation: params.vertexLocation,
+        vertexCredential: params.vertexCredential,
+        bedrockAccessKeyId: params.bedrockAccessKeyId,
+        bedrockSecretKey: params.bedrockSecretKey,
+        bedrockRegion: params.bedrockRegion,
         piiEntityTypes: params.piiEntityTypes,
         piiMode: params.piiMode,
         piiLanguage: params.piiLanguage,

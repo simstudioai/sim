@@ -19,6 +19,16 @@ export interface HallucinationValidationInput {
   topK: number // Number of chunks to retrieve, default 10
   model: string
   apiKey?: string
+  providerCredentials?: {
+    azureEndpoint?: string
+    azureApiVersion?: string
+    vertexProject?: string
+    vertexLocation?: string
+    vertexCredential?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    bedrockRegion?: string
+  }
   workflowId?: string
   requestId: string
 }
@@ -90,6 +100,7 @@ async function scoreHallucinationWithLLM(
   ragContext: string[],
   model: string,
   apiKey: string,
+  providerCredentials: HallucinationValidationInput['providerCredentials'],
   requestId: string
 ): Promise<{ score: number; reasoning: string }> {
   try {
@@ -138,6 +149,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       ],
       temperature: 0.1, // Low temperature for consistent scoring
       apiKey,
+      ...providerCredentials,
     })
 
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {
@@ -184,8 +196,17 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
 export async function validateHallucination(
   input: HallucinationValidationInput
 ): Promise<HallucinationValidationResult> {
-  const { userInput, knowledgeBaseId, threshold, topK, model, apiKey, workflowId, requestId } =
-    input
+  const {
+    userInput,
+    knowledgeBaseId,
+    threshold,
+    topK,
+    model,
+    apiKey,
+    providerCredentials,
+    workflowId,
+    requestId,
+  } = input
 
   try {
     if (!userInput || userInput.trim().length === 0) {
@@ -235,6 +256,7 @@ export async function validateHallucination(
       ragContext,
       model,
       finalApiKey,
+      providerCredentials,
       requestId
     )
 
