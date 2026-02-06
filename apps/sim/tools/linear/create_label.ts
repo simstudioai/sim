@@ -73,6 +73,10 @@ export const linearCreateLabelTool: ToolConfig<LinearCreateLabelParams, LinearCr
                 name
                 color
                 description
+                isGroup
+                createdAt
+                updatedAt
+                archivedAt
                 team {
                   id
                   name

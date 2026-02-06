@@ -320,6 +320,7 @@ Search for issues in Linear using full-text search
 | `teamId` | string | No | Filter by team ID |
 | `includeArchived` | boolean | No | Include archived issues in search results |
 | `first` | number | No | Number of results to return \(default: 50\) |
+| `after` | string | No | Cursor for pagination |
 
 #### Output
 
@@ -754,6 +755,10 @@ List all labels in Linear workspace or team
 |   ↳ `name` | string | Label name |
 |   ↳ `color` | string | Label color \(hex\) |
 |   ↳ `description` | string | Label description |
+|   ↳ `isGroup` | boolean | Whether this label is a group |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 |   ↳ `team` | object | Team object |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -780,6 +785,10 @@ Create a new label in Linear
 |   ↳ `name` | string | Label name |
 |   ↳ `color` | string | Label color \(hex\) |
 |   ↳ `description` | string | Label description |
+|   ↳ `isGroup` | boolean | Whether this label is a group |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 |   ↳ `team` | object | Team object |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -806,6 +815,10 @@ Update an existing label in Linear
 |   ↳ `name` | string | Label name |
 |   ↳ `color` | string | Label color \(hex\) |
 |   ↳ `description` | string | Label description |
+|   ↳ `isGroup` | boolean | Whether this label is a group |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 |   ↳ `team` | object | Team object |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -849,9 +862,13 @@ List all workflow states (statuses) in Linear
 | `states` | array | Array of workflow states |
 |   ↳ `id` | string | State ID |
 |   ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
-|   ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
+|   ↳ `description` | string | State description |
+|   ↳ `type` | string | State type \(triage, backlog, unstarted, started, completed, canceled\) |
 |   ↳ `color` | string | State color \(hex\) |
 |   ↳ `position` | number | State position in workflow |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 |   ↳ `team` | object | Team object |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -877,11 +894,17 @@ Create a new workflow state (status) in Linear
 | --------- | ---- | ----------- |
 | `state` | object | The created workflow state |
 |   ↳ `id` | string | State ID |
-|   ↳ `name` | string | State name |
-|   ↳ `type` | string | State type |
-|   ↳ `color` | string | State color |
-|   ↳ `position` | number | State position |
-|   ↳ `team` | object | Team this state belongs to |
+|   ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|   ↳ `description` | string | State description |
+|   ↳ `type` | string | State type \(triage, backlog, unstarted, started, completed, canceled\) |
+|   ↳ `color` | string | State color \(hex\) |
+|   ↳ `position` | number | State position in workflow |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_update_workflow_state`
 
@@ -903,10 +926,17 @@ Update an existing workflow state in Linear
 | --------- | ---- | ----------- |
 | `state` | object | The updated workflow state |
 |   ↳ `id` | string | State ID |
-|   ↳ `name` | string | State name |
-|   ↳ `type` | string | State type |
-|   ↳ `color` | string | State color |
-|   ↳ `position` | number | State position |
+|   ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|   ↳ `description` | string | State description |
+|   ↳ `type` | string | State type \(triage, backlog, unstarted, started, completed, canceled\) |
+|   ↳ `color` | string | State color \(hex\) |
+|   ↳ `position` | number | State position in workflow |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_list_cycles`
 
@@ -935,6 +965,7 @@ List cycles (sprints/iterations) in Linear
 |   ↳ `endsAt` | string | End date \(ISO 8601\) |
 |   ↳ `completedAt` | string | Completion date \(ISO 8601\) |
 |   ↳ `progress` | number | Progress percentage \(0-1\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `team` | object | Team object |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -961,6 +992,7 @@ Get a single cycle by ID from Linear
 |   ↳ `endsAt` | string | End date \(ISO 8601\) |
 |   ↳ `completedAt` | string | Completion date \(ISO 8601\) |
 |   ↳ `progress` | number | Progress percentage \(0-1\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `team` | object | Team object |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
@@ -986,9 +1018,14 @@ Create a new cycle (sprint/iteration) in Linear
 |   ↳ `id` | string | Cycle ID |
 |   ↳ `number` | number | Cycle number |
 |   ↳ `name` | string | Cycle name |
-|   ↳ `startsAt` | string | Start date |
-|   ↳ `endsAt` | string | End date |
-|   ↳ `team` | object | Team this cycle belongs to |
+|   ↳ `startsAt` | string | Start date \(ISO 8601\) |
+|   ↳ `endsAt` | string | End date \(ISO 8601\) |
+|   ↳ `completedAt` | string | Completion date \(ISO 8601\) |
+|   ↳ `progress` | number | Progress percentage \(0-1\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_get_active_cycle`
 
@@ -1008,10 +1045,14 @@ Get the currently active cycle for a team
 |   ↳ `id` | string | Cycle ID |
 |   ↳ `number` | number | Cycle number |
 |   ↳ `name` | string | Cycle name |
-|   ↳ `startsAt` | string | Start date |
-|   ↳ `endsAt` | string | End date |
-|   ↳ `progress` | number | Progress percentage |
-|   ↳ `team` | object | Team this cycle belongs to |
+|   ↳ `startsAt` | string | Start date \(ISO 8601\) |
+|   ↳ `endsAt` | string | End date \(ISO 8601\) |
+|   ↳ `completedAt` | string | Completion date \(ISO 8601\) |
+|   ↳ `progress` | number | Progress percentage \(0-1\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_create_attachment`
 
@@ -1334,8 +1375,12 @@ Create a new customer in Linear
 |   ↳ `domains` | array | Associated domains |
 |   ↳ `externalIds` | array | External IDs from other systems |
 |   ↳ `logoUrl` | string | Logo URL |
+|   ↳ `slugId` | string | Unique URL slug |
 |   ↳ `approximateNeedCount` | number | Number of customer needs |
+|   ↳ `revenue` | number | Annual revenue |
+|   ↳ `size` | number | Organization size |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_list_customers`
@@ -1363,8 +1408,12 @@ List all customers in Linear
 |   ↳ `domains` | array | Associated domains |
 |   ↳ `externalIds` | array | External IDs from other systems |
 |   ↳ `logoUrl` | string | Logo URL |
+|   ↳ `slugId` | string | Unique URL slug |
 |   ↳ `approximateNeedCount` | number | Number of customer needs |
+|   ↳ `revenue` | number | Annual revenue |
+|   ↳ `size` | number | Organization size |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_create_customer_request`
@@ -1480,8 +1529,12 @@ Get a single customer by ID in Linear
 |   ↳ `domains` | array | Associated domains |
 |   ↳ `externalIds` | array | External IDs from other systems |
 |   ↳ `logoUrl` | string | Logo URL |
+|   ↳ `slugId` | string | Unique URL slug |
 |   ↳ `approximateNeedCount` | number | Number of customer needs |
+|   ↳ `revenue` | number | Annual revenue |
+|   ↳ `size` | number | Organization size |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_update_customer`
@@ -1513,8 +1566,12 @@ Update a customer in Linear
 |   ↳ `domains` | array | Associated domains |
 |   ↳ `externalIds` | array | External IDs from other systems |
 |   ↳ `logoUrl` | string | Logo URL |
+|   ↳ `slugId` | string | Unique URL slug |
 |   ↳ `approximateNeedCount` | number | Number of customer needs |
+|   ↳ `revenue` | number | Annual revenue |
+|   ↳ `size` | number | Organization size |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_delete_customer`
@@ -1560,8 +1617,8 @@ Create a new customer status in Linear
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Customer status name |
 | `color` | string | Yes | Status color \(hex code\) |
-| `displayName` | string | No | Display name for the status |
 | `description` | string | No | Status description |
+| `displayName` | string | No | Display name for the status |
 | `position` | number | No | Position in status list |
 
 #### Output
@@ -1571,11 +1628,12 @@ Create a new customer status in Linear
 | `customerStatus` | object | The created customer status |
 |   ↳ `id` | string | Customer status ID |
 |   ↳ `name` | string | Status name |
-|   ↳ `displayName` | string | Display name |
 |   ↳ `description` | string | Status description |
 |   ↳ `color` | string | Status color \(hex\) |
 |   ↳ `position` | number | Position in list |
+|   ↳ `type` | string | Status type \(active, inactive\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_update_customer_status`
@@ -1589,8 +1647,8 @@ Update a customer status in Linear
 | `statusId` | string | Yes | Customer status ID to update |
 | `name` | string | No | Updated status name |
 | `color` | string | No | Updated status color |
-| `displayName` | string | No | Updated display name |
 | `description` | string | No | Updated description |
+| `displayName` | string | No | Updated display name |
 | `position` | number | No | Updated position |
 
 #### Output
@@ -1598,6 +1656,15 @@ Update a customer status in Linear
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customerStatus` | object | The updated customer status |
+|   ↳ `id` | string | Customer status ID |
+|   ↳ `name` | string | Status name |
+|   ↳ `description` | string | Status description |
+|   ↳ `color` | string | Status color \(hex\) |
+|   ↳ `position` | number | Position in list |
+|   ↳ `type` | string | Status type \(active, inactive\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_delete_customer_status`
 
@@ -1623,19 +1690,25 @@ List all customer statuses in Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `first` | number | No | Number of statuses to return \(default: 50\) |
+| `after` | string | No | Cursor for pagination |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results |
+|   ↳ `endCursor` | string | Cursor for the next page |
 | `customerStatuses` | array | List of customer statuses |
 |   ↳ `id` | string | Customer status ID |
 |   ↳ `name` | string | Status name |
-|   ↳ `displayName` | string | Display name |
 |   ↳ `description` | string | Status description |
 |   ↳ `color` | string | Status color \(hex\) |
 |   ↳ `position` | number | Position in list |
+|   ↳ `type` | string | Status type \(active, inactive\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_create_customer_tier`
@@ -1711,11 +1784,16 @@ List all customer tiers in Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `first` | number | No | Number of tiers to return \(default: 50\) |
+| `after` | string | No | Cursor for pagination |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results |
+|   ↳ `endCursor` | string | Cursor for the next page |
 | `customerTiers` | array | List of customer tiers |
 |   ↳ `id` | string | Customer tier ID |
 |   ↳ `name` | string | Tier name |
@@ -1761,6 +1839,14 @@ Create a new project label in Linear
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `projectLabel` | object | The created project label |
+|   ↳ `id` | string | Project label ID |
+|   ↳ `name` | string | Label name |
+|   ↳ `description` | string | Label description |
+|   ↳ `color` | string | Label color \(hex\) |
+|   ↳ `isGroup` | boolean | Whether this label is a group |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_update_project_label`
 
@@ -1780,6 +1866,14 @@ Update a project label in Linear
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `projectLabel` | object | The updated project label |
+|   ↳ `id` | string | Project label ID |
+|   ↳ `name` | string | Label name |
+|   ↳ `description` | string | Label description |
+|   ↳ `color` | string | Label color \(hex\) |
+|   ↳ `isGroup` | boolean | Whether this label is a group |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_delete_project_label`
 
@@ -1806,12 +1900,25 @@ List all project labels in Linear
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | No | Optional project ID to filter labels for a specific project |
+| `first` | number | No | Number of labels to return \(default: 50\) |
+| `after` | string | No | Cursor for pagination |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results |
+|   ↳ `endCursor` | string | Cursor for the next page |
 | `projectLabels` | array | List of project labels |
+|   ↳ `id` | string | Project label ID |
+|   ↳ `name` | string | Label name |
+|   ↳ `description` | string | Label description |
+|   ↳ `color` | string | Label color \(hex\) |
+|   ↳ `isGroup` | boolean | Whether this label is a group |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_add_label_to_project`
 
@@ -1867,6 +1974,16 @@ Create a new project milestone in Linear
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `projectMilestone` | object | The created project milestone |
+|   ↳ `id` | string | Project milestone ID |
+|   ↳ `name` | string | Milestone name |
+|   ↳ `description` | string | Milestone description |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
+|   ↳ `progress` | number | Progress percentage \(0-1\) |
+|   ↳ `sortOrder` | number | Sort order within the project |
+|   ↳ `status` | string | Milestone status \(done, next, overdue, unstarted\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_update_project_milestone`
 
@@ -1886,6 +2003,16 @@ Update a project milestone in Linear
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `projectMilestone` | object | The updated project milestone |
+|   ↳ `id` | string | Project milestone ID |
+|   ↳ `name` | string | Milestone name |
+|   ↳ `description` | string | Milestone description |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
+|   ↳ `progress` | number | Progress percentage \(0-1\) |
+|   ↳ `sortOrder` | number | Sort order within the project |
+|   ↳ `status` | string | Milestone status \(done, next, overdue, unstarted\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_delete_project_milestone`
 
@@ -1912,12 +2039,27 @@ List all milestones for a project in Linear
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Project ID to list milestones for |
+| `first` | number | No | Number of milestones to return \(default: 50\) |
+| `after` | string | No | Cursor for pagination |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results |
+|   ↳ `endCursor` | string | Cursor for the next page |
 | `projectMilestones` | array | List of project milestones |
+|   ↳ `id` | string | Project milestone ID |
+|   ↳ `name` | string | Milestone name |
+|   ↳ `description` | string | Milestone description |
+|   ↳ `projectId` | string | Project ID |
+|   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
+|   ↳ `progress` | number | Progress percentage \(0-1\) |
+|   ↳ `sortOrder` | number | Sort order within the project |
+|   ↳ `status` | string | Milestone status \(done, next, overdue, unstarted\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_create_project_status`
 
@@ -1939,6 +2081,16 @@ Create a new project status in Linear
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `projectStatus` | object | The created project status |
+|   ↳ `id` | string | Project status ID |
+|   ↳ `name` | string | Status name |
+|   ↳ `description` | string | Status description |
+|   ↳ `color` | string | Status color \(hex\) |
+|   ↳ `indefinite` | boolean | Whether this status is indefinite |
+|   ↳ `position` | number | Position in list |
+|   ↳ `type` | string | Status type \(backlog, planned, started, paused, completed, canceled\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_update_project_status`
 
@@ -1960,6 +2112,16 @@ Update a project status in Linear
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `projectStatus` | object | The updated project status |
+|   ↳ `id` | string | Project status ID |
+|   ↳ `name` | string | Status name |
+|   ↳ `description` | string | Status description |
+|   ↳ `color` | string | Status color \(hex\) |
+|   ↳ `indefinite` | boolean | Whether this status is indefinite |
+|   ↳ `position` | number | Position in list |
+|   ↳ `type` | string | Status type \(backlog, planned, started, paused, completed, canceled\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 ### `linear_delete_project_status`
 
@@ -1985,11 +2147,26 @@ List all project statuses in Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `first` | number | No | Number of statuses to return \(default: 50\) |
+| `after` | string | No | Cursor for pagination |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether there are more results |
+|   ↳ `endCursor` | string | Cursor for the next page |
 | `projectStatuses` | array | List of project statuses |
+|   ↳ `id` | string | Project status ID |
+|   ↳ `name` | string | Status name |
+|   ↳ `description` | string | Status description |
+|   ↳ `color` | string | Status color \(hex\) |
+|   ↳ `indefinite` | boolean | Whether this status is indefinite |
+|   ↳ `position` | number | Position in list |
+|   ↳ `type` | string | Status type \(backlog, planned, started, paused, completed, canceled\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 

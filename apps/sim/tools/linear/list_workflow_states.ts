@@ -65,9 +65,13 @@ export const linearListWorkflowStatesTool: ToolConfig<
               nodes {
                 id
                 name
+                description
                 type
                 color
                 position
+                createdAt
+                updatedAt
+                archivedAt
                 team {
                   id
                   name

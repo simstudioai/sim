@@ -93,7 +93,7 @@ export const linearListProjectsTool: ToolConfig<
           }
         `,
         variables: {
-          first: params.first || 50,
+          first: params.first ? Number(params.first) : 50,
           after: params.after,
           includeArchived: params.includeArchived || false,
         },
