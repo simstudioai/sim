@@ -13,6 +13,8 @@ export const getBlocksAndToolsServerTool: BaseServerTool<
   ReturnType<typeof GetBlocksAndToolsResult.parse>
 > = {
   name: 'get_blocks_and_tools',
+  inputSchema: GetBlocksAndToolsInput,
+  outputSchema: GetBlocksAndToolsResult,
   async execute(_args: unknown, context?: { userId: string }) {
     const logger = createLogger('GetBlocksAndToolsServerTool')
     logger.debug('Executing get_blocks_and_tools')

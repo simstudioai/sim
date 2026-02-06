@@ -96,6 +96,7 @@ function normalizeErrorMessage(errorValue: unknown): string | undefined {
   try {
     return String(errorValue)
   } catch {
+    // JSON.stringify failed for error value; fall back to undefined
     return undefined
   }
 }

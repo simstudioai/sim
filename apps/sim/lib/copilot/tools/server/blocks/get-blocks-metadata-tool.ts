@@ -105,6 +105,8 @@ export const getBlocksMetadataServerTool: BaseServerTool<
   ReturnType<typeof GetBlocksMetadataResult.parse>
 > = {
   name: 'get_blocks_metadata',
+  inputSchema: GetBlocksMetadataInput,
+  outputSchema: GetBlocksMetadataResult,
   async execute(
     { blockIds }: ReturnType<typeof GetBlocksMetadataInput.parse>,
     context?: { userId: string }

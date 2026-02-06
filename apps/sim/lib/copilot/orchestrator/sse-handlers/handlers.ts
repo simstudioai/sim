@@ -344,7 +344,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
     const data = getEventData(event)
-    const toolCallId = event.toolCallId || data?.id
+    const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
 
     // Update in subAgentToolCalls.
@@ -364,14 +364,20 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       subAgentToolCall.status = status
       subAgentToolCall.endTime = endTime
       if (result) subAgentToolCall.result = result
-      if (hasError) subAgentToolCall.error = data?.error || data?.result?.error
+      if (hasError) {
+        const resultObj = asRecord(data?.result)
+        subAgentToolCall.error = (data?.error || resultObj.error) as string | undefined
+      }
     }
 
     if (mainToolCall) {
       mainToolCall.status = status
       mainToolCall.endTime = endTime
       if (result) mainToolCall.result = result
-      if (hasError) mainToolCall.error = data?.error || data?.result?.error
+      if (hasError) {
+        const resultObj = asRecord(data?.result)
+        mainToolCall.error = (data?.error || resultObj.error) as string | undefined
+      }
     }
   },
 }
