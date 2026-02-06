@@ -333,7 +333,7 @@ Return ONLY the JSON array.`,
       id: 'azureApiVersion',
       title: 'Azure API Version',
       type: 'short-input',
-      placeholder: '2024-07-01-preview',
+      placeholder: 'Enter API version',
       connectionDroppable: false,
       condition: {
         field: 'model',

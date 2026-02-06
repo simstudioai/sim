@@ -1,5 +1,9 @@
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey, getProviderFromModel } from '@/providers/utils'
 
@@ -138,6 +142,26 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
 
     const providerId = getProviderFromModel(model)
 
+    // Resolve Vertex AI OAuth credential to access token if needed
+    let resolvedApiKey = apiKey
+    const resolvedCredentials = { ...providerCredentials }
+    if (providerId === 'vertex' && providerCredentials?.vertexCredential) {
+      const credential = await db.query.account.findFirst({
+        where: eq(account.id, providerCredentials.vertexCredential),
+      })
+      if (credential) {
+        const { accessToken } = await refreshTokenIfNeeded(
+          requestId,
+          credential,
+          providerCredentials.vertexCredential
+        )
+        if (accessToken) {
+          resolvedApiKey = accessToken
+        }
+      }
+      resolvedCredentials.vertexCredential = undefined
+    }
+
     const response = await executeProviderRequest(providerId, {
       model,
       systemPrompt,
@@ -148,8 +172,8 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
         },
       ],
       temperature: 0.1, // Low temperature for consistent scoring
-      apiKey,
-      ...providerCredentials,
+      apiKey: resolvedApiKey,
+      ...resolvedCredentials,
     })
 
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {

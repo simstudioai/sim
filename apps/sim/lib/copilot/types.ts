@@ -151,6 +151,7 @@ export type CopilotProviderConfig =
       provider: 'azure-anthropic'
       model: string
       apiKey?: string
+      apiVersion?: string
       endpoint?: string
     }
   | {

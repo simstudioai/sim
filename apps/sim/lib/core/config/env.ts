@@ -97,6 +97,7 @@ export const env = createEnv({
     AZURE_OPENAI_API_KEY:                  z.string().min(1).optional(),           // Shared Azure OpenAI API key
     AZURE_ANTHROPIC_ENDPOINT:              z.string().url().optional(),            // Azure Anthropic service endpoint
     AZURE_ANTHROPIC_API_KEY:               z.string().min(1).optional(),           // Azure Anthropic API key
+    AZURE_ANTHROPIC_API_VERSION:           z.string().min(1).optional(),           // Azure Anthropic API version (e.g. 2023-06-01)
     KB_OPENAI_MODEL_NAME:                  z.string().optional(),                  // Knowledge base OpenAI model name (works with both regular OpenAI and Azure OpenAI)
     WAND_OPENAI_MODEL_NAME:                z.string().optional(),                  // Wand generation OpenAI model name (works with both regular OpenAI and Azure OpenAI)
     OCR_AZURE_ENDPOINT:                    z.string().url().optional(),            // Azure Mistral OCR service endpoint
