@@ -187,6 +187,10 @@ export function Skills() {
           }
         }}
         onSave={handleSkillSaved}
+        onDelete={(skillId) => {
+          setEditingSkill(null)
+          handleDeleteClick(skillId)
+        }}
         initialValues={editingSkill ?? undefined}
       />
 

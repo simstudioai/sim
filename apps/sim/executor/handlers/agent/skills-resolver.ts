@@ -6,6 +6,14 @@ import type { SkillInput } from '@/executor/handlers/agent/types'
 
 const logger = createLogger('SkillsResolver')
 
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 interface SkillMetadata {
   name: string
   description: string
@@ -67,18 +75,25 @@ export async function resolveSkillContent(
 
 /**
  * Build the system prompt section that lists available skills.
+ * Uses XML format per the agentskills.io integration guide.
  */
 export function buildSkillsSystemPromptSection(skills: SkillMetadata[]): string {
   if (!skills.length) return ''
 
-  const skillList = skills.map((s) => `- ${s.name}: ${s.description}`).join('\n')
+  const skillEntries = skills
+    .map(
+      (s) =>
+        `  <skill name="${escapeXml(s.name)}">\n    <description>${escapeXml(s.description)}</description>\n  </skill>`
+    )
+    .join('\n')
 
   return [
     '',
     'You have access to the following skills. Use the load_skill tool to activate a skill when relevant.',
     '',
-    'Available skills:',
-    skillList,
+    '<available_skills>',
+    skillEntries,
+    '</available_skills>',
   ].join('\n')
 }
 

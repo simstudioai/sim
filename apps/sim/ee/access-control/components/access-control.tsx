@@ -368,6 +368,12 @@ export function AccessControl() {
         configKey: 'disableCustomTools' as const,
       },
       {
+        id: 'disable-skills',
+        label: 'Skills',
+        category: 'Tools',
+        configKey: 'disableSkills' as const,
+      },
+      {
         id: 'hide-trace-spans',
         label: 'Trace Spans',
         category: 'Logs',
@@ -950,6 +956,7 @@ export function AccessControl() {
                             !editingConfig?.hideFilesTab &&
                             !editingConfig?.disableMcpTools &&
                             !editingConfig?.disableCustomTools &&
+                            !editingConfig?.disableSkills &&
                             !editingConfig?.hideTraceSpans &&
                             !editingConfig?.disableInvitations &&
                             !editingConfig?.hideDeployApi &&
@@ -969,6 +976,7 @@ export function AccessControl() {
                                   hideFilesTab: allVisible,
                                   disableMcpTools: allVisible,
                                   disableCustomTools: allVisible,
+                                  disableSkills: allVisible,
                                   hideTraceSpans: allVisible,
                                   disableInvitations: allVisible,
                                   hideDeployApi: allVisible,
@@ -989,6 +997,7 @@ export function AccessControl() {
                         !editingConfig?.hideFilesTab &&
                         !editingConfig?.disableMcpTools &&
                         !editingConfig?.disableCustomTools &&
+                        !editingConfig?.disableSkills &&
                         !editingConfig?.hideTraceSpans &&
                         !editingConfig?.disableInvitations &&
                         !editingConfig?.hideDeployApi &&

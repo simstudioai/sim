@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Plus, Sparkles, XIcon } from 'lucide-react'
+import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
+import { AgentSkillsIcon } from '@/components/icons'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { SkillModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/skills/components/skill-modal'
 import type { SkillDefinition } from '@/hooks/queries/skills'
@@ -79,7 +80,7 @@ export function SkillInput({
           return {
             label: s.name,
             value: `skill-${s.id}`,
-            icon: Sparkles,
+            icon: AgentSkillsIcon,
             onSelect: () => {
               const newSkills: StoredSkill[] = [...selectedSkills, { skillId: s.id, name: s.name }]
               setValue(newSkills)
@@ -143,7 +144,7 @@ export function SkillInput({
                     }
                   }}
                 >
-                  <Sparkles className='h-[10px] w-[10px] text-[var(--text-tertiary)]' />
+                  <AgentSkillsIcon className='h-[10px] w-[10px] text-[var(--text-tertiary)]' />
                   <span className='max-w-[140px] truncate'>{resolveSkillName(stored)}</span>
                   {!disabled && !isPreview && (
                     <button

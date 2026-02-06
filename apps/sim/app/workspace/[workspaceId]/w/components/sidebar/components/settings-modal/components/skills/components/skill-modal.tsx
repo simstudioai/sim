@@ -21,12 +21,19 @@ interface SkillModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave: () => void
+  onDelete?: (skillId: string) => void
   initialValues?: SkillDefinition
 }
 
 const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
-export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillModalProps) {
+export function SkillModal({
+  open,
+  onOpenChange,
+  onSave,
+  onDelete,
+  initialValues,
+}: SkillModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -101,8 +108,12 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
         })
       }
       onSave()
-    } catch {
-      // Error is handled by React Query
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.includes('already exists')
+          ? error.message
+          : 'Failed to save skill. Please try again.'
+      setFormError(message)
     } finally {
       setSaving(false)
     }
@@ -110,7 +121,7 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='lg'>
+      <ModalContent size='xl'>
         <ModalHeader>{initialValues ? 'Edit Skill' : 'Create Skill'}</ModalHeader>
         <ModalBody>
           <div className='flex flex-col gap-[16px]'>
@@ -127,9 +138,9 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
                   if (formError) setFormError('')
                 }}
               />
-              {formError && (
-                <span className='text-[11px] text-[var(--text-error)]'>{formError}</span>
-              )}
+              <span className='text-[11px] text-[var(--text-muted)]'>
+                Lowercase letters, numbers, and hyphens (e.g. my-skill)
+              </span>
             </div>
 
             <div className='flex flex-col gap-[4px]'>
@@ -163,15 +174,26 @@ export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillM
                 className='min-h-[200px] resize-y font-mono text-[13px]'
               />
             </div>
+
+            {formError && <span className='text-[11px] text-[var(--text-error)]'>{formError}</span>}
           </div>
         </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button variant='tertiary' onClick={handleSave} disabled={saving || !hasChanges}>
-            {saving ? 'Saving...' : initialValues ? 'Update' : 'Create'}
-          </Button>
+        <ModalFooter className='items-center justify-between'>
+          {initialValues && onDelete ? (
+            <Button variant='destructive' onClick={() => onDelete(initialValues.id)}>
+              Delete
+            </Button>
+          ) : (
+            <div />
+          )}
+          <div className='flex gap-2'>
+            <Button variant='default' onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button variant='tertiary' onClick={handleSave} disabled={saving || !hasChanges}>
+              {saving ? 'Saving...' : initialValues ? 'Update' : 'Create'}
+            </Button>
+          </div>
         </ModalFooter>
       </ModalContent>
     </Modal>

@@ -13,7 +13,6 @@ import {
   Server,
   Settings,
   ShieldCheck,
-  Sparkles,
   User,
   Users,
   Wrench,
@@ -35,7 +34,7 @@ import {
   SModalSidebarSection,
   SModalSidebarSectionTitle,
 } from '@/components/emcn'
-import { McpIcon } from '@/components/icons'
+import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionStatus } from '@/lib/billing/client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -159,7 +158,7 @@ const allNavigationItems: NavigationItem[] = [
   },
   { id: 'integrations', label: 'Integrations', icon: Connections, section: 'tools' },
   { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
-  { id: 'skills', label: 'Skills', icon: Sparkles, section: 'tools' },
+  { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },
   { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
   { id: 'environment', label: 'Environment', icon: FolderCode, section: 'system' },
   { id: 'apikeys', label: 'API Keys', icon: Key, section: 'system' },
@@ -267,6 +266,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         return false
       }
       if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
+        return false
+      }
+      if (item.id === 'skills' && permissionConfig.disableSkills) {
         return false
       }
 

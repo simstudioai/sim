@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -21,7 +21,7 @@ const SkillSchema = z.object({
         .max(64)
         .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Name must be kebab-case (e.g. my-skill)'),
       description: z.string().min(1, 'Description is required').max(1024),
-      content: z.string().min(1, 'Content is required'),
+      content: z.string().min(1, 'Content is required').max(50000, 'Content is too large'),
     })
   ),
   workspaceId: z.string().optional(),
@@ -121,12 +121,14 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         )
       }
+      if (validationError instanceof Error && validationError.message.includes('already exists')) {
+        return NextResponse.json({ error: validationError.message }, { status: 409 })
+      }
       throw validationError
     }
   } catch (error) {
     logger.error(`[${requestId}] Error updating skills`, error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to update skills'
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update skills' }, { status: 500 })
   }
 }
 
@@ -181,7 +183,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
     }
 
-    await db.delete(skill).where(eq(skill.id, skillId))
+    await db.delete(skill).where(and(eq(skill.id, skillId), eq(skill.workspaceId, workspaceId)))
 
     logger.info(`[${requestId}] Deleted skill: ${skillId}`)
     return NextResponse.json({ success: true })
