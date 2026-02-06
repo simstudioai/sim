@@ -715,7 +715,7 @@ Example 3 (Array Input):
     },
     model: { type: 'string', description: 'AI model to use' },
     apiKey: { type: 'string', description: 'Provider API key' },
-    azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
+    azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
     vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
     vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },

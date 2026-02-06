@@ -143,8 +143,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
     const providerId = getProviderFromModel(model)
 
     // Resolve Vertex AI OAuth credential to access token if needed
-    let resolvedApiKey = apiKey
-    const resolvedCredentials = { ...providerCredentials }
+    let finalApiKey = apiKey
     if (providerId === 'vertex' && providerCredentials?.vertexCredential) {
       const credential = await db.query.account.findFirst({
         where: eq(account.id, providerCredentials.vertexCredential),
@@ -156,10 +155,9 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
           providerCredentials.vertexCredential
         )
         if (accessToken) {
-          resolvedApiKey = accessToken
+          finalApiKey = accessToken
         }
       }
-      resolvedCredentials.vertexCredential = undefined
     }
 
     const response = await executeProviderRequest(providerId, {
@@ -172,8 +170,14 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
         },
       ],
       temperature: 0.1, // Low temperature for consistent scoring
-      apiKey: resolvedApiKey,
-      ...resolvedCredentials,
+      apiKey: finalApiKey,
+      azureEndpoint: providerCredentials?.azureEndpoint,
+      azureApiVersion: providerCredentials?.azureApiVersion,
+      vertexProject: providerCredentials?.vertexProject,
+      vertexLocation: providerCredentials?.vertexLocation,
+      bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
+      bedrockSecretKey: providerCredentials?.bedrockSecretKey,
+      bedrockRegion: providerCredentials?.bedrockRegion,
     })
 
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {
