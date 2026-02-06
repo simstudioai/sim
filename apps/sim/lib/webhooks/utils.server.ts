@@ -914,6 +914,8 @@ export async function formatWebhookInput(
     let files: any[] = []
     if (hasFiles && includeFiles && botToken) {
       files = await downloadSlackFiles(rawFiles, botToken)
+    } else if (hasFiles && includeFiles && !botToken) {
+      logger.warn('Slack message has files and includeFiles is enabled, but no bot token provided')
     }
 
     return {
