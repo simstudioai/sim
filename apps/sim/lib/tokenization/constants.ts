@@ -21,6 +21,11 @@ export const TOKENIZATION_CONFIG = {
       confidence: 'high',
       supportedMethods: ['heuristic', 'fallback'],
     },
+    'azure-anthropic': {
+      avgCharsPerToken: 4.5,
+      confidence: 'high',
+      supportedMethods: ['heuristic', 'fallback'],
+    },
     google: {
       avgCharsPerToken: 5,
       confidence: 'medium',
