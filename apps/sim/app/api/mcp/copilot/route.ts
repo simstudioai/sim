@@ -34,144 +34,40 @@ export const dynamic = 'force-dynamic'
  * the workflow lifecycle and best practices.
  */
 const MCP_SERVER_INSTRUCTIONS = `
-## Sim Workflow Copilot - Usage Guide
+## Sim Workflow Copilot
 
-You are interacting with Sim's workflow automation platform. These tools orchestrate specialized AI agents that build workflows. Follow these guidelines carefully.
+Sim is a workflow automation platform. Workflows are visual pipelines of connected blocks (Agent, Function, Condition, API, integrations, etc.). The Agent block is the core — an LLM with tools, memory, structured output, and knowledge bases.
 
----
+### Workflow Lifecycle (Happy Path)
 
-## Platform Knowledge
+1. \`list_workspaces\` → know where to work
+2. \`create_workflow(name, workspaceId)\` → get a workflowId
+3. \`copilot_build(request, workflowId)\` → plan and build in one pass
+4. \`copilot_test(request, workflowId)\` → verify it works
+5. \`copilot_deploy("deploy as api", workflowId)\` → make it accessible externally (optional)
 
-Sim is a workflow automation platform. Workflows are visual pipelines of blocks.
+For fine-grained control, use \`copilot_plan\` → \`copilot_edit\` instead of \`copilot_build\`. Pass the plan object from copilot_plan EXACTLY as-is to copilot_edit's context.plan field.
 
-### Block Types
+### Working with Existing Workflows
 
-**Core Logic:**
-- **Agent** - The heart of Sim (LLM block with tools, memory, structured output, knowledge bases)
-- **Function** - JavaScript code execution
-- **Condition** - If/else branching
-- **Router** - AI-powered content-based routing
-- **Loop** - While/do-while iteration
-- **Parallel** - Simultaneous execution
-- **API** - HTTP requests
+When the user refers to a workflow by name or description ("the email one", "my Slack bot"):
+1. Use \`copilot_discovery\` to find it by functionality
+2. Or use \`list_workflows\` and match by name
+3. Then pass the workflowId to other tools
 
-**Integrations (3rd Party):**
-- OAuth: Slack, Gmail, Google Calendar, Sheets, Outlook, Linear, GitHub, Notion
-- API: Stripe, Twilio, SendGrid, any REST API
+### Organization
 
-### The Agent Block
+- \`rename_workflow\` — rename a workflow
+- \`move_workflow\` — move a workflow into a folder (or root with null)
+- \`move_folder\` — nest a folder inside another (or root with null)
+- \`create_folder(name, parentId)\` — create nested folder hierarchies
 
-The Agent block is the core of intelligent workflows:
-- **Tools** - Add integrations, custom tools, web search to give it capabilities
-- **Memory** - Multi-turn conversations with persistent context
-- **Structured Output** - JSON schema for reliable parsing
-- **Knowledge Bases** - RAG-powered document retrieval
+### Key Rules
 
-**Design principle:** Put tools INSIDE agents rather than using standalone tool blocks.
-
-### Triggers
-
-| Type | Description |
-|------|-------------|
-| Manual/Chat | User sends message in UI (start block: input, files, conversationId) |
-| API | REST endpoint with custom input schema |
-| Webhook | External services POST to trigger URL |
-| Schedule | Cron-based (hourly, daily, weekly) |
-
-### Deployments
-
-| Type | Trigger | Use Case |
-|------|---------|----------|
-| API | Start block | REST endpoint for programmatic access |
-| Chat | Start block | Managed chat UI with auth options |
-| MCP | Start block | Expose as MCP tool for AI agents |
-| General | Schedule/Webhook | Activate triggers to run automatically |
-
-**Undeployed workflows only run in the builder UI.**
-
-### Variable Syntax
-
-Reference outputs from previous blocks: \`<blockname.field>\`
-Reference environment variables: \`{{ENV_VAR_NAME}}\`
-
-Rules:
-- Block names must be lowercase, no spaces, no special characters
-- Use dot notation for nested fields: \`<blockname.field.subfield>\`
-
----
-
-## Workflow Lifecycle
-
-1. **Create**: For NEW workflows, FIRST call create_workflow to get a workflowId
-2. **Plan**: Use copilot_plan with the workflowId to plan the workflow
-3. **Edit**: Use copilot_edit with the workflowId AND the plan to build the workflow
-4. **Deploy**: ALWAYS deploy after building using copilot_deploy before testing/running
-5. **Test**: Use copilot_test to verify the workflow works correctly
-6. **Share**: Provide the user with the workflow URL after completion
-
----
-
-## CRITICAL: Always Pass workflowId
-
-- For NEW workflows: Call create_workflow FIRST, then use the returned workflowId
-- For EXISTING workflows: Pass the workflowId to all copilot tools
-- copilot_plan, copilot_edit, copilot_deploy, copilot_test, copilot_debug all REQUIRE workflowId
-
----
-
-## CRITICAL: How to Handle Plans
-
-The copilot_plan tool returns a structured plan object. You MUST:
-
-1. **Do NOT modify the plan**: Pass the plan object EXACTLY as returned to copilot_edit
-2. **Do NOT interpret or summarize the plan**: The edit agent needs the raw plan data
-3. **Pass the plan in the context.plan field**: \`{ "context": { "plan": <plan_object> } }\`
-4. **Include ALL plan data**: Block configurations, connections, credentials, everything
-
-Example flow:
-\`\`\`
-1. copilot_plan({ request: "build a workflow...", workflowId: "abc123" })
-   -> Returns: { "plan": { "blocks": [...], "connections": [...], ... } }
-
-2. copilot_edit({ 
-     workflowId: "abc123",
-     message: "Execute the plan",
-     context: { "plan": <EXACT plan object from step 1> }
-   })
-\`\`\`
-
-**Why this matters**: The plan contains technical details (block IDs, field mappings, API schemas) that the edit agent needs verbatim. Summarizing or rephrasing loses critical information.
-
----
-
-## CRITICAL: Error Handling
-
-**If the user says "doesn't work", "broke", "failed", "error" → ALWAYS use copilot_debug FIRST.**
-
-Don't guess. Don't plan. Debug first to find the actual problem.
-
----
-
-## Important Rules
-
-- ALWAYS deploy a workflow before attempting to run or test it
-- Workflows must be deployed to have an "active deployment" for execution
-- After building, call copilot_deploy with the appropriate deployment type (api, chat, or mcp)
-- Return the workflow URL to the user so they can access it in Sim
-
----
-
-## Quick Operations (use direct tools)
-- list_workflows, list_workspaces, list_folders, get_workflow: Fast database queries
-- create_workflow: Create new workflow and get workflowId (CALL THIS FIRST for new workflows)
-- create_folder: Create new resources
-
-## Workflow Building (use copilot tools)
-- copilot_plan: Plan workflow changes (REQUIRES workflowId) - returns a plan object
-- copilot_edit: Execute the plan (REQUIRES workflowId AND plan from copilot_plan)
-- copilot_deploy: Deploy workflows (REQUIRES workflowId)
-- copilot_test: Test workflow execution (REQUIRES workflowId)
-- copilot_debug: Diagnose errors (REQUIRES workflowId) - USE THIS FIRST for issues
+- You can test workflows immediately after building — deployment is only needed for external access (API, chat, MCP).
+- All copilot tools (build, plan, edit, deploy, test, debug) require workflowId.
+- If the user reports errors → use \`copilot_debug\` first, don't guess.
+- Variable syntax: \`<blockname.field>\` for block outputs, \`{{ENV_VAR}}\` for env vars.
 `
 
 function createResponse(id: RequestId, result: unknown): JSONRPCResponse {
@@ -378,7 +274,6 @@ async function handleBuildToolCall(
     }
 
     const chatId = crypto.randomUUID()
-    const context = (args.context as Record<string, unknown>) || {}
 
     const requestPayload = {
       message: requestText,
@@ -391,7 +286,6 @@ async function handleBuildToolCall(
       version: SIM_AGENT_VERSION,
       headless: true,
       chatId,
-      context,
     }
 
     const result = await orchestrateCopilotStream(requestPayload, {

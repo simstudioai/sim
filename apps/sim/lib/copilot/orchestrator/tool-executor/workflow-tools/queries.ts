@@ -3,7 +3,6 @@ import { customTools, permissions, workflow, workflowFolder, workspace } from '@
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import {
-  extractWorkflowNames,
   formatNormalizedWorkflowForCopilot,
   normalizeWorkflowName,
 } from '@/lib/copilot/tools/shared/workflow-utils'
@@ -114,8 +113,6 @@ export async function executeListUserWorkflows(
 
     const workflows = await getAccessibleWorkflowsForUser(context.userId, { workspaceId, folderId })
 
-    const names = extractWorkflowNames(workflows)
-
     const workflowList = workflows.map((w) => ({
       workflowId: w.id,
       workflowName: w.name || '',
@@ -123,7 +120,7 @@ export async function executeListUserWorkflows(
       folderId: w.folderId,
     }))
 
-    return { success: true, output: { workflow_names: names, workflows: workflowList } }
+    return { success: true, output: { workflows: workflowList } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }

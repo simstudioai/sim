@@ -38,6 +38,9 @@ import type {
   ListFoldersParams,
   ListUserWorkflowsParams,
   ListWorkspaceMcpServersParams,
+  MoveFolderParams,
+  MoveWorkflowParams,
+  RenameWorkflowParams,
   RunWorkflowParams,
   SetGlobalWorkflowVariablesParams,
 } from './param-types'
@@ -52,6 +55,9 @@ import {
   executeListFolders,
   executeListUserWorkflows,
   executeListUserWorkspaces,
+  executeMoveFolder,
+  executeMoveWorkflow,
+  executeRenameWorkflow,
   executeRunWorkflow,
   executeSetGlobalWorkflowVariables,
 } from './workflow-tools'
@@ -85,6 +91,9 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   list_folders: (p, c) => executeListFolders(p as ListFoldersParams, c),
   create_workflow: (p, c) => executeCreateWorkflow(p as CreateWorkflowParams, c),
   create_folder: (p, c) => executeCreateFolder(p as CreateFolderParams, c),
+  rename_workflow: (p, c) => executeRenameWorkflow(p as unknown as RenameWorkflowParams, c),
+  move_workflow: (p, c) => executeMoveWorkflow(p as unknown as MoveWorkflowParams, c),
+  move_folder: (p, c) => executeMoveFolder(p as unknown as MoveFolderParams, c),
   get_workflow_data: (p, c) => executeGetWorkflowData(p as GetWorkflowDataParams, c),
   get_block_outputs: (p, c) => executeGetBlockOutputs(p as GetBlockOutputsParams, c),
   get_block_upstream_references: (p, c) =>

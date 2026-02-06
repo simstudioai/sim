@@ -18,10 +18,20 @@ export type SubagentToolDef = {
  */
 export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
   {
+    name: 'list_workspaces',
+    toolId: 'list_user_workspaces',
+    description:
+      'List all workspaces the user has access to. Returns workspace IDs, names, and roles. Use this first to determine which workspace to operate in.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
     name: 'list_workflows',
     toolId: 'list_user_workflows',
     description:
-      'List all workflows the user has access to. Returns workflow IDs, names, and workspace info.',
+      'List all workflows the user has access to. Returns workflow IDs, names, workspace, and folder info. Use workspaceId/folderId to scope results.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -37,19 +47,10 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     },
   },
   {
-    name: 'list_workspaces',
-    toolId: 'list_user_workspaces',
-    description:
-      'List all workspaces the user has access to. Returns workspace IDs, names, and roles.',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
     name: 'list_folders',
     toolId: 'list_folders',
-    description: 'List all folders in a workspace.',
+    description:
+      'List all folders in a workspace. Returns folder IDs, names, and parent relationships for organizing workflows.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -64,7 +65,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
   {
     name: 'get_workflow',
     toolId: 'get_user_workflow',
-    description: 'Get a workflow by ID. Returns the full workflow definition.',
+    description:
+      'Get a workflow by ID. Returns the full workflow definition including all blocks, connections, and configuration.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -79,7 +81,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
   {
     name: 'create_workflow',
     toolId: 'create_workflow',
-    description: 'Create a new workflow. Returns the new workflow ID.',
+    description:
+      'Create a new empty workflow. Returns the new workflow ID. Always call this FIRST before copilot_build for new workflows. Use workspaceId to place it in a specific workspace.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -106,7 +109,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
   {
     name: 'create_folder',
     toolId: 'create_folder',
-    description: 'Create a new folder in a workspace.',
+    description:
+      'Create a new folder for organizing workflows. Use parentId to create nested folder hierarchies.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -124,6 +128,65 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
       },
       required: ['name'],
+    },
+  },
+  {
+    name: 'rename_workflow',
+    toolId: 'rename_workflow',
+    description: 'Rename an existing workflow.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description: 'The workflow ID to rename.',
+        },
+        name: {
+          type: 'string',
+          description: 'The new name for the workflow.',
+        },
+      },
+      required: ['workflowId', 'name'],
+    },
+  },
+  {
+    name: 'move_workflow',
+    toolId: 'move_workflow',
+    description:
+      'Move a workflow into a different folder. Set folderId to null to move to the workspace root.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description: 'The workflow ID to move.',
+        },
+        folderId: {
+          type: ['string', 'null'],
+          description: 'Target folder ID, or null to move to workspace root.',
+        },
+      },
+      required: ['workflowId', 'folderId'],
+    },
+  },
+  {
+    name: 'move_folder',
+    toolId: 'move_folder',
+    description:
+      'Move a folder into another folder. Set parentId to null to move to the workspace root.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        folderId: {
+          type: 'string',
+          description: 'The folder ID to move.',
+        },
+        parentId: {
+          type: ['string', 'null'],
+          description: 'Target parent folder ID, or null to move to workspace root.',
+        },
+      },
+      required: ['folderId', 'parentId'],
     },
   },
 ]
@@ -151,15 +214,15 @@ CAN DO:
 - Set environment variables and workflow variables
 
 CANNOT DO:
-- Run or test workflows (use copilot_test separately after deploying)
+- Run or test workflows (use copilot_test separately)
 - Deploy workflows (use copilot_deploy separately)
 
 WORKFLOW:
 1. Call create_workflow to get a workflowId (for new workflows)
 2. Call copilot_build with the request and workflowId
 3. Build agent gathers info and builds in one pass
-4. Call copilot_deploy to deploy the workflow
-5. Optionally call copilot_test to verify it works`,
+4. Call copilot_test to verify it works
+5. Optionally call copilot_deploy to make it externally accessible`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -205,13 +268,11 @@ DO NOT USE (use direct tools instead):
   {
     name: 'copilot_plan',
     agentId: 'plan',
-    description: `Plan workflow changes by gathering required information.
+    description: `Plan workflow changes by gathering required information. For most cases, prefer copilot_build which combines planning and editing in one step.
 
 USE THIS WHEN:
-- Building a new workflow
-- Modifying an existing workflow
-- You need to understand what blocks and integrations are available
-- The workflow requires multiple blocks or connections
+- You need fine-grained control over the build process
+- You want to inspect the plan before executing it
 
 WORKFLOW ID (REQUIRED):
 - For NEW workflows: First call create_workflow to get a workflowId, then pass it here
@@ -241,23 +302,16 @@ IMPORTANT: Pass the returned plan EXACTLY to copilot_edit - do not modify or sum
   {
     name: 'copilot_edit',
     agentId: 'edit',
-    description: `Execute a workflow plan and apply edits.
-
-USE THIS WHEN:
-- You have a plan from copilot_plan that needs to be executed
-- Building or modifying a workflow based on the plan
-- Making changes to blocks, connections, or configurations
+    description: `Execute a workflow plan from copilot_plan. For most cases, prefer copilot_build which combines planning and editing in one step.
 
 WORKFLOW ID (REQUIRED):
 - You MUST provide the workflowId parameter
-- For new workflows, get the workflowId from create_workflow first
 
 PLAN (REQUIRED):
 - Pass the EXACT plan object from copilot_plan in the context.plan field
 - Do NOT modify, summarize, or interpret the plan - pass it verbatim
-- The plan contains technical details the edit agent needs exactly as-is
 
-IMPORTANT: After copilot_edit completes, you MUST call copilot_deploy before the workflow can be run or tested.`,
+After copilot_edit completes, you can test immediately with copilot_test, or deploy with copilot_deploy to make it accessible externally.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -282,42 +336,14 @@ IMPORTANT: After copilot_edit completes, you MUST call copilot_deploy before the
     },
   },
   {
-    name: 'copilot_debug',
-    agentId: 'debug',
-    description: `Diagnose errors or unexpected workflow behavior.
-
-WORKFLOW ID (REQUIRED): Always provide the workflowId of the workflow to debug.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        error: { type: 'string', description: 'The error message or description of the issue.' },
-        workflowId: { type: 'string', description: 'REQUIRED. The workflow ID to debug.' },
-        context: { type: 'object' },
-      },
-      required: ['error', 'workflowId'],
-    },
-  },
-  {
     name: 'copilot_deploy',
     agentId: 'deploy',
-    description: `Deploy or manage workflow deployments.
-
-CRITICAL: You MUST deploy a workflow after building before it can be run or tested.
-Workflows without an active deployment will fail with "no active deployment" error.
-
-WORKFLOW ID (REQUIRED):
-- Always provide the workflowId parameter
-- This must match the workflow you built with copilot_edit
-
-USE THIS:
-- After copilot_edit completes to activate the workflow
-- To update deployment settings
-- To redeploy after making changes
+    description: `Deploy a workflow to make it accessible externally. Workflows can be tested without deploying, but deployment is needed for API access, chat UIs, or MCP exposure.
 
 DEPLOYMENT TYPES:
-- "deploy as api" - REST API endpoint
-- "deploy as chat" - Chat interface
-- "deploy as mcp" - MCP server`,
+- "deploy as api" - REST API endpoint for programmatic access
+- "deploy as chat" - Managed chat UI with auth options
+- "deploy as mcp" - Expose as MCP tool for AI agents`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -335,113 +361,9 @@ DEPLOYMENT TYPES:
     },
   },
   {
-    name: 'copilot_auth',
-    agentId: 'auth',
-    description: 'Handle OAuth connection flows.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-  },
-  {
-    name: 'copilot_knowledge',
-    agentId: 'knowledge',
-    description: 'Create and manage knowledge bases.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-  },
-  {
-    name: 'copilot_custom_tool',
-    agentId: 'custom_tool',
-    description: 'Create or manage custom tools.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-  },
-  {
-    name: 'copilot_info',
-    agentId: 'info',
-    description: 'Inspect blocks, outputs, and workflow metadata.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        workflowId: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-  },
-  {
-    name: 'copilot_workflow',
-    agentId: 'workflow',
-    description: 'Manage workflow environment and configuration.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        workflowId: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-  },
-  {
-    name: 'copilot_research',
-    agentId: 'research',
-    description: 'Research external APIs and documentation.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-  },
-  {
-    name: 'copilot_tour',
-    agentId: 'tour',
-    description: 'Explain platform features and usage.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-  },
-  {
     name: 'copilot_test',
     agentId: 'test',
-    description: `Run workflows and verify outputs.
-
-PREREQUISITE: The workflow MUST be deployed first using copilot_deploy.
-Undeployed workflows will fail with "no active deployment" error.
-
-WORKFLOW ID (REQUIRED):
-- Always provide the workflowId parameter
-
-USE THIS:
-- After deploying to verify the workflow works correctly
-- To test with sample inputs
-- To validate workflow behavior before sharing with user`,
+    description: `Run a workflow and verify its outputs. Works on both deployed and undeployed (draft) workflows. Use after building to verify correctness.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -456,9 +378,125 @@ USE THIS:
     },
   },
   {
+    name: 'copilot_debug',
+    agentId: 'debug',
+    description:
+      'Diagnose errors or unexpected workflow behavior. Provide the error message and workflowId. Returns root cause analysis and fix suggestions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        error: { type: 'string', description: 'The error message or description of the issue.' },
+        workflowId: { type: 'string', description: 'REQUIRED. The workflow ID to debug.' },
+        context: { type: 'object' },
+      },
+      required: ['error', 'workflowId'],
+    },
+  },
+  {
+    name: 'copilot_auth',
+    agentId: 'auth',
+    description:
+      'Check OAuth connection status, list connected services, and initiate new OAuth connections. Use when a workflow needs third-party service access (Google, Slack, GitHub, etc.).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+  },
+  {
+    name: 'copilot_knowledge',
+    agentId: 'knowledge',
+    description:
+      'Manage knowledge bases for RAG-powered document retrieval. Supports listing, creating, updating, and deleting knowledge bases. Knowledge bases can be attached to agent blocks for context-aware responses.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+  },
+  {
+    name: 'copilot_custom_tool',
+    agentId: 'custom_tool',
+    description:
+      'Manage custom tools (reusable API integrations). Supports listing, creating, updating, and deleting custom tools. Custom tools can be added to agent blocks as callable functions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+  },
+  {
+    name: 'copilot_info',
+    agentId: 'info',
+    description:
+      'Inspect a workflow\'s blocks, connections, outputs, variables, and metadata. Always provide workflowId to scope results to a specific workflow.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        workflowId: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+  },
+  {
+    name: 'copilot_workflow',
+    agentId: 'workflow',
+    description:
+      'Manage workflow-level configuration: environment variables, settings, scheduling, and deployment status.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        workflowId: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+  },
+  {
+    name: 'copilot_research',
+    agentId: 'research',
+    description:
+      'Research external APIs and documentation. Use when building workflows that integrate with third-party services and you need to understand their API, authentication, or data formats.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+  },
+  {
+    name: 'copilot_tour',
+    agentId: 'tour',
+    description:
+      'Explain platform features, concepts, and usage patterns. Use when the user asks "how does X work?" about the Sim platform, block types, triggers, deployments, or workflow concepts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+  },
+  {
     name: 'copilot_superagent',
     agentId: 'superagent',
-    description: 'Execute direct external actions (email, Slack, etc.).',
+    description:
+      'Execute direct actions NOW: send an email, post to Slack, make an API call, etc. Use when the user wants to DO something immediately rather than build a workflow for it.',
     inputSchema: {
       type: 'object',
       properties: {
