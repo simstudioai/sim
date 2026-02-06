@@ -153,7 +153,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     name: 'move_workflow',
     toolId: 'move_workflow',
     description:
-      'Move a workflow into a different folder. Set folderId to null to move to the workspace root.',
+      'Move a workflow into a different folder. Omit folderId or pass empty string to move to workspace root.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -162,18 +162,18 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
           description: 'The workflow ID to move.',
         },
         folderId: {
-          type: ['string', 'null'],
-          description: 'Target folder ID, or null to move to workspace root.',
+          type: 'string',
+          description: 'Target folder ID. Omit or pass empty string to move to workspace root.',
         },
       },
-      required: ['workflowId', 'folderId'],
+      required: ['workflowId'],
     },
   },
   {
     name: 'move_folder',
     toolId: 'move_folder',
     description:
-      'Move a folder into another folder. Set parentId to null to move to the workspace root.',
+      'Move a folder into another folder. Omit parentId or pass empty string to move to workspace root.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -182,11 +182,11 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
           description: 'The folder ID to move.',
         },
         parentId: {
-          type: ['string', 'null'],
-          description: 'Target parent folder ID, or null to move to workspace root.',
+          type: 'string',
+          description: 'Target parent folder ID. Omit or pass empty string to move to workspace root.',
         },
       },
-      required: ['folderId', 'parentId'],
+      required: ['folderId'],
     },
   },
 ]
