@@ -2,6 +2,7 @@ import type {
   LinearCreateProjectMilestoneParams,
   LinearCreateProjectMilestoneResponse,
 } from '@/tools/linear/types'
+import { PROJECT_MILESTONE_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateProjectMilestoneTool: ToolConfig<
@@ -79,10 +80,15 @@ export const linearCreateProjectMilestoneTool: ToolConfig<
                 id
                 name
                 description
-                projectId
                 targetDate
+                progress
+                sortOrder
+                status
                 createdAt
                 archivedAt
+                project {
+                  id
+                }
               }
             }
           }
@@ -114,10 +120,15 @@ export const linearCreateProjectMilestoneTool: ToolConfig<
       }
     }
 
+    const milestone = result.projectMilestone
     return {
       success: true,
       output: {
-        projectMilestone: result.projectMilestone,
+        projectMilestone: {
+          ...milestone,
+          projectId: milestone.project?.id ?? null,
+          project: undefined,
+        },
       },
     }
   },
@@ -126,6 +137,7 @@ export const linearCreateProjectMilestoneTool: ToolConfig<
     projectMilestone: {
       type: 'object',
       description: 'The created project milestone',
+      properties: PROJECT_MILESTONE_OUTPUT_PROPERTIES,
     },
   },
 }

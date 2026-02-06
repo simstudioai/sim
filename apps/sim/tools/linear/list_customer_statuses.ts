@@ -2,7 +2,7 @@ import type {
   LinearListCustomerStatusesParams,
   LinearListCustomerStatusesResponse,
 } from '@/tools/linear/types'
-import { CUSTOMER_STATUS_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { CUSTOMER_STATUS_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListCustomerStatusesTool: ToolConfig<
@@ -19,7 +19,20 @@ export const linearListCustomerStatusesTool: ToolConfig<
     provider: 'linear',
   },
 
-  params: {},
+  params: {
+    first: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of statuses to return (default: 50)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor for pagination',
+    },
+  },
 
   request: {
     url: 'https://api.linear.app/graphql',
@@ -33,23 +46,32 @@ export const linearListCustomerStatusesTool: ToolConfig<
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: () => ({
+    body: (params) => ({
       query: `
-        query CustomerStatuses {
-          customerStatuses {
+        query CustomerStatuses($first: Int, $after: String) {
+          customerStatuses(first: $first, after: $after) {
             nodes {
               id
               name
-              displayName
               description
               color
               position
+              type
               createdAt
+              updatedAt
               archivedAt
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
             }
           }
         }
       `,
+      variables: {
+        first: params.first || 50,
+        after: params.after,
+      },
     }),
   },
 
@@ -64,10 +86,15 @@ export const linearListCustomerStatusesTool: ToolConfig<
       }
     }
 
+    const result = data.data.customerStatuses
     return {
       success: true,
       output: {
-        customerStatuses: data.data.customerStatuses.nodes,
+        customerStatuses: result.nodes,
+        pageInfo: {
+          hasNextPage: result.pageInfo.hasNextPage,
+          endCursor: result.pageInfo.endCursor,
+        },
       },
     }
   },
@@ -81,5 +108,6 @@ export const linearListCustomerStatusesTool: ToolConfig<
         properties: CUSTOMER_STATUS_OUTPUT_PROPERTIES,
       },
     },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

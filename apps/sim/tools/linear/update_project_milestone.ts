@@ -2,6 +2,7 @@ import type {
   LinearUpdateProjectMilestoneParams,
   LinearUpdateProjectMilestoneResponse,
 } from '@/tools/linear/types'
+import { PROJECT_MILESTONE_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateProjectMilestoneTool: ToolConfig<
@@ -79,10 +80,15 @@ export const linearUpdateProjectMilestoneTool: ToolConfig<
                 id
                 name
                 description
-                projectId
                 targetDate
+                progress
+                sortOrder
+                status
                 createdAt
                 archivedAt
+                project {
+                  id
+                }
               }
             }
           }
@@ -107,10 +113,15 @@ export const linearUpdateProjectMilestoneTool: ToolConfig<
     }
 
     const result = data.data.projectMilestoneUpdate
+    const milestone = result.projectMilestone
     return {
       success: result.success,
       output: {
-        projectMilestone: result.projectMilestone,
+        projectMilestone: {
+          ...milestone,
+          projectId: milestone.project?.id ?? null,
+          project: undefined,
+        },
       },
     }
   },
@@ -119,6 +130,7 @@ export const linearUpdateProjectMilestoneTool: ToolConfig<
     projectMilestone: {
       type: 'object',
       description: 'The updated project milestone',
+      properties: PROJECT_MILESTONE_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -2,6 +2,7 @@ import type {
   LinearListProjectStatusesParams,
   LinearListProjectStatusesResponse,
 } from '@/tools/linear/types'
+import { PAGE_INFO_OUTPUT, PROJECT_STATUS_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListProjectStatusesTool: ToolConfig<
@@ -18,7 +19,20 @@ export const linearListProjectStatusesTool: ToolConfig<
     provider: 'linear',
   },
 
-  params: {},
+  params: {
+    first: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of statuses to return (default: 50)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor for pagination',
+    },
+  },
 
   request: {
     url: 'https://api.linear.app/graphql',
@@ -32,10 +46,10 @@ export const linearListProjectStatusesTool: ToolConfig<
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: () => ({
+    body: (params) => ({
       query: `
-        query ProjectStatuses {
-          projectStatuses {
+        query ProjectStatuses($first: Int, $after: String) {
+          projectStatuses(first: $first, after: $after) {
             nodes {
               id
               name
@@ -43,12 +57,22 @@ export const linearListProjectStatusesTool: ToolConfig<
               color
               indefinite
               position
+              type
               createdAt
+              updatedAt
               archivedAt
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
             }
           }
         }
       `,
+      variables: {
+        first: params.first || 50,
+        after: params.after,
+      },
     }),
   },
 
@@ -63,10 +87,15 @@ export const linearListProjectStatusesTool: ToolConfig<
       }
     }
 
+    const result = data.data.projectStatuses
     return {
       success: true,
       output: {
-        projectStatuses: data.data.projectStatuses.nodes,
+        projectStatuses: result.nodes,
+        pageInfo: {
+          hasNextPage: result.pageInfo.hasNextPage,
+          endCursor: result.pageInfo.endCursor,
+        },
       },
     }
   },
@@ -75,6 +104,11 @@ export const linearListProjectStatusesTool: ToolConfig<
     projectStatuses: {
       type: 'array',
       description: 'List of project statuses',
+      items: {
+        type: 'object',
+        properties: PROJECT_STATUS_OUTPUT_PROPERTIES,
+      },
     },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

@@ -59,8 +59,12 @@ export const linearListCustomersTool: ToolConfig<
               domains
               externalIds
               logoUrl
+              slugId
               approximateNeedCount
+              revenue
+              size
               createdAt
+              updatedAt
               archivedAt
             }
             pageInfo {

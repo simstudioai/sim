@@ -41,6 +41,12 @@ export const linearSearchIssuesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Number of results to return (default: 50)',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor for pagination',
+    },
   },
 
   request: {
@@ -63,8 +69,8 @@ export const linearSearchIssuesTool: ToolConfig<
 
       return {
         query: `
-          query SearchIssues($term: String!, $filter: IssueFilter, $first: Int, $includeArchived: Boolean) {
-            searchIssues(term: $term, filter: $filter, first: $first, includeArchived: $includeArchived) {
+          query SearchIssues($term: String!, $filter: IssueFilter, $first: Int, $after: String, $includeArchived: Boolean) {
+            searchIssues(term: $term, filter: $filter, first: $first, after: $after, includeArchived: $includeArchived) {
               nodes {
                 id
                 title
@@ -112,6 +118,7 @@ export const linearSearchIssuesTool: ToolConfig<
           term: params.query,
           filter: Object.keys(filter).length > 0 ? filter : undefined,
           first: params.first || 50,
+          after: params.after,
           includeArchived: params.includeArchived || false,
         },
       }

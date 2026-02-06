@@ -71,6 +71,7 @@ export const linearUpdateAttachmentTool: ToolConfig<
                 title
                 subtitle
                 url
+                createdAt
                 updatedAt
               }
             }

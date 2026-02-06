@@ -810,7 +810,31 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Number of items to return (default: 50)',
       condition: {
         field: 'operation',
-        value: ['linear_list_favorites'],
+        value: [
+          'linear_read_issues',
+          'linear_search_issues',
+          'linear_list_comments',
+          'linear_list_projects',
+          'linear_list_users',
+          'linear_list_teams',
+          'linear_list_labels',
+          'linear_list_workflow_states',
+          'linear_list_cycles',
+          'linear_list_attachments',
+          'linear_list_issue_relations',
+          'linear_list_favorites',
+          'linear_list_project_updates',
+          'linear_list_notifications',
+          'linear_list_customer_statuses',
+          'linear_list_customer_tiers',
+          'linear_list_customers',
+          'linear_list_customer_requests',
+          'linear_list_customer_statuses',
+          'linear_list_customer_tiers',
+          'linear_list_project_labels',
+          'linear_list_project_milestones',
+          'linear_list_project_statuses',
+        ],
       },
     },
     // Pagination - After (for list operations)
@@ -821,7 +845,29 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Cursor for pagination',
       condition: {
         field: 'operation',
-        value: ['linear_list_favorites'],
+        value: [
+          'linear_read_issues',
+          'linear_search_issues',
+          'linear_list_comments',
+          'linear_list_projects',
+          'linear_list_users',
+          'linear_list_teams',
+          'linear_list_labels',
+          'linear_list_workflow_states',
+          'linear_list_cycles',
+          'linear_list_attachments',
+          'linear_list_issue_relations',
+          'linear_list_favorites',
+          'linear_list_project_updates',
+          'linear_list_notifications',
+          'linear_list_customers',
+          'linear_list_customer_requests',
+          'linear_list_customer_statuses',
+          'linear_list_customer_tiers',
+          'linear_list_project_labels',
+          'linear_list_project_milestones',
+          'linear_list_project_statuses',
+        ],
       },
     },
     // Project health (for project updates)
@@ -1051,28 +1097,6 @@ Return ONLY the description text - no explanations.`,
       condition: {
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
-      },
-    },
-    // Pagination - first
-    {
-      id: 'first',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Number of items (default: 50)',
-      condition: {
-        field: 'operation',
-        value: ['linear_list_customers', 'linear_list_customer_requests'],
-      },
-    },
-    // Pagination - after
-    {
-      id: 'after',
-      title: 'After Cursor',
-      type: 'short-input',
-      placeholder: 'Cursor for pagination',
-      condition: {
-        field: 'operation',
-        value: ['linear_list_customers', 'linear_list_customer_requests'],
       },
     },
     // Customer ID for get/update/delete/merge operations
@@ -1493,6 +1517,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               teamId: effectiveTeamId || undefined,
               projectId: effectiveProjectId || undefined,
               includeArchived: params.includeArchived,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_get_issue':
@@ -1558,6 +1584,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               query: params.query.trim(),
               teamId: effectiveTeamId,
               includeArchived: params.includeArchived,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_add_label_to_issue':
@@ -1607,6 +1635,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_list_projects':
@@ -1614,6 +1644,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               teamId: effectiveTeamId,
               includeArchived: params.includeArchived,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_get_project':
@@ -1665,6 +1697,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
           case 'linear_list_users':
           case 'linear_list_teams':
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
+
           case 'linear_get_viewer':
             return baseParams
 
@@ -1672,6 +1710,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               teamId: effectiveTeamId,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_create_label':
@@ -1709,6 +1749,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               teamId: effectiveTeamId,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_create_workflow_state':
@@ -1738,6 +1780,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               teamId: effectiveTeamId,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_get_cycle':
@@ -1801,6 +1845,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_update_attachment':
@@ -1840,6 +1886,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               issueId: params.issueId.trim(),
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_delete_issue_relation':
@@ -1886,10 +1934,16 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               projectId: effectiveProjectId,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_list_notifications':
-            return baseParams
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
 
           case 'linear_update_notification':
             if (!params.notificationId?.trim()) {
@@ -2018,9 +2072,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               name: params.statusName.trim(),
-              displayName: params.statusDisplayName?.trim() || params.statusName.trim(),
               color: params.statusColor.trim(),
               description: params.statusDescription?.trim() || undefined,
+              displayName: params.statusDisplayName?.trim() || undefined,
             }
 
           case 'linear_update_customer_status':
@@ -2031,9 +2085,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               statusId: params.statusId.trim(),
               name: params.statusName?.trim() || undefined,
-              displayName: params.statusDisplayName?.trim() || undefined,
               color: params.statusColor?.trim() || undefined,
               description: params.statusDescription?.trim() || undefined,
+              displayName: params.statusDisplayName?.trim() || undefined,
             }
 
           case 'linear_delete_customer_status':
@@ -2046,7 +2100,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_list_customer_statuses':
-            return baseParams
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
 
           // Customer Tier Operations
           case 'linear_create_customer_tier':
@@ -2084,7 +2142,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_list_customer_tiers':
-            return baseParams
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
 
           // Project Management Operations
           case 'linear_delete_project':
@@ -2135,6 +2197,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               projectId: effectiveProjectId || undefined,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           case 'linear_add_label_to_project':
@@ -2198,6 +2262,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               projectId: params.projectIdForMilestone.trim(),
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
             }
 
           // Project Status Operations
@@ -2245,7 +2311,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_list_project_statuses':
-            return baseParams
+            return {
+              ...baseParams,
+              first: params.first ? Number(params.first) : undefined,
+              after: params.after,
+            }
 
           default:
             return baseParams
@@ -2321,9 +2391,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     // Customer status and tier inputs
     statusId: { type: 'string', description: 'Status identifier' },
     statusName: { type: 'string', description: 'Status name' },
-    statusDisplayName: { type: 'string', description: 'Status display name' },
     statusColor: { type: 'string', description: 'Status color in hex format' },
     statusDescription: { type: 'string', description: 'Status description' },
+    statusDisplayName: { type: 'string', description: 'Status display name' },
     tierId: { type: 'string', description: 'Tier identifier' },
     tierName: { type: 'string', description: 'Tier name' },
     tierDisplayName: { type: 'string', description: 'Tier display name' },
