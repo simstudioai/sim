@@ -20,6 +20,8 @@ export interface ExecuteWorkflowOptions {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   abortSignal?: AbortSignal
+  /** Use the live/draft workflow state instead of the deployed state. Used by copilot. */
+  useDraftState?: boolean
 }
 
 export interface WorkflowInfo {
@@ -57,7 +59,7 @@ export async function executeWorkflow(
       userId: actorUserId,
       workflowUserId: workflow.userId,
       triggerType,
-      useDraftState: false,
+      useDraftState: streamConfig?.useDraftState ?? false,
       startTime: new Date().toISOString(),
       isClientSession: false,
     }

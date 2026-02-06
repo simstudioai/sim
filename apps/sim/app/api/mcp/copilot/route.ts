@@ -384,8 +384,6 @@ async function handleBuildToolCall(
       message: requestText,
       workflowId: resolved.workflowId,
       userId,
-      stream: true,
-      streamToolCalls: true,
       model,
       mode: 'agent',
       commands: ['fast'],

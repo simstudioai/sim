@@ -17,15 +17,11 @@ export interface BuildPayloadParams {
   userMessageId: string
   mode: string
   model: string
-  stream: boolean
-  conversationId?: string
   conversationHistory?: unknown[]
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
   chatId?: string
-  prefetch?: boolean
-  userName?: string
   implicitFeedback?: string
 }
 
@@ -99,9 +95,9 @@ export async function buildCopilotRequestPayload(
   }
 ): Promise<Record<string, unknown>> {
   const {
-    message, workflowId, userId, userMessageId, mode, stream,
-    conversationId, conversationHistory = [], contexts, fileAttachments,
-    commands, chatId, prefetch, userName, implicitFeedback,
+    message, workflowId, userId, userMessageId, mode,
+    conversationHistory = [], contexts, fileAttachments,
+    commands, chatId, implicitFeedback,
   } = params
 
   const selectedModel = options.selectedModel
@@ -146,29 +142,10 @@ export async function buildCopilotRequestPayload(
   }
 
   let integrationTools: ToolSchema[] = []
-  let baseTools: ToolSchema[] = []
   let credentials: CredentialsPayload | null = null
 
   if (effectiveMode === 'build') {
-    baseTools = [
-      {
-        name: 'function_execute',
-        description:
-          'Execute JavaScript code to perform calculations, data transformations, API calls, or any programmatic task. Code runs in a secure sandbox with fetch() available. Write plain statements (not wrapped in functions). Example: const res = await fetch(url); const data = await res.json(); return data;',
-        input_schema: {
-          type: 'object',
-          properties: {
-            code: {
-              type: 'string',
-              description:
-                'Raw JavaScript statements to execute. Code is auto-wrapped in async context. Use fetch() for HTTP requests. Write like: const res = await fetch(url); return await res.json();',
-            },
-          },
-          required: ['code'],
-        },
-        executeLocally: true,
-      },
-    ]
+    // function_execute sandbox tool is now defined in Go — no need to send it
 
     try {
       const rawCredentials = await getCredentialsServerTool.execute({ workflowId }, { userId })
@@ -231,21 +208,15 @@ export async function buildCopilotRequestPayload(
     message,
     workflowId,
     userId,
-    stream,
-    streamToolCalls: true,
     model: selectedModel,
     mode: transportMode,
     messageId: userMessageId,
     version: SIM_AGENT_VERSION,
     ...(providerConfig ? { provider: providerConfig } : {}),
-    ...(conversationId ? { conversationId } : {}),
-    ...(typeof prefetch === 'boolean' ? { prefetch } : {}),
-    ...(userName ? { userName } : {}),
     ...(contexts && contexts.length > 0 ? { context: contexts } : {}),
     ...(chatId ? { chatId } : {}),
     ...(processedFileContents.length > 0 ? { fileAttachments: processedFileContents } : {}),
-    ...(integrationTools.length > 0 ? { tools: integrationTools } : {}),
-    ...(baseTools.length > 0 ? { baseTools } : {}),
+    ...(integrationTools.length > 0 ? { integrationTools } : {}),
     ...(credentials ? { credentials } : {}),
     ...(commands && commands.length > 0 ? { commands } : {}),
   }
