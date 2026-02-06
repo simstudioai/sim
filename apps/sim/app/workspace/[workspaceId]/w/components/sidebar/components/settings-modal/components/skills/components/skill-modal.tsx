@@ -144,7 +144,8 @@ export function SkillModal({
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value)
-                  if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }))
+                  if (errors.name || errors.general)
+                    setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
                 }}
               />
               {errors.name ? (
@@ -166,7 +167,8 @@ export function SkillModal({
                 value={description}
                 onChange={(e) => {
                   setDescription(e.target.value)
-                  if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }))
+                  if (errors.description || errors.general)
+                    setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
                 }}
                 maxLength={1024}
               />
@@ -185,7 +187,8 @@ export function SkillModal({
                 value={content}
                 onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
                   setContent(e.target.value)
-                  if (errors.content) setErrors((prev) => ({ ...prev, content: undefined }))
+                  if (errors.content || errors.general)
+                    setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
                 }}
                 className='min-h-[200px] resize-y font-mono text-[13px]'
               />
