@@ -17,6 +17,7 @@ import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
+import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
@@ -69,7 +70,8 @@ export function KnowledgeTagFilters({
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
 
   const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
-  const knowledgeBaseIdValue = previewContextValues?.knowledgeBaseId ?? knowledgeBaseIdFromStore
+  const knowledgeBaseIdValue =
+    resolvePreviewContextValue(previewContextValues?.knowledgeBaseId) ?? knowledgeBaseIdFromStore
   const knowledgeBaseId =
     typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
       ? knowledgeBaseIdValue

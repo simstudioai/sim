@@ -820,6 +820,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -831,6 +832,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -853,6 +855,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -864,6 +867,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -875,6 +879,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -899,6 +904,7 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -934,6 +940,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -967,6 +974,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -978,6 +986,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 

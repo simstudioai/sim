@@ -31,7 +31,6 @@ interface BlockExecutionData {
   /** Child trace spans for nested workflow blocks */
   children?: TraceSpan[]
   childWorkflowSnapshotId?: string
-  childWorkflowName?: string
 }
 
 /** Represents a level in the workflow navigation stack */
@@ -88,7 +87,6 @@ export function buildBlockExecutions(spans: TraceSpan[]): Record<string, BlockEx
 
   for (const span of allBlockSpans) {
     if (span.blockId && !blockExecutionMap[span.blockId]) {
-      const output = span.output as Record<string, unknown> | undefined
       blockExecutionMap[span.blockId] = {
         input: redactApiKeys(span.input || {}),
         output: redactApiKeys(span.output || {}),
@@ -96,8 +94,6 @@ export function buildBlockExecutions(spans: TraceSpan[]): Record<string, BlockEx
         durationMs: span.duration || 0,
         children: span.children,
         childWorkflowSnapshotId: span.childWorkflowSnapshotId,
-        childWorkflowName:
-          typeof output?.childWorkflowName === 'string' ? output.childWorkflowName : undefined,
       }
     }
   }
@@ -196,7 +192,7 @@ export function Preview({
       const childTraceSpans = extractChildTraceSpans(blockExecution)
       const childBlockExecutions = buildBlockExecutions(childTraceSpans)
 
-      const workflowName = blockExecution?.childWorkflowName || 'Nested Workflow'
+      const workflowName = childWorkflowState.metadata?.name || 'Nested Workflow'
 
       setWorkflowStack((prev) => [
         ...prev,

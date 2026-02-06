@@ -784,8 +784,12 @@ function PreviewEditorContent({
     ? childWorkflowSnapshotState
     : childWorkflowState
   const resolvedIsLoadingChildWorkflow = isExecutionMode ? false : isLoadingChildWorkflow
+  const isBlockNotExecuted = isExecutionMode && !executionData
   const isMissingChildWorkflow =
-    Boolean(childWorkflowId) && !resolvedIsLoadingChildWorkflow && !resolvedChildWorkflowState
+    Boolean(childWorkflowId) &&
+    !isBlockNotExecuted &&
+    !resolvedIsLoadingChildWorkflow &&
+    !resolvedChildWorkflowState
 
   /** Drills down into the child workflow or opens it in a new tab */
   const handleExpandChildWorkflow = useCallback(() => {
@@ -1419,9 +1423,11 @@ function PreviewEditorContent({
                     ) : (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <span className='text-[13px] text-[var(--text-tertiary)]'>
-                          {isMissingChildWorkflow
-                            ? DELETED_WORKFLOW_LABEL
-                            : 'Unable to load preview'}
+                          {isBlockNotExecuted
+                            ? 'Not Executed'
+                            : isMissingChildWorkflow
+                              ? DELETED_WORKFLOW_LABEL
+                              : 'Unable to load preview'}
                         </span>
                       </div>
                     )}

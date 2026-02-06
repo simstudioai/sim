@@ -9,6 +9,7 @@ import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isDependency } from '@/blocks/utils'
@@ -62,40 +63,42 @@ export function FileSelectorInput({
 
   const [domainValueFromStore] = useSubBlockValue(blockId, 'domain')
 
-  const connectedCredential = previewContextValues?.credential ?? blockValues.credential
-  const domainValue = previewContextValues?.domain ?? domainValueFromStore
+  const connectedCredential =
+    resolvePreviewContextValue(previewContextValues?.credential) ?? blockValues.credential
+  const domainValue =
+    resolvePreviewContextValue(previewContextValues?.domain) ?? domainValueFromStore
 
   const teamIdValue = useMemo(
     () =>
-      previewContextValues?.teamId ??
+      resolvePreviewContextValue(previewContextValues?.teamId) ??
       resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
     [previewContextValues?.teamId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const siteIdValue = useMemo(
     () =>
-      previewContextValues?.siteId ??
+      resolvePreviewContextValue(previewContextValues?.siteId) ??
       resolveDependencyValue('siteId', blockValues, canonicalIndex, canonicalModeOverrides),
     [previewContextValues?.siteId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const collectionIdValue = useMemo(
     () =>
-      previewContextValues?.collectionId ??
+      resolvePreviewContextValue(previewContextValues?.collectionId) ??
       resolveDependencyValue('collectionId', blockValues, canonicalIndex, canonicalModeOverrides),
     [previewContextValues?.collectionId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const projectIdValue = useMemo(
     () =>
-      previewContextValues?.projectId ??
+      resolvePreviewContextValue(previewContextValues?.projectId) ??
       resolveDependencyValue('projectId', blockValues, canonicalIndex, canonicalModeOverrides),
     [previewContextValues?.projectId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const planIdValue = useMemo(
     () =>
-      previewContextValues?.planId ??
+      resolvePreviewContextValue(previewContextValues?.planId) ??
       resolveDependencyValue('planId', blockValues, canonicalIndex, canonicalModeOverrides),
     [previewContextValues?.planId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
