@@ -2,6 +2,7 @@ import type {
   LinearCreateWorkflowStateParams,
   LinearCreateWorkflowStateResponse,
 } from '@/tools/linear/types'
+import { WORKFLOW_STATE_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateWorkflowStateTool: ToolConfig<
@@ -94,9 +95,13 @@ export const linearCreateWorkflowStateTool: ToolConfig<
               workflowState {
                 id
                 name
+                description
                 type
                 color
                 position
+                createdAt
+                updatedAt
+                archivedAt
                 team {
                   id
                   name
@@ -144,14 +149,7 @@ export const linearCreateWorkflowStateTool: ToolConfig<
     state: {
       type: 'object',
       description: 'The created workflow state',
-      properties: {
-        id: { type: 'string', description: 'State ID' },
-        name: { type: 'string', description: 'State name' },
-        type: { type: 'string', description: 'State type' },
-        color: { type: 'string', description: 'State color' },
-        position: { type: 'number', description: 'State position' },
-        team: { type: 'object', description: 'Team this state belongs to' },
-      },
+      properties: WORKFLOW_STATE_OUTPUT_PROPERTIES,
     },
   },
 }

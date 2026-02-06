@@ -21,6 +21,7 @@ import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
+import { getBlock } from '@/blocks'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -74,8 +75,21 @@ async function processTriggerFileOutputs(
         logger.error(`[${context.requestId}] Error processing ${currentPath}:`, error)
         processed[key] = val
       }
+    } else if (
+      outputDef &&
+      typeof outputDef === 'object' &&
+      (outputDef.type === 'object' || outputDef.type === 'json') &&
+      outputDef.properties
+    ) {
+      // Explicit object schema with properties - recurse into properties
+      processed[key] = await processTriggerFileOutputs(
+        val,
+        outputDef.properties,
+        context,
+        currentPath
+      )
     } else if (outputDef && typeof outputDef === 'object' && !outputDef.type) {
-      // Nested object in schema - recurse with the nested schema
+      // Nested object in schema (flat pattern) - recurse with the nested schema
       processed[key] = await processTriggerFileOutputs(val, outputDef, context, currentPath)
     } else {
       // Not a file output - keep as is
@@ -405,10 +419,22 @@ async function executeWebhookJobInternal(
         const rawSelectedTriggerId = triggerBlock?.subBlocks?.selectedTriggerId?.value
         const rawTriggerId = triggerBlock?.subBlocks?.triggerId?.value
 
-        const resolvedTriggerId = [rawSelectedTriggerId, rawTriggerId].find(
+        let resolvedTriggerId = [rawSelectedTriggerId, rawTriggerId].find(
           (candidate): candidate is string =>
             typeof candidate === 'string' && isTriggerValid(candidate)
         )
+
+        if (!resolvedTriggerId) {
+          const blockConfig = getBlock(triggerBlock.type)
+          if (blockConfig?.category === 'triggers' && isTriggerValid(triggerBlock.type)) {
+            resolvedTriggerId = triggerBlock.type
+          } else if (triggerBlock.triggerMode && blockConfig?.triggers?.enabled) {
+            const available = blockConfig.triggers?.available?.[0]
+            if (available && isTriggerValid(available)) {
+              resolvedTriggerId = available
+            }
+          }
+        }
 
         if (resolvedTriggerId) {
           const triggerConfig = getTrigger(resolvedTriggerId)

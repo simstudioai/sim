@@ -112,6 +112,10 @@ export const LABEL_FULL_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Label name' },
   color: { type: 'string', description: 'Label color (hex)' },
   description: { type: 'string', description: 'Label description' },
+  isGroup: { type: 'boolean', description: 'Whether this label is a group' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
   team: TEAM_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
 
@@ -144,6 +148,7 @@ export const CYCLE_FULL_OUTPUT_PROPERTIES = {
   endsAt: { type: 'string', description: 'End date (ISO 8601)' },
   completedAt: { type: 'string', description: 'Completion date (ISO 8601)' },
   progress: { type: 'number', description: 'Progress percentage (0-1)' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
   team: TEAM_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
 
@@ -277,9 +282,16 @@ export const ATTACHMENT_OUTPUT_PROPERTIES = {
 export const WORKFLOW_STATE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'State ID' },
   name: { type: 'string', description: 'State name (e.g., "Todo", "In Progress")' },
-  type: { type: 'string', description: 'State type (unstarted, started, completed, canceled)' },
+  description: { type: 'string', description: 'State description' },
+  type: {
+    type: 'string',
+    description: 'State type (triage, backlog, unstarted, started, completed, canceled)',
+  },
   color: { type: 'string', description: 'State color (hex)' },
   position: { type: 'number', description: 'State position in workflow' },
+  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
   team: TEAM_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
 
@@ -343,8 +355,12 @@ export const CUSTOMER_OUTPUT_PROPERTIES = {
     items: { type: 'string', description: 'External ID' },
   },
   logoUrl: { type: 'string', description: 'Logo URL' },
+  slugId: { type: 'string', description: 'Unique URL slug' },
   approximateNeedCount: { type: 'number', description: 'Number of customer needs' },
+  revenue: { type: 'number', description: 'Annual revenue' },
+  size: { type: 'number', description: 'Organization size' },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
   archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -378,11 +394,12 @@ export const CUSTOMER_NEED_OUTPUT_PROPERTIES = {
 export const CUSTOMER_STATUS_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Customer status ID' },
   name: { type: 'string', description: 'Status name' },
-  displayName: { type: 'string', description: 'Display name' },
   description: { type: 'string', description: 'Status description' },
   color: { type: 'string', description: 'Status color (hex)' },
   position: { type: 'number', description: 'Position in list' },
+  type: { type: 'string', description: 'Status type (active, inactive)' },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
   archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -410,6 +427,7 @@ export const PROJECT_LABEL_OUTPUT_PROPERTIES = {
   color: { type: 'string', description: 'Label color (hex)' },
   isGroup: { type: 'boolean', description: 'Whether this label is a group' },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
   archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -422,6 +440,9 @@ export const PROJECT_MILESTONE_OUTPUT_PROPERTIES = {
   description: { type: 'string', description: 'Milestone description' },
   projectId: { type: 'string', description: 'Project ID' },
   targetDate: { type: 'string', description: 'Target date (YYYY-MM-DD)' },
+  progress: { type: 'number', description: 'Progress percentage (0-1)' },
+  sortOrder: { type: 'number', description: 'Sort order within the project' },
+  status: { type: 'string', description: 'Milestone status (done, next, overdue, unstarted)' },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
   archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
 } as const satisfies Record<string, OutputProperty>
@@ -444,7 +465,12 @@ export const PROJECT_STATUS_OUTPUT_PROPERTIES = {
   color: { type: 'string', description: 'Status color (hex)' },
   indefinite: { type: 'boolean', description: 'Whether this status is indefinite' },
   position: { type: 'number', description: 'Position in list' },
+  type: {
+    type: 'string',
+    description: 'Status type (backlog, planned, started, paused, completed, canceled)',
+  },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
   archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -587,6 +613,10 @@ export interface LinearLabel {
   name: string
   color: string
   description?: string
+  isGroup: boolean
+  createdAt: string
+  updatedAt: string
+  archivedAt?: string
   team?: {
     id: string
     name: string
@@ -596,9 +626,13 @@ export interface LinearLabel {
 export interface LinearWorkflowState {
   id: string
   name: string
+  description?: string
   type: string
   color: string
   position: number
+  createdAt: string
+  updatedAt: string
+  archivedAt?: string
   team: {
     id: string
     name: string
@@ -613,6 +647,7 @@ export interface LinearCycle {
   endsAt: string
   completedAt?: string
   progress: number
+  createdAt: string
   team: {
     id: string
     name: string
@@ -710,6 +745,7 @@ export interface LinearSearchIssuesParams {
   teamId?: string
   includeArchived?: boolean
   first?: number
+  after?: string
   accessToken?: string
 }
 
@@ -1205,7 +1241,7 @@ export interface LinearAttachment {
   subtitle?: string
   url: string
   createdAt: string
-  updatedAt?: string
+  updatedAt: string
 }
 
 export interface LinearCreateAttachmentResponse extends ToolResponse {
@@ -1366,8 +1402,12 @@ export interface LinearCustomer {
   domains: string[]
   externalIds: string[]
   logoUrl?: string
+  slugId: string
   approximateNeedCount: number
+  revenue?: number
+  size?: number
   createdAt: string
+  updatedAt: string
   archivedAt?: string
 }
 
@@ -1542,11 +1582,12 @@ export interface LinearMergeCustomersResponse extends ToolResponse {
 export interface LinearCustomerStatus {
   id: string
   name: string
-  displayName: string
   description?: string
   color: string
   position: number
+  type: string
   createdAt: string
+  updatedAt: string
   archivedAt?: string
 }
 
@@ -1593,12 +1634,18 @@ export interface LinearDeleteCustomerStatusResponse extends ToolResponse {
 }
 
 export interface LinearListCustomerStatusesParams {
+  first?: number
+  after?: string
   accessToken?: string
 }
 
 export interface LinearListCustomerStatusesResponse extends ToolResponse {
   output: {
     customerStatuses?: LinearCustomerStatus[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 
@@ -1658,12 +1705,18 @@ export interface LinearDeleteCustomerTierResponse extends ToolResponse {
 }
 
 export interface LinearListCustomerTiersParams {
+  first?: number
+  after?: string
   accessToken?: string
 }
 
 export interface LinearListCustomerTiersResponse extends ToolResponse {
   output: {
     customerTiers?: LinearCustomerTier[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 
@@ -1676,6 +1729,7 @@ export interface LinearProjectLabel {
   color?: string
   isGroup: boolean
   createdAt: string
+  updatedAt: string
   archivedAt?: string
 }
 
@@ -1720,13 +1774,19 @@ export interface LinearDeleteProjectLabelResponse extends ToolResponse {
 }
 
 export interface LinearListProjectLabelsParams {
-  accessToken?: string
   projectId?: string
+  first?: number
+  after?: string
+  accessToken?: string
 }
 
 export interface LinearListProjectLabelsResponse extends ToolResponse {
   output: {
     projectLabels?: LinearProjectLabel[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 
@@ -1764,6 +1824,9 @@ export interface LinearProjectMilestone {
   description?: string
   projectId: string
   targetDate?: string
+  progress: number
+  sortOrder: number
+  status: string
   createdAt: string
   archivedAt?: string
 }
@@ -1809,12 +1872,18 @@ export interface LinearDeleteProjectMilestoneResponse extends ToolResponse {
 
 export interface LinearListProjectMilestonesParams {
   projectId: string
+  first?: number
+  after?: string
   accessToken?: string
 }
 
 export interface LinearListProjectMilestonesResponse extends ToolResponse {
   output: {
     projectMilestones?: LinearProjectMilestone[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 
@@ -1827,7 +1896,9 @@ export interface LinearProjectStatus {
   color: string
   indefinite: boolean
   position: number
+  type: string
   createdAt: string
+  updatedAt: string
   archivedAt?: string
 }
 
@@ -1875,12 +1946,18 @@ export interface LinearDeleteProjectStatusResponse extends ToolResponse {
 }
 
 export interface LinearListProjectStatusesParams {
+  first?: number
+  after?: string
   accessToken?: string
 }
 
 export interface LinearListProjectStatusesResponse extends ToolResponse {
   output: {
     projectStatuses?: LinearProjectStatus[]
+    pageInfo?: {
+      hasNextPage: boolean
+      endCursor?: string
+    }
   }
 }
 

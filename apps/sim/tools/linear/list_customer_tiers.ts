@@ -2,7 +2,7 @@ import type {
   LinearListCustomerTiersParams,
   LinearListCustomerTiersResponse,
 } from '@/tools/linear/types'
-import { CUSTOMER_TIER_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { CUSTOMER_TIER_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListCustomerTiersTool: ToolConfig<
@@ -19,7 +19,20 @@ export const linearListCustomerTiersTool: ToolConfig<
     provider: 'linear',
   },
 
-  params: {},
+  params: {
+    first: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of tiers to return (default: 50)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor for pagination',
+    },
+  },
 
   request: {
     url: 'https://api.linear.app/graphql',
@@ -33,10 +46,10 @@ export const linearListCustomerTiersTool: ToolConfig<
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-    body: () => ({
+    body: (params) => ({
       query: `
-        query CustomerTiers {
-          customerTiers {
+        query CustomerTiers($first: Int, $after: String) {
+          customerTiers(first: $first, after: $after) {
             nodes {
               id
               name
@@ -47,9 +60,17 @@ export const linearListCustomerTiersTool: ToolConfig<
               createdAt
               archivedAt
             }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
           }
         }
       `,
+      variables: {
+        first: params.first ? Number(params.first) : 50,
+        after: params.after,
+      },
     }),
   },
 
@@ -64,10 +85,15 @@ export const linearListCustomerTiersTool: ToolConfig<
       }
     }
 
+    const result = data.data.customerTiers
     return {
       success: true,
       output: {
-        customerTiers: data.data.customerTiers.nodes,
+        customerTiers: result.nodes,
+        pageInfo: {
+          hasNextPage: result.pageInfo.hasNextPage,
+          endCursor: result.pageInfo.endCursor,
+        },
       },
     }
   },
@@ -81,5 +107,6 @@ export const linearListCustomerTiersTool: ToolConfig<
         properties: CUSTOMER_TIER_OUTPUT_PROPERTIES,
       },
     },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

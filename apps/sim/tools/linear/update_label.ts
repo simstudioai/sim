@@ -71,6 +71,10 @@ export const linearUpdateLabelTool: ToolConfig<LinearUpdateLabelParams, LinearUp
                 name
                 color
                 description
+                isGroup
+                createdAt
+                updatedAt
+                archivedAt
                 team {
                   id
                   name

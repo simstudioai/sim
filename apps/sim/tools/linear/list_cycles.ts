@@ -64,6 +64,7 @@ export const linearListCyclesTool: ToolConfig<LinearListCyclesParams, LinearList
                 endsAt
                 completedAt
                 progress
+                createdAt
                 team {
                   id
                   name

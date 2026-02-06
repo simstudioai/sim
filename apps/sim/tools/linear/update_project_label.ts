@@ -2,6 +2,7 @@ import type {
   LinearUpdateProjectLabelParams,
   LinearUpdateProjectLabelResponse,
 } from '@/tools/linear/types'
+import { PROJECT_LABEL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearUpdateProjectLabelTool: ToolConfig<
@@ -82,6 +83,7 @@ export const linearUpdateProjectLabelTool: ToolConfig<
                 color
                 isGroup
                 createdAt
+                updatedAt
                 archivedAt
               }
             }
@@ -119,6 +121,7 @@ export const linearUpdateProjectLabelTool: ToolConfig<
     projectLabel: {
       type: 'object',
       description: 'The updated project label',
+      properties: PROJECT_LABEL_OUTPUT_PROPERTIES,
     },
   },
 }

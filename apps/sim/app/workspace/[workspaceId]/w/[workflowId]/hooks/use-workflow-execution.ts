@@ -491,6 +491,13 @@ export function useWorkflowExecution() {
         updateActiveBlocks(data.blockId, false)
         setBlockRunStatus(data.blockId, 'error')
 
+        executedBlockIds.add(data.blockId)
+        accumulatedBlockStates.set(data.blockId, {
+          output: { error: data.error },
+          executed: true,
+          executionTime: data.durationMs || 0,
+        })
+
         accumulatedBlockLogs.push(
           createBlockLogEntry(data, { success: false, output: {}, error: data.error })
         )
