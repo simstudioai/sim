@@ -2,6 +2,7 @@ import type {
   LinearListProjectLabelsParams,
   LinearListProjectLabelsResponse,
 } from '@/tools/linear/types'
+import { PAGE_INFO_OUTPUT, PROJECT_LABEL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListProjectLabelsTool: ToolConfig<
@@ -25,6 +26,18 @@ export const linearListProjectLabelsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Optional project ID to filter labels for a specific project',
     },
+    first: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of labels to return (default: 50)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor for pagination',
+    },
   },
 
   request: {
@@ -40,15 +53,14 @@ export const linearListProjectLabelsTool: ToolConfig<
       }
     },
     body: (params) => {
-      // If projectId is provided, query the specific project's labels
       if (params.projectId?.trim()) {
         return {
           query: `
-            query ProjectWithLabels($id: String!) {
+            query ProjectWithLabels($id: String!, $first: Int, $after: String) {
               project(id: $id) {
                 id
                 name
-                labels {
+                labels(first: $first, after: $after) {
                   nodes {
                     id
                     name
@@ -56,7 +68,12 @@ export const linearListProjectLabelsTool: ToolConfig<
                     color
                     isGroup
                     createdAt
+                    updatedAt
                     archivedAt
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
                   }
                 }
               }
@@ -64,15 +81,16 @@ export const linearListProjectLabelsTool: ToolConfig<
           `,
           variables: {
             id: params.projectId.trim(),
+            first: params.first ? Number(params.first) : 50,
+            after: params.after,
           },
         }
       }
 
-      // Otherwise, list all project labels
       return {
         query: `
-          query ProjectLabels {
-            projectLabels {
+          query ProjectLabels($first: Int, $after: String) {
+            projectLabels(first: $first, after: $after) {
               nodes {
                 id
                 name
@@ -80,11 +98,20 @@ export const linearListProjectLabelsTool: ToolConfig<
                 color
                 isGroup
                 createdAt
+                updatedAt
                 archivedAt
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
               }
             }
           }
         `,
+        variables: {
+          first: params.first ? Number(params.first) : 50,
+          after: params.after,
+        },
       }
     },
   },
@@ -100,21 +127,29 @@ export const linearListProjectLabelsTool: ToolConfig<
       }
     }
 
-    // Handle project-specific query response
     if (data.data.project) {
+      const result = data.data.project.labels
       return {
         success: true,
         output: {
-          projectLabels: data.data.project.labels.nodes,
+          projectLabels: result.nodes,
+          pageInfo: {
+            hasNextPage: result.pageInfo.hasNextPage,
+            endCursor: result.pageInfo.endCursor,
+          },
         },
       }
     }
 
-    // Handle global projectLabels query response
+    const result = data.data.projectLabels
     return {
       success: true,
       output: {
-        projectLabels: data.data.projectLabels.nodes,
+        projectLabels: result.nodes,
+        pageInfo: {
+          hasNextPage: result.pageInfo.hasNextPage,
+          endCursor: result.pageInfo.endCursor,
+        },
       },
     }
   },
@@ -123,6 +158,11 @@ export const linearListProjectLabelsTool: ToolConfig<
     projectLabels: {
       type: 'array',
       description: 'List of project labels',
+      items: {
+        type: 'object',
+        properties: PROJECT_LABEL_OUTPUT_PROPERTIES,
+      },
     },
+    pageInfo: PAGE_INFO_OUTPUT,
   },
 }

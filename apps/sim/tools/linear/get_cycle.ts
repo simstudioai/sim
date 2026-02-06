@@ -45,6 +45,7 @@ export const linearGetCycleTool: ToolConfig<LinearGetCycleParams, LinearGetCycle
             endsAt
             completedAt
             progress
+            createdAt
             team {
               id
               name

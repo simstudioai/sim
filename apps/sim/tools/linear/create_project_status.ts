@@ -2,6 +2,7 @@ import type {
   LinearCreateProjectStatusParams,
   LinearCreateProjectStatusResponse,
 } from '@/tools/linear/types'
+import { PROJECT_STATUS_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateProjectStatusTool: ToolConfig<
@@ -97,7 +98,9 @@ export const linearCreateProjectStatusTool: ToolConfig<
                 color
                 indefinite
                 position
+                type
                 createdAt
+                updatedAt
                 archivedAt
               }
             }
@@ -142,6 +145,7 @@ export const linearCreateProjectStatusTool: ToolConfig<
     projectStatus: {
       type: 'object',
       description: 'The created project status',
+      properties: PROJECT_STATUS_OUTPUT_PROPERTIES,
     },
   },
 }

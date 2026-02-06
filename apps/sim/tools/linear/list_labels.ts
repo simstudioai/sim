@@ -61,6 +61,10 @@ export const linearListLabelsTool: ToolConfig<LinearListLabelsParams, LinearList
                 name
                 color
                 description
+                isGroup
+                createdAt
+                updatedAt
+                archivedAt
                 team {
                   id
                   name
