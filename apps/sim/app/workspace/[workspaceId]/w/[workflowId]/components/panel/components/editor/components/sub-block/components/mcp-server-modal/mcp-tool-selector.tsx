@@ -35,7 +35,9 @@ export function McpToolSelector({
   const [, setSchemaCache] = useSubBlockValue(blockId, '_toolSchema')
 
   const [serverFromStore] = useSubBlockValue(blockId, 'server')
-  const serverValue = resolvePreviewContextValue(previewContextValues?.server) ?? serverFromStore
+  const serverValue = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.server)
+    : serverFromStore
 
   const label = subBlock.placeholder || 'Select tool'
 

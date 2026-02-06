@@ -31,8 +31,9 @@ export function FolderSelectorInput({
 }: FolderSelectorInputProps) {
   const [storeValue] = useSubBlockValue(blockId, subBlock.id)
   const [credentialFromStore] = useSubBlockValue(blockId, 'credential')
-  const connectedCredential =
-    resolvePreviewContextValue(previewContextValues?.credential) ?? credentialFromStore
+  const connectedCredential = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.credential)
+    : credentialFromStore
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')

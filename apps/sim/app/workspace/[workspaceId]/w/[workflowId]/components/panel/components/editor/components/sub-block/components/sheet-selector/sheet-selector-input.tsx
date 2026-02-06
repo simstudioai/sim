@@ -67,8 +67,9 @@ export function SheetSelectorInput({
     [blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
-  const connectedCredential =
-    resolvePreviewContextValue(previewContextValues?.credential) ?? connectedCredentialFromStore
+  const connectedCredential = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.credential)
+    : connectedCredentialFromStore
   const spreadsheetId = previewContextValues
     ? (resolvePreviewContextValue(previewContextValues.spreadsheetId) ??
       resolvePreviewContextValue(previewContextValues.manualSpreadsheetId))

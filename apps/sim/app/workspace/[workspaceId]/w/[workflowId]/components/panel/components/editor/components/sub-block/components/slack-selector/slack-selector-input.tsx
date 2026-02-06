@@ -59,11 +59,15 @@ export function SlackSelectorInput({
   const [botToken] = useSubBlockValue(blockId, 'botToken')
   const [connectedCredential] = useSubBlockValue(blockId, 'credential')
 
-  const effectiveAuthMethod =
-    resolvePreviewContextValue(previewContextValues?.authMethod) ?? authMethod
-  const effectiveBotToken = resolvePreviewContextValue(previewContextValues?.botToken) ?? botToken
-  const effectiveCredential =
-    resolvePreviewContextValue(previewContextValues?.credential) ?? connectedCredential
+  const effectiveAuthMethod = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.authMethod)
+    : authMethod
+  const effectiveBotToken = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.botToken)
+    : botToken
+  const effectiveCredential = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.credential)
+    : connectedCredential
   const [_selectedValue, setSelectedValue] = useState<string | null>(null)
 
   const serviceId = subBlock.serviceId || ''

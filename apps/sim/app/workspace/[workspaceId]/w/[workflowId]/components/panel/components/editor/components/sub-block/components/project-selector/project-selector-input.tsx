@@ -56,15 +56,19 @@ export function ProjectSelectorInput({
     return (workflowValues as Record<string, Record<string, unknown>>)[blockId] || {}
   })
 
-  const connectedCredential =
-    resolvePreviewContextValue(previewContextValues?.credential) ?? blockValues.credential
-  const jiraDomain = resolvePreviewContextValue(previewContextValues?.domain) ?? jiraDomainFromStore
+  const connectedCredential = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.credential)
+    : blockValues.credential
+  const jiraDomain = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.domain)
+    : jiraDomainFromStore
 
   const linearTeamId = useMemo(
     () =>
-      resolvePreviewContextValue(previewContextValues?.teamId) ??
-      resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
-    [previewContextValues?.teamId, blockValues, canonicalIndex, canonicalModeOverrides]
+      previewContextValues
+        ? resolvePreviewContextValue(previewContextValues.teamId)
+        : resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
+    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const serviceId = subBlock.serviceId || ''

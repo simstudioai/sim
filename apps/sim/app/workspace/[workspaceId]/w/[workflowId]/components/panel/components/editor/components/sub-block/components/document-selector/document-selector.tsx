@@ -34,8 +34,9 @@ export function DocumentSelector({
     previewContextValues,
   })
   const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
-  const knowledgeBaseIdValue =
-    resolvePreviewContextValue(previewContextValues?.knowledgeBaseId) ?? knowledgeBaseIdFromStore
+  const knowledgeBaseIdValue = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.knowledgeBaseId)
+    : knowledgeBaseIdFromStore
   const normalizedKnowledgeBaseId =
     typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
       ? knowledgeBaseIdValue

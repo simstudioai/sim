@@ -70,8 +70,9 @@ export function KnowledgeTagFilters({
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
 
   const [knowledgeBaseIdFromStore] = useSubBlockValue(blockId, 'knowledgeBaseId')
-  const knowledgeBaseIdValue =
-    resolvePreviewContextValue(previewContextValues?.knowledgeBaseId) ?? knowledgeBaseIdFromStore
+  const knowledgeBaseIdValue = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.knowledgeBaseId)
+    : knowledgeBaseIdFromStore
   const knowledgeBaseId =
     typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
       ? knowledgeBaseIdValue

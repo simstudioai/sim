@@ -55,10 +55,13 @@ export function McpDynamicArgs({
   const workspaceId = params.workspaceId as string
   const { mcpTools, isLoading } = useMcpTools(workspaceId)
   const [toolFromStore] = useSubBlockValue(blockId, 'tool')
-  const selectedTool = resolvePreviewContextValue(previewContextValues?.tool) ?? toolFromStore
+  const selectedTool = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.tool)
+    : toolFromStore
   const [schemaFromStore] = useSubBlockValue(blockId, '_toolSchema')
-  const cachedSchema =
-    resolvePreviewContextValue(previewContextValues?._toolSchema) ?? schemaFromStore
+  const cachedSchema = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues._toolSchema)
+    : schemaFromStore
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
 
   const selectedToolConfig = mcpTools.find((tool) => tool.id === selectedTool)

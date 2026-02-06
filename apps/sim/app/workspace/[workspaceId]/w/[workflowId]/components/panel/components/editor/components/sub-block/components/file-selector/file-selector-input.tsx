@@ -63,43 +63,55 @@ export function FileSelectorInput({
 
   const [domainValueFromStore] = useSubBlockValue(blockId, 'domain')
 
-  const connectedCredential =
-    resolvePreviewContextValue(previewContextValues?.credential) ?? blockValues.credential
-  const domainValue =
-    resolvePreviewContextValue(previewContextValues?.domain) ?? domainValueFromStore
+  const connectedCredential = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.credential)
+    : blockValues.credential
+  const domainValue = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.domain)
+    : domainValueFromStore
 
   const teamIdValue = useMemo(
     () =>
-      resolvePreviewContextValue(previewContextValues?.teamId) ??
-      resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
+      previewContextValues
+        ? resolvePreviewContextValue(previewContextValues.teamId)
+        : resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
     [previewContextValues?.teamId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const siteIdValue = useMemo(
     () =>
-      resolvePreviewContextValue(previewContextValues?.siteId) ??
-      resolveDependencyValue('siteId', blockValues, canonicalIndex, canonicalModeOverrides),
+      previewContextValues
+        ? resolvePreviewContextValue(previewContextValues.siteId)
+        : resolveDependencyValue('siteId', blockValues, canonicalIndex, canonicalModeOverrides),
     [previewContextValues?.siteId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const collectionIdValue = useMemo(
     () =>
-      resolvePreviewContextValue(previewContextValues?.collectionId) ??
-      resolveDependencyValue('collectionId', blockValues, canonicalIndex, canonicalModeOverrides),
+      previewContextValues
+        ? resolvePreviewContextValue(previewContextValues.collectionId)
+        : resolveDependencyValue(
+            'collectionId',
+            blockValues,
+            canonicalIndex,
+            canonicalModeOverrides
+          ),
     [previewContextValues?.collectionId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const projectIdValue = useMemo(
     () =>
-      resolvePreviewContextValue(previewContextValues?.projectId) ??
-      resolveDependencyValue('projectId', blockValues, canonicalIndex, canonicalModeOverrides),
+      previewContextValues
+        ? resolvePreviewContextValue(previewContextValues.projectId)
+        : resolveDependencyValue('projectId', blockValues, canonicalIndex, canonicalModeOverrides),
     [previewContextValues?.projectId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const planIdValue = useMemo(
     () =>
-      resolvePreviewContextValue(previewContextValues?.planId) ??
-      resolveDependencyValue('planId', blockValues, canonicalIndex, canonicalModeOverrides),
+      previewContextValues
+        ? resolvePreviewContextValue(previewContextValues.planId)
+        : resolveDependencyValue('planId', blockValues, canonicalIndex, canonicalModeOverrides),
     [previewContextValues?.planId, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
