@@ -544,9 +544,9 @@ const SLACK_MAX_FILES = 10
 async function downloadSlackFiles(
   rawFiles: any[],
   botToken: string
-): Promise<Array<{ name: string; data: Buffer; mimeType: string; size: number }>> {
+): Promise<Array<{ name: string; data: string; mimeType: string; size: number }>> {
   const filesToProcess = rawFiles.slice(0, SLACK_MAX_FILES)
-  const downloaded: Array<{ name: string; data: Buffer; mimeType: string; size: number }> = []
+  const downloaded: Array<{ name: string; data: string; mimeType: string; size: number }> = []
 
   for (const file of filesToProcess) {
     const urlPrivate = file.url_private as string | undefined
@@ -619,7 +619,7 @@ async function downloadSlackFiles(
 
       downloaded.push({
         name: file.name || 'download',
-        data: buffer,
+        data: buffer.toString('base64'),
         mimeType: file.mimetype || 'application/octet-stream',
         size: buffer.length,
       })

@@ -24,6 +24,7 @@ import { getWorkflowById } from '@/lib/workflows/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import { getBlock } from '@/blocks'
 import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -418,10 +419,22 @@ async function executeWebhookJobInternal(
         const rawSelectedTriggerId = triggerBlock?.subBlocks?.selectedTriggerId?.value
         const rawTriggerId = triggerBlock?.subBlocks?.triggerId?.value
 
-        const resolvedTriggerId = [rawSelectedTriggerId, rawTriggerId].find(
+        let resolvedTriggerId = [rawSelectedTriggerId, rawTriggerId].find(
           (candidate): candidate is string =>
             typeof candidate === 'string' && isTriggerValid(candidate)
         )
+
+        if (!resolvedTriggerId) {
+          const blockConfig = getBlock(triggerBlock.type)
+          if (blockConfig?.category === 'triggers' && isTriggerValid(triggerBlock.type)) {
+            resolvedTriggerId = triggerBlock.type
+          } else if (triggerBlock.triggerMode && blockConfig?.triggers?.enabled) {
+            const available = blockConfig.triggers?.available?.[0]
+            if (available && isTriggerValid(available)) {
+              resolvedTriggerId = available
+            }
+          }
+        }
 
         if (resolvedTriggerId) {
           const triggerConfig = getTrigger(resolvedTriggerId)
