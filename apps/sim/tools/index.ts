@@ -933,8 +933,8 @@ async function executeMcpTool(
       )
     }
 
-    const workspaceId = params._context?.workspaceId
-    const workflowId = params._context?.workflowId
+    const workspaceId = params._context?.workspaceId || executionContext?.workspaceId
+    const workflowId = params._context?.workflowId || executionContext?.workflowId
 
     if (!workspaceId) {
       return {
