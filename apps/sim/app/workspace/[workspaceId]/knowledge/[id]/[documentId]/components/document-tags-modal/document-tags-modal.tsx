@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
+  Badge,
   Button,
   Combobox,
   DatePicker,
@@ -384,7 +385,7 @@ export function DocumentTagsModal({
 
   return (
     <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent size='sm'>
+      <ModalContent size='md'>
         <ModalHeader>
           <div className='flex items-center justify-between'>
             <span>Document Tags</span>
@@ -405,9 +406,9 @@ export function DocumentTagsModal({
                     <span className='min-w-0 truncate text-[12px] text-[var(--text-primary)]'>
                       {tag.displayName}
                     </span>
-                    <span className='rounded-[3px] bg-[var(--surface-3)] px-[6px] py-[2px] text-[10px] text-[var(--text-muted)]'>
+                    <Badge variant='type' size='sm'>
                       {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
-                    </span>
+                    </Badge>
                     <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[#3A3A3A]' />
                     <span className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-muted)]'>
                       {formatValueForDisplay(tag.value, tag.fieldType)}
@@ -419,9 +420,9 @@ export function DocumentTagsModal({
                           e.stopPropagation()
                           handleRemoveTag(index)
                         }}
-                        className='h-4 w-4 p-0 text-[var(--text-muted)] hover:text-[var(--text-error)]'
+                        className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
                       >
-                        <Trash className='h-3 w-3' />
+                        <Trash className='h-[14px] w-[14px]' />
                       </Button>
                     </div>
                   </div>
@@ -526,7 +527,8 @@ export function DocumentTagsModal({
                           <DatePicker
                             value={editTagForm.value || undefined}
                             onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                            placeholder='Select date'
+                            placeholder='YYYY-MM-DD or YYYY-MM-DD HH:mm'
+                            showTime
                           />
                         ) : (
                           <Input
@@ -679,7 +681,8 @@ export function DocumentTagsModal({
                       <DatePicker
                         value={editTagForm.value || undefined}
                         onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                        placeholder='Select date'
+                        placeholder='YYYY-MM-DD or YYYY-MM-DD HH:mm'
+                        showTime
                       />
                     ) : (
                       <Input
