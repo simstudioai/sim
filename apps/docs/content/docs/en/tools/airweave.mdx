@@ -1,0 +1,52 @@
+---
+title: Airweave
+description: Search your synced data collections
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airweave"
+  color="#6366F1"
+/>
+
+## Usage Instructions
+
+Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.
+
+
+
+## Tools
+
+### `airweave_search`
+
+Search your synced data collections using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Airweave API Key for authentication |
+| `collectionId` | string | Yes | The readable ID of the collection to search |
+| `query` | string | Yes | The search query text |
+| `limit` | number | No | Maximum number of results to return \(default: 100\) |
+| `retrievalStrategy` | string | No | Retrieval strategy: hybrid \(default\), neural, or keyword |
+| `expandQuery` | boolean | No | Generate query variations to improve recall |
+| `rerank` | boolean | No | Reorder results for improved relevance using LLM |
+| `generateAnswer` | boolean | No | Generate a natural-language answer to the query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Search results with content, scores, and metadata from your synced data |
+|   ↳ `entity_id` | string | Unique identifier for the search result entity |
+|   ↳ `source_name` | string | Name of the data source \(e.g., "GitHub", "Slack"\) |
+|   ↳ `md_content` | string | Markdown-formatted content of the result |
+|   ↳ `score` | number | Relevance score from the search |
+|   ↳ `metadata` | object | Additional metadata associated with the result |
+|   ↳ `breadcrumbs` | array | Navigation path to the result within its source |
+|   ↳ `url` | string | URL to the original content |
+| `completion` | string | AI-generated answer to the query \(when generateAnswer is enabled\) |
+
+
