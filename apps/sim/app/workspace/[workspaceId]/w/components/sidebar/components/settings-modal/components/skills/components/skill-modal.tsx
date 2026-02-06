@@ -27,6 +27,13 @@ interface SkillModalProps {
 
 const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
+interface FieldErrors {
+  name?: string
+  description?: string
+  content?: string
+  general?: string
+}
+
 export function SkillModal({
   open,
   onOpenChange,
@@ -43,7 +50,7 @@ export function SkillModal({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
-  const [formError, setFormError] = useState('')
+  const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -57,7 +64,7 @@ export function SkillModal({
         setDescription('')
         setContent('')
       }
-      setFormError('')
+      setErrors({})
     }
   }, [open, initialValues])
 
@@ -71,24 +78,26 @@ export function SkillModal({
   }, [name, description, content, initialValues])
 
   const handleSave = async () => {
+    const newErrors: FieldErrors = {}
+
     if (!name.trim()) {
-      setFormError('Name is required')
-      return
+      newErrors.name = 'Name is required'
+    } else if (name.length > 64) {
+      newErrors.name = 'Name must be 64 characters or less'
+    } else if (!KEBAB_CASE_REGEX.test(name)) {
+      newErrors.name = 'Name must be kebab-case (e.g. my-skill)'
     }
-    if (name.length > 64) {
-      setFormError('Name must be 64 characters or less')
-      return
-    }
-    if (!KEBAB_CASE_REGEX.test(name)) {
-      setFormError('Name must be kebab-case (e.g. my-skill)')
-      return
-    }
+
     if (!description.trim()) {
-      setFormError('Description is required')
-      return
+      newErrors.description = 'Description is required'
     }
+
     if (!content.trim()) {
-      setFormError('Content is required')
+      newErrors.content = 'Content is required'
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
       return
     }
 
@@ -113,7 +122,7 @@ export function SkillModal({
         error instanceof Error && error.message.includes('already exists')
           ? error.message
           : 'Failed to save skill. Please try again.'
-      setFormError(message)
+      setErrors({ general: message })
     } finally {
       setSaving(false)
     }
@@ -135,12 +144,16 @@ export function SkillModal({
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value)
-                  if (formError) setFormError('')
+                  if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }))
                 }}
               />
-              <span className='text-[11px] text-[var(--text-muted)]'>
-                Lowercase letters, numbers, and hyphens (e.g. my-skill)
-              </span>
+              {errors.name ? (
+                <p className='text-[12px] text-[var(--text-error)]'>{errors.name}</p>
+              ) : (
+                <span className='text-[11px] text-[var(--text-muted)]'>
+                  Lowercase letters, numbers, and hyphens (e.g. my-skill)
+                </span>
+              )}
             </div>
 
             <div className='flex flex-col gap-[4px]'>
@@ -153,10 +166,13 @@ export function SkillModal({
                 value={description}
                 onChange={(e) => {
                   setDescription(e.target.value)
-                  if (formError) setFormError('')
+                  if (errors.description) setErrors((prev) => ({ ...prev, description: undefined }))
                 }}
                 maxLength={1024}
               />
+              {errors.description && (
+                <p className='text-[12px] text-[var(--text-error)]'>{errors.description}</p>
+              )}
             </div>
 
             <div className='flex flex-col gap-[4px]'>
@@ -169,13 +185,18 @@ export function SkillModal({
                 value={content}
                 onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
                   setContent(e.target.value)
-                  if (formError) setFormError('')
+                  if (errors.content) setErrors((prev) => ({ ...prev, content: undefined }))
                 }}
                 className='min-h-[200px] resize-y font-mono text-[13px]'
               />
+              {errors.content && (
+                <p className='text-[12px] text-[var(--text-error)]'>{errors.content}</p>
+              )}
             </div>
 
-            {formError && <span className='text-[11px] text-[var(--text-error)]'>{formError}</span>}
+            {errors.general && (
+              <p className='text-[12px] text-[var(--text-error)]'>{errors.general}</p>
+            )}
           </div>
         </ModalBody>
         <ModalFooter className='items-center justify-between'>
