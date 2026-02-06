@@ -105,17 +105,20 @@ export async function POST(request: NextRequest) {
     const apiKeyHeader = request.headers.get('x-api-key')
     if (!apiKeyHeader) {
       return NextResponse.json(
-        createError(0, -32000, 'API key required. Set the x-api-key header with a valid Sim API key.'),
+        createError(
+          0,
+          -32000,
+          'API key required. Set the x-api-key header with a valid Sim API key.'
+        ),
         { status: 401 }
       )
     }
 
     const authResult = await authenticateApiKeyFromHeader(apiKeyHeader)
     if (!authResult.success || !authResult.userId) {
-      return NextResponse.json(
-        createError(0, -32000, authResult.error || 'Invalid API key'),
-        { status: 401 }
-      )
+      return NextResponse.json(createError(0, -32000, authResult.error || 'Invalid API key'), {
+        status: 401,
+      })
     }
 
     // Fire-and-forget last-used update
@@ -143,7 +146,11 @@ export async function POST(request: NextRequest) {
       const usageCheck = await checkServerSideUsageLimits(userId)
       if (usageCheck.isExceeded) {
         return NextResponse.json(
-          createError(id, -32000, `Usage limit exceeded: ${usageCheck.message || 'Upgrade your plan.'}`),
+          createError(
+            id,
+            -32000,
+            `Usage limit exceeded: ${usageCheck.message || 'Upgrade your plan.'}`
+          ),
           { status: 402 }
         )
       }
