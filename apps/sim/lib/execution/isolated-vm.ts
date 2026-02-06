@@ -143,7 +143,7 @@ function truncateString(value: string, maxChars: number): { value: string; trunc
 }
 
 function normalizeFetchOptions(options?: IsolatedFetchOptions): SecureFetchOptions {
-  if (!options) return {}
+  if (!options) return { maxResponseBytes: MAX_FETCH_RESPONSE_BYTES }
 
   const normalized: SecureFetchOptions = {
     maxResponseBytes: MAX_FETCH_RESPONSE_BYTES,
@@ -851,7 +851,8 @@ function dispatchToWorker(
       error: { message: 'Failed to send execution request to worker', name: 'WorkerError' },
     })
     resetWorkerIdleTimeout(workerInfo.id)
-    drainQueue()
+    // Defer to break synchronous recursion: drainQueue → dispatchToWorker → catch → drainQueue
+    queueMicrotask(() => drainQueue())
   }
 }
 
