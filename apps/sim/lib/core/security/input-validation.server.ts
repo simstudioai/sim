@@ -103,6 +103,7 @@ export interface SecureFetchOptions {
   body?: string | Buffer | Uint8Array
   timeout?: number
   maxRedirects?: number
+  maxResponseBytes?: number
 }
 
 export class SecureFetchHeaders {
@@ -165,6 +166,7 @@ export async function secureFetchWithPinnedIP(
   redirectCount = 0
 ): Promise<SecureFetchResponse> {
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
+  const maxResponseBytes = options.maxResponseBytes
 
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
@@ -237,14 +239,32 @@ export async function secureFetchWithPinnedIP(
       }
 
       const chunks: Buffer[] = []
+      let totalBytes = 0
+      let responseTerminated = false
 
-      res.on('data', (chunk: Buffer) => chunks.push(chunk))
+      res.on('data', (chunk: Buffer) => {
+        if (responseTerminated) return
+
+        totalBytes += chunk.length
+        if (
+          typeof maxResponseBytes === 'number' &&
+          maxResponseBytes > 0 &&
+          totalBytes > maxResponseBytes
+        ) {
+          responseTerminated = true
+          res.destroy(new Error(`Response exceeded maximum size of ${maxResponseBytes} bytes`))
+          return
+        }
+
+        chunks.push(chunk)
+      })
 
       res.on('error', (error) => {
         reject(error)
       })
 
       res.on('end', () => {
+        if (responseTerminated) return
         const bodyBuffer = Buffer.concat(chunks)
         const body = bodyBuffer.toString('utf-8')
         const headersRecord: Record<string, string> = {}

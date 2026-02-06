@@ -185,6 +185,17 @@ export const env = createEnv({
     IVM_MAX_CONCURRENT:                    z.string().optional().default('10000'),  // Max concurrent executions globally
     IVM_MAX_PER_WORKER:                    z.string().optional().default('2500'),   // Max concurrent executions per worker
     IVM_WORKER_IDLE_TIMEOUT_MS:            z.string().optional().default('60000'),  // Worker idle cleanup timeout (ms)
+    IVM_MAX_QUEUE_SIZE:                    z.string().optional().default('10000'),  // Max pending queued executions in memory
+    IVM_MAX_FETCH_RESPONSE_BYTES:          z.string().optional().default('8388608'),// Max bytes read from sandbox fetch responses
+    IVM_MAX_FETCH_RESPONSE_CHARS:          z.string().optional().default('4000000'),// Max chars returned to sandbox from fetch body
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS:      z.string().optional().default('262144'), // Max JSON payload size for sandbox fetch options
+    IVM_MAX_FETCH_URL_LENGTH:              z.string().optional().default('8192'),   // Max URL length accepted by sandbox fetch
+    IVM_MAX_STDOUT_CHARS:                  z.string().optional().default('200000'), // Max captured stdout characters per execution
+    IVM_MAX_ACTIVE_PER_OWNER:              z.string().optional().default('200'),    // Max active executions per owner (per process)
+    IVM_MAX_QUEUED_PER_OWNER:              z.string().optional().default('2000'),   // Max queued executions per owner (per process)
+    IVM_MAX_OWNER_WEIGHT:                  z.string().optional().default('5'),      // Max accepted weight for weighted owner scheduling
+    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER:z.string().optional().default('2200'),   // Max owner in-flight leases across replicas
+    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS:      z.string().optional().default('120000'), // Min TTL for distributed in-flight leases (ms)
     IVM_QUEUE_TIMEOUT_MS:                  z.string().optional().default('300000'), // Max queue wait before rejection (ms)
 
     // Knowledge Base Processing Configuration - Shared across all processing methods
