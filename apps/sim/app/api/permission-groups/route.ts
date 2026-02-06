@@ -25,6 +25,7 @@ const configSchema = z.object({
   hideFilesTab: z.boolean().optional(),
   disableMcpTools: z.boolean().optional(),
   disableCustomTools: z.boolean().optional(),
+  disableSkills: z.boolean().optional(),
   hideTemplates: z.boolean().optional(),
   disableInvitations: z.boolean().optional(),
   hideDeployApi: z.boolean().optional(),

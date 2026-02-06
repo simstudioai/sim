@@ -9,6 +9,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
+import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
@@ -217,6 +218,31 @@ export async function executeTool(
 
     // Normalize tool ID to strip resource suffixes (e.g., workflow_executor_<uuid> -> workflow_executor)
     const normalizedToolId = normalizeToolId(toolId)
+
+    // Handle load_skill tool for agent skills progressive disclosure
+    if (normalizedToolId === 'load_skill') {
+      const skillName = params.skill_name
+      const workspaceId = params._context?.workspaceId
+      if (!skillName || !workspaceId) {
+        return {
+          success: false,
+          output: { error: 'Missing skill_name or workspace context' },
+          error: 'Missing skill_name or workspace context',
+        }
+      }
+      const content = await resolveSkillContent(skillName, workspaceId)
+      if (!content) {
+        return {
+          success: false,
+          output: { error: `Skill "${skillName}" not found` },
+          error: `Skill "${skillName}" not found`,
+        }
+      }
+      return {
+        success: true,
+        output: { content },
+      }
+    }
 
     // If it's a custom tool, use the async version with workflowId
     if (isCustomTool(normalizedToolId)) {

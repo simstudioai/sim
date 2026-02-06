@@ -5436,3 +5436,24 @@ export function EnrichSoIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function AgentSkillsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns='http://www.w3.org/2000/svg'
+      width='24'
+      height='24'
+      viewBox='0 0 32 32'
+      fill='none'
+    >
+      <path d='M16 0.5L29.4234 8.25V23.75L16 31.5L2.57661 23.75V8.25L16 0.5Z' fill='currentColor' />
+      <path
+        d='M16 6L24.6603 11V21L16 26L7.33975 21V11L16 6Z'
+        fill='currentColor'
+        stroke='var(--background, white)'
+        strokeWidth='3'
+      />
+    </svg>
+  )
+}

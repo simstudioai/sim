@@ -10,6 +10,7 @@ export interface PermissionGroupConfig {
   hideFilesTab: boolean
   disableMcpTools: boolean
   disableCustomTools: boolean
+  disableSkills: boolean
   hideTemplates: boolean
   disableInvitations: boolean
   // Deploy Modal Tabs
@@ -31,6 +32,7 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   hideFilesTab: false,
   disableMcpTools: false,
   disableCustomTools: false,
+  disableSkills: false,
   hideTemplates: false,
   disableInvitations: false,
   hideDeployApi: false,
@@ -59,6 +61,7 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
     hideFilesTab: typeof c.hideFilesTab === 'boolean' ? c.hideFilesTab : false,
     disableMcpTools: typeof c.disableMcpTools === 'boolean' ? c.disableMcpTools : false,
     disableCustomTools: typeof c.disableCustomTools === 'boolean' ? c.disableCustomTools : false,
+    disableSkills: typeof c.disableSkills === 'boolean' ? c.disableSkills : false,
     hideTemplates: typeof c.hideTemplates === 'boolean' ? c.hideTemplates : false,
     disableInvitations: typeof c.disableInvitations === 'boolean' ? c.disableInvitations : false,
     hideDeployApi: typeof c.hideDeployApi === 'boolean' ? c.hideDeployApi : false,

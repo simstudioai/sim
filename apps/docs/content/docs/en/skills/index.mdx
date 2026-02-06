@@ -1,0 +1,83 @@
+---
+title: Agent Skills
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Agent Skills are reusable packages of instructions that give your AI agents specialized capabilities. Based on the open [Agent Skills](https://agentskills.io) format, skills let you capture domain expertise, workflows, and best practices that agents can load on demand.
+
+## How Skills Work
+
+Skills use **progressive disclosure** to keep agent context lean:
+
+1. **Discovery** — Only skill names and descriptions are included in the agent's system prompt (~50-100 tokens each)
+2. **Activation** — When the agent decides a skill is relevant, it calls the `load_skill` tool to load the full instructions into context
+3. **Execution** — The agent follows the loaded instructions to complete the task
+
+This means you can attach many skills to an agent without bloating its context window. The agent only loads what it needs.
+
+## Creating Skills
+
+Go to **Settings** (gear icon) and select **Skills** under the Tools section.
+
+Click **Add** to create a new skill with three fields:
+
+| Field | Description |
+|-------|-------------|
+| **Name** | A kebab-case identifier (e.g. `sql-expert`, `code-reviewer`). Max 64 characters. |
+| **Description** | A short explanation of what the skill does and when to use it. This is what the agent reads to decide whether to activate the skill. Max 1024 characters. |
+| **Content** | The full skill instructions in markdown. This is loaded when the agent activates the skill. |
+
+<Callout type="info">
+  The description is critical — it's the only thing the agent sees before deciding to load a skill. Be specific about when and why the skill should be used.
+</Callout>
+
+### Writing Good Skill Content
+
+Skill content follows the same conventions as [SKILL.md files](https://agentskills.io/specification):
+
+```markdown
+# SQL Expert
+
+## When to use this skill
+Use when the user asks you to write, optimize, or debug SQL queries.
+
+## Instructions
+1. Always ask which database engine (PostgreSQL, MySQL, SQLite)
+2. Use CTEs over subqueries for readability
+3. Add index recommendations when relevant
+4. Explain query plans for optimization requests
+
+## Common Patterns
+...
+```
+
+## Adding Skills to an Agent
+
+Open any **Agent** block and find the **Skills** dropdown below the tools section. Select the skills you want the agent to have access to.
+
+Selected skills appear as chips that you can click to edit or remove.
+
+### What Happens at Runtime
+
+When the workflow runs:
+
+1. The agent's system prompt includes an `<available_skills>` section listing each skill's name and description
+2. A `load_skill` tool is automatically added to the agent's available tools
+3. When the agent determines a skill is relevant to the current task, it calls `load_skill` with the skill name
+4. The full skill content is returned as a tool response, giving the agent detailed instructions
+
+This works across all supported LLM providers — the `load_skill` tool uses standard tool-calling, so no provider-specific configuration is needed.
+
+## Tips
+
+- **Keep descriptions actionable** — Instead of "Helps with SQL", write "Write optimized SQL queries for PostgreSQL, MySQL, and SQLite, including index recommendations and query plan analysis"
+- **One skill per domain** — A focused `sql-expert` skill works better than a broad `database-everything` skill
+- **Use markdown structure** — Headers, lists, and code blocks help the agent parse and follow instructions
+- **Test iteratively** — Run your workflow and check if the agent activates the skill when expected
+
+## Learn More
+
+- [Agent Skills specification](https://agentskills.io) — The open format for portable agent skills
+- [Example skills](https://github.com/anthropics/skills) — Browse community skill examples
+- [Best practices](https://agentskills.io/what-are-skills) — Writing effective skills

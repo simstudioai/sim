@@ -408,6 +408,12 @@ Return ONLY the JSON array.`,
       defaultValue: [],
     },
     {
+      id: 'skills',
+      title: 'Skills',
+      type: 'skill-input',
+      defaultValue: [],
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -769,6 +775,7 @@ Example 3 (Array Input):
       description: 'Thinking level for models with extended thinking (Anthropic Claude, Gemini 3)',
     },
     tools: { type: 'json', description: 'Available tools configuration' },
+    skills: { type: 'json', description: 'Selected skills configuration' },
   },
   outputs: {
     content: { type: 'string', description: 'Generated response content' },
