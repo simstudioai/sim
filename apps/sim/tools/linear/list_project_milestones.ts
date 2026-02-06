@@ -81,7 +81,7 @@ export const linearListProjectMilestonesTool: ToolConfig<
       `,
       variables: {
         id: params.projectId,
-        first: params.first || 50,
+        first: params.first ? Number(params.first) : 50,
         after: params.after,
       },
     }),

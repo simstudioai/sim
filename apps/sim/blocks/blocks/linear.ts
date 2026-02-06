@@ -829,8 +829,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           'linear_list_customer_tiers',
           'linear_list_customers',
           'linear_list_customer_requests',
-          'linear_list_customer_statuses',
-          'linear_list_customer_tiers',
           'linear_list_project_labels',
           'linear_list_project_milestones',
           'linear_list_project_statuses',

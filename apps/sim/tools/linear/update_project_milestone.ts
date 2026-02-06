@@ -113,9 +113,17 @@ export const linearUpdateProjectMilestoneTool: ToolConfig<
     }
 
     const result = data.data.projectMilestoneUpdate
+    if (!result.success) {
+      return {
+        success: false,
+        error: 'Project milestone update was not successful',
+        output: {},
+      }
+    }
+
     const milestone = result.projectMilestone
     return {
-      success: result.success,
+      success: true,
       output: {
         projectMilestone: {
           ...milestone,
