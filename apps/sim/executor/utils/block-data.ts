@@ -47,9 +47,7 @@ function getInputFormatFields(block: SerializedBlock): OutputSchema {
   const schema: OutputSchema = {}
   for (const field of inputFormat) {
     if (!field.name) continue
-    schema[field.name] = {
-      type: (field.type || 'any') as 'string' | 'number' | 'boolean' | 'object' | 'array' | 'any',
-    }
+    schema[field.name] = { type: field.type || 'any' }
   }
 
   return schema
@@ -85,9 +83,7 @@ function getResponseFormatSchema(block: SerializedBlock): OutputSchema | undefin
 
   const schema: OutputSchema = {}
   for (const field of fields) {
-    schema[field.name] = {
-      type: (field.type || 'any') as 'string' | 'number' | 'boolean' | 'object' | 'array' | 'any',
-    }
+    schema[field.name] = { type: field.type || 'any' }
   }
   return schema
 }
