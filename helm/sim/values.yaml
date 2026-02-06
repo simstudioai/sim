@@ -139,7 +139,14 @@ app:
     EXECUTION_TIMEOUT_ASYNC_PRO: "5400"                   # Pro tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
-    
+
+    # Isolated-VM Worker Pool Configuration
+    IVM_POOL_SIZE: "4"                                    # Max worker processes in pool
+    IVM_MAX_CONCURRENT: "10000"                           # Max concurrent executions globally
+    IVM_MAX_PER_WORKER: "2500"                            # Max concurrent executions per worker
+    IVM_WORKER_IDLE_TIMEOUT_MS: "60000"                   # Worker idle cleanup timeout (ms)
+    IVM_QUEUE_TIMEOUT_MS: "300000"                        # Max queue wait before rejection (ms)
+
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
     NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL (leave empty for default)
