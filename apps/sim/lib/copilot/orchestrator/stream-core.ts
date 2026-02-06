@@ -29,7 +29,7 @@ export interface StreamLoopOptions extends OrchestratorOptions {
    * Called for each normalized event BEFORE standard handler dispatch.
    * Return true to skip the default handler for this event.
    */
-  onBeforeDispatch?: (event: SSEEvent, context: StreamingContext) => boolean | void
+  onBeforeDispatch?: (event: SSEEvent, context: StreamingContext) => boolean | undefined
 }
 
 /**
@@ -78,7 +78,9 @@ export async function runStreamLoop(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
-    throw new Error(`Copilot backend error (${response.status}): ${errorText || response.statusText}`)
+    throw new Error(
+      `Copilot backend error (${response.status}): ${errorText || response.statusText}`
+    )
   }
 
   if (!response.body) {

@@ -6,6 +6,7 @@ declare global {
     __skipDiffRecording?: boolean
   }
 }
+
 import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth/auth-client'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
@@ -914,7 +915,7 @@ export function useUndoRedo() {
 
           // Set flag to skip recording during this operation
 
-          ;window.__skipDiffRecording = true
+          window.__skipDiffRecording = true
           try {
             // Restore baseline state and broadcast to everyone
             if (baselineSnapshot && activeWorkflowId) {
@@ -951,7 +952,7 @@ export function useUndoRedo() {
             logger.info('Clearing diff UI state')
             useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
           } finally {
-            ;window.__skipDiffRecording = false
+            window.__skipDiffRecording = false
           }
 
           logger.info('Undid apply-diff operation successfully')
@@ -971,7 +972,7 @@ export function useUndoRedo() {
 
           // Set flag to skip recording during this operation
 
-          ;window.__skipDiffRecording = true
+          window.__skipDiffRecording = true
           try {
             // Apply the before-accept state (with markers for this user)
             useWorkflowStore.getState().replaceWorkflowState(beforeAccept)
@@ -1010,7 +1011,7 @@ export function useUndoRedo() {
               diffAnalysis: diffAnalysis,
             })
           } finally {
-            ;window.__skipDiffRecording = false
+            window.__skipDiffRecording = false
           }
 
           logger.info('Undid accept-diff operation - restored diff view')
@@ -1024,7 +1025,7 @@ export function useUndoRedo() {
           const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
           const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
 
-          ;window.__skipDiffRecording = true
+          window.__skipDiffRecording = true
           try {
             // Apply the before-reject state (with markers for this user)
             useWorkflowStore.getState().replaceWorkflowState(beforeReject)
@@ -1061,7 +1062,7 @@ export function useUndoRedo() {
               diffAnalysis: diffAnalysis,
             })
           } finally {
-            ;window.__skipDiffRecording = false
+            window.__skipDiffRecording = false
           }
 
           logger.info('Undid reject-diff operation - restored diff view')
@@ -1532,7 +1533,7 @@ export function useUndoRedo() {
 
           // Set flag to skip recording during this operation
 
-          ;window.__skipDiffRecording = true
+          window.__skipDiffRecording = true
           try {
             // Manually apply the proposed state and set up diff store (similar to setProposedChanges but with original baseline)
             const diffStore = useWorkflowDiffStore.getState()
@@ -1573,7 +1574,7 @@ export function useUndoRedo() {
               diffAnalysis: diffAnalysis,
             })
           } finally {
-            ;window.__skipDiffRecording = false
+            window.__skipDiffRecording = false
           }
 
           logger.info('Redid apply-diff operation')
@@ -1589,7 +1590,7 @@ export function useUndoRedo() {
 
           // Set flag to skip recording during this operation
 
-          ;window.__skipDiffRecording = true
+          window.__skipDiffRecording = true
           try {
             // Clear diff state FIRST to prevent flash of colors (local UI only)
             // Use setState directly to ensure synchronous clearing
@@ -1627,7 +1628,7 @@ export function useUndoRedo() {
               operationId: opId,
             })
           } finally {
-            ;window.__skipDiffRecording = false
+            window.__skipDiffRecording = false
           }
 
           logger.info('Redid accept-diff operation - cleared diff view')
@@ -1641,7 +1642,7 @@ export function useUndoRedo() {
           const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
           const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
 
-          ;window.__skipDiffRecording = true
+          window.__skipDiffRecording = true
           try {
             // Clear diff state FIRST to prevent flash of colors (local UI only)
             // Use setState directly to ensure synchronous clearing
@@ -1679,7 +1680,7 @@ export function useUndoRedo() {
               operationId: opId,
             })
           } finally {
-            ;window.__skipDiffRecording = false
+            window.__skipDiffRecording = false
           }
 
           logger.info('Redid reject-diff operation - cleared diff view')

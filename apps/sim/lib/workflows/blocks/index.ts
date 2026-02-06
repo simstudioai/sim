@@ -1,2 +1,7 @@
 export { BlockSchemaResolver, blockSchemaResolver } from './schema-resolver'
-export type { ResolvedBlock, ResolvedSubBlock, ResolvedOption, ResolvedOutput } from './schema-types'
+export type {
+  ResolvedBlock,
+  ResolvedOption,
+  ResolvedOutput,
+  ResolvedSubBlock,
+} from './schema-types'

@@ -1,20 +1,20 @@
 import crypto from 'crypto'
-import { nanoid } from 'nanoid'
-import { createLogger } from '@sim/logger'
 import { db } from '@sim/db'
 import { apiKey, workflow, workflowFolder } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, eq, isNull, max } from 'drizzle-orm'
-import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
+import { nanoid } from 'nanoid'
 import { createApiKey } from '@/lib/api-key/auth'
+import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
 import {
   getExecutionState,
   getLatestExecutionState,
 } from '@/lib/workflows/executor/execution-state'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
 import type {
   CreateFolderParams,
   CreateWorkflowParams,
@@ -243,7 +243,9 @@ export async function executeSetGlobalWorkflowVariables(
             if (type === 'object' && parsed && typeof parsed === 'object' && !Array.isArray(parsed))
               return parsed
           } catch (error) {
-            logger.warn('Failed to parse JSON value for variable coercion', { error: error instanceof Error ? error.message : String(error) })
+            logger.warn('Failed to parse JSON value for variable coercion', {
+              error: error instanceof Error ? error.message : String(error),
+            })
           }
           return value
         }
@@ -284,9 +286,7 @@ export async function executeSetGlobalWorkflowVariables(
       }
     }
 
-    const nextVarsRecord = Object.fromEntries(
-      Object.values(byName).map((v) => [String(v.id), v])
-    )
+    const nextVarsRecord = Object.fromEntries(Object.values(byName).map((v) => [String(v.id), v]))
 
     await db
       .update(workflow)

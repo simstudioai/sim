@@ -2,10 +2,7 @@ import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import {
-  GetBlocksMetadataInput,
-  GetBlocksMetadataResult,
-} from '@/lib/copilot/tools/shared/schemas'
+import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -291,7 +288,9 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           metadata.yamlDocumentation = readFileSync(docPath, 'utf-8')
         }
       } catch (error) {
-        logger.warn('Failed to read YAML documentation file', { error: error instanceof Error ? error.message : String(error) })
+        logger.warn('Failed to read YAML documentation file', {
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
 
       if (metadata) {
@@ -957,7 +956,9 @@ function resolveToolIdForOperation(blockConfig: BlockConfig, opId: string): stri
     }
   } catch (error) {
     const toolLogger = createLogger('GetBlocksMetadataServerTool')
-    toolLogger.warn('Failed to resolve tool ID for operation', { error: error instanceof Error ? error.message : String(error) })
+    toolLogger.warn('Failed to resolve tool ID for operation', {
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
   return undefined
 }

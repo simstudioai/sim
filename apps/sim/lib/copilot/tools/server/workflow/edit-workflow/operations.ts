@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks/registry'
-import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
-import { RESERVED_BLOCK_NAMES, normalizeName } from '@/executor/constants'
+import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
   addConnectionsAsEdges,
@@ -242,7 +242,11 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
 
     const editBlockConfig = getBlock(block.type)
     if (editBlockConfig) {
-      updateCanonicalModesForInputs(block, Object.keys(validationResult.validInputs), editBlockConfig)
+      updateCanonicalModesForInputs(
+        block,
+        Object.keys(validationResult.validInputs),
+        editBlockConfig
+      )
     }
   }
 
@@ -341,7 +345,8 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
 
     // Remove edges to/from removed children
     modifiedState.edges = modifiedState.edges.filter(
-      (edge: any) => !existingChildren.includes(edge.source) && !existingChildren.includes(edge.target)
+      (edge: any) =>
+        !existingChildren.includes(edge.source) && !existingChildren.includes(edge.target)
     )
 
     // Add new nested blocks
@@ -428,7 +433,8 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
           block.data.parallelType = params.inputs.parallelType
         }
       }
-      const effectiveParallelType = params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
+      const effectiveParallelType =
+        params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
       // count only valid for 'count' parallelType
       if (params.inputs?.count && effectiveParallelType === 'count') {
         block.data.count = params.inputs.count
@@ -489,14 +495,19 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     params.removeEdges.forEach(({ targetBlockId, sourceHandle = 'source' }) => {
       modifiedState.edges = modifiedState.edges.filter(
         (edge: any) =>
-          !(edge.source === block_id && edge.target === targetBlockId && edge.sourceHandle === sourceHandle)
+          !(
+            edge.source === block_id &&
+            edge.target === targetBlockId &&
+            edge.sourceHandle === sourceHandle
+          )
       )
     })
   }
 }
 
 export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationContext): void {
-  const { modifiedState, skippedItems, validationErrors, permissionConfig, deferredConnections } = ctx
+  const { modifiedState, skippedItems, validationErrors, permissionConfig, deferredConnections } =
+    ctx
   const { block_id, params } = op
 
   const addNormalizedName = params?.name ? normalizeName(params.name) : ''
@@ -522,7 +533,11 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     return
   }
 
-  const conflictingBlock = findBlockWithDuplicateNormalizedName(modifiedState.blocks, params.name, block_id)
+  const conflictingBlock = findBlockWithDuplicateNormalizedName(
+    modifiedState.blocks,
+    params.name,
+    block_id
+  )
 
   if (conflictingBlock) {
     logSkippedItem(skippedItems, {
@@ -580,7 +595,10 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
   }
 
   // Check single-instance block constraints (e.g., Response block)
-  const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(modifiedState.blocks, params.type)
+  const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(
+    modifiedState.blocks,
+    params.type
+  )
   if (singleInstanceIssue) {
     logSkippedItem(skippedItems, {
       type: 'duplicate_single_instance_block',
@@ -614,9 +632,11 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
         ...newBlock.data,
         loopType,
         // Only include type-appropriate fields
-        ...(loopType === 'forEach' && params.inputs?.collection && { collection: params.inputs.collection }),
+        ...(loopType === 'forEach' &&
+          params.inputs?.collection && { collection: params.inputs.collection }),
         ...(loopType === 'for' && params.inputs?.iterations && { count: params.inputs.iterations }),
-        ...(loopType === 'while' && params.inputs?.condition && { whileCondition: params.inputs.condition }),
+        ...(loopType === 'while' &&
+          params.inputs?.condition && { whileCondition: params.inputs.condition }),
         ...(loopType === 'doWhile' &&
           params.inputs?.condition && { doWhileCondition: params.inputs.condition }),
       }
@@ -717,7 +737,8 @@ export function handleInsertIntoSubflowOperation(
   op: EditWorkflowOperation,
   ctx: OperationContext
 ): void {
-  const { modifiedState, skippedItems, validationErrors, permissionConfig, deferredConnections } = ctx
+  const { modifiedState, skippedItems, validationErrors, permissionConfig, deferredConnections } =
+    ctx
   const { block_id, params } = op
 
   const subflowId = params?.subflowId

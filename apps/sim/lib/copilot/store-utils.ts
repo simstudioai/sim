@@ -86,10 +86,7 @@ export function isTerminalState(state: string): boolean {
   )
 }
 
-export function abortAllInProgressTools(
-  set: StoreSet,
-  get: () => CopilotStore
-) {
+export function abortAllInProgressTools(set: StoreSet, get: () => CopilotStore) {
   try {
     const { toolCallsById, messages } = get()
     const updatedMap = { ...toolCallsById }
@@ -166,10 +163,7 @@ export function cleanupActiveState(
   set: (partial: Record<string, unknown>) => void,
   get: () => Record<string, unknown>
 ): void {
-  abortAllInProgressTools(
-    set as unknown as StoreSet,
-    get as unknown as () => CopilotStore
-  )
+  abortAllInProgressTools(set as unknown as StoreSet, get as unknown as () => CopilotStore)
   try {
     const { useWorkflowDiffStore } = require('@/stores/workflow-diff/store') as {
       useWorkflowDiffStore: {

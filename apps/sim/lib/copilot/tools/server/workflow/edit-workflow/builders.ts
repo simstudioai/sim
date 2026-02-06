@@ -7,7 +7,7 @@ import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
-import { UUID_REGEX, logSkippedItem } from './types'
+import { logSkippedItem, UUID_REGEX } from './types'
 import {
   validateInputsForBlock,
   validateSourceHandleForBlock,

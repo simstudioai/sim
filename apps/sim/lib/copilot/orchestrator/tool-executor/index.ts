@@ -49,6 +49,7 @@ import type {
   RunWorkflowUntilBlockParams,
   SetGlobalWorkflowVariablesParams,
 } from './param-types'
+import { PLATFORM_ACTIONS_CONTENT } from './platform-actions'
 import {
   executeCreateFolder,
   executeCreateWorkflow,
@@ -116,13 +117,19 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   get_deployed_workflow_state: (p, c) =>
     executeGetDeployedWorkflowState(p as GetDeployedWorkflowStateParams, c),
   generate_api_key: (p, c) => executeGenerateApiKey(p as unknown as GenerateApiKeyParams, c),
+  get_platform_actions: () =>
+    Promise.resolve({
+      success: true,
+      output: { content: PLATFORM_ACTIONS_CONTENT },
+    }),
   set_global_workflow_variables: (p, c) =>
     executeSetGlobalWorkflowVariables(p as SetGlobalWorkflowVariablesParams, c),
   deploy_api: (p, c) => executeDeployApi(p as DeployApiParams, c),
   deploy_chat: (p, c) => executeDeployChat(p as DeployChatParams, c),
   deploy_mcp: (p, c) => executeDeployMcp(p as DeployMcpParams, c),
   redeploy: (_p, c) => executeRedeploy(c),
-  check_deployment_status: (p, c) => executeCheckDeploymentStatus(p as CheckDeploymentStatusParams, c),
+  check_deployment_status: (p, c) =>
+    executeCheckDeploymentStatus(p as CheckDeploymentStatusParams, c),
   list_workspace_mcp_servers: (p, c) =>
     executeListWorkspaceMcpServers(p as ListWorkspaceMcpServersParams, c),
   create_workspace_mcp_server: (p, c) =>

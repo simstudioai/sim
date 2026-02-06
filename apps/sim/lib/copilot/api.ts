@@ -141,7 +141,9 @@ export async function sendStreamingMessage(
         resumeFromEventId,
       })
     } catch (error) {
-      logger.warn('Failed to log streaming message context preview', { error: error instanceof Error ? error.message : String(error) })
+      logger.warn('Failed to log streaming message context preview', {
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
 
     const streamId = request.userMessageId

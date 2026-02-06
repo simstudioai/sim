@@ -6,11 +6,11 @@ import {
   shouldSkipToolResultEvent,
 } from '@/lib/copilot/orchestrator/sse-utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import { resolveToolDisplay } from '@/lib/copilot/store-utils'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore, CopilotToolCall } from '@/stores/panel/copilot/types'
+import { type SSEHandler, sseHandlers, updateStreamingMessage } from './handlers'
 import type { ClientStreamingContext } from './types'
-import { sseHandlers, type SSEHandler, updateStreamingMessage } from './handlers'
 
 const logger = createLogger('CopilotClientSubagentHandlers')
 
@@ -110,7 +110,7 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
   content: (data, context, get, set) => {
     const parentToolCallId = context.subAgentParentToolCallId
-    const contentStr = typeof data.data === 'string' ? data.data : (data.content || '')
+    const contentStr = typeof data.data === 'string' ? data.data : data.content || ''
     logger.info('[SubAgent] content event', {
       parentToolCallId,
       hasData: !!contentStr,
@@ -159,8 +159,9 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     if (!id || !name) return
     const isPartial = toolData.partial === true
 
-    let args: Record<string, unknown> | undefined =
-      (toolData.arguments || toolData.input) as Record<string, unknown> | undefined
+    let args: Record<string, unknown> | undefined = (toolData.arguments || toolData.input) as
+      | Record<string, unknown>
+      | undefined
 
     if (typeof args === 'string') {
       try {

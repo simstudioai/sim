@@ -19,7 +19,11 @@ export interface DiffActionOptions {
 }
 
 export interface WorkflowDiffActions {
-  setProposedChanges: (workflowState: WorkflowState, diffAnalysis?: DiffAnalysis, options?: DiffActionOptions) => Promise<void>
+  setProposedChanges: (
+    workflowState: WorkflowState,
+    diffAnalysis?: DiffAnalysis,
+    options?: DiffActionOptions
+  ) => Promise<void>
   clearDiff: (options?: { restoreBaseline?: boolean }) => void
   toggleDiffView: () => void
   acceptChanges: (options?: DiffActionOptions) => Promise<void>

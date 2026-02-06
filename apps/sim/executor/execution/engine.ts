@@ -471,9 +471,9 @@ export class ExecutionEngine {
     }
   }
 
-  private getSerializableExecutionState(
-    snapshotSeed?: { snapshot: string }
-  ): SerializableExecutionState | undefined {
+  private getSerializableExecutionState(snapshotSeed?: {
+    snapshot: string
+  }): SerializableExecutionState | undefined {
     try {
       const serializedSnapshot =
         snapshotSeed?.snapshot ?? serializePauseSnapshot(this.context, [], this.dag).snapshot

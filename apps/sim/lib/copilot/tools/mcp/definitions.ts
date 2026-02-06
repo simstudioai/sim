@@ -183,7 +183,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
         parentId: {
           type: 'string',
-          description: 'Target parent folder ID. Omit or pass empty string to move to workspace root.',
+          description:
+            'Target parent folder ID. Omit or pass empty string to move to workspace root.',
         },
       },
       required: ['folderId'],
@@ -203,7 +204,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
         workflow_input: {
           type: 'object',
-          description: 'JSON object with input values. Keys should match the workflow start block input field names.',
+          description:
+            'JSON object with input values. Keys should match the workflow start block input field names.',
         },
         useDeployedState: {
           type: 'boolean',
@@ -227,7 +229,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
         stopAfterBlockId: {
           type: 'string',
-          description: 'REQUIRED. The block ID to stop after. Execution halts once this block completes.',
+          description:
+            'REQUIRED. The block ID to stop after. Execution halts once this block completes.',
         },
         workflow_input: {
           type: 'object',
@@ -259,7 +262,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
         executionId: {
           type: 'string',
-          description: 'Optional. Specific execution ID to load the snapshot from. Uses latest if omitted.',
+          description:
+            'Optional. Specific execution ID to load the snapshot from. Uses latest if omitted.',
         },
         workflow_input: {
           type: 'object',
@@ -291,7 +295,8 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
         executionId: {
           type: 'string',
-          description: 'Optional. Specific execution ID to load the snapshot from. Uses latest if omitted.',
+          description:
+            'Optional. Specific execution ID to load the snapshot from. Uses latest if omitted.',
         },
         workflow_input: {
           type: 'object',
@@ -331,11 +336,12 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
       properties: {
         name: {
           type: 'string',
-          description: 'A descriptive name for the API key (e.g., "production-key", "dev-testing").',
+          description:
+            'A descriptive name for the API key (e.g., "production-key", "dev-testing").',
         },
         workspaceId: {
           type: 'string',
-          description: 'Optional workspace ID. Defaults to user\'s default workspace.',
+          description: "Optional workspace ID. Defaults to user's default workspace.",
         },
       },
       required: ['name'],
@@ -495,7 +501,15 @@ After copilot_edit completes, you can test immediately with copilot_test, or dep
 DEPLOYMENT TYPES:
 - "deploy as api" - REST API endpoint for programmatic access
 - "deploy as chat" - Managed chat UI with auth options
-- "deploy as mcp" - Expose as MCP tool for AI agents`,
+- "deploy as mcp" - Expose as MCP tool on an MCP server for AI agents to call
+
+MCP DEPLOYMENT FLOW:
+The deploy subagent will automatically: list available MCP servers → create one if needed → deploy the workflow as an MCP tool to that server. You can specify server name, tool name, and tool description.
+
+ALSO CAN:
+- Get the deployed (production) state to compare with draft
+- Generate workspace API keys for calling deployed workflows
+- List and create MCP servers in the workspace`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -515,7 +529,13 @@ DEPLOYMENT TYPES:
   {
     name: 'copilot_test',
     agentId: 'test',
-    description: `Run a workflow and verify its outputs. Works on both deployed and undeployed (draft) workflows. Use after building to verify correctness.`,
+    description: `Run a workflow and verify its outputs. Works on both deployed and undeployed (draft) workflows. Use after building to verify correctness.
+
+Supports full and partial execution:
+- Full run with test inputs
+- Stop after a specific block (run_workflow_until_block)
+- Run a single block in isolation (run_block)
+- Resume from a specific block (run_from_block)`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -590,7 +610,7 @@ DEPLOYMENT TYPES:
     name: 'copilot_info',
     agentId: 'info',
     description:
-      'Inspect a workflow\'s blocks, connections, outputs, variables, and metadata. Use for questions about the Sim platform itself — how blocks work, what integrations are available, platform concepts, etc. Always provide workflowId to scope results to a specific workflow.',
+      "Inspect a workflow's blocks, connections, outputs, variables, and metadata. Use for questions about the Sim platform itself — how blocks work, what integrations are available, platform concepts, etc. Always provide workflowId to scope results to a specific workflow.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -635,6 +655,20 @@ DEPLOYMENT TYPES:
     agentId: 'superagent',
     description:
       'Execute direct actions NOW: send an email, post to Slack, make an API call, etc. Use when the user wants to DO something immediately rather than build a workflow for it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+  },
+  {
+    name: 'copilot_platform',
+    agentId: 'tour',
+    description:
+      'Get help with Sim platform navigation, keyboard shortcuts, and UI actions. Use when the user asks "how do I..." about the Sim editor, wants keyboard shortcuts, or needs to know what actions are available in the UI.',
     inputSchema: {
       type: 'object',
       properties: {

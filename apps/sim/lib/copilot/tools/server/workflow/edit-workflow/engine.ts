@@ -238,8 +238,8 @@ export function applyOperationsToWorkflowState(
       totalEdges: (modifiedState as any).edges?.length,
     })
   }
-
   // Regenerate loops and parallels after modifications
+
   ;(modifiedState as any).loops = generateLoopBlocks((modifiedState as any).blocks)
   ;(modifiedState as any).parallels = generateParallelBlocks((modifiedState as any).blocks)
 

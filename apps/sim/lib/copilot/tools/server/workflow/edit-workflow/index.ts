@@ -3,7 +3,6 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { applyAutoLayout } from '@/lib/workflows/autolayout'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
@@ -11,6 +10,7 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { applyOperationsToWorkflowState } from './engine'
 import type { EditWorkflowParams, ValidationError } from './types'
@@ -214,7 +214,8 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         : undefined
 
     // Format skipped items for LLM feedback
-    const skippedMessages = skippedItems.length > 0 ? skippedItems.map((item) => item.reason) : undefined
+    const skippedMessages =
+      skippedItems.length > 0 ? skippedItems.map((item) => item.reason) : undefined
 
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState

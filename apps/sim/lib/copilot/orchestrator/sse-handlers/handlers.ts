@@ -89,8 +89,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   tool_generating: (event, context) => {
     const data = getEventData(event)
-    const toolCallId = event.toolCallId || (data?.toolCallId as string | undefined) || (data?.id as string | undefined)
-    const toolName = event.toolName || (data?.toolName as string | undefined) || (data?.name as string | undefined)
+    const toolCallId =
+      event.toolCallId ||
+      (data?.toolCallId as string | undefined) ||
+      (data?.id as string | undefined)
+    const toolName =
+      event.toolName || (data?.toolName as string | undefined) || (data?.name as string | undefined)
     if (!toolCallId || !toolName) return
     if (!context.toolCalls.has(toolCallId)) {
       context.toolCalls.set(toolCallId, {
@@ -107,7 +111,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const toolName = (toolData.name as string | undefined) || event.toolName
     if (!toolCallId || !toolName) return
 
-    const args = (toolData.arguments || toolData.input || asRecord(event.data).input) as Record<string, unknown> | undefined
+    const args = (toolData.arguments || toolData.input || asRecord(event.data).input) as
+      | Record<string, unknown>
+      | undefined
     const isPartial = toolData.partial === true
     const existing = context.toolCalls.get(toolCallId)
 
@@ -164,7 +170,11 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const isInteractive = options.interactive === true
 
     if (isInterruptTool && isInteractive) {
-      const decision = await waitForToolDecision(toolCallId, options.timeout || STREAM_TIMEOUT_MS, options.abortSignal)
+      const decision = await waitForToolDecision(
+        toolCallId,
+        options.timeout || STREAM_TIMEOUT_MS,
+        options.abortSignal
+      )
       if (decision?.status === 'accepted' || decision?.status === 'success') {
         await executeToolAndReport(toolCallId, context, execContext, options)
         return
@@ -308,7 +318,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const toolName = (toolData.name as string | undefined) || event.toolName
     if (!toolCallId || !toolName) return
     const isPartial = toolData.partial === true
-    const args = (toolData.arguments || toolData.input || asRecord(event.data).input) as Record<string, unknown> | undefined
+    const args = (toolData.arguments || toolData.input || asRecord(event.data).input) as
+      | Record<string, unknown>
+      | undefined
 
     const existing = context.toolCalls.get(toolCallId)
     // Ignore late/duplicate tool_call events once we already have a result.

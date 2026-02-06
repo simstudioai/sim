@@ -58,7 +58,9 @@ export const getEventData = (event: SSEEvent): EventDataObject => {
 
 function getToolCallIdFromEvent(event: SSEEvent): string | undefined {
   const data = getEventData(event)
-  return event.toolCallId || (data?.id as string | undefined) || (data?.toolCallId as string | undefined)
+  return (
+    event.toolCallId || (data?.id as string | undefined) || (data?.toolCallId as string | undefined)
+  )
 }
 
 /** Normalizes SSE events so tool metadata is available at the top level. */
@@ -66,8 +68,10 @@ export function normalizeSseEvent(event: SSEEvent): SSEEvent {
   if (!event) return event
   const data = getEventData(event)
   if (!data) return event
-  const toolCallId = event.toolCallId || (data.id as string | undefined) || (data.toolCallId as string | undefined)
-  const toolName = event.toolName || (data.name as string | undefined) || (data.toolName as string | undefined)
+  const toolCallId =
+    event.toolCallId || (data.id as string | undefined) || (data.toolCallId as string | undefined)
+  const toolName =
+    event.toolName || (data.name as string | undefined) || (data.toolName as string | undefined)
   const success = event.success ?? (data.success as boolean | undefined)
   const result = event.result ?? data.result
   const normalizedData = typeof event.data === 'string' ? data : event.data

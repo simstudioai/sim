@@ -42,15 +42,14 @@ import {
 } from '@/lib/copilot/messages'
 import type { CopilotTransportMode } from '@/lib/copilot/models'
 import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import {
   abortAllInProgressTools,
   cleanupActiveState,
   isRejectedState,
-  isTerminalState,
   resolveToolDisplay,
   stripTodoTags,
 } from '@/lib/copilot/store-utils'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import type {
@@ -277,13 +276,7 @@ function prepareSendContext(
     isSendingMessage,
     abortController: activeAbortController,
   } = get()
-  const {
-    stream = true,
-    fileAttachments,
-    contexts,
-    messageId,
-    queueIfBusy = true,
-  } = options
+  const { stream = true, fileAttachments, contexts, messageId, queueIfBusy = true } = options
 
   if (!workflowId) return null
 
@@ -381,9 +374,13 @@ function prepareSendContext(
         ? `${message.substring(0, OPTIMISTIC_TITLE_MAX_LENGTH - 3)}...`
         : message
     set((state) => ({
-      currentChat: state.currentChat ? { ...state.currentChat, title: optimisticTitle } : state.currentChat,
+      currentChat: state.currentChat
+        ? { ...state.currentChat, title: optimisticTitle }
+        : state.currentChat,
       chats: state.currentChat
-        ? state.chats.map((c) => (c.id === state.currentChat!.id ? { ...c, title: optimisticTitle } : c))
+        ? state.chats.map((c) =>
+            c.id === state.currentChat!.id ? { ...c, title: optimisticTitle } : c
+          )
         : state.chats,
     }))
   }
@@ -416,7 +413,9 @@ async function initiateStream(
             kind: c?.kind,
             chatId: c?.kind === 'past_chat' ? c.chatId : undefined,
             workflowId:
-              c?.kind === 'workflow' || c?.kind === 'current_workflow' || c?.kind === 'workflow_block'
+              c?.kind === 'workflow' ||
+              c?.kind === 'current_workflow' ||
+              c?.kind === 'workflow_block'
                 ? c.workflowId
                 : undefined,
             label: c?.label,
@@ -435,7 +434,8 @@ async function initiateStream(
       })
     }
 
-    const apiMode: CopilotTransportMode = mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
+    const apiMode: CopilotTransportMode =
+      mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
     const uiToApiCommandMap: Record<string, string> = { actions: 'superagent' }
     const commands = contexts
       ?.filter((c) => c.kind === 'slash_command' && 'command' in c)
@@ -532,7 +532,9 @@ async function finalizeStream(
 
     const errorMessage = createErrorMessage(prepared.streamingMessage.id, errorContent, errorType)
     set((state) => ({
-      messages: state.messages.map((m) => (m.id === prepared.streamingMessage.id ? errorMessage : m)),
+      messages: state.messages.map((m) =>
+        m.id === prepared.streamingMessage.id ? errorMessage : m
+      ),
       error: errorContent,
       isSendingMessage: false,
       abortController: null,
@@ -726,10 +728,7 @@ function finalizeResume(
     const hasContinueTag =
       (typeof m.content === 'string' && m.content.includes(CONTINUE_OPTIONS_TAG)) ||
       (Array.isArray(m.contentBlocks) &&
-        m.contentBlocks.some(
-          (b) =>
-            b.type === 'text' && b.content?.includes(CONTINUE_OPTIONS_TAG)
-        ))
+        m.contentBlocks.some((b) => b.type === 'text' && b.content?.includes(CONTINUE_OPTIONS_TAG)))
     if (!hasContinueTag) return m
     cleanedExisting = true
     return {
@@ -765,13 +764,16 @@ function finalizeResume(
   } else if (replay.bufferedContent || (replay.replayBlocks && replay.replayBlocks.length > 0)) {
     nextMessages = nextMessages.map((m) => {
       if (m.id !== replay.nextStream.assistantMessageId) return m
-      let nextBlocks = replay.replayBlocks && replay.replayBlocks.length > 0 ? replay.replayBlocks : null
+      let nextBlocks =
+        replay.replayBlocks && replay.replayBlocks.length > 0 ? replay.replayBlocks : null
       if (!nextBlocks) {
         const existingBlocks = Array.isArray(m.contentBlocks) ? m.contentBlocks : []
         const existingText = extractTextFromBlocks(existingBlocks)
         if (existingText && replay.bufferedContent.startsWith(existingText)) {
           const delta = replay.bufferedContent.slice(existingText.length)
-          nextBlocks = delta ? appendTextToBlocks(existingBlocks, delta) : cloneContentBlocks(existingBlocks)
+          nextBlocks = delta
+            ? appendTextToBlocks(existingBlocks, delta)
+            : cloneContentBlocks(existingBlocks)
         } else if (!existingText && existingBlocks.length === 0) {
           nextBlocks = replay.bufferedContent
             ? [{ type: TEXT_BLOCK_TYPE, content: replay.bufferedContent, timestamp: Date.now() }]
@@ -852,7 +854,10 @@ async function resumeFromLiveStream(
 
     set({ isSendingMessage: false, abortController: null })
   } catch (error) {
-    if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))) {
+    if (
+      error instanceof Error &&
+      (error.name === 'AbortError' || error.message.includes('aborted'))
+    ) {
       logger.info('[Copilot] Resume stream aborted by user')
       set({ isSendingMessage: false, abortController: null })
       return false
@@ -1764,7 +1769,8 @@ export const useCopilotStore = create<CopilotStore>()(
           if (abortSignal?.aborted) {
             context.wasAborted = true
             const { suppressAbortContinueOption } = get()
-            context.suppressContinueOption = suppressAbortContinueOption === true || isPageUnloading()
+            context.suppressContinueOption =
+              suppressAbortContinueOption === true || isPageUnloading()
             if (suppressAbortContinueOption) {
               set({ suppressAbortContinueOption: false })
             }
