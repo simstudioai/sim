@@ -630,8 +630,13 @@ const SubBlockRow = memo(function SubBlockRow({
       return null
     }
 
+    interface StoredSkill {
+      skillId: string
+      name?: string
+    }
+
     const skillNames = rawValue
-      .map((skill: any) => {
+      .map((skill: StoredSkill) => {
         if (!skill || typeof skill !== 'object') return null
 
         // Priority 1: Resolve skill name from the skills query (fresh data)
