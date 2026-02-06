@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, ne } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { generateRequestId } from '@/lib/core/utils/request'
 
@@ -36,6 +36,20 @@ export async function upsertSkills(params: {
           .limit(1)
 
         if (existingSkill.length > 0) {
+          if (s.name !== existingSkill[0].name) {
+            const nameConflict = await tx
+              .select({ id: skill.id })
+              .from(skill)
+              .where(
+                and(eq(skill.workspaceId, workspaceId), eq(skill.name, s.name), ne(skill.id, s.id))
+              )
+              .limit(1)
+
+            if (nameConflict.length > 0) {
+              throw new Error(`A skill with the name "${s.name}" already exists in this workspace`)
+            }
+          }
+
           await tx
             .update(skill)
             .set({
