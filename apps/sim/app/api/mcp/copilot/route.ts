@@ -1,13 +1,17 @@
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import {
+  CallToolRequestSchema,
   type CallToolResult,
   ErrorCode,
-  type InitializeResult,
   isJSONRPCNotification,
   isJSONRPCRequest,
   type JSONRPCError,
   type JSONRPCMessage,
-  type JSONRPCResponse,
   type ListToolsResult,
+  ListToolsRequestSchema,
+  McpError,
+  type MessageExtraInfo,
   type RequestId,
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
@@ -74,11 +78,75 @@ When the user refers to a workflow by name or description ("the email one", "my 
 - Variable syntax: \`<blockname.field>\` for block outputs, \`{{ENV_VAR}}\` for env vars.
 `
 
-function createResponse(id: RequestId, result: unknown): JSONRPCResponse {
-  return {
-    jsonrpc: '2.0',
-    id,
-    result: result as JSONRPCResponse['result'],
+class SingleRequestTransport implements Transport {
+  private started = false
+  private outgoing: JSONRPCMessage[] = []
+  private waitingResolvers: Array<(message: JSONRPCMessage) => void> = []
+
+  onclose?: () => void
+  onerror?: (error: Error) => void
+  onmessage?: (message: JSONRPCMessage, extra?: MessageExtraInfo) => void
+  sessionId?: string
+
+  async start(): Promise<void> {
+    if (this.started) {
+      throw new Error('Transport already started')
+    }
+    this.started = true
+  }
+
+  async send(message: JSONRPCMessage): Promise<void> {
+    this.outgoing.push(message)
+    const resolver = this.waitingResolvers.shift()
+    if (resolver) {
+      resolver(message)
+    }
+  }
+
+  async close(): Promise<void> {
+    this.onclose?.()
+  }
+
+  async dispatch(message: JSONRPCMessage, extra?: MessageExtraInfo): Promise<void> {
+    if (!this.onmessage) {
+      throw new Error('Transport is not connected to an MCP server')
+    }
+
+    await Promise.resolve(this.onmessage(message, extra))
+  }
+
+  consumeResponse(): JSONRPCMessage | null {
+    if (this.outgoing.length === 0) {
+      return null
+    }
+
+    const [firstResponse] = this.outgoing
+    this.outgoing = []
+    return firstResponse
+  }
+
+  async waitForResponse(timeoutMs = 5000): Promise<JSONRPCMessage | null> {
+    const immediate = this.consumeResponse()
+    if (immediate) {
+      return immediate
+    }
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        const index = this.waitingResolvers.indexOf(resolver)
+        if (index >= 0) {
+          this.waitingResolvers.splice(index, 1)
+        }
+        resolve(null)
+      }, timeoutMs)
+
+      const resolver = (message: JSONRPCMessage) => {
+        clearTimeout(timeout)
+        resolve(message)
+      }
+
+      this.waitingResolvers.push(resolver)
+    })
   }
 }
 
@@ -87,6 +155,81 @@ function createError(id: RequestId, code: ErrorCode | number, message: string): 
     jsonrpc: '2.0',
     id,
     error: { code, message },
+  }
+}
+
+function buildMcpServer(userId?: string): Server {
+  const server = new Server(
+    {
+      name: 'sim-copilot',
+      version: '1.0.0',
+    },
+    {
+      capabilities: { tools: {} },
+      instructions: MCP_SERVER_INSTRUCTIONS,
+    }
+  )
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const directTools = DIRECT_TOOL_DEFS.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+    }))
+
+    const subagentTools = SUBAGENT_TOOL_DEFS.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+    }))
+
+    const result: ListToolsResult = {
+      tools: [...directTools, ...subagentTools],
+    }
+
+    return result
+  })
+
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (!userId) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'API key required. Set the x-api-key header with a valid Sim API key.'
+      )
+    }
+
+    const params = request.params as { name?: string; arguments?: Record<string, unknown> } | undefined
+    if (!params?.name) {
+      throw new McpError(ErrorCode.InvalidParams, 'Tool name required')
+    }
+
+    return handleToolsCall(
+      {
+        name: params.name,
+        arguments: params.arguments,
+      },
+      userId
+    )
+  })
+
+  return server
+}
+
+async function handleMcpRequestWithSdk(
+  message: JSONRPCMessage,
+  userId?: string
+): Promise<JSONRPCMessage | null> {
+  const server = buildMcpServer(userId)
+  const transport = new SingleRequestTransport()
+
+  await server.connect(transport)
+
+  try {
+    await transport.dispatch(message)
+    return transport.waitForResponse()
+  } finally {
+    await server.close().catch(() => {})
+    await transport.close().catch(() => {})
   }
 }
 
@@ -100,33 +243,18 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    // API-key-only auth — MCP clients must provide x-api-key header
-    const apiKeyHeader = request.headers.get('x-api-key')
-    if (!apiKeyHeader) {
-      return NextResponse.json(
-        createError(
-          0,
-          -32000,
-          'API key required. Set the x-api-key header with a valid Sim API key.'
-        ),
-        { status: 401 }
-      )
-    }
+  let requestId: RequestId = 0
 
-    const authResult = await authenticateApiKeyFromHeader(apiKeyHeader)
-    if (!authResult.success || !authResult.userId) {
-      return NextResponse.json(createError(0, -32000, authResult.error || 'Invalid API key'), {
-        status: 401,
+  try {
+    let body: JSONRPCMessage
+
+    try {
+      body = (await request.json()) as JSONRPCMessage
+    } catch {
+      return NextResponse.json(createError(0, ErrorCode.ParseError, 'Invalid JSON body'), {
+        status: 400,
       })
     }
-
-    // Fire-and-forget last-used update
-    updateApiKeyLastUsed(authResult.keyId!)
-
-    const userId = authResult.userId
-
-    const body = (await request.json()) as JSONRPCMessage
 
     if (isJSONRPCNotification(body)) {
       return new NextResponse(null, { status: 202 })
@@ -139,15 +267,52 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { id, method, params } = body
+    requestId = body.id
 
-    // Pre-flight usage limit check for tool calls
-    if (method === 'tools/call') {
+    let userId: string | undefined
+
+    if (body.method === 'tools/call') {
+      const apiKeyHeader = request.headers.get('x-api-key')
+      if (!apiKeyHeader) {
+        return NextResponse.json(
+          createError(
+            requestId,
+            -32000,
+            'API key required. Set the x-api-key header with a valid Sim API key.'
+          ),
+          { status: 401 }
+        )
+      }
+
+      const authResult = await authenticateApiKeyFromHeader(apiKeyHeader)
+      if (!authResult.success || !authResult.userId) {
+        logger.warn('MCP auth failed', {
+          error: authResult.error,
+          method: body.method,
+        })
+
+        return NextResponse.json(
+          createError(requestId, -32000, authResult.error || 'Invalid API key'),
+          { status: 401 }
+        )
+      }
+
+      userId = authResult.userId
+
+      if (authResult.keyId) {
+        updateApiKeyLastUsed(authResult.keyId).catch((error) => {
+          logger.warn('Failed to update API key last-used timestamp', {
+            keyId: authResult.keyId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        })
+      }
+
       const usageCheck = await checkServerSideUsageLimits(userId)
       if (usageCheck.isExceeded) {
         return NextResponse.json(
           createError(
-            id,
+            requestId,
             -32000,
             `Usage limit exceeded: ${usageCheck.message || 'Upgrade your plan.'}`
           ),
@@ -156,39 +321,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    switch (method) {
-      case 'initialize': {
-        const result: InitializeResult = {
-          protocolVersion: '2024-11-05',
-          capabilities: { tools: {} },
-          serverInfo: { name: 'sim-copilot', version: '1.0.0' },
-          instructions: MCP_SERVER_INSTRUCTIONS,
-        }
-        return NextResponse.json(createResponse(id, result))
-      }
-      case 'ping':
-        return NextResponse.json(createResponse(id, {}))
-      case 'tools/list':
-        return handleToolsList(id)
-      case 'tools/call': {
-        const response = await handleToolsCall(
-          id,
-          params as { name: string; arguments?: Record<string, unknown> },
-          userId
-        )
-        // Track MCP copilot call (fire-and-forget)
-        trackMcpCopilotCall(userId)
-        return response
-      }
-      default:
-        return NextResponse.json(
-          createError(id, ErrorCode.MethodNotFound, `Method not found: ${method}`),
-          { status: 404 }
-        )
+    const responseMessage = await handleMcpRequestWithSdk(body, userId)
+
+    if (body.method === 'tools/call' && userId) {
+      trackMcpCopilotCall(userId)
     }
+
+    if (!responseMessage) {
+      return new NextResponse(null, { status: 202 })
+    }
+
+    return NextResponse.json(responseMessage)
   } catch (error) {
     logger.error('Error handling MCP request', { error })
-    return NextResponse.json(createError(0, ErrorCode.InternalError, 'Internal error'), {
+    return NextResponse.json(createError(requestId, ErrorCode.InternalError, 'Internal error'), {
       status: 500,
     })
   }
@@ -210,57 +356,30 @@ function trackMcpCopilotCall(userId: string): void {
     })
 }
 
-async function handleToolsList(id: RequestId): Promise<NextResponse> {
-  const directTools = DIRECT_TOOL_DEFS.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-  }))
-
-  const subagentTools = SUBAGENT_TOOL_DEFS.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-  }))
-
-  const result: ListToolsResult = {
-    tools: [...directTools, ...subagentTools],
-  }
-
-  return NextResponse.json(createResponse(id, result))
-}
-
 async function handleToolsCall(
-  id: RequestId,
   params: { name: string; arguments?: Record<string, unknown> },
   userId: string
-): Promise<NextResponse> {
+): Promise<CallToolResult> {
   const args = params.arguments || {}
 
-  // Check if this is a direct tool (fast, no LLM)
   const directTool = DIRECT_TOOL_DEFS.find((tool) => tool.name === params.name)
   if (directTool) {
-    return handleDirectToolCall(id, directTool, args, userId)
+    return handleDirectToolCall(directTool, args, userId)
   }
 
-  // Check if this is a subagent tool (uses LLM orchestration)
   const subagentTool = SUBAGENT_TOOL_DEFS.find((tool) => tool.name === params.name)
   if (subagentTool) {
-    return handleSubagentToolCall(id, subagentTool, args, userId)
+    return handleSubagentToolCall(subagentTool, args, userId)
   }
 
-  return NextResponse.json(
-    createError(id, ErrorCode.MethodNotFound, `Tool not found: ${params.name}`),
-    { status: 404 }
-  )
+  throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${params.name}`)
 }
 
 async function handleDirectToolCall(
-  id: RequestId,
   toolDef: (typeof DIRECT_TOOL_DEFS)[number],
   args: Record<string, unknown>,
   userId: string
-): Promise<NextResponse> {
+): Promise<CallToolResult> {
   try {
     const execContext = await prepareExecutionContext(userId, (args.workflowId as string) || '')
 
@@ -274,7 +393,7 @@ async function handleDirectToolCall(
 
     const result = await executeToolServerSide(toolCall, execContext)
 
-    const response: CallToolResult = {
+    return {
       content: [
         {
           type: 'text',
@@ -283,14 +402,17 @@ async function handleDirectToolCall(
       ],
       isError: !result.success,
     }
-
-    return NextResponse.json(createResponse(id, response))
   } catch (error) {
     logger.error('Direct tool execution failed', { tool: toolDef.name, error })
-    return NextResponse.json(
-      createError(id, ErrorCode.InternalError, `Tool execution failed: ${error}`),
-      { status: 500 }
-    )
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      isError: true,
+    }
   }
 }
 
@@ -301,10 +423,9 @@ async function handleDirectToolCall(
  * executes all tools directly.
  */
 async function handleBuildToolCall(
-  id: RequestId,
   args: Record<string, unknown>,
   userId: string
-): Promise<NextResponse> {
+): Promise<CallToolResult> {
   try {
     const requestText = (args.request as string) || JSON.stringify(args)
     const { model } = getCopilotModel('chat')
@@ -313,7 +434,7 @@ async function handleBuildToolCall(
     const resolved = workflowId ? { workflowId } : await resolveWorkflowIdForUser(userId)
 
     if (!resolved?.workflowId) {
-      const response: CallToolResult = {
+      return {
         content: [
           {
             type: 'text',
@@ -329,7 +450,6 @@ async function handleBuildToolCall(
         ],
         isError: true,
       }
-      return NextResponse.json(createResponse(id, response))
     }
 
     const chatId = crypto.randomUUID()
@@ -345,6 +465,7 @@ async function handleBuildToolCall(
       version: SIM_AGENT_VERSION,
       headless: true,
       chatId,
+      source: 'mcp',
     }
 
     const result = await orchestrateCopilotStream(requestPayload, {
@@ -363,92 +484,111 @@ async function handleBuildToolCall(
       error: result.error,
     }
 
-    const response: CallToolResult = {
+    return {
       content: [{ type: 'text', text: JSON.stringify(responseData, null, 2) }],
       isError: !result.success,
     }
-
-    return NextResponse.json(createResponse(id, response))
   } catch (error) {
     logger.error('Build tool call failed', { error })
-    return NextResponse.json(createError(id, ErrorCode.InternalError, `Build failed: ${error}`), {
-      status: 500,
-    })
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Build failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      isError: true,
+    }
   }
 }
 
 async function handleSubagentToolCall(
-  id: RequestId,
   toolDef: (typeof SUBAGENT_TOOL_DEFS)[number],
   args: Record<string, unknown>,
   userId: string
-): Promise<NextResponse> {
-  // Build mode uses the main chat endpoint, not the subagent endpoint
+): Promise<CallToolResult> {
   if (toolDef.agentId === 'build') {
-    return handleBuildToolCall(id, args, userId)
+    return handleBuildToolCall(args, userId)
   }
 
-  const requestText =
-    (args.request as string) ||
-    (args.message as string) ||
-    (args.error as string) ||
-    JSON.stringify(args)
+  try {
+    const requestText =
+      (args.request as string) ||
+      (args.message as string) ||
+      (args.error as string) ||
+      JSON.stringify(args)
 
-  const context = (args.context as Record<string, unknown>) || {}
-  if (args.plan && !context.plan) {
-    context.plan = args.plan
-  }
-
-  const { model } = getCopilotModel('chat')
-
-  const result = await orchestrateSubagentStream(
-    toolDef.agentId,
-    {
-      message: requestText,
-      workflowId: args.workflowId,
-      workspaceId: args.workspaceId,
-      context,
-      model,
-      headless: true,
-      source: 'mcp_copilot',
-    },
-    {
-      userId,
-      workflowId: args.workflowId as string | undefined,
-      workspaceId: args.workspaceId as string | undefined,
+    const context = (args.context as Record<string, unknown>) || {}
+    if (args.plan && !context.plan) {
+      context.plan = args.plan
     }
-  )
 
-  let responseData: unknown
-  if (result.structuredResult) {
-    responseData = {
-      success: result.structuredResult.success ?? result.success,
-      type: result.structuredResult.type,
-      summary: result.structuredResult.summary,
-      data: result.structuredResult.data,
-    }
-  } else if (result.error) {
-    responseData = {
-      success: false,
-      error: result.error,
-      errors: result.errors,
-    }
-  } else {
-    responseData = {
-      success: result.success,
-      content: result.content,
-    }
-  }
+    const { model } = getCopilotModel('chat')
 
-  const response: CallToolResult = {
-    content: [
+    const result = await orchestrateSubagentStream(
+      toolDef.agentId,
       {
-        type: 'text',
-        text: JSON.stringify(responseData, null, 2),
+        message: requestText,
+        workflowId: args.workflowId,
+        workspaceId: args.workspaceId,
+        context,
+        model,
+        headless: true,
+        source: 'mcp',
       },
-    ],
-    isError: !result.success,
-  }
+      {
+        userId,
+        workflowId: args.workflowId as string | undefined,
+        workspaceId: args.workspaceId as string | undefined,
+      }
+    )
 
-  return NextResponse.json(createResponse(id, response))
+    let responseData: unknown
+
+    if (result.structuredResult) {
+      responseData = {
+        success: result.structuredResult.success ?? result.success,
+        type: result.structuredResult.type,
+        summary: result.structuredResult.summary,
+        data: result.structuredResult.data,
+      }
+    } else if (result.error) {
+      responseData = {
+        success: false,
+        error: result.error,
+        errors: result.errors,
+      }
+    } else {
+      responseData = {
+        success: result.success,
+        content: result.content,
+      }
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(responseData, null, 2),
+        },
+      ],
+      isError: !result.success,
+    }
+  } catch (error) {
+    logger.error('Subagent tool call failed', {
+      tool: toolDef.name,
+      agentId: toolDef.agentId,
+      error,
+    })
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Subagent call failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      isError: true,
+    }
+  }
 }
