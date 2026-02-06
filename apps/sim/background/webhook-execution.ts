@@ -74,8 +74,21 @@ async function processTriggerFileOutputs(
         logger.error(`[${context.requestId}] Error processing ${currentPath}:`, error)
         processed[key] = val
       }
+    } else if (
+      outputDef &&
+      typeof outputDef === 'object' &&
+      (outputDef.type === 'object' || outputDef.type === 'json') &&
+      outputDef.properties
+    ) {
+      // Explicit object schema with properties - recurse into properties
+      processed[key] = await processTriggerFileOutputs(
+        val,
+        outputDef.properties,
+        context,
+        currentPath
+      )
     } else if (outputDef && typeof outputDef === 'object' && !outputDef.type) {
-      // Nested object in schema - recurse with the nested schema
+      // Nested object in schema (flat pattern) - recurse with the nested schema
       processed[key] = await processTriggerFileOutputs(val, outputDef, context, currentPath)
     } else {
       // Not a file output - keep as is

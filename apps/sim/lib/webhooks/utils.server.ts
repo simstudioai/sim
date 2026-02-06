@@ -527,6 +527,113 @@ export async function validateTwilioSignature(
   }
 }
 
+const SLACK_FILE_HOSTS = new Set(['files.slack.com', 'files-pri.slack.com'])
+const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
+const SLACK_MAX_FILES = 10
+
+/**
+ * Downloads file attachments from Slack using the bot token.
+ * Returns files in the format expected by WebhookAttachmentProcessor:
+ * { name, data (base64 string), mimeType, size }
+ *
+ * Security:
+ * - Validates each url_private against allowlisted Slack file hosts
+ * - Uses validateUrlWithDNS + secureFetchWithPinnedIP to prevent SSRF
+ * - Enforces per-file size limit and max file count
+ */
+async function downloadSlackFiles(
+  rawFiles: any[],
+  botToken: string
+): Promise<Array<{ name: string; data: Buffer; mimeType: string; size: number }>> {
+  const filesToProcess = rawFiles.slice(0, SLACK_MAX_FILES)
+  const downloaded: Array<{ name: string; data: Buffer; mimeType: string; size: number }> = []
+
+  for (const file of filesToProcess) {
+    const urlPrivate = file.url_private as string | undefined
+    if (!urlPrivate) {
+      continue
+    }
+
+    // Validate the URL points to a known Slack file host
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(urlPrivate)
+    } catch {
+      logger.warn('Slack file has invalid url_private, skipping', { fileId: file.id })
+      continue
+    }
+
+    if (!SLACK_FILE_HOSTS.has(parsedUrl.hostname)) {
+      logger.warn('Slack file url_private points to unexpected host, skipping', {
+        fileId: file.id,
+        hostname: sanitizeUrlForLog(urlPrivate),
+      })
+      continue
+    }
+
+    // Skip files that exceed the size limit
+    const reportedSize = Number(file.size) || 0
+    if (reportedSize > SLACK_MAX_FILE_SIZE) {
+      logger.warn('Slack file exceeds size limit, skipping', {
+        fileId: file.id,
+        size: reportedSize,
+        limit: SLACK_MAX_FILE_SIZE,
+      })
+      continue
+    }
+
+    try {
+      const urlValidation = await validateUrlWithDNS(urlPrivate, 'url_private')
+      if (!urlValidation.isValid) {
+        logger.warn('Slack file url_private failed DNS validation, skipping', {
+          fileId: file.id,
+          error: urlValidation.error,
+        })
+        continue
+      }
+
+      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP!, {
+        headers: { Authorization: `Bearer ${botToken}` },
+      })
+
+      if (!response.ok) {
+        logger.warn('Failed to download Slack file, skipping', {
+          fileId: file.id,
+          status: response.status,
+        })
+        continue
+      }
+
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+
+      // Verify the actual downloaded size doesn't exceed our limit
+      if (buffer.length > SLACK_MAX_FILE_SIZE) {
+        logger.warn('Downloaded Slack file exceeds size limit, skipping', {
+          fileId: file.id,
+          actualSize: buffer.length,
+          limit: SLACK_MAX_FILE_SIZE,
+        })
+        continue
+      }
+
+      downloaded.push({
+        name: file.name || 'download',
+        data: buffer,
+        mimeType: file.mimetype || 'application/octet-stream',
+        size: buffer.length,
+      })
+    } catch (error) {
+      logger.error('Error downloading Slack file, skipping', {
+        fileId: file.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  return downloaded
+}
+
 /**
  * Format webhook input based on provider
  */
@@ -787,43 +894,42 @@ export async function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'slack') {
-    const event = body?.event
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const botToken = providerConfig.botToken as string | undefined
+    const includeFiles = Boolean(providerConfig.includeFiles)
 
-    if (event && body?.type === 'event_callback') {
-      return {
-        event: {
-          event_type: event.type || '',
-          channel: event.channel || '',
-          channel_name: '',
-          user: event.user || '',
-          user_name: '',
-          text: event.text || '',
-          timestamp: event.ts || event.event_ts || '',
-          thread_ts: event.thread_ts || '',
-          team_id: body.team_id || event.team || '',
-          event_id: body.event_id || '',
-        },
-      }
+    const rawEvent = body?.event
+
+    if (!rawEvent) {
+      logger.warn('Unknown Slack event type', {
+        type: body?.type,
+        hasEvent: false,
+        bodyKeys: Object.keys(body || {}),
+      })
     }
 
-    logger.warn('Unknown Slack event type', {
-      type: body?.type,
-      hasEvent: !!body?.event,
-      bodyKeys: Object.keys(body || {}),
-    })
+    const rawFiles: any[] = rawEvent?.files ?? []
+    const hasFiles = rawFiles.length > 0
+
+    let files: any[] = []
+    if (hasFiles && includeFiles && botToken) {
+      files = await downloadSlackFiles(rawFiles, botToken)
+    }
 
     return {
       event: {
-        event_type: body?.event?.type || body?.type || 'unknown',
-        channel: body?.event?.channel || '',
+        event_type: rawEvent?.type || body?.type || 'unknown',
+        channel: rawEvent?.channel || '',
         channel_name: '',
-        user: body?.event?.user || '',
+        user: rawEvent?.user || '',
         user_name: '',
-        text: body?.event?.text || '',
-        timestamp: body?.event?.ts || '',
-        thread_ts: body?.event?.thread_ts || '',
-        team_id: body?.team_id || '',
+        text: rawEvent?.text || '',
+        timestamp: rawEvent?.ts || rawEvent?.event_ts || '',
+        thread_ts: rawEvent?.thread_ts || '',
+        team_id: body?.team_id || rawEvent?.team || '',
         event_id: body?.event_id || '',
+        hasFiles,
+        files,
       },
     }
   }
