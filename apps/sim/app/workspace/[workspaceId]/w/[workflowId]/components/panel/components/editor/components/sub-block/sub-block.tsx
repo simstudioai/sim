@@ -785,6 +785,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
