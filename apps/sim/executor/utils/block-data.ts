@@ -1,3 +1,7 @@
+import {
+  extractFieldsFromSchema,
+  parseResponseFormatSafely,
+} from '@/lib/core/utils/response-format'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isTriggerBehavior, normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
@@ -43,11 +47,44 @@ function getInputFormatFields(block: SerializedBlock): OutputSchema {
   const schema: OutputSchema = {}
   for (const field of inputFormat) {
     if (!field.name) continue
-    schema[field.name] = {
-      type: (field.type || 'any') as 'string' | 'number' | 'boolean' | 'object' | 'array' | 'any',
-    }
+    schema[field.name] = { type: field.type || 'any' }
   }
 
+  return schema
+}
+
+function getEvaluatorMetricsSchema(block: SerializedBlock): OutputSchema | undefined {
+  if (block.metadata?.id !== 'evaluator') return undefined
+
+  const metrics = block.config?.params?.metrics
+  if (!Array.isArray(metrics) || metrics.length === 0) return undefined
+
+  const validMetrics = metrics.filter(
+    (m: { name?: string }) => m?.name && typeof m.name === 'string'
+  )
+  if (validMetrics.length === 0) return undefined
+
+  const schema: OutputSchema = { ...(block.outputs as OutputSchema) }
+  for (const metric of validMetrics) {
+    schema[metric.name.toLowerCase()] = { type: 'number' }
+  }
+  return schema
+}
+
+function getResponseFormatSchema(block: SerializedBlock): OutputSchema | undefined {
+  const responseFormatValue = block.config?.params?.responseFormat
+  if (!responseFormatValue) return undefined
+
+  const parsed = parseResponseFormatSafely(responseFormatValue, block.id)
+  if (!parsed) return undefined
+
+  const fields = extractFieldsFromSchema(parsed)
+  if (fields.length === 0) return undefined
+
+  const schema: OutputSchema = {}
+  for (const field of fields) {
+    schema[field.name] = { type: field.type || 'any' }
+  }
   return schema
 }
 
@@ -57,9 +94,6 @@ export function getBlockSchema(
 ): OutputSchema | undefined {
   const blockType = block.metadata?.id
 
-  // For blocks that expose inputFormat as outputs, always merge them
-  // This includes both triggers (start_trigger, generic_webhook) and
-  // non-triggers (starter, human_in_the_loop) that have inputFormat
   if (
     blockType &&
     BLOCKS_WITH_INPUT_FORMAT_OUTPUTS.includes(
@@ -72,6 +106,16 @@ export function getBlockSchema(
     if (Object.keys(merged).length > 0) {
       return merged
     }
+  }
+
+  const evaluatorSchema = getEvaluatorMetricsSchema(block)
+  if (evaluatorSchema) {
+    return evaluatorSchema
+  }
+
+  const responseFormatSchema = getResponseFormatSchema(block)
+  if (responseFormatSchema) {
+    return responseFormatSchema
   }
 
   const isTrigger = isTriggerBehavior(block)
