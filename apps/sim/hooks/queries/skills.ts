@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getQueryClient } from '@/app/_shell/providers/query-provider'
 
 const logger = createLogger('SkillsQueries')
 const API_ENDPOINT = '/api/skills'
@@ -23,34 +22,6 @@ export const skillsKeys = {
   all: ['skills'] as const,
   lists: () => [...skillsKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...skillsKeys.lists(), workspaceId] as const,
-}
-
-/**
- * Extract workspaceId from the current URL path
- */
-function getWorkspaceIdFromUrl(): string | null {
-  if (typeof window === 'undefined') return null
-  const match = window.location.pathname.match(/^\/workspace\/([^/]+)/)
-  return match?.[1] ?? null
-}
-
-/**
- * Get all skills from the query cache (for non-React code)
- */
-export function getSkills(workspaceId?: string): SkillDefinition[] {
-  if (typeof window === 'undefined') return []
-  const wsId = workspaceId ?? getWorkspaceIdFromUrl()
-  if (!wsId) return []
-  const queryClient = getQueryClient()
-  return queryClient.getQueryData<SkillDefinition[]>(skillsKeys.list(wsId)) ?? []
-}
-
-/**
- * Get a specific skill from the query cache by ID or name
- */
-export function getSkill(identifier: string, workspaceId?: string): SkillDefinition | undefined {
-  const skills = getSkills(workspaceId)
-  return skills.find((s) => s.id === identifier || s.name === identifier)
 }
 
 /**

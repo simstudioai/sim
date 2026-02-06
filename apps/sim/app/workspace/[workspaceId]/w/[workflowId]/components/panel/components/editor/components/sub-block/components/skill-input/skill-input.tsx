@@ -73,7 +73,7 @@ export function SkillInput({
     }
 
     const availableSkills = workspaceSkills.filter((s) => !selectedIds.has(s.id))
-    if (availableSkills.length > 0) {
+    if (!skillsDisabled && availableSkills.length > 0) {
       groups.push({
         section: 'Skills',
         items: availableSkills.map((s) => {
