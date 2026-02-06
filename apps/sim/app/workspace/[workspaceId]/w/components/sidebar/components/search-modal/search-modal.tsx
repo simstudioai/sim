@@ -272,6 +272,12 @@ export function SearchModal({
             ref={inputRef}
             value={search}
             onValueChange={handleSearchChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                onOpenChange(false)
+              }
+            }}
             placeholder='Search anything...'
             className='w-full border-0 border-[var(--border)] border-b bg-transparent px-[12px] py-[10px] font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
           />
