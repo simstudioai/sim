@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 
-// Use the real registry module, not the global mock from vitest.setup.ts
 vi.unmock('@/blocks/registry')
 
 import { generateRouterPrompt } from '@/blocks/blocks/router'
@@ -15,7 +14,7 @@ import {
 } from '@/blocks/registry'
 import { AuthMode } from '@/blocks/types'
 
-describe('Blocks Module', () => {
+describe.concurrent('Blocks Module', () => {
   describe('Registry', () => {
     it('should have a non-empty registry of blocks', () => {
       expect(Object.keys(registry).length).toBeGreaterThan(0)
@@ -409,6 +408,7 @@ describe('Blocks Module', () => {
         'workflow-input-mapper',
         'text',
         'router-input',
+        'skill-input',
       ]
 
       const blocks = getAllBlocks()

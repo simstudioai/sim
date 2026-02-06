@@ -43,6 +43,13 @@ export class CustomToolsNotAllowedError extends Error {
   }
 }
 
+export class SkillsNotAllowedError extends Error {
+  constructor() {
+    super('Skills are not allowed based on your permission group settings')
+    this.name = 'SkillsNotAllowedError'
+  }
+}
+
 export class InvitationsNotAllowedError extends Error {
   constructor() {
     super('Invitations are not allowed based on your permission group settings')
@@ -198,6 +205,26 @@ export async function validateCustomToolsAllowed(
   if (config.disableCustomTools) {
     logger.warn('Custom tools blocked by permission group', { userId })
     throw new CustomToolsNotAllowedError()
+  }
+}
+
+export async function validateSkillsAllowed(
+  userId: string | undefined,
+  ctx?: ExecutionContext
+): Promise<void> {
+  if (!userId) {
+    return
+  }
+
+  const config = await getPermissionConfig(userId, ctx)
+
+  if (!config) {
+    return
+  }
+
+  if (config.disableSkills) {
+    logger.warn('Skills blocked by permission group', { userId })
+    throw new SkillsNotAllowedError()
   }
 }
 
