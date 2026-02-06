@@ -248,8 +248,14 @@ export const sseHandlers: Record<string, SSEHandler> = {
     context.currentThinkingBlock.content = `${context.currentThinkingBlock.content || ''}${chunk}`
   },
   content: (event, context) => {
-    const d = asRecord(event.data)
-    const chunk = (d.content || d.data || event.content) as string | undefined
+    // Go backend sends content as a plain string in event.data, not wrapped in an object.
+    let chunk: string | undefined
+    if (typeof event.data === 'string') {
+      chunk = event.data
+    } else {
+      const d = asRecord(event.data)
+      chunk = (d.content || d.data || event.content) as string | undefined
+    }
     if (!chunk) return
     context.accumulatedContent += chunk
     addContentBlock(context, { type: 'text', content: chunk })
@@ -281,8 +287,14 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
   content: (event, context) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId || !event.data) return
-    const d = asRecord(event.data)
-    const chunk = (d.content || d.data || event.content) as string | undefined
+    // Go backend sends content as a plain string in event.data
+    let chunk: string | undefined
+    if (typeof event.data === 'string') {
+      chunk = event.data
+    } else {
+      const d = asRecord(event.data)
+      chunk = (d.content || d.data || event.content) as string | undefined
+    }
     if (!chunk) return
     context.subAgentContent[parentToolCallId] =
       (context.subAgentContent[parentToolCallId] || '') + chunk
