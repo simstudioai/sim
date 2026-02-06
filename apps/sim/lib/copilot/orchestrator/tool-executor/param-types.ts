@@ -125,3 +125,20 @@ export interface CreateWorkspaceMcpServerParams {
   isPublic?: boolean
   workflowIds?: string[]
 }
+
+// === Workflow Organization Params ===
+
+export interface RenameWorkflowParams {
+  workflowId: string
+  name: string
+}
+
+export interface MoveWorkflowParams {
+  workflowId: string
+  folderId: string | null
+}
+
+export interface MoveFolderParams {
+  folderId: string
+  parentId: string | null
+}

@@ -12,6 +12,9 @@ import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } fr
 import type {
   CreateFolderParams,
   CreateWorkflowParams,
+  MoveFolderParams,
+  MoveWorkflowParams,
+  RenameWorkflowParams,
   RunWorkflowParams,
   SetGlobalWorkflowVariablesParams,
   VariableOperation,
@@ -279,6 +282,88 @@ export async function executeSetGlobalWorkflowVariables(
       .where(eq(workflow.id, workflowId))
 
     return { success: true, output: { updated: Object.values(byName).length } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeRenameWorkflow(
+  params: RenameWorkflowParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    const name = typeof params.name === 'string' ? params.name.trim() : ''
+    if (!name) {
+      return { success: false, error: 'name is required' }
+    }
+    if (name.length > 200) {
+      return { success: false, error: 'Workflow name must be 200 characters or less' }
+    }
+
+    await ensureWorkflowAccess(workflowId, context.userId)
+
+    await db
+      .update(workflow)
+      .set({ name, updatedAt: new Date() })
+      .where(eq(workflow.id, workflowId))
+
+    return { success: true, output: { workflowId, name } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeMoveWorkflow(
+  params: MoveWorkflowParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+
+    await ensureWorkflowAccess(workflowId, context.userId)
+
+    const folderId = params.folderId || null
+
+    await db
+      .update(workflow)
+      .set({ folderId, updatedAt: new Date() })
+      .where(eq(workflow.id, workflowId))
+
+    return { success: true, output: { workflowId, folderId } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeMoveFolder(
+  params: MoveFolderParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const folderId = params.folderId
+    if (!folderId) {
+      return { success: false, error: 'folderId is required' }
+    }
+
+    const parentId = params.parentId || null
+
+    if (parentId === folderId) {
+      return { success: false, error: 'A folder cannot be moved into itself' }
+    }
+
+    await db
+      .update(workflowFolder)
+      .set({ parentId, updatedAt: new Date() })
+      .where(eq(workflowFolder.id, folderId))
+
+    return { success: true, output: { folderId, parentId } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
