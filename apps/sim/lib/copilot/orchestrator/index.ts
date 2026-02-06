@@ -14,15 +14,16 @@ export interface OrchestrateStreamOptions extends OrchestratorOptions {
 }
 
 export async function orchestrateCopilotStream(
-  requestPayload: Record<string, any>,
+  requestPayload: Record<string, unknown>,
   options: OrchestrateStreamOptions
 ): Promise<OrchestratorResult> {
   const { userId, workflowId, chatId } = options
   const execContext = await prepareExecutionContext(userId, workflowId)
 
+  const payloadMsgId = requestPayload?.messageId
   const context = createStreamingContext({
     chatId,
-    messageId: requestPayload?.messageId || crypto.randomUUID(),
+    messageId: typeof payloadMsgId === 'string' ? payloadMsgId : crypto.randomUUID(),
   })
 
   try {

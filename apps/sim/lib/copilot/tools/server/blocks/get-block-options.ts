@@ -14,6 +14,8 @@ export const getBlockOptionsServerTool: BaseServerTool<
   GetBlockOptionsResultType
 > = {
   name: 'get_block_options',
+  inputSchema: GetBlockOptionsInput,
+  outputSchema: GetBlockOptionsResult,
   async execute(
     { blockId }: GetBlockOptionsInputType,
     context?: { userId: string }

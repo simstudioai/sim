@@ -11,6 +11,7 @@ import {
 } from '@/lib/copilot/store-utils'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import type { CopilotStore, CopilotStreamInfo, CopilotToolCall } from '@/stores/panel/copilot/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   appendTextBlock,
   beginThinkingBlock,
@@ -295,7 +296,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
             })
             if (hasWorkflowState) {
               const diffStore = useWorkflowDiffStore.getState()
-              diffStore.setProposedChanges(resultPayload.workflowState).catch((err) => {
+              diffStore.setProposedChanges(resultPayload.workflowState as WorkflowState).catch((err) => {
                 logger.error('[SSE] Failed to apply edit_workflow diff', {
                   error: err instanceof Error ? err.message : String(err),
                 })
