@@ -107,9 +107,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       if (providerId === 'azure-openai' || providerId === 'azure-anthropic') {
         providerRequest.azureEndpoint = inputs.azureEndpoint
-        if (providerId === 'azure-openai') {
-          providerRequest.azureApiVersion = inputs.azureApiVersion
-        }
+        providerRequest.azureApiVersion = inputs.azureApiVersion
       }
 
       if (providerId === 'bedrock') {
@@ -266,9 +264,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       if (providerId === 'azure-openai' || providerId === 'azure-anthropic') {
         providerRequest.azureEndpoint = inputs.azureEndpoint
-        if (providerId === 'azure-openai') {
-          providerRequest.azureApiVersion = inputs.azureApiVersion
-        }
+        providerRequest.azureApiVersion = inputs.azureApiVersion
       }
 
       if (providerId === 'bedrock') {
