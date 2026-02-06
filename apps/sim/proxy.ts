@@ -100,11 +100,17 @@ function handleWorkspaceInvitationAPI(
  */
 function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   const userAgent = request.headers.get('user-agent') || ''
-  const isWebhookEndpoint = request.nextUrl.pathname.startsWith('/api/webhooks/trigger/')
+  const { pathname } = request.nextUrl
+  const isWebhookEndpoint = pathname.startsWith('/api/webhooks/trigger/')
+  const isMcpEndpoint = pathname.startsWith('/api/mcp/')
+  const isMcpOauthDiscoveryEndpoint =
+    pathname.startsWith('/.well-known/oauth-authorization-server') ||
+    pathname.startsWith('/.well-known/oauth-protected-resource')
   const isSuspicious = SUSPICIOUS_UA_PATTERNS.some((pattern) => pattern.test(userAgent))
 
-  // Block suspicious requests, but exempt webhook endpoints from User-Agent validation
-  if (isSuspicious && !isWebhookEndpoint) {
+  // Block suspicious requests, but exempt machine-to-machine endpoints that may
+  // legitimately omit User-Agent headers (webhooks and MCP protocol discovery/calls).
+  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpOauthDiscoveryEndpoint) {
     logger.warn('Blocked suspicious request', {
       userAgent,
       ip: request.headers.get('x-forwarded-for') || 'unknown',
