@@ -19,10 +19,7 @@ export function maskCredentialIdsInValue<T>(value: T, credentialIds: Set<string>
   if (typeof value === 'object') {
     const masked: Record<string, unknown> = {}
     for (const key of Object.keys(value as Record<string, unknown>)) {
-      masked[key] = maskCredentialIdsInValue(
-        (value as Record<string, unknown>)[key],
-        credentialIds
-      )
+      masked[key] = maskCredentialIdsInValue((value as Record<string, unknown>)[key], credentialIds)
     }
     return masked as T
   }

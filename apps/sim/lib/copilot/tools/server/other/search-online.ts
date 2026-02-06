@@ -49,7 +49,17 @@ export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchRe
           apiKey: env.EXA_API_KEY ?? '',
         })
 
-        const output = exaResult.output as { results?: Array<{ title?: string; url?: string; text?: string; summary?: string; publishedDate?: string }> } | undefined
+        const output = exaResult.output as
+          | {
+              results?: Array<{
+                title?: string
+                url?: string
+                text?: string
+                summary?: string
+                publishedDate?: string
+              }>
+            }
+          | undefined
         const exaResults = output?.results ?? []
 
         if (exaResult.success && exaResults.length > 0) {

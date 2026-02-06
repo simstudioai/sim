@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
-import { env } from '@/lib/core/config/env'
+import { processFileAttachments } from '@/lib/copilot/chat-context'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import type { CopilotProviderConfig } from '@/lib/copilot/types'
+import { env } from '@/lib/core/config/env'
 import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
-import { type FileContent, processFileAttachments } from '@/lib/copilot/chat-context'
 
 const logger = createLogger('CopilotChatPayload')
 
@@ -35,7 +35,10 @@ interface ToolSchema {
 }
 
 interface CredentialsPayload {
-  oauth: Record<string, { accessToken: string; accountId: string; name: string; expiresAt?: string }>
+  oauth: Record<
+    string,
+    { accessToken: string; accountId: string; name: string; expiresAt?: string }
+  >
   apiKeys: string[]
   metadata?: {
     connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }>
@@ -95,9 +98,17 @@ export async function buildCopilotRequestPayload(
   }
 ): Promise<Record<string, unknown>> {
   const {
-    message, workflowId, userId, userMessageId, mode,
-    conversationHistory = [], contexts, fileAttachments,
-    commands, chatId, implicitFeedback,
+    message,
+    workflowId,
+    userId,
+    userMessageId,
+    mode,
+    conversationHistory = [],
+    contexts,
+    fileAttachments,
+    commands,
+    chatId,
+    implicitFeedback,
   } = params
 
   const selectedModel = options.selectedModel
@@ -115,7 +126,10 @@ export async function buildCopilotRequestPayload(
       const content: Array<{ type: string; text?: string; [key: string]: unknown }> = [
         { type: 'text', text: msg.content as string },
       ]
-      const processedHistoricalAttachments = await processFileAttachments(msgAttachments as BuildPayloadParams['fileAttachments'] ?? [], userId)
+      const processedHistoricalAttachments = await processFileAttachments(
+        (msgAttachments as BuildPayloadParams['fileAttachments']) ?? [],
+        userId
+      )
       for (const fileContent of processedHistoricalAttachments) {
         content.push(fileContent)
       }

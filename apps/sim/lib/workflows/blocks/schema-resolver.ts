@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import type { ResolvedBlock, ResolvedOption, ResolvedOutput, ResolvedSubBlock } from './schema-types'
+import type {
+  ResolvedBlock,
+  ResolvedOption,
+  ResolvedOutput,
+  ResolvedSubBlock,
+} from './schema-types'
 
 const logger = createLogger('BlockSchemaResolver')
 
@@ -86,7 +91,7 @@ export class BlockSchemaResolver {
     }
 
     if (!resolved.validation?.min && !resolved.validation?.max && !resolved.validation?.pattern) {
-      delete resolved.validation
+      resolved.validation = undefined
     }
 
     return resolved
@@ -187,7 +192,9 @@ export class BlockSchemaResolver {
   private supportsTriggerMode(config: BlockConfig): boolean {
     return Boolean(
       config.triggerAllowed ||
-        config.subBlocks.some((subBlock) => subBlock.id === 'triggerMode' || subBlock.mode === 'trigger')
+        config.subBlocks.some(
+          (subBlock) => subBlock.id === 'triggerMode' || subBlock.mode === 'trigger'
+        )
     )
   }
 

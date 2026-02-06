@@ -1,22 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
-import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import { asRecord } from '@/lib/copilot/orchestrator/sse-utils'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import {
   isBackgroundState,
   isRejectedState,
   isReviewState,
   resolveToolDisplay,
 } from '@/lib/copilot/store-utils'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore, CopilotStreamInfo, CopilotToolCall } from '@/stores/panel/copilot/types'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import {
-  appendTextBlock,
-  beginThinkingBlock,
-  finalizeThinkingBlock,
-} from './content-blocks'
+import { appendTextBlock, beginThinkingBlock, finalizeThinkingBlock } from './content-blocks'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSseHandlers')
@@ -92,7 +88,9 @@ export function flushStreamingUpdates(set: StoreSet) {
             ...msg,
             content: '',
             contentBlocks:
-              update.contentBlocks.length > 0 ? createOptimizedContentBlocks(update.contentBlocks) : [],
+              update.contentBlocks.length > 0
+                ? createOptimizedContentBlocks(update.contentBlocks)
+                : [],
           }
         }
         return msg
@@ -183,7 +181,12 @@ function appendThinkingContent(context: ClientStreamingContext, text: string) {
   if (context.currentThinkingBlock) {
     context.currentThinkingBlock.content += cleanedText
   } else {
-    const newBlock: ClientContentBlock = { type: 'thinking', content: cleanedText, timestamp: Date.now(), startTime: Date.now() }
+    const newBlock: ClientContentBlock = {
+      type: 'thinking',
+      content: cleanedText,
+      timestamp: Date.now(),
+      startTime: Date.now(),
+    }
     context.currentThinkingBlock = newBlock
     context.contentBlocks.push(newBlock)
   }
@@ -218,7 +221,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
   tool_result: (data, context, get, set) => {
     try {
       const eventData = asRecord(data?.data)
-      const toolCallId: string | undefined = data?.toolCallId || (eventData.id as string | undefined)
+      const toolCallId: string | undefined =
+        data?.toolCallId || (eventData.id as string | undefined)
       const success: boolean | undefined = data?.success
       const failedDependency: boolean = data?.failedDependency === true
       const resultObj = asRecord(data?.result)
@@ -251,7 +255,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
           try {
             const result = asRecord(data?.result) || asRecord(eventData.result)
             const input = asRecord(current.params || current.input)
-            const todoId = (input.id || input.todoId || result.id || result.todoId) as string | undefined
+            const todoId = (input.id || input.todoId || result.id || result.todoId) as
+              | string
+              | undefined
             if (todoId) {
               get().updatePlanTodoStatus(todoId, 'completed')
             }
@@ -270,7 +276,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
           try {
             const result = asRecord(data?.result) || asRecord(eventData.result)
             const input = asRecord(current.params || current.input)
-            const todoId = (input.id || input.todoId || result.id || result.todoId) as string | undefined
+            const todoId = (input.id || input.todoId || result.id || result.todoId) as
+              | string
+              | undefined
             if (todoId) {
               get().updatePlanTodoStatus(todoId, 'executing')
             }
@@ -296,11 +304,13 @@ export const sseHandlers: Record<string, SSEHandler> = {
             })
             if (hasWorkflowState) {
               const diffStore = useWorkflowDiffStore.getState()
-              diffStore.setProposedChanges(resultPayload.workflowState as WorkflowState).catch((err) => {
-                logger.error('[SSE] Failed to apply edit_workflow diff', {
-                  error: err instanceof Error ? err.message : String(err),
+              diffStore
+                .setProposedChanges(resultPayload.workflowState as WorkflowState)
+                .catch((err) => {
+                  logger.error('[SSE] Failed to apply edit_workflow diff', {
+                    error: err instanceof Error ? err.message : String(err),
+                  })
                 })
-              })
             }
           } catch (err) {
             logger.error('[SSE] edit_workflow result handling failed', {
@@ -350,7 +360,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
   tool_error: (data, context, get, set) => {
     try {
       const errorData = asRecord(data?.data)
-      const toolCallId: string | undefined = data?.toolCallId || (errorData.id as string | undefined)
+      const toolCallId: string | undefined =
+        data?.toolCallId || (errorData.id as string | undefined)
       const failedDependency: boolean = data?.failedDependency === true
       if (!toolCallId) return
       const { toolCallsById } = get()

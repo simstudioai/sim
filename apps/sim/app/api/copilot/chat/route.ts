@@ -5,10 +5,10 @@ import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { generateChatTitle } from '@/lib/copilot/chat-title'
 import { buildConversationHistory } from '@/lib/copilot/chat-context'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
+import { generateChatTitle } from '@/lib/copilot/chat-title'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { COPILOT_MODEL_IDS, COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
@@ -228,7 +228,9 @@ export async function POST(req: NextRequest) {
         hasTools: Array.isArray(requestPayload.tools),
         toolCount: Array.isArray(requestPayload.tools) ? requestPayload.tools.length : 0,
         hasBaseTools: Array.isArray(requestPayload.baseTools),
-        baseToolCount: Array.isArray(requestPayload.baseTools) ? requestPayload.baseTools.length : 0,
+        baseToolCount: Array.isArray(requestPayload.baseTools)
+          ? requestPayload.baseTools.length
+          : 0,
         hasCredentials: !!requestPayload.credentials,
       })
     } catch {}
@@ -370,7 +372,10 @@ export async function POST(req: NextRequest) {
       content: nonStreamingResult.content,
       toolCalls: nonStreamingResult.toolCalls,
       model: selectedModel,
-      provider: (requestPayload?.provider as Record<string, unknown>)?.provider || env.COPILOT_PROVIDER || 'openai',
+      provider:
+        (requestPayload?.provider as Record<string, unknown>)?.provider ||
+        env.COPILOT_PROVIDER ||
+        'openai',
     }
 
     logger.info(`[${tracker.requestId}] Non-streaming response from orchestrator:`, {

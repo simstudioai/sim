@@ -45,25 +45,16 @@ export async function processContexts(
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
-        return await processKnowledgeFromDb(
-          ctx.knowledgeId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+        return await processKnowledgeFromDb(ctx.knowledgeId, ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
         return await processBlockMetadata(ctx.blockIds[0], ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'templates' && ctx.templateId) {
-        return await processTemplateFromDb(
-          ctx.templateId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+        return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'logs' && ctx.executionId) {
-        return await processExecutionLogFromDb(
-          ctx.executionId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+        return await processExecutionLogFromDb(ctx.executionId, ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
         return await processWorkflowBlockFromDb(ctx.workflowId, ctx.blockId, ctx.label)
@@ -100,10 +91,7 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
-        return await processKnowledgeFromDb(
-          ctx.knowledgeId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+        return await processKnowledgeFromDb(ctx.knowledgeId, ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
         return await processBlockMetadata(
@@ -113,16 +101,10 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'templates' && ctx.templateId) {
-        return await processTemplateFromDb(
-          ctx.templateId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+        return await processTemplateFromDb(ctx.templateId, ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'logs' && ctx.executionId) {
-        return await processExecutionLogFromDb(
-          ctx.executionId,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
+        return await processExecutionLogFromDb(ctx.executionId, ctx.label ? `@${ctx.label}` : '@')
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
         return await processWorkflowBlockFromDb(ctx.workflowId, ctx.blockId, ctx.label)

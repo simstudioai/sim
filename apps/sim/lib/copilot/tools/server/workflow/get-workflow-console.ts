@@ -90,7 +90,9 @@ function normalizeErrorMessage(errorValue: unknown): string | undefined {
     try {
       return JSON.stringify(errorValue)
     } catch (error) {
-      logger.warn('Failed to stringify error value', { error: error instanceof Error ? error.message : String(error) })
+      logger.warn('Failed to stringify error value', {
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
   try {

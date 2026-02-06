@@ -3,7 +3,6 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import type { SerializableExecutionState } from '@/executor/execution/types'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
   calculateCostSummary,
@@ -18,6 +17,7 @@ import type {
   TraceSpan,
   WorkflowState,
 } from '@/lib/logs/types'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('LoggingSession')
 

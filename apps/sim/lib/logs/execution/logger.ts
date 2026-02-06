@@ -21,7 +21,6 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
-import type { SerializableExecutionState } from '@/executor/execution/types'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import type {
@@ -35,6 +34,7 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 
 export interface ToolCall {
   name: string

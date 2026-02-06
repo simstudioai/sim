@@ -15,8 +15,8 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
-import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { normalizeName } from '@/executor/constants'
+import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import {
   ensureWorkflowAccess,
   ensureWorkspaceAccess,

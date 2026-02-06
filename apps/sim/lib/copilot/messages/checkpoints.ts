@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { COPILOT_CHECKPOINTS_API_PATH } from '@/lib/copilot/constants'
+import type { CopilotMessage, CopilotStore, CopilotToolCall } from '@/stores/panel/copilot/types'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import type { CopilotMessage, CopilotStore, CopilotToolCall } from '@/stores/panel/copilot/types'
 
 const logger = createLogger('CopilotMessageCheckpoints')
 

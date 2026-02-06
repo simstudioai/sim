@@ -24,9 +24,7 @@ export function createUserMessage(
     ...(contexts && contexts.length > 0 && { contexts }),
     ...(contexts &&
       contexts.length > 0 && {
-        contentBlocks: [
-          { type: 'contexts', contexts, timestamp: Date.now() },
-        ],
+        contentBlocks: [{ type: 'contexts', contexts, timestamp: Date.now() }],
       }),
   }
 }
@@ -125,7 +123,12 @@ export function stripContinueOptionFromBlocks(blocks: ClientContentBlock[]): Cli
 
 export function beginThinkingBlock(context: ClientStreamingContext) {
   if (!context.currentThinkingBlock) {
-    const newBlock: ClientContentBlock = { type: 'thinking', content: '', timestamp: Date.now(), startTime: Date.now() }
+    const newBlock: ClientContentBlock = {
+      type: 'thinking',
+      content: '',
+      timestamp: Date.now(),
+      startTime: Date.now(),
+    }
     context.currentThinkingBlock = newBlock
     context.contentBlocks.push(newBlock)
   }

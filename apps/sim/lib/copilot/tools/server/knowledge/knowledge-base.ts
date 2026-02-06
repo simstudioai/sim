@@ -7,6 +7,14 @@ import {
   getKnowledgeBaseById,
   getKnowledgeBases,
 } from '@/lib/knowledge/service'
+import {
+  createTagDefinition,
+  deleteTagDefinition,
+  getDocumentTagDefinitions,
+  getNextAvailableSlot,
+  getTagUsageStats,
+  updateTagDefinition,
+} from '@/lib/knowledge/tags/service'
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
@@ -213,10 +221,177 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
         }
 
+        case 'list_tags': {
+          if (!args.knowledgeBaseId) {
+            return {
+              success: false,
+              message: 'Knowledge base ID is required for list_tags operation',
+            }
+          }
+
+          const tagDefinitions = await getDocumentTagDefinitions(args.knowledgeBaseId)
+
+          logger.info('Tag definitions listed via copilot', {
+            knowledgeBaseId: args.knowledgeBaseId,
+            count: tagDefinitions.length,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `Found ${tagDefinitions.length} tag definition(s)`,
+            data: tagDefinitions.map((td) => ({
+              id: td.id,
+              tagSlot: td.tagSlot,
+              displayName: td.displayName,
+              fieldType: td.fieldType,
+              createdAt: td.createdAt,
+            })),
+          }
+        }
+
+        case 'create_tag': {
+          if (!args.knowledgeBaseId) {
+            return {
+              success: false,
+              message: 'Knowledge base ID is required for create_tag operation',
+            }
+          }
+          if (!args.tagDisplayName) {
+            return {
+              success: false,
+              message: 'tagDisplayName is required for create_tag operation',
+            }
+          }
+          const fieldType = args.tagFieldType || 'text'
+
+          const tagSlot = await getNextAvailableSlot(args.knowledgeBaseId, fieldType)
+          if (!tagSlot) {
+            return {
+              success: false,
+              message: `No available slots for field type "${fieldType}". Maximum tags of this type reached.`,
+            }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const newTag = await createTagDefinition(
+            {
+              knowledgeBaseId: args.knowledgeBaseId,
+              tagSlot,
+              displayName: args.tagDisplayName,
+              fieldType,
+            },
+            requestId
+          )
+
+          logger.info('Tag definition created via copilot', {
+            knowledgeBaseId: args.knowledgeBaseId,
+            tagId: newTag.id,
+            displayName: newTag.displayName,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `Tag "${newTag.displayName}" created successfully`,
+            data: {
+              id: newTag.id,
+              tagSlot: newTag.tagSlot,
+              displayName: newTag.displayName,
+              fieldType: newTag.fieldType,
+            },
+          }
+        }
+
+        case 'update_tag': {
+          if (!args.tagDefinitionId) {
+            return {
+              success: false,
+              message: 'tagDefinitionId is required for update_tag operation',
+            }
+          }
+
+          const updateData: { displayName?: string; fieldType?: string } = {}
+          if (args.tagDisplayName) updateData.displayName = args.tagDisplayName
+          if (args.tagFieldType) updateData.fieldType = args.tagFieldType
+
+          if (!updateData.displayName && !updateData.fieldType) {
+            return {
+              success: false,
+              message: 'At least one of tagDisplayName or tagFieldType is required for update_tag',
+            }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const updatedTag = await updateTagDefinition(args.tagDefinitionId, updateData, requestId)
+
+          logger.info('Tag definition updated via copilot', {
+            tagId: args.tagDefinitionId,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `Tag "${updatedTag.displayName}" updated successfully`,
+            data: {
+              id: updatedTag.id,
+              tagSlot: updatedTag.tagSlot,
+              displayName: updatedTag.displayName,
+              fieldType: updatedTag.fieldType,
+            },
+          }
+        }
+
+        case 'delete_tag': {
+          if (!args.tagDefinitionId) {
+            return {
+              success: false,
+              message: 'tagDefinitionId is required for delete_tag operation',
+            }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const deleted = await deleteTagDefinition(args.tagDefinitionId, requestId)
+
+          logger.info('Tag definition deleted via copilot', {
+            tagId: args.tagDefinitionId,
+            tagSlot: deleted.tagSlot,
+            displayName: deleted.displayName,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `Tag "${deleted.displayName}" deleted successfully. All document/chunk references cleared.`,
+            data: {
+              tagSlot: deleted.tagSlot,
+              displayName: deleted.displayName,
+            },
+          }
+        }
+
+        case 'get_tag_usage': {
+          if (!args.knowledgeBaseId) {
+            return {
+              success: false,
+              message: 'Knowledge base ID is required for get_tag_usage operation',
+            }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const stats = await getTagUsageStats(args.knowledgeBaseId, requestId)
+
+          return {
+            success: true,
+            message: `Retrieved usage stats for ${stats.length} tag(s)`,
+            data: stats,
+          }
+        }
+
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported operations: create, list, get, query`,
+            message: `Unknown operation: ${operation}. Supported operations: create, list, get, query, list_tags, create_tag, update_tag, delete_tag, get_tag_usage`,
           }
       }
     } catch (error) {

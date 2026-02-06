@@ -1,4 +1,8 @@
-import type { ChatContext, CopilotToolCall, SubAgentContentBlock } from '@/stores/panel/copilot/types'
+import type {
+  ChatContext,
+  CopilotToolCall,
+  SubAgentContentBlock,
+} from '@/stores/panel/copilot/types'
 
 /**
  * A content block used in copilot messages and during streaming.

@@ -44,7 +44,10 @@ export async function processFileAttachments(
 
   const processedFileContents: FileContent[] = []
   const requestId = `copilot-${userId}-${Date.now()}`
-  const processedAttachments = await CopilotFiles.processCopilotAttachments(fileAttachments as Parameters<typeof CopilotFiles.processCopilotAttachments>[0], requestId)
+  const processedAttachments = await CopilotFiles.processCopilotAttachments(
+    fileAttachments as Parameters<typeof CopilotFiles.processCopilotAttachments>[0],
+    requestId
+  )
 
   for (const { buffer, attachment } of processedAttachments) {
     const fileContent = createFileContent(buffer, attachment.media_type)
