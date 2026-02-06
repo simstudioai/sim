@@ -75,7 +75,7 @@ export function FileSelectorInput({
       previewContextValues
         ? resolvePreviewContextValue(previewContextValues.teamId)
         : resolveDependencyValue('teamId', blockValues, canonicalIndex, canonicalModeOverrides),
-    [previewContextValues?.teamId, blockValues, canonicalIndex, canonicalModeOverrides]
+    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const siteIdValue = useMemo(
@@ -83,7 +83,7 @@ export function FileSelectorInput({
       previewContextValues
         ? resolvePreviewContextValue(previewContextValues.siteId)
         : resolveDependencyValue('siteId', blockValues, canonicalIndex, canonicalModeOverrides),
-    [previewContextValues?.siteId, blockValues, canonicalIndex, canonicalModeOverrides]
+    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const collectionIdValue = useMemo(
@@ -96,7 +96,7 @@ export function FileSelectorInput({
             canonicalIndex,
             canonicalModeOverrides
           ),
-    [previewContextValues?.collectionId, blockValues, canonicalIndex, canonicalModeOverrides]
+    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const projectIdValue = useMemo(
@@ -104,7 +104,7 @@ export function FileSelectorInput({
       previewContextValues
         ? resolvePreviewContextValue(previewContextValues.projectId)
         : resolveDependencyValue('projectId', blockValues, canonicalIndex, canonicalModeOverrides),
-    [previewContextValues?.projectId, blockValues, canonicalIndex, canonicalModeOverrides]
+    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const planIdValue = useMemo(
@@ -112,7 +112,7 @@ export function FileSelectorInput({
       previewContextValues
         ? resolvePreviewContextValue(previewContextValues.planId)
         : resolveDependencyValue('planId', blockValues, canonicalIndex, canonicalModeOverrides),
-    [previewContextValues?.planId, blockValues, canonicalIndex, canonicalModeOverrides]
+    [previewContextValues, blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
   const normalizedCredentialId =
