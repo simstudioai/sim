@@ -6,8 +6,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateChatTitle } from '@/lib/copilot/chat-title'
+import { buildConversationHistory } from '@/lib/copilot/chat-context'
+import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
+import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import { getCopilotModel } from '@/lib/copilot/config'
-import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { COPILOT_MODEL_IDS, COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import {
@@ -22,14 +24,8 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
-import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
-import type { CopilotProviderConfig } from '@/lib/copilot/types'
 import { env } from '@/lib/core/config/env'
-import { CopilotFiles } from '@/lib/uploads'
-import { createFileContent } from '@/lib/uploads/utils/file-utils'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
-import { tools } from '@/tools/registry'
-import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -178,319 +174,66 @@ export async function POST(req: NextRequest) {
     let conversationHistory: any[] = []
     let actualChatId = chatId
 
-    if (chatId) {
-      // Load existing chat
-      const [chat] = await db
-        .select()
-        .from(copilotChats)
-        .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, authenticatedUserId)))
-        .limit(1)
-
-      if (chat) {
-        currentChat = chat
-        conversationHistory = Array.isArray(chat.messages) ? chat.messages : []
-      }
-    } else if (createNewChat && workflowId) {
-      // Create new chat
-      const { provider, model } = getCopilotModel('chat')
-      const [newChat] = await db
-        .insert(copilotChats)
-        .values({
-          userId: authenticatedUserId,
-          workflowId,
-          title: null,
-          model,
-          messages: [],
-        })
-        .returning()
-
-      if (newChat) {
-        currentChat = newChat
-        actualChatId = newChat.id
-      }
-    }
-
-    // Process file attachments if present
-    const processedFileContents: any[] = []
-    if (fileAttachments && fileAttachments.length > 0) {
-      const processedAttachments = await CopilotFiles.processCopilotAttachments(
-        fileAttachments,
-        tracker.requestId
+    if (chatId || createNewChat) {
+      const defaultsForChatRow = getCopilotModel('chat')
+      const chatResult = await resolveOrCreateChat({
+        chatId,
+        userId: authenticatedUserId,
+        workflowId,
+        model: defaultsForChatRow.model,
+      })
+      currentChat = chatResult.chat
+      actualChatId = chatResult.chatId || chatId
+      const history = buildConversationHistory(
+        chatResult.conversationHistory,
+        (chatResult.chat?.conversationId as string | undefined) || conversationId
       )
-
-      for (const { buffer, attachment } of processedAttachments) {
-        const fileContent = createFileContent(buffer, attachment.media_type)
-        if (fileContent) {
-          processedFileContents.push(fileContent)
-        }
-      }
-    }
-
-    // Build messages array for sim agent with conversation history
-    const messages: any[] = []
-
-    // Add conversation history (need to rebuild these with file support if they had attachments)
-    for (const msg of conversationHistory) {
-      if (msg.fileAttachments && msg.fileAttachments.length > 0) {
-        // This is a message with file attachments - rebuild with content array
-        const content: any[] = [{ type: 'text', text: msg.content }]
-
-        const processedHistoricalAttachments = await CopilotFiles.processCopilotAttachments(
-          msg.fileAttachments,
-          tracker.requestId
-        )
-
-        for (const { buffer, attachment } of processedHistoricalAttachments) {
-          const fileContent = createFileContent(buffer, attachment.media_type)
-          if (fileContent) {
-            content.push(fileContent)
-          }
-        }
-
-        messages.push({
-          role: msg.role,
-          content,
-        })
-      } else {
-        // Regular text-only message
-        messages.push({
-          role: msg.role,
-          content: msg.content,
-        })
-      }
-    }
-
-    // Add implicit feedback if provided
-    if (implicitFeedback) {
-      messages.push({
-        role: 'system',
-        content: implicitFeedback,
-      })
-    }
-
-    // Add current user message with file attachments
-    if (processedFileContents.length > 0) {
-      // Message with files - use content array format
-      const content: any[] = [{ type: 'text', text: message }]
-
-      // Add file contents
-      for (const fileContent of processedFileContents) {
-        content.push(fileContent)
-      }
-
-      messages.push({
-        role: 'user',
-        content,
-      })
-    } else {
-      // Text-only message
-      messages.push({
-        role: 'user',
-        content: message,
-      })
+      conversationHistory = history.history
     }
 
     const defaults = getCopilotModel('chat')
     const selectedModel = model || defaults.model
-    const envModel = env.COPILOT_MODEL || defaults.model
-
-    let providerConfig: CopilotProviderConfig | undefined
-    const providerEnv = env.COPILOT_PROVIDER as any
-
-    if (providerEnv) {
-      if (providerEnv === 'azure-openai') {
-        providerConfig = {
-          provider: 'azure-openai',
-          model: envModel,
-          apiKey: env.AZURE_OPENAI_API_KEY,
-          apiVersion: 'preview',
-          endpoint: env.AZURE_OPENAI_ENDPOINT,
-        }
-      } else if (providerEnv === 'azure-anthropic') {
-        providerConfig = {
-          provider: 'azure-anthropic',
-          model: envModel,
-          apiKey: env.AZURE_ANTHROPIC_API_KEY,
-          apiVersion: env.AZURE_ANTHROPIC_API_VERSION,
-          endpoint: env.AZURE_ANTHROPIC_ENDPOINT,
-        }
-      } else if (providerEnv === 'vertex') {
-        providerConfig = {
-          provider: 'vertex',
-          model: envModel,
-          apiKey: env.COPILOT_API_KEY,
-          vertexProject: env.VERTEX_PROJECT,
-          vertexLocation: env.VERTEX_LOCATION,
-        }
-      } else {
-        providerConfig = {
-          provider: providerEnv,
-          model: selectedModel,
-          apiKey: env.COPILOT_API_KEY,
-        }
-      }
-    }
-
     const effectiveMode = mode === 'agent' ? 'build' : mode
-    const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
-
-    // Determine conversationId to use for this request
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
 
-    // For agent/build mode, fetch credentials and build tool definitions
-    let integrationTools: any[] = []
-    let baseTools: any[] = []
-    let credentials: {
-      oauth: Record<
-        string,
-        { accessToken: string; accountId: string; name: string; expiresAt?: string }
-      >
-      apiKeys: string[]
-      metadata?: {
-        connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }>
-        configuredApiKeys: string[]
+    const requestPayload = await buildCopilotRequestPayload(
+      {
+        message,
+        workflowId,
+        userId: authenticatedUserId,
+        userMessageId: userMessageIdToUse,
+        mode,
+        model: selectedModel,
+        stream,
+        conversationId: effectiveConversationId,
+        conversationHistory,
+        contexts: agentContexts,
+        fileAttachments,
+        commands,
+        chatId: actualChatId,
+        prefetch,
+        userName: session?.user?.name || undefined,
+        implicitFeedback,
+      },
+      {
+        selectedModel,
       }
-    } | null = null
-
-    if (effectiveMode === 'build') {
-      // Build base tools (executed locally, not deferred)
-      // Include function_execute for code execution capability
-      baseTools = [
-        {
-          name: 'function_execute',
-          description:
-            'Execute JavaScript code to perform calculations, data transformations, API calls, or any programmatic task. Code runs in a secure sandbox with fetch() available. Write plain statements (not wrapped in functions). Example: const res = await fetch(url); const data = await res.json(); return data;',
-          input_schema: {
-            type: 'object',
-            properties: {
-              code: {
-                type: 'string',
-                description:
-                  'Raw JavaScript statements to execute. Code is auto-wrapped in async context. Use fetch() for HTTP requests. Write like: const res = await fetch(url); return await res.json();',
-              },
-            },
-            required: ['code'],
-          },
-          executeLocally: true,
-        },
-      ]
-      // Fetch user credentials (OAuth + API keys) - pass workflowId to get workspace env vars
-      try {
-        const rawCredentials = await getCredentialsServerTool.execute(
-          { workflowId },
-          { userId: authenticatedUserId }
-        )
-
-        // Transform OAuth credentials to map format: { [provider]: { accessToken, accountId, ... } }
-        const oauthMap: Record<
-          string,
-          { accessToken: string; accountId: string; name: string; expiresAt?: string }
-        > = {}
-        const connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }> = []
-        for (const cred of rawCredentials?.oauth?.connected?.credentials || []) {
-          if (cred.accessToken) {
-            oauthMap[cred.provider] = {
-              accessToken: cred.accessToken,
-              accountId: cred.id,
-              name: cred.name,
-            }
-            connectedOAuth.push({
-              provider: cred.provider,
-              name: cred.name,
-            })
-          }
-        }
-
-        credentials = {
-          oauth: oauthMap,
-          apiKeys: rawCredentials?.environment?.variableNames || [],
-          metadata: {
-            connectedOAuth,
-            configuredApiKeys: rawCredentials?.environment?.variableNames || [],
-          },
-        }
-
-        logger.info(`[${tracker.requestId}] Fetched credentials for build mode`, {
-          oauthProviders: Object.keys(oauthMap),
-          apiKeyCount: credentials.apiKeys.length,
-        })
-      } catch (error) {
-        logger.warn(`[${tracker.requestId}] Failed to fetch credentials`, {
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-
-      // Build tool definitions (schemas only)
-      try {
-        const { createUserToolSchema } = await import('@/tools/params')
-
-        const latestTools = getLatestVersionTools(tools)
-
-        integrationTools = Object.entries(latestTools).map(([toolId, toolConfig]) => {
-          const userSchema = createUserToolSchema(toolConfig)
-          const strippedName = stripVersionSuffix(toolId)
-          return {
-            name: strippedName,
-            description: toolConfig.description || toolConfig.name || strippedName,
-            input_schema: userSchema,
-            defer_loading: true, // Anthropic Advanced Tool Use
-            ...(toolConfig.oauth?.required && {
-              oauth: {
-                required: true,
-                provider: toolConfig.oauth.provider,
-              },
-            }),
-          }
-        })
-
-        logger.info(`[${tracker.requestId}] Built tool definitions for build mode`, {
-          integrationToolCount: integrationTools.length,
-        })
-      } catch (error) {
-        logger.warn(`[${tracker.requestId}] Failed to build tool definitions`, {
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
-
-    const requestPayload = {
-      message: message, // Just send the current user message text
-      workflowId,
-      userId: authenticatedUserId,
-      stream: stream,
-      streamToolCalls: true,
-      model: selectedModel,
-      mode: transportMode,
-      messageId: userMessageIdToUse,
-      version: SIM_AGENT_VERSION,
-      ...(providerConfig ? { provider: providerConfig } : {}),
-      ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
-      ...(typeof prefetch === 'boolean' ? { prefetch: prefetch } : {}),
-      ...(session?.user?.name && { userName: session.user.name }),
-      ...(agentContexts.length > 0 && { context: agentContexts }),
-      ...(actualChatId ? { chatId: actualChatId } : {}),
-      ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
-      // For build/agent mode, include tools and credentials
-      ...(integrationTools.length > 0 && { tools: integrationTools }),
-      ...(baseTools.length > 0 && { baseTools }),
-      ...(credentials && { credentials }),
-      ...(commands && commands.length > 0 && { commands }),
-    }
+    )
 
     try {
       logger.info(`[${tracker.requestId}] About to call Sim Agent`, {
         hasContext: agentContexts.length > 0,
         contextCount: agentContexts.length,
         hasConversationId: !!effectiveConversationId,
-        hasFileAttachments: processedFileContents.length > 0,
+        hasFileAttachments: Array.isArray(requestPayload.fileAttachments),
         messageLength: message.length,
         mode: effectiveMode,
-        hasTools: integrationTools.length > 0,
-        toolCount: integrationTools.length,
-        hasBaseTools: baseTools.length > 0,
-        baseToolCount: baseTools.length,
-        hasCredentials: !!credentials,
+        hasTools: Array.isArray(requestPayload.tools),
+        toolCount: Array.isArray(requestPayload.tools) ? requestPayload.tools.length : 0,
+        hasBaseTools: Array.isArray(requestPayload.baseTools),
+        baseToolCount: Array.isArray(requestPayload.baseTools) ? requestPayload.baseTools.length : 0,
+        hasCredentials: !!requestPayload.credentials,
       })
     } catch {}
 
@@ -631,7 +374,7 @@ export async function POST(req: NextRequest) {
       content: nonStreamingResult.content,
       toolCalls: nonStreamingResult.toolCalls,
       model: selectedModel,
-      provider: providerConfig?.provider || env.COPILOT_PROVIDER || 'openai',
+      provider: (requestPayload?.provider as Record<string, unknown>)?.provider || env.COPILOT_PROVIDER || 'openai',
     }
 
     logger.info(`[${tracker.requestId}] Non-streaming response from orchestrator:`, {

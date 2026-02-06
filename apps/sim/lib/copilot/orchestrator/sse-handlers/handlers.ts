@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { RESPOND_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
 import {
   asRecord,
@@ -21,15 +22,16 @@ const logger = createLogger('CopilotSseHandlers')
 
 // Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
 
-function inferToolSuccess(data: Record<string, any> | undefined): {
+function inferToolSuccess(data: Record<string, unknown> | undefined): {
   success: boolean
   hasResultData: boolean
   hasError: boolean
 } {
-  const hasExplicitSuccess = data?.success !== undefined || data?.result?.success !== undefined
-  const explicitSuccess = data?.success ?? data?.result?.success
+  const resultObj = asRecord(data?.result)
+  const hasExplicitSuccess = data?.success !== undefined || resultObj.success !== undefined
+  const explicitSuccess = data?.success ?? resultObj.success
   const hasResultData = data?.result !== undefined || data?.data !== undefined
-  const hasError = !!data?.error || !!data?.result?.error
+  const hasError = !!data?.error || !!resultObj.error
   const success = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
   return { success, hasResultData, hasError }
 }
@@ -50,12 +52,12 @@ function addContentBlock(context: StreamingContext, block: Omit<ContentBlock, 't
 
 export const sseHandlers: Record<string, SSEHandler> = {
   chat_id: (event, context) => {
-    context.chatId = asRecord(event.data).chatId
+    context.chatId = asRecord(event.data).chatId as string | undefined
   },
   title_updated: () => {},
   tool_result: (event, context) => {
     const data = getEventData(event)
-    const toolCallId = event.toolCallId || data?.id
+    const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
     const current = context.toolCalls.get(toolCallId)
     if (!current) return
@@ -71,23 +73,24 @@ export const sseHandlers: Record<string, SSEHandler> = {
       }
     }
     if (hasError) {
-      current.error = data?.error || data?.result?.error
+      const resultObj = asRecord(data?.result)
+      current.error = (data?.error || resultObj.error) as string | undefined
     }
   },
   tool_error: (event, context) => {
     const data = getEventData(event)
-    const toolCallId = event.toolCallId || data?.id
+    const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
     const current = context.toolCalls.get(toolCallId)
     if (!current) return
     current.status = 'error'
-    current.error = data?.error || 'Tool execution failed'
+    current.error = (data?.error as string | undefined) || 'Tool execution failed'
     current.endTime = Date.now()
   },
   tool_generating: (event, context) => {
     const data = getEventData(event)
-    const toolCallId = event.toolCallId || data?.toolCallId || data?.id
-    const toolName = event.toolName || data?.toolName || data?.name
+    const toolCallId = event.toolCallId || (data?.toolCallId as string | undefined) || (data?.id as string | undefined)
+    const toolName = event.toolName || (data?.toolName as string | undefined) || (data?.name as string | undefined)
     if (!toolCallId || !toolName) return
     if (!context.toolCalls.has(toolCallId)) {
       context.toolCalls.set(toolCallId, {
@@ -99,12 +102,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
   },
   tool_call: async (event, context, execContext, options) => {
-    const toolData = getEventData(event) || {}
-    const toolCallId = toolData.id || event.toolCallId
-    const toolName = toolData.name || event.toolName
+    const toolData = getEventData(event) || ({} as Record<string, unknown>)
+    const toolCallId = (toolData.id as string | undefined) || event.toolCallId
+    const toolName = (toolData.name as string | undefined) || event.toolName
     if (!toolCallId || !toolName) return
 
-    const args = toolData.arguments || toolData.input || asRecord(event.data).input
+    const args = (toolData.arguments || toolData.input || asRecord(event.data).input) as Record<string, unknown> | undefined
     const isPartial = toolData.partial === true
     const existing = context.toolCalls.get(toolCallId)
 
@@ -161,7 +164,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const isInteractive = options.interactive === true
 
     if (isInterruptTool && isInteractive) {
-      const decision = await waitForToolDecision(toolCallId, options.timeout || 600000)
+      const decision = await waitForToolDecision(toolCallId, options.timeout || STREAM_TIMEOUT_MS, options.abortSignal)
       if (decision?.status === 'accepted' || decision?.status === 'success') {
         await executeToolAndReport(toolCallId, context, execContext, options)
         return
@@ -221,7 +224,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
   },
   reasoning: (event, context) => {
-    const phase = asRecord(event.data).phase || asRecord(asRecord(event.data).data).phase
+    const d = asRecord(event.data)
+    const phase = d.phase || asRecord(d.data).phase
     if (phase === 'start') {
       context.isInThinkingBlock = true
       context.currentThinkingBlock = {
@@ -239,17 +243,16 @@ export const sseHandlers: Record<string, SSEHandler> = {
       context.currentThinkingBlock = null
       return
     }
-    const d = asRecord(event.data)
-    const chunk = typeof event.data === 'string' ? event.data : d.data || d.content
+    const chunk = (d.data || d.content || event.content) as string | undefined
     if (!chunk || !context.currentThinkingBlock) return
     context.currentThinkingBlock.content = `${context.currentThinkingBlock.content || ''}${chunk}`
   },
   content: (event, context) => {
     const d = asRecord(event.data)
-    const chunk = typeof event.data === 'string' ? event.data : d.content || d.data
+    const chunk = (d.content || d.data || event.content) as string | undefined
     if (!chunk) return
     context.accumulatedContent += chunk
-    addContentBlock(context, { type: 'text', content: chunk as string })
+    addContentBlock(context, { type: 'text', content: chunk })
   },
   done: (event, context) => {
     const d = asRecord(event.data)
@@ -266,7 +269,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   error: (event, context) => {
     const d = asRecord(event.data)
-    const message = d.message || d.error || (typeof event.data === 'string' ? event.data : null)
+    const message = (d.message || d.error || event.error) as string | undefined
     if (message) {
       context.errors.push(message)
     }
@@ -278,7 +281,8 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
   content: (event, context) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId || !event.data) return
-    const chunk = typeof event.data === 'string' ? event.data : asRecord(event.data).content || ''
+    const d = asRecord(event.data)
+    const chunk = (d.content || d.data || event.content) as string | undefined
     if (!chunk) return
     context.subAgentContent[parentToolCallId] =
       (context.subAgentContent[parentToolCallId] || '') + chunk
@@ -287,12 +291,12 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
   tool_call: async (event, context, execContext, options) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId) return
-    const toolData = getEventData(event) || {}
-    const toolCallId = toolData.id || event.toolCallId
-    const toolName = toolData.name || event.toolName
+    const toolData = getEventData(event) || ({} as Record<string, unknown>)
+    const toolCallId = (toolData.id as string | undefined) || event.toolCallId
+    const toolName = (toolData.name as string | undefined) || event.toolName
     if (!toolCallId || !toolName) return
     const isPartial = toolData.partial === true
-    const args = toolData.arguments || toolData.input || asRecord(event.data).input
+    const args = (toolData.arguments || toolData.input || asRecord(event.data).input) as Record<string, unknown> | undefined
 
     const existing = context.toolCalls.get(toolCallId)
     // Ignore late/duplicate tool_call events once we already have a result.

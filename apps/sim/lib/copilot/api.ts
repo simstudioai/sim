@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { COPILOT_CHAT_API_PATH, COPILOT_CHAT_STREAM_API_PATH } from '@/lib/copilot/constants'
 import type { CopilotMode, CopilotModelId, CopilotTransportMode } from '@/lib/copilot/models'
 
 const logger = createLogger('CopilotAPI')
@@ -139,7 +140,9 @@ export async function sendStreamingMessage(
         contextsPreview: preview,
         resumeFromEventId,
       })
-    } catch {}
+    } catch (error) {
+      logger.warn('Failed to log streaming message context preview', { error: error instanceof Error ? error.message : String(error) })
+    }
 
     const streamId = request.userMessageId
     if (typeof resumeFromEventId === 'number') {
@@ -150,7 +153,7 @@ export async function sendStreamingMessage(
           status: 400,
         }
       }
-      const url = `/api/copilot/chat/stream?streamId=${encodeURIComponent(
+      const url = `${COPILOT_CHAT_STREAM_API_PATH}?streamId=${encodeURIComponent(
         streamId
       )}&from=${encodeURIComponent(String(resumeFromEventId))}`
       const response = await fetch(url, {
@@ -182,7 +185,7 @@ export async function sendStreamingMessage(
       }
     }
 
-    const response = await fetch('/api/copilot/chat', {
+    const response = await fetch(COPILOT_CHAT_API_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...requestBody, stream: true }),

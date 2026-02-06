@@ -288,7 +288,9 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         if (existsSync(docPath)) {
           metadata.yamlDocumentation = readFileSync(docPath, 'utf-8')
         }
-      } catch {}
+      } catch (error) {
+        logger.warn('Failed to read YAML documentation file', { error: error instanceof Error ? error.message : String(error) })
+      }
 
       if (metadata) {
         result[blockId] = removeNullish(metadata) as CopilotBlockMetadata
@@ -951,7 +953,10 @@ function resolveToolIdForOperation(blockConfig: BlockConfig, opId: string): stri
       const maybeToolId = toolSelector({ operation: opId })
       if (typeof maybeToolId === 'string') return maybeToolId
     }
-  } catch {}
+  } catch (error) {
+    const toolLogger = createLogger('GetBlocksMetadataServerTool')
+    toolLogger.warn('Failed to resolve tool ID for operation', { error: error instanceof Error ? error.message : String(error) })
+  }
   return undefined
 }
 

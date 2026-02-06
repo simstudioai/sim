@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type { CopilotMessage } from '@/stores/panel/copilot/types'
+import type { CopilotMessage, CopilotToolCall } from '@/stores/panel/copilot/types'
 import { maskCredentialIdsInValue } from './credential-masking'
 
 const logger = createLogger('CopilotMessageSerialization')
 
-export function clearStreamingFlags(toolCall: any): void {
+export function clearStreamingFlags(toolCall: CopilotToolCall): void {
   if (!toolCall) return
 
   toolCall.subAgentStreaming = false
@@ -27,18 +27,18 @@ export function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessa
   try {
     for (const message of messages) {
       if (message.role === 'assistant') {
-        logger.info('[normalizeMessagesForUI] Loading assistant message', {
+        logger.debug('[normalizeMessagesForUI] Loading assistant message', {
           id: message.id,
           hasContent: !!message.content?.trim(),
           contentBlockCount: message.contentBlocks?.length || 0,
-          contentBlockTypes: (message.contentBlocks as any[])?.map((b) => b?.type) ?? [],
+          contentBlockTypes: message.contentBlocks?.map((b) => b?.type) ?? [],
         })
       }
     }
 
     for (const message of messages) {
       if (message.contentBlocks) {
-        for (const block of message.contentBlocks as any[]) {
+        for (const block of message.contentBlocks) {
           if (block?.type === 'tool_call' && block.toolCall) {
             clearStreamingFlags(block.toolCall)
           }
@@ -51,7 +51,10 @@ export function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessa
       }
     }
     return messages
-  } catch {
+  } catch (error) {
+    logger.warn('[normalizeMessagesForUI] Failed to normalize messages', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return messages
   }
 }
@@ -88,16 +91,16 @@ export function deepClone<T>(obj: T): T {
 export function serializeMessagesForDB(
   messages: CopilotMessage[],
   credentialIds: Set<string>
-): any[] {
+): CopilotMessage[] {
   const result = messages
     .map((msg) => {
       let timestamp: string = msg.timestamp
       if (typeof timestamp !== 'string') {
-        const ts = timestamp as any
+        const ts = timestamp as unknown
         timestamp = ts instanceof Date ? ts.toISOString() : new Date().toISOString()
       }
 
-      const serialized: any = {
+      const serialized: CopilotMessage = {
         id: msg.id,
         role: msg.role,
         content: msg.content || '',
@@ -108,16 +111,16 @@ export function serializeMessagesForDB(
         serialized.contentBlocks = deepClone(msg.contentBlocks)
       }
 
-      if (Array.isArray((msg as any).toolCalls) && (msg as any).toolCalls.length > 0) {
-        serialized.toolCalls = deepClone((msg as any).toolCalls)
+      if (Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
+        serialized.toolCalls = deepClone(msg.toolCalls)
       }
 
       if (Array.isArray(msg.fileAttachments) && msg.fileAttachments.length > 0) {
         serialized.fileAttachments = deepClone(msg.fileAttachments)
       }
 
-      if (Array.isArray((msg as any).contexts) && (msg as any).contexts.length > 0) {
-        serialized.contexts = deepClone((msg as any).contexts)
+      if (Array.isArray(msg.contexts) && msg.contexts.length > 0) {
+        serialized.contexts = deepClone(msg.contexts)
       }
 
       if (Array.isArray(msg.citations) && msg.citations.length > 0) {
@@ -142,16 +145,16 @@ export function serializeMessagesForDB(
 
   for (const msg of messages) {
     if (msg.role === 'assistant') {
-      logger.info('[serializeMessagesForDB] Input assistant message', {
+      logger.debug('[serializeMessagesForDB] Input assistant message', {
         id: msg.id,
         hasContent: !!msg.content?.trim(),
         contentBlockCount: msg.contentBlocks?.length || 0,
-        contentBlockTypes: (msg.contentBlocks as any[])?.map((b) => b?.type) ?? [],
+        contentBlockTypes: msg.contentBlocks?.map((b) => b?.type) ?? [],
       })
     }
   }
 
-  logger.info('[serializeMessagesForDB] Serialized messages', {
+  logger.debug('[serializeMessagesForDB] Serialized messages', {
     inputCount: messages.length,
     outputCount: result.length,
     sample:

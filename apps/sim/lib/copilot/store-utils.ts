@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { Loader2 } from 'lucide-react'
 import {
   ClientToolCallState,
@@ -5,6 +6,12 @@ import {
   TOOL_DISPLAY_REGISTRY,
 } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore } from '@/stores/panel/copilot/types'
+
+const logger = createLogger('CopilotStoreUtils')
+
+type StoreSet = (
+  partial: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)
+) => void
 
 export function resolveToolDisplay(
   toolName: string | undefined,
@@ -80,7 +87,7 @@ export function isTerminalState(state: string): boolean {
 }
 
 export function abortAllInProgressTools(
-  set: any,
+  set: StoreSet,
   get: () => CopilotStore
 ) {
   try {
@@ -89,7 +96,7 @@ export function abortAllInProgressTools(
     const abortedIds = new Set<string>()
     let hasUpdates = false
     for (const [id, tc] of Object.entries(toolCallsById)) {
-      const st = tc.state as any
+      const st = tc.state
       const isTerminal =
         st === ClientToolCallState.success ||
         st === ClientToolCallState.error ||
@@ -101,7 +108,7 @@ export function abortAllInProgressTools(
           ...tc,
           state: ClientToolCallState.aborted,
           subAgentStreaming: false,
-          display: resolveToolDisplay(tc.name, ClientToolCallState.aborted, id, (tc as any).params),
+          display: resolveToolDisplay(tc.name, ClientToolCallState.aborted, id, tc.params),
         }
         hasUpdates = true
       } else if (tc.subAgentStreaming) {
@@ -117,7 +124,7 @@ export function abortAllInProgressTools(
       set((s: CopilotStore) => {
         const msgs = [...s.messages]
         for (let mi = msgs.length - 1; mi >= 0; mi--) {
-          const m = msgs[mi] as any
+          const m = msgs[mi]
           if (m.role !== 'assistant' || !Array.isArray(m.contentBlocks)) continue
           let changed = false
           const blocks = m.contentBlocks.map((b: any) => {
@@ -148,7 +155,33 @@ export function abortAllInProgressTools(
         return { messages: msgs }
       })
     }
-  } catch {}
+  } catch (error) {
+    logger.warn('Failed to abort in-progress tools', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+export function cleanupActiveState(
+  set: (partial: Record<string, unknown>) => void,
+  get: () => Record<string, unknown>
+): void {
+  abortAllInProgressTools(
+    set as unknown as StoreSet,
+    get as unknown as () => CopilotStore
+  )
+  try {
+    const { useWorkflowDiffStore } = require('@/stores/workflow-diff/store') as {
+      useWorkflowDiffStore: {
+        getState: () => { clearDiff: (options?: { restoreBaseline?: boolean }) => void }
+      }
+    }
+    useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
+  } catch (error) {
+    logger.warn('Failed to clear diff during cleanup', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 export function stripTodoTags(text: string): string {

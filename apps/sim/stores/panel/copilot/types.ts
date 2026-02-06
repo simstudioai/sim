@@ -2,6 +2,7 @@ import type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
 
 export type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
 
+import type { ClientContentBlock } from '@/lib/copilot/client-sse/types'
 import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -21,7 +22,8 @@ export interface CopilotToolCall {
   id: string
   name: string
   state: ClientToolCallState
-  params?: Record<string, any>
+  params?: Record<string, unknown>
+  input?: Record<string, unknown>
   display?: ClientToolDisplay
   /** Content streamed from a subagent (e.g., debug agent) */
   subAgentContent?: string
@@ -62,18 +64,7 @@ export interface CopilotMessage {
   timestamp: string
   citations?: { id: number; title: string; url: string; similarity?: number }[]
   toolCalls?: CopilotToolCall[]
-  contentBlocks?: Array<
-    | { type: 'text'; content: string; timestamp: number }
-    | {
-        type: 'thinking'
-        content: string
-        timestamp: number
-        duration?: number
-        startTime?: number
-      }
-    | { type: 'tool_call'; toolCall: CopilotToolCall; timestamp: number }
-    | { type: 'contexts'; contexts: ChatContext[]; timestamp: number }
-  >
+  contentBlocks?: ClientContentBlock[]
   fileAttachments?: MessageFileAttachment[]
   contexts?: ChatContext[]
   errorType?: 'usage_limit' | 'unauthorized' | 'forbidden' | 'rate_limit' | 'upgrade_required'
@@ -110,6 +101,16 @@ import type { CopilotChat as ApiCopilotChat } from '@/lib/copilot/api'
 
 export type CopilotChat = ApiCopilotChat
 
+/**
+ * A checkpoint entry as returned from the checkpoints API.
+ */
+export interface CheckpointEntry {
+  id: string
+  messageId?: string
+  workflowState?: Record<string, unknown>
+  createdAt?: string
+}
+
 export interface CopilotState {
   mode: CopilotMode
   selectedModel: CopilotModelId
@@ -122,7 +123,7 @@ export interface CopilotState {
   messages: CopilotMessage[]
   workflowId: string | null
 
-  messageCheckpoints: Record<string, any[]>
+  messageCheckpoints: Record<string, CheckpointEntry[]>
   messageSnapshots: Record<string, WorkflowState>
 
   isLoading: boolean
@@ -210,11 +211,11 @@ export interface CopilotActions {
     toolCallId?: string
   ) => void
   resumeActiveStream: () => Promise<boolean>
-  setToolCallState: (toolCall: any, newState: ClientToolCallState, options?: any) => void
-  updateToolCallParams: (toolCallId: string, params: Record<string, any>) => void
+  setToolCallState: (toolCall: CopilotToolCall, newState: ClientToolCallState | string) => void
+  updateToolCallParams: (toolCallId: string, params: Record<string, unknown>) => void
   loadMessageCheckpoints: (chatId: string) => Promise<void>
   revertToCheckpoint: (checkpointId: string) => Promise<void>
-  getCheckpointsForMessage: (messageId: string) => any[]
+  getCheckpointsForMessage: (messageId: string) => CheckpointEntry[]
   saveMessageCheckpoint: (messageId: string) => Promise<boolean>
 
   clearMessages: () => void
