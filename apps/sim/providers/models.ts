@@ -34,17 +34,8 @@ export interface ModelCapabilities {
   toolUsageControl?: boolean
   computerUse?: boolean
   nativeStructuredOutputs?: boolean
-  /**
-   * Max output tokens configuration for Anthropic SDK's streaming timeout workaround.
-   * The Anthropic SDK throws an error for non-streaming requests that may take >10 minutes.
-   * This only applies to direct Anthropic API calls, not Bedrock (which uses AWS SDK).
-   */
-  maxOutputTokens?: {
-    /** Maximum supported output tokens (used for streaming requests) */
-    max: number
-    /** Conservative default when user doesn't specify maxTokens (controls cost/latency) */
-    default: number
-  }
+  /** Maximum supported output tokens for this model */
+  maxOutputTokens?: number
   reasoningEffort?: {
     values: string[]
   }
@@ -339,7 +330,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 128000, default: 8192 },
+          maxOutputTokens: 128000,
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
@@ -358,7 +349,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -377,7 +368,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -395,7 +386,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -414,7 +405,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -432,7 +423,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -451,7 +442,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -469,7 +460,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 4096, default: 4096 },
+          maxOutputTokens: 4096,
         },
         contextWindow: 200000,
       },
@@ -484,7 +475,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           computerUse: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -743,7 +734,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 128000, default: 8192 },
+          maxOutputTokens: 128000,
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
@@ -762,7 +753,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -781,7 +772,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -800,7 +791,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -819,7 +810,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 64000, default: 8192 },
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -2490,14 +2481,11 @@ export function getThinkingLevelsForModel(modelId: string): string[] | null {
 }
 
 /**
- * Get the max output tokens for a specific model
- * Returns the model's max capacity for streaming requests,
- * or the model's safe default for non-streaming requests to avoid timeout issues.
+ * Get the max output tokens for a specific model.
  *
  * @param modelId - The model ID
- * @param streaming - Whether the request is streaming (default: false)
  */
-export function getMaxOutputTokensForModel(modelId: string, streaming = false): number {
+export function getMaxOutputTokensForModel(modelId: string): number {
   const normalizedModelId = modelId.toLowerCase()
   const STANDARD_MAX_OUTPUT_TOKENS = 4096
 
@@ -2505,11 +2493,7 @@ export function getMaxOutputTokensForModel(modelId: string, streaming = false): 
     for (const model of provider.models) {
       const baseModelId = model.id.toLowerCase()
       if (normalizedModelId === baseModelId || normalizedModelId.startsWith(`${baseModelId}-`)) {
-        const outputTokens = model.capabilities.maxOutputTokens
-        if (outputTokens) {
-          return streaming ? outputTokens.max : outputTokens.default
-        }
-        return STANDARD_MAX_OUTPUT_TOKENS
+        return model.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
       }
     }
   }

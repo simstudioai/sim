@@ -580,53 +580,25 @@ describe('Model Capabilities', () => {
 
 describe('Max Output Tokens', () => {
   describe('getMaxOutputTokensForModel', () => {
-    it.concurrent('should return higher value for streaming than non-streaming (Anthropic)', () => {
-      const streamingTokens = getMaxOutputTokensForModel('claude-opus-4-6', true)
-      const nonStreamingTokens = getMaxOutputTokensForModel('claude-opus-4-6', false)
-      expect(streamingTokens).toBeGreaterThan(nonStreamingTokens)
-      expect(streamingTokens).toBe(128000)
-      expect(nonStreamingTokens).toBe(8192)
+    it.concurrent('should return correct max for Claude Opus 4.6', () => {
+      expect(getMaxOutputTokensForModel('claude-opus-4-6')).toBe(128000)
     })
 
-    it.concurrent('should return correct values for Claude Sonnet 4.5', () => {
-      expect(getMaxOutputTokensForModel('claude-sonnet-4-5', true)).toBe(64000)
-      expect(getMaxOutputTokensForModel('claude-sonnet-4-5', false)).toBe(8192)
+    it.concurrent('should return correct max for Claude Sonnet 4.5', () => {
+      expect(getMaxOutputTokensForModel('claude-sonnet-4-5')).toBe(64000)
     })
 
-    it.concurrent('should return correct values for Claude Opus 4.1', () => {
-      expect(getMaxOutputTokensForModel('claude-opus-4-1', true)).toBe(64000)
-      expect(getMaxOutputTokensForModel('claude-opus-4-1', false)).toBe(8192)
+    it.concurrent('should return correct max for Claude Opus 4.1', () => {
+      expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(64000)
     })
 
     it.concurrent('should return standard default for models without maxOutputTokens', () => {
-      expect(getMaxOutputTokensForModel('gpt-4o', false)).toBe(4096)
-      expect(getMaxOutputTokensForModel('gpt-4o', true)).toBe(4096)
+      expect(getMaxOutputTokensForModel('gpt-4o')).toBe(4096)
     })
 
     it.concurrent('should return standard default for unknown models', () => {
-      expect(getMaxOutputTokensForModel('unknown-model', false)).toBe(4096)
-      expect(getMaxOutputTokensForModel('unknown-model', true)).toBe(4096)
+      expect(getMaxOutputTokensForModel('unknown-model')).toBe(4096)
     })
-
-    it.concurrent(
-      'non-streaming default should be within Anthropic SDK non-streaming threshold',
-      () => {
-        const SDK_NON_STREAMING_THRESHOLD = 21333
-        const models = [
-          'claude-opus-4-6',
-          'claude-opus-4-5',
-          'claude-opus-4-1',
-          'claude-sonnet-4-5',
-          'claude-sonnet-4-0',
-          'claude-haiku-4-5',
-        ]
-
-        for (const model of models) {
-          const nonStreamingDefault = getMaxOutputTokensForModel(model, false)
-          expect(nonStreamingDefault).toBeLessThan(SDK_NON_STREAMING_THRESHOLD)
-        }
-      }
-    )
   })
 })
 

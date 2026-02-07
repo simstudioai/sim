@@ -265,8 +265,7 @@ export async function executeAnthropicProviderRequest(
     messages,
     system: systemPrompt,
     max_tokens:
-      Number.parseInt(String(request.maxTokens)) ||
-      getMaxOutputTokensForModel(request.model, request.stream ?? false),
+      Number.parseInt(String(request.maxTokens)) || getMaxOutputTokensForModel(request.model),
     temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
   }
 
@@ -308,7 +307,7 @@ export async function executeAnthropicProviderRequest(
         const budgetTokens = thinkingConfig.thinking.budget_tokens
         const minMaxTokens = budgetTokens + 4096
         if (payload.max_tokens < minMaxTokens) {
-          const modelMax = getMaxOutputTokensForModel(request.model, true)
+          const modelMax = getMaxOutputTokensForModel(request.model)
           payload.max_tokens = Math.min(minMaxTokens, modelMax)
           logger.info(
             `Adjusted max_tokens to ${payload.max_tokens} to satisfy budget_tokens (${budgetTokens}) constraint`
@@ -438,25 +437,13 @@ export async function executeAnthropicProviderRequest(
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-    // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
-    // but allow users to set lower values if desired. Use Math.max to preserve
-    // thinking-adjusted max_tokens from payload when it's higher.
-    const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
-    const nonStreamingMaxTokens = request.maxTokens
-      ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
-      : nonStreamingLimit
-    const intermediatePayload = {
-      ...payload,
-      max_tokens: Math.max(nonStreamingMaxTokens, payload.max_tokens),
-    }
-
     try {
       const initialCallTime = Date.now()
-      const originalToolChoice = intermediatePayload.tool_choice
+      const originalToolChoice = payload.tool_choice
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await createMessage(anthropic, intermediatePayload)
+      let currentResponse = await createMessage(anthropic, payload)
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = ''
@@ -669,7 +656,7 @@ export async function executeAnthropicProviderRequest(
           toolsTime += thisToolsTime
 
           const nextPayload = {
-            ...intermediatePayload,
+            ...payload,
             messages: currentMessages,
           }
 
@@ -852,25 +839,13 @@ export async function executeAnthropicProviderRequest(
   const providerStartTime = Date.now()
   const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-  // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
-  // but allow users to set lower values if desired. Use Math.max to preserve
-  // thinking-adjusted max_tokens from payload when it's higher.
-  const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
-  const toolLoopMaxTokens = request.maxTokens
-    ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
-    : nonStreamingLimit
-  const toolLoopPayload = {
-    ...payload,
-    max_tokens: Math.max(toolLoopMaxTokens, payload.max_tokens),
-  }
-
   try {
     const initialCallTime = Date.now()
-    const originalToolChoice = toolLoopPayload.tool_choice
+    const originalToolChoice = payload.tool_choice
     const forcedTools = preparedTools?.forcedTools || []
     let usedForcedTools: string[] = []
 
-    let currentResponse = await createMessage(anthropic, toolLoopPayload)
+    let currentResponse = await createMessage(anthropic, payload)
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = ''
@@ -1096,7 +1071,7 @@ export async function executeAnthropicProviderRequest(
         toolsTime += thisToolsTime
 
         const nextPayload = {
-          ...toolLoopPayload,
+          ...payload,
           messages: currentMessages,
         }
 
