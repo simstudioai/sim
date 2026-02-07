@@ -2,20 +2,8 @@ import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import { getApiKeyCondition } from '@/blocks/utils'
-import {
-  getBaseModelProviders,
-  getMaxTemperature,
-  getProviderIcon,
-  getReasoningEffortValuesForModel,
-  getThinkingLevelsForModel,
-  getVerbosityValuesForModel,
-  MODELS_WITH_REASONING_EFFORT,
-  MODELS_WITH_THINKING,
-  MODELS_WITH_VERBOSITY,
-  providers,
-  supportsTemperature,
-} from '@/providers/utils'
+import { getApiKeyCondition, getModelConfigSubBlocks, MODEL_CONFIG_INPUTS } from '@/blocks/utils'
+import { getBaseModelProviders, getProviderIcon, providers } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers'
 import type { ToolResponse } from '@/tools/types'
 
@@ -148,171 +136,7 @@ Return ONLY the JSON array.`,
         value: providers.vertex.models,
       },
     },
-    {
-      id: 'reasoningEffort',
-      title: 'Reasoning Effort',
-      type: 'dropdown',
-      placeholder: 'Select reasoning effort...',
-      options: [
-        { label: 'auto', id: 'auto' },
-        { label: 'low', id: 'low' },
-        { label: 'medium', id: 'medium' },
-        { label: 'high', id: 'high' },
-      ],
-      dependsOn: ['model'],
-      fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
-        const autoOption = { label: 'auto', id: 'auto' }
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (!activeWorkflowId) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-        const blockValues = workflowValues?.[blockId]
-        const modelValue = blockValues?.model as string
-
-        if (!modelValue) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        const validOptions = getReasoningEffortValuesForModel(modelValue)
-        if (!validOptions) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        return [autoOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
-      },
-      mode: 'advanced',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_REASONING_EFFORT,
-      },
-    },
-    {
-      id: 'verbosity',
-      title: 'Verbosity',
-      type: 'dropdown',
-      placeholder: 'Select verbosity...',
-      options: [
-        { label: 'auto', id: 'auto' },
-        { label: 'low', id: 'low' },
-        { label: 'medium', id: 'medium' },
-        { label: 'high', id: 'high' },
-      ],
-      dependsOn: ['model'],
-      fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
-        const autoOption = { label: 'auto', id: 'auto' }
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (!activeWorkflowId) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-        const blockValues = workflowValues?.[blockId]
-        const modelValue = blockValues?.model as string
-
-        if (!modelValue) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        const validOptions = getVerbosityValuesForModel(modelValue)
-        if (!validOptions) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        return [autoOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
-      },
-      mode: 'advanced',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_VERBOSITY,
-      },
-    },
-    {
-      id: 'thinkingLevel',
-      title: 'Thinking Level',
-      type: 'dropdown',
-      placeholder: 'Select thinking level...',
-      options: [
-        { label: 'none', id: 'none' },
-        { label: 'minimal', id: 'minimal' },
-        { label: 'low', id: 'low' },
-        { label: 'medium', id: 'medium' },
-        { label: 'high', id: 'high' },
-        { label: 'max', id: 'max' },
-      ],
-      dependsOn: ['model'],
-      fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
-        const noneOption = { label: 'none', id: 'none' }
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (!activeWorkflowId) {
-          return [noneOption, { label: 'low', id: 'low' }, { label: 'high', id: 'high' }]
-        }
-
-        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-        const blockValues = workflowValues?.[blockId]
-        const modelValue = blockValues?.model as string
-
-        if (!modelValue) {
-          return [noneOption, { label: 'low', id: 'low' }, { label: 'high', id: 'high' }]
-        }
-
-        const validOptions = getThinkingLevelsForModel(modelValue)
-        if (!validOptions) {
-          return [noneOption, { label: 'low', id: 'low' }, { label: 'high', id: 'high' }]
-        }
-
-        return [noneOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
-      },
-      mode: 'advanced',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_THINKING,
-      },
-    },
-
+    ...getModelConfigSubBlocks(),
     {
       id: 'azureEndpoint',
       title: 'Azure Endpoint',
@@ -465,49 +289,6 @@ Return ONLY the JSON array.`,
         field: 'memoryType',
         value: ['sliding_window_tokens'],
       },
-    },
-    {
-      id: 'temperature',
-      title: 'Temperature',
-      type: 'slider',
-      min: 0,
-      max: 1,
-      defaultValue: 0.3,
-      mode: 'advanced',
-      condition: () => ({
-        field: 'model',
-        value: (() => {
-          const allModels = Object.keys(getBaseModelProviders())
-          return allModels.filter(
-            (model) => supportsTemperature(model) && getMaxTemperature(model) === 1
-          )
-        })(),
-      }),
-    },
-    {
-      id: 'temperature',
-      title: 'Temperature',
-      type: 'slider',
-      min: 0,
-      max: 2,
-      defaultValue: 0.3,
-      mode: 'advanced',
-      condition: () => ({
-        field: 'model',
-        value: (() => {
-          const allModels = Object.keys(getBaseModelProviders())
-          return allModels.filter(
-            (model) => supportsTemperature(model) && getMaxTemperature(model) === 2
-          )
-        })(),
-      }),
-    },
-    {
-      id: 'maxTokens',
-      title: 'Max Output Tokens',
-      type: 'short-input',
-      placeholder: 'Enter max tokens (e.g., 4096)...',
-      mode: 'advanced',
     },
     {
       id: 'responseFormat',
@@ -749,14 +530,7 @@ Example 3 (Array Input):
         required: ['schema'],
       },
     },
-    temperature: { type: 'number', description: 'Response randomness level' },
-    maxTokens: { type: 'number', description: 'Maximum number of tokens in the response' },
-    reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
-    verbosity: { type: 'string', description: 'Verbosity level for GPT-5 models' },
-    thinkingLevel: {
-      type: 'string',
-      description: 'Thinking level for models with extended thinking (Anthropic Claude, Gemini 3)',
-    },
+    ...MODEL_CONFIG_INPUTS,
     tools: { type: 'json', description: 'Available tools configuration' },
     skills: { type: 'json', description: 'Selected skills configuration' },
   },
