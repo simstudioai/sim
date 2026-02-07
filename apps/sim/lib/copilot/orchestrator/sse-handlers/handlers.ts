@@ -7,7 +7,10 @@ import {
   markToolResultSeen,
   wasToolResultSeen,
 } from '@/lib/copilot/orchestrator/sse-utils'
-import { markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
+import {
+  isToolAvailableOnSimSide,
+  markToolComplete,
+} from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ContentBlock,
   ExecutionContext,
@@ -357,6 +360,15 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
         success: true,
         output: 'Internal respond tool - handled by copilot backend',
       }
+      return
+    }
+
+    // Tools that only exist on the Go backend (e.g. search_patterns,
+    // search_errors, remember_debug) should NOT be re-executed on the Sim side.
+    // The Go backend already executed them and will send its own tool_result
+    // SSE event with the real outcome.  Trying to execute them here would fail
+    // with "Tool not found" and incorrectly mark the tool as failed.
+    if (!isToolAvailableOnSimSide(toolName)) {
       return
     }
 

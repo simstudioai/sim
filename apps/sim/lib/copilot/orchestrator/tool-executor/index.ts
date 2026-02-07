@@ -137,6 +137,21 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
 }
 
 /**
+ * Check whether a tool can be executed on the Sim (TypeScript) side.
+ *
+ * Tools that are only available on the Go backend (e.g. search_patterns,
+ * search_errors, remember_debug) will return false.  The subagent tool_call
+ * handler uses this to decide whether to execute a tool locally or let the
+ * Go backend's own tool_result SSE event handle it.
+ */
+export function isToolAvailableOnSimSide(toolName: string): boolean {
+  if (SERVER_TOOLS.has(toolName)) return true
+  if (toolName in SIM_WORKFLOW_TOOL_HANDLERS) return true
+  const resolvedToolName = resolveToolId(toolName)
+  return !!getTool(resolvedToolName)
+}
+
+/**
  * Execute a tool server-side without calling internal routes.
  */
 export async function executeToolServerSide(
