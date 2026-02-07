@@ -65,9 +65,10 @@ export interface IRoomManager {
 
   /**
    * Remove a user from their current room
-   * Returns the workflowId they were in, or null if not in any room
+   * Optional workflowIdHint is used when socket mapping keys are missing/expired.
+   * Returns the workflowId they were in, or null if not in any room.
    */
-  removeUserFromRoom(socketId: string): Promise<string | null>
+  removeUserFromRoom(socketId: string, workflowIdHint?: string): Promise<string | null>
 
   /**
    * Get the workflow ID for a socket
