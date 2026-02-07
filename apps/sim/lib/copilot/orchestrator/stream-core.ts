@@ -89,15 +89,8 @@ export async function runStreamLoop(
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
-  let eventCount = 0
-
-  logger.info('[STREAM] SSE stream connected, starting event loop', {
-    timeout,
-    hasAbortSignal: !!abortSignal,
-  })
 
   const timeoutId = setTimeout(() => {
-    logger.warn('[STREAM] Timeout fired, cancelling reader', { timeout, eventCount })
     context.errors.push('Request timed out')
     context.streamComplete = true
     reader.cancel().catch(() => {})
@@ -105,36 +98,16 @@ export async function runStreamLoop(
 
   try {
     for await (const event of parseSSEStream(reader, decoder, abortSignal)) {
-      eventCount++
-
       if (abortSignal?.aborted) {
-        logger.warn('[STREAM] AbortSignal aborted, breaking', { eventCount })
         context.wasAborted = true
         break
       }
 
       const normalizedEvent = normalizeSseEvent(event)
 
-      logger.info('[STREAM] Event received', {
-        eventNum: eventCount,
-        type: normalizedEvent.type,
-        toolCallId: normalizedEvent.toolCallId,
-        toolName: normalizedEvent.toolName,
-        hasSubagent: !!normalizedEvent.subagent,
-      })
-
       // Skip duplicate tool events.
       const shouldSkipToolCall = shouldSkipToolCallEvent(normalizedEvent)
       const shouldSkipToolResult = shouldSkipToolResultEvent(normalizedEvent)
-
-      if (shouldSkipToolCall || shouldSkipToolResult) {
-        logger.info('[STREAM] Skipping duplicate event', {
-          type: normalizedEvent.type,
-          toolCallId: normalizedEvent.toolCallId,
-          skipToolCall: shouldSkipToolCall,
-          skipToolResult: shouldSkipToolResult,
-        })
-      }
 
       if (!shouldSkipToolCall && !shouldSkipToolResult) {
         try {
@@ -183,18 +156,10 @@ export async function runStreamLoop(
       // Main event handler dispatch.
       const handler = sseHandlers[normalizedEvent.type]
       if (handler) {
-        logger.info('[STREAM] Dispatching to handler', { type: normalizedEvent.type, toolCallId: normalizedEvent.toolCallId })
         await handler(normalizedEvent, context, execContext, options)
-        logger.info('[STREAM] Handler returned', { type: normalizedEvent.type, toolCallId: normalizedEvent.toolCallId, streamComplete: context.streamComplete })
-      } else {
-        logger.info('[STREAM] No handler for event type', { type: normalizedEvent.type })
       }
-      if (context.streamComplete) {
-        logger.info('[STREAM] Stream marked complete, breaking', { eventCount, errors: context.errors })
-        break
-      }
+      if (context.streamComplete) break
     }
-    logger.info('[STREAM] Event loop ended', { eventCount, streamComplete: context.streamComplete, wasAborted: context.wasAborted, errors: context.errors })
   } finally {
     clearTimeout(timeoutId)
   }

@@ -109,13 +109,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const toolData = getEventData(event) || ({} as Record<string, unknown>)
     const toolCallId = (toolData.id as string | undefined) || event.toolCallId
     const toolName = (toolData.name as string | undefined) || event.toolName
-
-    logger.info('[TOOL_CALL] Received', { toolCallId, toolName, hasToolData: !!toolData })
-
-    if (!toolCallId || !toolName) {
-      logger.warn('[TOOL_CALL] Missing toolCallId or toolName, returning early', { toolCallId, toolName })
-      return
-    }
+    if (!toolCallId || !toolName) return
 
     const args = (toolData.arguments || toolData.input || asRecord(event.data).input) as
       | Record<string, unknown>
@@ -123,23 +117,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const isPartial = toolData.partial === true
     const existing = context.toolCalls.get(toolCallId)
 
-    logger.info('[TOOL_CALL] State check', {
-      toolCallId,
-      toolName,
-      isPartial,
-      hasExisting: !!existing,
-      existingStatus: existing?.status,
-      existingEndTime: existing?.endTime,
-      hasArgs: !!args,
-    })
-
     // If we've already completed this tool call, ignore late/duplicate tool_call events
     // to avoid resetting UI/state back to pending and re-executing.
     if (
       existing?.endTime ||
       (existing && existing.status !== 'pending' && existing.status !== 'executing')
     ) {
-      logger.info('[TOOL_CALL] Already completed, skipping', { toolCallId, toolName, status: existing?.status })
       if (!existing.params && args) {
         existing.params = args
       }
@@ -160,31 +143,20 @@ export const sseHandlers: Record<string, SSEHandler> = {
       addContentBlock(context, { type: 'tool_call', toolCall: created })
     }
 
-    if (isPartial) {
-      logger.info('[TOOL_CALL] Partial event, returning early', { toolCallId, toolName })
-      return
-    }
-    if (wasToolResultSeen(toolCallId)) {
-      logger.info('[TOOL_CALL] Result already seen (dedup), returning early', { toolCallId, toolName })
-      return
-    }
+    if (isPartial) return
+    if (wasToolResultSeen(toolCallId)) return
 
     const toolCall = context.toolCalls.get(toolCallId)
-    if (!toolCall) {
-      logger.warn('[TOOL_CALL] toolCall not found in map after set, returning early', { toolCallId })
-      return
-    }
+    if (!toolCall) return
 
     // Subagent tools are executed by the copilot backend, not sim side.
     if (SUBAGENT_TOOL_SET.has(toolName)) {
-      logger.info('[TOOL_CALL] Subagent tool, skipping local execution', { toolCallId, toolName })
       return
     }
 
     // Respond tools are internal to copilot's subagent system - skip execution.
     // The copilot backend handles these internally to signal subagent completion.
     if (RESPOND_TOOL_SET.has(toolName)) {
-      logger.info('[TOOL_CALL] Respond tool, skipping', { toolCallId, toolName })
       toolCall.status = 'success'
       toolCall.endTime = Date.now()
       toolCall.result = {
@@ -196,14 +168,6 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     const isInterruptTool = isInterruptToolName(toolName)
     const isInteractive = options.interactive === true
-
-    logger.info('[TOOL_CALL] Pre-execute check', {
-      toolCallId,
-      toolName,
-      isInterruptTool,
-      isInteractive,
-      autoExecuteTools: options.autoExecuteTools,
-    })
 
     if (isInterruptTool && isInteractive) {
       const decision = await waitForToolDecision(
@@ -266,11 +230,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
 
     if (options.autoExecuteTools !== false) {
-      logger.info('[TOOL_CALL] Calling executeToolAndReport', { toolCallId, toolName })
       await executeToolAndReport(toolCallId, context, execContext, options)
-      logger.info('[TOOL_CALL] executeToolAndReport returned', { toolCallId, toolName })
-    } else {
-      logger.info('[TOOL_CALL] autoExecuteTools is false, skipping execution', { toolCallId, toolName })
     }
   },
   reasoning: (event, context) => {
