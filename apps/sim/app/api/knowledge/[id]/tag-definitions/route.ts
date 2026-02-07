@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     logger.info(`[${requestId}] Getting tag definitions for knowledge base ${knowledgeBaseId}`)
 
-    const auth = await checkSessionOrInternalAuth(req)
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
     if (!auth.success) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     logger.info(`[${requestId}] Creating tag definition for knowledge base ${knowledgeBaseId}`)
 
-    const auth = await checkSessionOrInternalAuth(req)
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
     if (!auth.success) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
