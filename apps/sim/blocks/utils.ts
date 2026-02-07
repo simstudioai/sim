@@ -1,6 +1,6 @@
 import { isHosted } from '@/lib/core/config/feature-flags'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
-import { getHostedModels, providers } from '@/providers/utils'
+import { getHostedModels, getProviderFromModel, providers } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
 /**
@@ -48,11 +48,54 @@ const getCurrentOllamaModels = () => {
   return useProvidersStore.getState().providers.ollama.models
 }
 
-/**
- * Helper to get current vLLM models from store
- */
-const getCurrentVLLMModels = () => {
-  return useProvidersStore.getState().providers.vllm.models
+function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
+  if (!model) {
+    return { field: 'model', value: '__no_model_selected__' }
+  }
+
+  return shouldShow ? { field: 'model', value: model } : { field: 'model', value: model, not: true }
+}
+
+function shouldRequireApiKeyForModel(model: string): boolean {
+  const normalizedModel = model.trim().toLowerCase()
+  if (!normalizedModel) return false
+
+  const hostedModels = getHostedModels()
+  const isHostedModel = hostedModels.some(
+    (hostedModel) => hostedModel.toLowerCase() === normalizedModel
+  )
+  if (isHosted && isHostedModel) return false
+
+  if (normalizedModel.startsWith('vertex/') || normalizedModel.startsWith('bedrock/')) {
+    return false
+  }
+
+  if (normalizedModel.startsWith('vllm/')) {
+    return false
+  }
+
+  const currentOllamaModels = getCurrentOllamaModels()
+  if (currentOllamaModels.some((ollamaModel) => ollamaModel.toLowerCase() === normalizedModel)) {
+    return false
+  }
+
+  if (!isHosted) {
+    try {
+      const providerId = getProviderFromModel(model)
+      if (
+        providerId === 'ollama' ||
+        providerId === 'vllm' ||
+        providerId === 'vertex' ||
+        providerId === 'bedrock'
+      ) {
+        return false
+      }
+    } catch {
+      // If model resolution fails, fall through and require an API key.
+    }
+  }
+
+  return true
 }
 
 /**
@@ -60,22 +103,11 @@ const getCurrentVLLMModels = () => {
  * Handles hosted vs self-hosted environments and excludes providers that don't need API key.
  */
 export function getApiKeyCondition() {
-  return isHosted
-    ? {
-        field: 'model',
-        value: [...getHostedModels(), ...providers.vertex.models, ...providers.bedrock.models],
-        not: true,
-      }
-    : () => ({
-        field: 'model',
-        value: [
-          ...getCurrentOllamaModels(),
-          ...getCurrentVLLMModels(),
-          ...providers.vertex.models,
-          ...providers.bedrock.models,
-        ],
-        not: true,
-      })
+  return (values?: Record<string, unknown>) => {
+    const model = typeof values?.model === 'string' ? values.model : ''
+    const shouldShow = shouldRequireApiKeyForModel(model)
+    return buildModelVisibilityCondition(model, shouldShow)
+  }
 }
 
 /**

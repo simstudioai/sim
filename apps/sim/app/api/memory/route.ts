@@ -3,7 +3,7 @@ import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, like } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request)
+    const authResult = await checkInternalAuth(request)
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized memory access attempt`)
       return NextResponse.json(
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request)
+    const authResult = await checkInternalAuth(request)
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized memory creation attempt`)
       return NextResponse.json(
@@ -228,7 +228,7 @@ export async function DELETE(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkHybridAuth(request)
+    const authResult = await checkInternalAuth(request)
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized memory deletion attempt`)
       return NextResponse.json(

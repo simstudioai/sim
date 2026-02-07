@@ -74,8 +74,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
       }
 
       if (isExecutionFile) {
-        const serveUrl =
-          file.url || `/api/files/serve/${encodeURIComponent(file.key)}?context=execution`
+        const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=execution`
         window.open(serveUrl, '_blank')
         logger.info(`Opened execution file serve URL: ${serveUrl}`)
       } else {
@@ -88,16 +87,12 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
           logger.warn(
             `Could not construct viewer URL for file: ${file.name}, falling back to serve URL`
           )
-          const serveUrl =
-            file.url || `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+          const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
           window.open(serveUrl, '_blank')
         }
       }
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
-      if (file.url) {
-        window.open(file.url, '_blank')
-      }
     } finally {
       setIsDownloading(false)
     }
@@ -198,8 +193,7 @@ export function FileDownload({
       }
 
       if (isExecutionFile) {
-        const serveUrl =
-          file.url || `/api/files/serve/${encodeURIComponent(file.key)}?context=execution`
+        const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=execution`
         window.open(serveUrl, '_blank')
         logger.info(`Opened execution file serve URL: ${serveUrl}`)
       } else {
@@ -212,16 +206,12 @@ export function FileDownload({
           logger.warn(
             `Could not construct viewer URL for file: ${file.name}, falling back to serve URL`
           )
-          const serveUrl =
-            file.url || `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+          const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
           window.open(serveUrl, '_blank')
         }
       }
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
-      if (file.url) {
-        window.open(file.url, '_blank')
-      }
     } finally {
       setIsDownloading(false)
     }

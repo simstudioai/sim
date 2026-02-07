@@ -961,6 +961,7 @@ async function executeMcpTool(
 
     const workspaceId = params._context?.workspaceId || executionContext?.workspaceId
     const workflowId = params._context?.workflowId || executionContext?.workflowId
+    const userId = params._context?.userId || executionContext?.userId
 
     if (!workspaceId) {
       return {
@@ -1002,7 +1003,12 @@ async function executeMcpTool(
       hasToolSchema: !!toolSchema,
     })
 
-    const response = await fetch(`${baseUrl}/api/mcp/tools/execute`, {
+    const mcpUrl = new URL('/api/mcp/tools/execute', baseUrl)
+    if (userId) {
+      mcpUrl.searchParams.set('userId', userId)
+    }
+
+    const response = await fetch(mcpUrl.toString(), {
       method: 'POST',
       headers,
       body,

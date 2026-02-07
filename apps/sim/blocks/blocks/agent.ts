@@ -1,11 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { getApiKeyCondition } from '@/blocks/utils'
 import {
   getBaseModelProviders,
-  getHostedModels,
   getMaxTemperature,
   getProviderIcon,
   getReasoningEffortValuesForModel,
@@ -17,15 +16,6 @@ import {
   providers,
   supportsTemperature,
 } from '@/providers/utils'
-
-const getCurrentOllamaModels = () => {
-  return useProvidersStore.getState().providers.ollama.models
-}
-
-const getCurrentVLLMModels = () => {
-  return useProvidersStore.getState().providers.vllm.models
-}
-
 import { useProvidersStore } from '@/stores/providers'
 import type { ToolResponse } from '@/tools/types'
 
@@ -421,23 +411,7 @@ Return ONLY the JSON array.`,
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for hosted models, Ollama models, vLLM models, Vertex models (uses OAuth), and Bedrock (uses AWS credentials)
-      condition: isHosted
-        ? {
-            field: 'model',
-            value: [...getHostedModels(), ...providers.vertex.models, ...providers.bedrock.models],
-            not: true, // Show for all models EXCEPT those listed
-          }
-        : () => ({
-            field: 'model',
-            value: [
-              ...getCurrentOllamaModels(),
-              ...getCurrentVLLMModels(),
-              ...providers.vertex.models,
-              ...providers.bedrock.models,
-            ],
-            not: true, // Show for all models EXCEPT Ollama, vLLM, Vertex, and Bedrock models
-          }),
+      condition: getApiKeyCondition(),
     },
     {
       id: 'memoryType',

@@ -24,6 +24,7 @@ import {
   validateTypeformSignature,
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils.server'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isGitHubEventMatch } from '@/triggers/github/utils'
@@ -1003,10 +1004,23 @@ export async function queueWebhookExecution(
       }
     }
 
+    if (!foundWorkflow.workspaceId) {
+      logger.error(`[${options.requestId}] Workflow ${foundWorkflow.id} has no workspaceId`)
+      return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
+    }
+
+    const actorUserId = await getWorkspaceBilledAccountUserId(foundWorkflow.workspaceId)
+    if (!actorUserId) {
+      logger.error(
+        `[${options.requestId}] No billing account for workspace ${foundWorkflow.workspaceId}`
+      )
+      return NextResponse.json({ error: 'Unable to resolve billing account' }, { status: 500 })
+    }
+
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
-      userId: foundWorkflow.userId,
+      userId: actorUserId,
       provider: foundWebhook.provider,
       body,
       headers,
@@ -1017,7 +1031,7 @@ export async function queueWebhookExecution(
 
     const jobQueue = await getJobQueue()
     const jobId = await jobQueue.enqueue('webhook-execution', payload, {
-      metadata: { workflowId: foundWorkflow.id, userId: foundWorkflow.userId },
+      metadata: { workflowId: foundWorkflow.id, userId: actorUserId },
     })
     logger.info(
       `[${options.requestId}] Queued webhook execution task ${jobId} for ${foundWebhook.provider} webhook`
