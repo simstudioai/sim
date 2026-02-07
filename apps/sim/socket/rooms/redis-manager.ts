@@ -10,9 +10,11 @@ const KEYS = {
   workflowMeta: (wfId: string) => `workflow:${wfId}:meta`,
   socketWorkflow: (socketId: string) => `socket:${socketId}:workflow`,
   socketSession: (socketId: string) => `socket:${socketId}:session`,
+  socketPresenceWorkflow: (socketId: string) => `socket:${socketId}:presence-workflow`,
 } as const
 
 const SOCKET_KEY_TTL = 3600
+const SOCKET_PRESENCE_WORKFLOW_KEY_TTL = 24 * 60 * 60
 
 /**
  * Lua script for atomic user removal from room.
@@ -22,20 +24,24 @@ const SOCKET_KEY_TTL = 3600
 const REMOVE_USER_SCRIPT = `
 local socketWorkflowKey = KEYS[1]
 local socketSessionKey = KEYS[2]
+local socketPresenceWorkflowKey = KEYS[3]
 local workflowUsersPrefix = ARGV[1]
 local workflowMetaPrefix = ARGV[2]
 local socketId = ARGV[3]
 
 local workflowId = redis.call('GET', socketWorkflowKey)
 if not workflowId then
-  return nil
+  workflowId = redis.call('GET', socketPresenceWorkflowKey)
+  if not workflowId then
+    return nil
+  end
 end
 
 local workflowUsersKey = workflowUsersPrefix .. workflowId .. ':users'
 local workflowMetaKey = workflowMetaPrefix .. workflowId .. ':meta'
 
 redis.call('HDEL', workflowUsersKey, socketId)
-redis.call('DEL', socketWorkflowKey, socketSessionKey)
+redis.call('DEL', socketWorkflowKey, socketSessionKey, socketPresenceWorkflowKey)
 
 local remaining = redis.call('HLEN', workflowUsersKey)
 if remaining == 0 then
@@ -54,11 +60,13 @@ const UPDATE_ACTIVITY_SCRIPT = `
 local workflowUsersKey = KEYS[1]
 local socketWorkflowKey = KEYS[2]
 local socketSessionKey = KEYS[3]
+local socketPresenceWorkflowKey = KEYS[4]
 local socketId = ARGV[1]
 local cursorJson = ARGV[2]
 local selectionJson = ARGV[3]
 local lastActivity = ARGV[4]
 local ttl = tonumber(ARGV[5])
+local presenceWorkflowTtl = tonumber(ARGV[6])
 
 local existingJson = redis.call('HGET', workflowUsersKey, socketId)
 if not existingJson then
@@ -78,6 +86,7 @@ existing.lastActivity = tonumber(lastActivity)
 redis.call('HSET', workflowUsersKey, socketId, cjson.encode(existing))
 redis.call('EXPIRE', socketWorkflowKey, ttl)
 redis.call('EXPIRE', socketSessionKey, ttl)
+redis.call('EXPIRE', socketPresenceWorkflowKey, presenceWorkflowTtl)
 return 1
 `
 
@@ -164,6 +173,8 @@ export class RedisRoomManager implements IRoomManager {
       pipeline.hSet(KEYS.workflowMeta(workflowId), 'lastModified', Date.now().toString())
       pipeline.set(KEYS.socketWorkflow(socketId), workflowId)
       pipeline.expire(KEYS.socketWorkflow(socketId), SOCKET_KEY_TTL)
+      pipeline.set(KEYS.socketPresenceWorkflow(socketId), workflowId)
+      pipeline.expire(KEYS.socketPresenceWorkflow(socketId), SOCKET_PRESENCE_WORKFLOW_KEY_TTL)
       pipeline.hSet(KEYS.socketSession(socketId), {
         userId: presence.userId,
         userName: presence.userName,
@@ -187,7 +198,11 @@ export class RedisRoomManager implements IRoomManager {
     }
   }
 
-  async removeUserFromRoom(socketId: string, retried = false): Promise<string | null> {
+  async removeUserFromRoom(
+    socketId: string,
+    workflowIdHint?: string,
+    retried = false
+  ): Promise<string | null> {
     if (!this.removeUserScriptSha) {
       logger.error('removeUserFromRoom called before initialize()')
       return null
@@ -195,19 +210,30 @@ export class RedisRoomManager implements IRoomManager {
 
     try {
       const workflowId = await this.redis.evalSha(this.removeUserScriptSha, {
-        keys: [KEYS.socketWorkflow(socketId), KEYS.socketSession(socketId)],
+        keys: [
+          KEYS.socketWorkflow(socketId),
+          KEYS.socketSession(socketId),
+          KEYS.socketPresenceWorkflow(socketId),
+        ],
         arguments: ['workflow:', 'workflow:', socketId],
       })
 
-      if (workflowId) {
+      if (typeof workflowId === 'string' && workflowId.length > 0) {
         logger.debug(`Removed socket ${socketId} from workflow ${workflowId}`)
+        return workflowId
       }
-      return workflowId as string | null
+
+      // Fallback without global SCAN: direct cleanup using workflow hint from socket rooms / join context.
+      if (workflowIdHint) {
+        return this.removeUserFromWorkflowHint(socketId, workflowIdHint)
+      }
+
+      return null
     } catch (error) {
       if ((error as Error).message?.includes('NOSCRIPT') && !retried) {
         logger.warn('Lua script not found, reloading...')
         this.removeUserScriptSha = await this.redis.scriptLoad(REMOVE_USER_SCRIPT)
-        return this.removeUserFromRoom(socketId, true)
+        return this.removeUserFromRoom(socketId, workflowIdHint, true)
       }
       logger.error(`Failed to remove user from room: ${socketId}`, error)
       return null
@@ -215,7 +241,12 @@ export class RedisRoomManager implements IRoomManager {
   }
 
   async getWorkflowIdForSocket(socketId: string): Promise<string | null> {
-    return this.redis.get(KEYS.socketWorkflow(socketId))
+    const workflowId = await this.redis.get(KEYS.socketWorkflow(socketId))
+    if (workflowId) {
+      return workflowId
+    }
+
+    return this.redis.get(KEYS.socketPresenceWorkflow(socketId))
   }
 
   async getUserSession(socketId: string): Promise<UserSession | null> {
@@ -261,6 +292,52 @@ export class RedisRoomManager implements IRoomManager {
     return exists > 0
   }
 
+  private async removeUserFromWorkflowHint(
+    socketId: string,
+    workflowIdHint: string
+  ): Promise<string | null> {
+    try {
+      const pipeline = this.redis.multi()
+      pipeline.hDel(KEYS.workflowUsers(workflowIdHint), socketId)
+      pipeline.del(KEYS.socketWorkflow(socketId))
+      pipeline.del(KEYS.socketSession(socketId))
+      pipeline.del(KEYS.socketPresenceWorkflow(socketId))
+
+      const results = await pipeline.exec()
+      if (results.some((result) => result instanceof Error)) {
+        logger.error('Pipeline partially failed during hinted fallback cleanup', {
+          socketId,
+          workflowIdHint,
+        })
+        return null
+      }
+
+      const hDelResult = results[0]
+      const removedCount =
+        typeof hDelResult === 'number'
+          ? hDelResult
+          : typeof hDelResult === 'string'
+            ? Number.parseInt(hDelResult, 10) || 0
+            : 0
+
+      if (removedCount <= 0) {
+        return null
+      }
+
+      await this.redis.hSet(
+        KEYS.workflowMeta(workflowIdHint),
+        'lastModified',
+        Date.now().toString()
+      )
+
+      logger.warn(`Removed socket ${socketId} from workflow ${workflowIdHint} via hinted fallback`)
+      return workflowIdHint
+    } catch (error) {
+      logger.error('Failed hinted fallback cleanup', { socketId, workflowIdHint, error })
+      return null
+    }
+  }
+
   async updateUserActivity(
     workflowId: string,
     socketId: string,
@@ -278,6 +355,7 @@ export class RedisRoomManager implements IRoomManager {
           KEYS.workflowUsers(workflowId),
           KEYS.socketWorkflow(socketId),
           KEYS.socketSession(socketId),
+          KEYS.socketPresenceWorkflow(socketId),
         ],
         arguments: [
           socketId,
@@ -285,6 +363,7 @@ export class RedisRoomManager implements IRoomManager {
           updates.selection !== undefined ? JSON.stringify(updates.selection) : '',
           (updates.lastActivity ?? Date.now()).toString(),
           SOCKET_KEY_TTL.toString(),
+          SOCKET_PRESENCE_WORKFLOW_KEY_TTL.toString(),
         ],
       })
     } catch (error) {
@@ -348,7 +427,7 @@ export class RedisRoomManager implements IRoomManager {
 
       // Remove all users from Redis state
       for (const user of users) {
-        await this.removeUserFromRoom(user.socketId)
+        await this.removeUserFromRoom(user.socketId, workflowId)
       }
 
       // Clean up room data

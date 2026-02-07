@@ -51,26 +51,62 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       const currentWorkflowId = await roomManager.getWorkflowIdForSocket(socket.id)
       if (currentWorkflowId) {
         socket.leave(currentWorkflowId)
-        await roomManager.removeUserFromRoom(socket.id)
+        await roomManager.removeUserFromRoom(socket.id, currentWorkflowId)
         await roomManager.broadcastPresenceUpdate(currentWorkflowId)
       }
 
-      const STALE_THRESHOLD_MS = 60_000
+      // Keep this above Redis socket key TTL (1h) so a normal idle user is not evicted too aggressively.
+      const STALE_THRESHOLD_MS = 75 * 60 * 1000
       const now = Date.now()
       const existingUsers = await roomManager.getWorkflowUsers(workflowId)
-      for (const existingUser of existingUsers) {
-        if (existingUser.userId === userId && existingUser.socketId !== socket.id) {
-          const isSameTab = tabSessionId && existingUser.tabSessionId === tabSessionId
-          const isStale =
-            now - (existingUser.lastActivity || existingUser.joinedAt || 0) > STALE_THRESHOLD_MS
+      let liveSocketIds = new Set<string>()
+      let canCheckLiveness = false
 
-          if (isSameTab || isStale) {
-            logger.info(
-              `Cleaning up socket ${existingUser.socketId} for user ${userId} (${isSameTab ? 'same tab' : 'stale'})`
-            )
-            await roomManager.removeUserFromRoom(existingUser.socketId)
-            roomManager.io.in(existingUser.socketId).socketsLeave(workflowId)
+      try {
+        const liveSockets = await roomManager.io.in(workflowId).fetchSockets()
+        liveSocketIds = new Set(liveSockets.map((liveSocket) => liveSocket.id))
+        canCheckLiveness = true
+      } catch (error) {
+        logger.warn(
+          `Skipping stale cleanup for ${workflowId} due to live socket lookup failure`,
+          error
+        )
+      }
+
+      for (const existingUser of existingUsers) {
+        try {
+          if (existingUser.socketId === socket.id) {
+            continue
           }
+
+          const isSameTab = Boolean(tabSessionId && existingUser.tabSessionId === tabSessionId)
+
+          if (isSameTab) {
+            logger.info(
+              `Cleaning up socket ${existingUser.socketId} for user ${existingUser.userId} (same tab)`
+            )
+            await roomManager.removeUserFromRoom(existingUser.socketId, workflowId)
+            await roomManager.io.in(existingUser.socketId).socketsLeave(workflowId)
+            continue
+          }
+
+          if (!canCheckLiveness || liveSocketIds.has(existingUser.socketId)) {
+            continue
+          }
+
+          const isStaleByActivity =
+            now - (existingUser.lastActivity || existingUser.joinedAt || 0) > STALE_THRESHOLD_MS
+          if (!isStaleByActivity) {
+            continue
+          }
+
+          logger.info(
+            `Cleaning up socket ${existingUser.socketId} for user ${existingUser.userId} (stale activity)`
+          )
+          await roomManager.removeUserFromRoom(existingUser.socketId, workflowId)
+          await roomManager.io.in(existingUser.socketId).socketsLeave(workflowId)
+        } catch (error) {
+          logger.warn(`Best-effort cleanup failed for socket ${existingUser.socketId}`, error)
         }
       }
 
@@ -136,7 +172,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       logger.error('Error joining workflow:', error)
       // Undo socket.join and room manager entry if any operation failed
       socket.leave(workflowId)
-      await roomManager.removeUserFromRoom(socket.id)
+      await roomManager.removeUserFromRoom(socket.id, workflowId)
       const isReady = roomManager.isReady()
       socket.emit('join-workflow-error', {
         error: isReady ? 'Failed to join workflow' : 'Realtime unavailable',
@@ -156,7 +192,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
 
       if (workflowId && session) {
         socket.leave(workflowId)
-        await roomManager.removeUserFromRoom(socket.id)
+        await roomManager.removeUserFromRoom(socket.id, workflowId)
         await roomManager.broadcastPresenceUpdate(workflowId)
 
         logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
