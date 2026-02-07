@@ -211,6 +211,7 @@ Return ONLY the JSON array.`,
 
         return [autoOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
+      mode: 'advanced',
       condition: {
         field: 'model',
         value: MODELS_WITH_REASONING_EFFORT,
@@ -269,6 +270,7 @@ Return ONLY the JSON array.`,
 
         return [autoOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
+      mode: 'advanced',
       condition: {
         field: 'model',
         value: MODELS_WITH_VERBOSITY,
@@ -314,6 +316,7 @@ Return ONLY the JSON array.`,
 
         return [noneOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
+      mode: 'advanced',
       condition: {
         field: 'model',
         value: MODELS_WITH_THINKING,
@@ -496,6 +499,7 @@ Return ONLY the JSON array.`,
       min: 0,
       max: 1,
       defaultValue: 0.3,
+      mode: 'advanced',
       condition: () => ({
         field: 'model',
         value: (() => {
@@ -513,6 +517,7 @@ Return ONLY the JSON array.`,
       min: 0,
       max: 2,
       defaultValue: 0.3,
+      mode: 'advanced',
       condition: () => ({
         field: 'model',
         value: (() => {
