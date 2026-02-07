@@ -114,6 +114,8 @@ function buildProviderMetadata(providerId: ProviderId): ProviderMetadata {
 }
 
 export const providers: Record<ProviderId, ProviderMetadata> = {
+  ollama: buildProviderMetadata('ollama'),
+  vllm: buildProviderMetadata('vllm'),
   openai: {
     ...buildProviderMetadata('openai'),
     computerUseModels: ['computer-use-preview'],
@@ -124,19 +126,17 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
       getProviderModelsFromDefinitions('anthropic').includes(model)
     ),
   },
-  'azure-anthropic': buildProviderMetadata('azure-anthropic'),
   google: buildProviderMetadata('google'),
   vertex: buildProviderMetadata('vertex'),
+  'azure-openai': buildProviderMetadata('azure-openai'),
+  'azure-anthropic': buildProviderMetadata('azure-anthropic'),
   deepseek: buildProviderMetadata('deepseek'),
   xai: buildProviderMetadata('xai'),
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
-  vllm: buildProviderMetadata('vllm'),
   mistral: buildProviderMetadata('mistral'),
-  'azure-openai': buildProviderMetadata('azure-openai'),
-  openrouter: buildProviderMetadata('openrouter'),
-  ollama: buildProviderMetadata('ollama'),
   bedrock: buildProviderMetadata('bedrock'),
+  openrouter: buildProviderMetadata('openrouter'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
