@@ -54,7 +54,7 @@ export async function authorizeCredentialUse(
   if (auth.authType !== 'internal_jwt' && auth.userId === credentialOwnerUserId) {
     return {
       ok: true,
-      authType: auth.authType,
+      authType: auth.authType as CredentialAccessResult['authType'],
       requesterUserId: auth.userId,
       credentialOwnerUserId,
     }
@@ -87,7 +87,7 @@ export async function authorizeCredentialUse(
     }
     return {
       ok: true,
-      authType: auth.authType,
+      authType: auth.authType as CredentialAccessResult['authType'],
       requesterUserId: auth.userId,
       credentialOwnerUserId,
       workspaceId: wf.workspaceId,
@@ -107,7 +107,7 @@ export async function authorizeCredentialUse(
 
   return {
     ok: true,
-    authType: auth.authType,
+    authType: auth.authType as CredentialAccessResult['authType'],
     requesterUserId: auth.userId,
     credentialOwnerUserId,
     workspaceId: wf.workspaceId,
