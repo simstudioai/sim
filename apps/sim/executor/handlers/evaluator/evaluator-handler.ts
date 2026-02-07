@@ -121,24 +121,15 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
         apiKey: finalApiKey,
+        azureEndpoint: inputs.azureEndpoint,
+        azureApiVersion: inputs.azureApiVersion,
+        vertexProject: evaluatorConfig.vertexProject,
+        vertexLocation: evaluatorConfig.vertexLocation,
+        bedrockAccessKeyId: evaluatorConfig.bedrockAccessKeyId,
+        bedrockSecretKey: evaluatorConfig.bedrockSecretKey,
+        bedrockRegion: evaluatorConfig.bedrockRegion,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
-      }
-
-      if (providerId === 'vertex') {
-        providerRequest.vertexProject = evaluatorConfig.vertexProject
-        providerRequest.vertexLocation = evaluatorConfig.vertexLocation
-      }
-
-      if (providerId === 'azure-openai') {
-        providerRequest.azureEndpoint = inputs.azureEndpoint
-        providerRequest.azureApiVersion = inputs.azureApiVersion
-      }
-
-      if (providerId === 'bedrock') {
-        providerRequest.bedrockAccessKeyId = evaluatorConfig.bedrockAccessKeyId
-        providerRequest.bedrockSecretKey = evaluatorConfig.bedrockSecretKey
-        providerRequest.bedrockRegion = evaluatorConfig.bedrockRegion
       }
 
       const response = await fetch(url.toString(), {

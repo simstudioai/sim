@@ -35,6 +35,8 @@ export const azureAnthropicProvider: ProviderConfig = {
     // The SDK appends /v1/messages automatically
     const baseURL = `${request.azureEndpoint.replace(/\/$/, '')}/anthropic`
 
+    const anthropicVersion = request.azureApiVersion || '2023-06-01'
+
     return executeAnthropicProviderRequest(
       {
         ...request,
@@ -49,7 +51,7 @@ export const azureAnthropicProvider: ProviderConfig = {
             apiKey,
             defaultHeaders: {
               'api-key': apiKey,
-              'anthropic-version': '2023-06-01',
+              'anthropic-version': anthropicVersion,
               ...(useNativeStructuredOutputs
                 ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
                 : {}),

@@ -247,7 +247,8 @@ export async function executeTool(
     // If it's a custom tool, use the async version with workflowId
     if (isCustomTool(normalizedToolId)) {
       const workflowId = params._context?.workflowId
-      tool = await getToolAsync(normalizedToolId, workflowId)
+      const userId = params._context?.userId
+      tool = await getToolAsync(normalizedToolId, workflowId, userId)
       if (!tool) {
         logger.error(`[${requestId}] Custom tool not found: ${normalizedToolId}`)
       }
@@ -286,25 +287,24 @@ export async function executeTool(
       try {
         const baseUrl = getBaseUrl()
 
+        const workflowId = contextParams._context?.workflowId
+        const userId = contextParams._context?.userId
+
         const tokenPayload: OAuthTokenPayload = {
           credentialId: contextParams.credential as string,
         }
-
-        // Add workflowId if it exists in params, context, or executionContext
-        const workflowId =
-          contextParams.workflowId ||
-          contextParams._context?.workflowId ||
-          executionContext?.workflowId
         if (workflowId) {
           tokenPayload.workflowId = workflowId
         }
 
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
-        // Build token URL and also include workflowId in query so server auth can read it
         const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
         if (workflowId) {
           tokenUrlObj.searchParams.set('workflowId', workflowId)
+        }
+        if (userId) {
+          tokenUrlObj.searchParams.set('userId', userId)
         }
 
         // Always send Content-Type; add internal auth on server-side runs
@@ -608,6 +608,10 @@ async function executeToolRequest(
       const workflowId = params._context?.workflowId
       if (workflowId) {
         fullUrlObj.searchParams.set('workflowId', workflowId)
+      }
+      const userId = params._context?.userId
+      if (userId) {
+        fullUrlObj.searchParams.set('userId', userId)
       }
     }
 

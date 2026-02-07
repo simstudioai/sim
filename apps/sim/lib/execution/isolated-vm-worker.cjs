@@ -9,6 +9,21 @@ const USER_CODE_START_LINE = 4
 const pendingFetches = new Map()
 let fetchIdCounter = 0
 const FETCH_TIMEOUT_MS = 300000 // 5 minutes
+const MAX_STDOUT_CHARS = Number.parseInt(process.env.IVM_MAX_STDOUT_CHARS || '', 10) || 200000
+const MAX_FETCH_OPTIONS_JSON_CHARS =
+  Number.parseInt(process.env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS || '', 10) || 256 * 1024
+
+function stringifyLogValue(value) {
+  if (typeof value !== 'object' || value === null) {
+    return String(value)
+  }
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return '[unserializable]'
+  }
+}
 
 /**
  * Extract line and column from error stack or message
@@ -101,7 +116,31 @@ function convertToCompatibleError(errorInfo, userCode) {
 async function executeCode(request) {
   const { code, params, envVars, contextVariables, timeoutMs, requestId } = request
   const stdoutChunks = []
+  let stdoutLength = 0
+  let stdoutTruncated = false
   let isolate = null
+
+  const appendStdout = (line) => {
+    if (stdoutTruncated || !line) return
+
+    const remaining = MAX_STDOUT_CHARS - stdoutLength
+    if (remaining <= 0) {
+      stdoutTruncated = true
+      stdoutChunks.push('[stdout truncated]\n')
+      return
+    }
+
+    if (line.length <= remaining) {
+      stdoutChunks.push(line)
+      stdoutLength += line.length
+      return
+    }
+
+    stdoutChunks.push(line.slice(0, remaining))
+    stdoutChunks.push('\n[stdout truncated]\n')
+    stdoutLength = MAX_STDOUT_CHARS
+    stdoutTruncated = true
+  }
 
   try {
     isolate = new ivm.Isolate({ memoryLimit: 128 })
@@ -111,18 +150,14 @@ async function executeCode(request) {
     await jail.set('global', jail.derefInto())
 
     const logCallback = new ivm.Callback((...args) => {
-      const message = args
-        .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-        .join(' ')
-      stdoutChunks.push(`${message}\n`)
+      const message = args.map((arg) => stringifyLogValue(arg)).join(' ')
+      appendStdout(`${message}\n`)
     })
     await jail.set('__log', logCallback)
 
     const errorCallback = new ivm.Callback((...args) => {
-      const message = args
-        .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-        .join(' ')
-      stdoutChunks.push(`ERROR: ${message}\n`)
+      const message = args.map((arg) => stringifyLogValue(arg)).join(' ')
+      appendStdout(`ERROR: ${message}\n`)
     })
     await jail.set('__error', errorCallback)
 
@@ -177,6 +212,9 @@ async function executeCode(request) {
             optionsJson = JSON.stringify(options);
           } catch {
             throw new Error('fetch options must be JSON-serializable');
+          }
+          if (optionsJson.length > ${MAX_FETCH_OPTIONS_JSON_CHARS}) {
+            throw new Error('fetch options exceed maximum payload size');
           }
         }
         const resultJson = await __fetchRef.apply(undefined, [url, optionsJson], { result: { promise: true } });

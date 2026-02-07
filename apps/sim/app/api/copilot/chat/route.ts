@@ -285,6 +285,14 @@ export async function POST(req: NextRequest) {
           apiVersion: 'preview',
           endpoint: env.AZURE_OPENAI_ENDPOINT,
         }
+      } else if (providerEnv === 'azure-anthropic') {
+        providerConfig = {
+          provider: 'azure-anthropic',
+          model: envModel,
+          apiKey: env.AZURE_ANTHROPIC_API_KEY,
+          apiVersion: env.AZURE_ANTHROPIC_API_VERSION,
+          endpoint: env.AZURE_ANTHROPIC_ENDPOINT,
+        }
       } else if (providerEnv === 'vertex') {
         providerConfig = {
           provider: 'vertex',

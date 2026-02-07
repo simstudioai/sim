@@ -1,7 +1,11 @@
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { executeProviderRequest } from '@/providers'
-import { getApiKey, getProviderFromModel } from '@/providers/utils'
+import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('HallucinationValidator')
 
@@ -19,7 +23,18 @@ export interface HallucinationValidationInput {
   topK: number // Number of chunks to retrieve, default 10
   model: string
   apiKey?: string
+  providerCredentials?: {
+    azureEndpoint?: string
+    azureApiVersion?: string
+    vertexProject?: string
+    vertexLocation?: string
+    vertexCredential?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    bedrockRegion?: string
+  }
   workflowId?: string
+  workspaceId?: string
   requestId: string
 }
 
@@ -89,7 +104,9 @@ async function scoreHallucinationWithLLM(
   userInput: string,
   ragContext: string[],
   model: string,
-  apiKey: string,
+  apiKey: string | undefined,
+  providerCredentials: HallucinationValidationInput['providerCredentials'],
+  workspaceId: string | undefined,
   requestId: string
 ): Promise<{ score: number; reasoning: string }> {
   try {
@@ -127,6 +144,23 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
 
     const providerId = getProviderFromModel(model)
 
+    let finalApiKey: string | undefined = apiKey
+    if (providerId === 'vertex' && providerCredentials?.vertexCredential) {
+      const credential = await db.query.account.findFirst({
+        where: eq(account.id, providerCredentials.vertexCredential),
+      })
+      if (credential) {
+        const { accessToken } = await refreshTokenIfNeeded(
+          requestId,
+          credential,
+          providerCredentials.vertexCredential
+        )
+        if (accessToken) {
+          finalApiKey = accessToken
+        }
+      }
+    }
+
     const response = await executeProviderRequest(providerId, {
       model,
       systemPrompt,
@@ -137,7 +171,15 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
         },
       ],
       temperature: 0.1, // Low temperature for consistent scoring
-      apiKey,
+      apiKey: finalApiKey,
+      azureEndpoint: providerCredentials?.azureEndpoint,
+      azureApiVersion: providerCredentials?.azureApiVersion,
+      vertexProject: providerCredentials?.vertexProject,
+      vertexLocation: providerCredentials?.vertexLocation,
+      bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
+      bedrockSecretKey: providerCredentials?.bedrockSecretKey,
+      bedrockRegion: providerCredentials?.bedrockRegion,
+      workspaceId,
     })
 
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {
@@ -184,8 +226,18 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
 export async function validateHallucination(
   input: HallucinationValidationInput
 ): Promise<HallucinationValidationResult> {
-  const { userInput, knowledgeBaseId, threshold, topK, model, apiKey, workflowId, requestId } =
-    input
+  const {
+    userInput,
+    knowledgeBaseId,
+    threshold,
+    topK,
+    model,
+    apiKey,
+    providerCredentials,
+    workflowId,
+    workspaceId,
+    requestId,
+  } = input
 
   try {
     if (!userInput || userInput.trim().length === 0) {
@@ -199,17 +251,6 @@ export async function validateHallucination(
       return {
         passed: false,
         error: 'Knowledge base ID is required',
-      }
-    }
-
-    let finalApiKey: string
-    try {
-      const providerId = getProviderFromModel(model)
-      finalApiKey = getApiKey(providerId, model, apiKey)
-    } catch (error: any) {
-      return {
-        passed: false,
-        error: `API key error: ${error.message}`,
       }
     }
 
@@ -234,7 +275,9 @@ export async function validateHallucination(
       userInput,
       ragContext,
       model,
-      finalApiKey,
+      apiKey,
+      providerCredentials,
+      workspaceId,
       requestId
     )
 
