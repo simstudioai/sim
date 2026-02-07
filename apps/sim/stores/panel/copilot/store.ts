@@ -873,7 +873,7 @@ async function resumeFromLiveStream(
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'build' as const,
-  selectedModel: 'claude-4.5-opus' as CopilotStore['selectedModel'],
+  selectedModel: 'claude-4.6-opus' as CopilotStore['selectedModel'],
   agentPrefetch: false,
   enabledModels: null as string[] | null, // Null means not loaded yet, empty array means all disabled
   isCollapsed: false,

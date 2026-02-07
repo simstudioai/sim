@@ -43,7 +43,7 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().optional(),
   workflowName: z.string().optional(),
-  model: z.enum(COPILOT_MODEL_IDS).optional().default('claude-4.5-opus'),
+  model: z.enum(COPILOT_MODEL_IDS).optional().default('claude-4.6-opus'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),

@@ -16,10 +16,11 @@ import { createLogger } from '@sim/logger'
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
-import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getCopilotModel } from '@/lib/copilot/config'
-import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { RateLimiter } from '@/lib/core/rate-limiter'
+import { env } from '@/lib/core/config/env'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
 import {
@@ -30,9 +31,77 @@ import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/de
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotMcpAPI')
+const mcpRateLimiter = new RateLimiter()
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+interface CopilotKeyAuthResult {
+  success: boolean
+  userId?: string
+  error?: string
+}
+
+/**
+ * Validates a copilot API key by forwarding it to the Go copilot service's
+ * `/api/validate-key` endpoint. Returns the associated userId on success.
+ */
+async function authenticateCopilotApiKey(apiKey: string): Promise<CopilotKeyAuthResult> {
+  try {
+    const internalSecret = env.INTERNAL_API_SECRET
+    if (!internalSecret) {
+      logger.error('INTERNAL_API_SECRET not configured')
+      return { success: false, error: 'Server configuration error' }
+    }
+
+    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': internalSecret,
+      },
+      body: JSON.stringify({ targetApiKey: apiKey }),
+      signal: AbortSignal.timeout(10_000),
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      const upstream = (body as Record<string, unknown>)?.message
+      const status = res.status
+
+      if (status === 401 || status === 403) {
+        return {
+          success: false,
+          error: `Invalid Copilot API key. Generate a new key in Settings → Copilot and set it in the x-api-key header.`,
+        }
+      }
+      if (status === 402) {
+        return {
+          success: false,
+          error: `Usage limit exceeded for this Copilot API key. Upgrade your plan or wait for your quota to reset.`,
+        }
+      }
+
+      return { success: false, error: String(upstream ?? 'Copilot API key validation failed') }
+    }
+
+    const data = (await res.json()) as { ok?: boolean; userId?: string }
+    if (!data.ok || !data.userId) {
+      return {
+        success: false,
+        error: 'Invalid Copilot API key. Generate a new key in Settings → Copilot.',
+      }
+    }
+
+    return { success: true, userId: data.userId }
+  } catch (error) {
+    logger.error('Copilot API key validation failed', { error })
+    return {
+      success: false,
+      error: 'Could not validate Copilot API key — the authentication service is temporarily unreachable. This is NOT a problem with the API key itself; please retry shortly.',
+    }
+  }
+}
 
 /**
  * MCP Server instructions that guide LLMs on how to use the Sim copilot tools.
@@ -326,37 +395,48 @@ function buildMcpServer(): Server {
     const apiKeyHeader = readHeader(headers, 'x-api-key')
 
     if (!apiKeyHeader) {
-      throw new McpError(
-        -32000,
-        'API key required. Set the x-api-key header with a valid Sim API key.'
-      )
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: 'AUTHENTICATION ERROR: No Copilot API key provided. The user must set their Copilot API key in the x-api-key header. They can generate one in the Sim app under Settings → Copilot. Do NOT retry — this will fail until the key is configured.',
+          },
+        ],
+        isError: true,
+      }
     }
 
-    const authResult = await authenticateApiKeyFromHeader(apiKeyHeader)
+    const authResult = await authenticateCopilotApiKey(apiKeyHeader)
     if (!authResult.success || !authResult.userId) {
-      logger.warn('MCP auth failed', {
-        error: authResult.error,
-        method: request.method,
-      })
-
-      throw new McpError(-32000, authResult.error || 'Invalid API key')
+      logger.warn('MCP copilot key auth failed', { method: request.method })
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `AUTHENTICATION ERROR: ${authResult.error} Do NOT retry — this will fail until the user fixes their Copilot API key.`,
+          },
+        ],
+        isError: true,
+      }
     }
 
-    if (authResult.keyId) {
-      updateApiKeyLastUsed(authResult.keyId).catch((error) => {
-        logger.warn('Failed to update API key last-used timestamp', {
-          keyId: authResult.keyId,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      })
-    }
+    const rateLimitResult = await mcpRateLimiter.checkRateLimitWithSubscription(
+      authResult.userId,
+      await getHighestPrioritySubscription(authResult.userId),
+      'api-endpoint',
+      false
+    )
 
-    const usageCheck = await checkServerSideUsageLimits(authResult.userId)
-    if (usageCheck.isExceeded) {
-      throw new McpError(
-        -32000,
-        `Usage limit exceeded: ${usageCheck.message || 'Upgrade your plan.'}`
-      )
+    if (!rateLimitResult.allowed) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `RATE LIMIT: Too many requests. Please wait and retry after ${rateLimitResult.resetAt.toISOString()}.`,
+          },
+        ],
+        isError: true,
+      }
     }
 
     const params = request.params as { name?: string; arguments?: Record<string, unknown> } | undefined

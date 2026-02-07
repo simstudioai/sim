@@ -18,6 +18,7 @@ export const COPILOT_MODEL_IDS = [
   'claude-4-sonnet',
   'claude-4.5-haiku',
   'claude-4.5-sonnet',
+  'claude-4.6-opus',
   'claude-4.5-opus',
   'claude-4.1-opus',
   'gemini-3-pro',
