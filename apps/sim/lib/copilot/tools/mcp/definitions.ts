@@ -82,7 +82,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     name: 'create_workflow',
     toolId: 'create_workflow',
     description:
-      'Create a new empty workflow. Returns the new workflow ID. Always call this FIRST before copilot_build for new workflows. Use workspaceId to place it in a specific workspace.',
+      'Create a new empty workflow. Returns the new workflow ID. Always call this FIRST before sim_build for new workflows. Use workspaceId to place it in a specific workspace.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -351,7 +351,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
 
 export const SUBAGENT_TOOL_DEFS: SubagentToolDef[] = [
   {
-    name: 'copilot_build',
+    name: 'sim_build',
     agentId: 'build',
     description: `Build a workflow end-to-end in a single step. This is the fast mode equivalent for headless/MCP usage.
 
@@ -372,15 +372,15 @@ CAN DO:
 - Set environment variables and workflow variables
 
 CANNOT DO:
-- Run or test workflows (use copilot_test separately)
-- Deploy workflows (use copilot_deploy separately)
+- Run or test workflows (use sim_test separately)
+- Deploy workflows (use sim_deploy separately)
 
 WORKFLOW:
 1. Call create_workflow to get a workflowId (for new workflows)
-2. Call copilot_build with the request and workflowId
+2. Call sim_build with the request and workflowId
 3. Build agent gathers info and builds in one pass
-4. Call copilot_test to verify it works
-5. Optionally call copilot_deploy to make it externally accessible`,
+4. Call sim_test to verify it works
+5. Optionally call sim_deploy to make it externally accessible`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -399,7 +399,7 @@ WORKFLOW:
     },
   },
   {
-    name: 'copilot_discovery',
+    name: 'sim_discovery',
     agentId: 'discovery',
     description: `Find workflows by their contents or functionality when the user doesn't know the exact name or ID.
 
@@ -424,9 +424,9 @@ DO NOT USE (use direct tools instead):
     },
   },
   {
-    name: 'copilot_plan',
+    name: 'sim_plan',
     agentId: 'plan',
-    description: `Plan workflow changes by gathering required information. For most cases, prefer copilot_build which combines planning and editing in one step.
+    description: `Plan workflow changes by gathering required information. For most cases, prefer sim_build which combines planning and editing in one step.
 
 USE THIS WHEN:
 - You need fine-grained control over the build process
@@ -439,7 +439,7 @@ WORKFLOW ID (REQUIRED):
 This tool gathers information about available blocks, credentials, and the current workflow state.
 
 RETURNS: A plan object containing block configurations, connections, and technical details.
-IMPORTANT: Pass the returned plan EXACTLY to copilot_edit - do not modify or summarize it.`,
+IMPORTANT: Pass the returned plan EXACTLY to sim_edit - do not modify or summarize it.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -458,18 +458,18 @@ IMPORTANT: Pass the returned plan EXACTLY to copilot_edit - do not modify or sum
     },
   },
   {
-    name: 'copilot_edit',
+    name: 'sim_edit',
     agentId: 'edit',
-    description: `Execute a workflow plan from copilot_plan. For most cases, prefer copilot_build which combines planning and editing in one step.
+    description: `Execute a workflow plan from sim_plan. For most cases, prefer sim_build which combines planning and editing in one step.
 
 WORKFLOW ID (REQUIRED):
 - You MUST provide the workflowId parameter
 
 PLAN (REQUIRED):
-- Pass the EXACT plan object from copilot_plan in the context.plan field
+- Pass the EXACT plan object from sim_plan in the context.plan field
 - Do NOT modify, summarize, or interpret the plan - pass it verbatim
 
-After copilot_edit completes, you can test immediately with copilot_test, or deploy with copilot_deploy to make it accessible externally.`,
+After sim_edit completes, you can test immediately with sim_test, or deploy with sim_deploy to make it accessible externally.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -482,7 +482,7 @@ After copilot_edit completes, you can test immediately with copilot_test, or dep
         plan: {
           type: 'object',
           description:
-            'The plan object from copilot_plan. Pass it EXACTLY as returned, do not modify.',
+            'The plan object from sim_plan. Pass it EXACTLY as returned, do not modify.',
         },
         context: {
           type: 'object',
@@ -494,7 +494,7 @@ After copilot_edit completes, you can test immediately with copilot_test, or dep
     },
   },
   {
-    name: 'copilot_deploy',
+    name: 'sim_deploy',
     agentId: 'deploy',
     description: `Deploy a workflow to make it accessible externally. Workflows can be tested without deploying, but deployment is needed for API access, chat UIs, or MCP exposure.
 
@@ -527,7 +527,7 @@ ALSO CAN:
     },
   },
   {
-    name: 'copilot_test',
+    name: 'sim_test',
     agentId: 'test',
     description: `Run a workflow and verify its outputs. Works on both deployed and undeployed (draft) workflows. Use after building to verify correctness.
 
@@ -550,7 +550,7 @@ Supports full and partial execution:
     },
   },
   {
-    name: 'copilot_debug',
+    name: 'sim_debug',
     agentId: 'debug',
     description:
       'Diagnose errors or unexpected workflow behavior. Provide the error message and workflowId. Returns root cause analysis and fix suggestions.',
@@ -565,7 +565,7 @@ Supports full and partial execution:
     },
   },
   {
-    name: 'copilot_auth',
+    name: 'sim_auth',
     agentId: 'auth',
     description:
       'Check OAuth connection status, list connected services, and initiate new OAuth connections. Use when a workflow needs third-party service access (Google, Slack, GitHub, etc.).',
@@ -579,7 +579,7 @@ Supports full and partial execution:
     },
   },
   {
-    name: 'copilot_knowledge',
+    name: 'sim_knowledge',
     agentId: 'knowledge',
     description:
       'Manage knowledge bases for RAG-powered document retrieval. Supports listing, creating, updating, and deleting knowledge bases. Knowledge bases can be attached to agent blocks for context-aware responses.',
@@ -593,7 +593,7 @@ Supports full and partial execution:
     },
   },
   {
-    name: 'copilot_custom_tool',
+    name: 'sim_custom_tool',
     agentId: 'custom_tool',
     description:
       'Manage custom tools (reusable API integrations). Supports listing, creating, updating, and deleting custom tools. Custom tools can be added to agent blocks as callable functions.',
@@ -607,7 +607,7 @@ Supports full and partial execution:
     },
   },
   {
-    name: 'copilot_info',
+    name: 'sim_info',
     agentId: 'info',
     description:
       "Inspect a workflow's blocks, connections, outputs, variables, and metadata. Use for questions about the Sim platform itself — how blocks work, what integrations are available, platform concepts, etc. Always provide workflowId to scope results to a specific workflow.",
@@ -622,7 +622,7 @@ Supports full and partial execution:
     },
   },
   {
-    name: 'copilot_workflow',
+    name: 'sim_workflow',
     agentId: 'workflow',
     description:
       'Manage workflow-level configuration: environment variables, settings, scheduling, and deployment status. Use for any data about a specific workflow — its settings, credentials, variables, or deployment state.',
@@ -637,10 +637,10 @@ Supports full and partial execution:
     },
   },
   {
-    name: 'copilot_research',
+    name: 'sim_research',
     agentId: 'research',
     description:
-      'Research external APIs and documentation. Use when you need to understand third-party services, external APIs, authentication flows, or data formats OUTSIDE of Sim. For questions about Sim itself, use copilot_info instead.',
+      'Research external APIs and documentation. Use when you need to understand third-party services, external APIs, authentication flows, or data formats OUTSIDE of Sim. For questions about Sim itself, use sim_info instead.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -651,7 +651,7 @@ Supports full and partial execution:
     },
   },
   {
-    name: 'copilot_superagent',
+    name: 'sim_superagent',
     agentId: 'superagent',
     description:
       'Execute direct actions NOW: send an email, post to Slack, make an API call, etc. Use when the user wants to DO something immediately rather than build a workflow for it.',
@@ -665,7 +665,7 @@ Supports full and partial execution:
     },
   },
   {
-    name: 'copilot_platform',
+    name: 'sim_platform',
     agentId: 'tour',
     description:
       'Get help with Sim platform navigation, keyboard shortcuts, and UI actions. Use when the user asks "how do I..." about the Sim editor, wants keyboard shortcuts, or needs to know what actions are available in the UI.',

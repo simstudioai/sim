@@ -48,16 +48,16 @@ Sim is a workflow automation platform. Workflows are visual pipelines of connect
 
 1. \`list_workspaces\` → know where to work
 2. \`create_workflow(name, workspaceId)\` → get a workflowId
-3. \`copilot_build(request, workflowId)\` → plan and build in one pass
-4. \`copilot_test(request, workflowId)\` → verify it works
-5. \`copilot_deploy("deploy as api", workflowId)\` → make it accessible externally (optional)
+3. \`sim_build(request, workflowId)\` → plan and build in one pass
+4. \`sim_test(request, workflowId)\` → verify it works
+5. \`sim_deploy("deploy as api", workflowId)\` → make it accessible externally (optional)
 
-For fine-grained control, use \`copilot_plan\` → \`copilot_edit\` instead of \`copilot_build\`. Pass the plan object from copilot_plan EXACTLY as-is to copilot_edit's context.plan field.
+For fine-grained control, use \`sim_plan\` → \`sim_edit\` instead of \`sim_build\`. Pass the plan object from sim_plan EXACTLY as-is to sim_edit's context.plan field.
 
 ### Working with Existing Workflows
 
 When the user refers to a workflow by name or description ("the email one", "my Slack bot"):
-1. Use \`copilot_discovery\` to find it by functionality
+1. Use \`sim_discovery\` to find it by functionality
 2. Or use \`list_workflows\` and match by name
 3. Then pass the workflowId to other tools
 
@@ -72,7 +72,7 @@ When the user refers to a workflow by name or description ("the email one", "my 
 
 - You can test workflows immediately after building — deployment is only needed for external access (API, chat, MCP).
 - All copilot tools (build, plan, edit, deploy, test, debug) require workflowId.
-- If the user reports errors → use \`copilot_debug\` first, don't guess.
+- If the user reports errors → use \`sim_debug\` first, don't guess.
 - Variable syntax: \`<blockname.field>\` for block outputs, \`{{ENV_VAR}}\` for env vars.
 `
 
