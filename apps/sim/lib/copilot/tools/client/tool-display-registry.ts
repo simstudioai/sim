@@ -862,6 +862,18 @@ const META_get_operations_examples: ToolMetadata = {
   },
 }
 
+const META_get_platform_actions: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Viewing platform actions', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Viewing platform actions', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Viewing platform actions', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Viewed platform actions', icon: Navigation },
+    [ClientToolCallState.error]: { text: 'Failed to view platform actions', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped platform actions', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted platform actions', icon: MinusCircle },
+  },
+}
+
 const META_get_page_contents: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Getting page contents', icon: Loader2 },
@@ -2259,6 +2271,7 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   get_examples_rag: META_get_examples_rag,
   get_operations_examples: META_get_operations_examples,
   get_page_contents: META_get_page_contents,
+  get_platform_actions: META_get_platform_actions,
   get_trigger_blocks: META_get_trigger_blocks,
   get_trigger_examples: META_get_trigger_examples,
   get_user_workflow: META_get_user_workflow,

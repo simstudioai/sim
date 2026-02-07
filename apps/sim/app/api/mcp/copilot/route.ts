@@ -18,7 +18,11 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getCopilotModel } from '@/lib/copilot/config'
-import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import {
+  ORCHESTRATION_TIMEOUT_MS,
+  SIM_AGENT_API_URL,
+  SIM_AGENT_VERSION,
+} from '@/lib/copilot/constants'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { env } from '@/lib/core/config/env'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
@@ -35,6 +39,7 @@ const mcpRateLimiter = new RateLimiter()
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const maxDuration = 300
 
 interface CopilotKeyAuthResult {
   success: boolean
@@ -358,7 +363,7 @@ class NextResponseCapture {
   }
 }
 
-function buildMcpServer(): Server {
+function buildMcpServer(abortSignal?: AbortSignal): Server {
   const server = new Server(
     {
       name: 'sim-copilot',
@@ -449,7 +454,8 @@ function buildMcpServer(): Server {
         name: params.name,
         arguments: params.arguments,
       },
-      authResult.userId
+      authResult.userId,
+      abortSignal
     )
 
     trackMcpCopilotCall(authResult.userId)
@@ -464,7 +470,7 @@ async function handleMcpRequestWithSdk(
   request: NextRequest,
   parsedBody: unknown
 ): Promise<NextResponse> {
-  const server = buildMcpServer()
+  const server = buildMcpServer(request.signal)
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -481,7 +487,10 @@ async function handleMcpRequestWithSdk(
   try {
     await transport.handleRequest(requestAdapter as any, responseCapture as any, parsedBody)
     await responseCapture.waitForHeaders()
-    await responseCapture.waitForEnd()
+    // Must exceed the longest possible tool execution (build = 5 min).
+    // Using ORCHESTRATION_TIMEOUT_MS + 60 s buffer so the orchestrator can
+    // finish or time-out on its own before the transport is torn down.
+    await responseCapture.waitForEnd(ORCHESTRATION_TIMEOUT_MS + 60_000)
     return responseCapture.toNextResponse()
   } finally {
     await server.close().catch(() => {})
@@ -540,7 +549,8 @@ function trackMcpCopilotCall(userId: string): void {
 
 async function handleToolsCall(
   params: { name: string; arguments?: Record<string, unknown> },
-  userId: string
+  userId: string,
+  abortSignal?: AbortSignal
 ): Promise<CallToolResult> {
   const args = params.arguments || {}
 
@@ -551,7 +561,7 @@ async function handleToolsCall(
 
   const subagentTool = SUBAGENT_TOOL_DEFS.find((tool) => tool.name === params.name)
   if (subagentTool) {
-    return handleSubagentToolCall(subagentTool, args, userId)
+    return handleSubagentToolCall(subagentTool, args, userId, abortSignal)
   }
 
   throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${params.name}`)
@@ -606,7 +616,8 @@ async function handleDirectToolCall(
  */
 async function handleBuildToolCall(
   args: Record<string, unknown>,
-  userId: string
+  userId: string,
+  abortSignal?: AbortSignal
 ): Promise<CallToolResult> {
   try {
     const requestText = (args.request as string) || JSON.stringify(args)
@@ -657,6 +668,7 @@ async function handleBuildToolCall(
       autoExecuteTools: true,
       timeout: 300000,
       interactive: false,
+      abortSignal,
     })
 
     const responseData = {
@@ -687,10 +699,11 @@ async function handleBuildToolCall(
 async function handleSubagentToolCall(
   toolDef: (typeof SUBAGENT_TOOL_DEFS)[number],
   args: Record<string, unknown>,
-  userId: string
+  userId: string,
+  abortSignal?: AbortSignal
 ): Promise<CallToolResult> {
   if (toolDef.agentId === 'build') {
-    return handleBuildToolCall(args, userId)
+    return handleBuildToolCall(args, userId, abortSignal)
   }
 
   try {
@@ -722,6 +735,7 @@ async function handleSubagentToolCall(
         userId,
         workflowId: args.workflowId as string | undefined,
         workspaceId: args.workspaceId as string | undefined,
+        abortSignal,
       }
     )
 

@@ -1444,13 +1444,7 @@ export function ToolCall({
     toolCall.name === 'mark_todo_in_progress' ||
     toolCall.name === 'tool_search_tool_regex' ||
     toolCall.name === 'user_memory' ||
-    toolCall.name === 'edit_respond' ||
-    toolCall.name === 'debug_respond' ||
-    toolCall.name === 'plan_respond' ||
-    toolCall.name === 'research_respond' ||
-    toolCall.name === 'info_respond' ||
-    toolCall.name === 'deploy_respond' ||
-    toolCall.name === 'superagent_respond'
+    toolCall.name.endsWith('_respond')
   )
     return null
 

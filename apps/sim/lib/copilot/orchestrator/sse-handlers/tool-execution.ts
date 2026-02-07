@@ -62,13 +62,25 @@ export async function executeToolAndReport(
 
     markToolResultSeen(toolCall.id)
 
-    await markToolComplete(
+    // Fire-and-forget: notify the copilot backend that the tool completed.
+    // IMPORTANT: We must NOT await this — the Go backend may block on the
+    // mark-complete handler until it can write back on the SSE stream, but
+    // the SSE reader (our for-await loop) is paused while we're in this
+    // handler.  Awaiting here would deadlock: sim waits for Go's response,
+    // Go waits for sim to drain the SSE stream.
+    markToolComplete(
       toolCall.id,
       toolCall.name,
       result.success ? 200 : 500,
       result.error || (result.success ? 'Tool completed' : 'Tool failed'),
       result.output
-    )
+    ).catch((err) => {
+      logger.error('markToolComplete fire-and-forget failed', {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
 
     const resultEvent: SSEEvent = {
       type: 'tool_result',
@@ -91,7 +103,14 @@ export async function executeToolAndReport(
 
     markToolResultSeen(toolCall.id)
 
-    await markToolComplete(toolCall.id, toolCall.name, 500, toolCall.error)
+    // Fire-and-forget (same reasoning as above).
+    markToolComplete(toolCall.id, toolCall.name, 500, toolCall.error).catch((err) => {
+      logger.error('markToolComplete fire-and-forget failed', {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
 
     const errorEvent: SSEEvent = {
       type: 'tool_error',

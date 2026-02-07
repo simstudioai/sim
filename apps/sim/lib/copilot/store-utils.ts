@@ -13,6 +13,9 @@ type StoreSet = (
   partial: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)
 ) => void
 
+/** Respond tools are internal to copilot subagents and should never be shown in the UI */
+const HIDDEN_TOOL_SUFFIX = '_respond'
+
 export function resolveToolDisplay(
   toolName: string | undefined,
   state: ClientToolCallState,
@@ -20,6 +23,7 @@ export function resolveToolDisplay(
   params?: Record<string, any>
 ): ClientToolDisplay | undefined {
   if (!toolName) return undefined
+  if (toolName.endsWith(HIDDEN_TOOL_SUFFIX)) return undefined
   const entry = TOOL_DISPLAY_REGISTRY[toolName]
   if (!entry) return humanizedFallback(toolName, state)
 

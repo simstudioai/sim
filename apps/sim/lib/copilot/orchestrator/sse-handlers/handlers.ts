@@ -109,6 +109,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const toolData = getEventData(event) || ({} as Record<string, unknown>)
     const toolCallId = (toolData.id as string | undefined) || event.toolCallId
     const toolName = (toolData.name as string | undefined) || event.toolName
+
     if (!toolCallId || !toolName) return
 
     const args = (toolData.arguments || toolData.input || asRecord(event.data).input) as
