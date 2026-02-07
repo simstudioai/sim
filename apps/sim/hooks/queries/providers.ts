@@ -8,6 +8,7 @@ const providerEndpoints: Record<ProviderName, string> = {
   base: '/api/providers/base/models',
   ollama: '/api/providers/ollama/models',
   vllm: '/api/providers/vllm/models',
+  litellm: '/api/providers/litellm/models',
   openrouter: '/api/providers/openrouter/models',
 }
 

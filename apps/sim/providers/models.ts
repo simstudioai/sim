@@ -16,6 +16,7 @@ import {
   DeepseekIcon,
   GeminiIcon,
   GroqIcon,
+  LiteLLMIcon,
   MistralIcon,
   OllamaIcon,
   OpenAIIcon,
@@ -89,6 +90,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: 'Self-hosted vLLM with an OpenAI-compatible API',
     defaultModel: 'vllm/generic',
     modelPatterns: [/^vllm\//],
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    models: [],
+  },
+  litellm: {
+    id: 'litellm',
+    name: 'LiteLLM',
+    icon: LiteLLMIcon,
+    description: 'LiteLLM proxy for 100+ LLM providers',
+    defaultModel: 'litellm/gpt-3.5-turbo',
+    modelPatterns: [/^litellm\//],
     capabilities: {
       temperature: { min: 0, max: 2 },
       toolUsageControl: true,
@@ -2317,6 +2331,18 @@ export function updateOllamaModels(models: string[]): void {
 
 export function updateVLLMModels(models: string[]): void {
   PROVIDER_DEFINITIONS.vllm.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+export function updateLiteLLMModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.litellm.models = models.map((modelId) => ({
     id: modelId,
     pricing: {
       input: 0,

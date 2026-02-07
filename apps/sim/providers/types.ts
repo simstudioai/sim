@@ -15,6 +15,7 @@ export type ProviderId =
   | 'ollama'
   | 'openrouter'
   | 'vllm'
+  | 'litellm'
   | 'bedrock'
 
 export interface ModelPricing {

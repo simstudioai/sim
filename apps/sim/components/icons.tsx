@@ -3751,6 +3751,17 @@ export function VllmIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function LiteLLMIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
+      <title>LiteLLM</title>
+      <text x='12' y='17' fontSize='16' textAnchor='middle' dominantBaseline='middle'>
+        🚅
+      </text>
+    </svg>
+  )
+}
+
 export function PosthogIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

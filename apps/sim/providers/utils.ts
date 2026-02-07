@@ -132,6 +132,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
   vllm: buildProviderMetadata('vllm'),
+  litellm: buildProviderMetadata('litellm'),
   mistral: buildProviderMetadata('mistral'),
   'azure-openai': buildProviderMetadata('azure-openai'),
   openrouter: buildProviderMetadata('openrouter'),
@@ -150,6 +151,12 @@ export function updateVLLMProviderModels(models: string[]): void {
   providers.vllm.models = getProviderModelsFromDefinitions('vllm')
 }
 
+export function updateLiteLLMProviderModels(models: string[]): void {
+  const { updateLiteLLMModels } = require('@/providers/models')
+  updateLiteLLMModels(models)
+  providers.litellm.models = getProviderModelsFromDefinitions('litellm')
+}
+
 export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
   const { updateOpenRouterModels } = await import('@/providers/models')
   updateOpenRouterModels(models)
@@ -160,7 +167,10 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
     .filter(
       ([providerId]) =>
-        providerId !== 'ollama' && providerId !== 'vllm' && providerId !== 'openrouter'
+        providerId !== 'ollama' &&
+        providerId !== 'vllm' &&
+        providerId !== 'litellm' &&
+        providerId !== 'openrouter'
     )
     .reduce(
       (map, [providerId, config]) => {
@@ -207,7 +217,10 @@ export function getProviderFromModel(model: string): ProviderId {
 
   let providerId: ProviderId | null = null
 
-  if (normalizedModel in getAllModelProviders()) {
+  // Check if the model is actually a provider ID (e.g., "litellm" from copilot selector)
+  if (normalizedModel in providers) {
+    providerId = normalizedModel as ProviderId
+  } else if (normalizedModel in getAllModelProviders()) {
     providerId = getAllModelProviders()[normalizedModel]
   } else {
     for (const [id, config] of Object.entries(providers)) {
@@ -650,6 +663,12 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const isVllmModel =
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
+    return userProvidedKey || 'empty'
+  }
+
+  const isLiteLLMModel =
+    provider === 'litellm' || useProvidersStore.getState().providers.litellm.models.includes(model)
+  if (isLiteLLMModel) {
     return userProvidedKey || 'empty'
   }
 

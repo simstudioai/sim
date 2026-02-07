@@ -21,6 +21,7 @@ export const COPILOT_MODEL_IDS = [
   'claude-4.5-opus',
   'claude-4.1-opus',
   'gemini-3-pro',
+  'litellm',
 ] as const
 
 export type CopilotModelId = (typeof COPILOT_MODEL_IDS)[number]
