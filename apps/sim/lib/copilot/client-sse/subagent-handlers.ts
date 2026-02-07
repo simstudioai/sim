@@ -227,7 +227,18 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
     const resultData = asRecord(data?.data)
     const toolCallId: string | undefined = data?.toolCallId || (resultData.id as string | undefined)
-    const success: boolean | undefined = data?.success !== false
+    // Determine success: explicit `success` field takes priority; otherwise
+    // infer from presence of result data vs error (same logic as server-side
+    // inferToolSuccess).  The Go backend uses `*bool` with omitempty so
+    // `success` is present when explicitly set, and absent for non-tool events.
+    const hasExplicitSuccess =
+      data?.success !== undefined || resultData.success !== undefined
+    const explicitSuccess = data?.success ?? resultData.success
+    const hasResultData = data?.result !== undefined || resultData.result !== undefined
+    const hasError = !!data?.error || !!resultData.error
+    const success: boolean = hasExplicitSuccess
+      ? !!explicitSuccess
+      : hasResultData && !hasError
     if (!toolCallId) return
 
     if (!context.subAgentToolCalls[parentToolCallId]) return
