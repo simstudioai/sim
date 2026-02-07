@@ -206,6 +206,9 @@ async function executeSimWorkflowTool(
   return handler(params, context)
 }
 
+/** Timeout for the mark-complete POST to the copilot backend (30 s). */
+const MARK_COMPLETE_TIMEOUT_MS = 30_000
+
 /**
  * Notify the copilot backend that a tool has completed.
  */
@@ -217,30 +220,42 @@ export async function markToolComplete(
   data?: unknown
 ): Promise<boolean> {
   try {
-    const response = await fetch(`${SIM_AGENT_API_URL}/api/tools/mark-complete`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
-      },
-      body: JSON.stringify({
-        id: toolCallId,
-        name: toolName,
-        status,
-        message,
-        data,
-      }),
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), MARK_COMPLETE_TIMEOUT_MS)
 
-    if (!response.ok) {
-      logger.warn('Mark-complete call failed', { toolCallId, status: response.status })
-      return false
+    try {
+      const response = await fetch(`${SIM_AGENT_API_URL}/api/tools/mark-complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+        },
+        body: JSON.stringify({
+          id: toolCallId,
+          name: toolName,
+          status,
+          message,
+          data,
+        }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        logger.warn('Mark-complete call failed', { toolCallId, toolName, status: response.status })
+        return false
+      }
+
+      return true
+    } finally {
+      clearTimeout(timeoutId)
     }
-
-    return true
   } catch (error) {
+    const isTimeout =
+      error instanceof DOMException && error.name === 'AbortError'
     logger.error('Mark-complete call failed', {
       toolCallId,
+      toolName,
+      timedOut: isTimeout,
       error: error instanceof Error ? error.message : String(error),
     })
     return false
