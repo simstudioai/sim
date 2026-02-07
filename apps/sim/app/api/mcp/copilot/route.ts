@@ -410,12 +410,10 @@ async function handleMcpRequestWithSdk(
 }
 
 export async function GET() {
-  return NextResponse.json({
-    name: 'copilot-subagents',
-    version: '1.0.0',
-    protocolVersion: '2024-11-05',
-    capabilities: { tools: {} },
-  })
+  // Return 405 to signal that server-initiated SSE notifications are not
+  // supported.  Without this, clients like mcp-remote will repeatedly
+  // reconnect trying to open an SSE stream, flooding the logs with GETs.
+  return new NextResponse(null, { status: 405 })
 }
 
 export async function POST(request: NextRequest) {
