@@ -408,18 +408,6 @@ Return ONLY the JSON array.`,
       },
     },
     {
-      id: 'tools',
-      title: 'Tools',
-      type: 'tool-input',
-      defaultValue: [],
-    },
-    {
-      id: 'skills',
-      title: 'Skills',
-      type: 'skill-input',
-      defaultValue: [],
-    },
-    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -444,6 +432,18 @@ Return ONLY the JSON array.`,
             ],
             not: true, // Show for all models EXCEPT Ollama, vLLM, Vertex, and Bedrock models
           }),
+    },
+    {
+      id: 'tools',
+      title: 'Tools',
+      type: 'tool-input',
+      defaultValue: [],
+    },
+    {
+      id: 'skills',
+      title: 'Skills',
+      type: 'skill-input',
+      defaultValue: [],
     },
     {
       id: 'memoryType',
