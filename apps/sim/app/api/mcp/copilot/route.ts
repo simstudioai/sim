@@ -620,11 +620,6 @@ async function handleBuildToolCall(
   abortSignal?: AbortSignal
 ): Promise<CallToolResult> {
   try {
-    logger.info('[MCP-BUILD] handleBuildToolCall ENTER', {
-      hasAbortSignal: !!abortSignal,
-      abortSignalAborted: abortSignal?.aborted,
-      argsKeys: Object.keys(args),
-    })
     const requestText = (args.request as string) || JSON.stringify(args)
     const { model } = getCopilotModel('chat')
     const workflowId = args.workflowId as string | undefined
@@ -666,12 +661,6 @@ async function handleBuildToolCall(
       source: 'mcp',
     }
 
-    logger.info('[MCP-BUILD] Calling orchestrateCopilotStream', {
-      workflowId: resolved.workflowId,
-      chatId,
-      hasAbortSignal: !!abortSignal,
-    })
-
     const result = await orchestrateCopilotStream(requestPayload, {
       userId,
       workflowId: resolved.workflowId,
@@ -680,14 +669,6 @@ async function handleBuildToolCall(
       timeout: 300000,
       interactive: false,
       abortSignal,
-    })
-
-    logger.info('[MCP-BUILD] orchestrateCopilotStream returned', {
-      success: result.success,
-      contentLength: result.content?.length,
-      toolCallCount: result.toolCalls?.length,
-      error: result.error,
-      errors: result.errors,
     })
 
     const responseData = {
@@ -702,7 +683,7 @@ async function handleBuildToolCall(
       isError: !result.success,
     }
   } catch (error) {
-    logger.error('[MCP-BUILD] Build tool call THREW', { error })
+    logger.error('Build tool call failed', { error })
     return {
       content: [
         {
