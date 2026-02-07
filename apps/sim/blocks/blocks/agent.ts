@@ -528,6 +528,7 @@ Return ONLY the JSON array.`,
       title: 'Max Output Tokens',
       type: 'short-input',
       placeholder: 'Enter max tokens (e.g., 4096)...',
+      mode: 'advanced',
     },
     {
       id: 'responseFormat',
