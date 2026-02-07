@@ -14,7 +14,6 @@ import {
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -71,6 +70,7 @@ function shouldSerializeSubBlock(
           : group.basicId === subBlockConfig.id
       return matchesMode && evaluateSubBlockCondition(subBlockConfig.condition, values)
     }
+    console.log('[FUCK] subBlockConfig.condition', subBlockConfig.condition, values)
     return evaluateSubBlockCondition(subBlockConfig.condition, values)
   }
 
@@ -525,16 +525,6 @@ export class Serializer {
       const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
       const fieldValue = canonicalId ? params[canonicalId] : params[subBlockConfig.id]
       if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-        if (subBlockConfig.id === 'apiKey' && params.model) {
-          try {
-            const provider = getProviderFromModel(params.model as string)
-            if (provider === 'ollama' || provider === 'vllm') {
-              return
-            }
-          } catch {
-            // If provider resolution fails, continue with validation
-          }
-        }
         missingFields.push(subBlockConfig.title || subBlockConfig.id)
       }
     })
