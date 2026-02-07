@@ -845,6 +845,8 @@ export async function POST(req: NextRequest) {
       contextVariables,
       timeoutMs: timeout,
       requestId,
+      ownerKey: `user:${auth.userId}`,
+      ownerWeight: 1,
     })
 
     const executionTime = Date.now() - startTime

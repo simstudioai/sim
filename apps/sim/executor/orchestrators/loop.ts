@@ -511,6 +511,8 @@ export class LoopOrchestrator {
         contextVariables: {},
         timeoutMs: LOOP_CONDITION_TIMEOUT_MS,
         requestId,
+        ownerKey: `user:${ctx.userId}`,
+        ownerWeight: 1,
       })
 
       if (vmResult.error) {
