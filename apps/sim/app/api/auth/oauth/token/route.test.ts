@@ -255,28 +255,6 @@ describe('OAuth Token API Routes', () => {
         expect(mockGetOAuthToken).not.toHaveBeenCalled()
       })
 
-      it('should reject non-session authentication', async () => {
-        mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-          success: true,
-          authType: 'internal_jwt',
-          userId: 'test-user-id',
-        })
-
-        const req = createMockRequest('POST', {
-          credentialAccountUserId: 'test-user-id',
-          providerId: 'google',
-        })
-
-        const { POST } = await import('@/app/api/auth/oauth/token/route')
-
-        const response = await POST(req)
-        const data = await response.json()
-
-        expect(response.status).toBe(401)
-        expect(data).toHaveProperty('error', 'User not authenticated')
-        expect(mockGetOAuthToken).not.toHaveBeenCalled()
-      })
-
       it('should reject internal JWT authentication', async () => {
         mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
           success: true,
