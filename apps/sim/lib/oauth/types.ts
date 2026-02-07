@@ -42,6 +42,7 @@ export type OAuthProvider =
   | 'wordpress'
   | 'spotify'
   | 'calcom'
+  | 'tiktok'
 
 export type OAuthService =
   | 'google'
@@ -83,6 +84,7 @@ export type OAuthService =
   | 'wordpress'
   | 'spotify'
   | 'calcom'
+  | 'tiktok'
 
 export interface OAuthProviderConfig {
   name: string
