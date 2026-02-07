@@ -1,5 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
+import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { Logger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -35,10 +36,20 @@ export interface AnthropicProviderConfig {
 }
 
 /**
+ * Custom payload type extending the SDK's base message creation params.
+ * Adds fields not yet in the SDK: adaptive thinking, output_format, output_config.
+ */
+interface AnthropicPayload extends Omit<Anthropic.Messages.MessageStreamParams, 'thinking'> {
+  thinking?: Anthropic.Messages.ThinkingConfigParam | { type: 'adaptive' }
+  output_format?: { type: 'json_schema'; schema: Record<string, unknown> }
+  output_config?: { effort: string }
+}
+
+/**
  * Generates prompt-based schema instructions for older models that don't support native structured outputs.
  * This is a fallback approach that adds schema requirements to the system prompt.
  */
-function generateSchemaInstructions(schema: any, schemaName?: string): string {
+function generateSchemaInstructions(schema: Record<string, unknown>, schemaName?: string): string {
   const name = schemaName || 'response'
   return `IMPORTANT: You must respond with a valid JSON object that conforms to the following schema.
 Do not include any text before or after the JSON object. Only output the JSON.
@@ -114,6 +125,30 @@ function buildThinkingConfig(
 }
 
 /**
+ * The Anthropic SDK requires streaming for non-streaming requests when max_tokens exceeds
+ * this threshold, to avoid HTTP timeouts. When thinking is enabled and pushes max_tokens
+ * above this limit, we use streaming internally and collect the final message.
+ */
+const ANTHROPIC_SDK_NON_STREAMING_MAX_TOKENS = 21333
+
+/**
+ * Creates an Anthropic message, automatically using streaming internally when max_tokens
+ * exceeds the SDK's non-streaming threshold. Returns the same Message object either way.
+ */
+async function createMessage(
+  anthropic: Anthropic,
+  payload: AnthropicPayload
+): Promise<Anthropic.Messages.Message> {
+  if (payload.max_tokens > ANTHROPIC_SDK_NON_STREAMING_MAX_TOKENS && !payload.stream) {
+    const stream = anthropic.messages.stream(payload as Anthropic.Messages.MessageStreamParams)
+    return stream.finalMessage()
+  }
+  return anthropic.messages.create(
+    payload as Anthropic.Messages.MessageCreateParamsNonStreaming
+  ) as Promise<Anthropic.Messages.Message>
+}
+
+/**
  * Executes a request using the Anthropic API with full tool loop support.
  * This is the shared core implementation used by both the standard Anthropic provider
  * and the Azure Anthropic provider.
@@ -135,7 +170,7 @@ export async function executeAnthropicProviderRequest(
 
   const anthropic = config.createClient(request.apiKey, useNativeStructuredOutputs)
 
-  const messages: any[] = []
+  const messages: Anthropic.Messages.MessageParam[] = []
   let systemPrompt = request.systemPrompt || ''
 
   if (request.context) {
@@ -153,8 +188,8 @@ export async function executeAnthropicProviderRequest(
           content: [
             {
               type: 'tool_result',
-              tool_use_id: msg.name,
-              content: msg.content,
+              tool_use_id: msg.name || '',
+              content: msg.content || undefined,
             },
           ],
         })
@@ -188,12 +223,12 @@ export async function executeAnthropicProviderRequest(
     systemPrompt = ''
   }
 
-  let anthropicTools = request.tools?.length
+  let anthropicTools: Anthropic.Messages.Tool[] | undefined = request.tools?.length
     ? request.tools.map((tool) => ({
         name: tool.id,
         description: tool.description,
         input_schema: {
-          type: 'object',
+          type: 'object' as const,
           properties: tool.parameters.properties,
           required: tool.parameters.required,
         },
@@ -238,13 +273,12 @@ export async function executeAnthropicProviderRequest(
     }
   }
 
-  const payload: any = {
+  const payload: AnthropicPayload = {
     model: request.model,
     messages,
     system: systemPrompt,
     max_tokens:
-      Number.parseInt(String(request.maxTokens)) ||
-      getMaxOutputTokensForModel(request.model, request.stream ?? false),
+      Number.parseInt(String(request.maxTokens)) || getMaxOutputTokensForModel(request.model),
     temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
   }
 
@@ -268,13 +302,35 @@ export async function executeAnthropicProviderRequest(
   }
 
   // Add extended thinking configuration if supported and requested
-  if (request.thinkingLevel) {
+  // The 'none' sentinel means "disable thinking" — skip configuration entirely.
+  if (request.thinkingLevel && request.thinkingLevel !== 'none') {
     const thinkingConfig = buildThinkingConfig(request.model, request.thinkingLevel)
     if (thinkingConfig) {
       payload.thinking = thinkingConfig.thinking
       if (thinkingConfig.outputConfig) {
         payload.output_config = thinkingConfig.outputConfig
       }
+
+      // Per Anthropic docs: budget_tokens must be less than max_tokens.
+      // Ensure max_tokens leaves room for both thinking and text output.
+      if (
+        thinkingConfig.thinking.type === 'enabled' &&
+        'budget_tokens' in thinkingConfig.thinking
+      ) {
+        const budgetTokens = thinkingConfig.thinking.budget_tokens
+        const minMaxTokens = budgetTokens + 4096
+        if (payload.max_tokens < minMaxTokens) {
+          const modelMax = getMaxOutputTokensForModel(request.model)
+          payload.max_tokens = Math.min(minMaxTokens, modelMax)
+          logger.info(
+            `Adjusted max_tokens to ${payload.max_tokens} to satisfy budget_tokens (${budgetTokens}) constraint`
+          )
+        }
+      }
+
+      // Per Anthropic docs: thinking is not compatible with temperature or top_k modifications.
+      payload.temperature = undefined
+
       const isAdaptive = thinkingConfig.thinking.type === 'adaptive'
       logger.info(
         `Using ${isAdaptive ? 'adaptive' : 'extended'} thinking for model: ${modelId} with ${isAdaptive ? `effort: ${request.thinkingLevel}` : `budget: ${(thinkingConfig.thinking as { budget_tokens: number }).budget_tokens}`}`
@@ -288,7 +344,16 @@ export async function executeAnthropicProviderRequest(
 
   if (anthropicTools?.length) {
     payload.tools = anthropicTools
-    if (toolChoice !== 'auto') {
+    // Per Anthropic docs: forced tool_choice (type: "tool" or "any") is incompatible with
+    // thinking. Only auto and none are supported when thinking is enabled.
+    if (payload.thinking) {
+      // Per Anthropic docs: only 'auto' (default) and 'none' work with thinking.
+      if (toolChoice === 'none') {
+        payload.tool_choice = { type: 'none' }
+      }
+    } else if (toolChoice === 'none') {
+      payload.tool_choice = { type: 'none' }
+    } else if (toolChoice !== 'auto') {
       payload.tool_choice = toolChoice
     }
   }
@@ -301,42 +366,46 @@ export async function executeAnthropicProviderRequest(
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-    const streamResponse: any = await anthropic.messages.create({
+    const streamResponse = await anthropic.messages.create({
       ...payload,
       stream: true,
-    })
+    } as Anthropic.Messages.MessageCreateParamsStreaming)
 
     const streamingResult = {
-      stream: createReadableStreamFromAnthropicStream(streamResponse, (content, usage) => {
-        streamingResult.execution.output.content = content
-        streamingResult.execution.output.tokens = {
-          input: usage.input_tokens,
-          output: usage.output_tokens,
-          total: usage.input_tokens + usage.output_tokens,
-        }
+      stream: createReadableStreamFromAnthropicStream(
+        streamResponse as AsyncIterable<RawMessageStreamEvent>,
+        (content, usage) => {
+          streamingResult.execution.output.content = content
+          streamingResult.execution.output.tokens = {
+            input: usage.input_tokens,
+            output: usage.output_tokens,
+            total: usage.input_tokens + usage.output_tokens,
+          }
 
-        const costResult = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
-        streamingResult.execution.output.cost = {
-          input: costResult.input,
-          output: costResult.output,
-          total: costResult.total,
-        }
+          const costResult = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
+          streamingResult.execution.output.cost = {
+            input: costResult.input,
+            output: costResult.output,
+            total: costResult.total,
+          }
 
-        const streamEndTime = Date.now()
-        const streamEndTimeISO = new Date(streamEndTime).toISOString()
+          const streamEndTime = Date.now()
+          const streamEndTimeISO = new Date(streamEndTime).toISOString()
 
-        if (streamingResult.execution.output.providerTiming) {
-          streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
-          streamingResult.execution.output.providerTiming.duration =
-            streamEndTime - providerStartTime
-
-          if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
-            streamingResult.execution.output.providerTiming.timeSegments[0].endTime = streamEndTime
-            streamingResult.execution.output.providerTiming.timeSegments[0].duration =
+          if (streamingResult.execution.output.providerTiming) {
+            streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+            streamingResult.execution.output.providerTiming.duration =
               streamEndTime - providerStartTime
+
+            if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
+              streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
+                streamEndTime
+              streamingResult.execution.output.providerTiming.timeSegments[0].duration =
+                streamEndTime - providerStartTime
+            }
           }
         }
-      }),
+      ),
       execution: {
         success: true,
         output: {
@@ -385,21 +454,13 @@ export async function executeAnthropicProviderRequest(
     const providerStartTime = Date.now()
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-    // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
-    // but allow users to set lower values if desired
-    const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
-    const nonStreamingMaxTokens = request.maxTokens
-      ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
-      : nonStreamingLimit
-    const intermediatePayload = { ...payload, max_tokens: nonStreamingMaxTokens }
-
     try {
       const initialCallTime = Date.now()
-      const originalToolChoice = intermediatePayload.tool_choice
+      const originalToolChoice = payload.tool_choice
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await anthropic.messages.create(intermediatePayload)
+      let currentResponse = await createMessage(anthropic, payload)
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = ''
@@ -468,10 +529,10 @@ export async function executeAnthropicProviderRequest(
           const toolExecutionPromises = toolUses.map(async (toolUse) => {
             const toolCallStartTime = Date.now()
             const toolName = toolUse.name
-            const toolArgs = toolUse.input as Record<string, any>
+            const toolArgs = toolUse.input as Record<string, unknown>
 
             try {
-              const tool = request.tools?.find((t: any) => t.id === toolName)
+              const tool = request.tools?.find((t) => t.id === toolName)
               if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
@@ -512,17 +573,8 @@ export async function executeAnthropicProviderRequest(
           const executionResults = await Promise.allSettled(toolExecutionPromises)
 
           // Collect all tool_use and tool_result blocks for batching
-          const toolUseBlocks: Array<{
-            type: 'tool_use'
-            id: string
-            name: string
-            input: Record<string, unknown>
-          }> = []
-          const toolResultBlocks: Array<{
-            type: 'tool_result'
-            tool_use_id: string
-            content: string
-          }> = []
+          const toolUseBlocks: Anthropic.Messages.ToolUseBlockParam[] = []
+          const toolResultBlocks: Anthropic.Messages.ToolResultBlockParam[] = []
 
           for (const settledResult of executionResults) {
             if (settledResult.status === 'rejected' || !settledResult.value) continue
@@ -583,11 +635,25 @@ export async function executeAnthropicProviderRequest(
             })
           }
 
-          // Add ONE assistant message with ALL tool_use blocks
+          // Per Anthropic docs: thinking blocks must be preserved in assistant messages
+          // during tool use to maintain reasoning continuity.
+          const thinkingBlocks = currentResponse.content.filter(
+            (
+              item
+            ): item is
+              | Anthropic.Messages.ThinkingBlock
+              | Anthropic.Messages.RedactedThinkingBlock =>
+              item.type === 'thinking' || item.type === 'redacted_thinking'
+          )
+
+          // Add ONE assistant message with thinking + tool_use blocks
           if (toolUseBlocks.length > 0) {
             currentMessages.push({
               role: 'assistant',
-              content: toolUseBlocks as unknown as Anthropic.Messages.ContentBlock[],
+              content: [
+                ...thinkingBlocks,
+                ...toolUseBlocks,
+              ] as Anthropic.Messages.ContentBlockParam[],
             })
           }
 
@@ -595,19 +661,23 @@ export async function executeAnthropicProviderRequest(
           if (toolResultBlocks.length > 0) {
             currentMessages.push({
               role: 'user',
-              content: toolResultBlocks as unknown as Anthropic.Messages.ContentBlockParam[],
+              content: toolResultBlocks as Anthropic.Messages.ContentBlockParam[],
             })
           }
 
           const thisToolsTime = Date.now() - toolsStartTime
           toolsTime += thisToolsTime
 
-          const nextPayload = {
-            ...intermediatePayload,
+          const nextPayload: AnthropicPayload = {
+            ...payload,
             messages: currentMessages,
           }
 
+          // Per Anthropic docs: forced tool_choice is incompatible with thinking.
+          // Only auto and none are supported when thinking is enabled.
+          const thinkingEnabled = !!payload.thinking
           if (
+            !thinkingEnabled &&
             typeof originalToolChoice === 'object' &&
             hasUsedForcedTool &&
             forcedTools.length > 0
@@ -624,7 +694,11 @@ export async function executeAnthropicProviderRequest(
               nextPayload.tool_choice = undefined
               logger.info('All forced tools have been used, removing tool_choice parameter')
             }
-          } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
+          } else if (
+            !thinkingEnabled &&
+            hasUsedForcedTool &&
+            typeof originalToolChoice === 'object'
+          ) {
             nextPayload.tool_choice = undefined
             logger.info(
               'Removing tool_choice parameter for subsequent requests after forced tool was used'
@@ -633,7 +707,7 @@ export async function executeAnthropicProviderRequest(
 
           const nextModelStartTime = Date.now()
 
-          currentResponse = await anthropic.messages.create(nextPayload)
+          currentResponse = await createMessage(anthropic, nextPayload)
 
           const nextCheckResult = checkForForcedToolUsage(
             currentResponse,
@@ -682,33 +756,38 @@ export async function executeAnthropicProviderRequest(
         tool_choice: undefined,
       }
 
-      const streamResponse: any = await anthropic.messages.create(streamingPayload)
+      const streamResponse = await anthropic.messages.create(
+        streamingPayload as Anthropic.Messages.MessageCreateParamsStreaming
+      )
 
       const streamingResult = {
-        stream: createReadableStreamFromAnthropicStream(streamResponse, (streamContent, usage) => {
-          streamingResult.execution.output.content = streamContent
-          streamingResult.execution.output.tokens = {
-            input: tokens.input + usage.input_tokens,
-            output: tokens.output + usage.output_tokens,
-            total: tokens.total + usage.input_tokens + usage.output_tokens,
-          }
+        stream: createReadableStreamFromAnthropicStream(
+          streamResponse as AsyncIterable<RawMessageStreamEvent>,
+          (streamContent, usage) => {
+            streamingResult.execution.output.content = streamContent
+            streamingResult.execution.output.tokens = {
+              input: tokens.input + usage.input_tokens,
+              output: tokens.output + usage.output_tokens,
+              total: tokens.total + usage.input_tokens + usage.output_tokens,
+            }
 
-          const streamCost = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
-          streamingResult.execution.output.cost = {
-            input: accumulatedCost.input + streamCost.input,
-            output: accumulatedCost.output + streamCost.output,
-            total: accumulatedCost.total + streamCost.total,
-          }
+            const streamCost = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
+            streamingResult.execution.output.cost = {
+              input: accumulatedCost.input + streamCost.input,
+              output: accumulatedCost.output + streamCost.output,
+              total: accumulatedCost.total + streamCost.total,
+            }
 
-          const streamEndTime = Date.now()
-          const streamEndTimeISO = new Date(streamEndTime).toISOString()
+            const streamEndTime = Date.now()
+            const streamEndTimeISO = new Date(streamEndTime).toISOString()
 
-          if (streamingResult.execution.output.providerTiming) {
-            streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
-            streamingResult.execution.output.providerTiming.duration =
-              streamEndTime - providerStartTime
+            if (streamingResult.execution.output.providerTiming) {
+              streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+              streamingResult.execution.output.providerTiming.duration =
+                streamEndTime - providerStartTime
+            }
           }
-        }),
+        ),
         execution: {
           success: true,
           output: {
@@ -778,21 +857,13 @@ export async function executeAnthropicProviderRequest(
   const providerStartTime = Date.now()
   const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
-  // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
-  // but allow users to set lower values if desired
-  const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
-  const toolLoopMaxTokens = request.maxTokens
-    ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
-    : nonStreamingLimit
-  const toolLoopPayload = { ...payload, max_tokens: toolLoopMaxTokens }
-
   try {
     const initialCallTime = Date.now()
-    const originalToolChoice = toolLoopPayload.tool_choice
+    const originalToolChoice = payload.tool_choice
     const forcedTools = preparedTools?.forcedTools || []
     let usedForcedTools: string[] = []
 
-    let currentResponse = await anthropic.messages.create(toolLoopPayload)
+    let currentResponse = await createMessage(anthropic, payload)
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = ''
@@ -872,7 +943,7 @@ export async function executeAnthropicProviderRequest(
         const toolExecutionPromises = toolUses.map(async (toolUse) => {
           const toolCallStartTime = Date.now()
           const toolName = toolUse.name
-          const toolArgs = toolUse.input as Record<string, any>
+          const toolArgs = toolUse.input as Record<string, unknown>
           // Preserve the original tool_use ID from Claude's response
           const toolUseId = toolUse.id
 
@@ -918,17 +989,8 @@ export async function executeAnthropicProviderRequest(
         const executionResults = await Promise.allSettled(toolExecutionPromises)
 
         // Collect all tool_use and tool_result blocks for batching
-        const toolUseBlocks: Array<{
-          type: 'tool_use'
-          id: string
-          name: string
-          input: Record<string, unknown>
-        }> = []
-        const toolResultBlocks: Array<{
-          type: 'tool_result'
-          tool_use_id: string
-          content: string
-        }> = []
+        const toolUseBlocks: Anthropic.Messages.ToolUseBlockParam[] = []
+        const toolResultBlocks: Anthropic.Messages.ToolResultBlockParam[] = []
 
         for (const settledResult of executionResults) {
           if (settledResult.status === 'rejected' || !settledResult.value) continue
@@ -989,11 +1051,23 @@ export async function executeAnthropicProviderRequest(
           })
         }
 
-        // Add ONE assistant message with ALL tool_use blocks
+        // Per Anthropic docs: thinking blocks must be preserved in assistant messages
+        // during tool use to maintain reasoning continuity.
+        const thinkingBlocks = currentResponse.content.filter(
+          (
+            item
+          ): item is Anthropic.Messages.ThinkingBlock | Anthropic.Messages.RedactedThinkingBlock =>
+            item.type === 'thinking' || item.type === 'redacted_thinking'
+        )
+
+        // Add ONE assistant message with thinking + tool_use blocks
         if (toolUseBlocks.length > 0) {
           currentMessages.push({
             role: 'assistant',
-            content: toolUseBlocks as unknown as Anthropic.Messages.ContentBlock[],
+            content: [
+              ...thinkingBlocks,
+              ...toolUseBlocks,
+            ] as Anthropic.Messages.ContentBlockParam[],
           })
         }
 
@@ -1001,19 +1075,27 @@ export async function executeAnthropicProviderRequest(
         if (toolResultBlocks.length > 0) {
           currentMessages.push({
             role: 'user',
-            content: toolResultBlocks as unknown as Anthropic.Messages.ContentBlockParam[],
+            content: toolResultBlocks as Anthropic.Messages.ContentBlockParam[],
           })
         }
 
         const thisToolsTime = Date.now() - toolsStartTime
         toolsTime += thisToolsTime
 
-        const nextPayload = {
-          ...toolLoopPayload,
+        const nextPayload: AnthropicPayload = {
+          ...payload,
           messages: currentMessages,
         }
 
-        if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
+        // Per Anthropic docs: forced tool_choice is incompatible with thinking.
+        // Only auto and none are supported when thinking is enabled.
+        const thinkingEnabled = !!payload.thinking
+        if (
+          !thinkingEnabled &&
+          typeof originalToolChoice === 'object' &&
+          hasUsedForcedTool &&
+          forcedTools.length > 0
+        ) {
           const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
           if (remainingTools.length > 0) {
@@ -1026,7 +1108,11 @@ export async function executeAnthropicProviderRequest(
             nextPayload.tool_choice = undefined
             logger.info('All forced tools have been used, removing tool_choice parameter')
           }
-        } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
+        } else if (
+          !thinkingEnabled &&
+          hasUsedForcedTool &&
+          typeof originalToolChoice === 'object'
+        ) {
           nextPayload.tool_choice = undefined
           logger.info(
             'Removing tool_choice parameter for subsequent requests after forced tool was used'
@@ -1035,7 +1121,7 @@ export async function executeAnthropicProviderRequest(
 
         const nextModelStartTime = Date.now()
 
-        currentResponse = await anthropic.messages.create(nextPayload)
+        currentResponse = await createMessage(anthropic, nextPayload)
 
         const nextCheckResult = checkForForcedToolUsage(
           currentResponse,
@@ -1098,33 +1184,38 @@ export async function executeAnthropicProviderRequest(
         tool_choice: undefined,
       }
 
-      const streamResponse: any = await anthropic.messages.create(streamingPayload)
+      const streamResponse = await anthropic.messages.create(
+        streamingPayload as Anthropic.Messages.MessageCreateParamsStreaming
+      )
 
       const streamingResult = {
-        stream: createReadableStreamFromAnthropicStream(streamResponse, (streamContent, usage) => {
-          streamingResult.execution.output.content = streamContent
-          streamingResult.execution.output.tokens = {
-            input: tokens.input + usage.input_tokens,
-            output: tokens.output + usage.output_tokens,
-            total: tokens.total + usage.input_tokens + usage.output_tokens,
-          }
+        stream: createReadableStreamFromAnthropicStream(
+          streamResponse as AsyncIterable<RawMessageStreamEvent>,
+          (streamContent, usage) => {
+            streamingResult.execution.output.content = streamContent
+            streamingResult.execution.output.tokens = {
+              input: tokens.input + usage.input_tokens,
+              output: tokens.output + usage.output_tokens,
+              total: tokens.total + usage.input_tokens + usage.output_tokens,
+            }
 
-          const streamCost = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
-          streamingResult.execution.output.cost = {
-            input: cost.input + streamCost.input,
-            output: cost.output + streamCost.output,
-            total: cost.total + streamCost.total,
-          }
+            const streamCost = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
+            streamingResult.execution.output.cost = {
+              input: cost.input + streamCost.input,
+              output: cost.output + streamCost.output,
+              total: cost.total + streamCost.total,
+            }
 
-          const streamEndTime = Date.now()
-          const streamEndTimeISO = new Date(streamEndTime).toISOString()
+            const streamEndTime = Date.now()
+            const streamEndTimeISO = new Date(streamEndTime).toISOString()
 
-          if (streamingResult.execution.output.providerTiming) {
-            streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
-            streamingResult.execution.output.providerTiming.duration =
-              streamEndTime - providerStartTime
+            if (streamingResult.execution.output.providerTiming) {
+              streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+              streamingResult.execution.output.providerTiming.duration =
+                streamEndTime - providerStartTime
+            }
           }
-        }),
+        ),
         execution: {
           success: true,
           output: {
@@ -1179,7 +1270,7 @@ export async function executeAnthropicProviderRequest(
         toolCalls.length > 0
           ? toolCalls.map((tc) => ({
               name: tc.name,
-              arguments: tc.arguments as Record<string, any>,
+              arguments: tc.arguments as Record<string, unknown>,
               startTime: tc.startTime,
               endTime: tc.endTime,
               duration: tc.duration,

@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import type OpenAI from 'openai'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
@@ -30,7 +31,7 @@ type ToolChoice = PreparedTools['toolChoice']
  * - Sets additionalProperties: false on all object types.
  * - Ensures required includes ALL property keys.
  */
-function enforceStrictSchema(schema: any): any {
+function enforceStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
   if (!schema || typeof schema !== 'object') return schema
 
   const result = { ...schema }
@@ -41,23 +42,26 @@ function enforceStrictSchema(schema: any): any {
 
     // Recursively process properties and ensure required includes all keys
     if (result.properties && typeof result.properties === 'object') {
-      const propKeys = Object.keys(result.properties)
+      const propKeys = Object.keys(result.properties as Record<string, unknown>)
       result.required = propKeys // Strict mode requires ALL properties
       result.properties = Object.fromEntries(
-        Object.entries(result.properties).map(([key, value]) => [key, enforceStrictSchema(value)])
+        Object.entries(result.properties as Record<string, unknown>).map(([key, value]) => [
+          key,
+          enforceStrictSchema(value as Record<string, unknown>),
+        ])
       )
     }
   }
 
   // Handle array items
   if (result.type === 'array' && result.items) {
-    result.items = enforceStrictSchema(result.items)
+    result.items = enforceStrictSchema(result.items as Record<string, unknown>)
   }
 
   // Handle anyOf, oneOf, allOf
   for (const keyword of ['anyOf', 'oneOf', 'allOf']) {
     if (Array.isArray(result[keyword])) {
-      result[keyword] = result[keyword].map(enforceStrictSchema)
+      result[keyword] = (result[keyword] as Record<string, unknown>[]).map(enforceStrictSchema)
     }
   }
 
@@ -65,7 +69,10 @@ function enforceStrictSchema(schema: any): any {
   for (const defKey of ['$defs', 'definitions']) {
     if (result[defKey] && typeof result[defKey] === 'object') {
       result[defKey] = Object.fromEntries(
-        Object.entries(result[defKey]).map(([key, value]) => [key, enforceStrictSchema(value)])
+        Object.entries(result[defKey] as Record<string, unknown>).map(([key, value]) => [
+          key,
+          enforceStrictSchema(value as Record<string, unknown>),
+        ])
       )
     }
   }
@@ -123,29 +130,29 @@ export async function executeResponsesProviderRequest(
 
   const initialInput = buildResponsesInputFromMessages(allMessages)
 
-  const basePayload: Record<string, any> = {
+  const basePayload: Record<string, unknown> = {
     model: config.modelName,
   }
 
   if (request.temperature !== undefined) basePayload.temperature = request.temperature
   if (request.maxTokens != null) basePayload.max_output_tokens = request.maxTokens
 
-  if (request.reasoningEffort !== undefined) {
+  if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
     basePayload.reasoning = {
       effort: request.reasoningEffort,
       summary: 'auto',
     }
   }
 
-  if (request.verbosity !== undefined) {
+  if (request.verbosity !== undefined && request.verbosity !== 'auto') {
     basePayload.text = {
-      ...(basePayload.text ?? {}),
+      ...((basePayload.text as Record<string, unknown>) ?? {}),
       verbosity: request.verbosity,
     }
   }
 
   // Store response format config - for Azure with tools, we defer applying it until after tool calls complete
-  let deferredTextFormat: { type: string; name: string; schema: any; strict: boolean } | undefined
+  let deferredTextFormat: OpenAI.Responses.ResponseFormatTextJSONSchemaConfig | undefined
   const hasTools = !!request.tools?.length
   const isAzure = config.providerId === 'azure-openai'
 
@@ -171,7 +178,7 @@ export async function executeResponsesProviderRequest(
       )
     } else {
       basePayload.text = {
-        ...(basePayload.text ?? {}),
+        ...((basePayload.text as Record<string, unknown>) ?? {}),
         format: textFormat,
       }
       logger.info(`Added JSON schema response format to ${config.providerLabel} request`)
@@ -231,7 +238,10 @@ export async function executeResponsesProviderRequest(
     }
   }
 
-  const createRequestBody = (input: ResponsesInputItem[], overrides: Record<string, any> = {}) => ({
+  const createRequestBody = (
+    input: ResponsesInputItem[],
+    overrides: Record<string, unknown> = {}
+  ) => ({
     ...basePayload,
     input,
     ...overrides,
@@ -247,7 +257,9 @@ export async function executeResponsesProviderRequest(
     }
   }
 
-  const postResponses = async (body: Record<string, any>) => {
+  const postResponses = async (
+    body: Record<string, unknown>
+  ): Promise<OpenAI.Responses.Response> => {
     const response = await fetch(config.endpoint, {
       method: 'POST',
       headers: config.headers,
@@ -496,10 +508,10 @@ export async function executeResponsesProviderRequest(
           duration: duration,
         })
 
-        let resultContent: any
+        let resultContent: Record<string, unknown>
         if (result.success) {
           toolResults.push(result.output)
-          resultContent = result.output
+          resultContent = result.output as Record<string, unknown>
         } else {
           resultContent = {
             error: true,
@@ -615,11 +627,11 @@ export async function executeResponsesProviderRequest(
       }
 
       // Make final call with the response format - build payload without tools
-      const finalPayload: Record<string, any> = {
+      const finalPayload: Record<string, unknown> = {
         model: config.modelName,
         input: formattedInput,
         text: {
-          ...(basePayload.text ?? {}),
+          ...((basePayload.text as Record<string, unknown>) ?? {}),
           format: deferredTextFormat,
         },
       }
@@ -627,15 +639,15 @@ export async function executeResponsesProviderRequest(
       // Copy over non-tool related settings
       if (request.temperature !== undefined) finalPayload.temperature = request.temperature
       if (request.maxTokens != null) finalPayload.max_output_tokens = request.maxTokens
-      if (request.reasoningEffort !== undefined) {
+      if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
         finalPayload.reasoning = {
           effort: request.reasoningEffort,
           summary: 'auto',
         }
       }
-      if (request.verbosity !== undefined) {
+      if (request.verbosity !== undefined && request.verbosity !== 'auto') {
         finalPayload.text = {
-          ...finalPayload.text,
+          ...((finalPayload.text as Record<string, unknown>) ?? {}),
           verbosity: request.verbosity,
         }
       }
@@ -679,10 +691,10 @@ export async function executeResponsesProviderRequest(
       const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
       // For Azure with deferred format in streaming mode, include the format in the streaming call
-      const streamOverrides: Record<string, any> = { stream: true, tool_choice: 'auto' }
+      const streamOverrides: Record<string, unknown> = { stream: true, tool_choice: 'auto' }
       if (deferredTextFormat) {
         streamOverrides.text = {
-          ...(basePayload.text ?? {}),
+          ...((basePayload.text as Record<string, unknown>) ?? {}),
           format: deferredTextFormat,
         }
       }

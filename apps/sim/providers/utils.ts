@@ -1,4 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
+import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
@@ -995,15 +996,12 @@ export function getThinkingLevelsForModel(model: string): string[] | null {
 }
 
 /**
- * Get max output tokens for a specific model
- * Returns the model's maxOutputTokens capability for streaming requests,
- * or a conservative default (8192) for non-streaming requests to avoid timeout issues.
+ * Get max output tokens for a specific model.
  *
  * @param model - The model ID
- * @param streaming - Whether the request is streaming (default: false)
  */
-export function getMaxOutputTokensForModel(model: string, streaming = false): number {
-  return getMaxOutputTokensForModelFromDefinitions(model, streaming)
+export function getMaxOutputTokensForModel(model: string): number {
+  return getMaxOutputTokensForModelFromDefinitions(model)
 }
 
 /**
@@ -1126,8 +1124,8 @@ export function createOpenAICompatibleStream(
  * @returns Object with hasUsedForcedTool flag and updated usedForcedTools array
  */
 export function checkForForcedToolUsageOpenAI(
-  response: any,
-  toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any },
+  response: OpenAI.Chat.Completions.ChatCompletion,
+  toolChoice: string | { type: string; function?: { name: string }; name?: string },
   providerName: string,
   forcedTools: string[],
   usedForcedTools: string[],

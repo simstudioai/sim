@@ -34,6 +34,7 @@ export interface AgentInputs {
   bedrockRegion?: string
   reasoningEffort?: string
   verbosity?: string
+  thinkingLevel?: string
 }
 
 export interface ToolInput {

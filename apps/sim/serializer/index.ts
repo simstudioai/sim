@@ -70,6 +70,7 @@ function shouldSerializeSubBlock(
           : group.basicId === subBlockConfig.id
       return matchesMode && evaluateSubBlockCondition(subBlockConfig.condition, values)
     }
+    console.log('[FUCK] subBlockConfig.condition', subBlockConfig.condition, values)
     return evaluateSubBlockCondition(subBlockConfig.condition, values)
   }
 
