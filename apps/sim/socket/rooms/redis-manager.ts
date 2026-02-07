@@ -28,13 +28,19 @@ local socketPresenceWorkflowKey = KEYS[3]
 local workflowUsersPrefix = ARGV[1]
 local workflowMetaPrefix = ARGV[2]
 local socketId = ARGV[3]
+local workflowIdHint = ARGV[4]
 
 local workflowId = redis.call('GET', socketWorkflowKey)
 if not workflowId then
   workflowId = redis.call('GET', socketPresenceWorkflowKey)
-  if not workflowId then
-    return nil
-  end
+end
+
+if not workflowId and workflowIdHint ~= '' then
+  workflowId = workflowIdHint
+end
+
+if not workflowId then
+  return nil
 end
 
 local workflowUsersKey = workflowUsersPrefix .. workflowId .. ':users'
@@ -215,17 +221,12 @@ export class RedisRoomManager implements IRoomManager {
           KEYS.socketSession(socketId),
           KEYS.socketPresenceWorkflow(socketId),
         ],
-        arguments: ['workflow:', 'workflow:', socketId],
+        arguments: ['workflow:', 'workflow:', socketId, workflowIdHint ?? ''],
       })
 
       if (typeof workflowId === 'string' && workflowId.length > 0) {
         logger.debug(`Removed socket ${socketId} from workflow ${workflowId}`)
         return workflowId
-      }
-
-      // Fallback without global SCAN: direct cleanup using workflow hint from socket rooms / join context.
-      if (workflowIdHint) {
-        return this.removeUserFromWorkflowHint(socketId, workflowIdHint)
       }
 
       return null
@@ -290,52 +291,6 @@ export class RedisRoomManager implements IRoomManager {
   async hasWorkflowRoom(workflowId: string): Promise<boolean> {
     const exists = await this.redis.exists(KEYS.workflowUsers(workflowId))
     return exists > 0
-  }
-
-  private async removeUserFromWorkflowHint(
-    socketId: string,
-    workflowIdHint: string
-  ): Promise<string | null> {
-    try {
-      const pipeline = this.redis.multi()
-      pipeline.hDel(KEYS.workflowUsers(workflowIdHint), socketId)
-      pipeline.del(KEYS.socketWorkflow(socketId))
-      pipeline.del(KEYS.socketSession(socketId))
-      pipeline.del(KEYS.socketPresenceWorkflow(socketId))
-
-      const results = await pipeline.exec()
-      if (results.some((result) => result instanceof Error)) {
-        logger.error('Pipeline partially failed during hinted fallback cleanup', {
-          socketId,
-          workflowIdHint,
-        })
-        return null
-      }
-
-      const hDelResult = results[0]
-      const removedCount =
-        typeof hDelResult === 'number'
-          ? hDelResult
-          : typeof hDelResult === 'string'
-            ? Number.parseInt(hDelResult, 10) || 0
-            : 0
-
-      if (removedCount <= 0) {
-        return null
-      }
-
-      await this.redis.hSet(
-        KEYS.workflowMeta(workflowIdHint),
-        'lastModified',
-        Date.now().toString()
-      )
-
-      logger.warn(`Removed socket ${socketId} from workflow ${workflowIdHint} via hinted fallback`)
-      return workflowIdHint
-    } catch (error) {
-      logger.error('Failed hinted fallback cleanup', { socketId, workflowIdHint, error })
-      return null
-    }
   }
 
   async updateUserActivity(

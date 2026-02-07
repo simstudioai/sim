@@ -79,7 +79,11 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
             continue
           }
 
-          const isSameTab = Boolean(tabSessionId && existingUser.tabSessionId === tabSessionId)
+          const isSameTab = Boolean(
+            existingUser.userId === userId &&
+              tabSessionId &&
+              existingUser.tabSessionId === tabSessionId
+          )
 
           if (isSameTab) {
             logger.info(
