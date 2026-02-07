@@ -80,6 +80,7 @@ export class RouterBlockHandler implements BlockHandler {
 
     try {
       const url = new URL('/api/providers', getBaseUrl())
+      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
@@ -209,6 +210,7 @@ export class RouterBlockHandler implements BlockHandler {
 
     try {
       const url = new URL('/api/providers', getBaseUrl())
+      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
       const messages = [{ role: 'user', content: routerConfig.context }]
       const systemPrompt = generateRouterV2Prompt(routerConfig.context, routes)

@@ -104,7 +104,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     }
 
     try {
-      const url = buildAPIUrl('/api/providers')
+      const url = buildAPIUrl('/api/providers', ctx.userId ? { userId: ctx.userId } : {})
 
       const providerRequest: Record<string, any> = {
         provider: providerId,
