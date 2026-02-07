@@ -52,23 +52,24 @@ export interface IsolatedVMError {
   lineContent?: string
 }
 
-const POOL_SIZE = Number.parseInt(env.IVM_POOL_SIZE)
-const MAX_CONCURRENT = Number.parseInt(env.IVM_MAX_CONCURRENT)
-const MAX_PER_WORKER = Number.parseInt(env.IVM_MAX_PER_WORKER)
-const WORKER_IDLE_TIMEOUT_MS = Number.parseInt(env.IVM_WORKER_IDLE_TIMEOUT_MS)
-const QUEUE_TIMEOUT_MS = Number.parseInt(env.IVM_QUEUE_TIMEOUT_MS)
-const MAX_QUEUE_SIZE = Number.parseInt(env.IVM_MAX_QUEUE_SIZE)
-const MAX_FETCH_RESPONSE_BYTES = Number.parseInt(env.IVM_MAX_FETCH_RESPONSE_BYTES)
-const MAX_FETCH_RESPONSE_CHARS = Number.parseInt(env.IVM_MAX_FETCH_RESPONSE_CHARS)
-const MAX_FETCH_URL_LENGTH = Number.parseInt(env.IVM_MAX_FETCH_URL_LENGTH)
-const MAX_FETCH_OPTIONS_JSON_CHARS = Number.parseInt(env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS)
-const MAX_ACTIVE_PER_OWNER = Number.parseInt(env.IVM_MAX_ACTIVE_PER_OWNER)
-const MAX_QUEUED_PER_OWNER = Number.parseInt(env.IVM_MAX_QUEUED_PER_OWNER)
-const MAX_OWNER_WEIGHT = Number.parseInt(env.IVM_MAX_OWNER_WEIGHT)
-const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER = Number.parseInt(
-  env.IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER
-)
-const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS)
+const POOL_SIZE = Number.parseInt(env.IVM_POOL_SIZE) || 4
+const MAX_CONCURRENT = Number.parseInt(env.IVM_MAX_CONCURRENT) || 10000
+const MAX_PER_WORKER = Number.parseInt(env.IVM_MAX_PER_WORKER) || 2500
+const WORKER_IDLE_TIMEOUT_MS = Number.parseInt(env.IVM_WORKER_IDLE_TIMEOUT_MS) || 60000
+const QUEUE_TIMEOUT_MS = Number.parseInt(env.IVM_QUEUE_TIMEOUT_MS) || 300000
+const MAX_QUEUE_SIZE = Number.parseInt(env.IVM_MAX_QUEUE_SIZE) || 10000
+const MAX_FETCH_RESPONSE_BYTES = Number.parseInt(env.IVM_MAX_FETCH_RESPONSE_BYTES) || 8_388_608
+const MAX_FETCH_RESPONSE_CHARS = Number.parseInt(env.IVM_MAX_FETCH_RESPONSE_CHARS) || 4_000_000
+const MAX_FETCH_URL_LENGTH = Number.parseInt(env.IVM_MAX_FETCH_URL_LENGTH) || 8192
+const MAX_FETCH_OPTIONS_JSON_CHARS =
+  Number.parseInt(env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS) || 262_144
+const MAX_ACTIVE_PER_OWNER = Number.parseInt(env.IVM_MAX_ACTIVE_PER_OWNER) || 200
+const MAX_QUEUED_PER_OWNER = Number.parseInt(env.IVM_MAX_QUEUED_PER_OWNER) || 2000
+const MAX_OWNER_WEIGHT = Number.parseInt(env.IVM_MAX_OWNER_WEIGHT) || 5
+const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
+  Number.parseInt(env.IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER) ||
+  MAX_ACTIVE_PER_OWNER + MAX_QUEUED_PER_OWNER
+const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
 const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
 const QUEUE_RETRY_DELAY_MS = 1000
 const DISTRIBUTED_LEASE_GRACE_MS = 30000
@@ -611,7 +612,7 @@ function cleanupWorker(workerId: number) {
     pending.resolve({
       result: null,
       stdout: '',
-      error: { message: 'Worker process exited unexpectedly', name: 'WorkerError' },
+      error: { message: 'Code execution failed unexpectedly. Please try again.', name: 'Error' },
     })
     workerInfo.pendingExecutions.delete(id)
   }
@@ -848,7 +849,7 @@ function dispatchToWorker(
     resolve({
       result: null,
       stdout: '',
-      error: { message: 'Failed to send execution request to worker', name: 'WorkerError' },
+      error: { message: 'Code execution failed to start. Please try again.', name: 'Error' },
     })
     resetWorkerIdleTimeout(workerInfo.id)
     // Defer to break synchronous recursion: drainQueue → dispatchToWorker → catch → drainQueue
@@ -866,8 +867,8 @@ function enqueueExecution(
       result: null,
       stdout: '',
       error: {
-        message: `Execution queue is full (${MAX_QUEUE_SIZE}). Please retry later.`,
-        name: 'QueueFullError',
+        message: 'Code execution is at capacity. Please try again in a moment.',
+        name: 'Error',
       },
     })
     return
@@ -877,8 +878,9 @@ function enqueueExecution(
       result: null,
       stdout: '',
       error: {
-        message: `Owner queue limit reached (${MAX_QUEUED_PER_OWNER}). Please retry later.`,
-        name: 'OwnerQueueLimitError',
+        message:
+          'Too many concurrent code executions. Please wait for some to complete before running more.',
+        name: 'Error',
       },
     })
     return
@@ -892,8 +894,8 @@ function enqueueExecution(
       result: null,
       stdout: '',
       error: {
-        message: `Execution queued too long (${QUEUE_TIMEOUT_MS}ms). All workers are busy.`,
-        name: 'QueueTimeoutError',
+        message: 'Code execution timed out waiting for an available worker. Please try again.',
+        name: 'Error',
       },
     })
   }, QUEUE_TIMEOUT_MS)
@@ -973,8 +975,9 @@ export async function executeInIsolatedVM(
       result: null,
       stdout: '',
       error: {
-        message: `Owner in-flight limit reached (${DISTRIBUTED_MAX_INFLIGHT_PER_OWNER}). Please retry later.`,
-        name: 'OwnerInFlightLimitError',
+        message:
+          'Too many concurrent code executions. Please wait for some to complete before running more.',
+        name: 'Error',
       },
     }
   }
@@ -983,8 +986,8 @@ export async function executeInIsolatedVM(
       result: null,
       stdout: '',
       error: {
-        message: 'Distributed fairness is temporarily unavailable. Please retry.',
-        name: 'DistributedFairnessUnavailableError',
+        message: 'Code execution is temporarily unavailable. Please try again in a moment.',
+        name: 'Error',
       },
     }
   }

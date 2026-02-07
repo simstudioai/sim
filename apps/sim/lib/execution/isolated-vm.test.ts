@@ -247,10 +247,10 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:b',
     })
 
-    expect(second.error?.name).toBe('QueueFullError')
+    expect(second.error?.message).toContain('at capacity')
 
     const first = await firstPromise
-    expect(first.error?.name).toBe('QueueTimeoutError')
+    expect(first.error?.message).toContain('timed out waiting')
   })
 
   it('enforces per-owner queued limit', async () => {
@@ -284,10 +284,10 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:hog',
     })
 
-    expect(second.error?.name).toBe('OwnerQueueLimitError')
+    expect(second.error?.message).toContain('Too many concurrent')
 
     const first = await firstPromise
-    expect(first.error?.name).toBe('QueueTimeoutError')
+    expect(first.error?.message).toContain('timed out waiting')
   })
 
   it('enforces distributed owner in-flight lease limit when Redis is configured', async () => {
@@ -316,7 +316,7 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:distributed',
     })
 
-    expect(result.error?.name).toBe('OwnerInFlightLimitError')
+    expect(result.error?.message).toContain('Too many concurrent')
   })
 
   it('fails closed when Redis is configured but unavailable', async () => {
@@ -337,7 +337,7 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:redis-down',
     })
 
-    expect(result.error?.name).toBe('DistributedFairnessUnavailableError')
+    expect(result.error?.message).toContain('temporarily unavailable')
   })
 
   it('fails closed when Redis lease evaluation errors', async () => {
@@ -365,7 +365,7 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:redis-error',
     })
 
-    expect(result.error?.name).toBe('DistributedFairnessUnavailableError')
+    expect(result.error?.message).toContain('temporarily unavailable')
   })
 
   it('applies weighted owner scheduling when draining queued executions', async () => {
