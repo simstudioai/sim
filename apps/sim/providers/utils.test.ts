@@ -12,16 +12,22 @@ import {
   getApiKey,
   getBaseModelProviders,
   getHostedModels,
+  getMaxOutputTokensForModel,
   getMaxTemperature,
+  getModelPricing,
   getProvider,
   getProviderConfigFromModel,
   getProviderFromModel,
   getProviderModels,
+  getReasoningEffortValuesForModel,
+  getThinkingLevelsForModel,
+  getVerbosityValuesForModel,
   isProviderBlacklisted,
   MODELS_TEMP_RANGE_0_1,
   MODELS_TEMP_RANGE_0_2,
   MODELS_WITH_REASONING_EFFORT,
   MODELS_WITH_TEMPERATURE_SUPPORT,
+  MODELS_WITH_THINKING,
   MODELS_WITH_VERBOSITY,
   PROVIDERS_WITH_TOOL_USAGE_CONTROL,
   prepareToolExecution,
@@ -169,6 +175,8 @@ describe('Model Capabilities', () => {
         'gpt-4.1',
         'gpt-4.1-mini',
         'gpt-4.1-nano',
+        'gpt-5-chat-latest',
+        'azure/gpt-5-chat-latest',
         'gemini-2.5-flash',
         'claude-sonnet-4-0',
         'claude-opus-4-0',
@@ -186,34 +194,27 @@ describe('Model Capabilities', () => {
     it.concurrent('should return false for models that do not support temperature', () => {
       const unsupportedModels = [
         'unsupported-model',
-        'cerebras/llama-3.3-70b', // Cerebras models don't have temperature defined
-        'groq/meta-llama/llama-4-scout-17b-16e-instruct', // Groq models don't have temperature defined
-        // Reasoning models that don't support temperature
+        'cerebras/llama-3.3-70b',
+        'groq/meta-llama/llama-4-scout-17b-16e-instruct',
         'o1',
         'o3',
         'o4-mini',
         'azure/o3',
         'azure/o4-mini',
         'deepseek-r1',
-        // Chat models that don't support temperature
         'deepseek-chat',
-        'azure/gpt-4.1',
         'azure/model-router',
-        // GPT-5.1 models don't support temperature (removed in our implementation)
         'gpt-5.1',
         'azure/gpt-5.1',
         'azure/gpt-5.1-mini',
         'azure/gpt-5.1-nano',
         'azure/gpt-5.1-codex',
-        // GPT-5 models don't support temperature (removed in our implementation)
         'gpt-5',
         'gpt-5-mini',
         'gpt-5-nano',
-        'gpt-5-chat-latest',
         'azure/gpt-5',
         'azure/gpt-5-mini',
         'azure/gpt-5-nano',
-        'azure/gpt-5-chat-latest',
       ]
 
       for (const model of unsupportedModels) {
@@ -240,6 +241,8 @@ describe('Model Capabilities', () => {
       const modelsRange02 = [
         'gpt-4o',
         'azure/gpt-4o',
+        'gpt-5-chat-latest',
+        'azure/gpt-5-chat-latest',
         'gemini-2.5-pro',
         'gemini-2.5-flash',
         'deepseek-v3',
@@ -268,28 +271,23 @@ describe('Model Capabilities', () => {
       expect(getMaxTemperature('unsupported-model')).toBeUndefined()
       expect(getMaxTemperature('cerebras/llama-3.3-70b')).toBeUndefined()
       expect(getMaxTemperature('groq/meta-llama/llama-4-scout-17b-16e-instruct')).toBeUndefined()
-      // Reasoning models that don't support temperature
       expect(getMaxTemperature('o1')).toBeUndefined()
       expect(getMaxTemperature('o3')).toBeUndefined()
       expect(getMaxTemperature('o4-mini')).toBeUndefined()
       expect(getMaxTemperature('azure/o3')).toBeUndefined()
       expect(getMaxTemperature('azure/o4-mini')).toBeUndefined()
       expect(getMaxTemperature('deepseek-r1')).toBeUndefined()
-      // GPT-5.1 models don't support temperature
       expect(getMaxTemperature('gpt-5.1')).toBeUndefined()
       expect(getMaxTemperature('azure/gpt-5.1')).toBeUndefined()
       expect(getMaxTemperature('azure/gpt-5.1-mini')).toBeUndefined()
       expect(getMaxTemperature('azure/gpt-5.1-nano')).toBeUndefined()
       expect(getMaxTemperature('azure/gpt-5.1-codex')).toBeUndefined()
-      // GPT-5 models don't support temperature
       expect(getMaxTemperature('gpt-5')).toBeUndefined()
       expect(getMaxTemperature('gpt-5-mini')).toBeUndefined()
       expect(getMaxTemperature('gpt-5-nano')).toBeUndefined()
-      expect(getMaxTemperature('gpt-5-chat-latest')).toBeUndefined()
       expect(getMaxTemperature('azure/gpt-5')).toBeUndefined()
       expect(getMaxTemperature('azure/gpt-5-mini')).toBeUndefined()
       expect(getMaxTemperature('azure/gpt-5-nano')).toBeUndefined()
-      expect(getMaxTemperature('azure/gpt-5-chat-latest')).toBeUndefined()
     })
 
     it.concurrent('should be case insensitive', () => {
@@ -340,13 +338,13 @@ describe('Model Capabilities', () => {
       expect(MODELS_TEMP_RANGE_0_2).toContain('gpt-4o')
       expect(MODELS_TEMP_RANGE_0_2).toContain('gemini-2.5-flash')
       expect(MODELS_TEMP_RANGE_0_2).toContain('deepseek-v3')
-      expect(MODELS_TEMP_RANGE_0_2).not.toContain('claude-sonnet-4-0') // Should be in 0-1 range
+      expect(MODELS_TEMP_RANGE_0_2).not.toContain('claude-sonnet-4-0')
     })
 
     it.concurrent('should have correct models in MODELS_TEMP_RANGE_0_1', () => {
       expect(MODELS_TEMP_RANGE_0_1).toContain('claude-sonnet-4-0')
       expect(MODELS_TEMP_RANGE_0_1).toContain('grok-3-latest')
-      expect(MODELS_TEMP_RANGE_0_1).not.toContain('gpt-4o') // Should be in 0-2 range
+      expect(MODELS_TEMP_RANGE_0_1).not.toContain('gpt-4o')
     })
 
     it.concurrent('should have correct providers in PROVIDERS_WITH_TOOL_USAGE_CONTROL', () => {
@@ -363,20 +361,19 @@ describe('Model Capabilities', () => {
         expect(MODELS_WITH_TEMPERATURE_SUPPORT.length).toBe(
           MODELS_TEMP_RANGE_0_2.length + MODELS_TEMP_RANGE_0_1.length
         )
-        expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('gpt-4o') // From 0-2 range
-        expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('claude-sonnet-4-0') // From 0-1 range
+        expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('gpt-4o')
+        expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('claude-sonnet-4-0')
       }
     )
 
     it.concurrent('should have correct models in MODELS_WITH_REASONING_EFFORT', () => {
-      // Should contain GPT-5.1 models that support reasoning effort
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.1')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-mini')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-nano')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-codex')
 
-      // Should contain GPT-5 models that support reasoning effort
+      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5.1-mini')
+      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5.1-nano')
+
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-mini')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-nano')
@@ -384,35 +381,30 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5-mini')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5-nano')
 
-      // Should contain gpt-5.2 models
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.2')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.2')
 
-      // Should contain o-series reasoning models (reasoning_effort added Dec 17, 2024)
       expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('o3')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('o4-mini')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/o3')
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/o4-mini')
 
-      // Should NOT contain non-reasoning GPT-5 models
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-5-chat-latest')
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5-chat-latest')
 
-      // Should NOT contain other models
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-4o')
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('claude-sonnet-4-0')
     })
 
     it.concurrent('should have correct models in MODELS_WITH_VERBOSITY', () => {
-      // Should contain GPT-5.1 models that support verbosity
       expect(MODELS_WITH_VERBOSITY).toContain('gpt-5.1')
       expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1')
-      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-mini')
-      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-nano')
       expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-codex')
 
-      // Should contain GPT-5 models that support verbosity
+      expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5.1-mini')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5.1-nano')
+
       expect(MODELS_WITH_VERBOSITY).toContain('gpt-5')
       expect(MODELS_WITH_VERBOSITY).toContain('gpt-5-mini')
       expect(MODELS_WITH_VERBOSITY).toContain('gpt-5-nano')
@@ -420,26 +412,39 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5-mini')
       expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5-nano')
 
-      // Should contain gpt-5.2 models
       expect(MODELS_WITH_VERBOSITY).toContain('gpt-5.2')
       expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.2')
 
-      // Should NOT contain non-reasoning GPT-5 models
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5-chat-latest')
       expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5-chat-latest')
 
-      // Should NOT contain o-series models (they support reasoning_effort but not verbosity)
       expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
       expect(MODELS_WITH_VERBOSITY).not.toContain('o3')
       expect(MODELS_WITH_VERBOSITY).not.toContain('o4-mini')
 
-      // Should NOT contain other models
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-4o')
       expect(MODELS_WITH_VERBOSITY).not.toContain('claude-sonnet-4-0')
     })
 
+    it.concurrent('should have correct models in MODELS_WITH_THINKING', () => {
+      expect(MODELS_WITH_THINKING).toContain('claude-opus-4-6')
+      expect(MODELS_WITH_THINKING).toContain('claude-opus-4-5')
+      expect(MODELS_WITH_THINKING).toContain('claude-opus-4-1')
+      expect(MODELS_WITH_THINKING).toContain('claude-opus-4-0')
+      expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-5')
+      expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-0')
+
+      expect(MODELS_WITH_THINKING).toContain('gemini-3-pro-preview')
+      expect(MODELS_WITH_THINKING).toContain('gemini-3-flash-preview')
+
+      expect(MODELS_WITH_THINKING).toContain('claude-haiku-4-5')
+
+      expect(MODELS_WITH_THINKING).not.toContain('gpt-4o')
+      expect(MODELS_WITH_THINKING).not.toContain('gpt-5')
+      expect(MODELS_WITH_THINKING).not.toContain('o3')
+    })
+
     it.concurrent('should have GPT-5 models in both reasoning effort and verbosity arrays', () => {
-      // GPT-5 series models support both reasoning effort and verbosity
       const gpt5ModelsWithReasoningEffort = MODELS_WITH_REASONING_EFFORT.filter(
         (m) => m.includes('gpt-5') && !m.includes('chat-latest')
       )
@@ -448,10 +453,228 @@ describe('Model Capabilities', () => {
       )
       expect(gpt5ModelsWithReasoningEffort.sort()).toEqual(gpt5ModelsWithVerbosity.sort())
 
-      // o-series models have reasoning effort but NOT verbosity
       expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
       expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
     })
+  })
+  describe('Reasoning Effort Values Per Model', () => {
+    it.concurrent('should return correct values for GPT-5.2', () => {
+      const values = getReasoningEffortValuesForModel('gpt-5.2')
+      expect(values).toBeDefined()
+      expect(values).toContain('none')
+      expect(values).toContain('low')
+      expect(values).toContain('medium')
+      expect(values).toContain('high')
+      expect(values).toContain('xhigh')
+      expect(values).not.toContain('minimal')
+    })
+
+    it.concurrent('should return correct values for GPT-5', () => {
+      const values = getReasoningEffortValuesForModel('gpt-5')
+      expect(values).toBeDefined()
+      expect(values).toContain('minimal')
+      expect(values).toContain('low')
+      expect(values).toContain('medium')
+      expect(values).toContain('high')
+    })
+
+    it.concurrent('should return correct values for o-series models', () => {
+      for (const model of ['o1', 'o3', 'o4-mini']) {
+        const values = getReasoningEffortValuesForModel(model)
+        expect(values).toBeDefined()
+        expect(values).toContain('low')
+        expect(values).toContain('medium')
+        expect(values).toContain('high')
+        expect(values).not.toContain('none')
+        expect(values).not.toContain('minimal')
+      }
+    })
+
+    it.concurrent('should return null for non-reasoning models', () => {
+      expect(getReasoningEffortValuesForModel('gpt-4o')).toBeNull()
+      expect(getReasoningEffortValuesForModel('claude-sonnet-4-5')).toBeNull()
+      expect(getReasoningEffortValuesForModel('gemini-2.5-flash')).toBeNull()
+    })
+
+    it.concurrent('should return correct values for Azure GPT-5.2', () => {
+      const values = getReasoningEffortValuesForModel('azure/gpt-5.2')
+      expect(values).toBeDefined()
+      expect(values).not.toContain('minimal')
+      expect(values).toContain('xhigh')
+    })
+  })
+
+  describe('Verbosity Values Per Model', () => {
+    it.concurrent('should return correct values for GPT-5 family', () => {
+      for (const model of ['gpt-5.2', 'gpt-5.1', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano']) {
+        const values = getVerbosityValuesForModel(model)
+        expect(values).toBeDefined()
+        expect(values).toContain('low')
+        expect(values).toContain('medium')
+        expect(values).toContain('high')
+      }
+    })
+
+    it.concurrent('should return null for o-series models', () => {
+      expect(getVerbosityValuesForModel('o1')).toBeNull()
+      expect(getVerbosityValuesForModel('o3')).toBeNull()
+      expect(getVerbosityValuesForModel('o4-mini')).toBeNull()
+    })
+
+    it.concurrent('should return null for non-reasoning models', () => {
+      expect(getVerbosityValuesForModel('gpt-4o')).toBeNull()
+      expect(getVerbosityValuesForModel('claude-sonnet-4-5')).toBeNull()
+    })
+  })
+
+  describe('Thinking Levels Per Model', () => {
+    it.concurrent('should return correct levels for Claude Opus 4.6 (adaptive)', () => {
+      const levels = getThinkingLevelsForModel('claude-opus-4-6')
+      expect(levels).toBeDefined()
+      expect(levels).toContain('low')
+      expect(levels).toContain('medium')
+      expect(levels).toContain('high')
+      expect(levels).toContain('max')
+    })
+
+    it.concurrent('should return correct levels for other Claude models (budget_tokens)', () => {
+      for (const model of ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-sonnet-4-0']) {
+        const levels = getThinkingLevelsForModel(model)
+        expect(levels).toBeDefined()
+        expect(levels).toContain('low')
+        expect(levels).toContain('medium')
+        expect(levels).toContain('high')
+        expect(levels).not.toContain('max')
+      }
+    })
+
+    it.concurrent('should return correct levels for Gemini 3 models', () => {
+      const proLevels = getThinkingLevelsForModel('gemini-3-pro-preview')
+      expect(proLevels).toBeDefined()
+      expect(proLevels).toContain('low')
+      expect(proLevels).toContain('high')
+
+      const flashLevels = getThinkingLevelsForModel('gemini-3-flash-preview')
+      expect(flashLevels).toBeDefined()
+      expect(flashLevels).toContain('minimal')
+      expect(flashLevels).toContain('low')
+      expect(flashLevels).toContain('medium')
+      expect(flashLevels).toContain('high')
+    })
+
+    it.concurrent('should return correct levels for Claude Haiku 4.5', () => {
+      const levels = getThinkingLevelsForModel('claude-haiku-4-5')
+      expect(levels).toBeDefined()
+      expect(levels).toContain('low')
+      expect(levels).toContain('medium')
+      expect(levels).toContain('high')
+    })
+
+    it.concurrent('should return null for non-thinking models', () => {
+      expect(getThinkingLevelsForModel('gpt-4o')).toBeNull()
+      expect(getThinkingLevelsForModel('gpt-5')).toBeNull()
+      expect(getThinkingLevelsForModel('o3')).toBeNull()
+    })
+  })
+})
+
+describe('Max Output Tokens', () => {
+  describe('getMaxOutputTokensForModel', () => {
+    it.concurrent('should return higher value for streaming than non-streaming (Anthropic)', () => {
+      const streamingTokens = getMaxOutputTokensForModel('claude-opus-4-6', true)
+      const nonStreamingTokens = getMaxOutputTokensForModel('claude-opus-4-6', false)
+      expect(streamingTokens).toBeGreaterThan(nonStreamingTokens)
+      expect(streamingTokens).toBe(128000)
+      expect(nonStreamingTokens).toBe(8192)
+    })
+
+    it.concurrent('should return correct values for Claude Sonnet 4.5', () => {
+      expect(getMaxOutputTokensForModel('claude-sonnet-4-5', true)).toBe(64000)
+      expect(getMaxOutputTokensForModel('claude-sonnet-4-5', false)).toBe(8192)
+    })
+
+    it.concurrent('should return correct values for Claude Opus 4.1', () => {
+      expect(getMaxOutputTokensForModel('claude-opus-4-1', true)).toBe(32000)
+      expect(getMaxOutputTokensForModel('claude-opus-4-1', false)).toBe(8192)
+    })
+
+    it.concurrent('should return standard default for models without maxOutputTokens', () => {
+      expect(getMaxOutputTokensForModel('gpt-4o', false)).toBe(4096)
+      expect(getMaxOutputTokensForModel('gpt-4o', true)).toBe(4096)
+    })
+
+    it.concurrent('should return standard default for unknown models', () => {
+      expect(getMaxOutputTokensForModel('unknown-model', false)).toBe(4096)
+      expect(getMaxOutputTokensForModel('unknown-model', true)).toBe(4096)
+    })
+
+    it.concurrent(
+      'non-streaming default should be within Anthropic SDK non-streaming threshold',
+      () => {
+        const SDK_NON_STREAMING_THRESHOLD = 21333
+        const models = [
+          'claude-opus-4-6',
+          'claude-opus-4-5',
+          'claude-opus-4-1',
+          'claude-sonnet-4-5',
+          'claude-sonnet-4-0',
+          'claude-haiku-4-5',
+        ]
+
+        for (const model of models) {
+          const nonStreamingDefault = getMaxOutputTokensForModel(model, false)
+          expect(nonStreamingDefault).toBeLessThan(SDK_NON_STREAMING_THRESHOLD)
+        }
+      }
+    )
+  })
+})
+
+describe('Model Pricing Validation', () => {
+  it.concurrent('should have correct pricing for key Anthropic models', () => {
+    const opus46 = getModelPricing('claude-opus-4-6')
+    expect(opus46).toBeDefined()
+    expect(opus46.input).toBe(5.0)
+    expect(opus46.output).toBe(25.0)
+
+    const sonnet45 = getModelPricing('claude-sonnet-4-5')
+    expect(sonnet45).toBeDefined()
+    expect(sonnet45.input).toBe(3.0)
+    expect(sonnet45.output).toBe(15.0)
+  })
+
+  it.concurrent('should have correct pricing for key OpenAI models', () => {
+    const gpt4o = getModelPricing('gpt-4o')
+    expect(gpt4o).toBeDefined()
+    expect(gpt4o.input).toBe(2.5)
+    expect(gpt4o.output).toBe(10.0)
+
+    const o3 = getModelPricing('o3')
+    expect(o3).toBeDefined()
+    expect(o3.input).toBe(2.0)
+    expect(o3.output).toBe(8.0)
+  })
+
+  it.concurrent('should have correct pricing for Azure OpenAI o3', () => {
+    const azureO3 = getModelPricing('azure/o3')
+    expect(azureO3).toBeDefined()
+    expect(azureO3.input).toBe(2.0)
+    expect(azureO3.output).toBe(8.0)
+  })
+
+  it.concurrent('should return null for unknown models', () => {
+    expect(getModelPricing('unknown-model')).toBeNull()
+  })
+})
+
+describe('Context Window Validation', () => {
+  it.concurrent('should have correct context windows for key models', () => {
+    const allModels = getAllModels()
+
+    expect(allModels).toContain('gpt-5-chat-latest')
+
+    expect(allModels).toContain('o3')
+    expect(allModels).toContain('o4-mini')
   })
 })
 
@@ -464,7 +687,7 @@ describe('Cost Calculation', () => {
       expect(result.output).toBeGreaterThan(0)
       expect(result.total).toBeCloseTo(result.input + result.output, 6)
       expect(result.pricing).toBeDefined()
-      expect(result.pricing.input).toBe(2.5) // GPT-4o pricing
+      expect(result.pricing.input).toBe(2.5)
     })
 
     it.concurrent('should handle cached input pricing when enabled', () => {
@@ -472,7 +695,7 @@ describe('Cost Calculation', () => {
       const cachedCost = calculateCost('gpt-4o', 1000, 500, true)
 
       expect(cachedCost.input).toBeLessThan(regularCost.input)
-      expect(cachedCost.output).toBe(regularCost.output) // Output cost should be same
+      expect(cachedCost.output).toBe(regularCost.output)
     })
 
     it.concurrent('should return default pricing for unknown models', () => {
@@ -481,7 +704,7 @@ describe('Cost Calculation', () => {
       expect(result.input).toBe(0)
       expect(result.output).toBe(0)
       expect(result.total).toBe(0)
-      expect(result.pricing.input).toBe(1.0) // Default pricing
+      expect(result.pricing.input).toBe(1.0)
     })
 
     it.concurrent('should handle zero tokens', () => {
@@ -528,19 +751,15 @@ describe('getHostedModels', () => {
   it.concurrent('should return OpenAI, Anthropic, and Google models as hosted', () => {
     const hostedModels = getHostedModels()
 
-    // OpenAI models
     expect(hostedModels).toContain('gpt-4o')
     expect(hostedModels).toContain('o1')
 
-    // Anthropic models
     expect(hostedModels).toContain('claude-sonnet-4-0')
     expect(hostedModels).toContain('claude-opus-4-0')
 
-    // Google models
     expect(hostedModels).toContain('gemini-2.5-pro')
     expect(hostedModels).toContain('gemini-2.5-flash')
 
-    // Should not contain models from other providers
     expect(hostedModels).not.toContain('deepseek-v3')
     expect(hostedModels).not.toContain('grok-4-latest')
   })
@@ -558,31 +777,24 @@ describe('getHostedModels', () => {
 
 describe('shouldBillModelUsage', () => {
   it.concurrent('should return true for exact matches of hosted models', () => {
-    // OpenAI models
     expect(shouldBillModelUsage('gpt-4o')).toBe(true)
     expect(shouldBillModelUsage('o1')).toBe(true)
 
-    // Anthropic models
     expect(shouldBillModelUsage('claude-sonnet-4-0')).toBe(true)
     expect(shouldBillModelUsage('claude-opus-4-0')).toBe(true)
 
-    // Google models
     expect(shouldBillModelUsage('gemini-2.5-pro')).toBe(true)
     expect(shouldBillModelUsage('gemini-2.5-flash')).toBe(true)
   })
 
   it.concurrent('should return false for non-hosted models', () => {
-    // Other providers
     expect(shouldBillModelUsage('deepseek-v3')).toBe(false)
     expect(shouldBillModelUsage('grok-4-latest')).toBe(false)
 
-    // Unknown models
     expect(shouldBillModelUsage('unknown-model')).toBe(false)
   })
 
   it.concurrent('should return false for versioned model names not in hosted list', () => {
-    // Versioned model names that are NOT in the hosted list
-    // These should NOT be billed (user provides own API key)
     expect(shouldBillModelUsage('claude-sonnet-4-20250514')).toBe(false)
     expect(shouldBillModelUsage('gpt-4o-2024-08-06')).toBe(false)
     expect(shouldBillModelUsage('claude-3-5-sonnet-20241022')).toBe(false)
@@ -595,8 +807,7 @@ describe('shouldBillModelUsage', () => {
   })
 
   it.concurrent('should not match partial model names', () => {
-    // Should not match partial/prefix models
-    expect(shouldBillModelUsage('gpt-4')).toBe(false) // gpt-4o is hosted, not gpt-4
+    expect(shouldBillModelUsage('gpt-4')).toBe(false)
     expect(shouldBillModelUsage('claude-sonnet')).toBe(false)
     expect(shouldBillModelUsage('gemini')).toBe(false)
   })
@@ -612,8 +823,8 @@ describe('Provider Management', () => {
     })
 
     it.concurrent('should use model patterns for pattern matching', () => {
-      expect(getProviderFromModel('gpt-5-custom')).toBe('openai') // Matches /^gpt/ pattern
-      expect(getProviderFromModel('claude-custom-model')).toBe('anthropic') // Matches /^claude/ pattern
+      expect(getProviderFromModel('gpt-5-custom')).toBe('openai')
+      expect(getProviderFromModel('claude-custom-model')).toBe('anthropic')
     })
 
     it.concurrent('should default to ollama for unknown models', () => {
@@ -667,7 +878,6 @@ describe('Provider Management', () => {
       expect(Array.isArray(allModels)).toBe(true)
       expect(allModels.length).toBeGreaterThan(0)
 
-      // Should contain models from different providers
       expect(allModels).toContain('gpt-4o')
       expect(allModels).toContain('claude-sonnet-4-0')
       expect(allModels).toContain('gemini-2.5-pro')
@@ -712,7 +922,6 @@ describe('Provider Management', () => {
 
       const baseProviders = getBaseModelProviders()
       expect(typeof baseProviders).toBe('object')
-      // Should exclude ollama models
     })
   })
 
@@ -720,10 +929,8 @@ describe('Provider Management', () => {
     it.concurrent('should update ollama models', () => {
       const mockModels = ['llama2', 'codellama', 'mistral']
 
-      // This should not throw
       expect(() => updateOllamaProviderModels(mockModels)).not.toThrow()
 
-      // Verify the models were updated
       const ollamaModels = getProviderModels('ollama')
       expect(ollamaModels).toEqual(mockModels)
     })
@@ -754,7 +961,7 @@ describe('JSON and Structured Output', () => {
     })
 
     it.concurrent('should clean up common JSON issues', () => {
-      const content = '{\n  "key": "value",\n  "number": 42,\n}' // Trailing comma
+      const content = '{\n  "key": "value",\n  "number": 42,\n}'
       const result = extractAndParseJSON(content)
       expect(result).toEqual({ key: 'value', number: 42 })
     })
@@ -945,13 +1152,13 @@ describe('prepareToolExecution', () => {
       const { toolParams } = prepareToolExecution(tool, llmArgs, request)
 
       expect(toolParams.apiKey).toBe('user-key')
-      expect(toolParams.channel).toBe('#general') // User value wins
+      expect(toolParams.channel).toBe('#general')
       expect(toolParams.message).toBe('Hello world')
     })
 
     it.concurrent('should filter out empty string user params', () => {
       const tool = {
-        params: { apiKey: 'user-key', channel: '' }, // Empty channel
+        params: { apiKey: 'user-key', channel: '' },
       }
       const llmArgs = { message: 'Hello', channel: '#llm-channel' }
       const request = {}
@@ -959,7 +1166,7 @@ describe('prepareToolExecution', () => {
       const { toolParams } = prepareToolExecution(tool, llmArgs, request)
 
       expect(toolParams.apiKey).toBe('user-key')
-      expect(toolParams.channel).toBe('#llm-channel') // LLM value used since user is empty
+      expect(toolParams.channel).toBe('#llm-channel')
       expect(toolParams.message).toBe('Hello')
     })
   })
@@ -969,7 +1176,7 @@ describe('prepareToolExecution', () => {
       const tool = {
         params: {
           workflowId: 'child-workflow-123',
-          inputMapping: '{}', // Empty JSON string from UI
+          inputMapping: '{}',
         },
       }
       const llmArgs = {
@@ -979,7 +1186,6 @@ describe('prepareToolExecution', () => {
 
       const { toolParams } = prepareToolExecution(tool, llmArgs, request)
 
-      // LLM values should be used since user object is empty
       expect(toolParams.inputMapping).toEqual({ query: 'search term', limit: 10 })
       expect(toolParams.workflowId).toBe('child-workflow-123')
     })
@@ -988,7 +1194,7 @@ describe('prepareToolExecution', () => {
       const tool = {
         params: {
           workflowId: 'child-workflow',
-          inputMapping: '{"query": "", "customField": "user-value"}', // Partial values
+          inputMapping: '{"query": "", "customField": "user-value"}',
         },
       }
       const llmArgs = {
@@ -998,7 +1204,6 @@ describe('prepareToolExecution', () => {
 
       const { toolParams } = prepareToolExecution(tool, llmArgs, request)
 
-      // LLM fills empty query, user's customField preserved, LLM's limit included
       expect(toolParams.inputMapping).toEqual({
         query: 'llm-search',
         limit: 10,
@@ -1020,7 +1225,6 @@ describe('prepareToolExecution', () => {
 
       const { toolParams } = prepareToolExecution(tool, llmArgs, request)
 
-      // User values win, but LLM's extra field is included
       expect(toolParams.inputMapping).toEqual({
         query: 'user-search',
         limit: 5,
@@ -1032,7 +1236,7 @@ describe('prepareToolExecution', () => {
       const tool = {
         params: {
           workflowId: 'child-workflow',
-          inputMapping: { query: '', customField: 'user-value' }, // Object, not string
+          inputMapping: { query: '', customField: 'user-value' },
         },
       }
       const llmArgs = {
@@ -1051,7 +1255,7 @@ describe('prepareToolExecution', () => {
 
     it.concurrent('should use LLM inputMapping when user does not provide it', () => {
       const tool = {
-        params: { workflowId: 'child-workflow' }, // No inputMapping
+        params: { workflowId: 'child-workflow' },
       }
       const llmArgs = {
         inputMapping: { query: 'llm-search', limit: 10 },
@@ -1070,7 +1274,7 @@ describe('prepareToolExecution', () => {
           inputMapping: '{"query": "user-search"}',
         },
       }
-      const llmArgs = {} // No inputMapping from LLM
+      const llmArgs = {}
       const request = {}
 
       const { toolParams } = prepareToolExecution(tool, llmArgs, request)
@@ -1092,7 +1296,6 @@ describe('prepareToolExecution', () => {
 
       const { toolParams } = prepareToolExecution(tool, llmArgs, request)
 
-      // Should use LLM values since user JSON is invalid
       expect(toolParams.inputMapping).toEqual({ query: 'llm-search' })
     })
 
@@ -1105,9 +1308,8 @@ describe('prepareToolExecution', () => {
 
       const { toolParams } = prepareToolExecution(tool, llmArgs, request)
 
-      // Normal behavior: user values override LLM values
       expect(toolParams.apiKey).toBe('user-key')
-      expect(toolParams.channel).toBe('#general') // User value wins
+      expect(toolParams.channel).toBe('#general')
       expect(toolParams.message).toBe('Hello')
     })
 
@@ -1125,8 +1327,6 @@ describe('prepareToolExecution', () => {
 
       const { toolParams } = prepareToolExecution(tool, llmArgs, request)
 
-      // 0 and false should be preserved (they're valid values)
-      // empty string should be filled by LLM
       expect(toolParams.inputMapping).toEqual({
         limit: 0,
         enabled: false,

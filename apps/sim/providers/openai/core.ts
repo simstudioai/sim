@@ -130,14 +130,14 @@ export async function executeResponsesProviderRequest(
   if (request.temperature !== undefined) basePayload.temperature = request.temperature
   if (request.maxTokens != null) basePayload.max_output_tokens = request.maxTokens
 
-  if (request.reasoningEffort !== undefined) {
+  if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
     basePayload.reasoning = {
       effort: request.reasoningEffort,
       summary: 'auto',
     }
   }
 
-  if (request.verbosity !== undefined) {
+  if (request.verbosity !== undefined && request.verbosity !== 'auto') {
     basePayload.text = {
       ...(basePayload.text ?? {}),
       verbosity: request.verbosity,
@@ -627,13 +627,13 @@ export async function executeResponsesProviderRequest(
       // Copy over non-tool related settings
       if (request.temperature !== undefined) finalPayload.temperature = request.temperature
       if (request.maxTokens != null) finalPayload.max_output_tokens = request.maxTokens
-      if (request.reasoningEffort !== undefined) {
+      if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
         finalPayload.reasoning = {
           effort: request.reasoningEffort,
           summary: 'auto',
         }
       }
-      if (request.verbosity !== undefined) {
+      if (request.verbosity !== undefined && request.verbosity !== 'auto') {
         finalPayload.text = {
           ...finalPayload.text,
           verbosity: request.verbosity,

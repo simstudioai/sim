@@ -98,8 +98,10 @@ async function executeChatCompletionsRequest(
   if (request.temperature !== undefined) payload.temperature = request.temperature
   if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
-  if (request.reasoningEffort !== undefined) payload.reasoning_effort = request.reasoningEffort
-  if (request.verbosity !== undefined) payload.verbosity = request.verbosity
+  if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto')
+    payload.reasoning_effort = request.reasoningEffort
+  if (request.verbosity !== undefined && request.verbosity !== 'auto')
+    payload.verbosity = request.verbosity
 
   if (request.responseFormat) {
     payload.response_format = {

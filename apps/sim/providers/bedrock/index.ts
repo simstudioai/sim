@@ -197,6 +197,9 @@ export const bedrockProvider: ProviderConfig = {
             } else if (tc.type === 'function' && tc.function?.name) {
               toolChoice = { tool: { name: tc.function.name } }
               logger.info(`Using Bedrock tool_choice format: force tool "${tc.function.name}"`)
+            } else if (tc.type === 'any') {
+              toolChoice = { any: {} }
+              logger.info('Using Bedrock tool_choice format: any tool')
             } else {
               toolChoice = { auto: {} }
             }
@@ -860,6 +863,11 @@ export const bedrockProvider: ProviderConfig = {
         content,
         model: request.model,
         tokens,
+        cost: {
+          input: cost.input,
+          output: cost.output,
+          total: cost.total,
+        },
         toolCalls:
           toolCalls.length > 0
             ? toolCalls.map((tc) => ({

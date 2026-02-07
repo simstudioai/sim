@@ -114,6 +114,28 @@ function buildThinkingConfig(
 }
 
 /**
+ * The Anthropic SDK requires streaming for non-streaming requests when max_tokens exceeds
+ * this threshold, to avoid HTTP timeouts. When thinking is enabled and pushes max_tokens
+ * above this limit, we use streaming internally and collect the final message.
+ */
+const ANTHROPIC_SDK_NON_STREAMING_MAX_TOKENS = 21333
+
+/**
+ * Creates an Anthropic message, automatically using streaming internally when max_tokens
+ * exceeds the SDK's non-streaming threshold. Returns the same Message object either way.
+ */
+async function createMessage(
+  anthropic: Anthropic,
+  payload: any
+): Promise<Anthropic.Messages.Message> {
+  if (payload.max_tokens > ANTHROPIC_SDK_NON_STREAMING_MAX_TOKENS && !payload.stream) {
+    const stream = anthropic.messages.stream(payload)
+    return stream.finalMessage()
+  }
+  return anthropic.messages.create(payload) as Promise<Anthropic.Messages.Message>
+}
+
+/**
  * Executes a request using the Anthropic API with full tool loop support.
  * This is the shared core implementation used by both the standard Anthropic provider
  * and the Azure Anthropic provider.
@@ -268,13 +290,35 @@ export async function executeAnthropicProviderRequest(
   }
 
   // Add extended thinking configuration if supported and requested
-  if (request.thinkingLevel) {
+  // The 'none' sentinel means "disable thinking" — skip configuration entirely.
+  if (request.thinkingLevel && request.thinkingLevel !== 'none') {
     const thinkingConfig = buildThinkingConfig(request.model, request.thinkingLevel)
     if (thinkingConfig) {
       payload.thinking = thinkingConfig.thinking
       if (thinkingConfig.outputConfig) {
         payload.output_config = thinkingConfig.outputConfig
       }
+
+      // Per Anthropic docs: budget_tokens must be less than max_tokens.
+      // Ensure max_tokens leaves room for both thinking and text output.
+      if (
+        thinkingConfig.thinking.type === 'enabled' &&
+        'budget_tokens' in thinkingConfig.thinking
+      ) {
+        const budgetTokens = thinkingConfig.thinking.budget_tokens
+        const minMaxTokens = budgetTokens + 4096
+        if (payload.max_tokens < minMaxTokens) {
+          const modelMax = getMaxOutputTokensForModel(request.model, true)
+          payload.max_tokens = Math.min(minMaxTokens, modelMax)
+          logger.info(
+            `Adjusted max_tokens to ${payload.max_tokens} to satisfy budget_tokens (${budgetTokens}) constraint`
+          )
+        }
+      }
+
+      // Per Anthropic docs: thinking is not compatible with temperature or top_k modifications.
+      payload.temperature = undefined
+
       const isAdaptive = thinkingConfig.thinking.type === 'adaptive'
       logger.info(
         `Using ${isAdaptive ? 'adaptive' : 'extended'} thinking for model: ${modelId} with ${isAdaptive ? `effort: ${request.thinkingLevel}` : `budget: ${(thinkingConfig.thinking as { budget_tokens: number }).budget_tokens}`}`
@@ -288,7 +332,16 @@ export async function executeAnthropicProviderRequest(
 
   if (anthropicTools?.length) {
     payload.tools = anthropicTools
-    if (toolChoice !== 'auto') {
+    // Per Anthropic docs: forced tool_choice (type: "tool" or "any") is incompatible with
+    // thinking. Only auto and none are supported when thinking is enabled.
+    if (payload.thinking) {
+      // Per Anthropic docs: only 'auto' (default) and 'none' work with thinking.
+      if (toolChoice === 'none') {
+        payload.tool_choice = { type: 'none' }
+      }
+    } else if (toolChoice === 'none') {
+      payload.tool_choice = { type: 'none' }
+    } else if (toolChoice !== 'auto') {
       payload.tool_choice = toolChoice
     }
   }
@@ -386,12 +439,16 @@ export async function executeAnthropicProviderRequest(
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
-    // but allow users to set lower values if desired
+    // but allow users to set lower values if desired. Use Math.max to preserve
+    // thinking-adjusted max_tokens from payload when it's higher.
     const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
     const nonStreamingMaxTokens = request.maxTokens
       ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
       : nonStreamingLimit
-    const intermediatePayload = { ...payload, max_tokens: nonStreamingMaxTokens }
+    const intermediatePayload = {
+      ...payload,
+      max_tokens: Math.max(nonStreamingMaxTokens, payload.max_tokens),
+    }
 
     try {
       const initialCallTime = Date.now()
@@ -399,7 +456,7 @@ export async function executeAnthropicProviderRequest(
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
-      let currentResponse = await anthropic.messages.create(intermediatePayload)
+      let currentResponse = await createMessage(anthropic, intermediatePayload)
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = ''
@@ -583,11 +640,20 @@ export async function executeAnthropicProviderRequest(
             })
           }
 
-          // Add ONE assistant message with ALL tool_use blocks
+          // Per Anthropic docs: thinking blocks must be preserved in assistant messages
+          // during tool use to maintain reasoning continuity.
+          const thinkingBlocks = currentResponse.content.filter(
+            (item) => item.type === 'thinking' || item.type === 'redacted_thinking'
+          )
+
+          // Add ONE assistant message with thinking + tool_use blocks
           if (toolUseBlocks.length > 0) {
             currentMessages.push({
               role: 'assistant',
-              content: toolUseBlocks as unknown as Anthropic.Messages.ContentBlock[],
+              content: [
+                ...thinkingBlocks,
+                ...toolUseBlocks,
+              ] as unknown as Anthropic.Messages.ContentBlock[],
             })
           }
 
@@ -607,7 +673,11 @@ export async function executeAnthropicProviderRequest(
             messages: currentMessages,
           }
 
+          // Per Anthropic docs: forced tool_choice is incompatible with thinking.
+          // Only auto and none are supported when thinking is enabled.
+          const thinkingEnabled = !!payload.thinking
           if (
+            !thinkingEnabled &&
             typeof originalToolChoice === 'object' &&
             hasUsedForcedTool &&
             forcedTools.length > 0
@@ -624,7 +694,11 @@ export async function executeAnthropicProviderRequest(
               nextPayload.tool_choice = undefined
               logger.info('All forced tools have been used, removing tool_choice parameter')
             }
-          } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
+          } else if (
+            !thinkingEnabled &&
+            hasUsedForcedTool &&
+            typeof originalToolChoice === 'object'
+          ) {
             nextPayload.tool_choice = undefined
             logger.info(
               'Removing tool_choice parameter for subsequent requests after forced tool was used'
@@ -633,7 +707,7 @@ export async function executeAnthropicProviderRequest(
 
           const nextModelStartTime = Date.now()
 
-          currentResponse = await anthropic.messages.create(nextPayload)
+          currentResponse = await createMessage(anthropic, nextPayload)
 
           const nextCheckResult = checkForForcedToolUsage(
             currentResponse,
@@ -779,12 +853,16 @@ export async function executeAnthropicProviderRequest(
   const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
   // Cap intermediate calls at non-streaming limit to avoid SDK timeout errors,
-  // but allow users to set lower values if desired
+  // but allow users to set lower values if desired. Use Math.max to preserve
+  // thinking-adjusted max_tokens from payload when it's higher.
   const nonStreamingLimit = getMaxOutputTokensForModel(request.model, false)
   const toolLoopMaxTokens = request.maxTokens
     ? Math.min(Number.parseInt(String(request.maxTokens)), nonStreamingLimit)
     : nonStreamingLimit
-  const toolLoopPayload = { ...payload, max_tokens: toolLoopMaxTokens }
+  const toolLoopPayload = {
+    ...payload,
+    max_tokens: Math.max(toolLoopMaxTokens, payload.max_tokens),
+  }
 
   try {
     const initialCallTime = Date.now()
@@ -792,7 +870,7 @@ export async function executeAnthropicProviderRequest(
     const forcedTools = preparedTools?.forcedTools || []
     let usedForcedTools: string[] = []
 
-    let currentResponse = await anthropic.messages.create(toolLoopPayload)
+    let currentResponse = await createMessage(anthropic, toolLoopPayload)
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = ''
@@ -989,11 +1067,20 @@ export async function executeAnthropicProviderRequest(
           })
         }
 
-        // Add ONE assistant message with ALL tool_use blocks
+        // Per Anthropic docs: thinking blocks must be preserved in assistant messages
+        // during tool use to maintain reasoning continuity.
+        const thinkingBlocks = currentResponse.content.filter(
+          (item) => item.type === 'thinking' || item.type === 'redacted_thinking'
+        )
+
+        // Add ONE assistant message with thinking + tool_use blocks
         if (toolUseBlocks.length > 0) {
           currentMessages.push({
             role: 'assistant',
-            content: toolUseBlocks as unknown as Anthropic.Messages.ContentBlock[],
+            content: [
+              ...thinkingBlocks,
+              ...toolUseBlocks,
+            ] as unknown as Anthropic.Messages.ContentBlock[],
           })
         }
 
@@ -1013,7 +1100,15 @@ export async function executeAnthropicProviderRequest(
           messages: currentMessages,
         }
 
-        if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
+        // Per Anthropic docs: forced tool_choice is incompatible with thinking.
+        // Only auto and none are supported when thinking is enabled.
+        const thinkingEnabled = !!payload.thinking
+        if (
+          !thinkingEnabled &&
+          typeof originalToolChoice === 'object' &&
+          hasUsedForcedTool &&
+          forcedTools.length > 0
+        ) {
           const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
           if (remainingTools.length > 0) {
@@ -1026,7 +1121,11 @@ export async function executeAnthropicProviderRequest(
             nextPayload.tool_choice = undefined
             logger.info('All forced tools have been used, removing tool_choice parameter')
           }
-        } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
+        } else if (
+          !thinkingEnabled &&
+          hasUsedForcedTool &&
+          typeof originalToolChoice === 'object'
+        ) {
           nextPayload.tool_choice = undefined
           logger.info(
             'Removing tool_choice parameter for subsequent requests after forced tool was used'
@@ -1035,7 +1134,7 @@ export async function executeAnthropicProviderRequest(
 
         const nextModelStartTime = Date.now()
 
-        currentResponse = await anthropic.messages.create(nextPayload)
+        currentResponse = await createMessage(anthropic, nextPayload)
 
         const nextCheckResult = checkForForcedToolUsage(
           currentResponse,

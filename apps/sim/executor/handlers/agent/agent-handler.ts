@@ -906,24 +906,17 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
 
-    // Find first system message
     const firstSystemIndex = messages.findIndex((msg) => msg.role === 'system')
 
     if (firstSystemIndex === -1) {
-      // No system message exists - add at position 0
       messages.unshift({ role: 'system', content })
     } else if (firstSystemIndex === 0) {
-      // System message already at position 0 - replace it
-      // Explicit systemPrompt parameter takes precedence over memory/messages
       messages[0] = { role: 'system', content }
     } else {
-      // System message exists but not at position 0 - move it to position 0
-      // and update with new content
       messages.splice(firstSystemIndex, 1)
       messages.unshift({ role: 'system', content })
     }
 
-    // Remove any additional system messages (keep only the first one)
     for (let i = messages.length - 1; i >= 1; i--) {
       if (messages[i].role === 'system') {
         messages.splice(i, 1)
@@ -996,6 +989,7 @@ export class AgentBlockHandler implements BlockHandler {
       blockNameMapping,
       reasoningEffort: inputs.reasoningEffort,
       verbosity: inputs.verbosity,
+      thinkingLevel: inputs.thinkingLevel,
     }
   }
 
@@ -1064,6 +1058,7 @@ export class AgentBlockHandler implements BlockHandler {
         isDeployedContext: ctx.isDeployedContext,
         reasoningEffort: providerRequest.reasoningEffort,
         verbosity: providerRequest.verbosity,
+        thinkingLevel: providerRequest.thinkingLevel,
       })
 
       return this.processProviderResponse(response, block, responseFormat)
@@ -1081,8 +1076,6 @@ export class AgentBlockHandler implements BlockHandler {
 
     logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
 
-    // Get the credential - we need to find the owner
-    // Since we're in a workflow context, we can query the credential directly
     const credential = await db.query.account.findFirst({
       where: eq(account.id, credentialId),
     })
@@ -1091,7 +1084,6 @@ export class AgentBlockHandler implements BlockHandler {
       throw new Error(`Vertex AI credential not found: ${credentialId}`)
     }
 
-    // Refresh the token if needed
     const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
 
     if (!accessToken) {
