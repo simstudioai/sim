@@ -1,6 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { AzureOpenAI } from 'openai'
-import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
+import type {
+  ChatCompletion,
+  ChatCompletionCreateParamsBase,
+  ChatCompletionCreateParamsStreaming,
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+  ChatCompletionToolChoiceOption,
+} from 'openai/resources/chat/completions'
+import type { ReasoningEffort } from 'openai/resources/shared'
 import { env } from '@/lib/core/config/env'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -16,6 +24,7 @@ import {
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type {
+  FunctionCallResponse,
   ProviderConfig,
   ProviderRequest,
   ProviderResponse,
@@ -59,7 +68,7 @@ async function executeChatCompletionsRequest(
     endpoint: azureEndpoint,
   })
 
-  const allMessages: any[] = []
+  const allMessages: ChatCompletionMessageParam[] = []
 
   if (request.systemPrompt) {
     allMessages.push({
@@ -76,12 +85,12 @@ async function executeChatCompletionsRequest(
   }
 
   if (request.messages) {
-    allMessages.push(...request.messages)
+    allMessages.push(...(request.messages as ChatCompletionMessageParam[]))
   }
 
-  const tools = request.tools?.length
+  const tools: ChatCompletionTool[] | undefined = request.tools?.length
     ? request.tools.map((tool) => ({
-        type: 'function',
+        type: 'function' as const,
         function: {
           name: tool.id,
           description: tool.description,
@@ -90,7 +99,7 @@ async function executeChatCompletionsRequest(
       }))
     : undefined
 
-  const payload: any = {
+  const payload: ChatCompletionCreateParamsBase & { verbosity?: string } = {
     model: deploymentName,
     messages: allMessages,
   }
@@ -99,7 +108,7 @@ async function executeChatCompletionsRequest(
   if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
   if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto')
-    payload.reasoning_effort = request.reasoningEffort
+    payload.reasoning_effort = request.reasoningEffort as ReasoningEffort
   if (request.verbosity !== undefined && request.verbosity !== 'auto')
     payload.verbosity = request.verbosity
 
@@ -123,8 +132,8 @@ async function executeChatCompletionsRequest(
     const { tools: filteredTools, toolChoice } = preparedTools
 
     if (filteredTools?.length && toolChoice) {
-      payload.tools = filteredTools
-      payload.tool_choice = toolChoice
+      payload.tools = filteredTools as ChatCompletionTool[]
+      payload.tool_choice = toolChoice as ChatCompletionToolChoiceOption
 
       logger.info('Azure OpenAI request configuration:', {
         toolCount: filteredTools.length,
@@ -233,7 +242,7 @@ async function executeChatCompletionsRequest(
     const forcedTools = preparedTools?.forcedTools || []
     let usedForcedTools: string[] = []
 
-    let currentResponse = await azureOpenAI.chat.completions.create(payload)
+    let currentResponse = (await azureOpenAI.chat.completions.create(payload)) as ChatCompletion
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = currentResponse.choices[0]?.message?.content || ''
@@ -242,8 +251,8 @@ async function executeChatCompletionsRequest(
       output: currentResponse.usage?.completion_tokens || 0,
       total: currentResponse.usage?.total_tokens || 0,
     }
-    const toolCalls = []
-    const toolResults = []
+    const toolCalls: (FunctionCallResponse & { success: boolean })[] = []
+    const toolResults: Record<string, unknown>[] = []
     const currentMessages = [...allMessages]
     let iterationCount = 0
     let modelTime = firstResponseTime
@@ -262,7 +271,7 @@ async function executeChatCompletionsRequest(
 
     const firstCheckResult = checkForForcedToolUsage(
       currentResponse,
-      originalToolChoice,
+      originalToolChoice ?? 'auto',
       logger,
       forcedTools,
       usedForcedTools
@@ -358,10 +367,10 @@ async function executeChatCompletionsRequest(
           duration: duration,
         })
 
-        let resultContent: any
+        let resultContent: Record<string, unknown>
         if (result.success) {
-          toolResults.push(result.output)
-          resultContent = result.output
+          toolResults.push(result.output as Record<string, unknown>)
+          resultContent = result.output as Record<string, unknown>
         } else {
           resultContent = {
             error: true,
@@ -411,11 +420,11 @@ async function executeChatCompletionsRequest(
       }
 
       const nextModelStartTime = Date.now()
-      currentResponse = await azureOpenAI.chat.completions.create(nextPayload)
+      currentResponse = (await azureOpenAI.chat.completions.create(nextPayload)) as ChatCompletion
 
       const nextCheckResult = checkForForcedToolUsage(
         currentResponse,
-        nextPayload.tool_choice,
+        nextPayload.tool_choice ?? 'auto',
         logger,
         forcedTools,
         usedForcedTools

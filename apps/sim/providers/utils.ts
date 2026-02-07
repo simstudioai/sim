@@ -1,4 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
+import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { env } from '@/lib/core/config/env'
@@ -1123,8 +1124,8 @@ export function createOpenAICompatibleStream(
  * @returns Object with hasUsedForcedTool flag and updated usedForcedTools array
  */
 export function checkForForcedToolUsageOpenAI(
-  response: any,
-  toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any },
+  response: OpenAI.Chat.Completions.ChatCompletion,
+  toolChoice: string | { type: string; function?: { name: string }; name?: string },
   providerName: string,
   forcedTools: string[],
   usedForcedTools: string[],

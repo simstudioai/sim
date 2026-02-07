@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import type OpenAI from 'openai'
 import type { Message } from '@/providers/types'
 
 const logger = createLogger('ResponsesUtils')
@@ -38,7 +39,7 @@ export interface ResponsesToolDefinition {
   type: 'function'
   name: string
   description?: string
-  parameters?: Record<string, any>
+  parameters?: Record<string, unknown>
 }
 
 /**
@@ -85,7 +86,15 @@ export function buildResponsesInputFromMessages(messages: Message[]): ResponsesI
 /**
  * Converts tool definitions to the Responses API format.
  */
-export function convertToolsToResponses(tools: any[]): ResponsesToolDefinition[] {
+export function convertToolsToResponses(
+  tools: Array<{
+    type?: string
+    name?: string
+    description?: string
+    parameters?: Record<string, unknown>
+    function?: { name: string; description?: string; parameters?: Record<string, unknown> }
+  }>
+): ResponsesToolDefinition[] {
   return tools
     .map((tool) => {
       const name = tool.function?.name ?? tool.name
@@ -131,7 +140,7 @@ export function toResponsesToolChoice(
   return 'auto'
 }
 
-function extractTextFromMessageItem(item: any): string {
+function extractTextFromMessageItem(item: Record<string, unknown>): string {
   if (!item) {
     return ''
   }
@@ -170,7 +179,7 @@ function extractTextFromMessageItem(item: any): string {
 /**
  * Extracts plain text from Responses API output items.
  */
-export function extractResponseText(output: unknown): string {
+export function extractResponseText(output: OpenAI.Responses.ResponseOutputItem[]): string {
   if (!Array.isArray(output)) {
     return ''
   }
@@ -181,7 +190,7 @@ export function extractResponseText(output: unknown): string {
       continue
     }
 
-    const text = extractTextFromMessageItem(item)
+    const text = extractTextFromMessageItem(item as unknown as Record<string, unknown>)
     if (text) {
       textParts.push(text)
     }
@@ -193,7 +202,9 @@ export function extractResponseText(output: unknown): string {
 /**
  * Converts Responses API output items into input items for subsequent calls.
  */
-export function convertResponseOutputToInputItems(output: unknown): ResponsesInputItem[] {
+export function convertResponseOutputToInputItems(
+  output: OpenAI.Responses.ResponseOutputItem[]
+): ResponsesInputItem[] {
   if (!Array.isArray(output)) {
     return []
   }
@@ -205,7 +216,7 @@ export function convertResponseOutputToInputItems(output: unknown): ResponsesInp
     }
 
     if (item.type === 'message') {
-      const text = extractTextFromMessageItem(item)
+      const text = extractTextFromMessageItem(item as unknown as Record<string, unknown>)
       if (text) {
         items.push({
           role: 'assistant',
@@ -213,18 +224,20 @@ export function convertResponseOutputToInputItems(output: unknown): ResponsesInp
         })
       }
 
-      const toolCalls = Array.isArray(item.tool_calls) ? item.tool_calls : []
+      // Handle Chat Completions-style tool_calls nested under message items
+      const msgRecord = item as unknown as Record<string, unknown>
+      const toolCalls = Array.isArray(msgRecord.tool_calls) ? msgRecord.tool_calls : []
       for (const toolCall of toolCalls) {
-        const callId = toolCall?.id
-        const name = toolCall?.function?.name ?? toolCall?.name
+        const tc = toolCall as Record<string, unknown>
+        const fn = tc.function as Record<string, unknown> | undefined
+        const callId = tc.id as string | undefined
+        const name = (fn?.name ?? tc.name) as string | undefined
         if (!callId || !name) {
           continue
         }
 
         const argumentsValue =
-          typeof toolCall?.function?.arguments === 'string'
-            ? toolCall.function.arguments
-            : JSON.stringify(toolCall?.function?.arguments ?? {})
+          typeof fn?.arguments === 'string' ? fn.arguments : JSON.stringify(fn?.arguments ?? {})
 
         items.push({
           type: 'function_call',
@@ -238,14 +251,18 @@ export function convertResponseOutputToInputItems(output: unknown): ResponsesInp
     }
 
     if (item.type === 'function_call') {
-      const callId = item.call_id ?? item.id
-      const name = item.name ?? item.function?.name
+      const fc = item as OpenAI.Responses.ResponseFunctionToolCall
+      const fcRecord = item as unknown as Record<string, unknown>
+      const callId = fc.call_id ?? (fcRecord.id as string | undefined)
+      const name =
+        fc.name ??
+        ((fcRecord.function as Record<string, unknown> | undefined)?.name as string | undefined)
       if (!callId || !name) {
         continue
       }
 
       const argumentsValue =
-        typeof item.arguments === 'string' ? item.arguments : JSON.stringify(item.arguments ?? {})
+        typeof fc.arguments === 'string' ? fc.arguments : JSON.stringify(fc.arguments ?? {})
 
       items.push({
         type: 'function_call',
@@ -262,7 +279,9 @@ export function convertResponseOutputToInputItems(output: unknown): ResponsesInp
 /**
  * Extracts tool calls from Responses API output items.
  */
-export function extractResponseToolCalls(output: unknown): ResponsesToolCall[] {
+export function extractResponseToolCalls(
+  output: OpenAI.Responses.ResponseOutputItem[]
+): ResponsesToolCall[] {
   if (!Array.isArray(output)) {
     return []
   }
@@ -275,14 +294,18 @@ export function extractResponseToolCalls(output: unknown): ResponsesToolCall[] {
     }
 
     if (item.type === 'function_call') {
-      const callId = item.call_id ?? item.id
-      const name = item.name ?? item.function?.name
+      const fc = item as OpenAI.Responses.ResponseFunctionToolCall
+      const fcRecord = item as unknown as Record<string, unknown>
+      const callId = fc.call_id ?? (fcRecord.id as string | undefined)
+      const name =
+        fc.name ??
+        ((fcRecord.function as Record<string, unknown> | undefined)?.name as string | undefined)
       if (!callId || !name) {
         continue
       }
 
       const argumentsValue =
-        typeof item.arguments === 'string' ? item.arguments : JSON.stringify(item.arguments ?? {})
+        typeof fc.arguments === 'string' ? fc.arguments : JSON.stringify(fc.arguments ?? {})
 
       toolCalls.push({
         id: callId,
@@ -292,18 +315,20 @@ export function extractResponseToolCalls(output: unknown): ResponsesToolCall[] {
       continue
     }
 
-    if (item.type === 'message' && Array.isArray(item.tool_calls)) {
-      for (const toolCall of item.tool_calls) {
-        const callId = toolCall?.id
-        const name = toolCall?.function?.name ?? toolCall?.name
+    // Handle Chat Completions-style tool_calls nested under message items
+    const msgRecord = item as unknown as Record<string, unknown>
+    if (item.type === 'message' && Array.isArray(msgRecord.tool_calls)) {
+      for (const toolCall of msgRecord.tool_calls) {
+        const tc = toolCall as Record<string, unknown>
+        const fn = tc.function as Record<string, unknown> | undefined
+        const callId = tc.id as string | undefined
+        const name = (fn?.name ?? tc.name) as string | undefined
         if (!callId || !name) {
           continue
         }
 
         const argumentsValue =
-          typeof toolCall?.function?.arguments === 'string'
-            ? toolCall.function.arguments
-            : JSON.stringify(toolCall?.function?.arguments ?? {})
+          typeof fn?.arguments === 'string' ? fn.arguments : JSON.stringify(fn?.arguments ?? {})
 
         toolCalls.push({
           id: callId,
@@ -323,15 +348,17 @@ export function extractResponseToolCalls(output: unknown): ResponsesToolCall[] {
  * Note: output_tokens is expected to include reasoning tokens; fall back to reasoning_tokens
  * when output_tokens is missing or zero.
  */
-export function parseResponsesUsage(usage: any): ResponsesUsageTokens | undefined {
-  if (!usage || typeof usage !== 'object') {
+export function parseResponsesUsage(
+  usage: OpenAI.Responses.ResponseUsage | undefined
+): ResponsesUsageTokens | undefined {
+  if (!usage) {
     return undefined
   }
 
-  const inputTokens = Number(usage.input_tokens ?? 0)
-  const outputTokens = Number(usage.output_tokens ?? 0)
-  const cachedTokens = Number(usage.input_tokens_details?.cached_tokens ?? 0)
-  const reasoningTokens = Number(usage.output_tokens_details?.reasoning_tokens ?? 0)
+  const inputTokens = usage.input_tokens ?? 0
+  const outputTokens = usage.output_tokens ?? 0
+  const cachedTokens = usage.input_tokens_details?.cached_tokens ?? 0
+  const reasoningTokens = usage.output_tokens_details?.reasoning_tokens ?? 0
   const completionTokens = Math.max(outputTokens, reasoningTokens)
   const totalTokens = inputTokens + completionTokens
 
@@ -398,7 +425,7 @@ export function createReadableStreamFromResponses(
               continue
             }
 
-            let event: any
+            let event: Record<string, unknown>
             try {
               event = JSON.parse(data)
             } catch (error) {
@@ -416,7 +443,8 @@ export function createReadableStreamFromResponses(
               eventType === 'error' ||
               eventType === 'response.failed'
             ) {
-              const message = event?.error?.message || 'Responses API stream error'
+              const errorObj = event.error as Record<string, unknown> | undefined
+              const message = (errorObj?.message as string) || 'Responses API stream error'
               controller.error(new Error(message))
               return
             }
@@ -426,12 +454,13 @@ export function createReadableStreamFromResponses(
               eventType === 'response.output_json.delta'
             ) {
               let deltaText = ''
-              if (typeof event.delta === 'string') {
-                deltaText = event.delta
-              } else if (event.delta && typeof event.delta.text === 'string') {
-                deltaText = event.delta.text
-              } else if (event.delta && event.delta.json !== undefined) {
-                deltaText = JSON.stringify(event.delta.json)
+              const delta = event.delta as string | Record<string, unknown> | undefined
+              if (typeof delta === 'string') {
+                deltaText = delta
+              } else if (delta && typeof delta.text === 'string') {
+                deltaText = delta.text
+              } else if (delta && delta.json !== undefined) {
+                deltaText = JSON.stringify(delta.json)
               } else if (event.json !== undefined) {
                 deltaText = JSON.stringify(event.json)
               } else if (typeof event.text === 'string') {
@@ -445,7 +474,11 @@ export function createReadableStreamFromResponses(
             }
 
             if (eventType === 'response.completed') {
-              finalUsage = parseResponsesUsage(event?.response?.usage ?? event?.usage)
+              const responseObj = event.response as Record<string, unknown> | undefined
+              const usageData = (responseObj?.usage ?? event.usage) as
+                | OpenAI.Responses.ResponseUsage
+                | undefined
+              finalUsage = parseResponsesUsage(usageData)
             }
           }
         }

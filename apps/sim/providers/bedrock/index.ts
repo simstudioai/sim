@@ -416,6 +416,7 @@ export const bedrockProvider: ProviderConfig = {
         input: initialCost.input,
         output: initialCost.output,
         total: initialCost.total,
+        pricing: initialCost.pricing,
       }
 
       const toolCalls: any[] = []
@@ -867,6 +868,7 @@ export const bedrockProvider: ProviderConfig = {
           input: cost.input,
           output: cost.output,
           total: cost.total,
+          pricing: cost.pricing,
         },
         toolCalls:
           toolCalls.length > 0
