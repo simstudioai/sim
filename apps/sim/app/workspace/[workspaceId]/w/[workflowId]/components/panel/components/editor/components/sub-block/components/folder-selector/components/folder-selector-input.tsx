@@ -6,6 +6,7 @@ import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -17,6 +18,7 @@ interface FolderSelectorInputProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: any | null
+  previewContextValues?: Record<string, unknown>
 }
 
 export function FolderSelectorInput({
@@ -25,9 +27,13 @@ export function FolderSelectorInput({
   disabled = false,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: FolderSelectorInputProps) {
   const [storeValue] = useSubBlockValue(blockId, subBlock.id)
-  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
+  const [credentialFromStore] = useSubBlockValue(blockId, 'credential')
+  const connectedCredential = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.credential)
+    : credentialFromStore
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
@@ -47,7 +53,11 @@ export function FolderSelectorInput({
   )
 
   // Central dependsOn gating
-  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, {
+    disabled,
+    isPreview,
+    previewContextValues,
+  })
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {

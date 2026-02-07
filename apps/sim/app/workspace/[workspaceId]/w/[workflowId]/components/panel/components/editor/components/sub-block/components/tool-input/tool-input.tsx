@@ -332,6 +332,7 @@ function FolderSelectorSyncWrapper({
           dependsOn: uiComponent.dependsOn,
         }}
         disabled={disabled}
+        previewContextValues={previewContextValues}
       />
     </GenericSyncWrapper>
   )

@@ -8,6 +8,7 @@ import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/sub
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
+import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { resolveSelectorForSubBlock, type SelectorResolution } from '@/hooks/selectors/resolution'
@@ -66,9 +67,12 @@ export function SheetSelectorInput({
     [blockValues, canonicalIndex, canonicalModeOverrides]
   )
 
-  const connectedCredential = previewContextValues?.credential ?? connectedCredentialFromStore
+  const connectedCredential = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.credential)
+    : connectedCredentialFromStore
   const spreadsheetId = previewContextValues
-    ? (previewContextValues.spreadsheetId ?? previewContextValues.manualSpreadsheetId)
+    ? (resolvePreviewContextValue(previewContextValues.spreadsheetId) ??
+      resolvePreviewContextValue(previewContextValues.manualSpreadsheetId))
     : spreadsheetIdFromStore
 
   const normalizedCredentialId =

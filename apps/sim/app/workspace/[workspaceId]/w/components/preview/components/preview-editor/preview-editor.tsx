@@ -784,8 +784,12 @@ function PreviewEditorContent({
     ? childWorkflowSnapshotState
     : childWorkflowState
   const resolvedIsLoadingChildWorkflow = isExecutionMode ? false : isLoadingChildWorkflow
+  const isBlockNotExecuted = isExecutionMode && !executionData
   const isMissingChildWorkflow =
-    Boolean(childWorkflowId) && !resolvedIsLoadingChildWorkflow && !resolvedChildWorkflowState
+    Boolean(childWorkflowId) &&
+    !isBlockNotExecuted &&
+    !resolvedIsLoadingChildWorkflow &&
+    !resolvedChildWorkflowState
 
   /** Drills down into the child workflow or opens it in a new tab */
   const handleExpandChildWorkflow = useCallback(() => {
@@ -1192,7 +1196,7 @@ function PreviewEditorContent({
         <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
           <div className='flex-1 overflow-y-auto overflow-x-hidden'>
             {/* Not Executed Banner - shown when in execution mode but block wasn't executed */}
-            {isExecutionMode && !executionData && (
+            {isBlockNotExecuted && (
               <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
                 <div className='flex items-center justify-between'>
                   <Badge variant='gray-secondary' size='sm' dot>
@@ -1419,9 +1423,11 @@ function PreviewEditorContent({
                     ) : (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <span className='text-[13px] text-[var(--text-tertiary)]'>
-                          {isMissingChildWorkflow
-                            ? DELETED_WORKFLOW_LABEL
-                            : 'Unable to load preview'}
+                          {isBlockNotExecuted
+                            ? 'Not Executed'
+                            : isMissingChildWorkflow
+                              ? DELETED_WORKFLOW_LABEL
+                              : 'Unable to load preview'}
                         </span>
                       </div>
                     )}
