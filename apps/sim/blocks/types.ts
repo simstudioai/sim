@@ -208,7 +208,7 @@ export interface SubBlockConfig {
           not?: boolean
         }
       }
-    | (() => {
+    | ((values?: Record<string, unknown>) => {
         field: string
         value: string | number | boolean | Array<string | number | boolean>
         not?: boolean
@@ -261,7 +261,7 @@ export interface SubBlockConfig {
           not?: boolean
         }
       }
-    | (() => {
+    | ((values?: Record<string, unknown>) => {
         field: string
         value: string | number | boolean | Array<string | number | boolean>
         not?: boolean

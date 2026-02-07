@@ -255,10 +255,10 @@ describe('OAuth Token API Routes', () => {
         expect(mockGetOAuthToken).not.toHaveBeenCalled()
       })
 
-      it('should reject API key authentication', async () => {
+      it('should reject non-session authentication', async () => {
         mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
           success: true,
-          authType: 'api_key',
+          authType: 'internal_jwt',
           userId: 'test-user-id',
         })
 

@@ -100,11 +100,14 @@ export function resolveCanonicalMode(
  * Evaluate a subblock condition against a map of raw values.
  */
 export function evaluateSubBlockCondition(
-  condition: SubBlockCondition | (() => SubBlockCondition) | undefined,
+  condition:
+    | SubBlockCondition
+    | ((values?: Record<string, unknown>) => SubBlockCondition)
+    | undefined,
   values: Record<string, unknown>
 ): boolean {
   if (!condition) return true
-  const actual = typeof condition === 'function' ? condition() : condition
+  const actual = typeof condition === 'function' ? condition(values) : condition
   const fieldValue = values[actual.field]
   const valueMatch = Array.isArray(actual.value)
     ? fieldValue != null &&
