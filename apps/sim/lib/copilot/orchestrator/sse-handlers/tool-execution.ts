@@ -32,14 +32,31 @@ export async function executeToolAndReport(
   options?: OrchestratorOptions
 ): Promise<void> {
   const toolCall = context.toolCalls.get(toolCallId)
-  if (!toolCall) return
+  if (!toolCall) {
+    logger.warn('[EXEC] toolCall not found in context map', { toolCallId })
+    return
+  }
 
-  if (toolCall.status === 'executing') return
-  if (wasToolResultSeen(toolCall.id)) return
+  if (toolCall.status === 'executing') {
+    logger.warn('[EXEC] toolCall already executing, skipping', { toolCallId, toolName: toolCall.name })
+    return
+  }
+  if (wasToolResultSeen(toolCall.id)) {
+    logger.warn('[EXEC] toolCall result already seen (dedup), skipping', { toolCallId, toolName: toolCall.name })
+    return
+  }
 
+  logger.info('[EXEC] Starting tool execution', { toolCallId, toolName: toolCall.name, params: toolCall.params ? Object.keys(toolCall.params) : [] })
   toolCall.status = 'executing'
   try {
     const result = await executeToolServerSide(toolCall, execContext)
+    logger.info('[EXEC] executeToolServerSide returned', {
+      toolCallId,
+      toolName: toolCall.name,
+      success: result.success,
+      hasOutput: !!result.output,
+      error: result.error,
+    })
     toolCall.status = result.success ? 'success' : 'error'
     toolCall.result = result
     toolCall.error = result.error
@@ -68,14 +85,21 @@ export async function executeToolAndReport(
     // the SSE reader (our for-await loop) is paused while we're in this
     // handler.  Awaiting here would deadlock: sim waits for Go's response,
     // Go waits for sim to drain the SSE stream.
+    logger.info('[EXEC] Firing markToolComplete (fire-and-forget)', {
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      status: result.success ? 200 : 500,
+    })
     markToolComplete(
       toolCall.id,
       toolCall.name,
       result.success ? 200 : 500,
       result.error || (result.success ? 'Tool completed' : 'Tool failed'),
       result.output
-    ).catch((err) => {
-      logger.error('markToolComplete fire-and-forget failed', {
+    ).then((ok) => {
+      logger.info('[EXEC] markToolComplete resolved', { toolCallId: toolCall.id, toolName: toolCall.name, ok })
+    }).catch((err) => {
+      logger.error('[EXEC] markToolComplete fire-and-forget FAILED', {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
         error: err instanceof Error ? err.message : String(err),
@@ -96,7 +120,13 @@ export async function executeToolAndReport(
       },
     }
     await options?.onEvent?.(resultEvent)
+    logger.info('[EXEC] executeToolAndReport complete', { toolCallId, toolName: toolCall.name })
   } catch (error) {
+    logger.error('[EXEC] executeToolAndReport CAUGHT ERROR', {
+      toolCallId,
+      toolName: toolCall.name,
+      error: error instanceof Error ? error.message : String(error),
+    })
     toolCall.status = 'error'
     toolCall.error = error instanceof Error ? error.message : String(error)
     toolCall.endTime = Date.now()
@@ -104,8 +134,10 @@ export async function executeToolAndReport(
     markToolResultSeen(toolCall.id)
 
     // Fire-and-forget (same reasoning as above).
-    markToolComplete(toolCall.id, toolCall.name, 500, toolCall.error).catch((err) => {
-      logger.error('markToolComplete fire-and-forget failed', {
+    markToolComplete(toolCall.id, toolCall.name, 500, toolCall.error).then((ok) => {
+      logger.info('[EXEC] markToolComplete (error path) resolved', { toolCallId: toolCall.id, ok })
+    }).catch((err) => {
+      logger.error('[EXEC] markToolComplete (error path) FAILED', {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
         error: err instanceof Error ? err.message : String(err),

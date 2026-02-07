@@ -219,29 +219,50 @@ export async function markToolComplete(
   message?: unknown,
   data?: unknown
 ): Promise<boolean> {
+  const url = `${SIM_AGENT_API_URL}/api/tools/mark-complete`
+  logger.info('[MARK-COMPLETE] Starting', {
+    toolCallId,
+    toolName,
+    status,
+    url,
+    hasData: !!data,
+    hasCopilotApiKey: !!env.COPILOT_API_KEY,
+  })
+
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), MARK_COMPLETE_TIMEOUT_MS)
 
     try {
-      const response = await fetch(`${SIM_AGENT_API_URL}/api/tools/mark-complete`, {
+      const body = JSON.stringify({
+        id: toolCallId,
+        name: toolName,
+        status,
+        message,
+        data,
+      })
+      logger.info('[MARK-COMPLETE] Sending POST', { toolCallId, toolName, bodyLength: body.length })
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
         },
-        body: JSON.stringify({
-          id: toolCallId,
-          name: toolName,
-          status,
-          message,
-          data,
-        }),
+        body,
         signal: controller.signal,
       })
 
+      logger.info('[MARK-COMPLETE] Response received', {
+        toolCallId,
+        toolName,
+        httpStatus: response.status,
+        ok: response.ok,
+      })
+
       if (!response.ok) {
-        logger.warn('Mark-complete call failed', { toolCallId, toolName, status: response.status })
+        const responseText = await response.text().catch(() => '')
+        logger.warn('[MARK-COMPLETE] Non-OK response', { toolCallId, toolName, httpStatus: response.status, responseText })
         return false
       }
 
@@ -252,11 +273,12 @@ export async function markToolComplete(
   } catch (error) {
     const isTimeout =
       error instanceof DOMException && error.name === 'AbortError'
-    logger.error('Mark-complete call failed', {
+    logger.error('[MARK-COMPLETE] FAILED', {
       toolCallId,
       toolName,
       timedOut: isTimeout,
       error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : undefined,
     })
     return false
   }

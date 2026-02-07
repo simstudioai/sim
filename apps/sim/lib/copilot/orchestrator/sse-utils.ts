@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import { STREAM_BUFFER_MAX_DEDUP_ENTRIES } from '@/lib/copilot/constants'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
+
+const logger = createLogger('CopilotSseUtils')
 
 type EventDataObject = Record<string, unknown> | undefined
 
@@ -107,7 +110,10 @@ export function shouldSkipToolCallEvent(event: SSEEvent): boolean {
   if (!toolCallId) return false
   const eventData = getEventData(event)
   if (eventData?.partial === true) return false
-  if (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId)) {
+  const resultSeen = wasToolResultSeen(toolCallId)
+  const callSeen = wasToolCallSeen(toolCallId)
+  if (resultSeen || callSeen) {
+    logger.info('[DEDUP] Skipping tool_call event', { toolCallId, resultSeen, callSeen, seenToolCallsSize: seenToolCalls.size, seenToolResultsSize: seenToolResults.size })
     return true
   }
   markToolCallSeen(toolCallId)
@@ -118,7 +124,10 @@ export function shouldSkipToolResultEvent(event: SSEEvent): boolean {
   if (event.type !== 'tool_result') return false
   const toolCallId = getToolCallIdFromEvent(event)
   if (!toolCallId) return false
-  if (wasToolResultSeen(toolCallId)) return true
+  if (wasToolResultSeen(toolCallId)) {
+    logger.info('[DEDUP] Skipping tool_result event', { toolCallId, seenToolResultsSize: seenToolResults.size })
+    return true
+  }
   markToolResultSeen(toolCallId)
   return false
 }
