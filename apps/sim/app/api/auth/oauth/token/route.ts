@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getCredential, getOAuthToken, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         providerId,
       })
 
-      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || auth.authType !== 'session' || !auth.userId) {
         logger.warn(`[${requestId}] Unauthorized request for credentialAccountUserId path`, {
           success: auth.success,
@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
     const { credentialId } = parseResult.data
 
     // For GET requests, we only support session-based authentication
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || auth.authType !== 'session' || !auth.userId) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }

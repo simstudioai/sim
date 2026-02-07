@@ -35,6 +35,7 @@ interface CredentialSelectorProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: any | null
+  previewContextValues?: Record<string, unknown>
 }
 
 export function CredentialSelector({
@@ -43,6 +44,7 @@ export function CredentialSelector({
   disabled = false,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: CredentialSelectorProps) {
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingValue, setEditingValue] = useState('')
@@ -67,7 +69,11 @@ export function CredentialSelector({
     canUseCredentialSets
   )
 
-  const { depsSatisfied, dependsOn } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+  const { depsSatisfied, dependsOn } = useDependsOnGate(blockId, subBlock, {
+    disabled,
+    isPreview,
+    previewContextValues,
+  })
   const hasDependencies = dependsOn.length > 0
 
   const effectiveDisabled = disabled || (hasDependencies && !depsSatisfied)

@@ -80,6 +80,7 @@ export class RouterBlockHandler implements BlockHandler {
 
     try {
       const url = new URL('/api/providers', getBaseUrl())
+      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
@@ -96,24 +97,15 @@ export class RouterBlockHandler implements BlockHandler {
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: finalApiKey,
+        azureEndpoint: inputs.azureEndpoint,
+        azureApiVersion: inputs.azureApiVersion,
+        vertexProject: routerConfig.vertexProject,
+        vertexLocation: routerConfig.vertexLocation,
+        bedrockAccessKeyId: routerConfig.bedrockAccessKeyId,
+        bedrockSecretKey: routerConfig.bedrockSecretKey,
+        bedrockRegion: routerConfig.bedrockRegion,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
-      }
-
-      if (providerId === 'vertex') {
-        providerRequest.vertexProject = routerConfig.vertexProject
-        providerRequest.vertexLocation = routerConfig.vertexLocation
-      }
-
-      if (providerId === 'azure-openai') {
-        providerRequest.azureEndpoint = inputs.azureEndpoint
-        providerRequest.azureApiVersion = inputs.azureApiVersion
-      }
-
-      if (providerId === 'bedrock') {
-        providerRequest.bedrockAccessKeyId = routerConfig.bedrockAccessKeyId
-        providerRequest.bedrockSecretKey = routerConfig.bedrockSecretKey
-        providerRequest.bedrockRegion = routerConfig.bedrockRegion
       }
 
       const response = await fetch(url.toString(), {
@@ -218,6 +210,7 @@ export class RouterBlockHandler implements BlockHandler {
 
     try {
       const url = new URL('/api/providers', getBaseUrl())
+      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
       const messages = [{ role: 'user', content: routerConfig.context }]
       const systemPrompt = generateRouterV2Prompt(routerConfig.context, routes)
@@ -234,6 +227,13 @@ export class RouterBlockHandler implements BlockHandler {
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: finalApiKey,
+        azureEndpoint: inputs.azureEndpoint,
+        azureApiVersion: inputs.azureApiVersion,
+        vertexProject: routerConfig.vertexProject,
+        vertexLocation: routerConfig.vertexLocation,
+        bedrockAccessKeyId: routerConfig.bedrockAccessKeyId,
+        bedrockSecretKey: routerConfig.bedrockSecretKey,
+        bedrockRegion: routerConfig.bedrockRegion,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
         responseFormat: {
@@ -255,22 +255,6 @@ export class RouterBlockHandler implements BlockHandler {
           },
           strict: true,
         },
-      }
-
-      if (providerId === 'vertex') {
-        providerRequest.vertexProject = routerConfig.vertexProject
-        providerRequest.vertexLocation = routerConfig.vertexLocation
-      }
-
-      if (providerId === 'azure-openai') {
-        providerRequest.azureEndpoint = inputs.azureEndpoint
-        providerRequest.azureApiVersion = inputs.azureApiVersion
-      }
-
-      if (providerId === 'bedrock') {
-        providerRequest.bedrockAccessKeyId = routerConfig.bedrockAccessKeyId
-        providerRequest.bedrockSecretKey = routerConfig.bedrockSecretKey
-        providerRequest.bedrockRegion = routerConfig.bedrockRegion
       }
 
       const response = await fetch(url.toString(), {

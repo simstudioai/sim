@@ -24,7 +24,6 @@ import {
   extractTextContent,
   mapToThinkingLevel,
 } from '@/providers/google/utils'
-import { getThinkingCapability } from '@/providers/models'
 import type { FunctionCallResponse, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   calculateCost,
@@ -432,13 +431,11 @@ export async function executeGeminiRequest(
       logger.warn('Gemini does not support responseFormat with tools. Structured output ignored.')
     }
 
-    // Configure thinking for models that support it
-    const thinkingCapability = getThinkingCapability(model)
-    if (thinkingCapability) {
-      const level = request.thinkingLevel ?? thinkingCapability.default ?? 'high'
+    // Configure thinking only when the user explicitly selects a thinking level
+    if (request.thinkingLevel && request.thinkingLevel !== 'none') {
       const thinkingConfig: ThinkingConfig = {
         includeThoughts: false,
-        thinkingLevel: mapToThinkingLevel(level),
+        thinkingLevel: mapToThinkingLevel(request.thinkingLevel),
       }
       geminiConfig.thinkingConfig = thinkingConfig
     }

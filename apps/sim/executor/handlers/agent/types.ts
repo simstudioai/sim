@@ -1,7 +1,14 @@
+export interface SkillInput {
+  skillId: string
+  name?: string
+  description?: string
+}
+
 export interface AgentInputs {
   model?: string
   responseFormat?: string | object
   tools?: ToolInput[]
+  skills?: SkillInput[]
   // Legacy inputs (backward compatible)
   systemPrompt?: string
   userPrompt?: string | object
@@ -27,6 +34,7 @@ export interface AgentInputs {
   bedrockRegion?: string
   reasoningEffort?: string
   verbosity?: string
+  thinkingLevel?: string
 }
 
 export interface ToolInput {

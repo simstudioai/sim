@@ -1,0 +1,67 @@
+---
+title: Airweave
+description: Search your synced data collections
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airweave"
+  color="#6366F1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airweave](https://airweave.ai/) is an AI-powered semantic search platform that helps you discover and retrieve knowledge across all your synced data sources. Built for modern teams, Airweave enables fast, relevant search results using neural, hybrid, or keyword-based strategies tailored to your needs.
+
+With Airweave, you can:
+
+- **Search smarter**: Use natural language queries to uncover information stored across your connected tools and databases
+- **Unify your data**: Seamlessly access content from sources like code, docs, chat, emails, cloud files, and more
+- **Customize retrieval**: Select between hybrid (semantic + keyword), neural, or keyword search strategies for optimal results
+- **Boost recall**: Expand search queries with AI to find more comprehensive answers
+- **Rerank results using AI**: Prioritize the most relevant answers with powerful language models
+- **Get instant answers**: Generate clear, AI-powered responses synthesized from your data
+
+In Sim, the Airweave integration empowers your agents to search, summarize, and extract insights from all your organization’s data via a single tool. Use Airweave to drive rich, contextual knowledge retrieval within your workflows—whether answering questions, generating summaries, or supporting dynamic decision-making.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.
+
+
+
+## Tools
+
+### `airweave_search`
+
+Search your synced data collections using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Airweave API Key for authentication |
+| `collectionId` | string | Yes | The readable ID of the collection to search |
+| `query` | string | Yes | The search query text |
+| `limit` | number | No | Maximum number of results to return \(default: 100\) |
+| `retrievalStrategy` | string | No | Retrieval strategy: hybrid \(default\), neural, or keyword |
+| `expandQuery` | boolean | No | Generate query variations to improve recall |
+| `rerank` | boolean | No | Reorder results for improved relevance using LLM |
+| `generateAnswer` | boolean | No | Generate a natural-language answer to the query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Search results with content, scores, and metadata from your synced data |
+|   ↳ `entity_id` | string | Unique identifier for the search result entity |
+|   ↳ `source_name` | string | Name of the data source \(e.g., "GitHub", "Slack"\) |
+|   ↳ `md_content` | string | Markdown-formatted content of the result |
+|   ↳ `score` | number | Relevance score from the search |
+|   ↳ `metadata` | object | Additional metadata associated with the result |
+|   ↳ `breadcrumbs` | array | Navigation path to the result within its source |
+|   ↳ `url` | string | URL to the original content |
+| `completion` | string | AI-generated answer to the query \(when generateAnswer is enabled\) |
+
+

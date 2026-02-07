@@ -9,6 +9,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
+import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
@@ -218,10 +219,36 @@ export async function executeTool(
     // Normalize tool ID to strip resource suffixes (e.g., workflow_executor_<uuid> -> workflow_executor)
     const normalizedToolId = normalizeToolId(toolId)
 
+    // Handle load_skill tool for agent skills progressive disclosure
+    if (normalizedToolId === 'load_skill') {
+      const skillName = params.skill_name
+      const workspaceId = params._context?.workspaceId
+      if (!skillName || !workspaceId) {
+        return {
+          success: false,
+          output: { error: 'Missing skill_name or workspace context' },
+          error: 'Missing skill_name or workspace context',
+        }
+      }
+      const content = await resolveSkillContent(skillName, workspaceId)
+      if (!content) {
+        return {
+          success: false,
+          output: { error: `Skill "${skillName}" not found` },
+          error: `Skill "${skillName}" not found`,
+        }
+      }
+      return {
+        success: true,
+        output: { content },
+      }
+    }
+
     // If it's a custom tool, use the async version with workflowId
     if (isCustomTool(normalizedToolId)) {
       const workflowId = params._context?.workflowId
-      tool = await getToolAsync(normalizedToolId, workflowId)
+      const userId = params._context?.userId
+      tool = await getToolAsync(normalizedToolId, workflowId, userId)
       if (!tool) {
         logger.error(`[${requestId}] Custom tool not found: ${normalizedToolId}`)
       }
@@ -260,25 +287,24 @@ export async function executeTool(
       try {
         const baseUrl = getBaseUrl()
 
+        const workflowId = contextParams._context?.workflowId
+        const userId = contextParams._context?.userId
+
         const tokenPayload: OAuthTokenPayload = {
           credentialId: contextParams.credential as string,
         }
-
-        // Add workflowId if it exists in params, context, or executionContext
-        const workflowId =
-          contextParams.workflowId ||
-          contextParams._context?.workflowId ||
-          executionContext?.workflowId
         if (workflowId) {
           tokenPayload.workflowId = workflowId
         }
 
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
-        // Build token URL and also include workflowId in query so server auth can read it
         const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
         if (workflowId) {
           tokenUrlObj.searchParams.set('workflowId', workflowId)
+        }
+        if (userId) {
+          tokenUrlObj.searchParams.set('userId', userId)
         }
 
         // Always send Content-Type; add internal auth on server-side runs
@@ -582,6 +608,10 @@ async function executeToolRequest(
       const workflowId = params._context?.workflowId
       if (workflowId) {
         fullUrlObj.searchParams.set('workflowId', workflowId)
+      }
+      const userId = params._context?.userId
+      if (userId) {
+        fullUrlObj.searchParams.set('userId', userId)
       }
     }
 
@@ -931,6 +961,7 @@ async function executeMcpTool(
 
     const workspaceId = params._context?.workspaceId || executionContext?.workspaceId
     const workflowId = params._context?.workflowId || executionContext?.workflowId
+    const userId = params._context?.userId || executionContext?.userId
 
     if (!workspaceId) {
       return {
@@ -972,7 +1003,12 @@ async function executeMcpTool(
       hasToolSchema: !!toolSchema,
     })
 
-    const response = await fetch(`${baseUrl}/api/mcp/tools/execute`, {
+    const mcpUrl = new URL('/api/mcp/tools/execute', baseUrl)
+    if (userId) {
+      mcpUrl.searchParams.set('userId', userId)
+    }
+
+    const response = await fetch(mcpUrl.toString(), {
       method: 'POST',
       headers,
       body,

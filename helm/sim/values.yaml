@@ -139,7 +139,25 @@ app:
     EXECUTION_TIMEOUT_ASYNC_PRO: "5400"                   # Pro tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
-    
+
+    # Isolated-VM Worker Pool Configuration
+    IVM_POOL_SIZE: "4"                                    # Max worker processes in pool
+    IVM_MAX_CONCURRENT: "10000"                           # Max concurrent executions globally
+    IVM_MAX_PER_WORKER: "2500"                            # Max concurrent executions per worker
+    IVM_WORKER_IDLE_TIMEOUT_MS: "60000"                   # Worker idle cleanup timeout (ms)
+    IVM_QUEUE_TIMEOUT_MS: "300000"                        # Max queue wait before rejection (ms)
+    IVM_MAX_QUEUE_SIZE: "10000"                           # Max queued executions globally
+    IVM_MAX_ACTIVE_PER_OWNER: "200"                       # Max concurrent executions per user
+    IVM_MAX_QUEUED_PER_OWNER: "2000"                      # Max queued executions per user
+    IVM_MAX_OWNER_WEIGHT: "5"                             # Max scheduling weight per user
+    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: "2200"        # Max in-flight per user across instances (Redis)
+    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: "120000"            # Min distributed lease TTL (ms)
+    IVM_MAX_FETCH_RESPONSE_BYTES: "8388608"               # Max fetch response size (8MB)
+    IVM_MAX_FETCH_RESPONSE_CHARS: "4000000"               # Max fetch response chars
+    IVM_MAX_FETCH_URL_LENGTH: "8192"                      # Max fetch URL length
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: "262144"            # Max fetch options payload (256KB)
+    IVM_MAX_STDOUT_CHARS: "200000"                        # Max stdout capture per execution
+
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
     NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL (leave empty for default)

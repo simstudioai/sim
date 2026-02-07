@@ -8,6 +8,7 @@ import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 
@@ -58,9 +59,15 @@ export function SlackSelectorInput({
   const [botToken] = useSubBlockValue(blockId, 'botToken')
   const [connectedCredential] = useSubBlockValue(blockId, 'credential')
 
-  const effectiveAuthMethod = previewContextValues?.authMethod ?? authMethod
-  const effectiveBotToken = previewContextValues?.botToken ?? botToken
-  const effectiveCredential = previewContextValues?.credential ?? connectedCredential
+  const effectiveAuthMethod = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.authMethod)
+    : authMethod
+  const effectiveBotToken = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.botToken)
+    : botToken
+  const effectiveCredential = previewContextValues
+    ? resolvePreviewContextValue(previewContextValues.credential)
+    : connectedCredential
   const [_selectedValue, setSelectedValue] = useState<string | null>(null)
 
   const serviceId = subBlock.serviceId || ''

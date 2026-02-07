@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { evaluateScopeCoverage, type OAuthProvider, parseProvider } from '@/lib/oauth'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     const { provider: providerParam, workflowId, credentialId } = parseResult.data
 
     // Authenticate requester (supports session, API key, internal JWT)
-    const authResult = await checkHybridAuth(request)
+    const authResult = await checkSessionOrInternalAuth(request)
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthenticated credentials request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })

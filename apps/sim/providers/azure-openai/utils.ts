@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import type { Stream } from 'openai/streaming'
@@ -20,8 +21,8 @@ export function createReadableStreamFromAzureOpenAIStream(
  * Uses the shared OpenAI-compatible forced tool usage helper.
  */
 export function checkForForcedToolUsage(
-  response: any,
-  toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any },
+  response: OpenAI.Chat.Completions.ChatCompletion,
+  toolChoice: string | { type: string; function?: { name: string }; name?: string },
   _logger: Logger,
   forcedTools: string[],
   usedForcedTools: string[]

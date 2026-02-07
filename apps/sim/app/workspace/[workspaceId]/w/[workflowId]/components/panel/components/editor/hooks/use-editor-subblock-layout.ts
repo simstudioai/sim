@@ -6,6 +6,7 @@ import {
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -35,6 +36,7 @@ export function useEditorSubblockLayout(
   const blockDataFromStore = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.data, [blockId])
   )
+  const { config: permissionConfig } = usePermissionConfig()
 
   return useMemo(() => {
     // Guard against missing config or block selection
@@ -100,6 +102,9 @@ export function useEditorSubblockLayout(
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false
 
+      // Hide skill-input subblock when skills are disabled via permissions
+      if (block.type === 'skill-input' && permissionConfig.disableSkills) return false
+
       // Check required feature if specified - declarative feature gating
       if (!isSubBlockFeatureEnabled(block)) return false
 
@@ -149,5 +154,6 @@ export function useEditorSubblockLayout(
     activeWorkflowId,
     isSnapshotView,
     blockDataFromStore,
+    permissionConfig.disableSkills,
   ])
 }

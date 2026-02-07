@@ -32,6 +32,7 @@ import {
   ScheduleInfo,
   SheetSelectorInput,
   ShortInput,
+  SkillInput,
   SlackSelectorInput,
   SliderInput,
   Switch,
@@ -687,6 +688,17 @@ function SubBlockComponent({
           />
         )
 
+      case 'skill-input':
+        return (
+          <SkillInput
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue}
+            disabled={isDisabled}
+          />
+        )
+
       case 'checkbox-list':
         return (
           <CheckboxList
@@ -785,6 +797,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -820,6 +833,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -831,6 +845,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -853,6 +868,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -864,6 +880,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -875,6 +892,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -899,6 +917,7 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -934,6 +953,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -967,6 +987,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 
@@ -978,6 +999,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={isPreview ? subBlockValues : undefined}
           />
         )
 

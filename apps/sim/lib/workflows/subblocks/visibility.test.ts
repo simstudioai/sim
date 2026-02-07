@@ -156,6 +156,15 @@ describe('evaluateSubBlockCondition', () => {
       expect(evaluateSubBlockCondition(condition, values)).toBe(true)
     })
 
+    it.concurrent('passes current values into function conditions', () => {
+      const condition = (values?: Record<string, unknown>) => ({
+        field: 'model',
+        value: typeof values?.model === 'string' ? values.model : '__no_model_selected__',
+      })
+      const values = { model: 'ollama/gemma3:4b' }
+      expect(evaluateSubBlockCondition(condition, values)).toBe(true)
+    })
+
     it.concurrent('handles boolean values', () => {
       const condition = { field: 'enabled', value: true }
       const values = { enabled: true }

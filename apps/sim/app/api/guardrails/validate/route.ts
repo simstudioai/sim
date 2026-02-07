@@ -23,7 +23,16 @@ export async function POST(request: NextRequest) {
       topK,
       model,
       apiKey,
+      azureEndpoint,
+      azureApiVersion,
+      vertexProject,
+      vertexLocation,
+      vertexCredential,
+      bedrockAccessKeyId,
+      bedrockSecretKey,
+      bedrockRegion,
       workflowId,
+      workspaceId,
       piiEntityTypes,
       piiMode,
       piiLanguage,
@@ -110,7 +119,18 @@ export async function POST(request: NextRequest) {
       topK,
       model,
       apiKey,
+      {
+        azureEndpoint,
+        azureApiVersion,
+        vertexProject,
+        vertexLocation,
+        vertexCredential,
+        bedrockAccessKeyId,
+        bedrockSecretKey,
+        bedrockRegion,
+      },
       workflowId,
+      workspaceId,
       piiEntityTypes,
       piiMode,
       piiLanguage,
@@ -178,7 +198,18 @@ async function executeValidation(
   topK: string | undefined,
   model: string,
   apiKey: string | undefined,
+  providerCredentials: {
+    azureEndpoint?: string
+    azureApiVersion?: string
+    vertexProject?: string
+    vertexLocation?: string
+    vertexCredential?: string
+    bedrockAccessKeyId?: string
+    bedrockSecretKey?: string
+    bedrockRegion?: string
+  },
   workflowId: string | undefined,
+  workspaceId: string | undefined,
   piiEntityTypes: string[] | undefined,
   piiMode: string | undefined,
   piiLanguage: string | undefined,
@@ -219,7 +250,9 @@ async function executeValidation(
       topK: topK ? Number.parseInt(topK) : 10, // Default topK is 10
       model: model,
       apiKey,
+      providerCredentials,
       workflowId,
+      workspaceId,
       requestId,
     })
   }

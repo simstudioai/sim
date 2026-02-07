@@ -21,7 +21,8 @@ export function setupConnectionHandlers(socket: AuthenticatedSocket, roomManager
       cleanupPendingSubblocksForSocket(socket.id)
       cleanupPendingVariablesForSocket(socket.id)
 
-      const workflowId = await roomManager.removeUserFromRoom(socket.id)
+      const workflowIdHint = [...socket.rooms].find((roomId) => roomId !== socket.id)
+      const workflowId = await roomManager.removeUserFromRoom(socket.id, workflowIdHint)
 
       if (workflowId) {
         await roomManager.broadcastPresenceUpdate(workflowId)

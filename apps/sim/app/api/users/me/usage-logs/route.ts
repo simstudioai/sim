@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
 
 const logger = createLogger('UsageLogsAPI')
@@ -20,7 +20,7 @@ const QuerySchema = z.object({
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await checkHybridAuth(req, { requireWorkflowId: false })
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
 
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
