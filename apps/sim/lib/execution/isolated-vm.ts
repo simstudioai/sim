@@ -971,6 +971,7 @@ export async function executeInIsolatedVM(
     req.timeoutMs
   )
   if (leaseAcquireResult === 'limit_exceeded') {
+    maybeCleanupOwner(ownerKey)
     return {
       result: null,
       stdout: '',
@@ -982,6 +983,7 @@ export async function executeInIsolatedVM(
     }
   }
   if (leaseAcquireResult === 'unavailable') {
+    maybeCleanupOwner(ownerKey)
     return {
       result: null,
       stdout: '',
