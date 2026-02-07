@@ -2,13 +2,13 @@ import { db } from '@sim/db'
 import { account, workflow as workflowTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export interface CredentialAccessResult {
   ok: boolean
   error?: string
-  authType?: 'session' | 'api_key' | 'internal_jwt'
+  authType?: 'session' | 'internal_jwt'
   requesterUserId?: string
   credentialOwnerUserId?: string
   workspaceId?: string
@@ -16,10 +16,10 @@ export interface CredentialAccessResult {
 
 /**
  * Centralizes auth + collaboration rules for credential use.
- * - Uses checkHybridAuth to authenticate the caller
+ * - Uses checkSessionOrInternalAuth to authenticate the caller
  * - Fetches credential owner
  * - Authorization rules:
- *   - session/api_key: allow if requester owns the credential; otherwise require workflowId and
+ *   - session: allow if requester owns the credential; otherwise require workflowId and
  *     verify BOTH requester and owner have access to the workflow's workspace
  *   - internal_jwt: require workflowId (by default) and verify credential owner has access to the
  *     workflow's workspace (requester identity is the system/workflow)
@@ -30,7 +30,9 @@ export async function authorizeCredentialUse(
 ): Promise<CredentialAccessResult> {
   const { credentialId, workflowId, requireWorkflowIdForInternal = true } = params
 
-  const auth = await checkHybridAuth(request, { requireWorkflowId: requireWorkflowIdForInternal })
+  const auth = await checkSessionOrInternalAuth(request, {
+    requireWorkflowId: requireWorkflowIdForInternal,
+  })
   if (!auth.success || !auth.userId) {
     return { ok: false, error: auth.error || 'Authentication required' }
   }
@@ -92,7 +94,7 @@ export async function authorizeCredentialUse(
     }
   }
 
-  // Session/API key: verify BOTH requester and owner belong to the workflow's workspace
+  // Session: verify BOTH requester and owner belong to the workflow's workspace
   const requesterPerm = await getUserEntityPermissions(auth.userId, 'workspace', wf.workspaceId)
   const ownerPerm = await getUserEntityPermissions(
     credentialOwnerUserId,

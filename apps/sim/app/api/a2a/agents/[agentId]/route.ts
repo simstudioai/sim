@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
     }
 
     if (!agent.agent.isPublished) {
-      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success) {
         return NextResponse.json({ error: 'Agent not published' }, { status: 404 })
       }
@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
   const { agentId } = await params
 
   try {
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -151,7 +151,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { agentId } = await params
 
   try {
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
   const { agentId } = await params
 
   try {
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       logger.warn('A2A agent publish auth failed:', { error: auth.error, hasUserId: !!auth.userId })
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })

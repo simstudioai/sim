@@ -5,7 +5,7 @@ import path from 'path'
 import { createLogger } from '@sim/logger'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: true })
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: true })
 
     if (!authResult.success) {
       logger.warn('Unauthorized file parse request', {

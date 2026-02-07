@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -36,7 +36,7 @@ async function validateMemoryAccess(
   requestId: string,
   action: 'read' | 'write'
 ): Promise<{ userId: string } | { error: NextResponse }> {
-  const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+  const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success || !authResult.userId) {
     logger.warn(`[${requestId}] Unauthorized memory ${action} attempt`)
     return {
