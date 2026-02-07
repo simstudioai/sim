@@ -377,7 +377,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 32000, default: 8192 },
+          maxOutputTokens: { max: 64000, default: 8192 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -395,7 +395,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
-          maxOutputTokens: { max: 32000, default: 8192 },
+          maxOutputTokens: { max: 64000, default: 8192 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -800,7 +800,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: { max: 32000, default: 8192 },
+          maxOutputTokens: { max: 64000, default: 8192 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',

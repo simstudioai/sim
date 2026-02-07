@@ -594,7 +594,7 @@ describe('Max Output Tokens', () => {
     })
 
     it.concurrent('should return correct values for Claude Opus 4.1', () => {
-      expect(getMaxOutputTokensForModel('claude-opus-4-1', true)).toBe(32000)
+      expect(getMaxOutputTokensForModel('claude-opus-4-1', true)).toBe(64000)
       expect(getMaxOutputTokensForModel('claude-opus-4-1', false)).toBe(8192)
     })
 
