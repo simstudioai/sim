@@ -959,6 +959,18 @@ export function supportsTemperature(model: string): boolean {
   return supportsTemperatureFromDefinitions(model)
 }
 
+export function supportsReasoningEffort(model: string): boolean {
+  return MODELS_WITH_REASONING_EFFORT.includes(model.toLowerCase())
+}
+
+export function supportsVerbosity(model: string): boolean {
+  return MODELS_WITH_VERBOSITY.includes(model.toLowerCase())
+}
+
+export function supportsThinking(model: string): boolean {
+  return MODELS_WITH_THINKING.includes(model.toLowerCase())
+}
+
 /**
  * Get the maximum temperature value for a model
  * @returns Maximum temperature value (1 or 2) or undefined if temperature not supported
