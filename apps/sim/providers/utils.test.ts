@@ -33,8 +33,11 @@ import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
   shouldBillModelUsage,
+  supportsReasoningEffort,
   supportsTemperature,
+  supportsThinking,
   supportsToolUsageControl,
+  supportsVerbosity,
   updateOllamaProviderModels,
 } from '@/providers/utils'
 
@@ -331,6 +334,82 @@ describe('Model Capabilities', () => {
         }
       }
     )
+  })
+
+  describe('supportsReasoningEffort', () => {
+    it.concurrent('should return true for models with reasoning effort capability', () => {
+      expect(supportsReasoningEffort('gpt-5')).toBe(true)
+      expect(supportsReasoningEffort('gpt-5-mini')).toBe(true)
+      expect(supportsReasoningEffort('gpt-5.1')).toBe(true)
+      expect(supportsReasoningEffort('gpt-5.2')).toBe(true)
+      expect(supportsReasoningEffort('o3')).toBe(true)
+      expect(supportsReasoningEffort('o4-mini')).toBe(true)
+      expect(supportsReasoningEffort('azure/gpt-5')).toBe(true)
+      expect(supportsReasoningEffort('azure/o3')).toBe(true)
+    })
+
+    it.concurrent('should return false for models without reasoning effort capability', () => {
+      expect(supportsReasoningEffort('gpt-4o')).toBe(false)
+      expect(supportsReasoningEffort('gpt-4.1')).toBe(false)
+      expect(supportsReasoningEffort('claude-sonnet-4-5')).toBe(false)
+      expect(supportsReasoningEffort('claude-opus-4-6')).toBe(false)
+      expect(supportsReasoningEffort('gemini-2.5-flash')).toBe(false)
+      expect(supportsReasoningEffort('unknown-model')).toBe(false)
+    })
+
+    it.concurrent('should be case-insensitive', () => {
+      expect(supportsReasoningEffort('GPT-5')).toBe(true)
+      expect(supportsReasoningEffort('O3')).toBe(true)
+      expect(supportsReasoningEffort('GPT-4O')).toBe(false)
+    })
+  })
+
+  describe('supportsVerbosity', () => {
+    it.concurrent('should return true for models with verbosity capability', () => {
+      expect(supportsVerbosity('gpt-5')).toBe(true)
+      expect(supportsVerbosity('gpt-5-mini')).toBe(true)
+      expect(supportsVerbosity('gpt-5.1')).toBe(true)
+      expect(supportsVerbosity('gpt-5.2')).toBe(true)
+      expect(supportsVerbosity('azure/gpt-5')).toBe(true)
+    })
+
+    it.concurrent('should return false for models without verbosity capability', () => {
+      expect(supportsVerbosity('gpt-4o')).toBe(false)
+      expect(supportsVerbosity('o3')).toBe(false)
+      expect(supportsVerbosity('o4-mini')).toBe(false)
+      expect(supportsVerbosity('claude-sonnet-4-5')).toBe(false)
+      expect(supportsVerbosity('unknown-model')).toBe(false)
+    })
+
+    it.concurrent('should be case-insensitive', () => {
+      expect(supportsVerbosity('GPT-5')).toBe(true)
+      expect(supportsVerbosity('GPT-4O')).toBe(false)
+    })
+  })
+
+  describe('supportsThinking', () => {
+    it.concurrent('should return true for models with thinking capability', () => {
+      expect(supportsThinking('claude-opus-4-6')).toBe(true)
+      expect(supportsThinking('claude-opus-4-5')).toBe(true)
+      expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
+      expect(supportsThinking('claude-sonnet-4-0')).toBe(true)
+      expect(supportsThinking('claude-haiku-4-5')).toBe(true)
+      expect(supportsThinking('gemini-3-pro-preview')).toBe(true)
+      expect(supportsThinking('gemini-3-flash-preview')).toBe(true)
+    })
+
+    it.concurrent('should return false for models without thinking capability', () => {
+      expect(supportsThinking('gpt-4o')).toBe(false)
+      expect(supportsThinking('gpt-5')).toBe(false)
+      expect(supportsThinking('o3')).toBe(false)
+      expect(supportsThinking('deepseek-v3')).toBe(false)
+      expect(supportsThinking('unknown-model')).toBe(false)
+    })
+
+    it.concurrent('should be case-insensitive', () => {
+      expect(supportsThinking('CLAUDE-OPUS-4-6')).toBe(true)
+      expect(supportsThinking('GPT-4O')).toBe(false)
+    })
   })
 
   describe('Model Constants', () => {
