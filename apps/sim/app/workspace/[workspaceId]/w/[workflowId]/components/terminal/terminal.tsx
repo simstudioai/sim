@@ -1151,7 +1151,7 @@ export const Terminal = memo(function Terminal() {
       <aside
         ref={terminalRef}
         className={clsx(
-          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden bg-[var(--surface-1)]',
+          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden border-[var(--border)] border-t bg-[var(--surface-1)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
@@ -1160,7 +1160,7 @@ export const Terminal = memo(function Terminal() {
         tabIndex={-1}
         aria-label='Terminal'
       >
-        <div className='relative flex h-full border-[var(--border)] border-t'>
+        <div className='relative flex h-full'>
           {/* Left Section - Logs */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
