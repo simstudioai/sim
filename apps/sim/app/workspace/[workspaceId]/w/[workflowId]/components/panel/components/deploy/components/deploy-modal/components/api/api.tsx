@@ -28,7 +28,6 @@ interface ApiDeployProps {
   deploymentInfo: WorkflowDeploymentInfo | null
   isLoading: boolean
   needsRedeployment: boolean
-  apiDeployError: string | null
   getInputFormatExample: (includeStreaming?: boolean) => string
   selectedStreamingOutputs: string[]
   onSelectedStreamingOutputsChange: (outputs: string[]) => void
@@ -63,7 +62,6 @@ export function ApiDeploy({
   deploymentInfo,
   isLoading,
   needsRedeployment,
-  apiDeployError,
   getInputFormatExample,
   selectedStreamingOutputs,
   onSelectedStreamingOutputsChange,
@@ -419,12 +417,6 @@ console.log(limits);`
   if (isLoading || !info) {
     return (
       <div className='space-y-[16px]'>
-        {apiDeployError && (
-          <div className='rounded-[4px] border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
-            <div className='font-semibold'>API Deployment Error</div>
-            <div>{apiDeployError}</div>
-          </div>
-        )}
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[62px]' />
           <Skeleton className='h-[28px] w-[260px] rounded-[4px]' />
@@ -443,13 +435,6 @@ console.log(limits);`
 
   return (
     <div className='space-y-[16px]'>
-      {apiDeployError && (
-        <div className='rounded-[4px] border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
-          <div className='font-semibold'>API Deployment Error</div>
-          <div>{apiDeployError}</div>
-        </div>
-      )}
-
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
           <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
