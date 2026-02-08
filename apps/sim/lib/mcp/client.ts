@@ -10,10 +10,15 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import type { ListToolsResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import {
+  type ListToolsResult,
+  type Tool,
+  ToolListChangedNotificationSchema,
+} from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
+  type McpClientOptions,
   McpConnectionError,
   type McpConnectionStatus,
   type McpConsentRequest,
@@ -24,6 +29,7 @@ import {
   type McpTool,
   type McpToolCall,
   type McpToolResult,
+  type McpToolsChangedCallback,
   type McpVersionInfo,
 } from '@/lib/mcp/types'
 
@@ -35,6 +41,7 @@ export class McpClient {
   private config: McpServerConfig
   private connectionStatus: McpConnectionStatus
   private securityPolicy: McpSecurityPolicy
+  private onToolsChanged?: McpToolsChangedCallback
   private isConnected = false
 
   private static readonly SUPPORTED_VERSIONS = [
@@ -44,22 +51,35 @@ export class McpClient {
   ]
 
   /**
-   * Creates a new MCP client
+   * Creates a new MCP client.
    *
-   * No session ID parameter (we disconnect after each operation).
-   * The SDK handles session management automatically via Mcp-Session-Id header.
-   *
-   * @param config - Server configuration
-   * @param securityPolicy - Optional security policy
+   * Accepts either the legacy (config, securityPolicy?) signature
+   * or a single McpClientOptions object with an optional onToolsChanged callback.
    */
-  constructor(config: McpServerConfig, securityPolicy?: McpSecurityPolicy) {
-    this.config = config
-    this.connectionStatus = { connected: false }
-    this.securityPolicy = securityPolicy ?? {
-      requireConsent: true,
-      auditLevel: 'basic',
-      maxToolExecutionsPerHour: 1000,
+  constructor(config: McpServerConfig, securityPolicy?: McpSecurityPolicy)
+  constructor(options: McpClientOptions)
+  constructor(
+    configOrOptions: McpServerConfig | McpClientOptions,
+    securityPolicy?: McpSecurityPolicy
+  ) {
+    if ('config' in configOrOptions) {
+      this.config = configOrOptions.config
+      this.securityPolicy = configOrOptions.securityPolicy ?? {
+        requireConsent: true,
+        auditLevel: 'basic',
+        maxToolExecutionsPerHour: 1000,
+      }
+      this.onToolsChanged = configOrOptions.onToolsChanged
+    } else {
+      this.config = configOrOptions
+      this.securityPolicy = securityPolicy ?? {
+        requireConsent: true,
+        auditLevel: 'basic',
+        maxToolExecutionsPerHour: 1000,
+      }
     }
+
+    this.connectionStatus = { connected: false }
 
     if (!this.config.url) {
       throw new McpError('URL required for Streamable HTTP transport')
@@ -79,16 +99,15 @@ export class McpClient {
       {
         capabilities: {
           tools: {},
-          // Resources and prompts can be added later
-          // resources: {},
-          // prompts: {},
         },
       }
     )
   }
 
   /**
-   * Initialize connection to MCP server
+   * Initialize connection to MCP server.
+   * If an `onToolsChanged` callback was provided, registers a notification handler
+   * for `notifications/tools/list_changed` after connecting.
    */
   async connect(): Promise<void> {
     logger.info(`Connecting to MCP server: ${this.config.name} (${this.config.transport})`)
@@ -99,6 +118,15 @@ export class McpClient {
       this.isConnected = true
       this.connectionStatus.connected = true
       this.connectionStatus.lastConnected = new Date()
+
+      if (this.onToolsChanged) {
+        this.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+          if (!this.isConnected) return
+          logger.info(`[${this.config.name}] Received tools/list_changed notification`)
+          this.onToolsChanged?.(this.config.id)
+        })
+        logger.info(`[${this.config.name}] Registered tools/list_changed notification handler`)
+      }
 
       const serverVersion = this.client.getServerVersion()
       logger.info(`Successfully connected to MCP server: ${this.config.name}`, {
@@ -239,6 +267,23 @@ export class McpClient {
   hasCapability(capability: string): boolean {
     const serverCapabilities = this.client.getServerCapabilities()
     return !!serverCapabilities?.[capability]
+  }
+
+  /**
+   * Check if the server declared `capabilities.tools.listChanged: true` during initialization.
+   */
+  hasListChangedCapability(): boolean {
+    const caps = this.client.getServerCapabilities()
+    const toolsCap = caps?.tools as Record<string, unknown> | undefined
+    return !!toolsCap?.listChanged
+  }
+
+  /**
+   * Register a callback to be invoked when the underlying transport closes.
+   * Used by the connection manager for reconnection logic.
+   */
+  onClose(callback: () => void): void {
+    this.transport.onclose = callback
   }
 
   /**

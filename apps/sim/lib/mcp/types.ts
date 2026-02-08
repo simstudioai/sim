@@ -147,6 +147,44 @@ export interface McpServerSummary {
   error?: string
 }
 
+/**
+ * Callback invoked when an MCP server sends a `notifications/tools/list_changed` notification.
+ */
+export type McpToolsChangedCallback = (serverId: string) => void
+
+/**
+ * Options for creating an McpClient with notification support.
+ */
+export interface McpClientOptions {
+  config: McpServerConfig
+  securityPolicy?: McpSecurityPolicy
+  onToolsChanged?: McpToolsChangedCallback
+}
+
+/**
+ * Event emitted by the connection manager when a server's tools change.
+ */
+export interface ToolsChangedEvent {
+  serverId: string
+  serverName: string
+  workspaceId: string
+  timestamp: number
+}
+
+/**
+ * State of a managed persistent connection.
+ */
+export interface ManagedConnectionState {
+  serverId: string
+  serverName: string
+  workspaceId: string
+  userId: string
+  connected: boolean
+  supportsListChanged: boolean
+  reconnectAttempts: number
+  lastActivity: number
+}
+
 export interface McpApiResponse<T = unknown> {
   success: boolean
   data?: T
