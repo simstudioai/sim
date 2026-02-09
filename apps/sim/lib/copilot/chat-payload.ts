@@ -70,6 +70,16 @@ function buildProviderConfig(selectedModel: string): CopilotProviderConfig | und
     }
   }
 
+  if (providerEnv === 'azure-anthropic') {
+    return {
+      provider: 'azure-anthropic',
+      model: envModel,
+      apiKey: env.AZURE_ANTHROPIC_API_KEY,
+      apiVersion: env.AZURE_ANTHROPIC_API_VERSION,
+      endpoint: env.AZURE_ANTHROPIC_ENDPOINT,
+    }
+  }
+
   if (providerEnv === 'vertex') {
     return {
       provider: 'vertex',
