@@ -1,13 +1,16 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2, WrenchIcon, XIcon } from 'lucide-react'
+import { ArrowLeftRight, ArrowUp, Loader2, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
+  Button,
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
+  Input,
+  Label,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -32,31 +35,19 @@ import {
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
-  CheckboxList,
-  Code,
-  FileSelectorInput,
-  FileUpload,
-  FolderSelectorInput,
   LongInput,
-  ProjectSelectorInput,
-  SheetSelectorInput,
   ShortInput,
-  SlackSelectorInput,
-  SliderInput,
-  Table,
-  TimeInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
-import { DocumentSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/document-selector/document-selector'
-import { DocumentTagEntry } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/document-tag-entry/document-tag-entry'
-import { KnowledgeBaseSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/knowledge-base-selector/knowledge-base-selector'
-import { KnowledgeTagFilters } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/knowledge-tag-filters/knowledge-tag-filters'
 import {
   type CustomTool,
   CustomToolModal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-credential-selector'
+import { ToolSubBlockRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tool-sub-block-renderer'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { getAllBlocks } from '@/blocks'
+import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import {
   type CustomTool as CustomToolDefinition,
@@ -74,25 +65,216 @@ import {
   useWorkflowState,
   useWorkflows,
 } from '@/hooks/queries/workflows'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
   formatParameterLabel,
+  getSubBlocksForToolInput,
   getToolParametersConfig,
   isPasswordParameter,
+  type SubBlocksForToolInput,
   type ToolParameterConfig,
 } from '@/tools/params'
 import {
   buildCanonicalIndex,
   buildPreviewContextValues,
   type CanonicalIndex,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  isCanonicalPair,
+  resolveCanonicalMode,
   type SubBlockCondition,
 } from '@/tools/params-resolver'
 
 const logger = createLogger('ToolInput')
+
+/**
+ * Props for a generic parameter with label component
+ */
+interface ParameterWithLabelProps {
+  paramId: string
+  title: string
+  isRequired: boolean
+  visibility: string
+  wandConfig?: {
+    enabled: boolean
+    prompt?: string
+    placeholder?: string
+  }
+  canonicalToggle?: {
+    mode: 'basic' | 'advanced'
+    disabled?: boolean
+    onToggle?: () => void
+  }
+  disabled: boolean
+  isPreview: boolean
+  children: (wandControlRef: React.MutableRefObject<WandControlHandlers | null>) => React.ReactNode
+}
+
+/**
+ * Generic wrapper component for parameters that manages wand state and renders label + input
+ */
+const ParameterWithLabel: React.FC<ParameterWithLabelProps> = ({
+  paramId,
+  title,
+  isRequired,
+  visibility,
+  wandConfig,
+  canonicalToggle,
+  disabled,
+  isPreview,
+  children,
+}) => {
+  const [isSearchActive, setIsSearchActive] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const wandControlRef = useRef<WandControlHandlers | null>(null)
+
+  const isWandEnabled = wandConfig?.enabled ?? false
+  const showWand = isWandEnabled && !isPreview && !disabled
+
+  const handleSearchClick = (): void => {
+    setIsSearchActive(true)
+    setTimeout(() => {
+      searchInputRef.current?.focus()
+    }, 0)
+  }
+
+  const handleSearchBlur = (): void => {
+    if (!searchQuery.trim() && !wandControlRef.current?.isWandStreaming) {
+      setIsSearchActive(false)
+    }
+  }
+
+  const handleSearchChange = (value: string): void => {
+    setSearchQuery(value)
+  }
+
+  const handleSearchSubmit = (): void => {
+    if (searchQuery.trim() && wandControlRef.current) {
+      wandControlRef.current.onWandTrigger(searchQuery)
+      setSearchQuery('')
+      setIsSearchActive(false)
+    }
+  }
+
+  const handleSearchCancel = (): void => {
+    setSearchQuery('')
+    setIsSearchActive(false)
+  }
+
+  const isStreaming = wandControlRef.current?.isWandStreaming ?? false
+
+  return (
+    <div key={paramId} className='relative min-w-0 space-y-[6px]'>
+      <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
+        <Label className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+          {title}
+          {isRequired && visibility === 'user-only' && <span className='ml-0.5'>*</span>}
+          {visibility !== 'user-only' && (
+            <span className='ml-[6px] text-[12px] text-[var(--text-tertiary)]'>(optional)</span>
+          )}
+        </Label>
+        <div className='flex min-w-0 flex-1 items-center justify-end gap-[6px]'>
+          {showWand && (
+            <>
+              {!isSearchActive ? (
+                <Button
+                  variant='active'
+                  className='-my-1 h-5 px-2 py-0 text-[11px]'
+                  onClick={handleSearchClick}
+                >
+                  Generate
+                </Button>
+              ) : (
+                <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-[4px]'>
+                  <Input
+                    ref={searchInputRef}
+                    value={isStreaming ? 'Generating...' : searchQuery}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      handleSearchChange(e.target.value)
+                    }
+                    onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                      const relatedTarget = e.relatedTarget as HTMLElement | null
+                      if (relatedTarget?.closest('button')) return
+                      handleSearchBlur()
+                    }}
+                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                      if (e.key === 'Enter' && searchQuery.trim() && !isStreaming) {
+                        handleSearchSubmit()
+                      } else if (e.key === 'Escape') {
+                        handleSearchCancel()
+                      }
+                    }}
+                    disabled={isStreaming}
+                    className={cn(
+                      'h-5 min-w-[80px] flex-1 text-[11px]',
+                      isStreaming && 'text-muted-foreground'
+                    )}
+                    placeholder='Generate with AI...'
+                  />
+                  <Button
+                    variant='tertiary'
+                    disabled={!searchQuery.trim() || isStreaming}
+                    onMouseDown={(e: React.MouseEvent) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }}
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation()
+                      handleSearchSubmit()
+                    }}
+                    className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                  >
+                    <ArrowUp className='h-[12px] w-[12px]' />
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+          {canonicalToggle && !isPreview && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button
+                  type='button'
+                  className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+                  onClick={canonicalToggle.onToggle}
+                  disabled={canonicalToggle.disabled || disabled}
+                  aria-label={
+                    canonicalToggle.mode === 'advanced'
+                      ? 'Switch to selector'
+                      : 'Switch to manual ID'
+                  }
+                >
+                  <ArrowLeftRight
+                    className={cn(
+                      '!h-[12px] !w-[12px]',
+                      canonicalToggle.mode === 'advanced'
+                        ? 'text-[var(--text-primary)]'
+                        : 'text-[var(--text-secondary)]'
+                    )}
+                  />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>
+                  {canonicalToggle.mode === 'advanced'
+                    ? 'Switch to selector'
+                    : 'Switch to manual ID'}
+                </p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          )}
+        </div>
+      </div>
+      <div className='relative w-full min-w-0'>{children(wandControlRef)}</div>
+    </div>
+  )
+}
 
 /**
  * Props for the ToolInput component
@@ -186,570 +368,10 @@ function resolveCustomToolFromReference(
 }
 
 /**
- * Generic sync wrapper that synchronizes store values with local component state.
- *
- * @remarks
- * Used to sync tool parameter values between the workflow store and local controlled inputs.
- * Listens for changes in the store and propagates them to the local component via onChange.
- *
- * @typeParam T - The type of the store value being synchronized
- *
- * @param blockId - The block identifier for store lookup
- * @param paramId - The parameter identifier within the block
- * @param value - Current local value
- * @param onChange - Callback to update the local value
- * @param children - Child components to render
- * @param transformer - Optional function to transform store value before comparison
- * @returns The children wrapped with synchronization logic
+ * Renders the input for workflow_executor's inputMapping parameter.
+ * This is a special case that doesn't map to any SubBlockConfig, so it's kept here.
  */
-function GenericSyncWrapper<T = unknown>({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  children,
-  transformer,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  children: React.ReactNode
-  transformer?: (storeValue: T) => string
-}) {
-  const [storeValue] = useSubBlockValue(blockId, paramId)
-
-  useEffect(() => {
-    if (storeValue != null) {
-      const transformedValue = transformer ? transformer(storeValue) : String(storeValue)
-      if (transformedValue !== value) {
-        onChange(transformedValue)
-      }
-    }
-  }, [storeValue, value, onChange, transformer])
-
-  return <>{children}</>
-}
-
-function FileSelectorSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-  previewContextValues,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-  previewContextValues?: Record<string, any>
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <FileSelectorInput
-        blockId={blockId}
-        subBlock={{
-          id: paramId,
-          type: 'file-selector' as const,
-          title: paramId,
-          serviceId: uiComponent.serviceId,
-          mimeType: uiComponent.mimeType,
-          requiredScopes: uiComponent.requiredScopes || [],
-          placeholder: uiComponent.placeholder,
-          dependsOn: uiComponent.dependsOn,
-        }}
-        disabled={disabled}
-        previewContextValues={previewContextValues}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function SheetSelectorSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-  previewContextValues,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-  previewContextValues?: Record<string, any>
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <SheetSelectorInput
-        blockId={blockId}
-        subBlock={{
-          id: paramId,
-          type: 'sheet-selector' as const,
-          title: paramId,
-          serviceId: uiComponent.serviceId,
-          requiredScopes: uiComponent.requiredScopes || [],
-          placeholder: uiComponent.placeholder,
-          dependsOn: uiComponent.dependsOn,
-        }}
-        disabled={disabled}
-        previewContextValues={previewContextValues}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function FolderSelectorSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-  previewContextValues,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-  previewContextValues?: Record<string, any>
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <FolderSelectorInput
-        blockId={blockId}
-        subBlock={{
-          id: paramId,
-          type: 'folder-selector' as const,
-          title: paramId,
-          serviceId: uiComponent.serviceId,
-          requiredScopes: uiComponent.requiredScopes || [],
-          placeholder: uiComponent.placeholder,
-          dependsOn: uiComponent.dependsOn,
-        }}
-        disabled={disabled}
-        previewContextValues={previewContextValues}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function KnowledgeBaseSelectorSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <KnowledgeBaseSelector
-        blockId={blockId}
-        subBlock={{
-          id: paramId,
-          type: 'knowledge-base-selector',
-          placeholder: uiComponent.placeholder || 'Select knowledge base',
-          multiSelect: uiComponent.multiSelect ?? false,
-        }}
-        disabled={disabled}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function DocumentSelectorSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-  previewContextValues,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-  previewContextValues?: Record<string, any>
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <DocumentSelector
-        blockId={blockId}
-        subBlock={{
-          id: paramId,
-          type: 'document-selector',
-          placeholder: uiComponent.placeholder || 'Select document',
-          dependsOn: ['knowledgeBaseId'],
-        }}
-        disabled={disabled}
-        previewContextValues={previewContextValues}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function DocumentTagEntrySyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  disabled,
-  previewContextValues,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  disabled: boolean
-  previewContextValues?: Record<string, any>
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <DocumentTagEntry
-        blockId={blockId}
-        subBlock={{
-          id: paramId,
-          type: 'document-tag-entry',
-        }}
-        disabled={disabled}
-        previewContextValues={previewContextValues}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function KnowledgeTagFiltersSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  disabled,
-  previewContextValues,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  disabled: boolean
-  previewContextValues?: Record<string, any>
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <KnowledgeTagFilters
-        blockId={blockId}
-        subBlock={{
-          id: paramId,
-          type: 'knowledge-tag-filters',
-        }}
-        disabled={disabled}
-        previewContextValues={previewContextValues}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function TableSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-}) {
-  return (
-    <GenericSyncWrapper
-      blockId={blockId}
-      paramId={paramId}
-      value={value}
-      onChange={onChange}
-      transformer={(storeValue) => JSON.stringify(storeValue)}
-    >
-      <Table
-        blockId={blockId}
-        subBlockId={paramId}
-        columns={uiComponent.columns || ['Key', 'Value']}
-        disabled={disabled}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function TimeInputSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <TimeInput
-        blockId={blockId}
-        subBlockId={paramId}
-        placeholder={uiComponent.placeholder}
-        disabled={disabled}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function SliderInputSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-}) {
-  return (
-    <GenericSyncWrapper
-      blockId={blockId}
-      paramId={paramId}
-      value={value}
-      onChange={onChange}
-      transformer={(storeValue) => String(storeValue)}
-    >
-      <SliderInput
-        blockId={blockId}
-        subBlockId={paramId}
-        min={uiComponent.min}
-        max={uiComponent.max}
-        step={uiComponent.step}
-        integer={uiComponent.integer}
-        disabled={disabled}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function CheckboxListSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-}) {
-  return (
-    <GenericSyncWrapper
-      blockId={blockId}
-      paramId={paramId}
-      value={value}
-      onChange={onChange}
-      transformer={(storeValue) => JSON.stringify(storeValue)}
-    >
-      <CheckboxList
-        blockId={blockId}
-        subBlockId={paramId}
-        title={uiComponent.title || paramId}
-        options={uiComponent.options || []}
-        disabled={disabled}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function ComboboxSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-}) {
-  const options = (uiComponent.options || []).map((opt: any) =>
-    typeof opt === 'string' ? { label: opt, value: opt } : { label: opt.label, value: opt.id }
-  )
-
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <Combobox
-        options={options}
-        value={value}
-        onChange={onChange}
-        placeholder={uiComponent.placeholder || 'Select option'}
-        disabled={disabled}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function FileUploadSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-}) {
-  return (
-    <GenericSyncWrapper
-      blockId={blockId}
-      paramId={paramId}
-      value={value}
-      onChange={onChange}
-      transformer={(storeValue) => JSON.stringify(storeValue)}
-    >
-      <FileUpload
-        blockId={blockId}
-        subBlockId={paramId}
-        acceptedTypes={uiComponent.acceptedTypes}
-        multiple={uiComponent.multiple}
-        maxSize={uiComponent.maxSize}
-        disabled={disabled}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function SlackSelectorSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-  previewContextValues,
-  selectorType,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-  previewContextValues?: Record<string, any>
-  selectorType: 'channel-selector' | 'user-selector'
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <SlackSelectorInput
-        blockId={blockId}
-        subBlock={{
-          id: paramId,
-          type: selectorType,
-          title: paramId,
-          serviceId: uiComponent.serviceId,
-          placeholder: uiComponent.placeholder,
-          dependsOn: uiComponent.dependsOn,
-        }}
-        onSelect={onChange}
-        disabled={disabled}
-        previewContextValues={previewContextValues}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function WorkflowSelectorSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-  workspaceId,
-  currentWorkflowId,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-  workspaceId: string
-  currentWorkflowId?: string
-}) {
-  const { data: workflows = [], isLoading } = useWorkflows(workspaceId, { syncRegistry: false })
-
-  const availableWorkflows = workflows.filter(
-    (w) => !currentWorkflowId || w.id !== currentWorkflowId
-  )
-
-  const options = availableWorkflows.map((workflow) => ({
-    label: workflow.name,
-    value: workflow.id,
-  }))
-
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <Combobox
-        options={options}
-        value={value}
-        onChange={onChange}
-        placeholder={uiComponent.placeholder || 'Select workflow'}
-        disabled={disabled || isLoading}
-        searchable
-        searchPlaceholder='Search workflows...'
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function WorkflowInputMapperSyncWrapper({
+function WorkflowInputMapperInput({
   blockId,
   paramId,
   value,
@@ -779,7 +401,7 @@ function WorkflowInputMapperSyncWrapper({
   }, [value])
 
   const handleFieldChange = useCallback(
-    (fieldName: string, fieldValue: any) => {
+    (fieldName: string, fieldValue: string) => {
       const newValue = { ...parsedValue, [fieldName]: fieldValue }
       onChange(JSON.stringify(newValue))
     },
@@ -812,7 +434,7 @@ function WorkflowInputMapperSyncWrapper({
 
   return (
     <div className='space-y-3'>
-      {inputFields.map((field: any) => (
+      {inputFields.map((field: { name: string; type: string }) => (
         <ShortInput
           key={field.name}
           blockId={blockId}
@@ -829,44 +451,6 @@ function WorkflowInputMapperSyncWrapper({
         />
       ))}
     </div>
-  )
-}
-
-function CodeEditorSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  disabled,
-  uiComponent,
-  currentToolParams,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  disabled: boolean
-  uiComponent: any
-  currentToolParams?: Record<string, any>
-}) {
-  const language = (currentToolParams?.language as 'javascript' | 'python') || 'javascript'
-
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <Code
-        blockId={blockId}
-        subBlockId={paramId}
-        placeholder={uiComponent.placeholder || 'Write JavaScript...'}
-        language={language}
-        generationType={uiComponent.generationType || 'javascript-function-body'}
-        value={value}
-        disabled={disabled}
-        wandConfig={{
-          enabled: false,
-          prompt: '',
-        }}
-      />
-    </GenericSyncWrapper>
   )
 }
 
@@ -1013,6 +597,14 @@ export const ToolInput = memo(function ToolInput({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [usageControlPopoverIndex, setUsageControlPopoverIndex] = useState<number | null>(null)
+
+  const canonicalModeOverrides = useWorkflowStore(
+    useCallback(
+      (state) => state.blocks[blockId]?.data?.canonicalModes as CanonicalModeOverrides | undefined,
+      [blockId]
+    )
+  )
+  const { collaborativeSetBlockCanonicalMode } = useCollaborativeWorkflow()
 
   const value = isPreview ? previewValue : storeValue
 
@@ -1358,26 +950,6 @@ export const ToolInput = memo(function ToolInput({
     return block.tools.access[0]
   }
 
-  /**
-   * Initializes tool parameters with empty values.
-   *
-   * @remarks
-   * Returns an empty object as parameters are populated dynamically
-   * based on user input and default values from the tool configuration.
-   *
-   * @param toolId - The tool identifier
-   * @param params - Array of parameter configurations
-   * @param instanceId - Optional instance identifier for unique param keys
-   * @returns Empty parameter object to be populated by the user
-   */
-  const initializeToolParams = (
-    toolId: string,
-    params: ToolParameterConfig[],
-    instanceId?: string
-  ): Record<string, string> => {
-    return {}
-  }
-
   const handleSelectTool = useCallback(
     (toolBlock: (typeof toolBlocks)[0]) => {
       if (isPreview || disabled) return
@@ -1394,7 +966,7 @@ export const ToolInput = memo(function ToolInput({
       const toolParams = getToolParametersConfig(toolId, toolBlock.type)
       if (!toolParams) return
 
-      const initialParams = initializeToolParams(toolId, toolParams.userInputParameters, blockId)
+      const initialParams: Record<string, string> = {}
 
       toolParams.userInputParameters.forEach((param) => {
         if (param.uiComponent?.value && !initialParams[param.id]) {
@@ -1427,7 +999,6 @@ export const ToolInput = memo(function ToolInput({
       getOperationOptions,
       getToolIdForOperation,
       isToolAlreadySelected,
-      initializeToolParams,
       blockId,
       selectedTools,
       setStoreValue,
@@ -1597,7 +1168,7 @@ export const ToolInput = memo(function ToolInput({
         return
       }
 
-      const initialParams = initializeToolParams(newToolId, toolParams.userInputParameters, blockId)
+      const initialParams: Record<string, string> = {}
 
       const oldToolParams = tool.toolId ? getToolParametersConfig(tool.toolId, tool.type) : null
       const oldParamIds = new Set(oldToolParams?.userInputParameters.map((p) => p.id) || [])
@@ -1632,15 +1203,7 @@ export const ToolInput = memo(function ToolInput({
         )
       )
     },
-    [
-      isPreview,
-      disabled,
-      selectedTools,
-      getToolIdForOperation,
-      initializeToolParams,
-      blockId,
-      setStoreValue,
-    ]
+    [isPreview, disabled, selectedTools, getToolIdForOperation, blockId, setStoreValue]
   )
 
   const handleUsageControlChange = useCallback(
@@ -1966,26 +1529,18 @@ export const ToolInput = memo(function ToolInput({
   }
 
   /**
-   * Renders the appropriate UI component for a tool parameter.
+   * Renders a parameter input for custom tools, MCP tools, and legacy registry
+   * tools that don't have SubBlockConfig definitions.
    *
-   * @remarks
-   * Supports multiple input types including dropdown, switch, long-input,
-   * short-input, file-selector, table, slider, and more. Falls back to
-   * ShortInput for unknown types.
-   *
-   * @param param - The parameter configuration defining the input type
-   * @param value - The current parameter value
-   * @param onChange - Callback to handle value changes
-   * @param toolIndex - Index of the tool in the selected tools array
-   * @param currentToolParams - Current values of all tool parameters for dependencies
-   * @returns JSX element for the parameter input component
+   * Registry tools with subBlocks use ToolSubBlockRenderer instead.
    */
   const renderParameterInput = (
     param: ToolParameterConfig,
     value: string,
     onChange: (value: string) => void,
     toolIndex?: number,
-    currentToolParams?: Record<string, string>
+    currentToolParams?: Record<string, string>,
+    wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
   ) => {
     const uniqueSubBlockId =
       toolIndex !== undefined
@@ -2007,6 +1562,8 @@ export const ToolInput = memo(function ToolInput({
           }}
           value={value}
           onChange={onChange}
+          wandControlRef={wandControlRef}
+          hideInternalWand={true}
         />
       )
     }
@@ -2016,11 +1573,11 @@ export const ToolInput = memo(function ToolInput({
         return (
           <Combobox
             options={
-              uiComponent.options
-                ?.filter((option: any) => option.id !== '')
-                .map((option: any) => ({
+              (uiComponent.options as { id?: string; label: string; value?: string }[] | undefined)
+                ?.filter((option) => (option.id ?? option.value) !== '')
+                .map((option) => ({
                   label: option.label,
-                  value: option.id,
+                  value: option.id ?? option.value ?? '',
                 })) || []
             }
             value={value}
@@ -2048,9 +1605,12 @@ export const ToolInput = memo(function ToolInput({
               id: uniqueSubBlockId,
               type: 'long-input',
               title: param.id,
+              wandConfig: uiComponent.wandConfig,
             }}
             value={value}
             onChange={onChange}
+            wandControlRef={wandControlRef}
+            hideInternalWand={true}
           />
         )
 
@@ -2065,58 +1625,13 @@ export const ToolInput = memo(function ToolInput({
               id: uniqueSubBlockId,
               type: 'short-input',
               title: param.id,
+              wandConfig: uiComponent.wandConfig,
             }}
             value={value}
             onChange={onChange}
             disabled={disabled}
-          />
-        )
-
-      case 'channel-selector':
-        return (
-          <SlackSelectorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-            previewContextValues={currentToolParams}
-            selectorType='channel-selector'
-          />
-        )
-
-      case 'user-selector':
-        return (
-          <SlackSelectorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-            previewContextValues={currentToolParams}
-            selectorType='user-selector'
-          />
-        )
-
-      case 'project-selector':
-        return (
-          <ProjectSelectorInput
-            blockId={blockId}
-            subBlock={{
-              id: `tool-${toolIndex || 0}-${param.id}`,
-              type: 'project-selector' as const,
-              title: param.id,
-              serviceId: uiComponent.serviceId,
-              placeholder: uiComponent.placeholder,
-              requiredScopes: uiComponent.requiredScopes,
-              dependsOn: uiComponent.dependsOn,
-              canonicalParamId: uiComponent.canonicalParamId ?? param.id,
-            }}
-            onProjectSelect={onChange}
-            disabled={disabled}
-            previewContextValues={currentToolParams}
+            wandControlRef={wandControlRef}
+            hideInternalWand={true}
           />
         )
 
@@ -2132,135 +1647,10 @@ export const ToolInput = memo(function ToolInput({
           />
         )
 
-      case 'file-selector':
-        return (
-          <FileSelectorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-            previewContextValues={currentToolParams}
-          />
-        )
-
-      case 'sheet-selector':
-        return (
-          <SheetSelectorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-            previewContextValues={currentToolParams}
-          />
-        )
-
-      case 'folder-selector':
-        return (
-          <FolderSelectorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-            previewContextValues={currentToolParams}
-          />
-        )
-
-      case 'table':
-        return (
-          <TableSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-          />
-        )
-
-      case 'combobox':
-        return (
-          <ComboboxSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-          />
-        )
-
-      case 'slider':
-        return (
-          <SliderInputSyncWrapper
-            blockId={blockId}
-            paramId={uniqueSubBlockId}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-          />
-        )
-
-      case 'checkbox-list':
-        return (
-          <CheckboxListSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-          />
-        )
-
-      case 'time-input':
-        return (
-          <TimeInputSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-          />
-        )
-
-      case 'file-upload':
-        return (
-          <FileUploadSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-          />
-        )
-
-      case 'workflow-selector':
-        return (
-          <WorkflowSelectorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-            workspaceId={workspaceId}
-            currentWorkflowId={workflowId}
-          />
-        )
-
       case 'workflow-input-mapper': {
         const selectedWorkflowId = currentToolParams?.workflowId || ''
         return (
-          <WorkflowInputMapperSyncWrapper
+          <WorkflowInputMapperInput
             blockId={blockId}
             paramId={param.id}
             value={value}
@@ -2270,68 +1660,6 @@ export const ToolInput = memo(function ToolInput({
           />
         )
       }
-
-      case 'code':
-        return (
-          <CodeEditorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            disabled={disabled}
-            uiComponent={uiComponent}
-            currentToolParams={currentToolParams}
-          />
-        )
-
-      case 'knowledge-base-selector':
-        return (
-          <KnowledgeBaseSelectorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-          />
-        )
-
-      case 'document-selector':
-        return (
-          <DocumentSelectorSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-            previewContextValues={currentToolParams}
-          />
-        )
-
-      case 'document-tag-entry':
-        return (
-          <DocumentTagEntrySyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            disabled={disabled}
-            previewContextValues={currentToolParams}
-          />
-        )
-
-      case 'knowledge-tag-filters':
-        return (
-          <KnowledgeTagFiltersSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            disabled={disabled}
-            previewContextValues={currentToolParams}
-          />
-        )
 
       default:
         return (
@@ -2347,6 +1675,8 @@ export const ToolInput = memo(function ToolInput({
             }}
             value={value}
             onChange={onChange}
+            wandControlRef={wandControlRef}
+            hideInternalWand={true}
           />
         )
     }
@@ -2392,6 +1722,20 @@ export const ToolInput = memo(function ToolInput({
                   operation: tool.operation,
                   ...tool.params,
                 })
+              : null
+
+          // Get subblocks for tool-input (primary source for registry tools)
+          const subBlocksResult: SubBlocksForToolInput | null =
+            !isCustomTool && !isMcpTool && currentToolId
+              ? getSubBlocksForToolInput(
+                  currentToolId,
+                  tool.type,
+                  {
+                    operation: tool.operation,
+                    ...tool.params,
+                  },
+                  canonicalModeOverrides
+                )
               : null
 
           // Build canonical index for proper dependency resolution
@@ -2452,11 +1796,16 @@ export const ToolInput = memo(function ToolInput({
               : []
 
           // Get all parameters to display
-          const displayParams = isCustomTool
+          // For registry tools with subBlocks, use the subblock-first approach
+          const useSubBlocks = !isCustomTool && !isMcpTool && subBlocksResult?.subBlocks?.length
+          const displayParams: ToolParameterConfig[] = isCustomTool
             ? customToolParams
             : isMcpTool
               ? mcpToolParams
               : toolParams?.userInputParameters || []
+          const displaySubBlocks: BlockSubBlockConfig[] = useSubBlocks
+            ? subBlocksResult!.subBlocks
+            : []
 
           // Check if tool requires OAuth
           const requiresOAuth =
@@ -2466,11 +1815,14 @@ export const ToolInput = memo(function ToolInput({
 
           // Determine if tool has expandable body content
           const hasOperations = !isCustomTool && !isMcpTool && hasMultipleOperations(tool.type)
-          const filteredDisplayParams = displayParams.filter((param) =>
-            evaluateParameterCondition(param, tool)
-          )
+          // For subblock-based rendering, conditions are already evaluated in getSubBlocksForToolInput
+          const filteredDisplayParams = useSubBlocks
+            ? displayParams // unused when useSubBlocks, but needed for type consistency
+            : displayParams.filter((param) => evaluateParameterCondition(param, tool))
           const hasToolBody =
-            hasOperations || (requiresOAuth && oauthConfig) || filteredDisplayParams.length > 0
+            hasOperations ||
+            (requiresOAuth && oauthConfig) ||
+            (useSubBlocks ? displaySubBlocks.length > 0 : filteredDisplayParams.length > 0)
 
           // Only show expansion if tool has body content
           const isExpandedForDisplay = hasToolBody
@@ -2695,96 +2047,105 @@ export const ToolInput = memo(function ToolInput({
 
                   {/* Tool parameters */}
                   {(() => {
+                    // SubBlock-first rendering for registry tools
+                    if (useSubBlocks && displaySubBlocks.length > 0) {
+                      return displaySubBlocks.map((sb) => {
+                        const effectiveParamId = sb.canonicalParamId || sb.id
+                        const visibility =
+                          sb.paramVisibility ||
+                          toolParams?.allParameters?.find((p) => p.id === effectiveParamId)
+                            ?.visibility ||
+                          'user-or-llm'
+                        const isRequired = sb.required === true
+
+                        // Compute canonical toggle for basic/advanced mode switching
+                        const canonicalId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]
+                        const canonicalGroup = canonicalId
+                          ? toolCanonicalIndex?.groupsById[canonicalId]
+                          : undefined
+                        const hasCanonicalPair = isCanonicalPair(canonicalGroup)
+                        const canonicalMode =
+                          canonicalGroup && hasCanonicalPair
+                            ? resolveCanonicalMode(
+                                canonicalGroup,
+                                { operation: tool.operation, ...tool.params },
+                                canonicalModeOverrides
+                              )
+                            : undefined
+
+                        const canonicalToggleProp =
+                          hasCanonicalPair && canonicalMode && canonicalId
+                            ? {
+                                mode: canonicalMode,
+                                disabled: disabled,
+                                onToggle: () => {
+                                  const nextMode =
+                                    canonicalMode === 'advanced' ? 'basic' : 'advanced'
+                                  collaborativeSetBlockCanonicalMode(blockId, canonicalId, nextMode)
+                                },
+                              }
+                            : undefined
+
+                        return (
+                          <ParameterWithLabel
+                            key={sb.id}
+                            paramId={sb.id}
+                            title={sb.title || formatParameterLabel(effectiveParamId)}
+                            isRequired={isRequired}
+                            visibility={visibility}
+                            wandConfig={sb.wandConfig}
+                            canonicalToggle={canonicalToggleProp}
+                            disabled={disabled}
+                            isPreview={isPreview || false}
+                          >
+                            {(wandControlRef) => (
+                              <ToolSubBlockRenderer
+                                blockId={blockId}
+                                subBlockId={subBlockId}
+                                toolIndex={toolIndex}
+                                subBlock={sb}
+                                effectiveParamId={effectiveParamId}
+                                toolParams={tool.params}
+                                onParamChange={handleParamChange}
+                                disabled={disabled}
+                                previewContextValues={toolContextValues}
+                                wandControlRef={wandControlRef}
+                              />
+                            )}
+                          </ParameterWithLabel>
+                        )
+                      })
+                    }
+
+                    // Fallback: legacy ToolParameterConfig-based rendering
+                    // Used for custom tools, MCP tools, and registry tools without subBlocks
                     const filteredParams = displayParams.filter((param) =>
                       evaluateParameterCondition(param, tool)
                     )
-                    const groupedParams: { [key: string]: ToolParameterConfig[] } = {}
-                    const standaloneParams: ToolParameterConfig[] = []
-
-                    // Group checkbox-list parameters by their UI component title
-                    filteredParams.forEach((param) => {
-                      const paramConfig = param as ToolParameterConfig
-                      if (
-                        paramConfig.uiComponent?.type === 'checkbox-list' &&
-                        paramConfig.uiComponent?.title
-                      ) {
-                        const groupKey = paramConfig.uiComponent.title
-                        if (!groupedParams[groupKey]) {
-                          groupedParams[groupKey] = []
-                        }
-                        groupedParams[groupKey].push(paramConfig)
-                      } else {
-                        standaloneParams.push(paramConfig)
-                      }
-                    })
 
                     const renderedElements: React.ReactNode[] = []
 
-                    // Render grouped checkbox-lists
-                    Object.entries(groupedParams).forEach(([groupTitle, params]) => {
-                      const firstParam = params[0] as ToolParameterConfig
-                      const groupValue = JSON.stringify(
-                        params.reduce(
-                          (acc, p) => ({ ...acc, [p.id]: tool.params?.[p.id] === 'true' }),
-                          {}
-                        )
-                      )
-
+                    filteredParams.forEach((param) => {
                       renderedElements.push(
-                        <div key={`group-${groupTitle}`} className='relative min-w-0 space-y-[6px]'>
-                          <div className='flex items-center font-medium text-[13px] text-[var(--text-primary)]'>
-                            {groupTitle}
-                          </div>
-                          <div className='relative w-full min-w-0'>
-                            <CheckboxListSyncWrapper
-                              blockId={blockId}
-                              paramId={`group-${groupTitle}`}
-                              value={groupValue}
-                              onChange={(value) => {
-                                try {
-                                  const parsed = JSON.parse(value)
-                                  params.forEach((param) => {
-                                    handleParamChange(
-                                      toolIndex,
-                                      param.id,
-                                      parsed[param.id] ? 'true' : 'false'
-                                    )
-                                  })
-                                } catch (e) {
-                                  // Handle error
-                                }
-                              }}
-                              uiComponent={firstParam.uiComponent}
-                              disabled={disabled}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })
-
-                    // Render standalone parameters
-                    standaloneParams.forEach((param) => {
-                      renderedElements.push(
-                        <div key={param.id} className='relative min-w-0 space-y-[6px]'>
-                          <div className='flex items-center font-medium text-[13px] text-[var(--text-primary)]'>
-                            {param.uiComponent?.title || formatParameterLabel(param.id)}
-                            {param.required && param.visibility === 'user-only' && (
-                              <span className='ml-1'>*</span>
-                            )}
-                            {param.visibility === 'user-or-llm' && (
-                              <span className='ml-[6px] text-[12px] text-[var(--text-tertiary)]'>
-                                (optional)
-                              </span>
-                            )}
-                          </div>
-                          <div className='relative w-full min-w-0'>
-                            {param.uiComponent ? (
+                        <ParameterWithLabel
+                          key={param.id}
+                          paramId={param.id}
+                          title={param.uiComponent?.title || formatParameterLabel(param.id)}
+                          isRequired={param.required === true}
+                          visibility={param.visibility || 'user-or-llm'}
+                          wandConfig={param.uiComponent?.wandConfig}
+                          disabled={disabled}
+                          isPreview={isPreview || false}
+                        >
+                          {(wandControlRef) =>
+                            param.uiComponent ? (
                               renderParameterInput(
                                 param,
                                 tool.params?.[param.id] || '',
                                 (value) => handleParamChange(toolIndex, param.id, value),
                                 toolIndex,
-                                toolContextValues as Record<string, string>
+                                toolContextValues as Record<string, string>,
+                                wandControlRef
                               )
                             ) : (
                               <ShortInput
@@ -2802,10 +2163,12 @@ export const ToolInput = memo(function ToolInput({
                                 }}
                                 value={tool.params?.[param.id] || ''}
                                 onChange={(value) => handleParamChange(toolIndex, param.id, value)}
+                                wandControlRef={wandControlRef}
+                                hideInternalWand={true}
                               />
-                            )}
-                          </div>
-                        </div>
+                            )
+                          }
+                        </ParameterWithLabel>
                       )
                     })
 
