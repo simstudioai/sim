@@ -138,6 +138,41 @@ function updateActiveStreamEventId(
   writeActiveStreamToStorage(next)
 }
 
+const AUTO_ALLOWED_TOOLS_STORAGE_KEY = 'copilot_auto_allowed_tools'
+
+function readAutoAllowedToolsFromStorage(): string[] | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(AUTO_ALLOWED_TOOLS_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    return parsed.filter((item): item is string => typeof item === 'string')
+  } catch (error) {
+    logger.warn('[AutoAllowedTools] Failed to read local cache', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
+}
+
+function writeAutoAllowedToolsToStorage(tools: string[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(AUTO_ALLOWED_TOOLS_STORAGE_KEY, JSON.stringify(tools))
+  } catch (error) {
+    logger.warn('[AutoAllowedTools] Failed to write local cache', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+function isToolAutoAllowedByList(toolId: string, autoAllowedTools: string[]): boolean {
+  if (!toolId) return false
+  const normalizedTarget = toolId.trim()
+  return autoAllowedTools.some((allowed) => allowed?.trim() === normalizedTarget)
+}
+
 /**
  * Clear any lingering diff preview from a previous session.
  * Called lazily when the store is first activated (setWorkflowId).
@@ -870,6 +905,8 @@ async function resumeFromLiveStream(
   return false
 }
 
+const cachedAutoAllowedTools = readAutoAllowedToolsFromStorage()
+
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'build' as const,
@@ -903,7 +940,8 @@ const initialState = {
   streamingPlanContent: '',
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
-  autoAllowedTools: [] as string[],
+  autoAllowedTools: cachedAutoAllowedTools ?? ([] as string[]),
+  autoAllowedToolsLoaded: cachedAutoAllowedTools !== null,
   activeStream: null as CopilotStreamInfo | null,
   messageQueue: [] as import('./types').QueuedMessage[],
   suppressAbortContinueOption: false,
@@ -940,6 +978,9 @@ export const useCopilotStore = create<CopilotStore>()(
         mode: get().mode,
         selectedModel: get().selectedModel,
         agentPrefetch: get().agentPrefetch,
+        enabledModels: get().enabledModels,
+        autoAllowedTools: get().autoAllowedTools,
+        autoAllowedToolsLoaded: get().autoAllowedToolsLoaded,
       })
     },
 
@@ -1245,6 +1286,16 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Send a message (streaming only)
     sendMessage: async (message: string, options = {}) => {
+      if (!get().autoAllowedToolsLoaded) {
+        try {
+          await get().loadAutoAllowedTools()
+        } catch (error) {
+          logger.warn('[Copilot] Failed to preload auto-allowed tools before send', {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+
       const prepared = prepareSendContext(get, set, message, options as SendMessageOptionsInput)
       if (!prepared) return
 
@@ -1848,6 +1899,8 @@ export const useCopilotStore = create<CopilotStore>()(
           context.wasAborted && !context.suppressContinueOption
             ? appendContinueOption(finalContent)
             : finalContentStripped
+        // Step 1: Update messages in state but keep isSendingMessage: true.
+        // This prevents loadChats from overwriting with stale DB data during persist.
         set((state) => {
           const snapshotId = state.currentUserMessageId
           const nextSnapshots =
@@ -1868,9 +1921,7 @@ export const useCopilotStore = create<CopilotStore>()(
                   }
                 : msg
             ),
-            isSendingMessage: false,
             isAborting: false,
-            abortController: null,
             currentUserMessageId: null,
             messageSnapshots: nextSnapshots,
           }
@@ -1887,31 +1938,9 @@ export const useCopilotStore = create<CopilotStore>()(
           await get().handleNewChatCreation(context.newChatId)
         }
 
-        // Process next message in queue if any
-        const nextInQueue = get().messageQueue[0]
-        if (nextInQueue) {
-          // Use originalMessageId if available (from edit/resend), otherwise use queue entry id
-          const messageIdToUse = nextInQueue.originalMessageId || nextInQueue.id
-          logger.debug('[Queue] Processing next queued message', {
-            id: nextInQueue.id,
-            originalMessageId: nextInQueue.originalMessageId,
-            messageIdToUse,
-            queueLength: get().messageQueue.length,
-          })
-          // Remove from queue and send
-          get().removeFromQueue(nextInQueue.id)
-          // Use setTimeout to avoid blocking the current execution
-          setTimeout(() => {
-            get().sendMessage(nextInQueue.content, {
-              stream: true,
-              fileAttachments: nextInQueue.fileAttachments,
-              contexts: nextInQueue.contexts,
-              messageId: messageIdToUse,
-            })
-          }, QUEUE_PROCESS_DELAY_MS)
-        }
-
-        // Persist full message state (including contentBlocks), plan artifact, and config to database
+        // Step 2: Persist messages to DB BEFORE marking stream as done.
+        // loadChats checks isSendingMessage — while true it preserves in-memory messages.
+        // Persisting first ensures the DB is up-to-date before we allow overwrites.
         const { currentChat, streamingPlanContent, mode, selectedModel } = get()
         if (currentChat) {
           try {
@@ -1962,6 +1991,34 @@ export const useCopilotStore = create<CopilotStore>()(
           } catch (err) {
             logger.error('[Stream Done] Exception saving messages', { error: String(err) })
           }
+        }
+
+        // Step 3: NOW mark stream as done. DB is up-to-date, so if loadChats
+        // overwrites messages it will use the persisted (correct) data.
+        set({ isSendingMessage: false, abortController: null })
+
+        // Process next message in queue if any
+        const nextInQueue = get().messageQueue[0]
+        if (nextInQueue) {
+          // Use originalMessageId if available (from edit/resend), otherwise use queue entry id
+          const messageIdToUse = nextInQueue.originalMessageId || nextInQueue.id
+          logger.debug('[Queue] Processing next queued message', {
+            id: nextInQueue.id,
+            originalMessageId: nextInQueue.originalMessageId,
+            messageIdToUse,
+            queueLength: get().messageQueue.length,
+          })
+          // Remove from queue and send
+          get().removeFromQueue(nextInQueue.id)
+          // Use setTimeout to avoid blocking the current execution
+          setTimeout(() => {
+            get().sendMessage(nextInQueue.content, {
+              stream: true,
+              fileAttachments: nextInQueue.fileAttachments,
+              contexts: nextInQueue.contexts,
+              messageId: messageIdToUse,
+            })
+          }, QUEUE_PROCESS_DELAY_MS)
         }
 
         // Invalidate subscription queries to update usage
@@ -2142,12 +2199,15 @@ export const useCopilotStore = create<CopilotStore>()(
         if (res.ok) {
           const data = await res.json()
           const tools = data.autoAllowedTools ?? []
-          set({ autoAllowedTools: tools })
+          set({ autoAllowedTools: tools, autoAllowedToolsLoaded: true })
+          writeAutoAllowedToolsToStorage(tools)
           logger.debug('[AutoAllowedTools] Loaded successfully', { count: tools.length, tools })
         } else {
+          set({ autoAllowedToolsLoaded: true })
           logger.warn('[AutoAllowedTools] Load failed with status', { status: res.status })
         }
       } catch (err) {
+        set({ autoAllowedToolsLoaded: true })
         logger.error('[AutoAllowedTools] Failed to load', { error: err })
       }
     },
@@ -2164,7 +2224,9 @@ export const useCopilotStore = create<CopilotStore>()(
         if (res.ok) {
           const data = await res.json()
           logger.debug('[AutoAllowedTools] API returned', { toolId, tools: data.autoAllowedTools })
-          set({ autoAllowedTools: data.autoAllowedTools ?? [] })
+          const tools = data.autoAllowedTools ?? []
+          set({ autoAllowedTools: tools, autoAllowedToolsLoaded: true })
+          writeAutoAllowedToolsToStorage(tools)
           logger.debug('[AutoAllowedTools] Added tool to store', { toolId })
         }
       } catch (err) {
@@ -2182,7 +2244,9 @@ export const useCopilotStore = create<CopilotStore>()(
         )
         if (res.ok) {
           const data = await res.json()
-          set({ autoAllowedTools: data.autoAllowedTools ?? [] })
+          const tools = data.autoAllowedTools ?? []
+          set({ autoAllowedTools: tools, autoAllowedToolsLoaded: true })
+          writeAutoAllowedToolsToStorage(tools)
           logger.debug('[AutoAllowedTools] Removed tool', { toolId })
         }
       } catch (err) {
@@ -2192,7 +2256,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
     isToolAutoAllowed: (toolId: string) => {
       const { autoAllowedTools } = get()
-      return autoAllowedTools.includes(toolId)
+      return isToolAutoAllowedByList(toolId, autoAllowedTools)
     },
 
     // Credential masking

@@ -1230,7 +1230,7 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   }
 
   // Never show buttons for tools the user has marked as always-allowed
-  if (useCopilotStore.getState().autoAllowedTools.includes(toolCall.name)) {
+  if (useCopilotStore.getState().isToolAutoAllowed(toolCall.name)) {
     return false
   }
 
@@ -1438,10 +1438,10 @@ export function ToolCall({
   const paramsRef = useRef(params)
 
   // Check if this integration tool is auto-allowed
-  // Subscribe to autoAllowedTools so we re-render when it changes
-  const autoAllowedTools = useCopilotStore((s) => s.autoAllowedTools)
   const { removeAutoAllowedTool, setToolCallState } = useCopilotStore()
-  const isAutoAllowed = isIntegrationTool(toolCall.name) && autoAllowedTools.includes(toolCall.name)
+  const isAutoAllowed = useCopilotStore(
+    (s) => isIntegrationTool(toolCall.name) && s.isToolAutoAllowed(toolCall.name)
+  )
 
   // Update edited params when toolCall params change (deep comparison to avoid resetting user edits on ref change)
   useEffect(() => {

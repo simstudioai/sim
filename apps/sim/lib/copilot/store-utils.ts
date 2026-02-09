@@ -90,11 +90,22 @@ export function isTerminalState(state: string): boolean {
   )
 }
 
+/**
+ * Resolves the appropriate terminal state for a non-terminal tool call.
+ * 'executing' → 'success': the server was running it, assume it completed.
+ * Everything else → 'aborted': never reached execution.
+ */
+function resolveAbortState(currentState: string): ClientToolCallState {
+  return currentState === ClientToolCallState.executing
+    ? ClientToolCallState.success
+    : ClientToolCallState.aborted
+}
+
 export function abortAllInProgressTools(set: StoreSet, get: () => CopilotStore) {
   try {
     const { toolCallsById, messages } = get()
     const updatedMap = { ...toolCallsById }
-    const abortedIds = new Set<string>()
+    const resolvedIds = new Map<string, ClientToolCallState>()
     let hasUpdates = false
     for (const [id, tc] of Object.entries(toolCallsById)) {
       const st = tc.state
@@ -104,12 +115,13 @@ export function abortAllInProgressTools(set: StoreSet, get: () => CopilotStore) 
         st === ClientToolCallState.rejected ||
         st === ClientToolCallState.aborted
       if (!isTerminal || isReviewState(st)) {
-        abortedIds.add(id)
+        const resolved = resolveAbortState(st)
+        resolvedIds.set(id, resolved)
         updatedMap[id] = {
           ...tc,
-          state: ClientToolCallState.aborted,
+          state: resolved,
           subAgentStreaming: false,
-          display: resolveToolDisplay(tc.name, ClientToolCallState.aborted, id, tc.params),
+          display: resolveToolDisplay(tc.name, resolved, id, tc.params),
         }
         hasUpdates = true
       } else if (tc.subAgentStreaming) {
@@ -120,7 +132,7 @@ export function abortAllInProgressTools(set: StoreSet, get: () => CopilotStore) 
         hasUpdates = true
       }
     }
-    if (abortedIds.size > 0 || hasUpdates) {
+    if (resolvedIds.size > 0 || hasUpdates) {
       set({ toolCallsById: updatedMap })
       set((s: CopilotStore) => {
         const msgs = [...s.messages]
@@ -129,17 +141,18 @@ export function abortAllInProgressTools(set: StoreSet, get: () => CopilotStore) 
           if (m.role !== 'assistant' || !Array.isArray(m.contentBlocks)) continue
           let changed = false
           const blocks = m.contentBlocks.map((b: any) => {
-            if (b?.type === 'tool_call' && b.toolCall?.id && abortedIds.has(b.toolCall.id)) {
+            if (b?.type === 'tool_call' && b.toolCall?.id && resolvedIds.has(b.toolCall.id)) {
               changed = true
               const prev = b.toolCall
+              const resolved = resolvedIds.get(b.toolCall.id)!
               return {
                 ...b,
                 toolCall: {
                   ...prev,
-                  state: ClientToolCallState.aborted,
+                  state: resolved,
                   display: resolveToolDisplay(
                     prev?.name,
-                    ClientToolCallState.aborted,
+                    resolved,
                     prev?.id,
                     prev?.params
                   ),

@@ -194,7 +194,7 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
       existingIndex >= 0 ? context.subAgentToolCalls[parentToolCallId][existingIndex] : undefined
 
     // Auto-allowed tools skip pending state to avoid flashing interrupt buttons
-    const isAutoAllowed = get().autoAllowedTools.includes(name)
+    const isAutoAllowed = get().isToolAutoAllowed(name)
     let initialState = isAutoAllowed ? ClientToolCallState.executing : ClientToolCallState.pending
 
     // Avoid flickering back to pending on partial/duplicate events once a tool is executing.

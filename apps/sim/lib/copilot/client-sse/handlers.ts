@@ -499,7 +499,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const { toolCallsById } = get()
 
     if (!toolCallsById[toolCallId]) {
-      const isAutoAllowed = get().autoAllowedTools.includes(toolName)
+      const isAutoAllowed = get().isToolAutoAllowed(toolName)
       const initialState = isAutoAllowed
         ? ClientToolCallState.executing
         : ClientToolCallState.pending
@@ -528,10 +528,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     const existing = toolCallsById[id]
     const toolName = name || existing?.name || 'unknown_tool'
-    const autoAllowedTools = get().autoAllowedTools
-    const isAutoAllowed =
-      autoAllowedTools.includes(toolName) ||
-      (existing?.name ? autoAllowedTools.includes(existing.name) : false)
+    const isAutoAllowed = get().isToolAutoAllowed(toolName)
     let initialState = isAutoAllowed ? ClientToolCallState.executing : ClientToolCallState.pending
 
     // Avoid flickering back to pending on partial/duplicate events once a tool is executing.

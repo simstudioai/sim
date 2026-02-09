@@ -167,6 +167,7 @@ export interface CopilotState {
 
   // Auto-allowed integration tools (tools that can run without confirmation)
   autoAllowedTools: string[]
+  autoAllowedToolsLoaded: boolean
 
   // Active stream metadata for reconnect/replay
   activeStream: CopilotStreamInfo | null
