@@ -10,6 +10,7 @@ import type {
 } from '@/lib/copilot/orchestrator/types'
 import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getTool, resolveToolId } from '@/tools/utils'
 import {
@@ -134,6 +135,32 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
     executeListWorkspaceMcpServers(p as ListWorkspaceMcpServersParams, c),
   create_workspace_mcp_server: (p, c) =>
     executeCreateWorkspaceMcpServer(p as CreateWorkspaceMcpServerParams, c),
+  oauth_get_auth_link: async (p, _c) => {
+    const providerName = (p.providerName || p.provider_name || 'the provider') as string
+    try {
+      const baseUrl = getBaseUrl()
+      const settingsUrl = `${baseUrl}/workspace`
+      return {
+        success: true,
+        output: {
+          message: `To connect ${providerName}, the user must authorize via their browser.`,
+          oauth_url: settingsUrl,
+          instructions: `Open ${settingsUrl} in a browser and go to the workflow editor to connect ${providerName} credentials.`,
+          provider: providerName,
+          baseUrl,
+        },
+      }
+    } catch {
+      return {
+        success: true,
+        output: {
+          message: `To connect ${providerName}, the user must authorize via their browser.`,
+          instructions: `Open the Sim workspace in a browser and go to the workflow editor to connect ${providerName} credentials.`,
+          provider: providerName,
+        },
+      }
+    }
+  },
 }
 
 /**

@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { chat, workflowMcpTool } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
@@ -38,6 +39,7 @@ export async function executeDeployApi(
       return { success: false, error: result.error || 'Failed to deploy workflow' }
     }
 
+    const baseUrl = getBaseUrl()
     return {
       success: true,
       output: {
@@ -45,6 +47,8 @@ export async function executeDeployApi(
         isDeployed: true,
         deployedAt: result.deployedAt,
         version: result.version,
+        apiEndpoint: `${baseUrl}/api/workflows/${workflowId}/run`,
+        baseUrl,
       },
     }
   } catch (error) {
@@ -177,9 +181,18 @@ export async function executeDeployChat(
       })
     }
 
+    const baseUrl = getBaseUrl()
     return {
       success: true,
-      output: { success: true, action: 'deploy', isDeployed: true, identifier },
+      output: {
+        success: true,
+        action: 'deploy',
+        isDeployed: true,
+        identifier,
+        chatUrl: `${baseUrl}/chat/${identifier}`,
+        apiEndpoint: `${baseUrl}/api/workflows/${workflowId}/run`,
+        baseUrl,
+      },
     }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
@@ -234,6 +247,9 @@ export async function executeDeployMcp(
       `Execute ${workflowRecord.name} workflow`
     const parameterSchema = params.parameterSchema || {}
 
+    const baseUrl = getBaseUrl()
+    const mcpServerUrl = `${baseUrl}/api/mcp/serve/${serverId}`
+
     if (existingTool.length > 0) {
       const toolId = existingTool[0].id
       await db
@@ -245,7 +261,10 @@ export async function executeDeployMcp(
           updatedAt: new Date(),
         })
         .where(eq(workflowMcpTool.id, toolId))
-      return { success: true, output: { toolId, toolName, toolDescription, updated: true } }
+      return {
+        success: true,
+        output: { toolId, toolName, toolDescription, updated: true, mcpServerUrl, baseUrl },
+      }
     }
 
     const toolId = crypto.randomUUID()
@@ -260,7 +279,10 @@ export async function executeDeployMcp(
       updatedAt: new Date(),
     })
 
-    return { success: true, output: { toolId, toolName, toolDescription, updated: false } }
+    return {
+      success: true,
+      output: { toolId, toolName, toolDescription, updated: false, mcpServerUrl, baseUrl },
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -278,9 +300,16 @@ export async function executeRedeploy(context: ExecutionContext): Promise<ToolCa
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to redeploy workflow' }
     }
+    const baseUrl = getBaseUrl()
     return {
       success: true,
-      output: { workflowId, deployedAt: result.deployedAt || null, version: result.version },
+      output: {
+        workflowId,
+        deployedAt: result.deployedAt || null,
+        version: result.version,
+        apiEndpoint: `${baseUrl}/api/workflows/${workflowId}/run`,
+        baseUrl,
+      },
     }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }

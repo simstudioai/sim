@@ -567,7 +567,7 @@ Supports full and partial execution:
     name: 'sim_auth',
     agentId: 'auth',
     description:
-      'Check OAuth connection status, list connected services, and initiate new OAuth connections. Use when a workflow needs third-party service access (Google, Slack, GitHub, etc.).',
+      'Check OAuth connection status, list connected services, and initiate new OAuth connections. Use when a workflow needs third-party service access (Google, Slack, GitHub, etc.). In MCP/headless mode, returns an authorization URL the user must open in their browser to complete the OAuth flow.',
     inputSchema: {
       type: 'object',
       properties: {
