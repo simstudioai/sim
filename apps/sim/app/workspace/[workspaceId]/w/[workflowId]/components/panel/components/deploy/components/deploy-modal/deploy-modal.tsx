@@ -19,6 +19,7 @@ import {
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/api-keys/components'
 import { startsWithUuid } from '@/executor/constants'
 import { useA2AAgentByWorkflow } from '@/hooks/queries/a2a/agents'
@@ -38,6 +39,7 @@ import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { A2aDeploy } from './components/a2a/a2a'
@@ -334,6 +336,20 @@ export function DeployModal({
 
     setDeployError(null)
     setDeployWarnings([])
+
+    const { blocks, edges, loops, parallels } = useWorkflowStore.getState()
+    const liveBlocks = mergeSubblockState(blocks, workflowId)
+    const checkResult = runPreDeployChecks({
+      blocks: liveBlocks,
+      edges,
+      loops,
+      parallels,
+      workflowId,
+    })
+    if (!checkResult.passed) {
+      setDeployError(checkResult.error || 'Pre-deploy validation failed')
+      return
+    }
 
     try {
       const result = await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })

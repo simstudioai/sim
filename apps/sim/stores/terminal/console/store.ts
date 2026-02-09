@@ -376,6 +376,40 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
             return { entries: updatedEntries }
           })
+
+          if (typeof update === 'object' && update.error) {
+            const settings = getQueryClient().getQueryData<GeneralSettings>(
+              generalSettingsKeys.settings()
+            )
+            const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
+
+            if (isErrorNotificationsEnabled) {
+              try {
+                const matchingEntry = get().entries.find(
+                  (e) => e.blockId === blockId && e.executionId === executionId
+                )
+                const errorMessage = String(update.error)
+                const blockName = matchingEntry?.blockName || 'Unknown Block'
+                const displayMessage = `${blockName}: ${errorMessage}`
+                const copilotMessage = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
+
+                useNotificationStore.getState().addNotification({
+                  level: 'error',
+                  message: displayMessage,
+                  workflowId: matchingEntry?.workflowId,
+                  action: {
+                    type: 'copilot',
+                    message: copilotMessage,
+                  },
+                })
+              } catch (notificationError) {
+                logger.error('Failed to create block error notification', {
+                  blockId,
+                  error: notificationError,
+                })
+              }
+            }
+          }
         },
 
         cancelRunningEntries: (workflowId: string) => {
