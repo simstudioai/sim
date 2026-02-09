@@ -46,13 +46,6 @@ interface CredentialsPayload {
   }
 }
 
-type MessageContent = string | Array<{ type: string; text?: string; [key: string]: unknown }>
-
-interface ConversationMessage {
-  role: string
-  content: MessageContent
-}
-
 function buildProviderConfig(selectedModel: string): CopilotProviderConfig | undefined {
   const defaults = getCopilotModel('chat')
   const envModel = env.COPILOT_MODEL || defaults.model
@@ -113,12 +106,10 @@ export async function buildCopilotRequestPayload(
     userId,
     userMessageId,
     mode,
-    conversationHistory = [],
     contexts,
     fileAttachments,
     commands,
     chatId,
-    implicitFeedback,
   } = params
 
   const selectedModel = options.selectedModel
@@ -128,42 +119,6 @@ export async function buildCopilotRequestPayload(
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
   const processedFileContents = await processFileAttachments(fileAttachments ?? [], userId)
-
-  const messages: ConversationMessage[] = []
-  for (const msg of conversationHistory as Array<Record<string, unknown>>) {
-    const msgAttachments = msg.fileAttachments as Array<Record<string, unknown>> | undefined
-    if (Array.isArray(msgAttachments) && msgAttachments.length > 0) {
-      const content: Array<{ type: string; text?: string; [key: string]: unknown }> = [
-        { type: 'text', text: msg.content as string },
-      ]
-      const processedHistoricalAttachments = await processFileAttachments(
-        (msgAttachments as BuildPayloadParams['fileAttachments']) ?? [],
-        userId
-      )
-      for (const fileContent of processedHistoricalAttachments) {
-        content.push(fileContent)
-      }
-      messages.push({ role: msg.role as string, content })
-    } else {
-      messages.push({ role: msg.role as string, content: msg.content as string })
-    }
-  }
-
-  if (implicitFeedback) {
-    messages.push({ role: 'system', content: implicitFeedback })
-  }
-
-  if (processedFileContents.length > 0) {
-    const content: Array<{ type: string; text?: string; [key: string]: unknown }> = [
-      { type: 'text', text: message },
-    ]
-    for (const fileContent of processedFileContents) {
-      content.push(fileContent)
-    }
-    messages.push({ role: 'user', content })
-  } else {
-    messages.push({ role: 'user', content: message })
-  }
 
   const integrationTools: ToolSchema[] = []
   let credentials: CredentialsPayload | null = null
