@@ -62,6 +62,45 @@ const shouldSkipEntry = (output: any): boolean => {
   return false
 }
 
+interface NotifyBlockErrorParams {
+  error: unknown
+  blockName: string
+  workflowId?: string
+  logContext: Record<string, unknown>
+}
+
+/**
+ * Sends an error notification for a block failure if error notifications are enabled.
+ */
+const notifyBlockError = ({ error, blockName, workflowId, logContext }: NotifyBlockErrorParams) => {
+  const settings = getQueryClient().getQueryData<GeneralSettings>(generalSettingsKeys.settings())
+  const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
+
+  if (!isErrorNotificationsEnabled) return
+
+  try {
+    const errorMessage = String(error)
+    const displayName = blockName || 'Unknown Block'
+    const displayMessage = `${displayName}: ${errorMessage}`
+    const copilotMessage = `${errorMessage}\n\nError in ${displayName}.\n\nPlease fix this.`
+
+    useNotificationStore.getState().addNotification({
+      level: 'error',
+      message: displayMessage,
+      workflowId,
+      action: {
+        type: 'copilot',
+        message: copilotMessage,
+      },
+    })
+  } catch (notificationError) {
+    logger.error('Failed to create block error notification', {
+      ...logContext,
+      error: notificationError,
+    })
+  }
+}
+
 export const useTerminalConsoleStore = create<ConsoleStore>()(
   devtools(
     persist(
@@ -154,35 +193,12 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           const newEntry = get().entries[0]
 
           if (newEntry?.error) {
-            const settings = getQueryClient().getQueryData<GeneralSettings>(
-              generalSettingsKeys.settings()
-            )
-            const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
-
-            if (isErrorNotificationsEnabled) {
-              try {
-                const errorMessage = String(newEntry.error)
-                const blockName = newEntry.blockName || 'Unknown Block'
-                const displayMessage = `${blockName}: ${errorMessage}`
-
-                const copilotMessage = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
-
-                useNotificationStore.getState().addNotification({
-                  level: 'error',
-                  message: displayMessage,
-                  workflowId: entry.workflowId,
-                  action: {
-                    type: 'copilot',
-                    message: copilotMessage,
-                  },
-                })
-              } catch (notificationError) {
-                logger.error('Failed to create block error notification', {
-                  entryId: newEntry.id,
-                  error: notificationError,
-                })
-              }
-            }
+            notifyBlockError({
+              error: newEntry.error,
+              blockName: newEntry.blockName || 'Unknown Block',
+              workflowId: entry.workflowId,
+              logContext: { entryId: newEntry.id },
+            })
           }
 
           return newEntry
@@ -378,37 +394,15 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           })
 
           if (typeof update === 'object' && update.error) {
-            const settings = getQueryClient().getQueryData<GeneralSettings>(
-              generalSettingsKeys.settings()
+            const matchingEntry = get().entries.find(
+              (e) => e.blockId === blockId && e.executionId === executionId
             )
-            const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
-
-            if (isErrorNotificationsEnabled) {
-              try {
-                const matchingEntry = get().entries.find(
-                  (e) => e.blockId === blockId && e.executionId === executionId
-                )
-                const errorMessage = String(update.error)
-                const blockName = matchingEntry?.blockName || 'Unknown Block'
-                const displayMessage = `${blockName}: ${errorMessage}`
-                const copilotMessage = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
-
-                useNotificationStore.getState().addNotification({
-                  level: 'error',
-                  message: displayMessage,
-                  workflowId: matchingEntry?.workflowId,
-                  action: {
-                    type: 'copilot',
-                    message: copilotMessage,
-                  },
-                })
-              } catch (notificationError) {
-                logger.error('Failed to create block error notification', {
-                  blockId,
-                  error: notificationError,
-                })
-              }
-            }
+            notifyBlockError({
+              error: update.error,
+              blockName: matchingEntry?.blockName || 'Unknown Block',
+              workflowId: matchingEntry?.workflowId,
+              logContext: { blockId },
+            })
           }
         },
 
