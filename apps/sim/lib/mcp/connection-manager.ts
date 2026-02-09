@@ -125,6 +125,8 @@ class McpConnectionManager {
         return { supportsListChanged: false }
       }
 
+      this.clearReconnectTimer(serverId)
+
       this.connections.set(serverId, client)
       this.states.set(serverId, {
         serverId,
@@ -304,6 +306,14 @@ class McpConnectionManager {
       this.reconnectTimers.delete(serverId)
 
       if (this.disposed) return
+
+      const currentState = this.states.get(serverId)
+      if (currentState?.connected) {
+        logger.info(
+          `[${config.name}] Connection already re-established externally, skipping reconnect`
+        )
+        return
+      }
 
       const attempts = state.reconnectAttempts
       this.connections.delete(serverId)
