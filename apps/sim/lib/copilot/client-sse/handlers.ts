@@ -10,7 +10,10 @@ import {
 } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore, CopilotStreamInfo, CopilotToolCall } from '@/stores/panel/copilot/types'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { appendTextBlock, beginThinkingBlock, finalizeThinkingBlock } from './content-blocks'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
@@ -318,6 +321,76 @@ export const sseHandlers: Record<string, SSEHandler> = {
             })
           }
         }
+
+        // Deploy tools: update deployment status in workflow registry
+        if (
+          targetState === ClientToolCallState.success &&
+          (current.name === 'deploy_api' ||
+            current.name === 'deploy_chat' ||
+            current.name === 'deploy_mcp' ||
+            current.name === 'redeploy')
+        ) {
+          try {
+            const resultPayload = asRecord(
+              data?.result || eventData.result || eventData.data || data?.data
+            )
+            const input = asRecord(current.params)
+            const workflowId =
+              (resultPayload?.workflowId as string) ||
+              (input?.workflowId as string) ||
+              useWorkflowRegistry.getState().activeWorkflowId
+            const isDeployed = resultPayload?.isDeployed !== false
+            if (workflowId) {
+              useWorkflowRegistry
+                .getState()
+                .setDeploymentStatus(workflowId, isDeployed, isDeployed ? new Date() : undefined)
+              logger.info('[SSE] Updated deployment status from tool result', {
+                toolName: current.name,
+                workflowId,
+                isDeployed,
+              })
+            }
+          } catch (err) {
+            logger.warn('[SSE] Failed to hydrate deployment status', {
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
+
+        // Environment variables: reload store after successful set
+        if (
+          targetState === ClientToolCallState.success &&
+          current.name === 'set_environment_variables'
+        ) {
+          try {
+            useEnvironmentStore.getState().loadEnvironmentVariables()
+            logger.info('[SSE] Triggered environment variables reload')
+          } catch (err) {
+            logger.warn('[SSE] Failed to reload environment variables', {
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
+
+        // Workflow variables: reload store after successful set
+        if (
+          targetState === ClientToolCallState.success &&
+          current.name === 'set_global_workflow_variables'
+        ) {
+          try {
+            const input = asRecord(current.params)
+            const workflowId =
+              (input?.workflowId as string) || useWorkflowRegistry.getState().activeWorkflowId
+            if (workflowId) {
+              useVariablesStore.getState().loadForWorkflow(workflowId)
+              logger.info('[SSE] Triggered workflow variables reload', { workflowId })
+            }
+          } catch (err) {
+            logger.warn('[SSE] Failed to reload workflow variables', {
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
       }
 
       for (let i = 0; i < context.contentBlocks.length; i++) {
@@ -474,6 +547,31 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) {
       return
+    }
+
+    // OAuth: dispatch event to open the OAuth connect modal
+    if (name === 'oauth_request_access' && args && typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(
+          new CustomEvent('open-oauth-connect', {
+            detail: {
+              providerName: (args.providerName || args.provider_name || '') as string,
+              serviceId: (args.serviceId || args.service_id || '') as string,
+              providerId: (args.providerId || args.provider_id || '') as string,
+              requiredScopes: (args.requiredScopes || args.required_scopes || []) as string[],
+              newScopes: (args.newScopes || args.new_scopes || []) as string[],
+            },
+          })
+        )
+        logger.info('[SSE] Dispatched OAuth connect event', {
+          providerId: args.providerId || args.provider_id,
+          providerName: args.providerName || args.provider_name,
+        })
+      } catch (err) {
+        logger.warn('[SSE] Failed to dispatch OAuth connect event', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
     }
 
     return
