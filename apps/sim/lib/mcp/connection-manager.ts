@@ -305,20 +305,21 @@ class McpConnectionManager {
 
       if (this.disposed) return
 
-      try {
-        this.connections.delete(serverId)
-        this.states.delete(serverId)
+      const attempts = state.reconnectAttempts
+      this.connections.delete(serverId)
+      this.states.delete(serverId)
 
+      try {
         const result = await this.connect(config, userId, workspaceId)
         if (result.supportsListChanged) {
-          const newState = this.states.get(serverId)
-          if (newState) {
-            newState.reconnectAttempts = 0
-          }
           logger.info(`[${config.name}] Reconnected successfully`)
+        } else {
+          this.restoreReconnectState(config, userId, workspaceId, attempts)
+          this.scheduleReconnect(config, userId, workspaceId)
         }
       } catch (error) {
         logger.error(`[${config.name}] Reconnect failed:`, error)
+        this.restoreReconnectState(config, userId, workspaceId, attempts)
         this.scheduleReconnect(config, userId, workspaceId)
       }
     }, delay)
@@ -331,6 +332,29 @@ class McpConnectionManager {
     if (timer) {
       clearTimeout(timer)
       this.reconnectTimers.delete(serverId)
+    }
+  }
+
+  /**
+   * Restore minimal state so `scheduleReconnect` can check attempts and continue the retry loop.
+   */
+  private restoreReconnectState(
+    config: McpServerConfig,
+    userId: string,
+    workspaceId: string,
+    reconnectAttempts: number
+  ): void {
+    if (!this.states.has(config.id)) {
+      this.states.set(config.id, {
+        serverId: config.id,
+        serverName: config.name,
+        workspaceId,
+        userId,
+        connected: false,
+        supportsListChanged: false,
+        reconnectAttempts,
+        lastActivity: Date.now(),
+      })
     }
   }
 
