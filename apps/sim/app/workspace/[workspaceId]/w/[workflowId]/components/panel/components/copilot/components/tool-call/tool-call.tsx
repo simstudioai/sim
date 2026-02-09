@@ -1362,9 +1362,7 @@ function RunSkipButtons({
     setButtonsHidden(true)
     try {
       await addAutoAllowedTool(toolCall.name)
-      if (!isIntegrationTool(toolCall.name)) {
-        await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
-      }
+      await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
     } finally {
       setIsProcessing(false)
       actionInProgressRef.current = false
