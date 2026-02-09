@@ -1,13 +1,41 @@
 import { createLogger } from '@sim/logger'
+import { resolveToolDisplay } from '@/lib/copilot/store-utils'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotMessage, CopilotToolCall } from '@/stores/panel/copilot/types'
 import { maskCredentialIdsInValue } from './credential-masking'
 
 const logger = createLogger('CopilotMessageSerialization')
 
+const TERMINAL_STATES = new Set<string>([
+  ClientToolCallState.success,
+  ClientToolCallState.error,
+  ClientToolCallState.rejected,
+  ClientToolCallState.aborted,
+  ClientToolCallState.review,
+  ClientToolCallState.background,
+])
+
+/**
+ * Clears streaming flags and normalizes non-terminal tool call states to 'aborted'.
+ * This ensures that tool calls loaded from DB after a refresh/abort don't render
+ * as in-progress with shimmer animations or interrupt buttons.
+ */
 export function clearStreamingFlags(toolCall: CopilotToolCall): void {
   if (!toolCall) return
 
   toolCall.subAgentStreaming = false
+
+  // Normalize non-terminal states when loading from DB.
+  // 'executing' → 'success': the server was running it, assume it completed.
+  // 'pending'/'generating' → 'aborted': never reached execution.
+  if (toolCall.state && !TERMINAL_STATES.has(toolCall.state)) {
+    const normalized =
+      toolCall.state === ClientToolCallState.executing
+        ? ClientToolCallState.success
+        : ClientToolCallState.aborted
+    toolCall.state = normalized
+    toolCall.display = resolveToolDisplay(toolCall.name, normalized, toolCall.id, toolCall.params)
+  }
 
   if (Array.isArray(toolCall.subAgentBlocks)) {
     for (const block of toolCall.subAgentBlocks) {

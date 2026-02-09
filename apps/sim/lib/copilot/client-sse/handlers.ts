@@ -10,8 +10,8 @@ import {
 } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore, CopilotStreamInfo, CopilotToolCall } from '@/stores/panel/copilot/types'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -499,7 +499,10 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const { toolCallsById } = get()
 
     if (!toolCallsById[toolCallId]) {
-      const initialState = ClientToolCallState.pending
+      const isAutoAllowed = get().autoAllowedTools.includes(toolName)
+      const initialState = isAutoAllowed
+        ? ClientToolCallState.executing
+        : ClientToolCallState.pending
       const tc: CopilotToolCall = {
         id: toolCallId,
         name: toolName,
@@ -524,23 +527,39 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const { toolCallsById } = get()
 
     const existing = toolCallsById[id]
+    const toolName = name || existing?.name || 'unknown_tool'
+    const autoAllowedTools = get().autoAllowedTools
+    const isAutoAllowed =
+      autoAllowedTools.includes(toolName) ||
+      (existing?.name ? autoAllowedTools.includes(existing.name) : false)
+    let initialState = isAutoAllowed ? ClientToolCallState.executing : ClientToolCallState.pending
+
+    // Avoid flickering back to pending on partial/duplicate events once a tool is executing.
+    if (
+      existing?.state === ClientToolCallState.executing &&
+      initialState === ClientToolCallState.pending
+    ) {
+      initialState = ClientToolCallState.executing
+    }
+
     const next: CopilotToolCall = existing
       ? {
           ...existing,
-          state: ClientToolCallState.pending,
+          name: toolName,
+          state: initialState,
           ...(args ? { params: args } : {}),
-          display: resolveToolDisplay(name, ClientToolCallState.pending, id, args),
+          display: resolveToolDisplay(toolName, initialState, id, args || existing.params),
         }
       : {
           id,
-          name: name || 'unknown_tool',
-          state: ClientToolCallState.pending,
+          name: toolName,
+          state: initialState,
           ...(args ? { params: args } : {}),
-          display: resolveToolDisplay(name, ClientToolCallState.pending, id, args),
+          display: resolveToolDisplay(toolName, initialState, id, args),
         }
     const updated = { ...toolCallsById, [id]: next }
     set({ toolCallsById: updated })
-    logger.info('[toolCallsById] → pending', { id, name, params: args })
+    logger.info(`[toolCallsById] → ${initialState}`, { id, name: toolName, params: args })
 
     upsertToolCallBlock(context, next)
     updateStreamingMessage(set, context)
@@ -550,7 +569,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
 
     // OAuth: dispatch event to open the OAuth connect modal
-    if (name === 'oauth_request_access' && args && typeof window !== 'undefined') {
+    if (toolName === 'oauth_request_access' && args && typeof window !== 'undefined') {
       try {
         window.dispatchEvent(
           new CustomEvent('open-oauth-connect', {

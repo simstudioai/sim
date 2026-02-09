@@ -190,12 +190,27 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     const existingIndex = context.subAgentToolCalls[parentToolCallId].findIndex(
       (tc: CopilotToolCall) => tc.id === id
     )
+    const existingToolCall =
+      existingIndex >= 0 ? context.subAgentToolCalls[parentToolCallId][existingIndex] : undefined
+
+    // Auto-allowed tools skip pending state to avoid flashing interrupt buttons
+    const isAutoAllowed = get().autoAllowedTools.includes(name)
+    let initialState = isAutoAllowed ? ClientToolCallState.executing : ClientToolCallState.pending
+
+    // Avoid flickering back to pending on partial/duplicate events once a tool is executing.
+    if (
+      existingToolCall?.state === ClientToolCallState.executing &&
+      initialState === ClientToolCallState.pending
+    ) {
+      initialState = ClientToolCallState.executing
+    }
+
     const subAgentToolCall: CopilotToolCall = {
       id,
       name,
-      state: ClientToolCallState.pending,
+      state: initialState,
       ...(args ? { params: args } : {}),
-      display: resolveToolDisplay(name, ClientToolCallState.pending, id, args),
+      display: resolveToolDisplay(name, initialState, id, args),
     }
 
     if (existingIndex >= 0) {
@@ -231,14 +246,11 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     // infer from presence of result data vs error (same logic as server-side
     // inferToolSuccess).  The Go backend uses `*bool` with omitempty so
     // `success` is present when explicitly set, and absent for non-tool events.
-    const hasExplicitSuccess =
-      data?.success !== undefined || resultData.success !== undefined
+    const hasExplicitSuccess = data?.success !== undefined || resultData.success !== undefined
     const explicitSuccess = data?.success ?? resultData.success
     const hasResultData = data?.result !== undefined || resultData.result !== undefined
     const hasError = !!data?.error || !!resultData.error
-    const success: boolean = hasExplicitSuccess
-      ? !!explicitSuccess
-      : hasResultData && !hasError
+    const success: boolean = hasExplicitSuccess ? !!explicitSuccess : hasResultData && !hasError
     if (!toolCallId) return
 
     if (!context.subAgentToolCalls[parentToolCallId]) return

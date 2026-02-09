@@ -1221,13 +1221,26 @@ function isIntegrationTool(toolName: string): boolean {
 }
 
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
+  if (!toolCall.name || toolCall.name === 'unknown_tool') {
+    return false
+  }
+
+  if (toolCall.state !== ClientToolCallState.pending) {
+    return false
+  }
+
+  // Never show buttons for tools the user has marked as always-allowed
+  if (useCopilotStore.getState().autoAllowedTools.includes(toolCall.name)) {
+    return false
+  }
+
   const hasInterrupt = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.interrupt === true
-  if (hasInterrupt && toolCall.state === 'pending') {
+  if (hasInterrupt) {
     return true
   }
 
   const mode = useCopilotStore.getState().mode
-  if (mode === 'build' && isIntegrationTool(toolCall.name) && toolCall.state === 'pending') {
+  if (mode === 'build' && isIntegrationTool(toolCall.name)) {
     return true
   }
 
