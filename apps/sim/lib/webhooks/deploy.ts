@@ -111,6 +111,16 @@ function isFieldRequired(
 }
 
 function resolveTriggerId(block: BlockState): string | undefined {
+  const blockConfig = getBlock(block.type)
+
+  if (blockConfig?.category === 'triggers' && isTriggerValid(block.type)) {
+    return block.type
+  }
+
+  if (!block.triggerMode) {
+    return undefined
+  }
+
   const selectedTriggerId = getSubBlockValue(block, 'selectedTriggerId')
   if (typeof selectedTriggerId === 'string' && isTriggerValid(selectedTriggerId)) {
     return selectedTriggerId
@@ -121,12 +131,7 @@ function resolveTriggerId(block: BlockState): string | undefined {
     return storedTriggerId
   }
 
-  const blockConfig = getBlock(block.type)
-  if (blockConfig?.category === 'triggers' && isTriggerValid(block.type)) {
-    return block.type
-  }
-
-  if (block.triggerMode && blockConfig?.triggers?.enabled) {
+  if (blockConfig?.triggers?.enabled) {
     const configuredTriggerId =
       typeof selectedTriggerId === 'string' ? selectedTriggerId : undefined
     if (configuredTriggerId && isTriggerValid(configuredTriggerId)) {
