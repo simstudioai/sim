@@ -704,12 +704,10 @@ Return ONLY the comment text - no explanations.`,
       'jira_update',
       'jira_write',
       'jira_bulk_read',
-      'jira_bulk_read_v2',
       'jira_delete_issue',
       'jira_assign_issue',
       'jira_transition_issue',
       'jira_search_issues',
-      'jira_search_issues_v2',
       'jira_add_comment',
       'jira_get_comments',
       'jira_update_comment',
@@ -737,7 +735,7 @@ Return ONLY the comment text - no explanations.`,
           case 'read':
             // If a project is selected but no issue is chosen, route to bulk read
             if (effectiveProjectId && !effectiveIssueKey) {
-              return 'jira_bulk_read_v2'
+              return 'jira_bulk_read'
             }
             return 'jira_retrieve'
           case 'update':
@@ -745,7 +743,7 @@ Return ONLY the comment text - no explanations.`,
           case 'write':
             return 'jira_write'
           case 'read-bulk':
-            return 'jira_bulk_read_v2'
+            return 'jira_bulk_read'
           case 'delete':
             return 'jira_delete_issue'
           case 'assign':
@@ -753,7 +751,7 @@ Return ONLY the comment text - no explanations.`,
           case 'transition':
             return 'jira_transition_issue'
           case 'search':
-            return 'jira_search_issues_v2'
+            return 'jira_search_issues'
           case 'add_comment':
             return 'jira_add_comment'
           case 'get_comments':
@@ -1140,7 +1138,7 @@ Return ONLY the comment text - no explanations.`,
     id: { type: 'string', description: 'Jira issue ID' },
     key: { type: 'string', description: 'Jira issue key' },
 
-    // jira_search_issues_v2 / jira_bulk_read_v2 outputs
+    // jira_search_issues / jira_bulk_read outputs
     total: { type: 'number', description: 'Total number of matching issues' },
     nextPageToken: { type: 'string', description: 'Cursor token for the next page of results' },
     isLast: { type: 'boolean', description: 'Whether this is the last page of results' },

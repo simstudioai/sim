@@ -313,45 +313,7 @@ Retrieve multiple Jira issues from a project in bulk
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
-| `total` | number | Total number of issues in the project |
-| `issues` | array | Array of Jira issues |
-|   ↳ `id` | string | Issue ID |
-|   ↳ `key` | string | Issue key \(e.g., PROJ-123\) |
-|   ↳ `self` | string | REST API URL for this issue |
-|   ↳ `summary` | string | Issue summary |
-|   ↳ `description` | string | Issue description text |
-|   ↳ `status` | object | Issue status |
-|     ↳ `id` | string | Status ID |
-|     ↳ `name` | string | Status name |
-|   ↳ `issuetype` | object | Issue type |
-|     ↳ `id` | string | Issue type ID |
-|     ↳ `name` | string | Issue type name |
-|   ↳ `priority` | object | Issue priority |
-|     ↳ `id` | string | Priority ID |
-|     ↳ `name` | string | Priority name |
-|   ↳ `assignee` | object | Assigned user |
-|     ↳ `accountId` | string | Atlassian account ID |
-|     ↳ `displayName` | string | Display name |
-|   ↳ `created` | string | ISO 8601 creation timestamp |
-|   ↳ `updated` | string | ISO 8601 last updated timestamp |
-
-### `jira_bulk_read`
-
-Retrieve multiple Jira issues from a project in bulk with cursor-based pagination (V2 - uses nextPageToken)
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `projectId` | string | Yes | Jira project key \(e.g., PROJ\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ts` | string | ISO 8601 timestamp of the operation |
+| `total` | number | Total number of issues in the project \(may not always be available\) |
 | `issues` | array | Array of Jira issues |
 |   ↳ `id` | string | Issue ID |
 |   ↳ `key` | string | Issue key \(e.g., PROJ-123\) |
@@ -374,7 +336,6 @@ Retrieve multiple Jira issues from a project in bulk with cursor-based paginatio
 |   ↳ `updated` | string | ISO 8601 last updated timestamp |
 | `nextPageToken` | string | Cursor token for the next page. Null when no more results. |
 | `isLast` | boolean | Whether this is the last page of results |
-| `total` | number | Total number of issues in the project \(may not always be available\) |
 
 ### `jira_delete_issue`
 
@@ -454,90 +415,8 @@ Search for Jira issues using JQL (Jira Query Language)
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `jql` | string | Yes | JQL query string to search for issues \(e.g., "project = PROJ AND status = Open"\) |
-| `startAt` | number | No | The index of the first result to return \(for pagination\) |
-| `maxResults` | number | No | Maximum number of results to return \(default: 50\) |
-| `fields` | array | No | Array of field names to return \(default: all navigable\). Use "*all" for every field. |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ts` | string | ISO 8601 timestamp of the operation |
-| `total` | number | Total number of matching issues |
-| `startAt` | number | Pagination start index |
-| `maxResults` | number | Maximum results per page |
-| `issues` | array | Array of matching issues |
-|   ↳ `id` | string | Issue ID |
-|   ↳ `key` | string | Issue key \(e.g., PROJ-123\) |
-|   ↳ `self` | string | REST API URL for this issue |
-|   ↳ `summary` | string | Issue summary |
-|   ↳ `description` | string | Issue description text \(extracted from ADF\) |
-|   ↳ `status` | object | Issue status |
-|     ↳ `id` | string | Status ID |
-|     ↳ `name` | string | Status name \(e.g., Open, In Progress, Done\) |
-|     ↳ `description` | string | Status description |
-|     ↳ `statusCategory` | object | Status category grouping |
-|       ↳ `id` | number | Status category ID |
-|       ↳ `key` | string | Status category key \(e.g., new, indeterminate, done\) |
-|       ↳ `name` | string | Status category name \(e.g., To Do, In Progress, Done\) |
-|       ↳ `colorName` | string | Status category color \(e.g., blue-gray, yellow, green\) |
-|   ↳ `issuetype` | object | Issue type |
-|     ↳ `id` | string | Issue type ID |
-|     ↳ `name` | string | Issue type name \(e.g., Task, Bug, Story, Epic\) |
-|     ↳ `description` | string | Issue type description |
-|     ↳ `subtask` | boolean | Whether this is a subtask type |
-|     ↳ `iconUrl` | string | URL to the issue type icon |
-|   ↳ `project` | object | Project the issue belongs to |
-|     ↳ `id` | string | Project ID |
-|     ↳ `key` | string | Project key \(e.g., PROJ\) |
-|     ↳ `name` | string | Project name |
-|     ↳ `projectTypeKey` | string | Project type key \(e.g., software, business\) |
-|   ↳ `priority` | object | Issue priority |
-|     ↳ `id` | string | Priority ID |
-|     ↳ `name` | string | Priority name \(e.g., Highest, High, Medium, Low, Lowest\) |
-|     ↳ `iconUrl` | string | URL to the priority icon |
-|   ↳ `assignee` | object | Assigned user |
-|     ↳ `accountId` | string | Atlassian account ID of the user |
-|     ↳ `displayName` | string | Display name of the user |
-|     ↳ `active` | boolean | Whether the user account is active |
-|     ↳ `emailAddress` | string | Email address of the user |
-|     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
-|     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
-|     ↳ `timeZone` | string | User timezone |
-|   ↳ `reporter` | object | Reporter user |
-|     ↳ `accountId` | string | Atlassian account ID of the user |
-|     ↳ `displayName` | string | Display name of the user |
-|     ↳ `active` | boolean | Whether the user account is active |
-|     ↳ `emailAddress` | string | Email address of the user |
-|     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
-|     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
-|     ↳ `timeZone` | string | User timezone |
-|   ↳ `labels` | array | Issue labels |
-|   ↳ `components` | array | Issue components |
-|     ↳ `id` | string | Component ID |
-|     ↳ `name` | string | Component name |
-|     ↳ `description` | string | Component description |
-|   ↳ `resolution` | object | Issue resolution |
-|     ↳ `id` | string | Resolution ID |
-|     ↳ `name` | string | Resolution name \(e.g., Fixed, Duplicate, Won't Fix\) |
-|     ↳ `description` | string | Resolution description |
-|   ↳ `duedate` | string | Due date \(YYYY-MM-DD\) |
-|   ↳ `created` | string | ISO 8601 timestamp when the issue was created |
-|   ↳ `updated` | string | ISO 8601 timestamp when the issue was last updated |
-
-### `jira_search_issues`
-
-Search for Jira issues using JQL with cursor-based pagination (V2 - uses nextPageToken)
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `jql` | string | Yes | JQL query string to search for issues \(e.g., "project = PROJ AND status = Open"\) |
-| `startAt` | number | No | The index of the first result to return \(for pagination\) |
-| `maxResults` | number | No | Maximum number of results to return \(default: 50\) |
+| `nextPageToken` | string | No | Cursor token for the next page of results. Omit for the first page. |
+| `maxResults` | number | No | Maximum number of results to return per page \(default: 50\) |
 | `fields` | array | No | Array of field names to return \(default: all navigable\). Use "*all" for every field. |
 | `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 

@@ -1,9 +1,4 @@
-import type {
-  JiraSearchIssuesParams,
-  JiraSearchIssuesResponse,
-  JiraSearchIssuesV2Params,
-  JiraSearchIssuesV2Response,
-} from '@/tools/jira/types'
+import type { JiraSearchIssuesParams, JiraSearchIssuesResponse } from '@/tools/jira/types'
 import { SEARCH_ISSUE_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -91,173 +86,6 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       description:
         'JQL query string to search for issues (e.g., "project = PROJ AND status = Open")',
     },
-    startAt: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'The index of the first result to return (for pagination)',
-    },
-    maxResults: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (default: 50)',
-    },
-    fields: {
-      type: 'array',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Array of field names to return (default: all navigable). Use "*all" for every field.',
-    },
-    cloudId: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description:
-        'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
-    },
-  },
-
-  request: {
-    url: (params: JiraSearchIssuesParams) => {
-      if (params.cloudId) {
-        const query = new URLSearchParams()
-        if (params.jql) query.set('jql', params.jql)
-        if (typeof params.startAt === 'number') query.set('startAt', String(params.startAt))
-        if (typeof params.maxResults === 'number')
-          query.set('maxResults', String(params.maxResults))
-        if (Array.isArray(params.fields) && params.fields.length > 0)
-          query.set('fields', params.fields.join(','))
-        const qs = query.toString()
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/search/jql${qs ? `?${qs}` : ''}`
-      }
-      return 'https://api.atlassian.com/oauth/token/accessible-resources'
-    },
-    method: () => 'GET',
-    headers: (params: JiraSearchIssuesParams) => {
-      return {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: () => undefined as any,
-  },
-
-  transformResponse: async (response: Response, params?: JiraSearchIssuesParams) => {
-    const performSearch = async (cloudId: string) => {
-      const query = new URLSearchParams()
-      if (params?.jql) query.set('jql', params.jql)
-      if (typeof params?.startAt === 'number') query.set('startAt', String(params.startAt))
-      if (typeof params?.maxResults === 'number') query.set('maxResults', String(params.maxResults))
-      if (Array.isArray(params?.fields) && params.fields.length > 0)
-        query.set('fields', params.fields.join(','))
-      const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${query.toString()}`
-      const searchResponse = await fetch(searchUrl, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${params!.accessToken}`,
-        },
-      })
-
-      if (!searchResponse.ok) {
-        let message = `Failed to search Jira issues (${searchResponse.status})`
-        try {
-          const err = await searchResponse.json()
-          message = err?.errorMessages?.join(', ') || err?.message || message
-        } catch (_e) {}
-        throw new Error(message)
-      }
-
-      return searchResponse.json()
-    }
-
-    let data: any
-
-    if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      data = await performSearch(cloudId)
-    } else {
-      if (!response.ok) {
-        let message = `Failed to search Jira issues (${response.status})`
-        try {
-          const err = await response.json()
-          message = err?.errorMessages?.join(', ') || err?.message || message
-        } catch (_e) {}
-        throw new Error(message)
-      }
-      data = await response.json()
-    }
-
-    return {
-      success: true,
-      output: {
-        ts: new Date().toISOString(),
-        total: data?.total ?? 0,
-        startAt: data?.startAt ?? 0,
-        maxResults: data?.maxResults ?? 0,
-        issues: (data?.issues ?? []).map(transformSearchIssue),
-      },
-    }
-  },
-
-  outputs: {
-    ts: TIMESTAMP_OUTPUT,
-    total: { type: 'number', description: 'Total number of matching issues' },
-    startAt: { type: 'number', description: 'Pagination start index' },
-    maxResults: { type: 'number', description: 'Maximum results per page' },
-    issues: {
-      type: 'array',
-      description: 'Array of matching issues',
-      items: {
-        type: 'object',
-        properties: SEARCH_ISSUE_ITEM_PROPERTIES,
-      },
-    },
-  },
-}
-
-/**
- * V2 Search Issues Tool - Uses cursor-based pagination (nextPageToken) on /rest/api/3/search/jql.
- * The startAt parameter was deprecated on this endpoint as of Sept 2025.
- */
-export const jiraSearchIssuesV2Tool: ToolConfig<
-  JiraSearchIssuesV2Params,
-  JiraSearchIssuesV2Response
-> = {
-  id: 'jira_search_issues_v2',
-  name: 'Jira Search Issues V2',
-  description:
-    'Search for Jira issues using JQL with cursor-based pagination (V2 - uses nextPageToken)',
-  version: '2.0.0',
-
-  oauth: {
-    required: true,
-    provider: 'jira',
-  },
-
-  params: {
-    accessToken: {
-      type: 'string',
-      required: true,
-      visibility: 'hidden',
-      description: 'OAuth access token for Jira',
-    },
-    domain: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
-    },
-    jql: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description:
-        'JQL query string to search for issues (e.g., "project = PROJ AND status = Open")',
-    },
     nextPageToken: {
       type: 'string',
       required: false,
@@ -287,7 +115,7 @@ export const jiraSearchIssuesV2Tool: ToolConfig<
   },
 
   request: {
-    url: (params: JiraSearchIssuesV2Params) => {
+    url: (params: JiraSearchIssuesParams) => {
       if (params.cloudId) {
         const query = new URLSearchParams()
         if (params.jql) query.set('jql', params.jql)
@@ -302,7 +130,7 @@ export const jiraSearchIssuesV2Tool: ToolConfig<
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
     method: () => 'GET',
-    headers: (params: JiraSearchIssuesV2Params) => ({
+    headers: (params: JiraSearchIssuesParams) => ({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.accessToken}`,
@@ -310,7 +138,7 @@ export const jiraSearchIssuesV2Tool: ToolConfig<
     body: () => undefined as any,
   },
 
-  transformResponse: async (response: Response, params?: JiraSearchIssuesV2Params) => {
+  transformResponse: async (response: Response, params?: JiraSearchIssuesParams) => {
     const performSearch = async (cloudId: string) => {
       const query = new URLSearchParams()
       if (params?.jql) query.set('jql', params.jql)

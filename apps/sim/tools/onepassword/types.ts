@@ -1,34 +1,32 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface OnePasswordListVaultsParams {
-  apiKey: string
-  serverUrl: string
+/** Base params shared by all 1Password tools (credential fields). */
+export interface OnePasswordBaseParams {
+  connectionMode?: 'service_account' | 'connect'
+  serviceAccountToken?: string
+  apiKey?: string
+  serverUrl?: string
+}
+
+export interface OnePasswordListVaultsParams extends OnePasswordBaseParams {
   filter?: string
 }
 
-export interface OnePasswordGetVaultParams {
-  apiKey: string
-  serverUrl: string
+export interface OnePasswordGetVaultParams extends OnePasswordBaseParams {
   vaultId: string
 }
 
-export interface OnePasswordListItemsParams {
-  apiKey: string
-  serverUrl: string
+export interface OnePasswordListItemsParams extends OnePasswordBaseParams {
   vaultId: string
   filter?: string
 }
 
-export interface OnePasswordGetItemParams {
-  apiKey: string
-  serverUrl: string
+export interface OnePasswordGetItemParams extends OnePasswordBaseParams {
   vaultId: string
   itemId: string
 }
 
-export interface OnePasswordCreateItemParams {
-  apiKey: string
-  serverUrl: string
+export interface OnePasswordCreateItemParams extends OnePasswordBaseParams {
   vaultId: string
   category: string
   title?: string
@@ -36,27 +34,25 @@ export interface OnePasswordCreateItemParams {
   fields?: string
 }
 
-export interface OnePasswordUpdateItemParams {
-  apiKey: string
-  serverUrl: string
+export interface OnePasswordUpdateItemParams extends OnePasswordBaseParams {
   vaultId: string
   itemId: string
   operations: string
 }
 
-export interface OnePasswordReplaceItemParams {
-  apiKey: string
-  serverUrl: string
+export interface OnePasswordReplaceItemParams extends OnePasswordBaseParams {
   vaultId: string
   itemId: string
   item: string
 }
 
-export interface OnePasswordDeleteItemParams {
-  apiKey: string
-  serverUrl: string
+export interface OnePasswordDeleteItemParams extends OnePasswordBaseParams {
   vaultId: string
   itemId: string
+}
+
+export interface OnePasswordResolveSecretParams extends OnePasswordBaseParams {
+  secretReference: string
 }
 
 export interface OnePasswordListVaultsResponse extends ToolResponse {
@@ -152,5 +148,12 @@ export type OnePasswordReplaceItemResponse = OnePasswordFullItemResponse
 export interface OnePasswordDeleteItemResponse extends ToolResponse {
   output: {
     success: boolean
+  }
+}
+
+export interface OnePasswordResolveSecretResponse extends ToolResponse {
+  output: {
+    secret: string
+    reference: string
   }
 }

@@ -10,21 +10,32 @@ export const listVaultsTool: ToolConfig<
 > = {
   id: 'onepassword_list_vaults',
   name: '1Password List Vaults',
-  description: 'List all vaults accessible by the Connect token',
+  description: 'List all vaults accessible by the Connect token or Service Account',
   version: '1.0.0',
 
   params: {
+    connectionMode: {
+      type: 'string',
+      required: false,
+      description: 'Connection mode: "service_account" or "connect"',
+    },
+    serviceAccountToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: '1Password Service Account token (for Service Account mode)',
+    },
     apiKey: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: '1Password Connect API token',
+      description: '1Password Connect API token (for Connect Server mode)',
     },
     serverUrl: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: '1Password Connect server URL (e.g., http://localhost:8080)',
+      description: '1Password Connect server URL (for Connect Server mode)',
     },
     filter: {
       type: 'string',
@@ -35,23 +46,28 @@ export const listVaultsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const base = params.serverUrl.replace(/\/$/, '')
-      const query = params.filter ? `?filter=${encodeURIComponent(params.filter)}` : ''
-      return `${base}/v1/vaults${query}`
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+    url: '/api/tools/onepassword/list-vaults',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      connectionMode: params.connectionMode,
+      serviceAccountToken: params.serviceAccountToken,
+      serverUrl: params.serverUrl,
+      apiKey: params.apiKey,
+      filter: params.filter,
     }),
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
+    if (data.error) {
+      return { success: false, output: { vaults: [] }, error: data.error }
+    }
+    const vaults = Array.isArray(data) ? data : [data]
     return {
       success: true,
       output: {
-        vaults: (data ?? []).map((vault: any) => ({
+        vaults: vaults.map((vault: any) => ({
           id: vault.id ?? null,
           name: vault.name ?? null,
           description: vault.description ?? null,

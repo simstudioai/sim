@@ -873,7 +873,7 @@ export interface JiraRetrieveBulkParams {
 export interface JiraRetrieveResponseBulk extends ToolResponse {
   output: {
     ts: string
-    total: number
+    total: number | null
     issues: Array<{
       id: string
       key: string
@@ -887,6 +887,8 @@ export interface JiraRetrieveResponseBulk extends ToolResponse {
       created: string
       updated: string
     }>
+    nextPageToken: string | null
+    isLast: boolean
   }
 }
 
@@ -1034,7 +1036,7 @@ export interface JiraSearchIssuesParams {
   accessToken: string
   domain: string
   jql: string
-  startAt?: number
+  nextPageToken?: string
   maxResults?: number
   fields?: string[]
   cloudId?: string
@@ -1043,9 +1045,6 @@ export interface JiraSearchIssuesParams {
 export interface JiraSearchIssuesResponse extends ToolResponse {
   output: {
     ts: string
-    total: number
-    startAt: number
-    maxResults: number
     issues: Array<{
       id: string
       key: string
@@ -1066,74 +1065,6 @@ export interface JiraSearchIssuesResponse extends ToolResponse {
       components: Array<{ id: string; name: string }>
       resolution: { id: string; name: string } | null
       duedate: string | null
-      created: string
-      updated: string
-    }>
-  }
-}
-
-export interface JiraSearchIssuesV2Params {
-  accessToken: string
-  domain: string
-  jql: string
-  nextPageToken?: string
-  maxResults?: number
-  fields?: string[]
-  cloudId?: string
-}
-
-export interface JiraSearchIssuesV2Response extends ToolResponse {
-  output: {
-    ts: string
-    issues: Array<{
-      id: string
-      key: string
-      self: string
-      summary: string
-      description: string | null
-      status: {
-        id: string
-        name: string
-        statusCategory?: { id: number; key: string; name: string; colorName: string }
-      }
-      issuetype: { id: string; name: string; subtask: boolean }
-      project: { id: string; key: string; name: string }
-      priority: { id: string; name: string } | null
-      assignee: { accountId: string; displayName: string } | null
-      reporter: { accountId: string; displayName: string } | null
-      labels: string[]
-      components: Array<{ id: string; name: string }>
-      resolution: { id: string; name: string } | null
-      duedate: string | null
-      created: string
-      updated: string
-    }>
-    nextPageToken: string | null
-    isLast: boolean
-    total: number | null
-  }
-}
-
-export interface JiraRetrieveBulkV2Params {
-  accessToken: string
-  domain: string
-  projectId: string
-  cloudId?: string
-}
-
-export interface JiraRetrieveResponseBulkV2 extends ToolResponse {
-  output: {
-    ts: string
-    issues: Array<{
-      id: string
-      key: string
-      self: string
-      summary: string
-      description: string | null
-      status: { id: string; name: string }
-      issuetype: { id: string; name: string }
-      priority: { id: string; name: string } | null
-      assignee: { accountId: string; displayName: string } | null
       created: string
       updated: string
     }>

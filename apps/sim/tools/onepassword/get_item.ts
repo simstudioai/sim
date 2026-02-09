@@ -12,17 +12,28 @@ export const getItemTool: ToolConfig<OnePasswordGetItemParams, OnePasswordGetIte
   version: '1.0.0',
 
   params: {
+    connectionMode: {
+      type: 'string',
+      required: false,
+      description: 'Connection mode: "service_account" or "connect"',
+    },
+    serviceAccountToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: '1Password Service Account token (for Service Account mode)',
+    },
     apiKey: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: '1Password Connect API token',
+      description: '1Password Connect API token (for Connect Server mode)',
     },
     serverUrl: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: '1Password Connect server URL (e.g., http://localhost:8080)',
+      description: '1Password Connect server URL (for Connect Server mode)',
     },
     vaultId: {
       type: 'string',
@@ -39,18 +50,24 @@ export const getItemTool: ToolConfig<OnePasswordGetItemParams, OnePasswordGetIte
   },
 
   request: {
-    url: (params) => {
-      const base = params.serverUrl.replace(/\/$/, '')
-      return `${base}/v1/vaults/${params.vaultId}/items/${params.itemId}`
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+    url: '/api/tools/onepassword/get-item',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      connectionMode: params.connectionMode,
+      serviceAccountToken: params.serviceAccountToken,
+      serverUrl: params.serverUrl,
+      apiKey: params.apiKey,
+      vaultId: params.vaultId,
+      itemId: params.itemId,
     }),
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
+    if (data.error) {
+      return { success: false, output: transformFullItem({}), error: data.error }
+    }
     return {
       success: true,
       output: transformFullItem(data),
