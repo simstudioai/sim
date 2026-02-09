@@ -1,30 +1,22 @@
-import { getJiraCloudId } from '@/tools/jira/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { JiraGetWorklogsParams, JiraGetWorklogsResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT, WORKLOG_ITEM_PROPERTIES } from '@/tools/jira/types'
+import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
+import type { ToolConfig } from '@/tools/types'
 
-export interface JiraGetWorklogsParams {
-  accessToken: string
-  domain: string
-  issueKey: string
-  startAt?: number
-  maxResults?: number
-  cloudId?: string
-}
-
-export interface JiraGetWorklogsResponse extends ToolResponse {
-  output: {
-    ts: string
-    issueKey: string
-    total: number
-    worklogs: Array<{
-      id: string
-      author: string
-      timeSpentSeconds: number
-      timeSpent: string
-      comment?: string
-      created: string
-      updated: string
-      started: string
-    }>
+/**
+ * Transforms a raw Jira worklog object into typed output.
+ */
+function transformWorklog(worklog: any) {
+  return {
+    id: worklog.id ?? '',
+    author: transformUser(worklog.author) ?? { accountId: '', displayName: '' },
+    updateAuthor: transformUser(worklog.updateAuthor),
+    comment: worklog.comment ? (extractAdfText(worklog.comment) ?? null) : null,
+    started: worklog.started ?? '',
+    timeSpent: worklog.timeSpent ?? '',
+    timeSpentSeconds: worklog.timeSpentSeconds ?? 0,
+    created: worklog.created ?? '',
+    updated: worklog.updated ?? '',
   }
 }
 
@@ -82,8 +74,8 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
   request: {
     url: (params: JiraGetWorklogsParams) => {
       if (params.cloudId) {
-        const startAt = params.startAt || 0
-        const maxResults = params.maxResults || 50
+        const startAt = params.startAt ?? 0
+        const maxResults = params.maxResults ?? 50
         return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/worklog?startAt=${startAt}&maxResults=${maxResults}`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
@@ -98,29 +90,15 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
   },
 
   transformResponse: async (response: Response, params?: JiraGetWorklogsParams) => {
-    // Extract text from Atlassian Document Format
-    const extractText = (content: any): string => {
-      if (!content) return ''
-      if (typeof content === 'string') return content
-      if (Array.isArray(content)) {
-        return content.map(extractText).join(' ')
-      }
-      if (content.type === 'text') return content.text || ''
-      if (content.content) return extractText(content.content)
-      return ''
-    }
-
-    if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      // Make the actual request with the resolved cloudId
-      const startAt = params?.startAt || 0
-      const maxResults = params?.maxResults || 50
-      const worklogsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/worklog?startAt=${startAt}&maxResults=${maxResults}`
+    const fetchWorklogs = async (cloudId: string) => {
+      const startAt = params?.startAt ?? 0
+      const maxResults = params?.maxResults ?? 50
+      const worklogsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/worklog?startAt=${startAt}&maxResults=${maxResults}`
       const worklogsResponse = await fetch(worklogsUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${params?.accessToken}`,
+          Authorization: `Bearer ${params!.accessToken}`,
         },
       })
 
@@ -133,68 +111,52 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
         throw new Error(message)
       }
 
-      const data = await worklogsResponse.json()
+      return worklogsResponse.json()
+    }
 
-      return {
-        success: true,
-        output: {
-          ts: new Date().toISOString(),
-          issueKey: params?.issueKey || 'unknown',
-          total: data.total || 0,
-          worklogs: (data.worklogs || []).map((worklog: any) => ({
-            id: worklog.id,
-            author: worklog.author?.displayName || worklog.author?.accountId || 'Unknown',
-            timeSpentSeconds: worklog.timeSpentSeconds,
-            timeSpent: worklog.timeSpent,
-            comment: worklog.comment ? extractText(worklog.comment) : undefined,
-            created: worklog.created,
-            updated: worklog.updated,
-            started: worklog.started,
-          })),
-        },
+    let data: any
+
+    if (!params?.cloudId) {
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      data = await fetchWorklogs(cloudId)
+    } else {
+      if (!response.ok) {
+        let message = `Failed to get worklogs from Jira issue (${response.status})`
+        try {
+          const err = await response.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } catch (_e) {}
+        throw new Error(message)
       }
+      data = await response.json()
     }
-
-    // If cloudId was provided, process the response
-    if (!response.ok) {
-      let message = `Failed to get worklogs from Jira issue (${response.status})`
-      try {
-        const err = await response.json()
-        message = err?.errorMessages?.join(', ') || err?.message || message
-      } catch (_e) {}
-      throw new Error(message)
-    }
-
-    const data = await response.json()
 
     return {
       success: true,
       output: {
         ts: new Date().toISOString(),
-        issueKey: params?.issueKey || 'unknown',
-        total: data.total || 0,
-        worklogs: (data.worklogs || []).map((worklog: any) => ({
-          id: worklog.id,
-          author: worklog.author?.displayName || worklog.author?.accountId || 'Unknown',
-          timeSpentSeconds: worklog.timeSpentSeconds,
-          timeSpent: worklog.timeSpent,
-          comment: worklog.comment ? extractText(worklog.comment) : undefined,
-          created: worklog.created,
-          updated: worklog.updated,
-          started: worklog.started,
-        })),
+        issueKey: params?.issueKey ?? 'unknown',
+        total: data.total ?? 0,
+        startAt: data.startAt ?? 0,
+        maxResults: data.maxResults ?? 0,
+        worklogs: (data.worklogs ?? []).map(transformWorklog),
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     issueKey: { type: 'string', description: 'Issue key' },
     total: { type: 'number', description: 'Total number of worklogs' },
+    startAt: { type: 'number', description: 'Pagination start index' },
+    maxResults: { type: 'number', description: 'Maximum results per page' },
     worklogs: {
       type: 'array',
-      description:
-        'Array of worklogs with id, author, timeSpentSeconds, timeSpent, comment, created, updated, started',
+      description: 'Array of worklogs',
+      items: {
+        type: 'object',
+        properties: WORKLOG_ITEM_PROPERTIES,
+      },
     },
   },
 }

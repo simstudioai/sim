@@ -1,4 +1,5 @@
 import type { JsmGetTransitionsParams, JsmGetTransitionsResponse } from '@/tools/jsm/types'
+import { TRANSITION_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetTransitionsTool: ToolConfig<JsmGetTransitionsParams, JsmGetTransitionsResponse> =
@@ -38,6 +39,18 @@ export const jsmGetTransitionsTool: ToolConfig<JsmGetTransitionsParams, JsmGetTr
         visibility: 'user-or-llm',
         description: 'Issue ID or key (e.g., SD-123)',
       },
+      start: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Start index for pagination (e.g., 0, 50, 100)',
+      },
+      limit: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Maximum results to return (e.g., 10, 25, 50)',
+      },
     },
 
     request: {
@@ -51,6 +64,8 @@ export const jsmGetTransitionsTool: ToolConfig<JsmGetTransitionsParams, JsmGetTr
         accessToken: params.accessToken,
         cloudId: params.cloudId,
         issueIdOrKey: params.issueIdOrKey,
+        start: params.start,
+        limit: params.limit,
       }),
     },
 
@@ -64,6 +79,8 @@ export const jsmGetTransitionsTool: ToolConfig<JsmGetTransitionsParams, JsmGetTr
             ts: new Date().toISOString(),
             issueIdOrKey: '',
             transitions: [],
+            total: 0,
+            isLastPage: true,
           },
           error: 'Empty response from API',
         }
@@ -81,6 +98,8 @@ export const jsmGetTransitionsTool: ToolConfig<JsmGetTransitionsParams, JsmGetTr
           ts: new Date().toISOString(),
           issueIdOrKey: '',
           transitions: [],
+          total: 0,
+          isLastPage: true,
         },
         error: data.error,
       }
@@ -89,6 +108,15 @@ export const jsmGetTransitionsTool: ToolConfig<JsmGetTransitionsParams, JsmGetTr
     outputs: {
       ts: { type: 'string', description: 'Timestamp of the operation' },
       issueIdOrKey: { type: 'string', description: 'Issue ID or key' },
-      transitions: { type: 'json', description: 'Array of available transitions' },
+      transitions: {
+        type: 'array',
+        description: 'List of available transitions',
+        items: {
+          type: 'object',
+          properties: TRANSITION_ITEM_PROPERTIES,
+        },
+      },
+      total: { type: 'number', description: 'Total number of transitions' },
+      isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
     },
   }

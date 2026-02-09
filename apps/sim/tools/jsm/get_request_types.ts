@@ -1,4 +1,5 @@
 import type { JsmGetRequestTypesParams, JsmGetRequestTypesResponse } from '@/tools/jsm/types'
+import { REQUEST_TYPE_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetRequestTypesTool: ToolConfig<
@@ -40,6 +41,24 @@ export const jsmGetRequestTypesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Service Desk ID (e.g., "1", "2")',
     },
+    searchQuery: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter request types by name',
+    },
+    groupId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by request type group ID',
+    },
+    expand: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated fields to expand in the response',
+    },
     start: {
       type: 'number',
       required: false,
@@ -65,6 +84,9 @@ export const jsmGetRequestTypesTool: ToolConfig<
       accessToken: params.accessToken,
       cloudId: params.cloudId,
       serviceDeskId: params.serviceDeskId,
+      searchQuery: params.searchQuery,
+      groupId: params.groupId,
+      expand: params.expand,
       start: params.start,
       limit: params.limit,
     }),
@@ -106,7 +128,14 @@ export const jsmGetRequestTypesTool: ToolConfig<
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    requestTypes: { type: 'json', description: 'Array of request types' },
+    requestTypes: {
+      type: 'array',
+      description: 'List of request types',
+      items: {
+        type: 'object',
+        properties: REQUEST_TYPE_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of request types' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

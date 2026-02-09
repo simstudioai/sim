@@ -80,6 +80,8 @@ export const jsmAnswerApprovalTool: ToolConfig<JsmAnswerApprovalParams, JsmAnswe
             issueIdOrKey: '',
             approvalId: '',
             decision: '',
+            finalDecision: null,
+            approvers: null,
             success: false,
           },
           error: 'Empty response from API',
@@ -99,6 +101,8 @@ export const jsmAnswerApprovalTool: ToolConfig<JsmAnswerApprovalParams, JsmAnswe
           issueIdOrKey: '',
           approvalId: '',
           decision: '',
+          finalDecision: null,
+          approvers: null,
           success: false,
         },
         error: data.error,
@@ -110,6 +114,45 @@ export const jsmAnswerApprovalTool: ToolConfig<JsmAnswerApprovalParams, JsmAnswe
       issueIdOrKey: { type: 'string', description: 'Issue ID or key' },
       approvalId: { type: 'string', description: 'Approval ID' },
       decision: { type: 'string', description: 'Decision made (approve/decline)' },
+      id: { type: 'string', description: 'Approval ID from response', optional: true },
+      name: { type: 'string', description: 'Approval description', optional: true },
+      finalDecision: {
+        type: 'string',
+        description: 'Final approval decision: pending, approved, or declined',
+        optional: true,
+      },
+      canAnswerApproval: {
+        type: 'boolean',
+        description: 'Whether the current user can still respond',
+        optional: true,
+      },
+      approvers: {
+        type: 'array',
+        description: 'Updated list of approvers with decisions',
+        items: {
+          type: 'object',
+          properties: {
+            approver: {
+              type: 'object',
+              description: 'Approver user details',
+              properties: {
+                accountId: { type: 'string', description: 'Approver account ID' },
+                displayName: { type: 'string', description: 'Approver display name' },
+                emailAddress: { type: 'string', description: 'Approver email', optional: true },
+                active: {
+                  type: 'boolean',
+                  description: 'Whether the account is active',
+                  optional: true,
+                },
+              },
+            },
+            approverDecision: { type: 'string', description: 'Individual approver decision' },
+          },
+        },
+        optional: true,
+      },
+      createdDate: { type: 'json', description: 'Approval creation date', optional: true },
+      completedDate: { type: 'json', description: 'Approval completion date', optional: true },
       success: { type: 'boolean', description: 'Whether the operation succeeded' },
     },
   }

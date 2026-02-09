@@ -165,8 +165,25 @@ export async function POST(request: NextRequest) {
           issueIdOrKey,
           approvalId,
           decision,
+          id: data.id ?? null,
+          name: data.name ?? null,
+          finalDecision: data.finalDecision ?? null,
+          canAnswerApproval: data.canAnswerApproval ?? null,
+          approvers: (data.approvers ?? []).map((a: Record<string, unknown>) => {
+            const approver = a.approver as Record<string, unknown> | undefined
+            return {
+              approver: {
+                accountId: approver?.accountId ?? null,
+                displayName: approver?.displayName ?? null,
+                emailAddress: approver?.emailAddress ?? null,
+                active: approver?.active ?? null,
+              },
+              approverDecision: a.approverDecision ?? null,
+            }
+          }),
+          createdDate: data.createdDate ?? null,
+          completedDate: data.completedDate ?? null,
           success: true,
-          approval: data,
         },
       })
     }

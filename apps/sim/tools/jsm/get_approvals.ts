@@ -1,4 +1,5 @@
 import type { JsmGetApprovalsParams, JsmGetApprovalsResponse } from '@/tools/jsm/types'
+import { APPROVAL_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetApprovalsTool: ToolConfig<JsmGetApprovalsParams, JsmGetApprovalsResponse> = {
@@ -107,7 +108,14 @@ export const jsmGetApprovalsTool: ToolConfig<JsmGetApprovalsParams, JsmGetApprov
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
     issueIdOrKey: { type: 'string', description: 'Issue ID or key' },
-    approvals: { type: 'json', description: 'Array of approvals' },
+    approvals: {
+      type: 'array',
+      description: 'List of approvals',
+      items: {
+        type: 'object',
+        properties: APPROVAL_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of approvals' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

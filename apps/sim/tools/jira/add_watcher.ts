@@ -1,22 +1,7 @@
+import type { JiraAddWatcherParams, JiraAddWatcherResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-export interface JiraAddWatcherParams {
-  accessToken: string
-  domain: string
-  issueKey: string
-  accountId: string
-  cloudId?: string
-}
-
-export interface JiraAddWatcherResponse extends ToolResponse {
-  output: {
-    ts: string
-    issueKey: string
-    watcherAccountId: string
-    success: boolean
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcherResponse> = {
   id: 'jira_add_watcher',
@@ -87,16 +72,15 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
   transformResponse: async (response: Response, params?: JiraAddWatcherParams) => {
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      // Make the actual request with the resolved cloudId
-      const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/watchers`
+      const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/watchers`
       const watcherResponse = await fetch(watcherUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${params?.accessToken}`,
+          Authorization: `Bearer ${params!.accessToken}`,
         },
-        body: JSON.stringify(params?.accountId),
+        body: JSON.stringify(params!.accountId),
       })
 
       if (!watcherResponse.ok) {
@@ -112,14 +96,13 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
         success: true,
         output: {
           ts: new Date().toISOString(),
-          issueKey: params?.issueKey || 'unknown',
-          watcherAccountId: params?.accountId || 'unknown',
+          issueKey: params!.issueKey || 'unknown',
+          watcherAccountId: params!.accountId || 'unknown',
           success: true,
         },
       }
     }
 
-    // If cloudId was provided, process the response
     if (!response.ok) {
       let message = `Failed to add watcher to Jira issue (${response.status})`
       try {
@@ -133,15 +116,15 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
       success: true,
       output: {
         ts: new Date().toISOString(),
-        issueKey: params?.issueKey || 'unknown',
-        watcherAccountId: params?.accountId || 'unknown',
+        issueKey: params!.issueKey || 'unknown',
+        watcherAccountId: params!.accountId || 'unknown',
         success: true,
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     issueKey: { type: 'string', description: 'Issue key' },
     watcherAccountId: { type: 'string', description: 'Added watcher account ID' },
   },

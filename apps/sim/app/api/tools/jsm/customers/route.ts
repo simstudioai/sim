@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       query,
       start,
       limit,
-      emails,
+      accountIds,
     } = body
 
     if (!domain) {
@@ -56,24 +56,26 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const parsedEmails = emails
-      ? typeof emails === 'string'
-        ? emails
+    const parsedAccountIds = accountIds
+      ? typeof accountIds === 'string'
+        ? accountIds
             .split(',')
-            .map((email: string) => email.trim())
-            .filter((email: string) => email)
-        : emails
+            .map((id: string) => id.trim())
+            .filter((id: string) => id)
+        : Array.isArray(accountIds)
+          ? accountIds
+          : []
       : []
 
-    const isAddOperation = parsedEmails.length > 0
+    const isAddOperation = parsedAccountIds.length > 0
 
     if (isAddOperation) {
       const url = `${baseUrl}/servicedesk/${serviceDeskId}/customer`
 
-      logger.info('Adding customers to:', url, { emails: parsedEmails })
+      logger.info('Adding customers to:', url, { accountIds: parsedAccountIds })
 
       const requestBody: Record<string, unknown> = {
-        usernames: parsedEmails,
+        accountIds: parsedAccountIds,
       }
 
       const response = await fetch(url, {

@@ -1,21 +1,7 @@
+import type { JiraDeleteIssueParams, JiraDeleteIssueResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-export interface JiraDeleteIssueParams {
-  accessToken: string
-  domain: string
-  issueKey: string
-  cloudId?: string
-  deleteSubtasks?: boolean
-}
-
-export interface JiraDeleteIssueResponse extends ToolResponse {
-  output: {
-    ts: string
-    issueKey: string
-    success: boolean
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIssueResponse> = {
   id: 'jira_delete_issue',
@@ -170,7 +156,7 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     issueKey: { type: 'string', description: 'Deleted issue key' },
   },
 }

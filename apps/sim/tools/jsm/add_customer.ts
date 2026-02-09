@@ -37,11 +37,11 @@ export const jsmAddCustomerTool: ToolConfig<JsmAddCustomerParams, JsmAddCustomer
       visibility: 'user-or-llm',
       description: 'Service Desk ID (e.g., "1", "2")',
     },
-    emails: {
+    accountIds: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Comma-separated email addresses to add as customers',
+      description: 'Comma-separated Atlassian account IDs to add as customers',
     },
   },
 
@@ -56,7 +56,7 @@ export const jsmAddCustomerTool: ToolConfig<JsmAddCustomerParams, JsmAddCustomer
       accessToken: params.accessToken,
       cloudId: params.cloudId,
       serviceDeskId: params.serviceDeskId,
-      emails: params.emails,
+      accountIds: params.accountIds,
     }),
   },
 

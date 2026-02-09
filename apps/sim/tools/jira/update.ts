@@ -1,4 +1,5 @@
 import type { JiraUpdateParams, JiraUpdateResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = {
@@ -25,12 +26,6 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       visibility: 'user-only',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
-    projectId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Jira project key (e.g., PROJ). Optional when updating a single issue.',
-    },
     issueKey: {
       type: 'string',
       required: true,
@@ -49,23 +44,65 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       visibility: 'user-or-llm',
       description: 'New description for the issue',
     },
-    status: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'New status for the issue',
-    },
     priority: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New priority for the issue',
+      description: 'New priority ID or name for the issue (e.g., "High")',
     },
     assignee: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New assignee for the issue',
+      description: 'New assignee account ID for the issue',
+    },
+    labels: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Labels to set on the issue (array of label name strings)',
+    },
+    components: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Components to set on the issue (array of component name strings)',
+    },
+    duedate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Due date for the issue (format: YYYY-MM-DD)',
+    },
+    fixVersions: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Fix versions to set (array of version name strings)',
+    },
+    environment: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Environment information for the issue',
+    },
+    customFieldId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Custom field ID to update (e.g., customfield_10001)',
+    },
+    customFieldValue: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Value for the custom field',
+    },
+    notifyUsers: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to send email notifications about this update (default: true)',
     },
     cloudId: {
       type: 'string',
@@ -83,17 +120,22 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Pass all parameters to the internal API route
       return {
         domain: params.domain,
         accessToken: params.accessToken,
         issueKey: params.issueKey,
         summary: params.summary,
-        title: params.title, // Support both for backwards compatibility
         description: params.description,
-        status: params.status,
         priority: params.priority,
         assignee: params.assignee,
+        labels: params.labels,
+        components: params.components,
+        duedate: params.duedate,
+        fixVersions: params.fixVersions,
+        environment: params.environment,
+        customFieldId: params.customFieldId,
+        customFieldValue: params.customFieldValue,
+        notifyUsers: params.notifyUsers,
         cloudId: params.cloudId,
       }
     },
@@ -116,12 +158,10 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
 
     const data = JSON.parse(responseText)
 
-    // The internal API route already returns the correct format
     if (data.success && data.output) {
       return data
     }
 
-    // Fallback for unexpected response format
     return {
       success: data.success || false,
       output: data.output || {
@@ -135,7 +175,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     issueKey: { type: 'string', description: 'Updated issue key (e.g., PROJ-123)' },
     summary: { type: 'string', description: 'Issue summary after update' },
   },

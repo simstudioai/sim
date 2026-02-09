@@ -1,4 +1,9 @@
 import type { JsmGetRequestParams, JsmGetRequestResponse } from '@/tools/jsm/types'
+import {
+  REQUEST_FIELD_VALUE_PROPERTIES,
+  REQUEST_STATUS_PROPERTIES,
+  USER_OUTPUT_PROPERTIES,
+} from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestResponse> = {
@@ -37,6 +42,13 @@ export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestRes
       visibility: 'user-or-llm',
       description: 'Issue ID or key (e.g., SD-123)',
     },
+    expand: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action',
+    },
   },
 
   request: {
@@ -50,6 +62,7 @@ export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestRes
       accessToken: params.accessToken,
       cloudId: params.cloudId,
       issueIdOrKey: params.issueIdOrKey,
+      expand: params.expand,
     }),
   },
 
@@ -61,7 +74,15 @@ export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestRes
         success: false,
         output: {
           ts: new Date().toISOString(),
-          request: null,
+          issueId: '',
+          issueKey: '',
+          requestTypeId: '',
+          serviceDeskId: '',
+          createdDate: null,
+          currentStatus: null,
+          reporter: null,
+          requestFieldValues: [],
+          url: '',
         },
         error: 'Empty response from API',
       }
@@ -77,7 +98,15 @@ export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestRes
       success: data.success || false,
       output: data.output || {
         ts: new Date().toISOString(),
-        request: null,
+        issueId: '',
+        issueKey: '',
+        requestTypeId: '',
+        serviceDeskId: '',
+        createdDate: null,
+        currentStatus: null,
+        reporter: null,
+        requestFieldValues: [],
+        url: '',
       },
       error: data.error,
     }
@@ -85,6 +114,35 @@ export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestRes
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    request: { type: 'json', description: 'The service request object' },
+    issueId: { type: 'string', description: 'Jira issue ID' },
+    issueKey: { type: 'string', description: 'Issue key (e.g., SD-123)' },
+    requestTypeId: { type: 'string', description: 'Request type ID' },
+    serviceDeskId: { type: 'string', description: 'Service desk ID' },
+    createdDate: {
+      type: 'json',
+      description: 'Creation date with iso8601, friendly, epochMillis',
+      optional: true,
+    },
+    currentStatus: {
+      type: 'object',
+      description: 'Current request status',
+      properties: REQUEST_STATUS_PROPERTIES,
+      optional: true,
+    },
+    reporter: {
+      type: 'object',
+      description: 'Reporter user details',
+      properties: USER_OUTPUT_PROPERTIES,
+      optional: true,
+    },
+    requestFieldValues: {
+      type: 'array',
+      description: 'Request field values',
+      items: {
+        type: 'object',
+        properties: REQUEST_FIELD_VALUE_PROPERTIES,
+      },
+    },
+    url: { type: 'string', description: 'URL to the request' },
   },
 }
