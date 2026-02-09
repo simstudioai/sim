@@ -281,9 +281,14 @@ export class McpClient {
   /**
    * Register a callback to be invoked when the underlying transport closes.
    * Used by the connection manager for reconnection logic.
+   * Chains with the SDK's internal onclose handler so it still performs its cleanup.
    */
   onClose(callback: () => void): void {
-    this.transport.onclose = callback
+    const existingHandler = this.transport.onclose
+    this.transport.onclose = () => {
+      existingHandler?.()
+      callback()
+    }
   }
 
   /**
