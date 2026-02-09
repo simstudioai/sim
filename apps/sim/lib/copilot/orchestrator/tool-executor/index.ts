@@ -265,8 +265,7 @@ export async function markToolComplete(
       clearTimeout(timeoutId)
     }
   } catch (error) {
-    const isTimeout =
-      error instanceof DOMException && error.name === 'AbortError'
+    const isTimeout = error instanceof DOMException && error.name === 'AbortError'
     logger.error('Mark-complete call failed', {
       toolCallId,
       toolName,

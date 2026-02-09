@@ -150,12 +150,7 @@ export function abortAllInProgressTools(set: StoreSet, get: () => CopilotStore) 
                 toolCall: {
                   ...prev,
                   state: resolved,
-                  display: resolveToolDisplay(
-                    prev?.name,
-                    resolved,
-                    prev?.id,
-                    prev?.params
-                  ),
+                  display: resolveToolDisplay(prev?.name, resolved, prev?.id, prev?.params),
                 },
               }
             }

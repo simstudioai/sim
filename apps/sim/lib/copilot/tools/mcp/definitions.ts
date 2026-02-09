@@ -481,8 +481,7 @@ After sim_edit completes, you can test immediately with sim_test, or deploy with
         },
         plan: {
           type: 'object',
-          description:
-            'The plan object from sim_plan. Pass it EXACTLY as returned, do not modify.',
+          description: 'The plan object from sim_plan. Pass it EXACTLY as returned, do not modify.',
         },
         context: {
           type: 'object',

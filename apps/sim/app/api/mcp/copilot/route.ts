@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import {
@@ -5,15 +6,14 @@ import {
   type CallToolResult,
   ErrorCode,
   type JSONRPCError,
-  type ListToolsResult,
   ListToolsRequestSchema,
+  type ListToolsResult,
   McpError,
   type RequestId,
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
 import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -23,8 +23,6 @@ import {
   SIM_AGENT_API_URL,
   SIM_AGENT_VERSION,
 } from '@/lib/copilot/constants'
-import { RateLimiter } from '@/lib/core/rate-limiter'
-import { env } from '@/lib/core/config/env'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
 import {
@@ -32,6 +30,8 @@ import {
   prepareExecutionContext,
 } from '@/lib/copilot/orchestrator/tool-executor'
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
+import { env } from '@/lib/core/config/env'
+import { RateLimiter } from '@/lib/core/rate-limiter'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotMcpAPI')
@@ -103,7 +103,8 @@ async function authenticateCopilotApiKey(apiKey: string): Promise<CopilotKeyAuth
     logger.error('Copilot API key validation failed', { error })
     return {
       success: false,
-      error: 'Could not validate Copilot API key — the authentication service is temporarily unreachable. This is NOT a problem with the API key itself; please retry shortly.',
+      error:
+        'Could not validate Copilot API key — the authentication service is temporarily unreachable. This is NOT a problem with the API key itself; please retry shortly.',
     }
   }
 }
@@ -444,7 +445,9 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
       }
     }
 
-    const params = request.params as { name?: string; arguments?: Record<string, unknown> } | undefined
+    const params = request.params as
+      | { name?: string; arguments?: Record<string, unknown> }
+      | undefined
     if (!params?.name) {
       throw new McpError(ErrorCode.InvalidParams, 'Tool name required')
     }
