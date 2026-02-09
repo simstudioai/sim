@@ -40,7 +40,10 @@ function setupBaseMocks() {
 }
 
 describe('McpConnectionManager', () => {
-  let manager: { connect: Function; dispose: Function } | null = null
+  let manager: {
+    connect: (...args: unknown[]) => Promise<{ supportsListChanged: boolean }>
+    dispose: () => void
+  } | null = null
 
   afterEach(() => {
     manager?.dispose()
@@ -72,17 +75,14 @@ describe('McpConnectionManager', () => {
 
       const config = serverConfig('server-1')
 
-      // Fire two concurrent connect() calls for the same server
       const p1 = mgr.connect(config, 'user-1', 'ws-1')
       const p2 = mgr.connect(config, 'user-1', 'ws-1')
 
       deferred.resolve()
       const [r1, r2] = await Promise.all([p1, p2])
 
-      // Only one McpClient should have been instantiated
       expect(instances).toHaveLength(1)
       expect(r1.supportsListChanged).toBe(true)
-      // Second call hits the connectingServers guard and returns false
       expect(r2.supportsListChanged).toBe(false)
     })
 
@@ -109,11 +109,9 @@ describe('McpConnectionManager', () => {
 
       const config = serverConfig('server-2')
 
-      // First connect — server doesn't support listChanged, disconnects immediately
       const r1 = await mgr.connect(config, 'user-1', 'ws-1')
       expect(r1.supportsListChanged).toBe(false)
 
-      // connectingServers cleaned up via finally, so second connect proceeds
       const r2 = await mgr.connect(config, 'user-1', 'ws-1')
       expect(r2.supportsListChanged).toBe(false)
 
@@ -148,11 +146,9 @@ describe('McpConnectionManager', () => {
 
       const config = serverConfig('server-3')
 
-      // First connect fails
       const r1 = await mgr.connect(config, 'user-1', 'ws-1')
       expect(r1.supportsListChanged).toBe(false)
 
-      // Second connect should NOT be blocked by a stale connectingServers entry
       const r2 = await mgr.connect(config, 'user-1', 'ws-1')
       expect(r2.supportsListChanged).toBe(true)
       expect(instances).toHaveLength(2)

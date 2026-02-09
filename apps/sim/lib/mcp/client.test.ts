@@ -91,8 +91,6 @@ describe('McpClient notification handler', () => {
     expect(capturedNotificationHandler).not.toBeNull()
 
     await client.disconnect()
-
-    // Simulate a late notification arriving after disconnect
     await capturedNotificationHandler!()
 
     expect(onToolsChanged).not.toHaveBeenCalled()
