@@ -8,6 +8,7 @@ import {
   wasToolResultSeen,
 } from '@/lib/copilot/orchestrator/sse-utils'
 import {
+  isIntegrationTool,
   isToolAvailableOnSimSide,
   markToolComplete,
 } from '@/lib/copilot/orchestrator/tool-executor'
@@ -171,8 +172,10 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     const isInterruptTool = isInterruptToolName(toolName)
     const isInteractive = options.interactive === true
+    // Integration tools (user-installed) also require approval in interactive mode
+    const needsApproval = isInterruptTool || isIntegrationTool(toolName)
 
-    if (isInterruptTool && isInteractive) {
+    if (needsApproval && isInteractive) {
       const decision = await waitForToolDecision(
         toolCallId,
         options.timeout || STREAM_TIMEOUT_MS,
@@ -370,6 +373,66 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     // with "Tool not found" and incorrectly mark the tool as failed.
     if (!isToolAvailableOnSimSide(toolName)) {
       return
+    }
+
+    // Integration tools (user-installed) require approval in interactive mode,
+    // same as top-level interrupt tools.
+    if (options.interactive === true && isIntegrationTool(toolName)) {
+      const decision = await waitForToolDecision(
+        toolCallId,
+        options.timeout || STREAM_TIMEOUT_MS,
+        options.abortSignal
+      )
+      if (decision?.status === 'accepted' || decision?.status === 'success') {
+        await executeToolAndReport(toolCallId, context, execContext, options)
+        return
+      }
+      if (decision?.status === 'rejected' || decision?.status === 'error') {
+        toolCall.status = 'rejected'
+        toolCall.endTime = Date.now()
+        await markToolComplete(
+          toolCall.id,
+          toolCall.name,
+          400,
+          decision.message || 'Tool execution rejected',
+          { skipped: true, reason: 'user_rejected' }
+        )
+        markToolResultSeen(toolCall.id)
+        await options?.onEvent?.({
+          type: 'tool_result',
+          toolCallId: toolCall.id,
+          data: {
+            id: toolCall.id,
+            name: toolCall.name,
+            success: false,
+            result: { skipped: true, reason: 'user_rejected' },
+          },
+        })
+        return
+      }
+      if (decision?.status === 'background') {
+        toolCall.status = 'skipped'
+        toolCall.endTime = Date.now()
+        await markToolComplete(
+          toolCall.id,
+          toolCall.name,
+          202,
+          decision.message || 'Tool execution moved to background',
+          { background: true }
+        )
+        markToolResultSeen(toolCall.id)
+        await options?.onEvent?.({
+          type: 'tool_result',
+          toolCallId: toolCall.id,
+          data: {
+            id: toolCall.id,
+            name: toolCall.name,
+            success: true,
+            result: { background: true },
+          },
+        })
+        return
+      }
     }
 
     if (options.autoExecuteTools !== false) {

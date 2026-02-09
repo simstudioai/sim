@@ -9,7 +9,12 @@ import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import { resolveToolDisplay } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { CopilotStore, CopilotToolCall } from '@/stores/panel/copilot/types'
-import { type SSEHandler, sseHandlers, updateStreamingMessage } from './handlers'
+import {
+  type SSEHandler,
+  sendAutoAcceptConfirmation,
+  sseHandlers,
+  updateStreamingMessage,
+} from './handlers'
 import type { ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSubagentHandlers')
@@ -233,6 +238,12 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) {
       return
+    }
+
+    // Auto-allowed tools: send confirmation to the server so it can proceed
+    // without waiting for the user to click "Allow".
+    if (isAutoAllowed) {
+      sendAutoAcceptConfirmation(id)
     }
   },
 

@@ -152,6 +152,19 @@ export function isToolAvailableOnSimSide(toolName: string): boolean {
 }
 
 /**
+ * Check whether a tool is a user-installed integration tool (e.g. Gmail, Slack).
+ * These tools exist in the tool registry but are NOT copilot server tools or
+ * known workflow manipulation tools. They should require user approval in
+ * interactive mode.
+ */
+export function isIntegrationTool(toolName: string): boolean {
+  if (SERVER_TOOLS.has(toolName)) return false
+  if (toolName in SIM_WORKFLOW_TOOL_HANDLERS) return false
+  const resolvedToolName = resolveToolId(toolName)
+  return !!getTool(resolvedToolName)
+}
+
+/**
  * Execute a tool server-side without calling internal routes.
  */
 export async function executeToolServerSide(

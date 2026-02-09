@@ -155,7 +155,7 @@ export async function buildCopilotRequestPayload(
     messages.push({ role: 'user', content: message })
   }
 
-  let integrationTools: ToolSchema[] = []
+  const integrationTools: ToolSchema[] = []
   let credentials: CredentialsPayload | null = null
 
   if (effectiveMode === 'build') {
@@ -195,22 +195,29 @@ export async function buildCopilotRequestPayload(
       const { createUserToolSchema } = await import('@/tools/params')
       const latestTools = getLatestVersionTools(tools)
 
-      integrationTools = Object.entries(latestTools).map(([toolId, toolConfig]) => {
-        const userSchema = createUserToolSchema(toolConfig)
-        const strippedName = stripVersionSuffix(toolId)
-        return {
-          name: strippedName,
-          description: toolConfig.description || toolConfig.name || strippedName,
-          input_schema: userSchema as unknown as Record<string, unknown>,
-          defer_loading: true,
-          ...(toolConfig.oauth?.required && {
-            oauth: {
-              required: true,
-              provider: toolConfig.oauth.provider,
-            },
-          }),
+      for (const [toolId, toolConfig] of Object.entries(latestTools)) {
+        try {
+          const userSchema = createUserToolSchema(toolConfig)
+          const strippedName = stripVersionSuffix(toolId)
+          integrationTools.push({
+            name: strippedName,
+            description: toolConfig.description || toolConfig.name || strippedName,
+            input_schema: userSchema as unknown as Record<string, unknown>,
+            defer_loading: true,
+            ...(toolConfig.oauth?.required && {
+              oauth: {
+                required: true,
+                provider: toolConfig.oauth.provider,
+              },
+            }),
+          })
+        } catch (toolError) {
+          logger.warn('Failed to build schema for tool, skipping', {
+            toolId,
+            error: toolError instanceof Error ? toolError.message : String(toolError),
+          })
         }
-      })
+      }
     } catch (error) {
       logger.warn('Failed to build tool schemas for payload', {
         error: error instanceof Error ? error.message : String(error),

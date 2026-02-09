@@ -401,6 +401,7 @@ export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
   }
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
+    if (!param) continue
     const visibility = param.visibility ?? 'user-or-llm'
     if (visibility === 'hidden') {
       continue

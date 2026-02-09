@@ -1239,8 +1239,8 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
     return true
   }
 
-  const mode = useCopilotStore.getState().mode
-  if (mode === 'build' && isIntegrationTool(toolCall.name)) {
+  // Integration tools (user-installed) always require approval
+  if (isIntegrationTool(toolCall.name)) {
     return true
   }
 

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
+import { COPILOT_CONFIRM_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import { asRecord } from '@/lib/copilot/orchestrator/sse-utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import {
@@ -23,6 +23,23 @@ const TEXT_BLOCK_TYPE = 'text'
 const MAX_BATCH_INTERVAL = 50
 const MIN_BATCH_INTERVAL = 16
 const MAX_QUEUE_SIZE = 5
+
+/**
+ * Send an auto-accept confirmation to the server for auto-allowed tools.
+ * The server-side orchestrator polls Redis for this decision.
+ */
+export function sendAutoAcceptConfirmation(toolCallId: string): void {
+  fetch(COPILOT_CONFIRM_API_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ toolCallId, status: 'accepted' }),
+  }).catch((error) => {
+    logger.warn('Failed to send auto-accept confirmation', {
+      toolCallId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  })
+}
 
 function writeActiveStreamToStorage(info: CopilotStreamInfo | null): void {
   if (typeof window === 'undefined') return
@@ -563,6 +580,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) {
       return
+    }
+
+    // Auto-allowed tools: send confirmation to the server so it can proceed
+    // without waiting for the user to click "Allow".
+    if (isAutoAllowed) {
+      sendAutoAcceptConfirmation(id)
     }
 
     // OAuth: dispatch event to open the OAuth connect modal
