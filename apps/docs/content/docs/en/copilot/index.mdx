@@ -190,3 +190,99 @@ Copilot usage is billed per token from the underlying LLM. If you reach your usa
 <Callout type="info">
   See the [Cost Calculation page](/execution/costs) for billing details.
 </Callout>
+## Copilot MCP
+
+You can use Copilot as an MCP server in your favorite editor or AI client. This lets you build, test, deploy, and manage Sim workflows directly from tools like Cursor, Claude Code, Claude Desktop, and VS Code.
+
+### Generating a Copilot API Key
+
+To connect to the Copilot MCP server, you need a **Copilot API key**:
+
+1. Go to [sim.ai](https://sim.ai) and sign in
+2. Navigate to **Settings** → **Copilot**
+3. Click **Generate API Key**
+4. Copy the key — it is only shown once
+
+The key will look like `sk-sim-copilot-...`. You will use this in the configuration below.
+
+### Cursor
+
+Add the following to your `.cursor/mcp.json` (project-level) or global Cursor MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "url": "https://www.sim.ai/api/mcp/copilot",
+      "headers": {
+        "X-API-Key": "YOUR_COPILOT_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Replace `YOUR_COPILOT_API_KEY` with the key you generated above.
+
+### Claude Code
+
+Run the following command to add the Copilot MCP server:
+
+```bash
+claude mcp add sim-copilot \
+  --transport http \
+  https://www.sim.ai/api/mcp/copilot \
+  --header "X-API-Key: YOUR_COPILOT_API_KEY"
+```
+
+Replace `YOUR_COPILOT_API_KEY` with your key.
+
+### Claude Desktop
+
+Claude Desktop requires [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) to connect to HTTP-based MCP servers. Add the following to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "sim-copilot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://www.sim.ai/api/mcp/copilot",
+        "--header",
+        "X-API-Key: YOUR_COPILOT_API_KEY"
+      ]
+    }
+  }
+}
+```
+
+Replace `YOUR_COPILOT_API_KEY` with your key.
+
+### VS Code
+
+Add the following to your VS Code `settings.json` or workspace `.vscode/settings.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "sim-copilot": {
+        "type": "http",
+        "url": "https://www.sim.ai/api/mcp/copilot",
+        "headers": {
+          "X-API-Key": "YOUR_COPILOT_API_KEY"
+        }
+      }
+    }
+  }
+}
+```
+
+Replace `YOUR_COPILOT_API_KEY` with your key.
+
+<Callout type="info">
+  For self-hosted deployments, replace `https://www.sim.ai` with your self-hosted Sim URL.
+</Callout>
+
