@@ -306,6 +306,26 @@ const META_custom_tool: ToolMetadata = {
   },
 }
 
+const META_build: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Building', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Building', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Building', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Built', icon: Wrench },
+    [ClientToolCallState.error]: { text: 'Failed to build', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped build', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted build', icon: XCircle },
+  },
+  uiConfig: {
+    subagent: {
+      streamingLabel: 'Building',
+      completedLabel: 'Built',
+      shouldCollapse: true,
+      outputArtifacts: [],
+    },
+  },
+}
+
 const META_debug: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
@@ -320,6 +340,26 @@ const META_debug: ToolMetadata = {
     subagent: {
       streamingLabel: 'Debugging',
       completedLabel: 'Debugged',
+      shouldCollapse: true,
+      outputArtifacts: [],
+    },
+  },
+}
+
+const META_discovery: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Discovering', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Discovering', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Discovering', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Discovered', icon: Search },
+    [ClientToolCallState.error]: { text: 'Failed to discover', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped discovery', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted discovery', icon: XCircle },
+  },
+  uiConfig: {
+    subagent: {
+      streamingLabel: 'Discovering',
+      completedLabel: 'Discovered',
       shouldCollapse: true,
       outputArtifacts: [],
     },
@@ -2252,9 +2292,11 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   checkoff_todo: META_checkoff_todo,
   crawl_website: META_crawl_website,
   create_workspace_mcp_server: META_create_workspace_mcp_server,
+  build: META_build,
   custom_tool: META_custom_tool,
   debug: META_debug,
   deploy: META_deploy,
+  discovery: META_discovery,
   deploy_api: META_deploy_api,
   deploy_chat: META_deploy_chat,
   deploy_mcp: META_deploy_mcp,
