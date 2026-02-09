@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('WorkflowMcpServerAPI')
@@ -145,6 +146,8 @@ export const DELETE = withMcpAuth<RouteParams>('admin')(
       }
 
       logger.info(`[${requestId}] Successfully deleted workflow MCP server: ${serverId}`)
+
+      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
 
       return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
     } catch (error) {

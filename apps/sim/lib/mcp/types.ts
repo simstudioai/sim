@@ -185,6 +185,14 @@ export interface ManagedConnectionState {
   lastActivity: number
 }
 
+/**
+ * Event emitted when workflow CRUD modifies a workflow MCP server's tools.
+ */
+export interface WorkflowToolsChangedEvent {
+  serverId: string
+  workspaceId: string
+}
+
 export interface McpApiResponse<T = unknown> {
   success: boolean
   data?: T

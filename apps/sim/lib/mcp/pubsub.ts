@@ -15,17 +15,12 @@ import { EventEmitter } from 'events'
 import { createLogger } from '@sim/logger'
 import Redis from 'ioredis'
 import { env } from '@/lib/core/config/env'
-import type { ToolsChangedEvent } from '@/lib/mcp/types'
+import type { ToolsChangedEvent, WorkflowToolsChangedEvent } from '@/lib/mcp/types'
 
 const logger = createLogger('McpPubSub')
 
 const CHANNEL_TOOLS_CHANGED = 'mcp:tools_changed'
 const CHANNEL_WORKFLOW_TOOLS_CHANGED = 'mcp:workflow_tools_changed'
-
-export interface WorkflowToolsChangedEvent {
-  serverId: string
-  workspaceId: string
-}
 
 type ToolsChangedHandler = (event: ToolsChangedEvent) => void
 type WorkflowToolsChangedHandler = (event: WorkflowToolsChangedEvent) => void

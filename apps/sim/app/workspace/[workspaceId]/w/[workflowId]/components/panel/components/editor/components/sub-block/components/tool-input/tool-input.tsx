@@ -62,7 +62,12 @@ import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
-import { useForceRefreshMcpTools, useMcpServers, useStoredMcpTools } from '@/hooks/queries/mcp'
+import {
+  useForceRefreshMcpTools,
+  useMcpServers,
+  useMcpToolsEvents,
+  useStoredMcpTools,
+} from '@/hooks/queries/mcp'
 import {
   useChildDeploymentStatus,
   useDeployChildWorkflow,
@@ -1035,6 +1040,7 @@ export const ToolInput = memo(function ToolInput({
   const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
   const forceRefreshMcpTools = useForceRefreshMcpTools()
+  useMcpToolsEvents(workspaceId)
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
   const mcpDataLoading = mcpLoading || mcpServersLoading
 
