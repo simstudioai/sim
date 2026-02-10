@@ -278,11 +278,11 @@ export function McpDeploy({
 
     const currentIds = new Set(selectedServerIds)
     const nextIds = new Set(selectedServerIdsForForm)
-    const toAdd = selectedServerIdsForForm.filter((id) => !currentIds.has(id))
+    const toAdd = new Set(selectedServerIdsForForm.filter((id) => !currentIds.has(id)))
     const toRemove = selectedServerIds.filter((id) => !nextIds.has(id))
     const shouldUpdateExisting = hasToolConfigurationChanges
 
-    if (toAdd.length === 0 && toRemove.length === 0 && !shouldUpdateExisting) return
+    if (toAdd.size === 0 && toRemove.length === 0 && !shouldUpdateExisting) return
 
     onSubmittingChange?.(true)
     try {
@@ -302,6 +302,8 @@ export function McpDeploy({
           nextServerToolsMap[serverId] = { tool: addedTool, isLoading: false }
           onAddedToServer?.()
           logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
+        } catch (error) {
+          logger.error(`Failed to add tool to server ${serverId}:`, error)
         } finally {
           setPendingServerChanges((prev) => {
             const next = new Set(prev)
@@ -323,6 +325,8 @@ export function McpDeploy({
             toolId: toolInfo.tool.id,
           })
           delete nextServerToolsMap[serverId]
+        } catch (error) {
+          logger.error(`Failed to remove tool from server ${serverId}:`, error)
         } finally {
           setPendingServerChanges((prev) => {
             const next = new Set(prev)
@@ -334,23 +338,27 @@ export function McpDeploy({
 
       if (shouldUpdateExisting) {
         for (const serverId of selectedServerIdsForForm) {
+          if (toAdd.has(serverId)) continue
           const toolInfo = nextServerToolsMap[serverId]
           if (!toolInfo?.tool) continue
 
-          await updateToolMutation.mutateAsync({
-            workspaceId,
-            serverId,
-            toolId: toolInfo.tool.id,
-            toolName: toolName.trim(),
-            toolDescription: toolDescription.trim() || undefined,
-            parameterSchema,
-          })
+          try {
+            await updateToolMutation.mutateAsync({
+              workspaceId,
+              serverId,
+              toolId: toolInfo.tool.id,
+              toolName: toolName.trim(),
+              toolDescription: toolDescription.trim() || undefined,
+              parameterSchema,
+            })
+          } catch (error) {
+            logger.error(`Failed to update tool on server ${serverId}:`, error)
+          }
         }
       }
 
       setServerToolsMap(nextServerToolsMap)
       setDraftSelectedServerIds(null)
-      // Update saved values after successful save (triggers re-render → hasChanges becomes false)
       setSavedValues({
         toolName,
         toolDescription,

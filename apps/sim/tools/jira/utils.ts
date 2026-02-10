@@ -1,3 +1,9 @@
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('JiraUtils')
+
+const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024
+
 /**
  * Extracts plain text from Atlassian Document Format (ADF) content.
  * Returns null if content is falsy.
@@ -56,6 +62,10 @@ export async function downloadJiraAttachments(
 
   for (const att of attachments) {
     if (!att.content) continue
+    if (att.size > MAX_ATTACHMENT_SIZE) {
+      logger.warn(`Skipping attachment ${att.filename} (${att.size} bytes): exceeds size limit`)
+      continue
+    }
     try {
       const response = await fetch(att.content, {
         headers: {
@@ -64,7 +74,10 @@ export async function downloadJiraAttachments(
         },
       })
 
-      if (!response.ok) continue
+      if (!response.ok) {
+        logger.warn(`Failed to download attachment ${att.filename}: HTTP ${response.status}`)
+        continue
+      }
 
       const arrayBuffer = await response.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
@@ -75,8 +88,8 @@ export async function downloadJiraAttachments(
         data: buffer.toString('base64'),
         size: buffer.length,
       })
-    } catch {
-      // Skip failed downloads
+    } catch (error) {
+      logger.warn(`Failed to download attachment ${att.filename}:`, error)
     }
   }
 
@@ -94,7 +107,6 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
 
   const resources = await response.json()
 
-  // If we have resources, find the matching one
   if (Array.isArray(resources) && resources.length > 0) {
     const normalizedInput = `https://${domain}`.toLowerCase()
     const matchedResource = resources.find((r) => r.url.toLowerCase() === normalizedInput)
@@ -104,8 +116,6 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
     }
   }
 
-  // If we couldn't find a match, return the first resource's ID
-  // This is a fallback in case the URL matching fails
   if (Array.isArray(resources) && resources.length > 0) {
     return resources[0].id
   }

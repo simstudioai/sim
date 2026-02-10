@@ -756,8 +756,6 @@ export const SUCCESS_OUTPUT: OutputProperty = {
   description: 'Operation success status',
 }
 
-// --- Parameter interfaces ---
-
 export interface JiraRetrieveParams {
   accessToken: string
   issueKey: string

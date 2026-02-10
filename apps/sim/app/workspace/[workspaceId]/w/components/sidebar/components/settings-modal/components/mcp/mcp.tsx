@@ -98,6 +98,7 @@ interface McpServer {
   transport?: string
   url?: string
   headers?: Record<string, string>
+  enabled?: boolean
   connectionStatus?: 'connected' | 'disconnected' | 'error'
   lastError?: string | null
   lastConnected?: string
@@ -416,7 +417,6 @@ export function MCP({ initialServerId }: MCPProps) {
   const [urlScrollLeft, setUrlScrollLeft] = useState(0)
   const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
 
-  // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false)
   const [editFormData, setEditFormData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
   const [editOriginalData, setEditOriginalData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
@@ -952,6 +952,7 @@ export function MCP({ initialServerId }: MCPProps) {
         return
       }
 
+      const currentServer = servers.find((s) => s.id === selectedServerId)
       await updateServerMutation.mutateAsync({
         workspaceId,
         serverId: selectedServerId,
@@ -961,7 +962,7 @@ export function MCP({ initialServerId }: MCPProps) {
           url: editFormData.url,
           headers: headersRecord,
           timeout: editFormData.timeout || 30000,
-          enabled: true,
+          enabled: currentServer?.enabled ?? true,
         },
       })
 
@@ -979,6 +980,7 @@ export function MCP({ initialServerId }: MCPProps) {
     updateServerMutation,
     workspaceId,
     headersToRecord,
+    servers,
   ])
 
   /**
