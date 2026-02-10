@@ -1,4 +1,5 @@
 import type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
+import type { AvailableModel } from '@/lib/copilot/types'
 
 export type { CopilotMode, CopilotModelId } from '@/lib/copilot/models'
 
@@ -116,6 +117,8 @@ export interface CopilotState {
   selectedModel: CopilotModelId
   agentPrefetch: boolean
   enabledModels: string[] | null // Null means not loaded yet, array of model IDs when loaded
+  availableModels: AvailableModel[]
+  isLoadingModels: boolean
   isCollapsed: boolean
 
   currentChat: CopilotChat | null
@@ -184,6 +187,7 @@ export interface CopilotActions {
   setSelectedModel: (model: CopilotStore['selectedModel']) => Promise<void>
   setAgentPrefetch: (prefetch: boolean) => void
   setEnabledModels: (models: string[] | null) => void
+  loadAvailableModels: () => Promise<void>
 
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean

@@ -112,6 +112,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     closePlanTodos,
     clearPlanArtifact,
     savePlanArtifact,
+    loadAvailableModels,
     loadAutoAllowedTools,
     resumeActiveStream,
   } = useCopilotStore()
@@ -123,6 +124,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     chatsLoadedForWorkflow,
     setCopilotWorkflowId,
     loadChats,
+    loadAvailableModels,
     loadAutoAllowedTools,
     currentChat,
     isSendingMessage,

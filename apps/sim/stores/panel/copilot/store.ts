@@ -26,6 +26,7 @@ import {
   COPILOT_CONFIRM_API_PATH,
   COPILOT_CREDENTIALS_API_PATH,
   COPILOT_DELETE_CHAT_API_PATH,
+  COPILOT_MODELS_API_PATH,
   MAX_RESUME_ATTEMPTS,
   OPTIMISTIC_TITLE_MAX_LENGTH,
   QUEUE_PROCESS_DELAY_MS,
@@ -41,6 +42,7 @@ import {
   saveMessageCheckpoint,
 } from '@/lib/copilot/messages'
 import type { CopilotTransportMode } from '@/lib/copilot/models'
+import type { AvailableModel } from '@/lib/copilot/types'
 import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import {
   abortAllInProgressTools,
@@ -913,6 +915,8 @@ const initialState = {
   selectedModel: 'claude-4.6-opus' as CopilotStore['selectedModel'],
   agentPrefetch: false,
   enabledModels: null as string[] | null, // Null means not loaded yet, empty array means all disabled
+  availableModels: [] as AvailableModel[],
+  isLoadingModels: false,
   isCollapsed: false,
   currentChat: null as CopilotChat | null,
   chats: [] as CopilotChat[],
@@ -979,6 +983,8 @@ export const useCopilotStore = create<CopilotStore>()(
         selectedModel: get().selectedModel,
         agentPrefetch: get().agentPrefetch,
         enabledModels: get().enabledModels,
+        availableModels: get().availableModels,
+        isLoadingModels: get().isLoadingModels,
         autoAllowedTools: get().autoAllowedTools,
         autoAllowedToolsLoaded: get().autoAllowedToolsLoaded,
       })
@@ -2191,6 +2197,49 @@ export const useCopilotStore = create<CopilotStore>()(
     },
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
     setEnabledModels: (models) => set({ enabledModels: models }),
+    loadAvailableModels: async () => {
+      set({ isLoadingModels: true })
+      try {
+        const response = await fetch(COPILOT_MODELS_API_PATH, { method: 'GET' })
+        if (!response.ok) {
+          throw new Error(`Failed to fetch available models: ${response.status}`)
+        }
+
+        const data = await response.json()
+        const models: unknown[] = Array.isArray(data?.models) ? data.models : []
+
+        const normalizedModels: AvailableModel[] = models
+          .filter((model: unknown): model is AvailableModel => {
+            return (
+              typeof model === 'object' &&
+              model !== null &&
+              'id' in model &&
+              typeof (model as { id: unknown }).id === 'string'
+            )
+          })
+          .map((model: AvailableModel) => ({
+            id: model.id,
+            friendlyName: model.friendlyName || model.id,
+            provider: model.provider || 'unknown',
+          }))
+
+        const { selectedModel } = get()
+        const selectedModelExists = normalizedModels.some((model) => model.id === selectedModel)
+        const nextSelectedModel =
+          selectedModelExists || normalizedModels.length === 0 ? selectedModel : normalizedModels[0].id
+
+        set({
+          availableModels: normalizedModels,
+          selectedModel: nextSelectedModel as CopilotStore['selectedModel'],
+          isLoadingModels: false,
+        })
+      } catch (error) {
+        logger.warn('[Copilot] Failed to load available models', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        set({ isLoadingModels: false })
+      }
+    },
 
     loadAutoAllowedTools: async () => {
       try {

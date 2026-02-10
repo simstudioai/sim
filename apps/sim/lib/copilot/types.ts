@@ -11,6 +11,12 @@ export type NotificationStatus =
 
 export type { CopilotToolCall, ToolState }
 
+export interface AvailableModel {
+  id: string
+  friendlyName: string
+  provider: string
+}
+
 // Provider configuration for Sim Agent requests.
 // This type is only for the `provider` field in requests sent to the Sim Agent.
 export type CopilotProviderConfig =

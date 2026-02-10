@@ -24,7 +24,7 @@ export const COPILOT_MODEL_IDS = [
   'gemini-3-pro',
 ] as const
 
-export type CopilotModelId = (typeof COPILOT_MODEL_IDS)[number]
+export type CopilotModelId = string
 
 export const COPILOT_MODES = ['ask', 'build', 'plan'] as const
 export type CopilotMode = (typeof COPILOT_MODES)[number]

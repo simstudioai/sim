@@ -11,6 +11,7 @@ interface UseCopilotInitializationProps {
   chatsLoadedForWorkflow: string | null
   setCopilotWorkflowId: (workflowId: string | null) => Promise<void>
   loadChats: (forceRefresh?: boolean) => Promise<void>
+  loadAvailableModels: () => Promise<void>
   loadAutoAllowedTools: () => Promise<void>
   currentChat: any
   isSendingMessage: boolean
@@ -30,6 +31,7 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
     chatsLoadedForWorkflow,
     setCopilotWorkflowId,
     loadChats,
+    loadAvailableModels,
     loadAutoAllowedTools,
     currentChat,
     isSendingMessage,
@@ -128,6 +130,17 @@ export function useCopilotInitialization(props: UseCopilotInitializationProps) {
       })
     }
   }, [loadAutoAllowedTools])
+
+  /** Load available models once on mount */
+  const hasLoadedModelsRef = useRef(false)
+  useEffect(() => {
+    if (!hasLoadedModelsRef.current) {
+      hasLoadedModelsRef.current = true
+      loadAvailableModels().catch((err) => {
+        logger.warn('[Copilot] Failed to load available models', err)
+      })
+    }
+  }, [loadAvailableModels])
 
   return {
     isInitialized,
