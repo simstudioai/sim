@@ -74,6 +74,18 @@ export const OnePasswordBlock: BlockConfig = {
       placeholder: 'op://vault-name-or-id/item-name-or-id/field-name',
       required: { field: 'operation', value: 'resolve_secret' },
       condition: { field: 'operation', value: 'resolve_secret' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a 1Password secret reference URI based on the user's description.
+The format is: op://vault-name-or-id/item-name-or-id/field-name
+You can also use: op://vault/item/section/field for fields inside sections.
+Examples:
+- op://Development/AWS/access-key
+- op://Production/Database/password
+- op://MyVault/Stripe/API Keys/secret-key
+
+Return ONLY the op:// URI - no explanations, no quotes, no markdown.`,
+      },
     },
     {
       id: 'vaultId',

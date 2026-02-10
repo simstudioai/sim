@@ -17,6 +17,7 @@ function transformSearchIssue(issue: any) {
     status: {
       id: fields.status?.id ?? '',
       name: fields.status?.name ?? '',
+      description: fields.status?.description ?? null,
       statusCategory: fields.status?.statusCategory
         ? {
             id: fields.status.statusCategory.id,
@@ -29,15 +30,22 @@ function transformSearchIssue(issue: any) {
     issuetype: {
       id: fields.issuetype?.id ?? '',
       name: fields.issuetype?.name ?? '',
+      description: fields.issuetype?.description ?? null,
       subtask: fields.issuetype?.subtask ?? false,
+      iconUrl: fields.issuetype?.iconUrl ?? null,
     },
     project: {
       id: fields.project?.id ?? '',
       key: fields.project?.key ?? '',
       name: fields.project?.name ?? '',
+      projectTypeKey: fields.project?.projectTypeKey ?? null,
     },
     priority: fields.priority
-      ? { id: fields.priority.id ?? '', name: fields.priority.name ?? '' }
+      ? {
+          id: fields.priority.id ?? '',
+          name: fields.priority.name ?? '',
+          iconUrl: fields.priority.iconUrl ?? null,
+        }
       : null,
     assignee: transformUser(fields.assignee),
     reporter: transformUser(fields.reporter),
@@ -45,9 +53,14 @@ function transformSearchIssue(issue: any) {
     components: (fields.components ?? []).map((c: any) => ({
       id: c.id ?? '',
       name: c.name ?? '',
+      description: c.description ?? null,
     })),
     resolution: fields.resolution
-      ? { id: fields.resolution.id ?? '', name: fields.resolution.name ?? '' }
+      ? {
+          id: fields.resolution.id ?? '',
+          name: fields.resolution.name ?? '',
+          description: fields.resolution.description ?? null,
+        }
       : null,
     duedate: fields.duedate ?? null,
     created: fields.created ?? '',
