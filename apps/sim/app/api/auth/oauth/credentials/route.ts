@@ -113,7 +113,12 @@ export async function GET(request: NextRequest) {
 
     let accountsData
 
-    if (credentialId) {
+    if (credentialId && workflowId) {
+      // When both workflowId and credentialId are provided, fetch by ID only.
+      // Workspace authorization above already proves access; the credential
+      // may belong to another workspace member (e.g. for display name resolution).
+      accountsData = await db.select().from(account).where(eq(account.id, credentialId))
+    } else if (credentialId) {
       accountsData = await db
         .select()
         .from(account)
