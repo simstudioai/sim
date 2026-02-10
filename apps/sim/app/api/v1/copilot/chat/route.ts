@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const parsed = RequestSchema.parse(body)
-    const defaults = getCopilotModel('chat')
+    const defaults = getCopilotModel()
     const selectedModel = parsed.model || defaults.model
 
     // Resolve workflow ID

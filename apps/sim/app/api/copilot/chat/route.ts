@@ -8,7 +8,7 @@ import { getSession } from '@/lib/auth'
 import { buildConversationHistory } from '@/lib/copilot/chat-context'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
-import { generateChatTitle } from '@/lib/copilot/chat-title'
+import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import {
@@ -23,9 +23,53 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { env } from '@/lib/core/config/env'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotChatAPI')
+
+async function requestChatTitleFromCopilot(params: {
+  message: string
+  model: string
+  provider?: string
+}): Promise<string | null> {
+  const { message, model, provider } = params
+  if (!message || !model) return null
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (env.COPILOT_API_KEY) {
+    headers['x-api-key'] = env.COPILOT_API_KEY
+  }
+
+  try {
+    const response = await fetch(`${SIM_AGENT_API_URL}/api/generate-chat-title`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message,
+        model,
+        ...(provider ? { provider } : {}),
+      }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      logger.warn('Failed to generate chat title via copilot backend', {
+        status: response.status,
+        error: payload,
+      })
+      return null
+    }
+
+    const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
+    return title || null
+  } catch (error) {
+    logger.error('Error generating chat title:', error)
+    return null
+  }
+}
 
 const FileAttachmentSchema = z.object({
   id: z.string(),
@@ -280,7 +324,7 @@ export async function POST(req: NextRequest) {
           }
 
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            generateChatTitle({ message, model: selectedModel, provider })
+            requestChatTitleFromCopilot({ message, model: selectedModel, provider })
               .then(async (title) => {
                 if (title) {
                   await db
@@ -407,7 +451,7 @@ export async function POST(req: NextRequest) {
       // Start title generation in parallel if this is first message (non-streaming)
       if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
         logger.info(`[${tracker.requestId}] Starting title generation for non-streaming response`)
-        generateChatTitle({ message, model: selectedModel, provider })
+        requestChatTitleFromCopilot({ message, model: selectedModel, provider })
           .then(async (title) => {
             if (title) {
               await db

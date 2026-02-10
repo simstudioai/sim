@@ -624,7 +624,7 @@ async function handleBuildToolCall(
 ): Promise<CallToolResult> {
   try {
     const requestText = (args.request as string) || JSON.stringify(args)
-    const { model } = getCopilotModel('chat')
+    const { model } = getCopilotModel()
     const workflowId = args.workflowId as string | undefined
 
     const resolved = workflowId ? { workflowId } : await resolveWorkflowIdForUser(userId)
@@ -721,7 +721,7 @@ async function handleSubagentToolCall(
       context.plan = args.plan
     }
 
-    const { model } = getCopilotModel('chat')
+    const { model } = getCopilotModel()
 
     const result = await orchestrateSubagentStream(
       toolDef.agentId,
