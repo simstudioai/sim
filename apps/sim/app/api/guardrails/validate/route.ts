@@ -16,15 +16,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
-      return NextResponse.json({
-        success: true,
-        output: {
-          passed: false,
-          validationType: 'unknown',
-          input: '',
-          error: 'Unauthorized',
-        },
-      })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
