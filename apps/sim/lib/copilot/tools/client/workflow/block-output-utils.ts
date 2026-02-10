@@ -1,7 +1,4 @@
-import {
-  getEffectiveBlockOutputPaths,
-  getEvaluatorMetricOutputs,
-} from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { normalizeName } from '@/executor/constants'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
@@ -95,17 +92,6 @@ export function computeBlockOutputPaths(block: BlockState, ctx: WorkflowContext)
   if (block.type === 'loop' || block.type === 'parallel') {
     const insidePaths = getSubflowInsidePaths(block.type, block.id, loops, parallels)
     return ['results', ...insidePaths]
-  }
-
-  if (block.type === 'evaluator') {
-    const metricOutputs = getEvaluatorMetricOutputs(mergedSubBlocks)
-    if (metricOutputs) {
-      return Object.keys(metricOutputs)
-    }
-    return getEffectiveBlockOutputPaths(block.type, mergedSubBlocks, {
-      triggerMode: Boolean(block.triggerMode),
-      preferToolOutputs: !block.triggerMode,
-    })
   }
 
   if (block.type === 'variables') {

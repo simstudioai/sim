@@ -1,10 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import {
-  getEffectiveBlockOutputs,
-  getEvaluatorMetricOutputs,
-} from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import type { SchemaField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import { getBlock } from '@/blocks'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -121,31 +118,6 @@ export function useBlockOutputFields({
 
     if (!blockConfig) {
       return []
-    }
-
-    // Handle evaluator blocks - use metrics if available
-    if (blockType === 'evaluator') {
-      const metricOutputs = getEvaluatorMetricOutputs(mergedSubBlocks)
-      if (metricOutputs) {
-        return Object.entries(metricOutputs).map(([name, output]) => ({
-          name,
-          type:
-            output &&
-            typeof output === 'object' &&
-            'type' in output &&
-            typeof output.type === 'string'
-              ? output.type
-              : 'number',
-          description:
-            output &&
-            typeof output === 'object' &&
-            'description' in output &&
-            typeof output.description === 'string'
-              ? output.description
-              : undefined,
-        }))
-      }
-      // Fall through to use blockConfig.outputs
     }
 
     // Handle variables blocks - use variable assignments if available
