@@ -17,7 +17,6 @@ import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { getCopilotModel } from '@/lib/copilot/config'
 import {
   ORCHESTRATION_TIMEOUT_MS,
   SIM_AGENT_API_URL,
@@ -36,6 +35,7 @@ import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotMcpAPI')
 const mcpRateLimiter = new RateLimiter()
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -624,7 +624,6 @@ async function handleBuildToolCall(
 ): Promise<CallToolResult> {
   try {
     const requestText = (args.request as string) || JSON.stringify(args)
-    const { model } = getCopilotModel()
     const workflowId = args.workflowId as string | undefined
 
     const resolved = workflowId ? { workflowId } : await resolveWorkflowIdForUser(userId)
@@ -654,7 +653,7 @@ async function handleBuildToolCall(
       message: requestText,
       workflowId: resolved.workflowId,
       userId,
-      model,
+      model: DEFAULT_COPILOT_MODEL,
       mode: 'agent',
       commands: ['fast'],
       messageId: randomUUID(),
@@ -721,8 +720,6 @@ async function handleSubagentToolCall(
       context.plan = args.plan
     }
 
-    const { model } = getCopilotModel()
-
     const result = await orchestrateSubagentStream(
       toolDef.agentId,
       {
@@ -730,7 +727,7 @@ async function handleSubagentToolCall(
         workflowId: args.workflowId,
         workspaceId: args.workspaceId,
         context,
-        model,
+        model: DEFAULT_COPILOT_MODEL,
         headless: true,
         source: 'mcp',
       },

@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getCopilotModel } from '@/lib/copilot/config'
 import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
@@ -9,6 +8,7 @@ import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('CopilotHeadlessAPI')
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
 const RequestSchema = z.object({
   message: z.string().min(1, 'message is required'),
@@ -42,8 +42,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const parsed = RequestSchema.parse(body)
-    const defaults = getCopilotModel()
-    const selectedModel = parsed.model || defaults.model
+    const selectedModel = parsed.model || DEFAULT_COPILOT_MODEL
 
     // Resolve workflow ID
     const resolved = await resolveWorkflowIdForUser(
