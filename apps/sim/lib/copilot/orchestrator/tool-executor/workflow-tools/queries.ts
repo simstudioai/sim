@@ -15,6 +15,8 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import {
@@ -343,7 +345,9 @@ export async function executeGetBlockOutputs(
         continue
       }
 
-      const triggerMode = Boolean(block.triggerMode)
+      const blockConfig = getBlock(block.type)
+      const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+      const triggerMode = Boolean(block.triggerMode && isTriggerCapable)
       const outputs = getEffectiveBlockOutputPaths(block.type, block.subBlocks, {
         triggerMode,
         preferToolOutputs: !triggerMode,
@@ -489,7 +493,9 @@ export async function executeGetBlockUpstreamReferences(
             ? getSubflowInsidePaths(block.type, accessibleBlockId, loops, parallels)
             : ['results']
         } else {
-          const triggerMode = Boolean(block.triggerMode)
+          const blockConfig = getBlock(block.type)
+          const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+          const triggerMode = Boolean(block.triggerMode && isTriggerCapable)
           outputPaths = getEffectiveBlockOutputPaths(block.type, block.subBlocks, {
             triggerMode,
             preferToolOutputs: !triggerMode,

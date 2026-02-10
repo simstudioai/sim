@@ -18,6 +18,7 @@ import {
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
 } from '@/lib/workflows/blocks/block-outputs'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import { KeyboardNavigationHandler } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/components/keyboard-navigation-handler'
 import type {
@@ -214,7 +215,8 @@ const getOutputTypeForPath = (
 
   const subBlocks =
     mergedSubBlocksOverride ?? useWorkflowStore.getState().blocks[blockId]?.subBlocks
-  const triggerMode = Boolean(block?.triggerMode && blockConfig?.triggers?.enabled)
+  const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+  const triggerMode = Boolean(block?.triggerMode && isTriggerCapable)
 
   return getEffectiveBlockOutputType(block?.type ?? '', outputPath, subBlocks, {
     triggerMode,
@@ -1074,9 +1076,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = [normalizedBlockName]
         }
       } else {
+        const sourceBlockConfig = getBlock(sourceBlock.type)
+        const isTriggerCapable = sourceBlockConfig ? hasTriggerCapability(sourceBlockConfig) : false
+        const effectiveTriggerMode = Boolean(sourceBlock.triggerMode && isTriggerCapable)
         const outputPaths = getEffectiveBlockOutputPaths(sourceBlock.type, mergedSubBlocks, {
-          triggerMode: Boolean(sourceBlock.triggerMode),
-          preferToolOutputs: !sourceBlock.triggerMode,
+          triggerMode: effectiveTriggerMode,
+          preferToolOutputs: !effectiveTriggerMode,
         })
         const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 
@@ -1319,9 +1324,14 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = [normalizedBlockName]
         }
       } else {
+        const accessibleBlockConfig = getBlock(accessibleBlock.type)
+        const isTriggerCapable = accessibleBlockConfig
+          ? hasTriggerCapability(accessibleBlockConfig)
+          : false
+        const effectiveTriggerMode = Boolean(accessibleBlock.triggerMode && isTriggerCapable)
         const outputPaths = getEffectiveBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, {
-          triggerMode: Boolean(accessibleBlock.triggerMode),
-          preferToolOutputs: !accessibleBlock.triggerMode,
+          triggerMode: effectiveTriggerMode,
+          preferToolOutputs: !effectiveTriggerMode,
         })
         const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 

@@ -1,6 +1,8 @@
 import { useShallow } from 'zustand/react/shallow'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getBlock } from '@/blocks'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -87,10 +89,13 @@ export function useBlockConnections(blockId: string) {
 
       // Get merged subblocks for this source block
       const mergedSubBlocks = getMergedSubBlocks(sourceId)
+      const blockConfig = getBlock(sourceBlock.type)
+      const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+      const effectiveTriggerMode = Boolean(sourceBlock.triggerMode && isTriggerCapable)
 
       const blockOutputs = getEffectiveBlockOutputs(sourceBlock.type, mergedSubBlocks, {
-        triggerMode: Boolean(sourceBlock.triggerMode),
-        preferToolOutputs: !sourceBlock.triggerMode,
+        triggerMode: effectiveTriggerMode,
+        preferToolOutputs: !effectiveTriggerMode,
       })
 
       const outputFields: Field[] = Object.entries(blockOutputs).map(

@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import type { SchemaField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import { getBlock } from '@/blocks'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -139,9 +140,11 @@ export function useBlockOutputFields({
       return []
     }
 
+    const isTriggerCapable = hasTriggerCapability(blockConfig)
+    const effectiveTriggerMode = Boolean(triggerMode && isTriggerCapable)
     const baseOutputs = getEffectiveBlockOutputs(blockType, mergedSubBlocks, {
-      triggerMode: Boolean(triggerMode),
-      preferToolOutputs: !triggerMode,
+      triggerMode: effectiveTriggerMode,
+      preferToolOutputs: !effectiveTriggerMode,
     }) as Record<string, any>
     if (Object.keys(baseOutputs).length === 0) {
       return []

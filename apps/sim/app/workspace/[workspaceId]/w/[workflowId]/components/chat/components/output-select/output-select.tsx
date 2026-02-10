@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -120,6 +121,8 @@ export function OutputSelect({
           : `block-${block.id}`
 
       const blockConfig = getBlock(block.type)
+      const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+      const effectiveTriggerMode = Boolean(block.triggerMode && isTriggerCapable)
 
       let outputsToProcess: Record<string, unknown> = {}
       const rawSubBlockValues =
@@ -135,8 +138,8 @@ export function OutputSelect({
       }
 
       outputsToProcess = getEffectiveBlockOutputs(block.type, subBlocks, {
-        triggerMode: Boolean(block.triggerMode),
-        preferToolOutputs: !block.triggerMode,
+        triggerMode: effectiveTriggerMode,
+        preferToolOutputs: !effectiveTriggerMode,
       }) as Record<string, unknown>
 
       if (Object.keys(outputsToProcess).length === 0) return

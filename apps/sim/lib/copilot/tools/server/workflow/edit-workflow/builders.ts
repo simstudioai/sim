@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
@@ -39,6 +40,8 @@ export function createBlockFromParams(
 
   // Determine outputs based on trigger mode
   const triggerMode = params.triggerMode || false
+  const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+  const effectiveTriggerMode = Boolean(triggerMode && isTriggerCapable)
   let outputs: Record<string, any>
 
   if (params.outputs) {
@@ -55,8 +58,8 @@ export function createBlockFromParams(
       })
     }
     outputs = getEffectiveBlockOutputs(params.type, subBlocks, {
-      triggerMode,
-      preferToolOutputs: !triggerMode,
+      triggerMode: effectiveTriggerMode,
+      preferToolOutputs: !effectiveTriggerMode,
     })
   } else {
     outputs = {}

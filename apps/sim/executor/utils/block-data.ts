@@ -1,4 +1,6 @@
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getBlock } from '@/blocks/registry'
 import { isTriggerBehavior, normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { OutputSchema } from '@/executor/utils/block-reference'
@@ -36,7 +38,9 @@ function getRegistrySchema(block: SerializedBlock): OutputSchema | undefined {
   if (!blockType) return undefined
 
   const subBlocks = paramsToSubBlocks(block.config?.params)
-  const triggerMode = isTriggerBehavior(block)
+  const blockConfig = getBlock(blockType)
+  const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+  const triggerMode = Boolean(isTriggerBehavior(block) && isTriggerCapable)
   const outputs = getEffectiveBlockOutputs(blockType, subBlocks, {
     triggerMode,
     preferToolOutputs: !triggerMode,
