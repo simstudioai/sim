@@ -5,6 +5,10 @@ import { BlockResolver } from './block'
 import type { ResolutionContext } from './reference'
 
 vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/blocks/registry', async () => {
+  const actual = await vi.importActual<typeof import('@/blocks/registry')>('@/blocks/registry')
+  return actual
+})
 
 function createTestWorkflow(
   blocks: Array<{
@@ -131,7 +135,7 @@ describe('BlockResolver', () => {
     })
 
     it.concurrent('should return undefined for non-existent path when no schema defined', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
+      const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { existing: 'value' },
@@ -162,19 +166,16 @@ describe('BlockResolver', () => {
       const workflow = createTestWorkflow([
         {
           id: 'source',
-          outputs: {
-            requiredField: { type: 'string', description: 'Always present' },
-            optionalField: { type: 'string', description: 'Sometimes missing' },
-          },
+          type: 'function',
         },
       ])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
-        source: { requiredField: 'value' },
+        source: { stdout: 'log output' },
       })
 
-      expect(resolver.resolve('<source.requiredField>', ctx)).toBe('value')
-      expect(resolver.resolve('<source.optionalField>', ctx)).toBeUndefined()
+      expect(resolver.resolve('<source.stdout>', ctx)).toBe('log output')
+      expect(resolver.resolve('<source.result>', ctx)).toBeUndefined()
     })
 
     it.concurrent(
@@ -1012,7 +1013,7 @@ describe('BlockResolver', () => {
     })
 
     it.concurrent('should handle output with undefined values', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
+      const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { value: undefined, other: 'exists' },
@@ -1022,7 +1023,7 @@ describe('BlockResolver', () => {
     })
 
     it.concurrent('should return undefined for deeply nested non-existent path', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
+      const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext('current', {
         source: { level1: { level2: {} } },
