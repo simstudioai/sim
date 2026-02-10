@@ -59,7 +59,6 @@ export async function POST(
     checkDeployment: false, // Resuming existing execution, deployment already checked
     skipUsageLimits: true, // Resume is continuation of authorized execution - don't recheck limits
     workspaceId: workflow.workspaceId || undefined,
-    isResumeContext: true, // Enable billing fallback for paused workflow resumes
   })
 
   if (!preprocessResult.success) {
