@@ -1,12 +1,112 @@
+import type {
+  Item,
+  ItemCategory,
+  ItemField,
+  ItemFieldType,
+  ItemOverview,
+  ItemSection,
+  VaultOverview,
+  Website,
+} from '@1password/sdk'
 import { createLogger } from '@sim/logger'
 
 const logger = createLogger('OnePasswordRouteUtils')
+
+/** Connect-format field type strings returned by normalization. */
+type ConnectFieldType =
+  | 'STRING'
+  | 'CONCEALED'
+  | 'EMAIL'
+  | 'URL'
+  | 'OTP'
+  | 'PHONE'
+  | 'DATE'
+  | 'MONTH_YEAR'
+  | 'MENU'
+  | 'ADDRESS'
+  | 'REFERENCE'
+  | 'SSHKEY'
+  | 'CREDIT_CARD_NUMBER'
+  | 'CREDIT_CARD_TYPE'
+
+/** Connect-format category strings returned by normalization. */
+type ConnectCategory =
+  | 'LOGIN'
+  | 'PASSWORD'
+  | 'API_CREDENTIAL'
+  | 'SECURE_NOTE'
+  | 'SERVER'
+  | 'DATABASE'
+  | 'CREDIT_CARD'
+  | 'IDENTITY'
+  | 'SSH_KEY'
+  | 'DOCUMENT'
+  | 'SOFTWARE_LICENSE'
+  | 'EMAIL_ACCOUNT'
+  | 'MEMBERSHIP'
+  | 'PASSPORT'
+  | 'REWARD_PROGRAM'
+  | 'DRIVER_LICENSE'
+  | 'BANK_ACCOUNT'
+  | 'MEDICAL_RECORD'
+  | 'OUTDOOR_LICENSE'
+  | 'WIRELESS_ROUTER'
+  | 'SOCIAL_SECURITY_NUMBER'
+  | 'CUSTOM'
+
+/** Normalized vault shape matching the Connect API response. */
+export interface NormalizedVault {
+  id: string
+  name: string
+  description: null
+  attributeVersion: number
+  contentVersion: number
+  items: number
+  type: string
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+/** Normalized item overview shape matching the Connect API response. */
+export interface NormalizedItemOverview {
+  id: string
+  title: string
+  vault: { id: string }
+  category: ConnectCategory
+  urls: Array<{ href: string; label: string | null; primary: boolean }>
+  favorite: boolean
+  tags: string[]
+  version: number
+  state: string | null
+  createdAt: string | null
+  updatedAt: string | null
+  lastEditedBy: null
+}
+
+/** Normalized field shape matching the Connect API response. */
+export interface NormalizedField {
+  id: string
+  label: string
+  type: ConnectFieldType
+  purpose: string
+  value: string | null
+  section: { id: string } | null
+  generate: boolean
+  recipe: null
+  entropy: null
+}
+
+/** Normalized full item shape matching the Connect API response. */
+export interface NormalizedItem extends NormalizedItemOverview {
+  fields: NormalizedField[]
+  sections: Array<{ id: string; label: string }>
+}
 
 /**
  * SDK field type string values → Connect field type mapping.
  * Uses string literals instead of enum imports to avoid loading the WASM module at build time.
  */
-const SDK_TO_CONNECT_FIELD_TYPE: Record<string, string> = {
+const SDK_TO_CONNECT_FIELD_TYPE: Record<string, ConnectFieldType> = {
   Text: 'STRING',
   Concealed: 'CONCEALED',
   Email: 'EMAIL',
@@ -24,7 +124,7 @@ const SDK_TO_CONNECT_FIELD_TYPE: Record<string, string> = {
 }
 
 /** SDK category string values → Connect category mapping. */
-const SDK_TO_CONNECT_CATEGORY: Record<string, string> = {
+const SDK_TO_CONNECT_CATEGORY: Record<string, ConnectCategory> = {
   Login: 'LOGIN',
   Password: 'PASSWORD',
   ApiCredentials: 'API_CREDENTIAL',
@@ -52,7 +152,7 @@ const SDK_TO_CONNECT_CATEGORY: Record<string, string> = {
 }
 
 /** Connect category → SDK category string mapping. */
-const CONNECT_TO_SDK_CATEGORY: Record<string, string> = {
+const CONNECT_TO_SDK_CATEGORY: Record<string, `${ItemCategory}`> = {
   LOGIN: 'Login',
   PASSWORD: 'Password',
   API_CREDENTIAL: 'ApiCredentials',
@@ -77,7 +177,7 @@ const CONNECT_TO_SDK_CATEGORY: Record<string, string> = {
 }
 
 /** Connect field type → SDK field type string mapping. */
-const CONNECT_TO_SDK_FIELD_TYPE: Record<string, string> = {
+const CONNECT_TO_SDK_FIELD_TYPE: Record<string, `${ItemFieldType}`> = {
   STRING: 'Text',
   CONCEALED: 'Concealed',
   EMAIL: 'Email',
@@ -98,10 +198,10 @@ const CONNECT_TO_SDK_FIELD_TYPE: Record<string, string> = {
 export type ConnectionMode = 'service_account' | 'connect'
 
 export interface CredentialParams {
-  connectionMode?: ConnectionMode
-  serviceAccountToken?: string
-  serverUrl?: string
-  apiKey?: string
+  connectionMode?: ConnectionMode | null
+  serviceAccountToken?: string | null
+  serverUrl?: string | null
+  apiKey?: string | null
 }
 
 export interface ResolvedCredentials {
@@ -172,7 +272,7 @@ export async function connectRequest(options: {
 }
 
 /** Normalize an SDK VaultOverview to match Connect API vault shape. */
-export function normalizeSdkVault(vault: Record<string, any>) {
+export function normalizeSdkVault(vault: VaultOverview): NormalizedVault {
   return {
     id: vault.id,
     name: vault.title,
@@ -189,13 +289,13 @@ export function normalizeSdkVault(vault: Record<string, any>) {
 }
 
 /** Normalize an SDK ItemOverview to match Connect API item summary shape. */
-export function normalizeSdkItemOverview(item: Record<string, any>) {
+export function normalizeSdkItemOverview(item: ItemOverview): NormalizedItemOverview {
   return {
     id: item.id,
     title: item.title,
     vault: { id: item.vaultId },
     category: SDK_TO_CONNECT_CATEGORY[item.category] ?? 'CUSTOM',
-    urls: (item.websites ?? []).map((w: Record<string, any>) => ({
+    urls: item.websites.map((w: Website) => ({
       href: w.url,
       label: w.label ?? null,
       primary: false,
@@ -213,13 +313,13 @@ export function normalizeSdkItemOverview(item: Record<string, any>) {
 }
 
 /** Normalize a full SDK Item to match Connect API FullItem shape. */
-export function normalizeSdkItem(item: Record<string, any>) {
+export function normalizeSdkItem(item: Item): NormalizedItem {
   return {
     id: item.id,
     title: item.title,
     vault: { id: item.vaultId },
     category: SDK_TO_CONNECT_CATEGORY[item.category] ?? 'CUSTOM',
-    urls: (item.websites ?? []).map((w: Record<string, any>) => ({
+    urls: item.websites.map((w: Website) => ({
       href: w.url,
       label: w.label ?? null,
       primary: false,
@@ -228,7 +328,7 @@ export function normalizeSdkItem(item: Record<string, any>) {
     tags: item.tags ?? [],
     version: item.version ?? 0,
     state: null,
-    fields: (item.fields ?? []).map((field: Record<string, any>) => ({
+    fields: item.fields.map((field: ItemField) => ({
       id: field.id,
       label: field.title,
       type: SDK_TO_CONNECT_FIELD_TYPE[field.fieldType] ?? 'STRING',
@@ -239,7 +339,7 @@ export function normalizeSdkItem(item: Record<string, any>) {
       recipe: null,
       entropy: null,
     })),
-    sections: (item.sections ?? []).map((section: Record<string, any>) => ({
+    sections: item.sections.map((section: ItemSection) => ({
       id: section.id,
       label: section.title,
     })),
@@ -252,11 +352,11 @@ export function normalizeSdkItem(item: Record<string, any>) {
 }
 
 /** Convert a Connect-style category string to the SDK category string. */
-export function toSdkCategory(category: string): string {
+export function toSdkCategory(category: string): `${ItemCategory}` {
   return CONNECT_TO_SDK_CATEGORY[category] ?? 'Login'
 }
 
 /** Convert a Connect-style field type string to the SDK field type string. */
-export function toSdkFieldType(type: string): string {
+export function toSdkFieldType(type: string): `${ItemFieldType}` {
   return CONNECT_TO_SDK_FIELD_TYPE[type] ?? 'Text'
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import type { ItemCreateParams } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -62,15 +63,13 @@ export async function POST(request: NextRequest) {
           }))
         : undefined
 
-      // Cast to any because toSdkCategory/toSdkFieldType return string literals
-      // that match SDK enum values but TypeScript can't verify this at compile time
       const item = await client.items.create({
         vaultId: params.vaultId,
-        category: toSdkCategory(params.category) as any,
+        category: toSdkCategory(params.category),
         title: params.title || '',
         tags: parsedTags,
-        fields: parsedFields as any,
-      })
+        fields: parsedFields,
+      } as ItemCreateParams)
 
       return NextResponse.json(normalizeSdkItem(item))
     }

@@ -35,11 +35,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const params = UpdateItemSchema.parse(body)
     const creds = resolveCredentials(params)
-    const ops = JSON.parse(params.operations) as Array<{
-      op: string
-      path: string
-      value?: unknown
-    }>
+    const ops = JSON.parse(params.operations) as JsonPatchOperation[]
 
     logger.info(
       `[${requestId}] Updating item ${params.itemId} in vault ${params.vaultId} (${creds.mode} mode)`
@@ -48,7 +44,6 @@ export async function POST(request: NextRequest) {
     if (creds.mode === 'service_account') {
       const client = await createOnePasswordClient(creds.serviceAccountToken!)
 
-      // SDK doesn't support PATCH — fetch, apply patches, then put
       const item = await client.items.get(params.vaultId, params.itemId)
 
       for (const op of ops) {
@@ -89,8 +84,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** Apply a single RFC6902 JSON Patch operation to a mutable SDK Item. */
-function applyPatch(item: Record<string, any>, op: { op: string; path: string; value?: unknown }) {
+interface JsonPatchOperation {
+  op: 'add' | 'remove' | 'replace'
+  path: string
+  value?: unknown
+}
+
+/** Apply a single RFC6902 JSON Patch operation to a mutable object. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyPatch(item: Record<string, any>, op: JsonPatchOperation) {
   const segments = op.path.split('/').filter(Boolean)
 
   if (segments.length === 1) {
@@ -103,7 +105,6 @@ function applyPatch(item: Record<string, any>, op: { op: string; path: string; v
     return
   }
 
-  // Navigate to parent of target
   let target = item
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i]

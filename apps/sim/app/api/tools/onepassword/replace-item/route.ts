@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto'
+import type { Item } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -79,9 +80,9 @@ export async function POST(request: NextRequest) {
                 autofillBehavior: 'AnywhereOnWebsite' as const,
               }))
             : existing.websites,
-      }
+      } as Item
 
-      const result = await client.items.put(sdkItem as any)
+      const result = await client.items.put(sdkItem)
       return NextResponse.json(normalizeSdkItem(result))
     }
 
