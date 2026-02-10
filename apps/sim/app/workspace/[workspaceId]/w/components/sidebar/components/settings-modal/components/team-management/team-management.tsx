@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import type { TagItem } from '@/components/emcn'
 import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
@@ -69,7 +70,7 @@ export function TeamManagement() {
 
   const [inviteSuccess, setInviteSuccess] = useState(false)
 
-  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteEmails, setInviteEmails] = useState<TagItem[]>([])
   const [showWorkspaceInvite, setShowWorkspaceInvite] = useState(false)
   const [selectedWorkspaces, setSelectedWorkspaces] = useState<
     Array<{ workspaceId: string; permission: string }>
@@ -129,7 +130,8 @@ export function TeamManagement() {
   }, [orgName, orgSlug, createOrgMutation])
 
   const handleInviteMember = useCallback(async () => {
-    if (!session?.user || !activeOrganization?.id || !inviteEmail.trim()) return
+    const validEmails = inviteEmails.filter((e) => e.isValid).map((e) => e.value)
+    if (!session?.user || !activeOrganization?.id || validEmails.length === 0) return
 
     try {
       const workspaceInvitations =
@@ -141,23 +143,21 @@ export function TeamManagement() {
           : undefined
 
       await inviteMutation.mutateAsync({
-        email: inviteEmail.trim(),
+        emails: validEmails,
         orgId: activeOrganization.id,
         workspaceInvitations,
       })
 
-      // Show success state
       setInviteSuccess(true)
       setTimeout(() => setInviteSuccess(false), 3000)
 
-      // Reset form
-      setInviteEmail('')
+      setInviteEmails([])
       setSelectedWorkspaces([])
       setShowWorkspaceInvite(false)
     } catch (error) {
       logger.error('Failed to invite member', error)
     }
-  }, [session?.user?.id, activeOrganization?.id, inviteEmail, selectedWorkspaces, inviteMutation])
+  }, [session?.user?.id, activeOrganization?.id, inviteEmails, selectedWorkspaces, inviteMutation])
 
   const handleWorkspaceToggle = useCallback((workspaceId: string, permission: string) => {
     setSelectedWorkspaces((prev) => {
@@ -391,15 +391,15 @@ export function TeamManagement() {
       {adminOrOwner && !isInvitationsDisabled && (
         <div>
           <MemberInvitationCard
-            inviteEmail={inviteEmail}
-            setInviteEmail={setInviteEmail}
+            inviteEmails={inviteEmails}
+            setInviteEmails={setInviteEmails}
             isInviting={inviteMutation.isPending}
             showWorkspaceInvite={showWorkspaceInvite}
             setShowWorkspaceInvite={setShowWorkspaceInvite}
             selectedWorkspaces={selectedWorkspaces}
             userWorkspaces={adminWorkspaces}
             onInviteMember={handleInviteMember}
-            onLoadUserWorkspaces={async () => {}} // No-op: data is auto-loaded by React Query
+            onLoadUserWorkspaces={async () => {}}
             onWorkspaceToggle={handleWorkspaceToggle}
             inviteSuccess={inviteSuccess}
             availableSeats={Math.max(0, totalSeats - usedSeats.used)}
@@ -434,7 +434,7 @@ export function TeamManagement() {
 
         {/* Team Information */}
         <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-          <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
+          <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] transition-colors hover:bg-white/[0.04] group-open:rounded-b-none'>
             <span>Team Information</span>
             <svg
               className='h-4 w-4 transition-transform group-open:rotate-180'
@@ -473,7 +473,7 @@ export function TeamManagement() {
         {/* Team Billing Information (only show for Team Plan, not Enterprise) */}
         {hasTeamPlan && !hasEnterprisePlan && (
           <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-            <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
+            <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] transition-colors hover:bg-white/[0.04] group-open:rounded-b-none'>
               <span>Billing Information</span>
               <svg
                 className='h-4 w-4 transition-transform group-open:rotate-180'

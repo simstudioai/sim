@@ -1,17 +1,18 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import { ChevronDown } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
   Checkbox,
-  Input,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
+  TagInput,
+  type TagItem,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -64,8 +65,8 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
 PermissionSelector.displayName = 'PermissionSelector'
 
 interface MemberInvitationCardProps {
-  inviteEmail: string
-  setInviteEmail: (email: string) => void
+  inviteEmails: TagItem[]
+  setInviteEmails: (emails: TagItem[]) => void
   isInviting: boolean
   showWorkspaceInvite: boolean
   setShowWorkspaceInvite: (show: boolean) => void
@@ -82,8 +83,8 @@ interface MemberInvitationCardProps {
 }
 
 export function MemberInvitationCard({
-  inviteEmail,
-  setInviteEmail,
+  inviteEmails,
+  setInviteEmails,
   isInviting,
   showWorkspaceInvite,
   setShowWorkspaceInvite,
@@ -100,45 +101,26 @@ export function MemberInvitationCard({
 }: MemberInvitationCardProps) {
   const selectedCount = selectedWorkspaces.length
   const hasAvailableSeats = availableSeats > 0
-  const [emailError, setEmailError] = useState<string>('')
+  const hasValidEmails = inviteEmails.some((e) => e.isValid)
 
-  const validateEmailInput = (email: string) => {
-    if (!email.trim()) {
-      setEmailError('')
-      return
-    }
+  const handleAddEmail = (value: string) => {
+    const normalized = value.trim().toLowerCase()
+    if (!normalized) return false
 
-    const validation = quickValidateEmail(email.trim())
-    if (!validation.isValid) {
-      setEmailError(validation.reason || 'Please enter a valid email address')
-    } else {
-      setEmailError('')
-    }
+    const isDuplicate = inviteEmails.some((e) => e.value === normalized)
+    if (isDuplicate) return false
+
+    const validation = quickValidateEmail(normalized)
+    setInviteEmails([...inviteEmails, { value: normalized, isValid: validation.isValid }])
+    return validation.isValid
   }
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setInviteEmail(value)
-    if (emailError) {
-      setEmailError('')
-    }
-  }
-
-  const handleInviteClick = () => {
-    if (inviteEmail.trim()) {
-      validateEmailInput(inviteEmail)
-      const validation = quickValidateEmail(inviteEmail.trim())
-      if (!validation.isValid) {
-        return // Don't proceed if validation fails
-      }
-    }
-
-    onInviteMember()
+  const handleRemoveEmail = (_value: string, index: number) => {
+    setInviteEmails(inviteEmails.filter((_, i) => i !== index))
   }
 
   return (
     <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      {/* Header */}
       <div className='px-[14px] py-[10px]'>
         <h4 className='font-medium text-[14px] text-[var(--text-primary)]'>Invite Team Members</h4>
         <p className='text-[12px] text-[var(--text-muted)]'>
@@ -147,46 +129,18 @@ export function MemberInvitationCard({
       </div>
 
       <div className='flex flex-col gap-[12px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
-        {/* Main invitation input */}
         <div className='flex items-start gap-[8px]'>
           <div className='flex-1'>
-            {/* Hidden decoy fields to prevent browser autofill */}
-            <input
-              type='text'
-              name='fakeusernameremembered'
-              autoComplete='username'
-              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-              tabIndex={-1}
-              readOnly
-            />
-            <input
-              type='email'
-              name='fakeemailremembered'
-              autoComplete='email'
-              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-              tabIndex={-1}
-              readOnly
-            />
-            <Input
-              placeholder='Enter email address'
-              value={inviteEmail}
-              onChange={handleEmailChange}
+            <TagInput
+              items={inviteEmails}
+              onAdd={handleAddEmail}
+              onRemove={handleRemoveEmail}
+              placeholder='Enter email addresses'
+              placeholderWithTags='Add another email'
               disabled={isInviting || !hasAvailableSeats}
-              className={cn(emailError && 'border-red-500 focus-visible:ring-red-500')}
-              name='member_invite_field'
-              autoComplete='off'
-              autoCorrect='off'
-              autoCapitalize='off'
-              spellCheck={false}
-              data-lpignore='true'
-              data-form-type='other'
-              aria-autocomplete='none'
+              triggerKeys={['Enter', ',', ' ']}
+              maxHeight='max-h-24'
             />
-            {emailError && (
-              <p className='mt-1 text-[12px] text-[var(--text-error)] leading-tight'>
-                {emailError}
-              </p>
-            )}
           </div>
           <Popover
             open={showWorkspaceInvite}
@@ -287,14 +241,13 @@ export function MemberInvitationCard({
           </Popover>
           <Button
             variant='tertiary'
-            onClick={handleInviteClick}
-            disabled={!inviteEmail || isInviting || !hasAvailableSeats}
+            onClick={() => onInviteMember()}
+            disabled={!hasValidEmails || isInviting || !hasAvailableSeats}
           >
             {isInviting ? 'Inviting...' : hasAvailableSeats ? 'Invite' : 'No Seats'}
           </Button>
         </div>
 
-        {/* Invitation error - inline */}
         {invitationError && (
           <p className='text-[12px] text-[var(--text-error)] leading-tight'>
             {invitationError instanceof Error && invitationError.message
@@ -303,7 +256,6 @@ export function MemberInvitationCard({
           </p>
         )}
 
-        {/* Success message */}
         {inviteSuccess && (
           <p className='text-[11px] text-[var(--text-success)] leading-tight'>
             Invitation sent successfully

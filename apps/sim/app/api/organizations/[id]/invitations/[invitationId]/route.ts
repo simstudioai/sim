@@ -447,7 +447,7 @@ export async function PUT(
             .where(eq(workspaceInvitation.id, wsInvitation.id))
 
           const existingPermission = await tx
-            .select({ id: permissions.id })
+            .select({ id: permissions.id, permissionType: permissions.permissionType })
             .from(permissions)
             .where(
               and(
@@ -459,13 +459,22 @@ export async function PUT(
             .then((rows) => rows[0])
 
           if (existingPermission) {
-            await tx
-              .update(permissions)
-              .set({
-                permissionType: wsInvitation.permissions || 'read',
-                updatedAt: new Date(),
-              })
-              .where(eq(permissions.id, existingPermission.id))
+            const PERMISSION_RANK = { read: 0, write: 1, admin: 2 } as const
+            type PermissionLevel = keyof typeof PERMISSION_RANK
+            const existingRank =
+              PERMISSION_RANK[existingPermission.permissionType as PermissionLevel] ?? 0
+            const newPermission = (wsInvitation.permissions || 'read') as PermissionLevel
+            const newRank = PERMISSION_RANK[newPermission] ?? 0
+
+            if (newRank > existingRank) {
+              await tx
+                .update(permissions)
+                .set({
+                  permissionType: newPermission,
+                  updatedAt: new Date(),
+                })
+                .where(eq(permissions.id, existingPermission.id))
+            }
           } else {
             await tx.insert(permissions).values({
               id: randomUUID(),

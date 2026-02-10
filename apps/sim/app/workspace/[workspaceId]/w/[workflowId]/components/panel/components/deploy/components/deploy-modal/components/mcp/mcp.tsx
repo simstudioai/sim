@@ -149,6 +149,7 @@ export function McpDeploy({
   })
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
   const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(new Set())
+  const [saveErrors, setSaveErrors] = useState<string[]>([])
 
   const parameterSchema = useMemo(
     () => generateParameterSchema(inputFormat, parameterDescriptions),
@@ -285,8 +286,10 @@ export function McpDeploy({
     if (toAdd.size === 0 && toRemove.length === 0 && !shouldUpdateExisting) return
 
     onSubmittingChange?.(true)
+    setSaveErrors([])
     try {
       const nextServerToolsMap = { ...serverToolsMap }
+      const errors: string[] = []
 
       for (const serverId of toAdd) {
         setPendingServerChanges((prev) => new Set(prev).add(serverId))
@@ -303,6 +306,8 @@ export function McpDeploy({
           onAddedToServer?.()
           logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
         } catch (error) {
+          const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+          errors.push(`Failed to add to ${serverName}`)
           logger.error(`Failed to add tool to server ${serverId}:`, error)
         } finally {
           setPendingServerChanges((prev) => {
@@ -326,6 +331,8 @@ export function McpDeploy({
           })
           delete nextServerToolsMap[serverId]
         } catch (error) {
+          const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+          errors.push(`Failed to remove from ${serverName}`)
           logger.error(`Failed to remove tool from server ${serverId}:`, error)
         } finally {
           setPendingServerChanges((prev) => {
@@ -352,19 +359,25 @@ export function McpDeploy({
               parameterSchema,
             })
           } catch (error) {
+            const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+            errors.push(`Failed to update on ${serverName}`)
             logger.error(`Failed to update tool on server ${serverId}:`, error)
           }
         }
       }
 
       setServerToolsMap(nextServerToolsMap)
-      setDraftSelectedServerIds(null)
-      setSavedValues({
-        toolName,
-        toolDescription,
-        parameterDescriptions: { ...parameterDescriptions },
-      })
-      onCanSaveChange?.(false)
+      if (errors.length > 0) {
+        setSaveErrors(errors)
+      } else {
+        setDraftSelectedServerIds(null)
+        setSavedValues({
+          toolName,
+          toolDescription,
+          parameterDescriptions: { ...parameterDescriptions },
+        })
+        onCanSaveChange?.(false)
+      }
       onSubmittingChange?.(false)
     } catch (error) {
       logger.error('Failed to save tool configuration:', error)
@@ -381,6 +394,7 @@ export function McpDeploy({
     serverToolsMap,
     workspaceId,
     workflowId,
+    servers,
     addToolMutation,
     deleteToolMutation,
     updateToolMutation,
@@ -571,10 +585,14 @@ export function McpDeploy({
         )}
       </div>
 
-      {addToolMutation.isError && (
-        <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>
-          {addToolMutation.error?.message || 'Failed to add tool'}
-        </p>
+      {saveErrors.length > 0 && (
+        <div className='mt-[6.5px] flex flex-col gap-[2px]'>
+          {saveErrors.map((error) => (
+            <p key={error} className='text-[12px] text-[var(--text-error)]'>
+              {error}
+            </p>
+          ))}
+        </div>
       )}
     </form>
   )
