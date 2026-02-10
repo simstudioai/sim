@@ -295,6 +295,7 @@ export const COMMENT_ITEM_PROPERTIES = {
     description: 'Comment author',
     properties: USER_OUTPUT_PROPERTIES,
   },
+  authorName: { type: 'string', description: 'Comment author display name' },
   updateAuthor: {
     type: 'object',
     description: 'User who last updated the comment',
@@ -356,6 +357,7 @@ export const ATTACHMENT_ITEM_PROPERTIES = {
     properties: USER_OUTPUT_PROPERTIES,
     optional: true,
   },
+  authorName: { type: 'string', description: 'Attachment author display name' },
   created: { type: 'string', description: 'ISO 8601 timestamp when the attachment was created' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -391,6 +393,7 @@ export const WORKLOG_ITEM_PROPERTIES = {
     description: 'Worklog author',
     properties: USER_OUTPUT_PROPERTIES,
   },
+  authorName: { type: 'string', description: 'Worklog author display name' },
   updateAuthor: {
     type: 'object',
     description: 'User who last updated the worklog',
@@ -470,6 +473,10 @@ export const ISSUE_ITEM_PROPERTIES = {
     description: 'Issue status',
     properties: STATUS_OUTPUT_PROPERTIES,
   },
+  statusName: {
+    type: 'string',
+    description: 'Issue status name (e.g., Open, In Progress, Done)',
+  },
   issuetype: {
     type: 'object',
     description: 'Issue type',
@@ -490,6 +497,11 @@ export const ISSUE_ITEM_PROPERTIES = {
     type: 'object',
     description: 'Assigned user',
     properties: USER_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+  assigneeName: {
+    type: 'string',
+    description: 'Assignee display name or account ID',
     optional: true,
   },
   reporter: {
@@ -658,6 +670,10 @@ export const SEARCH_ISSUE_ITEM_PROPERTIES = {
     description: 'Issue status',
     properties: STATUS_OUTPUT_PROPERTIES,
   },
+  statusName: {
+    type: 'string',
+    description: 'Issue status name (e.g., Open, In Progress, Done)',
+  },
   issuetype: {
     type: 'object',
     description: 'Issue type',
@@ -678,6 +694,11 @@ export const SEARCH_ISSUE_ITEM_PROPERTIES = {
     type: 'object',
     description: 'Assigned user',
     properties: USER_OUTPUT_PROPERTIES,
+    optional: true,
+  },
+  assigneeName: {
+    type: 'string',
+    description: 'Assignee display name or account ID',
     optional: true,
   },
   reporter: {
@@ -741,6 +762,7 @@ export interface JiraRetrieveParams {
   accessToken: string
   issueKey: string
   domain: string
+  includeAttachments?: boolean
   cloudId?: string
 }
 
@@ -782,24 +804,34 @@ export interface JiraRetrieveResponse extends ToolResponse {
       name: string
       iconUrl?: string
     } | null
+    statusName: string
     assignee: {
       accountId: string
       displayName: string
       active?: boolean
       emailAddress?: string
       avatarUrl?: string
+      accountType?: string
+      timeZone?: string
     } | null
+    assigneeName: string | null
     reporter: {
       accountId: string
       displayName: string
       active?: boolean
       emailAddress?: string
       avatarUrl?: string
+      accountType?: string
+      timeZone?: string
     } | null
     creator: {
       accountId: string
       displayName: string
       active?: boolean
+      emailAddress?: string
+      avatarUrl?: string
+      accountType?: string
+      timeZone?: string
     } | null
     labels: string[]
     components: Array<{ id: string; name: string; description?: string }>
@@ -836,15 +868,50 @@ export interface JiraRetrieveResponse extends ToolResponse {
     comments: Array<{
       id: string
       body: string
-      author: { accountId: string; displayName: string } | null
-      updateAuthor?: { accountId: string; displayName: string } | null
+      author: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      authorName: string
+      updateAuthor?: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
       created: string
       updated: string
+      visibility: { type: string; value: string } | null
     }>
     worklogs: Array<{
       id: string
-      author: { accountId: string; displayName: string } | null
-      updateAuthor?: { accountId: string; displayName: string } | null
+      author: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      authorName: string
+      updateAuthor?: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
       comment?: string | null
       started: string
       timeSpent: string
@@ -859,10 +926,20 @@ export interface JiraRetrieveResponse extends ToolResponse {
       size: number
       content: string
       thumbnail?: string | null
-      author: { accountId: string; displayName: string } | null
+      author: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      authorName: string
       created: string
     }>
     issue: Record<string, unknown>
+    files?: Array<{ name: string; mimeType: string; data: string; size: number }>
   }
 }
 
@@ -1058,16 +1135,41 @@ export interface JiraSearchIssuesResponse extends ToolResponse {
       status: {
         id: string
         name: string
+        description?: string
         statusCategory?: { id: number; key: string; name: string; colorName: string }
       }
-      issuetype: { id: string; name: string; subtask: boolean }
-      project: { id: string; key: string; name: string }
-      priority: { id: string; name: string } | null
-      assignee: { accountId: string; displayName: string } | null
-      reporter: { accountId: string; displayName: string } | null
+      statusName: string
+      issuetype: {
+        id: string
+        name: string
+        description?: string
+        subtask: boolean
+        iconUrl?: string
+      }
+      project: { id: string; key: string; name: string; projectTypeKey?: string }
+      priority: { id: string; name: string; iconUrl?: string } | null
+      assignee: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      assigneeName: string | null
+      reporter: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
       labels: string[]
-      components: Array<{ id: string; name: string }>
-      resolution: { id: string; name: string } | null
+      components: Array<{ id: string; name: string; description?: string }>
+      resolution: { id: string; name: string; description?: string } | null
       duedate: string | null
       created: string
       updated: string
@@ -1120,8 +1222,25 @@ export interface JiraGetCommentsResponse extends ToolResponse {
     comments: Array<{
       id: string
       body: string
-      author: { accountId: string; displayName: string; active?: boolean }
-      updateAuthor: { accountId: string; displayName: string } | null
+      author: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
+      authorName: string
+      updateAuthor: {
+        accountId: string
+        displayName: string
+        active?: boolean
+        emailAddress?: string
+        avatarUrl?: string
+        accountType?: string
+        timeZone?: string
+      } | null
       created: string
       updated: string
       visibility: { type: string; value: string } | null
@@ -1173,6 +1292,7 @@ export interface JiraGetAttachmentsParams {
   accessToken: string
   domain: string
   issueKey: string
+  includeAttachments?: boolean
   cloudId?: string
 }
 
@@ -1188,8 +1308,10 @@ export interface JiraGetAttachmentsResponse extends ToolResponse {
       content: string
       thumbnail: string | null
       author: { accountId: string; displayName: string } | null
+      authorName: string
       created: string
     }>
+    files?: Array<{ name: string; mimeType: string; data: string; size: number }>
   }
 }
 
@@ -1228,11 +1350,7 @@ export interface JiraAddAttachmentResponse extends ToolResponse {
       content: string
     }>
     attachmentIds: string[]
-    files: Array<{
-      name: string
-      mimeType: string
-      size: number
-    }>
+    files: UserFile[]
   }
 }
 
@@ -1280,6 +1398,7 @@ export interface JiraGetWorklogsResponse extends ToolResponse {
     worklogs: Array<{
       id: string
       author: { accountId: string; displayName: string }
+      authorName: string
       updateAuthor: { accountId: string; displayName: string } | null
       comment: string | null
       started: string
@@ -1310,6 +1429,28 @@ export interface JiraUpdateWorklogResponse extends ToolResponse {
     worklogId: string
     timeSpent: string | null
     timeSpentSeconds: number | null
+    comment: string | null
+    author: {
+      accountId: string
+      displayName: string
+      active?: boolean
+      emailAddress?: string
+      avatarUrl?: string
+      accountType?: string
+      timeZone?: string
+    } | null
+    updateAuthor: {
+      accountId: string
+      displayName: string
+      active?: boolean
+      emailAddress?: string
+      avatarUrl?: string
+      accountType?: string
+      timeZone?: string
+    } | null
+    started: string | null
+    created: string | null
+    updated: string | null
     success: boolean
   }
 }
@@ -1420,7 +1561,9 @@ export interface JiraGetUsersResponse extends ToolResponse {
       displayName: string
       emailAddress?: string
       avatarUrl?: string
+      avatarUrls?: Record<string, string> | null
       timeZone?: string
+      self?: string | null
     }>
     total: number
     startAt: number

@@ -220,8 +220,9 @@ export function MemberInvitationCard({
               align='end'
               maxHeight={320}
               sideOffset={4}
-              className='w-[240px] border border-[var(--border-muted)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-              style={{ minWidth: '240px', maxWidth: '240px' }}
+              minWidth={240}
+              maxWidth={240}
+              border
             >
               {isLoadingWorkspaces ? (
                 <div className='px-[6px] py-[16px] text-center'>

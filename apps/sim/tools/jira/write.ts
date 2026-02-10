@@ -23,7 +23,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     domain: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {
@@ -214,6 +214,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     issueKey: { type: 'string', description: 'Created issue key (e.g., PROJ-123)' },
     self: { type: 'string', description: 'REST API URL for the created issue' },
     summary: { type: 'string', description: 'Issue summary' },
+    success: { type: 'boolean', description: 'Whether the issue was created successfully' },
     url: { type: 'string', description: 'URL to the created issue in Jira' },
     assigneeId: {
       type: 'string',

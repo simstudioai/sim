@@ -38,6 +38,7 @@ import {
   useMcpToolsQuery,
   useRefreshMcpServer,
   useStoredMcpTools,
+  useUpdateMcpServer,
 } from '@/hooks/queries/mcp'
 import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -96,6 +97,7 @@ interface McpServer {
   name?: string
   transport?: string
   url?: string
+  headers?: Record<string, string>
   connectionStatus?: 'connected' | 'disconnected' | 'error'
   lastError?: string | null
   lastConnected?: string
@@ -378,6 +380,13 @@ export function MCP({ initialServerId }: MCPProps) {
   const deleteServerMutation = useDeleteMcpServer()
   const refreshServerMutation = useRefreshMcpServer()
   const { testResult, isTestingConnection, testConnection, clearTestResult } = useMcpServerTest()
+  const updateServerMutation = useUpdateMcpServer()
+  const {
+    testResult: editTestResult,
+    isTestingConnection: isEditTestingConnection,
+    testConnection: editTestConnection,
+    clearTestResult: clearEditTestResult,
+  } = useMcpServerTest()
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
 
   const urlInputRef = useRef<HTMLInputElement>(null)
@@ -406,6 +415,19 @@ export function MCP({ initialServerId }: MCPProps) {
 
   const [urlScrollLeft, setUrlScrollLeft] = useState(0)
   const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editFormData, setEditFormData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
+  const [editOriginalData, setEditOriginalData] = useState<McpServerFormData>(DEFAULT_FORM_DATA)
+  const [isUpdatingServer, setIsUpdatingServer] = useState(false)
+  const [editShowEnvVars, setEditShowEnvVars] = useState(false)
+  const [editEnvSearchTerm, setEditEnvSearchTerm] = useState('')
+  const [editCursorPosition, setEditCursorPosition] = useState(0)
+  const [editActiveInputField, setEditActiveInputField] = useState<InputFieldType | null>(null)
+  const [editActiveHeaderIndex, setEditActiveHeaderIndex] = useState<number | null>(null)
+  const [editUrlScrollLeft, setEditUrlScrollLeft] = useState(0)
+  const [editHeaderScrollLeft, setEditHeaderScrollLeft] = useState<Record<string, number>>({})
 
   useEffect(() => {
     if (initialServerId && servers.some((s) => s.id === initialServerId)) {
@@ -758,6 +780,208 @@ export function MCP({ initialServerId }: MCPProps) {
   )
 
   /**
+   * Resets edit modal environment variable dropdown state.
+   */
+  const resetEditEnvVarState = useCallback(() => {
+    setEditShowEnvVars(false)
+    setEditActiveInputField(null)
+    setEditActiveHeaderIndex(null)
+  }, [])
+
+  /**
+   * Opens the edit modal and populates form with current server data.
+   */
+  const handleOpenEditModal = useCallback(
+    (server: McpServer) => {
+      const headers: HeaderEntry[] = server.headers
+        ? Object.entries(server.headers).map(([key, value]) => ({ key, value }))
+        : [{ key: '', value: '' }]
+      if (headers.length === 0) headers.push({ key: '', value: '' })
+
+      const data: McpServerFormData = {
+        name: server.name || '',
+        transport: (server.transport as McpTransport) || 'streamable-http',
+        url: server.url || '',
+        timeout: 30000,
+        headers,
+      }
+      setEditFormData(data)
+      setEditOriginalData(JSON.parse(JSON.stringify(data)))
+      setShowEditModal(true)
+      clearEditTestResult()
+      resetEditEnvVarState()
+      setEditUrlScrollLeft(0)
+      setEditHeaderScrollLeft({})
+    },
+    [clearEditTestResult, resetEditEnvVarState]
+  )
+
+  /**
+   * Closes the edit modal and resets state.
+   */
+  const handleCloseEditModal = useCallback(() => {
+    setShowEditModal(false)
+    setEditFormData(DEFAULT_FORM_DATA)
+    setEditOriginalData(DEFAULT_FORM_DATA)
+    clearEditTestResult()
+    resetEditEnvVarState()
+  }, [clearEditTestResult, resetEditEnvVarState])
+
+  /**
+   * Handles environment variable selection in the edit modal.
+   */
+  const handleEditEnvVarSelect = useCallback(
+    (newValue: string) => {
+      if (editActiveInputField === 'url') {
+        setEditFormData((prev) => ({ ...prev, url: newValue }))
+      } else if (editActiveHeaderIndex !== null) {
+        const field = editActiveInputField === 'header-key' ? 'key' : 'value'
+        const processedValue = field === 'key' ? newValue.replace(/[{}]/g, '') : newValue
+        setEditFormData((prev) => {
+          const newHeaders = [...(prev.headers || [])]
+          if (newHeaders[editActiveHeaderIndex]) {
+            newHeaders[editActiveHeaderIndex] = {
+              ...newHeaders[editActiveHeaderIndex],
+              [field]: processedValue,
+            }
+          }
+          return { ...prev, headers: newHeaders }
+        })
+      }
+      resetEditEnvVarState()
+    },
+    [editActiveInputField, editActiveHeaderIndex, resetEditEnvVarState]
+  )
+
+  /**
+   * Handles input changes in the edit modal and manages env var dropdown.
+   */
+  const handleEditInputChange = useCallback(
+    (field: InputFieldType, value: string, headerIndex?: number) => {
+      const input = document.activeElement as HTMLInputElement
+      const pos = input?.selectionStart || 0
+      setEditCursorPosition(pos)
+
+      if (editTestResult) {
+        clearEditTestResult()
+      }
+
+      const envVarTrigger = checkEnvVarTrigger(value, pos)
+      setEditShowEnvVars(envVarTrigger.show)
+      setEditEnvSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+
+      if (envVarTrigger.show) {
+        setEditActiveInputField(field)
+        setEditActiveHeaderIndex(headerIndex ?? null)
+      } else {
+        resetEditEnvVarState()
+      }
+
+      if (field === 'url') {
+        setEditFormData((prev) => ({ ...prev, url: value }))
+      } else if (headerIndex !== undefined) {
+        const headerField = field === 'header-key' ? 'key' : 'value'
+        setEditFormData((prev) => {
+          const newHeaders = [...(prev.headers || [])]
+          if (newHeaders[headerIndex]) {
+            newHeaders[headerIndex] = { ...newHeaders[headerIndex], [headerField]: value }
+          }
+          return { ...prev, headers: newHeaders }
+        })
+      }
+    },
+    [editTestResult, clearEditTestResult, resetEditEnvVarState]
+  )
+
+  const handleEditHeaderScroll = useCallback((key: string, scrollLeft: number) => {
+    setEditHeaderScrollLeft((prev) => ({ ...prev, [key]: scrollLeft }))
+  }, [])
+
+  const handleEditAddHeader = useCallback(() => {
+    setEditFormData((prev) => ({
+      ...prev,
+      headers: [...(prev.headers || []), { key: '', value: '' }],
+    }))
+  }, [])
+
+  const handleEditRemoveHeader = useCallback((index: number) => {
+    setEditFormData((prev) => ({
+      ...prev,
+      headers: (prev.headers || []).filter((_, i) => i !== index),
+    }))
+  }, [])
+
+  /**
+   * Tests the connection with the edit modal's form data.
+   */
+  const handleEditTestConnection = useCallback(async () => {
+    if (!editFormData.name.trim() || !editFormData.url?.trim()) return
+
+    await editTestConnection({
+      name: editFormData.name,
+      transport: editFormData.transport,
+      url: editFormData.url,
+      headers: headersToRecord(editFormData.headers),
+      timeout: editFormData.timeout,
+      workspaceId,
+    })
+  }, [editFormData, editTestConnection, workspaceId, headersToRecord])
+
+  /**
+   * Saves the edited MCP server after validating and testing the connection.
+   */
+  const handleSaveEdit = useCallback(async () => {
+    if (!selectedServerId || !editFormData.name.trim()) return
+
+    setIsUpdatingServer(true)
+    try {
+      const headersRecord = headersToRecord(editFormData.headers)
+      const serverConfig = {
+        name: editFormData.name,
+        transport: editFormData.transport,
+        url: editFormData.url,
+        headers: headersRecord,
+        timeout: editFormData.timeout,
+        workspaceId,
+      }
+
+      const connectionResult = await editTestConnection(serverConfig)
+
+      if (!connectionResult.success) {
+        logger.error('Connection test failed during edit:', connectionResult.error)
+        return
+      }
+
+      await updateServerMutation.mutateAsync({
+        workspaceId,
+        serverId: selectedServerId,
+        updates: {
+          name: editFormData.name.trim(),
+          transport: editFormData.transport,
+          url: editFormData.url,
+          headers: headersRecord,
+          timeout: editFormData.timeout || 30000,
+          enabled: true,
+        },
+      })
+
+      setShowEditModal(false)
+      logger.info(`Updated MCP server: ${editFormData.name}`)
+    } catch (error) {
+      logger.error('Failed to update MCP server:', error)
+    } finally {
+      setIsUpdatingServer(false)
+    }
+  }, [
+    selectedServerId,
+    editFormData,
+    editTestConnection,
+    updateServerMutation,
+    workspaceId,
+    headersToRecord,
+  ])
+
+  /**
    * Gets the selected server and its tools for the detail view.
    */
   const selectedServer = useMemo(() => {
@@ -776,6 +1000,26 @@ export function MCP({ initialServerId }: MCPProps) {
   const isFormValid = formData.name.trim() && formData.url?.trim()
   const isSubmitDisabled = serversLoading || isAddingServer || !isFormValid
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
+
+  const isEditFormValid = editFormData.name.trim() && editFormData.url?.trim()
+  const editTestButtonLabel = getTestButtonLabel(editTestResult, isEditTestingConnection)
+  const hasEditChanges = useMemo(() => {
+    if (editFormData.name !== editOriginalData.name) return true
+    if (editFormData.url !== editOriginalData.url) return true
+    if (editFormData.transport !== editOriginalData.transport) return true
+
+    const currentHeaders = editFormData.headers || []
+    const originalHeaders = editOriginalData.headers || []
+    if (currentHeaders.length !== originalHeaders.length) return true
+    for (let i = 0; i < currentHeaders.length; i++) {
+      if (
+        currentHeaders[i].key !== originalHeaders[i].key ||
+        currentHeaders[i].value !== originalHeaders[i].value
+      )
+        return true
+    }
+    return false
+  }, [editFormData, editOriginalData])
 
   /**
    * Gets issues for stored tools that reference a specific server tool.
@@ -905,7 +1149,6 @@ export function MCP({ initialServerId }: MCPProps) {
                                       <Badge
                                         variant={getIssueBadgeVariant(issues[0].issue)}
                                         size='sm'
-                                        className='cursor-help'
                                       >
                                         {getIssueBadgeLabel(issues[0].issue)}
                                       </Badge>
@@ -991,23 +1234,130 @@ export function MCP({ initialServerId }: MCPProps) {
         </div>
 
         <div className='mt-auto flex items-center justify-between'>
-          <Button
-            onClick={() => handleRefreshServer(server.id)}
-            variant='default'
-            disabled={!!refreshingServers[server.id]}
-          >
-            {refreshingServers[server.id]?.status === 'refreshing'
-              ? 'Refreshing...'
-              : refreshingServers[server.id]?.status === 'refreshed'
-                ? refreshingServers[server.id].workflowsUpdated
-                  ? `Synced (${refreshingServers[server.id].workflowsUpdated} workflow${refreshingServers[server.id].workflowsUpdated === 1 ? '' : 's'})`
-                  : 'Refreshed'
-                : 'Refresh Tools'}
-          </Button>
+          <div className='flex items-center gap-[8px]'>
+            <Button
+              onClick={() => handleRefreshServer(server.id)}
+              variant='default'
+              disabled={!!refreshingServers[server.id]}
+            >
+              {refreshingServers[server.id]?.status === 'refreshing'
+                ? 'Refreshing...'
+                : refreshingServers[server.id]?.status === 'refreshed'
+                  ? refreshingServers[server.id].workflowsUpdated
+                    ? `Synced (${refreshingServers[server.id].workflowsUpdated} workflow${refreshingServers[server.id].workflowsUpdated === 1 ? '' : 's'})`
+                    : 'Refreshed'
+                  : 'Refresh Tools'}
+            </Button>
+            <Button onClick={() => handleOpenEditModal(server)} variant='default'>
+              Edit
+            </Button>
+          </div>
           <Button onClick={handleBackToList} variant='tertiary'>
             Back
           </Button>
         </div>
+
+        <Modal open={showEditModal} onOpenChange={setShowEditModal}>
+          <ModalContent>
+            <ModalHeader>Edit MCP Server</ModalHeader>
+            <ModalBody>
+              <div className='flex flex-col gap-[8px]'>
+                <FormField label='Server Name'>
+                  <EmcnInput
+                    placeholder='e.g., My MCP Server'
+                    value={editFormData.name}
+                    onChange={(e) => {
+                      if (editTestResult) clearEditTestResult()
+                      setEditFormData((prev) => ({ ...prev, name: e.target.value }))
+                    }}
+                    className='h-9'
+                  />
+                </FormField>
+
+                <FormField label='Server URL'>
+                  <FormattedInput
+                    placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
+                    value={editFormData.url || ''}
+                    scrollLeft={editUrlScrollLeft}
+                    showEnvVars={editShowEnvVars && editActiveInputField === 'url'}
+                    envVarProps={{
+                      searchTerm: editEnvSearchTerm,
+                      cursorPosition: editCursorPosition,
+                      workspaceId,
+                      onSelect: handleEditEnvVarSelect,
+                      onClose: resetEditEnvVarState,
+                    }}
+                    availableEnvVars={availableEnvVars}
+                    onChange={(e) => handleEditInputChange('url', e.target.value)}
+                    onScroll={setEditUrlScrollLeft}
+                  />
+                </FormField>
+
+                <div className='flex flex-col gap-[8px]'>
+                  <div className='flex items-center justify-between'>
+                    <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+                      Headers
+                    </span>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      onClick={handleEditAddHeader}
+                      className='h-6 w-6 p-0'
+                    >
+                      <Plus className='h-3 w-3' />
+                    </Button>
+                  </div>
+
+                  <div className='flex max-h-[140px] flex-col gap-[8px] overflow-y-auto'>
+                    {(editFormData.headers || []).map((header, index) => (
+                      <HeaderRow
+                        key={index}
+                        header={header}
+                        index={index}
+                        headerScrollLeft={editHeaderScrollLeft}
+                        showEnvVars={editShowEnvVars}
+                        activeInputField={editActiveInputField}
+                        activeHeaderIndex={editActiveHeaderIndex}
+                        envSearchTerm={editEnvSearchTerm}
+                        cursorPosition={editCursorPosition}
+                        workspaceId={workspaceId}
+                        availableEnvVars={availableEnvVars}
+                        onInputChange={handleEditInputChange}
+                        onHeaderScroll={handleEditHeaderScroll}
+                        onEnvVarSelect={handleEditEnvVarSelect}
+                        onEnvVarClose={resetEditEnvVarState}
+                        onRemove={() => handleEditRemoveHeader(index)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <div className='flex w-full items-center justify-between'>
+                <Button
+                  variant='default'
+                  onClick={handleEditTestConnection}
+                  disabled={isEditTestingConnection || !isEditFormValid}
+                >
+                  {editTestButtonLabel}
+                </Button>
+                <div className='flex items-center gap-[8px]'>
+                  <Button variant='ghost' onClick={handleCloseEditModal}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveEdit}
+                    disabled={!hasEditChanges || isUpdatingServer || !isEditFormValid}
+                    variant='tertiary'
+                  >
+                    {isUpdatingServer ? 'Saving...' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </div>
     )
   }

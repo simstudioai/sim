@@ -59,7 +59,7 @@ export function ToolCredentialSelector({
   disabled = false,
 }: ToolCredentialSelectorProps) {
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const [inputValue, setInputValue] = useState('')
+  const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -100,11 +100,7 @@ export function ToolCredentialSelector({
     return ''
   }, [selectedCredential, isForeign])
 
-  useEffect(() => {
-    if (!isEditing) {
-      setInputValue(resolvedLabel)
-    }
-  }, [resolvedLabel, isEditing])
+  const inputValue = isEditing ? editingInputValue : resolvedLabel
 
   const invalidSelection =
     Boolean(selectedId) &&
@@ -189,13 +185,12 @@ export function ToolCredentialSelector({
 
       const matchedCred = credentials.find((c) => c.id === newValue)
       if (matchedCred) {
-        setInputValue(matchedCred.name)
         handleSelect(newValue)
         return
       }
 
       setIsEditing(true)
-      setInputValue(newValue)
+      setEditingInputValue(newValue)
     },
     [credentials, handleAddCredential, handleSelect]
   )

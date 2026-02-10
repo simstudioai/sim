@@ -1,5 +1,5 @@
 import type { JiraAddWorklogParams, JiraAddWorklogResponse } from '@/tools/jira/types'
-import { TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
+import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import { getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -185,6 +185,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
 
   outputs: {
     ts: TIMESTAMP_OUTPUT,
+    success: SUCCESS_OUTPUT,
     issueKey: { type: 'string', description: 'Issue key the worklog was added to' },
     worklogId: { type: 'string', description: 'Created worklog ID' },
     timeSpent: {

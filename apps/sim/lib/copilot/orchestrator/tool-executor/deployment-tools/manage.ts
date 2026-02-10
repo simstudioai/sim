@@ -3,6 +3,8 @@ import { db } from '@sim/db'
 import { chat, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
+import { mcpPubSub } from '@/lib/mcp/pubsub'
+import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
 import { ensureWorkflowAccess } from '../access'
@@ -205,18 +207,23 @@ export async function executeCreateWorkspaceMcpServer(
           continue
         }
         const toolName = sanitizeToolName(wf.name || `workflow_${wf.id}`)
+        const parameterSchema = await generateParameterSchemaForWorkflow(wf.id)
         await db.insert(workflowMcpTool).values({
           id: crypto.randomUUID(),
           serverId,
           workflowId: wf.id,
           toolName,
           toolDescription: wf.description || `Execute ${wf.name} workflow`,
-          parameterSchema: {},
+          parameterSchema,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         addedTools.push({ workflowId: wf.id, toolName })
       }
+    }
+
+    if (addedTools.length > 0) {
+      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
     }
 
     return { success: true, output: { server, addedTools } }

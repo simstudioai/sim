@@ -11,6 +11,7 @@ function transformComment(comment: any) {
     id: comment.id ?? '',
     body: extractAdfText(comment.body) ?? '',
     author: transformUser(comment.author) ?? { accountId: '', displayName: '' },
+    authorName: comment.author?.displayName ?? comment.author?.accountId ?? 'Unknown',
     updateAuthor: transformUser(comment.updateAuthor),
     created: comment.created ?? '',
     updated: comment.updated ?? '',

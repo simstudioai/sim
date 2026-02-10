@@ -10,6 +10,7 @@ function transformWorklog(worklog: any) {
   return {
     id: worklog.id ?? '',
     author: transformUser(worklog.author) ?? { accountId: '', displayName: '' },
+    authorName: worklog.author?.displayName ?? worklog.author?.accountId ?? 'Unknown',
     updateAuthor: transformUser(worklog.updateAuthor),
     comment: worklog.comment ? (extractAdfText(worklog.comment) ?? null) : null,
     started: worklog.started ?? '',

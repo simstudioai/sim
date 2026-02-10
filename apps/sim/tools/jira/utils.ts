@@ -38,6 +38,51 @@ export function transformUser(user: any): {
   }
 }
 
+/**
+ * Downloads Jira attachment file content given attachment metadata and an access token.
+ * Returns an array of downloaded files with base64-encoded data.
+ */
+export async function downloadJiraAttachments(
+  attachments: Array<{
+    content: string
+    filename: string
+    mimeType: string
+    size: number
+    id: string
+  }>,
+  accessToken: string
+): Promise<Array<{ name: string; mimeType: string; data: string; size: number }>> {
+  const downloaded: Array<{ name: string; mimeType: string; data: string; size: number }> = []
+
+  for (const att of attachments) {
+    if (!att.content) continue
+    try {
+      const response = await fetch(att.content, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: '*/*',
+        },
+      })
+
+      if (!response.ok) continue
+
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+
+      downloaded.push({
+        name: att.filename || `attachment-${att.id}`,
+        mimeType: att.mimeType || 'application/octet-stream',
+        data: buffer.toString('base64'),
+        size: buffer.length,
+      })
+    } catch {
+      // Skip failed downloads
+    }
+  }
+
+  return downloaded
+}
+
 export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
   const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
     method: 'GET',

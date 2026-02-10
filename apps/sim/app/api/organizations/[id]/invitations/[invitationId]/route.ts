@@ -446,15 +446,37 @@ export async function PUT(
             })
             .where(eq(workspaceInvitation.id, wsInvitation.id))
 
-          await tx.insert(permissions).values({
-            id: randomUUID(),
-            entityType: 'workspace',
-            entityId: wsInvitation.workspaceId,
-            userId: session.user.id,
-            permissionType: wsInvitation.permissions || 'read',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
+          const existingPermission = await tx
+            .select({ id: permissions.id })
+            .from(permissions)
+            .where(
+              and(
+                eq(permissions.entityId, wsInvitation.workspaceId),
+                eq(permissions.entityType, 'workspace'),
+                eq(permissions.userId, session.user.id)
+              )
+            )
+            .then((rows) => rows[0])
+
+          if (existingPermission) {
+            await tx
+              .update(permissions)
+              .set({
+                permissionType: wsInvitation.permissions || 'read',
+                updatedAt: new Date(),
+              })
+              .where(eq(permissions.id, existingPermission.id))
+          } else {
+            await tx.insert(permissions).values({
+              id: randomUUID(),
+              entityType: 'workspace',
+              entityId: wsInvitation.workspaceId,
+              userId: session.user.id,
+              permissionType: wsInvitation.permissions || 'read',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            })
+          }
         }
       } else if (status === 'cancelled') {
         await tx

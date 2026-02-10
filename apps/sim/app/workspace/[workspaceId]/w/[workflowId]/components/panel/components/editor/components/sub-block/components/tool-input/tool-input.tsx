@@ -62,12 +62,7 @@ import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
-import {
-  useForceRefreshMcpTools,
-  useMcpServers,
-  useMcpToolsEvents,
-  useStoredMcpTools,
-} from '@/hooks/queries/mcp'
+import { useForceRefreshMcpTools, useMcpServers, useStoredMcpTools } from '@/hooks/queries/mcp'
 import {
   useChildDeploymentStatus,
   useDeployChildWorkflow,
@@ -1040,7 +1035,6 @@ export const ToolInput = memo(function ToolInput({
   const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
   const forceRefreshMcpTools = useForceRefreshMcpTools()
-  useMcpToolsEvents(workspaceId)
   const openSettingsModal = useSettingsModalStore((state) => state.openModal)
   const mcpDataLoading = mcpLoading || mcpServersLoading
 
@@ -2642,7 +2636,7 @@ export const ToolInput = memo(function ToolInput({
               </div>
 
               {!isCustomTool && isExpandedForDisplay && (
-                <div className='flex flex-col gap-[10px] overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t px-[8px] py-[8px]'>
+                <div className='flex flex-col gap-[10px] overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[8px] py-[8px]'>
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
                     const hasOperations = hasMultipleOperations(tool.type)

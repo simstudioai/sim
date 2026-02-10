@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
 import type { McpServerStatusConfig, McpTool, StoredMcpTool } from '@/lib/mcp/types'
+import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('McpQueries')
 
@@ -378,6 +379,8 @@ const sseConnections: Map<string, SseEntry> =
  * Subscribe to MCP tool-change SSE events for a workspace.
  * On each `tools_changed` event, invalidates the relevant React Query caches
  * so the UI refreshes automatically.
+ *
+ * Invalidates both external MCP server keys and workflow MCP server keys.
  */
 export function useMcpToolsEvents(workspaceId: string) {
   const queryClient = useQueryClient()
@@ -389,6 +392,7 @@ export function useMcpToolsEvents(workspaceId: string) {
       queryClient.invalidateQueries({ queryKey: mcpKeys.tools(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.servers(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedTools(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: workflowMcpServerKeys.all })
     }
 
     let entry = sseConnections.get(workspaceId)

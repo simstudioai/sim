@@ -1,7 +1,7 @@
 'use client'
 
 import type { ChangeEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -52,21 +52,17 @@ export function SkillModal({
   const [content, setContent] = useState('')
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
+  const [prevOpen, setPrevOpen] = useState(false)
+  const [prevInitialValues, setPrevInitialValues] = useState(initialValues)
 
-  useEffect(() => {
-    if (open) {
-      if (initialValues) {
-        setName(initialValues.name)
-        setDescription(initialValues.description)
-        setContent(initialValues.content)
-      } else {
-        setName('')
-        setDescription('')
-        setContent('')
-      }
-      setErrors({})
-    }
-  }, [open, initialValues])
+  if ((open && !prevOpen) || (open && initialValues !== prevInitialValues)) {
+    setName(initialValues?.name ?? '')
+    setDescription(initialValues?.description ?? '')
+    setContent(initialValues?.content ?? '')
+    setErrors({})
+  }
+  if (open !== prevOpen) setPrevOpen(open)
+  if (initialValues !== prevInitialValues) setPrevInitialValues(initialValues)
 
   const hasChanges = useMemo(() => {
     if (!initialValues) return true
