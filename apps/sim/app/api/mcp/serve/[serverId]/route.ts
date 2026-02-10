@@ -19,7 +19,7 @@ import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -34,7 +34,7 @@ interface RouteParams {
 }
 
 interface ExecuteAuthContext {
-  authType?: 'session' | 'api_key' | 'internal_jwt'
+  authType?: AuthResult['authType']
   userId: string
   apiKey?: string | null
 }

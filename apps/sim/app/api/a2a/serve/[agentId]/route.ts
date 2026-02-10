@@ -13,7 +13,7 @@ import {
   isTerminalState,
   parseWorkflowSSEChunk,
 } from '@/lib/a2a/utils'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
@@ -194,8 +194,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     const authSchemes = (agent.authentication as { schemes?: string[] })?.schemes || []
     const requiresAuth = !authSchemes.includes('none')
     let authenticatedUserId: string | null = null
-    let authenticatedAuthType: 'session' | 'api_key' | 'internal_jwt' | undefined
-    let authenticatedApiKeyType: 'personal' | 'workspace' | undefined
+    let authenticatedAuthType: AuthResult['authType']
+    let authenticatedApiKeyType: AuthResult['apiKeyType']
 
     if (requiresAuth) {
       const auth = await checkHybridAuth(request, { requireWorkflowId: false })
