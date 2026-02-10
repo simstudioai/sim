@@ -353,8 +353,9 @@ export function LongInput({
               <div
                 ref={overlayRef}
                 className={cn(
-                  'pointer-events-none absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-[8px] py-[8px] font-medium font-sans text-sm',
-                  (isPreview || disabled) && 'opacity-50'
+                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-[8px] py-[8px] font-medium font-sans text-sm',
+                  (isPreview || disabled) && 'opacity-50',
+                  !(isPreview || disabled) && 'pointer-events-none'
                 )}
                 style={{
                   fontFamily: 'inherit',

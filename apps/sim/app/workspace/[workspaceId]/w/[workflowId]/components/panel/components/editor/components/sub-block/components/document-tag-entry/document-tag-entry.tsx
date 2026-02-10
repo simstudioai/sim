@@ -324,7 +324,10 @@ export function DocumentTagEntry({
           ref={(el) => {
             if (el) overlayRefs.current[cellKey] = el
           }}
-          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+          className={cn(
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+            !isReadOnly && 'pointer-events-none'
+          )}
         >
           <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
             {formatDisplayText(
