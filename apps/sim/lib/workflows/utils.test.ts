@@ -3,7 +3,6 @@
  *
  * Tests cover:
  * - validateWorkflowPermissions for different user roles
- * - getWorkflowAccessContext
  * - Owner vs workspace member access
  * - Read/write/admin action permissions
  */
@@ -28,7 +27,7 @@ vi.mock('@/lib/auth', () => ({
 import { db } from '@sim/db'
 import { getSession } from '@/lib/auth'
 // Import after mocks are set up
-import { getWorkflowAccessContext, validateWorkflowPermissions } from '@/lib/workflows/utils'
+import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 
 describe('validateWorkflowPermissions', () => {
   const mockSession = createSession({ userId: 'user-1', email: 'user1@test.com' })
@@ -83,7 +82,7 @@ describe('validateWorkflowPermissions', () => {
   })
 
   describe('owner access', () => {
-    it('should grant access to workflow owner for read action', async () => {
+    it('should deny access to workflow owner without workspace permissions for read action', async () => {
       const ownerSession = createSession({ userId: 'owner-1' })
       vi.mocked(getSession).mockResolvedValue(ownerSession as any)
 
@@ -95,10 +94,10 @@ describe('validateWorkflowPermissions', () => {
 
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
 
-      expectWorkflowAccessGranted(result)
+      expectWorkflowAccessDenied(result, 403)
     })
 
-    it('should grant access to workflow owner for write action', async () => {
+    it('should deny access to workflow owner without workspace permissions for write action', async () => {
       const ownerSession = createSession({ userId: 'owner-1' })
       vi.mocked(getSession).mockResolvedValue(ownerSession as any)
 
@@ -109,10 +108,10 @@ describe('validateWorkflowPermissions', () => {
 
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'write')
 
-      expectWorkflowAccessGranted(result)
+      expectWorkflowAccessDenied(result, 403)
     })
 
-    it('should grant access to workflow owner for admin action', async () => {
+    it('should deny access to workflow owner without workspace permissions for admin action', async () => {
       const ownerSession = createSession({ userId: 'owner-1' })
       vi.mocked(getSession).mockResolvedValue(ownerSession as any)
 
@@ -123,7 +122,7 @@ describe('validateWorkflowPermissions', () => {
 
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'admin')
 
-      expectWorkflowAccessGranted(result)
+      expectWorkflowAccessDenied(result, 403)
     })
   })
 
@@ -138,7 +137,6 @@ describe('validateWorkflowPermissions', () => {
       const mockLimit = vi.fn().mockImplementation(() => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
-        if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
         return Promise.resolve([{ permissionType: 'read' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
@@ -155,7 +153,6 @@ describe('validateWorkflowPermissions', () => {
       const mockLimit = vi.fn().mockImplementation(() => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
-        if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
         return Promise.resolve([{ permissionType: 'read' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
@@ -173,7 +170,6 @@ describe('validateWorkflowPermissions', () => {
       const mockLimit = vi.fn().mockImplementation(() => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
-        if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
         return Promise.resolve([{ permissionType: 'write' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
@@ -190,7 +186,6 @@ describe('validateWorkflowPermissions', () => {
       const mockLimit = vi.fn().mockImplementation(() => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
-        if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
         return Promise.resolve([{ permissionType: 'admin' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
@@ -207,7 +202,6 @@ describe('validateWorkflowPermissions', () => {
       const mockLimit = vi.fn().mockImplementation(() => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
-        if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
         return Promise.resolve([{ permissionType: 'write' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
@@ -225,7 +219,6 @@ describe('validateWorkflowPermissions', () => {
       const mockLimit = vi.fn().mockImplementation(() => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
-        if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
         return Promise.resolve([{ permissionType: 'admin' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
@@ -246,7 +239,6 @@ describe('validateWorkflowPermissions', () => {
       const mockLimit = vi.fn().mockImplementation(() => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
-        if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
         return Promise.resolve([]) // No permission record
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
@@ -279,7 +271,7 @@ describe('validateWorkflowPermissions', () => {
       expectWorkflowAccessDenied(result, 403)
     })
 
-    it('should grant access to owner for workflow without workspace', async () => {
+    it('should deny access to owner for workflow without workspace', async () => {
       const workflowWithoutWorkspace = createWorkflowRecord({
         id: 'wf-2',
         userId: 'user-1',
@@ -295,7 +287,7 @@ describe('validateWorkflowPermissions', () => {
 
       const result = await validateWorkflowPermissions('wf-2', 'req-1', 'read')
 
-      expectWorkflowAccessGranted(result)
+      expectWorkflowAccessDenied(result, 403)
     })
   })
 
@@ -307,7 +299,6 @@ describe('validateWorkflowPermissions', () => {
       const mockLimit = vi.fn().mockImplementation(() => {
         callCount++
         if (callCount === 1) return Promise.resolve([mockWorkflow])
-        if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
         return Promise.resolve([{ permissionType: 'read' }])
       })
       const mockWhere = vi.fn(() => ({ limit: mockLimit }))
@@ -318,118 +309,5 @@ describe('validateWorkflowPermissions', () => {
 
       expectWorkflowAccessGranted(result)
     })
-  })
-})
-
-describe('getWorkflowAccessContext', () => {
-  const mockWorkflow = createWorkflowRecord({
-    id: 'wf-1',
-    userId: 'owner-1',
-    workspaceId: 'ws-1',
-  })
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('should return null for non-existent workflow', async () => {
-    const mockLimit = vi.fn().mockResolvedValue([])
-    const mockWhere = vi.fn(() => ({ limit: mockLimit }))
-    const mockFrom = vi.fn(() => ({ where: mockWhere }))
-    vi.mocked(db.select).mockReturnValue({ from: mockFrom } as any)
-
-    const result = await getWorkflowAccessContext('non-existent')
-
-    expect(result).toBeNull()
-  })
-
-  it('should return context with isOwner true for workflow owner', async () => {
-    let callCount = 0
-    const mockLimit = vi.fn().mockImplementation(() => {
-      callCount++
-      if (callCount === 1) return Promise.resolve([mockWorkflow])
-      if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-      return Promise.resolve([{ permissionType: 'read' }])
-    })
-    const mockWhere = vi.fn(() => ({ limit: mockLimit }))
-    const mockFrom = vi.fn(() => ({ where: mockWhere }))
-    vi.mocked(db.select).mockReturnValue({ from: mockFrom } as any)
-
-    const result = await getWorkflowAccessContext('wf-1', 'owner-1')
-
-    expect(result).not.toBeNull()
-    expect(result?.isOwner).toBe(true)
-  })
-
-  it('should return context with isOwner false for non-owner', async () => {
-    let callCount = 0
-    const mockLimit = vi.fn().mockImplementation(() => {
-      callCount++
-      if (callCount === 1) return Promise.resolve([mockWorkflow])
-      if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-      return Promise.resolve([{ permissionType: 'read' }])
-    })
-    const mockWhere = vi.fn(() => ({ limit: mockLimit }))
-    const mockFrom = vi.fn(() => ({ where: mockWhere }))
-    vi.mocked(db.select).mockReturnValue({ from: mockFrom } as any)
-
-    const result = await getWorkflowAccessContext('wf-1', 'other-user')
-
-    expect(result).not.toBeNull()
-    expect(result?.isOwner).toBe(false)
-  })
-
-  it('should return context with workspace permission for workspace member', async () => {
-    let callCount = 0
-    const mockLimit = vi.fn().mockImplementation(() => {
-      callCount++
-      if (callCount === 1) return Promise.resolve([mockWorkflow])
-      if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-      return Promise.resolve([{ permissionType: 'write' }])
-    })
-    const mockWhere = vi.fn(() => ({ limit: mockLimit }))
-    const mockFrom = vi.fn(() => ({ where: mockWhere }))
-    vi.mocked(db.select).mockReturnValue({ from: mockFrom } as any)
-
-    const result = await getWorkflowAccessContext('wf-1', 'member-user')
-
-    expect(result).not.toBeNull()
-    expect(result?.workspacePermission).toBe('write')
-  })
-
-  it('should return context without permission for non-member', async () => {
-    let callCount = 0
-    const mockLimit = vi.fn().mockImplementation(() => {
-      callCount++
-      if (callCount === 1) return Promise.resolve([mockWorkflow])
-      if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-      return Promise.resolve([])
-    })
-    const mockWhere = vi.fn(() => ({ limit: mockLimit }))
-    const mockFrom = vi.fn(() => ({ where: mockWhere }))
-    vi.mocked(db.select).mockReturnValue({ from: mockFrom } as any)
-
-    const result = await getWorkflowAccessContext('wf-1', 'stranger')
-
-    expect(result).not.toBeNull()
-    expect(result?.workspacePermission).toBeNull()
-  })
-
-  it('should identify workspace owner correctly', async () => {
-    let callCount = 0
-    const mockLimit = vi.fn().mockImplementation(() => {
-      callCount++
-      if (callCount === 1) return Promise.resolve([mockWorkflow])
-      if (callCount === 2) return Promise.resolve([{ ownerId: 'workspace-owner' }])
-      return Promise.resolve([{ permissionType: 'admin' }])
-    })
-    const mockWhere = vi.fn(() => ({ limit: mockLimit }))
-    const mockFrom = vi.fn(() => ({ where: mockWhere }))
-    vi.mocked(db.select).mockReturnValue({ from: mockFrom } as any)
-
-    const result = await getWorkflowAccessContext('wf-1', 'workspace-owner')
-
-    expect(result).not.toBeNull()
-    expect(result?.isWorkspaceOwner).toBe(true)
   })
 })

@@ -150,6 +150,19 @@ export async function preprocessExecution(
 
   const workspaceId = workflowRecord.workspaceId || providedWorkspaceId || ''
 
+  if (!workspaceId) {
+    logger.warn(`[${requestId}] Workflow ${workflowId} has no workspaceId; execution blocked`)
+    return {
+      success: false,
+      error: {
+        message:
+          'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot execute.',
+        statusCode: 403,
+        logCreated: false,
+      },
+    }
+  }
+
   // ========== STEP 2: Check Deployment Status ==========
   // If workflow is not deployed and deployment is required, reject without logging.
   // No log entry or cost should be created for calls to undeployed workflows

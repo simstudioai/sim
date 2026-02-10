@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
 import { permissions, userStats, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray, or } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getWorkspaceWithOwner, type PermissionType } from '@/lib/workspaces/permissions/utils'
+import type { PermissionType } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowUtils')
@@ -21,6 +22,14 @@ export async function resolveWorkflowIdForUser(
   workflowName?: string
 ): Promise<{ workflowId: string; workflowName?: string } | null> {
   if (workflowId) {
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: 'read',
+    })
+    if (!authorization.allowed) {
+      return null
+    }
     return { workflowId }
   }
 
@@ -30,16 +39,14 @@ export async function resolveWorkflowIdForUser(
     .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
 
   const workspaceIdList = workspaceIds.map((row) => row.entityId)
-
-  const workflowConditions = [eq(workflowTable.userId, userId)]
-  if (workspaceIdList.length > 0) {
-    workflowConditions.push(inArray(workflowTable.workspaceId, workspaceIdList))
+  if (workspaceIdList.length === 0) {
+    return null
   }
 
   const workflows = await db
     .select()
     .from(workflowTable)
-    .where(or(...workflowConditions))
+    .where(inArray(workflowTable.workspaceId, workspaceIdList))
     .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt), asc(workflowTable.id))
 
   if (workflows.length === 0) {
@@ -66,61 +73,12 @@ type WorkflowRecord = ReturnType<typeof getWorkflowById> extends Promise<infer R
   ? NonNullable<R>
   : never
 
-export interface WorkflowAccessContext {
-  workflow: WorkflowRecord
-  workspaceOwnerId: string | null
+export interface WorkflowWorkspaceAuthorizationResult {
+  allowed: boolean
+  status: number
+  message?: string
+  workflow: WorkflowRecord | null
   workspacePermission: PermissionType | null
-  isOwner: boolean
-  isWorkspaceOwner: boolean
-}
-
-export async function getWorkflowAccessContext(
-  workflowId: string,
-  userId?: string
-): Promise<WorkflowAccessContext | null> {
-  const workflow = await getWorkflowById(workflowId)
-
-  if (!workflow) {
-    return null
-  }
-
-  let workspaceOwnerId: string | null = null
-  let workspacePermission: PermissionType | null = null
-
-  if (workflow.workspaceId) {
-    const workspaceRow = await getWorkspaceWithOwner(workflow.workspaceId)
-
-    workspaceOwnerId = workspaceRow?.ownerId ?? null
-
-    if (userId) {
-      const [permissionRow] = await db
-        .select({ permissionType: permissions.permissionType })
-        .from(permissions)
-        .where(
-          and(
-            eq(permissions.userId, userId),
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workflow.workspaceId)
-          )
-        )
-        .limit(1)
-
-      workspacePermission = permissionRow?.permissionType ?? null
-    }
-  }
-
-  const resolvedUserId = userId ?? null
-
-  const isOwner = resolvedUserId ? workflow.userId === resolvedUserId : false
-  const isWorkspaceOwner = resolvedUserId ? workspaceOwnerId === resolvedUserId : false
-
-  return {
-    workflow,
-    workspaceOwnerId,
-    workspacePermission,
-    isOwner,
-    isWorkspaceOwner,
-  }
 }
 
 export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
@@ -139,29 +97,51 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
       })
       .where(eq(workflowTable.id, workflowId))
 
-    try {
-      const existing = await db
-        .select()
-        .from(userStats)
-        .where(eq(userStats.userId, workflow.userId))
-        .limit(1)
-
-      if (existing.length === 0) {
-        logger.warn('User stats record not found - should be created during onboarding', {
-          userId: workflow.userId,
+    let activityUserId: string | null = null
+    if (workflow.workspaceId) {
+      try {
+        activityUserId = await getWorkspaceBilledAccountUserId(workflow.workspaceId)
+      } catch (error) {
+        logger.warn(`Error resolving billed account for workspace ${workflow.workspaceId}`, {
           workflowId,
+          error,
         })
-      } else {
-        await db
-          .update(userStats)
-          .set({
-            lastActive: new Date(),
-          })
-          .where(eq(userStats.userId, workflow.userId))
       }
-    } catch (error) {
-      logger.error(`Error updating userStats lastActive for userId ${workflow.userId}:`, error)
-      // Don't rethrow - we want to continue even if this fails
+    }
+
+    if (activityUserId) {
+      try {
+        const existing = await db
+          .select()
+          .from(userStats)
+          .where(eq(userStats.userId, activityUserId))
+          .limit(1)
+
+        if (existing.length === 0) {
+          logger.warn('User stats record not found - should be created during onboarding', {
+            userId: activityUserId,
+            workflowId,
+          })
+        } else {
+          await db
+            .update(userStats)
+            .set({
+              lastActive: new Date(),
+            })
+            .where(eq(userStats.userId, activityUserId))
+        }
+      } catch (error) {
+        logger.error(`Error updating userStats lastActive for userId ${activityUserId}:`, error)
+        // Don't rethrow - we want to continue even if this fails
+      }
+    } else {
+      logger.warn(
+        'Skipping userStats lastActive update: unable to resolve workspace billed account',
+        {
+          workflowId,
+          workspaceId: workflow.workspaceId,
+        }
+      )
     }
 
     return {
@@ -220,8 +200,13 @@ export async function validateWorkflowPermissions(
     }
   }
 
-  const accessContext = await getWorkflowAccessContext(workflowId, session.user.id)
-  if (!accessContext) {
+  const authorization = await authorizeWorkflowByWorkspacePermission({
+    workflowId,
+    userId: session.user.id,
+    action,
+  })
+
+  if (!authorization.workflow) {
     logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
     return {
       error: { message: 'Workflow not found', status: 404 },
@@ -230,46 +215,18 @@ export async function validateWorkflowPermissions(
     }
   }
 
-  const { workflow, workspacePermission, isOwner } = accessContext
-
-  if (isOwner) {
-    return {
-      error: null,
-      session,
-      workflow,
-    }
-  }
-
-  if (workflow.workspaceId) {
-    let hasPermission = false
-
-    if (action === 'read') {
-      // Any workspace permission allows read
-      hasPermission = workspacePermission !== null
-    } else if (action === 'write') {
-      // Write or admin permission allows write
-      hasPermission = workspacePermission === 'write' || workspacePermission === 'admin'
-    } else if (action === 'admin') {
-      // Only admin permission allows admin actions
-      hasPermission = workspacePermission === 'admin'
-    }
-
-    if (!hasPermission) {
-      logger.warn(
-        `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} in workspace ${workflow.workspaceId}`
-      )
-      return {
-        error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
-        session: null,
-        workflow: null,
-      }
-    }
-  } else {
+  if (!authorization.allowed) {
+    const message =
+      authorization.message || `Unauthorized: Access denied to ${action} this workflow`
     logger.warn(
-      `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} owned by ${workflow.userId}`
+      `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId}`,
+      {
+        action,
+        workflowId,
+      }
     )
     return {
-      error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
+      error: { message, status: authorization.status },
       session: null,
       workflow: null,
     }
@@ -278,6 +235,84 @@ export async function validateWorkflowPermissions(
   return {
     error: null,
     session,
+    workflow: authorization.workflow,
+  }
+}
+
+export async function authorizeWorkflowByWorkspacePermission(params: {
+  workflowId: string
+  userId: string
+  action?: 'read' | 'write' | 'admin'
+}): Promise<WorkflowWorkspaceAuthorizationResult> {
+  const { workflowId, userId, action = 'read' } = params
+
+  const workflow = await getWorkflowById(workflowId)
+  if (!workflow) {
+    return {
+      allowed: false,
+      status: 404,
+      message: 'Workflow not found',
+      workflow: null,
+      workspacePermission: null,
+    }
+  }
+
+  if (!workflow.workspaceId) {
+    return {
+      allowed: false,
+      status: 403,
+      message:
+        'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be accessed.',
+      workflow,
+      workspacePermission: null,
+    }
+  }
+
+  const [permissionRow] = await db
+    .select({ permissionType: permissions.permissionType })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workflow.workspaceId)
+      )
+    )
+    .limit(1)
+
+  const workspacePermission = permissionRow?.permissionType ?? null
+
+  if (workspacePermission === null) {
+    return {
+      allowed: false,
+      status: 403,
+      message: `Unauthorized: Access denied to ${action} this workflow`,
+      workflow,
+      workspacePermission,
+    }
+  }
+
+  const permissionSatisfied =
+    action === 'read'
+      ? true
+      : action === 'write'
+        ? workspacePermission === 'write' || workspacePermission === 'admin'
+        : workspacePermission === 'admin'
+
+  if (!permissionSatisfied) {
+    return {
+      allowed: false,
+      status: 403,
+      message: `Unauthorized: Access denied to ${action} this workflow`,
+      workflow,
+      workspacePermission,
+    }
+  }
+
+  return {
+    allowed: true,
+    status: 200,
     workflow,
+    workspacePermission,
   }
 }

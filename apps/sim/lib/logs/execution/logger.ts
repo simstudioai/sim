@@ -304,11 +304,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
       const wf = updatedLog.workflowId
         ? (await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId)))[0]
         : undefined
-      if (wf) {
+      if (wf && billingUserId) {
         const [usr] = await db
           .select({ id: userTable.id, email: userTable.email, name: userTable.name })
           .from(userTable)
-          .where(eq(userTable.id, wf.userId))
+          .where(eq(userTable.id, billingUserId))
           .limit(1)
 
         if (usr?.email) {

@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { validateAirtableId, validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -12,6 +15,7 @@ const calendlyLogger = createLogger('CalendlyWebhook')
 const grainLogger = createLogger('GrainWebhook')
 const lemlistLogger = createLogger('LemlistWebhook')
 const webflowLogger = createLogger('WebflowWebhook')
+const providerSubscriptionsLogger = createLogger('WebhookProviderSubscriptions')
 
 function getProviderConfig(webhook: any): Record<string, any> {
   return (webhook.providerConfig as Record<string, any>) || {}
@@ -19,6 +23,26 @@ function getProviderConfig(webhook: any): Record<string, any> {
 
 function getNotificationUrl(webhook: any): string {
   return `${getBaseUrl()}/api/webhooks/trigger/${webhook.path}`
+}
+
+async function getCredentialOwnerUserId(
+  credentialId: string,
+  requestId: string
+): Promise<string | null> {
+  const [credentialRecord] = await db
+    .select({ userId: account.userId })
+    .from(account)
+    .where(eq(account.id, credentialId))
+    .limit(1)
+
+  if (!credentialRecord?.userId) {
+    providerSubscriptionsLogger.warn(
+      `[${requestId}] Credential owner not found for credentialId ${credentialId}`
+    )
+    return null
+  }
+
+  return credentialRecord.userId
 }
 
 /**
@@ -56,7 +80,10 @@ export async function createTeamsSubscription(
     )
   }
 
-  const accessToken = await refreshAccessTokenIfNeeded(credentialId, workflow.userId, requestId)
+  const credentialOwnerUserId = await getCredentialOwnerUserId(credentialId, requestId)
+  const accessToken = credentialOwnerUserId
+    ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+    : null
   if (!accessToken) {
     teamsLogger.error(
       `[${requestId}] Failed to get access token for Teams subscription ${webhook.id}`
@@ -189,7 +216,10 @@ export async function deleteTeamsSubscription(
       return
     }
 
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, workflow.userId, requestId)
+    const credentialOwnerUserId = await getCredentialOwnerUserId(credentialId, requestId)
+    const accessToken = credentialOwnerUserId
+      ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+      : null
     if (!accessToken) {
       teamsLogger.warn(
         `[${requestId}] Could not get access token to delete Teams subscription for webhook ${webhook.id}`
@@ -343,7 +373,7 @@ export async function deleteTelegramWebhook(webhook: any, requestId: string): Pr
  */
 export async function deleteAirtableWebhook(
   webhook: any,
-  workflow: any,
+  _workflow: any,
   requestId: string
 ): Promise<void> {
   try {
@@ -369,11 +399,21 @@ export async function deleteAirtableWebhook(
       return
     }
 
-    const userIdForToken = workflow.userId
-    const accessToken = await getOAuthToken(userIdForToken, 'airtable')
+    const credentialId = config.credentialId as string | undefined
+    if (!credentialId) {
+      airtableLogger.warn(
+        `[${requestId}] Missing credentialId for Airtable webhook deletion ${webhook.id}`
+      )
+      return
+    }
+
+    const credentialOwnerUserId = await getCredentialOwnerUserId(credentialId, requestId)
+    const accessToken = credentialOwnerUserId
+      ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+      : null
     if (!accessToken) {
       airtableLogger.warn(
-        `[${requestId}] Could not retrieve Airtable access token for user ${userIdForToken}. Cannot delete webhook in Airtable.`,
+        `[${requestId}] Could not retrieve Airtable access token. Cannot delete webhook in Airtable.`,
         { webhookId: webhook.id }
       )
       return
@@ -829,7 +869,7 @@ export async function deleteLemlistWebhook(webhook: any, requestId: string): Pro
 
 export async function deleteWebflowWebhook(
   webhook: any,
-  workflow: any,
+  _workflow: any,
   requestId: string
 ): Promise<void> {
   try {
@@ -869,10 +909,21 @@ export async function deleteWebflowWebhook(
       return
     }
 
-    const accessToken = await getOAuthToken(workflow.userId, 'webflow')
+    const credentialId = config.credentialId as string | undefined
+    if (!credentialId) {
+      webflowLogger.warn(
+        `[${requestId}] Missing credentialId for Webflow webhook deletion ${webhook.id}`
+      )
+      return
+    }
+
+    const credentialOwnerUserId = await getCredentialOwnerUserId(credentialId, requestId)
+    const accessToken = credentialOwnerUserId
+      ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+      : null
     if (!accessToken) {
       webflowLogger.warn(
-        `[${requestId}] Could not retrieve Webflow access token for user ${workflow.userId}. Cannot delete webhook.`,
+        `[${requestId}] Could not retrieve Webflow access token. Cannot delete webhook.`,
         { webhookId: webhook.id }
       )
       return
@@ -1154,7 +1205,7 @@ export async function createAirtableWebhookSubscription(
 ): Promise<string | undefined> {
   try {
     const { path, providerConfig } = webhookData
-    const { baseId, tableId, includeCellValuesInFieldIds } = providerConfig || {}
+    const { baseId, tableId, includeCellValuesInFieldIds, credentialId } = providerConfig || {}
 
     if (!baseId || !tableId) {
       airtableLogger.warn(
@@ -1178,7 +1229,14 @@ export async function createAirtableWebhookSubscription(
       throw new Error(tableIdValidation.error)
     }
 
-    const accessToken = await getOAuthToken(userId, 'airtable')
+    const credentialOwnerUserId = credentialId
+      ? await getCredentialOwnerUserId(credentialId, requestId)
+      : null
+    const accessToken = credentialId
+      ? credentialOwnerUserId
+        ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+        : null
+      : await getOAuthToken(userId, 'airtable')
     if (!accessToken) {
       airtableLogger.warn(
         `[${requestId}] Could not retrieve Airtable access token for user ${userId}. Cannot create webhook in Airtable.`
@@ -1401,7 +1459,7 @@ export async function createWebflowWebhookSubscription(
 ): Promise<string | undefined> {
   try {
     const { path, providerConfig } = webhookData
-    const { siteId, triggerId, collectionId, formName } = providerConfig || {}
+    const { siteId, triggerId, collectionId, formName, credentialId } = providerConfig || {}
 
     if (!siteId) {
       webflowLogger.warn(`[${requestId}] Missing siteId for Webflow webhook creation.`, {
@@ -1422,7 +1480,14 @@ export async function createWebflowWebhookSubscription(
       throw new Error('Trigger type is required to create Webflow webhook')
     }
 
-    const accessToken = await getOAuthToken(userId, 'webflow')
+    const credentialOwnerUserId = credentialId
+      ? await getCredentialOwnerUserId(credentialId, requestId)
+      : null
+    const accessToken = credentialId
+      ? credentialOwnerUserId
+        ? await refreshAccessTokenIfNeeded(credentialId, credentialOwnerUserId, requestId)
+        : null
+      : await getOAuthToken(userId, 'webflow')
     if (!accessToken) {
       webflowLogger.warn(
         `[${requestId}] Could not retrieve Webflow access token for user ${userId}. Cannot create webhook in Webflow.`

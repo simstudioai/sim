@@ -35,6 +35,10 @@ export interface HallucinationValidationInput {
   }
   workflowId?: string
   workspaceId?: string
+  authHeaders?: {
+    cookie?: string
+    authorization?: string
+  }
   requestId: string
 }
 
@@ -46,7 +50,8 @@ async function queryKnowledgeBase(
   query: string,
   topK: number,
   requestId: string,
-  workflowId?: string
+  workflowId?: string,
+  authHeaders?: { cookie?: string; authorization?: string }
 ): Promise<string[]> {
   try {
     logger.info(`[${requestId}] Querying knowledge base`, {
@@ -62,6 +67,8 @@ async function queryKnowledgeBase(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(authHeaders?.cookie ? { Cookie: authHeaders.cookie } : {}),
+        ...(authHeaders?.authorization ? { Authorization: authHeaders.authorization } : {}),
       },
       body: JSON.stringify({
         knowledgeBaseIds: [knowledgeBaseId],
@@ -236,6 +243,7 @@ export async function validateHallucination(
     providerCredentials,
     workflowId,
     workspaceId,
+    authHeaders,
     requestId,
   } = input
 
@@ -260,7 +268,8 @@ export async function validateHallucination(
       userInput,
       topK,
       requestId,
-      workflowId
+      workflowId,
+      authHeaders
     )
 
     if (ragContext.length === 0) {

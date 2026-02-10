@@ -7,6 +7,7 @@ import {
   getOrganizationBillingData,
   isOrganizationOwnerOrAdmin,
 } from '@/lib/billing/core/organization'
+import { isUserMemberOfOrganization } from '@/lib/billing/organizations/membership'
 
 const logger = createLogger('UnifiedUsageAPI')
 
@@ -61,6 +62,12 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         )
       }
+
+      const membership = await isUserMemberOfOrganization(session.user.id, organizationId)
+      if (!membership.isMember) {
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+      }
+
       const org = await getOrganizationBillingData(organizationId)
       return NextResponse.json({
         success: true,

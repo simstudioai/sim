@@ -87,7 +87,7 @@ export async function createKnowledgeBase(
   const now = new Date()
 
   const hasPermission = await getUserEntityPermissions(data.userId, 'workspace', data.workspaceId)
-  if (hasPermission === null) {
+  if (hasPermission !== 'admin' && hasPermission !== 'write') {
     throw new Error('User does not have permission to create knowledge bases in this workspace')
   }
 

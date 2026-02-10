@@ -42,6 +42,10 @@ function setupFileApiMocks(
     verifyCopilotFileAccess: vi.fn().mockResolvedValue(true),
   }))
 
+  vi.doMock('@/lib/workspaces/permissions/utils', () => ({
+    getUserEntityPermissions: vi.fn().mockResolvedValue('admin'),
+  }))
+
   vi.doMock('@/lib/uploads/contexts/workspace', () => ({
     uploadWorkspaceFile: vi.fn().mockResolvedValue({
       id: 'test-file-id',

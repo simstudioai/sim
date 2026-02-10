@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
@@ -13,6 +14,19 @@ export async function POST(request: NextRequest) {
   logger.info(`[${requestId}] Guardrails validation request received`)
 
   try {
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({
+        success: true,
+        output: {
+          passed: false,
+          validationType: 'unknown',
+          input: '',
+          error: 'Unauthorized',
+        },
+      })
+    }
+
     const body = await request.json()
     const {
       validationType,
@@ -109,6 +123,10 @@ export async function POST(request: NextRequest) {
       validationType,
       inputType: typeof input,
     })
+    const authHeaders = {
+      cookie: request.headers.get('cookie') || undefined,
+      authorization: request.headers.get('authorization') || undefined,
+    }
 
     const validationResult = await executeValidation(
       validationType,
@@ -134,6 +152,7 @@ export async function POST(request: NextRequest) {
       piiEntityTypes,
       piiMode,
       piiLanguage,
+      authHeaders,
       requestId
     )
 
@@ -213,6 +232,7 @@ async function executeValidation(
   piiEntityTypes: string[] | undefined,
   piiMode: string | undefined,
   piiLanguage: string | undefined,
+  authHeaders: { cookie?: string; authorization?: string } | undefined,
   requestId: string
 ): Promise<{
   passed: boolean
@@ -253,6 +273,7 @@ async function executeValidation(
       providerCredentials,
       workflowId,
       workspaceId,
+      authHeaders,
       requestId,
     })
   }

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { customTools, workflow } from '@sim/db/schema'
+import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CustomToolsAPI')
@@ -52,27 +53,32 @@ export async function GET(request: NextRequest) {
     const userId = authResult.userId
 
     let resolvedWorkspaceId: string | null = workspaceId
+    let resolvedFromWorkflowAuthorization = false
 
     if (!resolvedWorkspaceId && workflowId) {
-      const [workflowData] = await db
-        .select({ workspaceId: workflow.workspaceId })
-        .from(workflow)
-        .where(eq(workflow.id, workflowId))
-        .limit(1)
-
-      if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'read',
+      })
+      if (!workflowAuthorization.allowed) {
+        logger.warn(`[${requestId}] Workflow authorization failed for custom tools`, {
+          workflowId,
+          userId,
+          status: workflowAuthorization.status,
+        })
+        return NextResponse.json(
+          { error: workflowAuthorization.message || 'Access denied' },
+          { status: workflowAuthorization.status }
+        )
       }
 
-      resolvedWorkspaceId = workflowData.workspaceId
+      resolvedWorkspaceId = workflowAuthorization.workflow?.workspaceId ?? null
+      resolvedFromWorkflowAuthorization = true
     }
 
-    // Check workspace permissions
-    // For internal JWT with workflowId: checkSessionOrInternalAuth already resolved userId from workflow owner
-    // For session: verify user has access to the workspace
-    // For legacy (no workspaceId): skip workspace check, rely on userId match
-    if (resolvedWorkspaceId && !(authResult.authType === 'internal_jwt' && workflowId)) {
+    // Check workspace permissions for all auth types
+    if (resolvedWorkspaceId && !resolvedFromWorkflowAuthorization) {
       const userPermission = await getUserEntityPermissions(
         userId,
         'workspace',

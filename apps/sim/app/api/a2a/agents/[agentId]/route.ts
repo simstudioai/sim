@@ -41,7 +41,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
 
     if (!agent.agent.isPublished) {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success) {
+      if (!auth.success || !auth.userId) {
+        return NextResponse.json({ error: 'Agent not published' }, { status: 404 })
+      }
+
+      const workspaceAccess = await checkWorkspaceAccess(agent.agent.workspaceId, auth.userId)
+      if (!workspaceAccess.exists || !workspaceAccess.hasAccess) {
         return NextResponse.json({ error: 'Agent not published' }, { status: 404 })
       }
     }

@@ -10,6 +10,7 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { applyOperationsToWorkflowState } from './engine'
@@ -76,6 +77,18 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       throw new Error('operations are required and must be an array')
     }
     if (!workflowId) throw new Error('workflowId is required')
+    if (!context?.userId) {
+      throw new Error('Unauthorized workflow access')
+    }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: context.userId,
+      action: 'write',
+    })
+    if (!authorization.allowed) {
+      throw new Error(authorization.message || 'Unauthorized workflow access')
+    }
 
     logger.info('Executing edit_workflow', {
       operationCount: operations.length,

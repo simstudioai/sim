@@ -7,21 +7,20 @@ import { loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetUserEntityPermissions, mockDbSelect, mockDbUpdate } = vi.hoisted(
-  () => ({
+const { mockGetSession, mockAuthorizeWorkflowByWorkspacePermission, mockDbSelect, mockDbUpdate } =
+  vi.hoisted(() => ({
     mockGetSession: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
+    mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
     mockDbSelect: vi.fn(),
     mockDbUpdate: vi.fn(),
-  })
-)
+  }))
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
+vi.mock('@/lib/workflows/utils', () => ({
+  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
 }))
 
 vi.mock('@sim/db', () => ({
@@ -81,7 +80,12 @@ describe('Schedule PUT API (Reactivate)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockGetUserEntityPermissions.mockResolvedValue('write')
+    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workflow: { id: 'wf-1', workspaceId: 'ws-1' },
+      workspacePermission: 'write',
+    })
   })
 
   afterEach(() => {
@@ -140,6 +144,13 @@ describe('Schedule PUT API (Reactivate)', () => {
     })
 
     it('returns 404 when workflow does not exist for schedule', async () => {
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: false,
+        status: 404,
+        workflow: null,
+        workspacePermission: null,
+        message: 'Workflow not found',
+      })
       mockDbChain([[{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }], []])
 
       const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
@@ -152,6 +163,14 @@ describe('Schedule PUT API (Reactivate)', () => {
 
   describe('Authorization', () => {
     it('returns 403 when user is not workflow owner', async () => {
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: false,
+        status: 403,
+        workflow: { id: 'wf-1', workspaceId: null },
+        workspacePermission: null,
+        message:
+          'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be accessed.',
+      })
       mockDbChain([
         [{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }],
         [{ userId: 'other-user', workspaceId: null }],
@@ -161,11 +180,17 @@ describe('Schedule PUT API (Reactivate)', () => {
 
       expect(res.status).toBe(403)
       const data = await res.json()
-      expect(data.error).toBe('Not authorized to modify this schedule')
+      expect(data.error).toContain('Personal workflows are deprecated')
     })
 
     it('returns 403 for workspace member with only read permission', async () => {
-      mockGetUserEntityPermissions.mockResolvedValue('read')
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: false,
+        status: 403,
+        workflow: { id: 'wf-1', workspaceId: 'ws-1' },
+        workspacePermission: 'read',
+        message: 'Unauthorized: Access denied to write this workflow',
+      })
       mockDbChain([
         [{ id: 'sched-1', workflowId: 'wf-1', status: 'disabled' }],
         [{ userId: 'other-user', workspaceId: 'ws-1' }],
@@ -198,7 +223,6 @@ describe('Schedule PUT API (Reactivate)', () => {
     })
 
     it('allows workspace member with write permission to reactivate', async () => {
-      mockGetUserEntityPermissions.mockResolvedValue('write')
       mockDbChain([
         [
           {
@@ -218,7 +242,6 @@ describe('Schedule PUT API (Reactivate)', () => {
     })
 
     it('allows workspace admin to reactivate', async () => {
-      mockGetUserEntityPermissions.mockResolvedValue('admin')
       mockDbChain([
         [
           {

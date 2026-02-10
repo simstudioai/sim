@@ -2,7 +2,9 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { VARIABLE_OPERATIONS } from '@/socket/constants'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
+import { checkRolePermission } from '@/socket/middleware/permissions'
 import type { IRoomManager } from '@/socket/rooms'
 
 const logger = createLogger('VariablesHandlers')
@@ -98,6 +100,43 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
           variableId,
           field,
         })
+        return
+      }
+
+      const users = await roomManager.getWorkflowUsers(workflowId)
+      const userPresence = users.find((user) => user.socketId === socket.id)
+      if (!userPresence) {
+        socket.emit('operation-forbidden', {
+          type: 'SESSION_ERROR',
+          message: 'User session not found',
+          operation: VARIABLE_OPERATIONS.UPDATE,
+          target: 'variable',
+        })
+        if (operationId) {
+          socket.emit('operation-failed', {
+            operationId,
+            error: 'User session not found',
+            retryable: false,
+          })
+        }
+        return
+      }
+
+      const permissionCheck = checkRolePermission(userPresence.role, VARIABLE_OPERATIONS.UPDATE)
+      if (!permissionCheck.allowed) {
+        socket.emit('operation-forbidden', {
+          type: 'INSUFFICIENT_PERMISSIONS',
+          message: permissionCheck.reason || 'Insufficient permissions',
+          operation: VARIABLE_OPERATIONS.UPDATE,
+          target: 'variable',
+        })
+        if (operationId) {
+          socket.emit('operation-failed', {
+            operationId,
+            error: permissionCheck.reason || 'Insufficient permissions',
+            retryable: false,
+          })
+        }
         return
       }
 

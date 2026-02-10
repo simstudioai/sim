@@ -1,8 +1,7 @@
 import { db } from '@sim/db'
-import { account, credentialSetMember, workflow } from '@sim/db/schema'
+import { account, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import { getSession } from '@/lib/auth'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -47,41 +46,6 @@ export async function safeAccountInsert(
       throw error
     }
   }
-}
-
-/**
- * Get the user ID based on either a session or a workflow ID
- */
-export async function getUserId(
-  requestId: string,
-  workflowId?: string
-): Promise<string | undefined> {
-  // If workflowId is provided, this is a server-side request
-  if (workflowId) {
-    // Get the workflow to verify the user ID
-    const workflows = await db
-      .select({ userId: workflow.userId })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
-
-    if (!workflows.length) {
-      logger.warn(`[${requestId}] Workflow not found`)
-      return undefined
-    }
-
-    return workflows[0].userId
-  }
-  // This is a client-side request, use the session
-  const session = await getSession()
-
-  // Check if the user is authenticated
-  if (!session?.user?.id) {
-    logger.warn(`[${requestId}] Unauthenticated request rejected`)
-    return undefined
-  }
-
-  return session.user.id
 }
 
 /**
