@@ -1,7 +1,7 @@
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
@@ -188,7 +188,10 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
     })
   }
 
-  const outputs = getBlockOutputs(type, subBlocks, triggerMode)
+  const outputs = getEffectiveBlockOutputs(type, subBlocks, {
+    triggerMode,
+    preferToolOutputs: !triggerMode,
+  })
 
   return {
     id,

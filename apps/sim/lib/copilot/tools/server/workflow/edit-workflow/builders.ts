@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -54,7 +54,10 @@ export function createBlockFromParams(
         subBlocks[key] = { id: key, type: 'short-input', value: value }
       })
     }
-    outputs = getBlockOutputs(params.type, subBlocks, triggerMode)
+    outputs = getEffectiveBlockOutputs(params.type, subBlocks, {
+      triggerMode,
+      preferToolOutputs: !triggerMode,
+    })
   } else {
     outputs = {}
   }
