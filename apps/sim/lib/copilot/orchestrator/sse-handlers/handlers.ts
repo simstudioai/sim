@@ -490,6 +490,23 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
         options.timeout || STREAM_TIMEOUT_MS,
         options.abortSignal
       )
+      if (completion?.status === 'rejected') {
+        toolCall.status = 'rejected'
+        toolCall.endTime = Date.now()
+        markToolComplete(
+          toolCall.id,
+          toolCall.name,
+          400,
+          completion.message || 'Tool execution rejected'
+        ).catch((err) => {
+          logger.error('markToolComplete fire-and-forget failed (subagent run tool rejected)', {
+            toolCallId: toolCall.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
+        markToolResultSeen(toolCallId)
+        return
+      }
       const success = completion?.status === 'success'
       toolCall.status = success ? 'success' : 'error'
       toolCall.endTime = Date.now()

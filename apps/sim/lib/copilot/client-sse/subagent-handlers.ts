@@ -250,10 +250,10 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
       sendAutoAcceptConfirmation(id)
     }
 
-    // Client-executable run tools: execute on the client for real-time feedback.
-    // The server defers execution in interactive mode; we execute here and
-    // report back via mark-complete.
-    if (CLIENT_EXECUTABLE_RUN_TOOLS.has(name)) {
+    // Client-executable run tools: if auto-allowed, execute immediately for
+    // real-time feedback. For non-auto-allowed, the user must click "Allow"
+    // first — handleRun in tool-call.tsx triggers executeRunToolOnClient.
+    if (CLIENT_EXECUTABLE_RUN_TOOLS.has(name) && isAutoAllowed) {
       executeRunToolOnClient(id, name, args || {})
     }
   },

@@ -50,6 +50,18 @@ import {
 import { getLatestBlock } from '@/blocks/registry'
 import { getCustomTool } from '@/hooks/queries/custom-tools'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+/** Resolve a block ID to its human-readable name from the workflow store. */
+function resolveBlockName(blockId: string | undefined): string | undefined {
+  if (!blockId) return undefined
+  try {
+    const blocks = useWorkflowStore.getState().blocks
+    return blocks[blockId]?.name || undefined
+  } catch {
+    return undefined
+  }
+}
 
 export enum ClientToolCallState {
   generating = 'generating',
@@ -1742,12 +1754,12 @@ const META_generate_api_key: ToolMetadata = {
 const META_run_block: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Preparing to run block', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Run this block?', icon: Play },
+    [ClientToolCallState.pending]: { text: 'Run block?', icon: Play },
     [ClientToolCallState.executing]: { text: 'Running block', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Executed block', icon: Play },
+    [ClientToolCallState.success]: { text: 'Ran block', icon: Play },
     [ClientToolCallState.error]: { text: 'Failed to run block', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped block execution', icon: MinusCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted block execution', icon: MinusCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped running block', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted running block', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running block in background', icon: Play },
   },
   interrupt: {
@@ -1775,23 +1787,24 @@ const META_run_block: ToolMetadata = {
   getDynamicText: (params, state) => {
     const blockId = params?.blockId || params?.block_id
     if (blockId && typeof blockId === 'string') {
+      const name = resolveBlockName(blockId) || blockId
       switch (state) {
         case ClientToolCallState.success:
-          return `Executed block ${blockId}`
+          return `Ran ${name}`
         case ClientToolCallState.executing:
-          return `Running block ${blockId}`
+          return `Running ${name}`
         case ClientToolCallState.generating:
-          return `Preparing to run block ${blockId}`
+          return `Preparing to run ${name}`
         case ClientToolCallState.pending:
-          return `Run block ${blockId}?`
+          return `Run ${name}?`
         case ClientToolCallState.error:
-          return `Failed to run block ${blockId}`
+          return `Failed to run ${name}`
         case ClientToolCallState.rejected:
-          return `Skipped running block ${blockId}`
+          return `Skipped running ${name}`
         case ClientToolCallState.aborted:
-          return `Aborted running block ${blockId}`
+          return `Aborted running ${name}`
         case ClientToolCallState.background:
-          return `Running block ${blockId} in background`
+          return `Running ${name} in background`
       }
     }
     return undefined
@@ -1801,12 +1814,12 @@ const META_run_block: ToolMetadata = {
 const META_run_from_block: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Preparing to run from block', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Run from this block?', icon: Play },
+    [ClientToolCallState.pending]: { text: 'Run from block?', icon: Play },
     [ClientToolCallState.executing]: { text: 'Running from block', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Executed from block', icon: Play },
+    [ClientToolCallState.success]: { text: 'Ran from block', icon: Play },
     [ClientToolCallState.error]: { text: 'Failed to run from block', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped run from block', icon: MinusCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted run from block', icon: MinusCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped running from block', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted running from block', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running from block in background', icon: Play },
   },
   interrupt: {
@@ -1834,23 +1847,24 @@ const META_run_from_block: ToolMetadata = {
   getDynamicText: (params, state) => {
     const blockId = params?.startBlockId || params?.start_block_id
     if (blockId && typeof blockId === 'string') {
+      const name = resolveBlockName(blockId) || blockId
       switch (state) {
         case ClientToolCallState.success:
-          return `Executed from block ${blockId}`
+          return `Ran from ${name}`
         case ClientToolCallState.executing:
-          return `Running from block ${blockId}`
+          return `Running from ${name}`
         case ClientToolCallState.generating:
-          return `Preparing to run from block ${blockId}`
+          return `Preparing to run from ${name}`
         case ClientToolCallState.pending:
-          return `Run from block ${blockId}?`
+          return `Run from ${name}?`
         case ClientToolCallState.error:
-          return `Failed to run from block ${blockId}`
+          return `Failed to run from ${name}`
         case ClientToolCallState.rejected:
-          return `Skipped running from block ${blockId}`
+          return `Skipped running from ${name}`
         case ClientToolCallState.aborted:
-          return `Aborted running from block ${blockId}`
+          return `Aborted running from ${name}`
         case ClientToolCallState.background:
-          return `Running from block ${blockId} in background`
+          return `Running from ${name} in background`
       }
     }
     return undefined
@@ -1860,12 +1874,12 @@ const META_run_from_block: ToolMetadata = {
 const META_run_workflow_until_block: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Preparing to run until block', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Run until this block?', icon: Play },
+    [ClientToolCallState.pending]: { text: 'Run until block?', icon: Play },
     [ClientToolCallState.executing]: { text: 'Running until block', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Executed until block', icon: Play },
+    [ClientToolCallState.success]: { text: 'Ran until block', icon: Play },
     [ClientToolCallState.error]: { text: 'Failed to run until block', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped run until block', icon: MinusCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted run until block', icon: MinusCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped running until block', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted running until block', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running until block in background', icon: Play },
   },
   interrupt: {
@@ -1893,23 +1907,24 @@ const META_run_workflow_until_block: ToolMetadata = {
   getDynamicText: (params, state) => {
     const blockId = params?.stopAfterBlockId || params?.stop_after_block_id
     if (blockId && typeof blockId === 'string') {
+      const name = resolveBlockName(blockId) || blockId
       switch (state) {
         case ClientToolCallState.success:
-          return `Executed until block ${blockId}`
+          return `Ran until ${name}`
         case ClientToolCallState.executing:
-          return `Running until block ${blockId}`
+          return `Running until ${name}`
         case ClientToolCallState.generating:
-          return `Preparing to run until block ${blockId}`
+          return `Preparing to run until ${name}`
         case ClientToolCallState.pending:
-          return `Run until block ${blockId}?`
+          return `Run until ${name}?`
         case ClientToolCallState.error:
-          return `Failed to run until block ${blockId}`
+          return `Failed to run until ${name}`
         case ClientToolCallState.rejected:
-          return `Skipped running until block ${blockId}`
+          return `Skipped running until ${name}`
         case ClientToolCallState.aborted:
-          return `Aborted running until block ${blockId}`
+          return `Aborted running until ${name}`
         case ClientToolCallState.background:
-          return `Running until block ${blockId} in background`
+          return `Running until ${name} in background`
       }
     }
     return undefined
