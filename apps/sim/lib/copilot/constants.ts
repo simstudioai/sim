@@ -1,7 +1,7 @@
 import { env } from '@/lib/core/config/env'
 
 export const SIM_AGENT_API_URL_DEFAULT = 'https://copilot.sim.ai'
-export const SIM_AGENT_VERSION = '1.0.3'
+export const SIM_AGENT_VERSION = '3.0.0'
 
 /** Resolved copilot backend URL — reads from env with fallback to default. */
 const rawAgentUrl = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
