@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
       const parsedFields = params.fields
         ? (JSON.parse(params.fields) as Array<Record<string, any>>).map((f) => ({
-            id: f.id || '',
+            id: f.id || randomUUID().slice(0, 8),
             title: f.label || f.title || '',
             fieldType: toSdkFieldType(f.type || 'STRING'),
             value: f.value || '',

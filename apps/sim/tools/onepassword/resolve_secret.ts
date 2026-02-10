@@ -49,19 +49,19 @@ export const resolveSecretTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await response.json()
     if (data.error) {
-      return { success: false, output: { secret: '', reference: '' }, error: data.error }
+      return { success: false, output: { value: '', reference: '' }, error: data.error }
     }
     return {
       success: true,
       output: {
-        secret: data.secret ?? '',
+        value: data.value ?? '',
         reference: data.reference ?? '',
       },
     }
   },
 
   outputs: {
-    secret: { type: 'string', description: 'The resolved secret value' },
+    value: { type: 'string', description: 'The resolved secret value' },
     reference: { type: 'string', description: 'The original secret reference URI' },
   },
 }

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const secret = await client.secrets.resolve(params.secretReference)
 
     return NextResponse.json({
-      secret,
+      value: secret,
       reference: params.secretReference,
     })
   } catch (error) {

@@ -46,37 +46,41 @@ export async function POST(request: NextRequest) {
     if (creds.mode === 'service_account') {
       const client = await createOnePasswordClient(creds.serviceAccountToken!)
 
+      const existing = await client.items.get(params.vaultId, params.itemId)
+
       const sdkItem = {
+        ...existing,
         id: params.itemId,
-        title: itemData.title || '',
-        category: toSdkCategory(itemData.category || 'LOGIN'),
+        title: itemData.title || existing.title,
+        category: itemData.category ? toSdkCategory(itemData.category) : existing.category,
         vaultId: params.vaultId,
-        fields: (itemData.fields ?? []).map((f: Record<string, any>) => ({
-          id: f.id || '',
-          title: f.label || f.title || '',
-          fieldType: toSdkFieldType(f.type || 'STRING'),
-          value: f.value || '',
-          sectionId: f.section?.id ?? f.sectionId,
-        })),
-        sections: (itemData.sections ?? []).map((s: Record<string, any>) => ({
-          id: s.id || '',
-          title: s.label || s.title || '',
-        })),
-        notes: itemData.notes || '',
-        tags: itemData.tags ?? [],
-        websites: (itemData.urls ?? itemData.websites ?? []).map((u: Record<string, any>) => ({
-          url: u.href || u.url || '',
-          label: u.label || '',
-          autofillBehavior: 'AnywhereOnWebsite' as const,
-        })),
-        version: itemData.version ?? 0,
-        files: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        fields: itemData.fields
+          ? (itemData.fields as Array<Record<string, any>>).map((f) => ({
+              id: f.id || randomUUID().slice(0, 8),
+              title: f.label || f.title || '',
+              fieldType: toSdkFieldType(f.type || 'STRING'),
+              value: f.value || '',
+              sectionId: f.section?.id ?? f.sectionId,
+            }))
+          : existing.fields,
+        sections: itemData.sections
+          ? (itemData.sections as Array<Record<string, any>>).map((s) => ({
+              id: s.id || '',
+              title: s.label || s.title || '',
+            }))
+          : existing.sections,
+        notes: itemData.notes ?? existing.notes,
+        tags: itemData.tags ?? existing.tags,
+        websites:
+          itemData.urls || itemData.websites
+            ? (itemData.urls ?? itemData.websites ?? []).map((u: Record<string, any>) => ({
+                url: u.href || u.url || '',
+                label: u.label || '',
+                autofillBehavior: 'AnywhereOnWebsite' as const,
+              }))
+            : existing.websites,
       }
 
-      // Cast to any because toSdkCategory/toSdkFieldType return string literals
-      // that match SDK enum values but TypeScript can't verify this at compile time
       const result = await client.items.put(sdkItem as any)
       return NextResponse.json(normalizeSdkItem(result))
     }

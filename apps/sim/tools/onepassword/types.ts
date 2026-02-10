@@ -153,7 +153,7 @@ export interface OnePasswordDeleteItemResponse extends ToolResponse {
 
 export interface OnePasswordResolveSecretResponse extends ToolResponse {
   output: {
-    secret: string
+    value: string
     reference: string
   }
 }

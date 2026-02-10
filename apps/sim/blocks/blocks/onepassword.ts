@@ -71,7 +71,7 @@ export const OnePasswordBlock: BlockConfig = {
       id: 'secretReference',
       title: 'Secret Reference',
       type: 'short-input',
-      placeholder: 'op://vault-name/item-name/field-name',
+      placeholder: 'op://vault-name-or-id/item-name-or-id/field-name',
       required: { field: 'operation', value: 'resolve_secret' },
       condition: { field: 'operation', value: 'resolve_secret' },
     },
@@ -80,6 +80,7 @@ export const OnePasswordBlock: BlockConfig = {
       title: 'Vault ID',
       type: 'short-input',
       placeholder: 'Enter vault UUID',
+      password: true,
       required: {
         field: 'operation',
         value: [
@@ -154,7 +155,7 @@ export const OnePasswordBlock: BlockConfig = {
     },
     {
       id: 'fields',
-      title: 'Fields (JSON)',
+      title: 'Fields',
       type: 'code',
       placeholder:
         '[\n  {\n    "label": "username",\n    "value": "admin",\n    "type": "STRING",\n    "purpose": "USERNAME"\n  }\n]',
