@@ -47,6 +47,10 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isProd: false,
 }))
 
+vi.mock('@/lib/workflows/utils', () => ({
+  authorizeWorkflowByWorkspacePermission: vi.fn(),
+}))
+
 describe('Chat API Utils', () => {
   beforeEach(() => {
     vi.stubGlobal('process', {
