@@ -186,7 +186,7 @@ export async function preprocessExecution(
     }
 
     if (!actorUserId) {
-      const fallbackUserId = userId || workflowRecord.userId || 'unknown'
+      const fallbackUserId = userId || 'unknown'
       logger.warn(`[${requestId}] ${BILLING_ERROR_MESSAGES.BILLING_REQUIRED}`, {
         workflowId,
         workspaceId,
@@ -214,7 +214,7 @@ export async function preprocessExecution(
     }
   } catch (error) {
     logger.error(`[${requestId}] Error resolving billing actor`, { error, workflowId })
-    const fallbackUserId = userId || workflowRecord.userId || 'unknown'
+    const fallbackUserId = userId || 'unknown'
     await logPreprocessingError({
       workflowId,
       executionId,
