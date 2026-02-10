@@ -116,7 +116,6 @@ export interface CopilotState {
   mode: CopilotMode
   selectedModel: CopilotModelId
   agentPrefetch: boolean
-  enabledModels: string[] | null // Null means not loaded yet, array of model IDs when loaded
   availableModels: AvailableModel[]
   isLoadingModels: boolean
   isCollapsed: boolean
@@ -186,7 +185,6 @@ export interface CopilotActions {
   setMode: (mode: CopilotMode) => void
   setSelectedModel: (model: CopilotStore['selectedModel']) => Promise<void>
   setAgentPrefetch: (prefetch: boolean) => void
-  setEnabledModels: (models: string[] | null) => void
   loadAvailableModels: () => Promise<void>
 
   setWorkflowId: (workflowId: string | null) => Promise<void>

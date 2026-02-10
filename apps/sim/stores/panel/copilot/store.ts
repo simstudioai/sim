@@ -937,7 +937,6 @@ const initialState = {
   mode: 'build' as const,
   selectedModel: 'anthropic/claude-opus-4-6' as CopilotStore['selectedModel'],
   agentPrefetch: false,
-  enabledModels: null as string[] | null, // Null means not loaded yet, empty array means all disabled
   availableModels: [] as AvailableModel[],
   isLoadingModels: false,
   isCollapsed: false,
@@ -1005,7 +1004,6 @@ export const useCopilotStore = create<CopilotStore>()(
         mode: get().mode,
         selectedModel: get().selectedModel,
         agentPrefetch: get().agentPrefetch,
-        enabledModels: get().enabledModels,
         availableModels: get().availableModels,
         isLoadingModels: get().isLoadingModels,
         autoAllowedTools: get().autoAllowedTools,
@@ -2221,7 +2219,6 @@ export const useCopilotStore = create<CopilotStore>()(
       set({ selectedModel: model })
     },
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
-    setEnabledModels: (models) => set({ enabledModels: models }),
     loadAvailableModels: async () => {
       set({ isLoadingModels: true })
       try {
