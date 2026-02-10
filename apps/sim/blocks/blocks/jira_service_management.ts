@@ -331,7 +331,7 @@ Return ONLY the comment text - no explanations.`,
         { label: 'Open', id: 'OPEN_REQUESTS' },
         { label: 'Closed', id: 'CLOSED_REQUESTS' },
       ],
-      value: () => 'ALL',
+      value: () => 'ALL_REQUESTS',
       condition: { field: 'operation', value: 'get_requests' },
     },
     {

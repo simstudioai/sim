@@ -615,6 +615,7 @@ export const ISSUE_ITEM_PROPERTIES = {
     },
     optional: true,
   },
+  issueKey: { type: 'string', description: 'Issue key (e.g., PROJ-123)' },
 } as const satisfies Record<string, OutputProperty>
 
 /**

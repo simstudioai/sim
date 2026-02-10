@@ -13,6 +13,7 @@ function transformIssueData(data: any) {
   const fields = data?.fields ?? {}
   return {
     id: data?.id ?? '',
+    issueKey: data?.key ?? '',
     key: data?.key ?? '',
     self: data?.self ?? '',
     summary: fields.summary ?? '',
