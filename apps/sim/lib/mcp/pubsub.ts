@@ -131,12 +131,15 @@ class RedisMcpPubSub implements McpPubSubAdapter {
     this.toolsChangedHandlers.clear()
     this.workflowToolsChangedHandlers.clear()
 
+    const noop = () => {}
     this.pub.removeAllListeners()
     this.sub.removeAllListeners()
+    this.pub.on('error', noop)
+    this.sub.on('error', noop)
 
-    this.sub.unsubscribe().catch(() => {})
-    this.pub.quit().catch(() => {})
-    this.sub.quit().catch(() => {})
+    this.sub.unsubscribe().catch(noop)
+    this.pub.quit().catch(noop)
+    this.sub.quit().catch(noop)
     logger.info('Redis MCP pub/sub disposed')
   }
 }
