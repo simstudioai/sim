@@ -1,6 +1,50 @@
 import type { JiraUpdateWorklogParams, JiraUpdateWorklogResponse } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
+import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+function buildWorklogBody(params: JiraUpdateWorklogParams) {
+  const body: Record<string, any> = {
+    timeSpentSeconds: params.timeSpentSeconds ? Number(params.timeSpentSeconds) : undefined,
+    comment: params.comment
+      ? {
+          type: 'doc',
+          version: 1,
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: params.comment,
+                },
+              ],
+            },
+          ],
+        }
+      : undefined,
+    started: params.started ? params.started.replace(/Z$/, '+0000') : undefined,
+  }
+  if (params.visibility) body.visibility = params.visibility
+  return body
+}
+
+function transformWorklogResponse(data: any, params: JiraUpdateWorklogParams) {
+  return {
+    ts: new Date().toISOString(),
+    issueKey: params.issueKey || 'unknown',
+    worklogId: data?.id || params.worklogId || 'unknown',
+    timeSpent: data?.timeSpent ?? null,
+    timeSpentSeconds: data?.timeSpentSeconds ?? null,
+    comment: data?.comment ? extractAdfText(data.comment) : null,
+    author: data?.author ? transformUser(data.author) : null,
+    updateAuthor: data?.updateAuthor ? transformUser(data.updateAuthor) : null,
+    started: data?.started || null,
+    created: data?.created || null,
+    updated: data?.updated || null,
+    success: true,
+  }
+}
 
 export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpdateWorklogResponse> =
   {
@@ -57,6 +101,13 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
         visibility: 'user-or-llm',
         description: 'Optional start time in ISO format',
       },
+      visibility: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Restrict worklog visibility. Object with "type" ("role" or "group") and "value" (role/group name).',
+      },
       cloudId: {
         type: 'string',
         required: false,
@@ -83,63 +134,22 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
       },
       body: (params: JiraUpdateWorklogParams) => {
         if (!params.cloudId) return undefined as any
-        return {
-          timeSpentSeconds: Number(params.timeSpentSeconds),
-          comment: params.comment
-            ? {
-                type: 'doc',
-                version: 1,
-                content: [
-                  {
-                    type: 'paragraph',
-                    content: [
-                      {
-                        type: 'text',
-                        text: params.comment,
-                      },
-                    ],
-                  },
-                ],
-              }
-            : undefined,
-          started: params.started,
-        }
+        return buildWorklogBody(params)
       },
     },
 
     transformResponse: async (response: Response, params?: JiraUpdateWorklogParams) => {
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-        // Make the actual request with the resolved cloudId
-        const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/worklog/${params?.worklogId}`
+        const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/worklog/${params!.worklogId}`
         const worklogResponse = await fetch(worklogUrl, {
           method: 'PUT',
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${params?.accessToken}`,
+            Authorization: `Bearer ${params!.accessToken}`,
           },
-          body: JSON.stringify({
-            timeSpentSeconds: params?.timeSpentSeconds ? Number(params.timeSpentSeconds) : 0,
-            comment: params?.comment
-              ? {
-                  type: 'doc',
-                  version: 1,
-                  content: [
-                    {
-                      type: 'paragraph',
-                      content: [
-                        {
-                          type: 'text',
-                          text: params.comment,
-                        },
-                      ],
-                    },
-                  ],
-                }
-              : undefined,
-            started: params?.started,
-          }),
+          body: JSON.stringify(buildWorklogBody(params!)),
         })
 
         if (!worklogResponse.ok) {
@@ -152,19 +162,12 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
         }
 
         const data = await worklogResponse.json()
-
         return {
           success: true,
-          output: {
-            ts: new Date().toISOString(),
-            issueKey: params?.issueKey || 'unknown',
-            worklogId: data?.id || params?.worklogId || 'unknown',
-            success: true,
-          },
+          output: transformWorklogResponse(data, params!),
         }
       }
 
-      // If cloudId was provided, process the response
       if (!response.ok) {
         let message = `Failed to update worklog on Jira issue (${response.status})`
         try {
@@ -175,21 +178,31 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
       }
 
       const data = await response.json()
-
       return {
         success: true,
-        output: {
-          ts: new Date().toISOString(),
-          issueKey: params?.issueKey || 'unknown',
-          worklogId: data?.id || params?.worklogId || 'unknown',
-          success: true,
-        },
+        output: transformWorklogResponse(data, params!),
       }
     },
 
     outputs: {
-      ts: { type: 'string', description: 'Timestamp of the operation' },
+      ts: TIMESTAMP_OUTPUT,
       issueKey: { type: 'string', description: 'Issue key' },
       worklogId: { type: 'string', description: 'Updated worklog ID' },
+      timeSpent: { type: 'string', description: 'Human-readable time spent (e.g., "3h 20m")' },
+      timeSpentSeconds: { type: 'number', description: 'Time spent in seconds' },
+      comment: { type: 'string', description: 'Worklog comment text' },
+      author: {
+        type: 'object',
+        description: 'Worklog author',
+        properties: USER_OUTPUT_PROPERTIES,
+      },
+      updateAuthor: {
+        type: 'object',
+        description: 'User who last updated the worklog',
+        properties: USER_OUTPUT_PROPERTIES,
+      },
+      started: { type: 'string', description: 'Worklog start time in ISO format' },
+      created: { type: 'string', description: 'Worklog creation time' },
+      updated: { type: 'string', description: 'Worklog last update time' },
     },
   }

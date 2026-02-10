@@ -1,4 +1,5 @@
 import type { JsmGetCommentsParams, JsmGetCommentsResponse } from '@/tools/jsm/types'
+import { COMMENT_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetCommentsResponse> = {
@@ -49,6 +50,12 @@ export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetComments
       visibility: 'user-or-llm',
       description: 'Filter to only internal comments (true/false)',
     },
+    expand: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated fields to expand: renderedBody, attachment',
+    },
     start: {
       type: 'number',
       required: false,
@@ -76,6 +83,7 @@ export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetComments
       issueIdOrKey: params.issueIdOrKey,
       isPublic: params.isPublic,
       internal: params.internal,
+      expand: params.expand,
       start: params.start,
       limit: params.limit,
     }),
@@ -120,7 +128,14 @@ export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetComments
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
     issueIdOrKey: { type: 'string', description: 'Issue ID or key' },
-    comments: { type: 'json', description: 'Array of comments' },
+    comments: {
+      type: 'array',
+      description: 'List of comments',
+      items: {
+        type: 'object',
+        properties: COMMENT_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of comments' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

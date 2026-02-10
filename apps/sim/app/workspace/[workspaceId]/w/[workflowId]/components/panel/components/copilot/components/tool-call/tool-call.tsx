@@ -1,20 +1,19 @@
 'use client'
 
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronUp, LayoutList } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { Button, Code, getCodeEditorProps, highlight, languages } from '@/components/emcn'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
-import { getClientTool } from '@/lib/copilot/tools/client/manager'
-import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
-import '@/lib/copilot/tools/client/init-tool-configs'
 import {
-  getSubagentLabels as getSubagentLabelsFromConfig,
-  getToolUIConfig,
-  hasInterrupt as hasInterruptFromConfig,
-  isSpecialTool as isSpecialToolFromConfig,
-} from '@/lib/copilot/tools/client/ui-config'
+  CLIENT_EXECUTABLE_RUN_TOOLS,
+  executeRunToolOnClient,
+} from '@/lib/copilot/client-sse/run-tool-execution'
+import {
+  ClientToolCallState,
+  TOOL_DISPLAY_REGISTRY,
+} from '@/lib/copilot/tools/client/tool-display-registry'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { CopilotMarkdownRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import { SmoothStreamingText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/smooth-streaming'
@@ -25,7 +24,6 @@ import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/co
 import { getBlock } from '@/blocks/registry'
 import type { CopilotToolCall } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
-import { CLASS_TOOL_METADATA } from '@/stores/panel/copilot/store'
 import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -710,8 +708,8 @@ const ShimmerOverlayText = memo(function ShimmerOverlayText({
  * @returns The completion label from UI config, defaults to 'Thought'
  */
 function getSubagentCompletionLabel(toolName: string): string {
-  const labels = getSubagentLabelsFromConfig(toolName, false)
-  return labels?.completed ?? 'Thought'
+  const labels = TOOL_DISPLAY_REGISTRY[toolName]?.uiConfig?.subagentLabels
+  return labels?.completed || 'Thought'
 }
 
 /**
@@ -943,7 +941,7 @@ const SubagentContentRenderer = memo(function SubagentContentRenderer({
  * Determines if a tool call should display with special gradient styling.
  */
 function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
-  return isSpecialToolFromConfig(toolCall.name)
+  return TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.isSpecial === true
 }
 
 /**
@@ -1223,38 +1221,55 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
 
 /** Checks if a tool is server-side executed (not a client tool) */
 function isIntegrationTool(toolName: string): boolean {
-  return !CLASS_TOOL_METADATA[toolName]
+  return !TOOL_DISPLAY_REGISTRY[toolName]
 }
 
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
-  if (hasInterruptFromConfig(toolCall.name) && toolCall.state === 'pending') {
+  if (!toolCall.name || toolCall.name === 'unknown_tool') {
+    return false
+  }
+
+  if (toolCall.state !== ClientToolCallState.pending) {
+    return false
+  }
+
+  // Never show buttons for tools the user has marked as always-allowed
+  if (useCopilotStore.getState().isToolAutoAllowed(toolCall.name)) {
+    return false
+  }
+
+  const hasInterrupt = !!TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.interrupt
+  if (hasInterrupt) {
     return true
   }
 
-  const instance = getClientTool(toolCall.id)
-  let hasInterrupt = !!instance?.getInterruptDisplays?.()
-  if (!hasInterrupt) {
-    try {
-      const def = getRegisteredTools()[toolCall.name]
-      if (def) {
-        hasInterrupt =
-          typeof def.hasInterrupt === 'function'
-            ? !!def.hasInterrupt(toolCall.params || {})
-            : !!def.hasInterrupt
-      }
-    } catch {}
-  }
-
-  if (hasInterrupt && toolCall.state === 'pending') {
-    return true
-  }
-
-  const mode = useCopilotStore.getState().mode
-  if (mode === 'build' && isIntegrationTool(toolCall.name) && toolCall.state === 'pending') {
+  // Integration tools (user-installed) always require approval
+  if (isIntegrationTool(toolCall.name)) {
     return true
   }
 
   return false
+}
+
+const toolCallLogger = createLogger('CopilotToolCall')
+
+async function sendToolDecision(
+  toolCallId: string,
+  status: 'accepted' | 'rejected' | 'background'
+) {
+  try {
+    await fetch('/api/copilot/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolCallId, status }),
+    })
+  } catch (error) {
+    toolCallLogger.warn('Failed to send tool decision', {
+      toolCallId,
+      status,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 async function handleRun(
@@ -1263,103 +1278,31 @@ async function handleRun(
   onStateChange?: any,
   editedParams?: any
 ) {
-  const instance = getClientTool(toolCall.id)
+  setToolCallState(toolCall, 'executing', editedParams ? { params: editedParams } : undefined)
+  onStateChange?.('executing')
+  await sendToolDecision(toolCall.id, 'accepted')
 
-  if (!instance && isIntegrationTool(toolCall.name)) {
-    onStateChange?.('executing')
-    try {
-      await useCopilotStore.getState().executeIntegrationTool(toolCall.id)
-    } catch (e) {
-      setToolCallState(toolCall, 'error', { error: e instanceof Error ? e.message : String(e) })
-      onStateChange?.('error')
-      try {
-        await fetch('/api/copilot/tools/mark-complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: toolCall.id,
-            name: toolCall.name,
-            status: 500,
-            message: e instanceof Error ? e.message : 'Tool execution failed',
-            data: { error: e instanceof Error ? e.message : String(e) },
-          }),
-        })
-      } catch {
-        console.error('[handleRun] Failed to notify backend of tool error:', toolCall.id)
-      }
-    }
-    return
-  }
-
-  if (!instance) return
-  try {
-    const mergedParams =
-      editedParams ||
-      (toolCall as any).params ||
-      (toolCall as any).parameters ||
-      (toolCall as any).input ||
-      {}
-    await instance.handleAccept?.(mergedParams)
-    onStateChange?.('executing')
-  } catch (e) {
-    setToolCallState(toolCall, 'error', { error: e instanceof Error ? e.message : String(e) })
+  // Client-executable run tools: execute on the client for real-time feedback
+  // (block pulsing, console logs, stop button). The server defers execution
+  // for these tools; the client reports back via mark-complete.
+  if (CLIENT_EXECUTABLE_RUN_TOOLS.has(toolCall.name)) {
+    const params = editedParams || toolCall.params || {}
+    executeRunToolOnClient(toolCall.id, toolCall.name, params)
   }
 }
 
 async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onStateChange?: any) {
-  const instance = getClientTool(toolCall.id)
-
-  if (!instance && isIntegrationTool(toolCall.name)) {
-    setToolCallState(toolCall, 'rejected')
-    onStateChange?.('rejected')
-
-    let notified = false
-    for (let attempt = 0; attempt < 3 && !notified; attempt++) {
-      try {
-        const res = await fetch('/api/copilot/tools/mark-complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: toolCall.id,
-            name: toolCall.name,
-            status: 400,
-            message: 'Tool execution skipped by user',
-            data: { skipped: true, reason: 'user_skipped' },
-          }),
-        })
-        if (res.ok) {
-          notified = true
-        }
-      } catch (e) {
-        if (attempt < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 500))
-        }
-      }
-    }
-
-    if (!notified) {
-      console.error('[handleSkip] Failed to notify backend after 3 attempts:', toolCall.id)
-    }
-    return
-  }
-
-  if (instance) {
-    try {
-      await instance.handleReject?.()
-    } catch {}
-  }
   setToolCallState(toolCall, 'rejected')
   onStateChange?.('rejected')
+  await sendToolDecision(toolCall.id, 'rejected')
 }
 
 function getDisplayName(toolCall: CopilotToolCall): string {
   const fromStore = (toolCall as any).display?.text
   if (fromStore) return fromStore
-  try {
-    const def = getRegisteredTools()[toolCall.name] as any
-    const byState = def?.metadata?.displayNames?.[toolCall.state]
-    if (byState?.text) return byState.text
-  } catch {}
+  const registryEntry = TOOL_DISPLAY_REGISTRY[toolCall.name]
+  const byState = registryEntry?.displayNames?.[toolCall.state as ClientToolCallState]
+  if (byState?.text) return byState.text
 
   const stateVerb = getStateVerb(toolCall.state)
   const formattedName = formatToolName(toolCall.name)
@@ -1431,9 +1374,7 @@ function RunSkipButtons({
     setButtonsHidden(true)
     try {
       await addAutoAllowedTool(toolCall.name)
-      if (!isIntegrationTool(toolCall.name)) {
-        await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
-      }
+      await handleRun(toolCall, setToolCallState, onStateChange, editedParams)
     } finally {
       setIsProcessing(false)
       actionInProgressRef.current = false
@@ -1507,10 +1448,10 @@ export function ToolCall({
   const paramsRef = useRef(params)
 
   // Check if this integration tool is auto-allowed
-  // Subscribe to autoAllowedTools so we re-render when it changes
-  const autoAllowedTools = useCopilotStore((s) => s.autoAllowedTools)
-  const { removeAutoAllowedTool } = useCopilotStore()
-  const isAutoAllowed = isIntegrationTool(toolCall.name) && autoAllowedTools.includes(toolCall.name)
+  const { removeAutoAllowedTool, setToolCallState } = useCopilotStore()
+  const isAutoAllowed = useCopilotStore(
+    (s) => isIntegrationTool(toolCall.name) && s.isToolAutoAllowed(toolCall.name)
+  )
 
   // Update edited params when toolCall params change (deep comparison to avoid resetting user edits on ref change)
   useEffect(() => {
@@ -1526,34 +1467,12 @@ export function ToolCall({
     toolCall.name === 'mark_todo_in_progress' ||
     toolCall.name === 'tool_search_tool_regex' ||
     toolCall.name === 'user_memory' ||
-    toolCall.name === 'edit_respond' ||
-    toolCall.name === 'debug_respond' ||
-    toolCall.name === 'plan_respond' ||
-    toolCall.name === 'research_respond' ||
-    toolCall.name === 'info_respond' ||
-    toolCall.name === 'deploy_respond' ||
-    toolCall.name === 'superagent_respond'
+    toolCall.name.endsWith('_respond')
   )
     return null
 
   // Special rendering for subagent tools - show as thinking text with tool calls at top level
-  const SUBAGENT_TOOLS = [
-    'plan',
-    'edit',
-    'debug',
-    'test',
-    'deploy',
-    'evaluate',
-    'auth',
-    'research',
-    'knowledge',
-    'custom_tool',
-    'tour',
-    'info',
-    'workflow',
-    'superagent',
-  ]
-  const isSubagentTool = SUBAGENT_TOOLS.includes(toolCall.name)
+  const isSubagentTool = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.subagent === true
 
   // For ALL subagent tools, don't show anything until we have blocks with content
   if (isSubagentTool) {
@@ -1593,17 +1512,18 @@ export function ToolCall({
     stateStr === 'aborted'
 
   // Allow rendering if:
-  // 1. Tool is in CLASS_TOOL_METADATA (client tools), OR
+  // 1. Tool is in TOOL_DISPLAY_REGISTRY (client tools), OR
   // 2. We're in build mode (integration tools are executed server-side), OR
   // 3. Tool call is already completed (historical - should always render)
-  const isClientTool = !!CLASS_TOOL_METADATA[toolCall.name]
+  const isClientTool = !!TOOL_DISPLAY_REGISTRY[toolCall.name]
   const isIntegrationToolInBuildMode = mode === 'build' && !isClientTool
 
   if (!isClientTool && !isIntegrationToolInBuildMode && !isCompletedToolCall) {
     return null
   }
+  const toolUIConfig = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig
   // Check if tool has params table config (meaning it's expandable)
-  const hasParamsTable = !!getToolUIConfig(toolCall.name)?.paramsTable
+  const hasParamsTable = !!toolUIConfig?.paramsTable
   const isRunWorkflow = toolCall.name === 'run_workflow'
   const isExpandableTool =
     hasParamsTable ||
@@ -1613,7 +1533,6 @@ export function ToolCall({
   const showButtons = isCurrentMessage && shouldShowRunSkipButtons(toolCall)
 
   // Check UI config for secondary action - only show for current message tool calls
-  const toolUIConfig = getToolUIConfig(toolCall.name)
   const secondaryAction = toolUIConfig?.secondaryAction
   const showSecondaryAction = secondaryAction?.showInStates.includes(
     toolCall.state as ClientToolCallState
@@ -2211,16 +2130,9 @@ export function ToolCall({
         <div className='mt-[10px]'>
           <Button
             onClick={async () => {
-              try {
-                const instance = getClientTool(toolCall.id)
-                instance?.setState?.((ClientToolCallState as any).background)
-                await instance?.markToolComplete?.(
-                  200,
-                  'The user has chosen to move the workflow execution to the background. Check back with them later to know when the workflow execution is complete'
-                )
-                forceUpdate({})
-                onStateChange?.('background')
-              } catch {}
+              setToolCallState(toolCall, ClientToolCallState.background)
+              onStateChange?.('background')
+              await sendToolDecision(toolCall.id, 'background')
             }}
             variant='tertiary'
             title='Move to Background'
@@ -2232,21 +2144,9 @@ export function ToolCall({
         <div className='mt-[10px]'>
           <Button
             onClick={async () => {
-              try {
-                const instance = getClientTool(toolCall.id)
-                const elapsedSeconds = instance?.getElapsedSeconds?.() || 0
-                instance?.setState?.((ClientToolCallState as any).background, {
-                  result: { _elapsedSeconds: elapsedSeconds },
-                })
-                const { updateToolCallParams } = useCopilotStore.getState()
-                updateToolCallParams?.(toolCall.id, { _elapsedSeconds: Math.round(elapsedSeconds) })
-                await instance?.markToolComplete?.(
-                  200,
-                  `User woke you up after ${Math.round(elapsedSeconds)} seconds`
-                )
-                forceUpdate({})
-                onStateChange?.('background')
-              } catch {}
+              setToolCallState(toolCall, ClientToolCallState.background)
+              onStateChange?.('background')
+              await sendToolDecision(toolCall.id, 'background')
             }}
             variant='tertiary'
             title='Wake'

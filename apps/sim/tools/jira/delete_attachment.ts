@@ -1,20 +1,7 @@
+import type { JiraDeleteAttachmentParams, JiraDeleteAttachmentResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-export interface JiraDeleteAttachmentParams {
-  accessToken: string
-  domain: string
-  attachmentId: string
-  cloudId?: string
-}
-
-export interface JiraDeleteAttachmentResponse extends ToolResponse {
-  output: {
-    ts: string
-    attachmentId: string
-    success: boolean
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const jiraDeleteAttachmentTool: ToolConfig<
   JiraDeleteAttachmentParams,
@@ -127,7 +114,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     attachmentId: { type: 'string', description: 'Deleted attachment ID' },
   },
 }

@@ -1,4 +1,5 @@
 import type { JiraTransitionIssueParams, JiraTransitionIssueResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -48,6 +49,12 @@ export const jiraTransitionIssueTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Optional comment to add when transitioning the issue',
     },
+    resolution: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Resolution name to set during transition (e.g., "Fixed", "Won\'t Fix")',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -74,87 +81,47 @@ export const jiraTransitionIssueTool: ToolConfig<
     },
     body: (params: JiraTransitionIssueParams) => {
       if (!params.cloudId) return undefined as any
-      const body: any = {
-        transition: {
-          id: params.transitionId,
-        },
-      }
-
-      if (params.comment) {
-        body.update = {
-          comment: [
-            {
-              add: {
-                body: {
-                  type: 'doc',
-                  version: 1,
-                  content: [
-                    {
-                      type: 'paragraph',
-                      content: [
-                        {
-                          type: 'text',
-                          text: params.comment,
-                        },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-          ],
-        }
-      }
-
-      return body
+      return buildTransitionBody(params)
     },
   },
 
   transformResponse: async (response: Response, params?: JiraTransitionIssueParams) => {
-    if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      const transitionUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/transitions`
-
-      const body: any = {
-        transition: {
-          id: params!.transitionId,
+    const performTransition = async (cloudId: string) => {
+      // First, fetch available transitions to get the name and target status
+      const transitionsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/transitions`
+      const transitionsResp = await fetch(transitionsUrl, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${params!.accessToken}`,
         },
-      }
+      })
 
-      if (params!.comment) {
-        body.update = {
-          comment: [
-            {
-              add: {
-                body: {
-                  type: 'doc',
-                  version: 1,
-                  content: [
-                    {
-                      type: 'paragraph',
-                      content: [
-                        {
-                          type: 'text',
-                          text: params!.comment,
-                        },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-          ],
+      let transitionName: string | null = null
+      let toStatus: { id: string; name: string } | null = null
+
+      if (transitionsResp.ok) {
+        const transitionsData = await transitionsResp.json()
+        const transition = (transitionsData?.transitions ?? []).find(
+          (t: any) => String(t.id) === String(params!.transitionId)
+        )
+        if (transition) {
+          transitionName = transition.name ?? null
+          toStatus = transition.to
+            ? { id: transition.to.id ?? '', name: transition.to.name ?? '' }
+            : null
         }
       }
 
-      const transitionResponse = await fetch(transitionUrl, {
+      // Perform the transition
+      const transitionResponse = await fetch(transitionsUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
           Authorization: `Bearer ${params!.accessToken}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(buildTransitionBody(params!)),
       })
 
       if (!transitionResponse.ok) {
@@ -166,42 +133,119 @@ export const jiraTransitionIssueTool: ToolConfig<
         throw new Error(message)
       }
 
-      // Transition endpoint returns 204 No Content on success
-      return {
-        success: true,
-        output: {
-          ts: new Date().toISOString(),
-          issueKey: params!.issueKey,
-          transitionId: params!.transitionId,
-          success: true,
-        },
+      return { transitionName, toStatus }
+    }
+
+    let transitionName: string | null = null
+    let toStatus: { id: string; name: string } | null = null
+
+    if (!params?.cloudId) {
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      const result = await performTransition(cloudId)
+      transitionName = result.transitionName
+      toStatus = result.toStatus
+    } else {
+      // When cloudId was provided, the initial request was the POST transition.
+      // We need to fetch transition metadata separately.
+      if (!response.ok) {
+        let message = `Failed to transition Jira issue (${response.status})`
+        try {
+          const err = await response.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } catch (_e) {}
+        throw new Error(message)
       }
-    }
 
-    if (!response.ok) {
-      let message = `Failed to transition Jira issue (${response.status})`
+      // Fetch transition metadata for the response
       try {
-        const err = await response.json()
-        message = err?.errorMessages?.join(', ') || err?.message || message
-      } catch (_e) {}
-      throw new Error(message)
+        const transitionsUrl = `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/transitions`
+        const transitionsResp = await fetch(transitionsUrl, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${params.accessToken}`,
+          },
+        })
+        if (transitionsResp.ok) {
+          const transitionsData = await transitionsResp.json()
+          const transition = (transitionsData?.transitions ?? []).find(
+            (t: any) => String(t.id) === String(params.transitionId)
+          )
+          if (transition) {
+            transitionName = transition.name ?? null
+            toStatus = transition.to
+              ? { id: transition.to.id ?? '', name: transition.to.name ?? '' }
+              : null
+          }
+        }
+      } catch {}
     }
 
-    // Transition endpoint returns 204 No Content on success
     return {
       success: true,
       output: {
         ts: new Date().toISOString(),
-        issueKey: params?.issueKey || 'unknown',
-        transitionId: params?.transitionId || 'unknown',
+        issueKey: params?.issueKey ?? 'unknown',
+        transitionId: params?.transitionId ?? 'unknown',
+        transitionName,
+        toStatus,
         success: true,
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     issueKey: { type: 'string', description: 'Issue key that was transitioned' },
     transitionId: { type: 'string', description: 'Applied transition ID' },
+    transitionName: { type: 'string', description: 'Applied transition name', optional: true },
+    toStatus: {
+      type: 'object',
+      description: 'Target status after transition',
+      properties: {
+        id: { type: 'string', description: 'Status ID' },
+        name: { type: 'string', description: 'Status name' },
+      },
+      optional: true,
+    },
   },
+}
+
+/**
+ * Builds the transition request body per Jira API v3.
+ */
+function buildTransitionBody(params: JiraTransitionIssueParams) {
+  const body: any = {
+    transition: { id: params.transitionId },
+  }
+
+  if (params.resolution) {
+    body.fields = {
+      ...body.fields,
+      resolution: { name: params.resolution },
+    }
+  }
+
+  if (params.comment) {
+    body.update = {
+      comment: [
+        {
+          add: {
+            body: {
+              type: 'doc',
+              version: 1,
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: params.comment }],
+                },
+              ],
+            },
+          },
+        },
+      ],
+    }
+  }
+
+  return body
 }

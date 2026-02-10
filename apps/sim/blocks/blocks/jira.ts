@@ -269,14 +269,32 @@ Return ONLY the description text - no explanations.`,
           'Describe the issue details (e.g., "users seeing 500 error when clicking submit")...',
       },
     },
-    // Write Issue additional fields
+    // Write Issue type and parent
+    {
+      id: 'issueType',
+      title: 'Issue Type',
+      type: 'short-input',
+      placeholder: 'Issue type (e.g., Task, Story, Bug, Epic)',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+      value: () => 'Task',
+    },
+    {
+      id: 'parentIssue',
+      title: 'Parent Issue Key',
+      type: 'short-input',
+      placeholder: 'Parent issue key for subtasks (e.g., PROJ-123)',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: 'write' },
+    },
+    // Write/Update Issue additional fields
     {
       id: 'assignee',
       title: 'Assignee Account ID',
       type: 'short-input',
       placeholder: 'Assignee account ID (e.g., 5b109f2e9729b51b54dc274d)',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'priority',
@@ -284,7 +302,7 @@ Return ONLY the description text - no explanations.`,
       type: 'short-input',
       placeholder: 'Priority ID or name (e.g., "10000" or "High")',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'labels',
@@ -292,7 +310,7 @@ Return ONLY the description text - no explanations.`,
       type: 'short-input',
       placeholder: 'Comma-separated labels (e.g., bug, urgent)',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'duedate',
@@ -300,7 +318,7 @@ Return ONLY the description text - no explanations.`,
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (e.g., 2024-12-31)',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a date in YYYY-MM-DD format based on the user's description.
@@ -329,7 +347,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'long-input',
       placeholder: 'Environment information (e.g., Production, Staging)',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'customFieldId',
@@ -337,7 +355,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'e.g., customfield_10001 or 10001',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
       id: 'customFieldValue',
@@ -345,7 +363,34 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'Value for the custom field',
       dependsOn: ['projectId'],
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write', 'update'] },
+    },
+    {
+      id: 'components',
+      title: 'Components',
+      type: 'short-input',
+      placeholder: 'Comma-separated component names',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: ['write', 'update'] },
+    },
+    {
+      id: 'fixVersions',
+      title: 'Fix Versions',
+      type: 'short-input',
+      placeholder: 'Comma-separated fix version names',
+      dependsOn: ['projectId'],
+      condition: { field: 'operation', value: ['write', 'update'] },
+    },
+    {
+      id: 'notifyUsers',
+      title: 'Notify Users',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'update' },
     },
     // Delete Issue fields
     {
@@ -395,6 +440,13 @@ Return ONLY the comment text - no explanations.`,
         placeholder: 'Describe the transition reason (e.g., "fixed bug", "ready for QA review")...',
       },
     },
+    {
+      id: 'resolution',
+      title: 'Resolution',
+      type: 'short-input',
+      placeholder: 'Resolution name (e.g., "Fixed", "Won\'t Fix")',
+      condition: { field: 'operation', value: 'transition' },
+    },
     // Search Issues fields
     {
       id: 'jql',
@@ -419,6 +471,20 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
           'Describe what you want to search for (e.g., "open bugs assigned to me", "high priority issues from last week")...',
         generationType: 'sql-query',
       },
+    },
+    {
+      id: 'nextPageToken',
+      title: 'Next Page Token',
+      type: 'short-input',
+      placeholder: 'Cursor token for next page (omit for first page)',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'startAt',
+      title: 'Start At',
+      type: 'short-input',
+      placeholder: 'Pagination start index (default: 0)',
+      condition: { field: 'operation', value: ['get_comments', 'get_worklogs'] },
     },
     {
       id: 'maxResults',
@@ -756,7 +822,9 @@ Return ONLY the comment text - no explanations.`,
               assignee: params.assignee || undefined,
               priority: params.priority || undefined,
               labels: parseCommaSeparated(params.labels),
+              components: parseCommaSeparated(params.components),
               duedate: params.duedate || undefined,
+              fixVersions: parseCommaSeparated(params.fixVersions),
               reporter: params.reporter || undefined,
               environment: params.environment || undefined,
               customFieldId: params.customFieldId || undefined,
@@ -768,11 +836,29 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'update': {
+            const parseCommaSeparated = (value: string | undefined): string[] | undefined => {
+              if (!value || value.trim() === '') return undefined
+              return value
+                .split(',')
+                .map((item) => item.trim())
+                .filter((item) => item !== '')
+            }
+
             const updateParams = {
               projectId: effectiveProjectId,
               issueKey: effectiveIssueKey,
-              summary: params.summary || '',
-              description: params.description || '',
+              summary: params.summary || undefined,
+              description: params.description || undefined,
+              assignee: params.assignee || undefined,
+              priority: params.priority || undefined,
+              labels: parseCommaSeparated(params.labels),
+              components: parseCommaSeparated(params.components),
+              duedate: params.duedate || undefined,
+              fixVersions: parseCommaSeparated(params.fixVersions),
+              environment: params.environment || undefined,
+              customFieldId: params.customFieldId || undefined,
+              customFieldValue: params.customFieldValue || undefined,
+              notifyUsers: params.notifyUsers === 'false' ? false : undefined,
             }
             return {
               ...baseParams,
@@ -813,12 +899,14 @@ Return ONLY the comment text - no explanations.`,
               issueKey: effectiveIssueKey,
               transitionId: params.transitionId,
               comment: params.transitionComment,
+              resolution: params.resolution || undefined,
             }
           }
           case 'search': {
             return {
               ...baseParams,
               jql: params.jql,
+              nextPageToken: params.nextPageToken || undefined,
               maxResults: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           }
@@ -833,6 +921,7 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
+              startAt: params.startAt ? Number.parseInt(params.startAt) : undefined,
               maxResults: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           }
@@ -889,6 +978,7 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
+              startAt: params.startAt ? Number.parseInt(params.startAt) : undefined,
               maxResults: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           }
@@ -966,15 +1056,19 @@ Return ONLY the comment text - no explanations.`,
     summary: { type: 'string', description: 'Issue summary' },
     description: { type: 'string', description: 'Issue description' },
     issueType: { type: 'string', description: 'Issue type' },
-    // Write operation additional inputs
+    // Write/Update operation additional inputs
+    parentIssue: { type: 'string', description: 'Parent issue key for subtasks' },
     assignee: { type: 'string', description: 'Assignee account ID' },
     priority: { type: 'string', description: 'Priority ID or name' },
     labels: { type: 'string', description: 'Comma-separated labels for the issue' },
+    components: { type: 'string', description: 'Comma-separated component names' },
     duedate: { type: 'string', description: 'Due date in YYYY-MM-DD format' },
+    fixVersions: { type: 'string', description: 'Comma-separated fix version names' },
     reporter: { type: 'string', description: 'Reporter account ID' },
     environment: { type: 'string', description: 'Environment information' },
     customFieldId: { type: 'string', description: 'Custom field ID (e.g., customfield_10001)' },
     customFieldValue: { type: 'string', description: 'Value for the custom field' },
+    notifyUsers: { type: 'string', description: 'Whether to send notifications on update' },
     // Delete operation inputs
     deleteSubtasks: { type: 'string', description: 'Whether to delete subtasks (true/false)' },
     // Assign/Watcher operation inputs
@@ -985,7 +1079,13 @@ Return ONLY the comment text - no explanations.`,
     // Transition operation inputs
     transitionId: { type: 'string', description: 'Transition ID for workflow status changes' },
     transitionComment: { type: 'string', description: 'Optional comment for transition' },
+    resolution: { type: 'string', description: 'Resolution name for transition (e.g., "Fixed")' },
     // Search operation inputs
+    nextPageToken: {
+      type: 'string',
+      description: 'Cursor token for the next page of search results',
+    },
+    startAt: { type: 'string', description: 'Pagination start index' },
     jql: { type: 'string', description: 'JQL (Jira Query Language) search query' },
     maxResults: { type: 'string', description: 'Maximum number of results to return' },
     // Comment operation inputs
@@ -1038,8 +1138,11 @@ Return ONLY the comment text - no explanations.`,
     id: { type: 'string', description: 'Jira issue ID' },
     key: { type: 'string', description: 'Jira issue key' },
 
-    // jira_search_issues outputs
+    // jira_search_issues / jira_bulk_read outputs
     total: { type: 'number', description: 'Total number of matching issues' },
+    nextPageToken: { type: 'string', description: 'Cursor token for the next page of results' },
+    isLast: { type: 'boolean', description: 'Whether this is the last page of results' },
+    // Shared pagination outputs (get_comments, get_worklogs, get_users)
     startAt: { type: 'number', description: 'Pagination start index' },
     maxResults: { type: 'number', description: 'Maximum results per page' },
     issues: {

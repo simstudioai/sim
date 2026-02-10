@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import {
+  GetBlockOptionsInput,
   type GetBlockOptionsInputType,
   GetBlockOptionsResult,
   type GetBlockOptionsResultType,
@@ -14,6 +15,8 @@ export const getBlockOptionsServerTool: BaseServerTool<
   GetBlockOptionsResultType
 > = {
   name: 'get_block_options',
+  inputSchema: GetBlockOptionsInput,
+  outputSchema: GetBlockOptionsResult,
   async execute(
     { blockId }: GetBlockOptionsInputType,
     context?: { userId: string }

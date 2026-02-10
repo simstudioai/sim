@@ -4,7 +4,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionMetadata } from '@/executor/execution/types'
+import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('WorkflowExecution')
@@ -20,6 +20,15 @@ export interface ExecuteWorkflowOptions {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   abortSignal?: AbortSignal
+  /** Use the live/draft workflow state instead of the deployed state. Used by copilot. */
+  useDraftState?: boolean
+  /** Stop execution after this block completes. Used for "run until block" feature. */
+  stopAfterBlockId?: string
+  /** Run-from-block configuration using a prior execution snapshot. */
+  runFromBlock?: {
+    startBlockId: string
+    sourceSnapshot: SerializableExecutionState
+  }
 }
 
 export interface WorkflowInfo {
@@ -57,7 +66,7 @@ export async function executeWorkflow(
       userId: actorUserId,
       workflowUserId: workflow.userId,
       triggerType,
-      useDraftState: false,
+      useDraftState: streamConfig?.useDraftState ?? false,
       startTime: new Date().toISOString(),
       isClientSession: false,
     }
@@ -84,6 +93,8 @@ export async function executeWorkflow(
       includeFileBase64: streamConfig?.includeFileBase64,
       base64MaxBytes: streamConfig?.base64MaxBytes,
       abortSignal: streamConfig?.abortSignal,
+      stopAfterBlockId: streamConfig?.stopAfterBlockId,
+      runFromBlock: streamConfig?.runFromBlock,
     })
 
     if (result.status === 'paused') {

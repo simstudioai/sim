@@ -1,10 +1,11 @@
 import type { JiraWriteParams, JiraWriteResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
   id: 'jira_write',
   name: 'Jira Write',
-  description: 'Write a Jira issue',
+  description: 'Create a new Jira issue',
   version: '1.0.0',
 
   oauth: {
@@ -65,8 +66,14 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     issueType: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
-      description: 'Type of issue to create (e.g., Task, Story)',
+      visibility: 'user-or-llm',
+      description: 'Type of issue to create (e.g., Task, Story, Bug, Epic, Sub-task)',
+    },
+    parent: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Parent issue key for creating subtasks (e.g., { "key": "PROJ-123" })',
     },
     labels: {
       type: 'array',
@@ -74,11 +81,23 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       visibility: 'user-or-llm',
       description: 'Labels for the issue (array of label names)',
     },
+    components: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Components for the issue (array of component names)',
+    },
     duedate: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Due date for the issue (format: YYYY-MM-DD)',
+    },
+    fixVersions: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Fix versions for the issue (array of version names)',
     },
     reporter: {
       type: 'string',
@@ -113,7 +132,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Pass all parameters to the internal API route
       return {
         domain: params.domain,
         accessToken: params.accessToken,
@@ -126,7 +144,9 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
         issueType: params.issueType,
         parent: params.parent,
         labels: params.labels,
+        components: params.components,
         duedate: params.duedate,
+        fixVersions: params.fixVersions,
         reporter: params.reporter,
         environment: params.environment,
         customFieldId: params.customFieldId,
@@ -143,39 +163,62 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
         success: true,
         output: {
           ts: new Date().toISOString(),
+          id: '',
           issueKey: 'unknown',
+          self: '',
           summary: 'Issue created successfully',
           success: true,
           url: '',
+          assigneeId: null,
         },
       }
     }
 
     const data = JSON.parse(responseText)
 
-    // The internal API route already returns the correct format
     if (data.success && data.output) {
-      return data
+      return {
+        success: data.success,
+        output: {
+          ts: data.output.ts ?? new Date().toISOString(),
+          id: data.output.id ?? '',
+          issueKey: data.output.issueKey ?? 'unknown',
+          self: data.output.self ?? '',
+          summary: data.output.summary ?? '',
+          success: data.output.success ?? true,
+          url: data.output.url ?? '',
+          assigneeId: data.output.assigneeId ?? null,
+        },
+      }
     }
 
-    // Fallback for unexpected response format
     return {
       success: data.success || false,
-      output: data.output || {
+      output: {
         ts: new Date().toISOString(),
-        issueKey: 'unknown',
-        summary: 'Issue created',
+        id: data.output?.id ?? '',
+        issueKey: data.output?.issueKey ?? 'unknown',
+        self: data.output?.self ?? '',
+        summary: data.output?.summary ?? 'Issue created',
         success: false,
+        url: data.output?.url ?? '',
+        assigneeId: data.output?.assigneeId ?? null,
       },
       error: data.error,
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
+    id: { type: 'string', description: 'Created issue ID' },
     issueKey: { type: 'string', description: 'Created issue key (e.g., PROJ-123)' },
+    self: { type: 'string', description: 'REST API URL for the created issue' },
     summary: { type: 'string', description: 'Issue summary' },
-    url: { type: 'string', description: 'URL to the created issue' },
-    assigneeId: { type: 'string', description: 'Account ID of the assigned user (if assigned)' },
+    url: { type: 'string', description: 'URL to the created issue in Jira' },
+    assigneeId: {
+      type: 'string',
+      description: 'Account ID of the assigned user (null if no assignee was set)',
+      optional: true,
+    },
   },
 }

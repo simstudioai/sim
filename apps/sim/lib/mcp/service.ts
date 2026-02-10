@@ -9,6 +9,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
+import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
@@ -31,16 +32,24 @@ const logger = createLogger('McpService')
 class McpService {
   private cacheAdapter: McpCacheStorageAdapter
   private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
+  private unsubscribeConnectionManager?: () => void
 
   constructor() {
     this.cacheAdapter = createMcpCacheAdapter()
     logger.info(`MCP Service initialized with ${getMcpCacheType()} cache`)
+
+    if (mcpConnectionManager) {
+      this.unsubscribeConnectionManager = mcpConnectionManager.subscribe((event) => {
+        this.clearCache(event.workspaceId)
+      })
+    }
   }
 
   /**
    * Dispose of the service and cleanup resources
    */
   dispose(): void {
+    this.unsubscribeConnectionManager?.()
     this.cacheAdapter.dispose()
     logger.info('MCP Service disposed')
   }
@@ -328,7 +337,7 @@ class McpService {
             logger.debug(
               `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
             )
-            return { serverId: config.id, tools }
+            return { serverId: config.id, tools, resolvedConfig }
           } finally {
             await client.disconnect()
           }
@@ -363,6 +372,21 @@ class McpService {
       Promise.allSettled(statusUpdates).catch((err) => {
         logger.error(`[${requestId}] Error updating server statuses:`, err)
       })
+
+      // Fire-and-forget persistent connections for servers that support listChanged
+      if (mcpConnectionManager) {
+        for (const [index, result] of results.entries()) {
+          if (result.status === 'fulfilled') {
+            const { resolvedConfig } = result.value
+            mcpConnectionManager.connect(resolvedConfig, userId, workspaceId).catch((err) => {
+              logger.warn(
+                `[${requestId}] Persistent connection failed for ${servers[index].name}:`,
+                err
+              )
+            })
+          }
+        }
+      }
 
       if (failedCount === 0) {
         try {

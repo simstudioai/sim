@@ -715,6 +715,10 @@ export const userStats = pgTable('user_stats', {
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
   totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
+  // MCP Copilot usage tracking
+  totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
+  totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
+  currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
   // Storage tracking (for free/pro users)
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
@@ -1968,7 +1972,12 @@ export const a2aPushNotificationConfig = pgTable(
 )
 
 export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed'])
-export const usageLogSourceEnum = pgEnum('usage_log_source', ['workflow', 'wand', 'copilot'])
+export const usageLogSourceEnum = pgEnum('usage_log_source', [
+  'workflow',
+  'wand',
+  'copilot',
+  'mcp_copilot',
+])
 
 export const usageLog = pgTable(
   'usage_log',

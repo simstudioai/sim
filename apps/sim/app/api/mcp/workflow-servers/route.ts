@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq, inArray, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
@@ -174,6 +175,10 @@ export const POST = withMcpAuth('write')(
           `[${requestId}] Added ${addedTools.length} tools to server ${serverId}:`,
           addedTools.map((t) => t.toolName)
         )
+
+        if (addedTools.length > 0) {
+          mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
+        }
       }
 
       logger.info(

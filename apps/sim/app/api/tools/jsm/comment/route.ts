@@ -95,6 +95,14 @@ export async function POST(request: NextRequest) {
         commentId: data.id,
         body: data.body,
         isPublic: data.public,
+        author: data.author
+          ? {
+              accountId: data.author.accountId ?? null,
+              displayName: data.author.displayName ?? null,
+              emailAddress: data.author.emailAddress ?? null,
+            }
+          : null,
+        createdDate: data.created ?? null,
         success: true,
       },
     })

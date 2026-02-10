@@ -11,6 +11,12 @@ export interface WorkflowExecutionOptions {
   executionId?: string
   onBlockComplete?: (blockId: string, output: any) => Promise<void>
   overrideTriggerType?: 'chat' | 'manual' | 'api'
+  stopAfterBlockId?: string
+  /** For run_from_block / run_block: start from a specific block using cached state */
+  runFromBlock?: {
+    startBlockId: string
+    executionId?: string
+  }
 }
 
 /**
@@ -39,6 +45,15 @@ export async function executeWorkflowWithFullLogging(
     triggerType: options.overrideTriggerType || 'manual',
     useDraftState: true,
     isClientSession: true,
+    ...(options.stopAfterBlockId ? { stopAfterBlockId: options.stopAfterBlockId } : {}),
+    ...(options.runFromBlock
+      ? {
+          runFromBlock: {
+            startBlockId: options.runFromBlock.startBlockId,
+            executionId: options.runFromBlock.executionId || 'latest',
+          },
+        }
+      : {}),
   }
 
   const response = await fetch(`/api/workflows/${activeWorkflowId}/execute`, {

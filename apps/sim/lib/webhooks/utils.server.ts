@@ -527,17 +527,61 @@ export async function validateTwilioSignature(
   }
 }
 
-const SLACK_FILE_HOSTS = new Set(['files.slack.com', 'files-pri.slack.com'])
 const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
-const SLACK_MAX_FILES = 10
+const SLACK_MAX_FILES = 15
+
+/**
+ * Resolves the full file object from the Slack API when the event payload
+ * only contains a partial file (e.g. missing url_private due to file_access restrictions).
+ * @see https://docs.slack.dev/reference/methods/files.info
+ */
+async function resolveSlackFileInfo(
+  fileId: string,
+  botToken: string
+): Promise<{ url_private?: string; name?: string; mimetype?: string; size?: number } | null> {
+  try {
+    const response = await fetch(
+      `https://slack.com/api/files.info?file=${encodeURIComponent(fileId)}`,
+      {
+        headers: { Authorization: `Bearer ${botToken}` },
+      }
+    )
+
+    const data = (await response.json()) as {
+      ok: boolean
+      error?: string
+      file?: Record<string, any>
+    }
+
+    if (!data.ok || !data.file) {
+      logger.warn('Slack files.info failed', { fileId, error: data.error })
+      return null
+    }
+
+    return {
+      url_private: data.file.url_private,
+      name: data.file.name,
+      mimetype: data.file.mimetype,
+      size: data.file.size,
+    }
+  } catch (error) {
+    logger.error('Error calling Slack files.info', {
+      fileId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  }
+}
 
 /**
  * Downloads file attachments from Slack using the bot token.
  * Returns files in the format expected by WebhookAttachmentProcessor:
  * { name, data (base64 string), mimeType, size }
  *
+ * When the event payload contains partial file objects (missing url_private),
+ * falls back to the Slack files.info API to resolve the full file metadata.
+ *
  * Security:
- * - Validates each url_private against allowlisted Slack file hosts
  * - Uses validateUrlWithDNS + secureFetchWithPinnedIP to prevent SSRF
  * - Enforces per-file size limit and max file count
  */
@@ -549,30 +593,31 @@ async function downloadSlackFiles(
   const downloaded: Array<{ name: string; data: string; mimeType: string; size: number }> = []
 
   for (const file of filesToProcess) {
-    const urlPrivate = file.url_private as string | undefined
+    let urlPrivate = file.url_private as string | undefined
+    let fileName = file.name as string | undefined
+    let fileMimeType = file.mimetype as string | undefined
+    let fileSize = file.size as number | undefined
+
+    // If url_private is missing, resolve via files.info API
+    if (!urlPrivate && file.id) {
+      const resolved = await resolveSlackFileInfo(file.id, botToken)
+      if (resolved?.url_private) {
+        urlPrivate = resolved.url_private
+        fileName = fileName || resolved.name
+        fileMimeType = fileMimeType || resolved.mimetype
+        fileSize = fileSize ?? resolved.size
+      }
+    }
+
     if (!urlPrivate) {
-      continue
-    }
-
-    // Validate the URL points to a known Slack file host
-    let parsedUrl: URL
-    try {
-      parsedUrl = new URL(urlPrivate)
-    } catch {
-      logger.warn('Slack file has invalid url_private, skipping', { fileId: file.id })
-      continue
-    }
-
-    if (!SLACK_FILE_HOSTS.has(parsedUrl.hostname)) {
-      logger.warn('Slack file url_private points to unexpected host, skipping', {
+      logger.warn('Slack file has no url_private and could not be resolved, skipping', {
         fileId: file.id,
-        hostname: sanitizeUrlForLog(urlPrivate),
       })
       continue
     }
 
     // Skip files that exceed the size limit
-    const reportedSize = Number(file.size) || 0
+    const reportedSize = Number(fileSize) || 0
     if (reportedSize > SLACK_MAX_FILE_SIZE) {
       logger.warn('Slack file exceeds size limit, skipping', {
         fileId: file.id,
@@ -618,9 +663,9 @@ async function downloadSlackFiles(
       }
 
       downloaded.push({
-        name: file.name || 'download',
+        name: fileName || 'download',
         data: buffer.toString('base64'),
-        mimeType: file.mimetype || 'application/octet-stream',
+        mimeType: fileMimeType || 'application/octet-stream',
         size: buffer.length,
       })
     } catch (error) {

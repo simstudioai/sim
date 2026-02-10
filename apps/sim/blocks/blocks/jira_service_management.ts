@@ -40,6 +40,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
         { label: 'Add Participants', id: 'add_participants' },
         { label: 'Get Approvals', id: 'get_approvals' },
         { label: 'Answer Approval', id: 'answer_approval' },
+        { label: 'Get Request Type Fields', id: 'get_request_type_fields' },
       ],
       value: () => 'get_service_desks',
     },
@@ -109,6 +110,8 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
           'get_organizations',
           'add_organization',
           'get_queues',
+          'get_requests',
+          'get_request_type_fields',
         ],
       },
     },
@@ -118,7 +121,7 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       type: 'short-input',
       required: true,
       placeholder: 'Enter request type ID',
-      condition: { field: 'operation', value: 'create_request' },
+      condition: { field: 'operation', value: ['create_request', 'get_request_type_fields'] },
     },
     {
       id: 'issueIdOrKey',
@@ -189,6 +192,51 @@ Return ONLY the description text - no explanations.`,
       condition: { field: 'operation', value: 'create_request' },
     },
     {
+      id: 'requestParticipants',
+      title: 'Request Participants',
+      type: 'short-input',
+      placeholder: 'Comma-separated account IDs to add as participants',
+      condition: { field: 'operation', value: 'create_request' },
+    },
+    {
+      id: 'channel',
+      title: 'Channel',
+      type: 'short-input',
+      placeholder: 'Channel (e.g., portal, email)',
+      condition: { field: 'operation', value: 'create_request' },
+    },
+    {
+      id: 'requestFieldValues',
+      title: 'Custom Field Values',
+      type: 'long-input',
+      placeholder: 'JSON object of custom field values (e.g., {"customfield_10010": "value"})',
+      condition: { field: 'operation', value: 'create_request' },
+    },
+    {
+      id: 'searchQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Filter request types by name',
+      condition: { field: 'operation', value: 'get_request_types' },
+    },
+    {
+      id: 'groupId',
+      title: 'Group ID',
+      type: 'short-input',
+      placeholder: 'Filter by request type group',
+      condition: { field: 'operation', value: 'get_request_types' },
+    },
+    {
+      id: 'expand',
+      title: 'Expand',
+      type: 'short-input',
+      placeholder: 'Comma-separated fields to expand',
+      condition: {
+        field: 'operation',
+        value: ['get_request', 'get_requests', 'get_comments'],
+      },
+    },
+    {
       id: 'commentBody',
       title: 'Comment',
       type: 'long-input',
@@ -220,11 +268,11 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: 'add_comment' },
     },
     {
-      id: 'emails',
-      title: 'Email Addresses',
+      id: 'accountIds',
+      title: 'Account IDs',
       type: 'short-input',
       required: true,
-      placeholder: 'Comma-separated email addresses',
+      placeholder: 'Comma-separated Atlassian account IDs',
       condition: { field: 'operation', value: 'add_customer' },
     },
     {
@@ -269,7 +317,7 @@ Return ONLY the comment text - no explanations.`,
         { label: 'All Requests', id: 'ALL_REQUESTS' },
         { label: 'My Requests', id: 'OWNED_REQUESTS' },
         { label: 'Participated', id: 'PARTICIPATED_REQUESTS' },
-        { label: 'Organization', id: 'ORGANIZATION' },
+        { label: 'Approver', id: 'APPROVER' },
       ],
       value: () => 'ALL_REQUESTS',
       condition: { field: 'operation', value: 'get_requests' },
@@ -279,11 +327,11 @@ Return ONLY the comment text - no explanations.`,
       title: 'Request Status',
       type: 'dropdown',
       options: [
-        { label: 'All', id: 'ALL' },
-        { label: 'Open', id: 'OPEN' },
-        { label: 'Closed', id: 'CLOSED' },
+        { label: 'All', id: 'ALL_REQUESTS' },
+        { label: 'Open', id: 'OPEN_REQUESTS' },
+        { label: 'Closed', id: 'CLOSED_REQUESTS' },
       ],
-      value: () => 'ALL',
+      value: () => 'ALL_REQUESTS',
       condition: { field: 'operation', value: 'get_requests' },
     },
     {
@@ -363,6 +411,9 @@ Return ONLY the comment text - no explanations.`,
           'get_organizations',
           'get_queues',
           'get_sla',
+          'get_transitions',
+          'get_participants',
+          'get_approvals',
         ],
       },
     },
@@ -389,6 +440,7 @@ Return ONLY the comment text - no explanations.`,
       'jsm_add_participants',
       'jsm_get_approvals',
       'jsm_answer_approval',
+      'jsm_get_request_type_fields',
     ],
     config: {
       tool: (params) => {
@@ -433,6 +485,8 @@ Return ONLY the comment text - no explanations.`,
             return 'jsm_get_approvals'
           case 'answer_approval':
             return 'jsm_answer_approval'
+          case 'get_request_type_fields':
+            return 'jsm_get_request_type_fields'
           default:
             return 'jsm_get_service_desks'
         }
@@ -456,6 +510,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
+              searchQuery: params.searchQuery,
+              groupId: params.groupId,
               limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           case 'create_request':
@@ -475,6 +531,11 @@ Return ONLY the comment text - no explanations.`,
               summary: params.summary,
               description: params.description,
               raiseOnBehalfOf: params.raiseOnBehalfOf,
+              requestParticipants: params.requestParticipants,
+              channel: params.channel,
+              requestFieldValues: params.requestFieldValues
+                ? JSON.parse(params.requestFieldValues)
+                : undefined,
             }
           case 'get_request':
             if (!params.issueIdOrKey) {
@@ -483,6 +544,7 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
+              expand: params.expand,
             }
           case 'get_requests':
             return {
@@ -491,6 +553,7 @@ Return ONLY the comment text - no explanations.`,
               requestOwnership: params.requestOwnership,
               requestStatus: params.requestStatus,
               searchTerm: params.searchTerm,
+              expand: params.expand,
               limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           case 'add_comment':
@@ -513,6 +576,7 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
+              expand: params.expand,
               limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           case 'get_customers':
@@ -529,26 +593,14 @@ Return ONLY the comment text - no explanations.`,
             if (!params.serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
-            const accountIds = params.accountIds
-              ? params.accountIds
-                  .split(',')
-                  .map((id: string) => id.trim())
-                  .filter((id: string) => id)
-              : undefined
-            const emails = params.emails
-              ? params.emails
-                  .split(',')
-                  .map((email: string) => email.trim())
-                  .filter((email: string) => email)
-              : undefined
-            if ((!accountIds || accountIds.length === 0) && (!emails || emails.length === 0)) {
-              throw new Error('At least one account ID or email is required')
+            if (!params.accountIds && !params.emails) {
+              throw new Error('Account IDs or emails are required')
             }
             return {
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
-              accountIds,
-              emails,
+              accountIds: params.accountIds,
+              emails: params.emails,
             }
           }
           case 'get_organizations':
@@ -586,6 +638,7 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
+              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
             }
           case 'transition_request':
             if (!params.issueIdOrKey) {
@@ -666,6 +719,18 @@ Return ONLY the comment text - no explanations.`,
               approvalId: params.approvalId,
               decision: params.approvalDecision,
             }
+          case 'get_request_type_fields':
+            if (!params.serviceDeskId) {
+              throw new Error('Service Desk ID is required')
+            }
+            if (!params.requestTypeId) {
+              throw new Error('Request Type ID is required')
+            }
+            return {
+              ...baseParams,
+              serviceDeskId: params.serviceDeskId,
+              requestTypeId: params.requestTypeId,
+            }
           default:
             return baseParams
         }
@@ -684,8 +749,11 @@ Return ONLY the comment text - no explanations.`,
     raiseOnBehalfOf: { type: 'string', description: 'Account ID to raise request on behalf of' },
     commentBody: { type: 'string', description: 'Comment text' },
     isPublic: { type: 'string', description: 'Whether comment is public or internal' },
-    accountIds: { type: 'string', description: 'Comma-separated account IDs' },
-    emails: { type: 'string', description: 'Comma-separated email addresses' },
+    accountIds: { type: 'string', description: 'Comma-separated Atlassian account IDs' },
+    emails: {
+      type: 'string',
+      description: 'Comma-separated email addresses',
+    },
     customerQuery: { type: 'string', description: 'Customer search query' },
     transitionId: { type: 'string', description: 'Transition ID' },
     transitionComment: { type: 'string', description: 'Transition comment' },
@@ -702,6 +770,15 @@ Return ONLY the comment text - no explanations.`,
     },
     approvalId: { type: 'string', description: 'Approval ID' },
     approvalDecision: { type: 'string', description: 'Approval decision (approve/decline)' },
+    requestParticipants: {
+      type: 'string',
+      description: 'Comma-separated account IDs for request participants',
+    },
+    channel: { type: 'string', description: 'Channel (e.g., portal, email)' },
+    requestFieldValues: { type: 'string', description: 'JSON object of custom field values' },
+    searchQuery: { type: 'string', description: 'Filter request types by name' },
+    groupId: { type: 'string', description: 'Filter by request type group ID' },
+    expand: { type: 'string', description: 'Comma-separated fields to expand' },
   },
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
@@ -727,9 +804,19 @@ Return ONLY the comment text - no explanations.`,
     transitionId: { type: 'string', description: 'Applied transition ID' },
     participants: { type: 'json', description: 'Array of participants' },
     approvals: { type: 'json', description: 'Array of approvals' },
+    approval: { type: 'json', description: 'Approval object' },
     approvalId: { type: 'string', description: 'Approval ID' },
     decision: { type: 'string', description: 'Approval decision' },
     total: { type: 'number', description: 'Total count' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
+    requestTypeFields: { type: 'json', description: 'Array of request type fields' },
+    canAddRequestParticipants: {
+      type: 'boolean',
+      description: 'Whether participants can be added to this request type',
+    },
+    canRaiseOnBehalfOf: {
+      type: 'boolean',
+      description: 'Whether requests can be raised on behalf of another user',
+    },
   },
 }
