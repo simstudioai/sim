@@ -289,6 +289,23 @@ export const sseHandlers: Record<string, SSEHandler> = {
         markToolResultSeen(toolCall.id)
         return
       }
+
+      // Decision was null — timed out or aborted.
+      // Do NOT fall through to auto-execute. Mark the tool as timed out
+      // and notify Go so it can unblock waitForExternalTool.
+      toolCall.status = 'rejected'
+      toolCall.endTime = Date.now()
+      markToolComplete(toolCall.id, toolCall.name, 408, 'Tool approval timed out', {
+        skipped: true,
+        reason: 'timeout',
+      }).catch((err) => {
+        logger.error('markToolComplete fire-and-forget failed (timeout)', {
+          toolCallId: toolCall.id,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
+      markToolResultSeen(toolCall.id)
+      return
     }
 
     if (options.autoExecuteTools !== false) {
@@ -431,9 +448,10 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Integration tools (user-installed) require approval in interactive mode,
-    // same as top-level interrupt tools.
-    if (options.interactive === true && isIntegrationTool(toolName)) {
+    // Interrupt tools and integration tools (user-installed) require approval
+    // in interactive mode, same as top-level handler.
+    const needsSubagentApproval = isInterruptToolName(toolName) || isIntegrationTool(toolName)
+    if (options.interactive === true && needsSubagentApproval) {
       const decision = await waitForToolDecision(
         toolCallId,
         options.timeout || STREAM_TIMEOUT_MS,
@@ -481,6 +499,22 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
         markToolResultSeen(toolCall.id)
         return
       }
+
+      // Decision was null — timed out or aborted.
+      // Do NOT fall through to auto-execute.
+      toolCall.status = 'rejected'
+      toolCall.endTime = Date.now()
+      markToolComplete(toolCall.id, toolCall.name, 408, 'Tool approval timed out', {
+        skipped: true,
+        reason: 'timeout',
+      }).catch((err) => {
+        logger.error('markToolComplete fire-and-forget failed (subagent timeout)', {
+          toolCallId: toolCall.id,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
+      markToolResultSeen(toolCall.id)
+      return
     }
 
     // Client-executable run tools in interactive mode: defer to client.
