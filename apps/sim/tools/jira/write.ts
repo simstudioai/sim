@@ -169,6 +169,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
           summary: 'Issue created successfully',
           success: true,
           url: '',
+          assigneeId: null,
         },
       }
     }
@@ -186,6 +187,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
           summary: data.output.summary ?? '',
           success: data.output.success ?? true,
           url: data.output.url ?? '',
+          assigneeId: data.output.assigneeId ?? null,
         },
       }
     }
@@ -200,6 +202,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
         summary: data.output?.summary ?? 'Issue created',
         success: false,
         url: data.output?.url ?? '',
+        assigneeId: data.output?.assigneeId ?? null,
       },
       error: data.error,
     }
@@ -212,5 +215,10 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     self: { type: 'string', description: 'REST API URL for the created issue' },
     summary: { type: 'string', description: 'Issue summary' },
     url: { type: 'string', description: 'URL to the created issue in Jira' },
+    assigneeId: {
+      type: 'string',
+      description: 'Account ID of the assigned user (null if no assignee was set)',
+      optional: true,
+    },
   },
 }

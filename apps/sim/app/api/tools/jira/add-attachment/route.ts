@@ -90,16 +90,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const attachments = await response.json()
-    const attachmentIds = Array.isArray(attachments)
-      ? attachments.map((attachment) => attachment.id).filter(Boolean)
-      : []
+    const jiraAttachments = await response.json()
+    const attachmentsList = Array.isArray(jiraAttachments) ? jiraAttachments : []
+
+    const attachmentIds = attachmentsList.map((att: any) => att.id).filter(Boolean)
+    const attachments = attachmentsList.map((att: any) => ({
+      id: att.id ?? '',
+      filename: att.filename ?? '',
+      mimeType: att.mimeType ?? '',
+      size: att.size ?? 0,
+      content: att.content ?? '',
+    }))
 
     return NextResponse.json({
       success: true,
       output: {
         ts: new Date().toISOString(),
         issueKey: validatedData.issueKey,
+        attachments,
         attachmentIds,
         files: filesOutput,
       },

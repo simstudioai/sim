@@ -321,6 +321,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
       output: {
         ts: new Date().toISOString(),
         ...transformIssueData(data),
+        issue: data,
       },
     }
   },
@@ -328,5 +329,10 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
   outputs: {
     ts: TIMESTAMP_OUTPUT,
     ...ISSUE_ITEM_PROPERTIES,
+    issue: {
+      type: 'json',
+      description: 'Complete raw Jira issue object from the API',
+      optional: true,
+    },
   },
 }

@@ -92,5 +92,24 @@ export const jiraAddAttachmentTool: ToolConfig<JiraAddAttachmentParams, JiraAddA
           },
         },
       },
+      attachmentIds: {
+        type: 'array',
+        description: 'Array of attachment IDs',
+        items: { type: 'string' },
+        optional: true,
+      },
+      files: {
+        type: 'array',
+        description: 'Uploaded file metadata',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'File name' },
+            mimeType: { type: 'string', description: 'MIME type' },
+            size: { type: 'number', description: 'File size in bytes' },
+          },
+        },
+        optional: true,
+      },
     },
   }

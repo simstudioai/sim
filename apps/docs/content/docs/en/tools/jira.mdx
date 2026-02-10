@@ -227,6 +227,7 @@ Retrieve detailed information about a specific Jira issue
 |     ↳ `timeZone` | string | User timezone |
 |   ↳ `created` | string | ISO 8601 timestamp when the attachment was created |
 | `issueKey` | string | Issue key \(e.g., PROJ-123\) |
+| `issue` | json | Complete raw Jira issue object from the API |
 
 ### `jira_update`
 
@@ -296,6 +297,7 @@ Create a new Jira issue
 | `self` | string | REST API URL for the created issue |
 | `summary` | string | Issue summary |
 | `url` | string | URL to the created issue in Jira |
+| `assigneeId` | string | Account ID of the assigned user \(null if no assignee was set\) |
 
 ### `jira_bulk_read`
 
@@ -685,6 +687,11 @@ Add attachments to a Jira issue
 |   ↳ `mimeType` | string | MIME type |
 |   ↳ `size` | number | File size in bytes |
 |   ↳ `content` | string | URL to download the attachment |
+| `attachmentIds` | array | Array of attachment IDs |
+| `files` | array | Uploaded file metadata |
+|   ↳ `name` | string | File name |
+|   ↳ `mimeType` | string | MIME type |
+|   ↳ `size` | number | File size in bytes |
 
 ### `jira_delete_attachment`
 

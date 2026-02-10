@@ -748,6 +748,7 @@ export interface JiraRetrieveResponse extends ToolResponse {
   output: {
     ts: string
     id: string
+    issueKey: string
     key: string
     self: string
     summary: string
@@ -861,6 +862,7 @@ export interface JiraRetrieveResponse extends ToolResponse {
       author: { accountId: string; displayName: string } | null
       created: string
     }>
+    issue: Record<string, unknown>
   }
 }
 
@@ -952,6 +954,7 @@ export interface JiraWriteResponse extends ToolResponse {
     summary: string
     success: boolean
     url: string
+    assigneeId: string | null
   }
 }
 
@@ -1223,6 +1226,12 @@ export interface JiraAddAttachmentResponse extends ToolResponse {
       mimeType: string
       size: number
       content: string
+    }>
+    attachmentIds: string[]
+    files: Array<{
+      name: string
+      mimeType: string
+      size: number
     }>
   }
 }
