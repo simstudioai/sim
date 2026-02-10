@@ -9,13 +9,7 @@ import {
   PopoverItem,
   PopoverScrollArea,
 } from '@/components/emcn'
-import {
-  AnthropicIcon,
-  AzureIcon,
-  BedrockIcon,
-  GeminiIcon,
-  OpenAIIcon,
-} from '@/components/icons'
+import { AnthropicIcon, AzureIcon, BedrockIcon, GeminiIcon, OpenAIIcon } from '@/components/icons'
 import { useCopilotStore } from '@/stores/panel'
 
 interface ModelSelectorProps {
@@ -177,7 +171,7 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
               </PopoverItem>
             ))
           ) : (
-            <div className='px-2 py-2 text-xs text-[var(--text-muted)]'>No models available</div>
+            <div className='px-2 py-2 text-[var(--text-muted)] text-xs'>No models available</div>
           )}
         </PopoverScrollArea>
       </PopoverContent>
