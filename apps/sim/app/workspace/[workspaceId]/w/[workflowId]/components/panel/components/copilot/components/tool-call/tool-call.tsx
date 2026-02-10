@@ -18,6 +18,10 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks/registry'
+import {
+  CLIENT_EXECUTABLE_RUN_TOOLS,
+  executeRunToolOnClient,
+} from '@/lib/copilot/client-sse/run-tool-execution'
 import type { CopilotToolCall } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
@@ -1277,6 +1281,14 @@ async function handleRun(
   setToolCallState(toolCall, 'executing', editedParams ? { params: editedParams } : undefined)
   onStateChange?.('executing')
   await sendToolDecision(toolCall.id, 'accepted')
+
+  // Client-executable run tools: execute on the client for real-time feedback
+  // (block pulsing, console logs, stop button). The server defers execution
+  // for these tools; the client reports back via mark-complete.
+  if (CLIENT_EXECUTABLE_RUN_TOOLS.has(toolCall.name)) {
+    const params = editedParams || toolCall.params || {}
+    executeRunToolOnClient(toolCall.id, toolCall.name, params)
+  }
 }
 
 async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onStateChange?: any) {

@@ -16,10 +16,15 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { appendTextBlock, beginThinkingBlock, finalizeThinkingBlock } from './content-blocks'
+import {
+  CLIENT_EXECUTABLE_RUN_TOOLS,
+  executeRunToolOnClient,
+} from './run-tool-execution'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSseHandlers')
 const TEXT_BLOCK_TYPE = 'text'
+
 const MAX_BATCH_INTERVAL = 50
 const MIN_BATCH_INTERVAL = 16
 const MAX_QUEUE_SIZE = 5
@@ -408,6 +413,39 @@ export const sseHandlers: Record<string, SSEHandler> = {
             })
           }
         }
+
+        // Generate API key: update deployment status with the new key
+        if (targetState === ClientToolCallState.success && current.name === 'generate_api_key') {
+          try {
+            const resultPayload = asRecord(
+              data?.result || eventData.result || eventData.data || data?.data
+            )
+            const input = asRecord(current.params)
+            const workflowId =
+              (input?.workflowId as string) || useWorkflowRegistry.getState().activeWorkflowId
+            const apiKey = (resultPayload?.apiKey || resultPayload?.key) as string | undefined
+            if (workflowId) {
+              const existingStatus =
+                useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)
+              useWorkflowRegistry
+                .getState()
+                .setDeploymentStatus(
+                  workflowId,
+                  existingStatus?.isDeployed ?? false,
+                  existingStatus?.deployedAt,
+                  apiKey
+                )
+              logger.info('[SSE] Updated deployment status with API key', {
+                workflowId,
+                hasKey: !!apiKey,
+              })
+            }
+          } catch (err) {
+            logger.warn('[SSE] Failed to hydrate API key status', {
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
       }
 
       for (let i = 0; i < context.contentBlocks.length; i++) {
@@ -586,6 +624,16 @@ export const sseHandlers: Record<string, SSEHandler> = {
     // without waiting for the user to click "Allow".
     if (isAutoAllowed) {
       sendAutoAcceptConfirmation(id)
+    }
+
+    // Client-executable run tools: execute on the client for real-time feedback
+    // (block pulsing, console logs, stop button). The server defers execution
+    // for these tools in interactive mode; the client reports back via mark-complete.
+    if (
+      CLIENT_EXECUTABLE_RUN_TOOLS.has(toolName) &&
+      initialState === ClientToolCallState.executing
+    ) {
+      executeRunToolOnClient(id, toolName, args || existing?.params || {})
     }
 
     // OAuth: dispatch event to open the OAuth connect modal

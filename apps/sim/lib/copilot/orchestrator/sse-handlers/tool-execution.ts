@@ -144,3 +144,34 @@ export async function waitForToolDecision(
   }
   return null
 }
+
+/**
+ * Wait for a tool completion signal (success/error) from the client.
+ * Unlike waitForToolDecision which returns on any status, this ignores
+ * intermediate statuses like 'accepted'/'rejected'/'background' and only
+ * returns when the client reports final completion via success/error.
+ *
+ * Used for client-executable run tools: the client executes the workflow
+ * and posts success/error to /api/copilot/confirm when done. The server
+ * polls here until that completion signal arrives.
+ */
+export async function waitForToolCompletion(
+  toolCallId: string,
+  timeoutMs: number,
+  abortSignal?: AbortSignal
+): Promise<{ status: string; message?: string } | null> {
+  const start = Date.now()
+  let interval = TOOL_DECISION_INITIAL_POLL_MS
+  const maxInterval = TOOL_DECISION_MAX_POLL_MS
+  while (Date.now() - start < timeoutMs) {
+    if (abortSignal?.aborted) return null
+    const decision = await getToolConfirmation(toolCallId)
+    // Only return on completion statuses, not accept/reject decisions
+    if (decision?.status === 'success' || decision?.status === 'error') {
+      return decision
+    }
+    await new Promise((resolve) => setTimeout(resolve, interval))
+    interval = Math.min(interval * TOOL_DECISION_POLL_BACKOFF, maxInterval)
+  }
+  return null
+}

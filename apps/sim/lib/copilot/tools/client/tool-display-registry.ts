@@ -1697,6 +1697,225 @@ const META_research: ToolMetadata = {
   },
 }
 
+const META_generate_api_key: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Preparing to generate API key', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Generate API key?', icon: KeyRound },
+    [ClientToolCallState.executing]: { text: 'Generating API key', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Generated API key', icon: KeyRound },
+    [ClientToolCallState.error]: { text: 'Failed to generate API key', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped generating API key', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted generating API key', icon: XCircle },
+  },
+  interrupt: {
+    accept: { text: 'Generate', icon: KeyRound },
+    reject: { text: 'Skip', icon: MinusCircle },
+  },
+  uiConfig: {
+    interrupt: {
+      accept: { text: 'Generate', icon: KeyRound },
+      reject: { text: 'Skip', icon: MinusCircle },
+      showAllowOnce: true,
+      showAllowAlways: true,
+    },
+  },
+  getDynamicText: (params, state) => {
+    const name = params?.name
+    if (name && typeof name === 'string') {
+      switch (state) {
+        case ClientToolCallState.success:
+          return `Generated API key "${name}"`
+        case ClientToolCallState.executing:
+          return `Generating API key "${name}"`
+        case ClientToolCallState.generating:
+          return `Preparing to generate "${name}"`
+        case ClientToolCallState.pending:
+          return `Generate API key "${name}"?`
+        case ClientToolCallState.error:
+          return `Failed to generate "${name}"`
+      }
+    }
+    return undefined
+  },
+}
+
+const META_run_block: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Preparing to run block', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Run this block?', icon: Play },
+    [ClientToolCallState.executing]: { text: 'Running block', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Executed block', icon: Play },
+    [ClientToolCallState.error]: { text: 'Failed to run block', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped block execution', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted block execution', icon: MinusCircle },
+    [ClientToolCallState.background]: { text: 'Running block in background', icon: Play },
+  },
+  interrupt: {
+    accept: { text: 'Run', icon: Play },
+    reject: { text: 'Skip', icon: MinusCircle },
+  },
+  uiConfig: {
+    isSpecial: true,
+    interrupt: {
+      accept: { text: 'Run', icon: Play },
+      reject: { text: 'Skip', icon: MinusCircle },
+      showAllowOnce: true,
+      showAllowAlways: true,
+    },
+    secondaryAction: {
+      text: 'Move to Background',
+      title: 'Move to Background',
+      variant: 'tertiary',
+      showInStates: [ClientToolCallState.executing],
+      completionMessage:
+        'The user has chosen to move the block execution to the background. Check back with them later to know when the block execution is complete',
+      targetState: ClientToolCallState.background,
+    },
+  },
+  getDynamicText: (params, state) => {
+    const blockId = params?.blockId || params?.block_id
+    if (blockId && typeof blockId === 'string') {
+      switch (state) {
+        case ClientToolCallState.success:
+          return `Executed block ${blockId}`
+        case ClientToolCallState.executing:
+          return `Running block ${blockId}`
+        case ClientToolCallState.generating:
+          return `Preparing to run block ${blockId}`
+        case ClientToolCallState.pending:
+          return `Run block ${blockId}?`
+        case ClientToolCallState.error:
+          return `Failed to run block ${blockId}`
+        case ClientToolCallState.rejected:
+          return `Skipped running block ${blockId}`
+        case ClientToolCallState.aborted:
+          return `Aborted running block ${blockId}`
+        case ClientToolCallState.background:
+          return `Running block ${blockId} in background`
+      }
+    }
+    return undefined
+  },
+}
+
+const META_run_from_block: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Preparing to run from block', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Run from this block?', icon: Play },
+    [ClientToolCallState.executing]: { text: 'Running from block', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Executed from block', icon: Play },
+    [ClientToolCallState.error]: { text: 'Failed to run from block', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped run from block', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted run from block', icon: MinusCircle },
+    [ClientToolCallState.background]: { text: 'Running from block in background', icon: Play },
+  },
+  interrupt: {
+    accept: { text: 'Run', icon: Play },
+    reject: { text: 'Skip', icon: MinusCircle },
+  },
+  uiConfig: {
+    isSpecial: true,
+    interrupt: {
+      accept: { text: 'Run', icon: Play },
+      reject: { text: 'Skip', icon: MinusCircle },
+      showAllowOnce: true,
+      showAllowAlways: true,
+    },
+    secondaryAction: {
+      text: 'Move to Background',
+      title: 'Move to Background',
+      variant: 'tertiary',
+      showInStates: [ClientToolCallState.executing],
+      completionMessage:
+        'The user has chosen to move the workflow execution to the background. Check back with them later to know when the workflow execution is complete',
+      targetState: ClientToolCallState.background,
+    },
+  },
+  getDynamicText: (params, state) => {
+    const blockId = params?.startBlockId || params?.start_block_id
+    if (blockId && typeof blockId === 'string') {
+      switch (state) {
+        case ClientToolCallState.success:
+          return `Executed from block ${blockId}`
+        case ClientToolCallState.executing:
+          return `Running from block ${blockId}`
+        case ClientToolCallState.generating:
+          return `Preparing to run from block ${blockId}`
+        case ClientToolCallState.pending:
+          return `Run from block ${blockId}?`
+        case ClientToolCallState.error:
+          return `Failed to run from block ${blockId}`
+        case ClientToolCallState.rejected:
+          return `Skipped running from block ${blockId}`
+        case ClientToolCallState.aborted:
+          return `Aborted running from block ${blockId}`
+        case ClientToolCallState.background:
+          return `Running from block ${blockId} in background`
+      }
+    }
+    return undefined
+  },
+}
+
+const META_run_workflow_until_block: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Preparing to run until block', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Run until this block?', icon: Play },
+    [ClientToolCallState.executing]: { text: 'Running until block', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Executed until block', icon: Play },
+    [ClientToolCallState.error]: { text: 'Failed to run until block', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped run until block', icon: MinusCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted run until block', icon: MinusCircle },
+    [ClientToolCallState.background]: { text: 'Running until block in background', icon: Play },
+  },
+  interrupt: {
+    accept: { text: 'Run', icon: Play },
+    reject: { text: 'Skip', icon: MinusCircle },
+  },
+  uiConfig: {
+    isSpecial: true,
+    interrupt: {
+      accept: { text: 'Run', icon: Play },
+      reject: { text: 'Skip', icon: MinusCircle },
+      showAllowOnce: true,
+      showAllowAlways: true,
+    },
+    secondaryAction: {
+      text: 'Move to Background',
+      title: 'Move to Background',
+      variant: 'tertiary',
+      showInStates: [ClientToolCallState.executing],
+      completionMessage:
+        'The user has chosen to move the workflow execution to the background. Check back with them later to know when the workflow execution is complete',
+      targetState: ClientToolCallState.background,
+    },
+  },
+  getDynamicText: (params, state) => {
+    const blockId = params?.stopAfterBlockId || params?.stop_after_block_id
+    if (blockId && typeof blockId === 'string') {
+      switch (state) {
+        case ClientToolCallState.success:
+          return `Executed until block ${blockId}`
+        case ClientToolCallState.executing:
+          return `Running until block ${blockId}`
+        case ClientToolCallState.generating:
+          return `Preparing to run until block ${blockId}`
+        case ClientToolCallState.pending:
+          return `Run until block ${blockId}?`
+        case ClientToolCallState.error:
+          return `Failed to run until block ${blockId}`
+        case ClientToolCallState.rejected:
+          return `Skipped running until block ${blockId}`
+        case ClientToolCallState.aborted:
+          return `Aborted running until block ${blockId}`
+        case ClientToolCallState.background:
+          return `Running until block ${blockId} in background`
+      }
+    }
+    return undefined
+  },
+}
+
 const META_run_workflow: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Preparing to run your workflow', icon: Loader2 },
@@ -2310,6 +2529,7 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   get_blocks_and_tools: META_get_blocks_and_tools,
   get_blocks_metadata: META_get_blocks_metadata,
   get_credentials: META_get_credentials,
+  generate_api_key: META_generate_api_key,
   get_examples_rag: META_get_examples_rag,
   get_operations_examples: META_get_operations_examples,
   get_page_contents: META_get_page_contents,
@@ -2335,7 +2555,10 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   redeploy: META_redeploy,
   remember_debug: META_remember_debug,
   research: META_research,
+  run_block: META_run_block,
+  run_from_block: META_run_from_block,
   run_workflow: META_run_workflow,
+  run_workflow_until_block: META_run_workflow_until_block,
   scrape_page: META_scrape_page,
   search_documentation: META_search_documentation,
   search_errors: META_search_errors,

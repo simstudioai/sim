@@ -15,6 +15,10 @@ import {
   sseHandlers,
   updateStreamingMessage,
 } from './handlers'
+import {
+  CLIENT_EXECUTABLE_RUN_TOOLS,
+  executeRunToolOnClient,
+} from './run-tool-execution'
 import type { ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSubagentHandlers')
@@ -244,6 +248,13 @@ export const subAgentSSEHandlers: Record<string, SSEHandler> = {
     // without waiting for the user to click "Allow".
     if (isAutoAllowed) {
       sendAutoAcceptConfirmation(id)
+    }
+
+    // Client-executable run tools: execute on the client for real-time feedback.
+    // The server defers execution in interactive mode; we execute here and
+    // report back via mark-complete.
+    if (CLIENT_EXECUTABLE_RUN_TOOLS.has(name)) {
+      executeRunToolOnClient(id, name, args || {})
     }
   },
 

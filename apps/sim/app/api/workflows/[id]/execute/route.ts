@@ -62,20 +62,23 @@ const ExecuteWorkflowSchema = z.object({
   runFromBlock: z
     .object({
       startBlockId: z.string().min(1, 'Start block ID is required'),
-      sourceSnapshot: z.object({
-        blockStates: z.record(z.any()),
-        executedBlocks: z.array(z.string()),
-        blockLogs: z.array(z.any()),
-        decisions: z.object({
-          router: z.record(z.string()),
-          condition: z.record(z.string()),
-        }),
-        completedLoops: z.array(z.string()),
-        loopExecutions: z.record(z.any()).optional(),
-        parallelExecutions: z.record(z.any()).optional(),
-        parallelBlockMapping: z.record(z.any()).optional(),
-        activeExecutionPath: z.array(z.string()),
-      }),
+      sourceSnapshot: z
+        .object({
+          blockStates: z.record(z.any()),
+          executedBlocks: z.array(z.string()),
+          blockLogs: z.array(z.any()),
+          decisions: z.object({
+            router: z.record(z.string()),
+            condition: z.record(z.string()),
+          }),
+          completedLoops: z.array(z.string()),
+          loopExecutions: z.record(z.any()).optional(),
+          parallelExecutions: z.record(z.any()).optional(),
+          parallelBlockMapping: z.record(z.any()).optional(),
+          activeExecutionPath: z.array(z.string()),
+        })
+        .optional(),
+      executionId: z.string().optional(),
     })
     .optional(),
 })
@@ -269,8 +272,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       base64MaxBytes,
       workflowStateOverride,
       stopAfterBlockId,
-      runFromBlock,
+      runFromBlock: rawRunFromBlock,
     } = validation.data
+
+    // Resolve runFromBlock snapshot from executionId if needed
+    let runFromBlock = rawRunFromBlock
+    if (runFromBlock && !runFromBlock.sourceSnapshot && runFromBlock.executionId) {
+      const {
+        getExecutionState,
+        getLatestExecutionState,
+      } = await import('@/lib/workflows/executor/execution-state')
+      const snapshot = runFromBlock.executionId === 'latest'
+        ? await getLatestExecutionState(id)
+        : await getExecutionState(runFromBlock.executionId)
+      if (!snapshot) {
+        return NextResponse.json(
+          {
+            error: `No execution state found for ${runFromBlock.executionId === 'latest' ? 'workflow' : `execution ${runFromBlock.executionId}`}. Run the full workflow first.`,
+          },
+          { status: 400 }
+        )
+      }
+      runFromBlock = { startBlockId: runFromBlock.startBlockId, sourceSnapshot: snapshot }
+    }
 
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
     // For session auth, the input is explicitly provided in the input field

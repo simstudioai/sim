@@ -20,9 +20,26 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
-import { executeToolAndReport, isInterruptToolName, waitForToolDecision } from './tool-execution'
+import {
+  executeToolAndReport,
+  isInterruptToolName,
+  waitForToolCompletion,
+  waitForToolDecision,
+} from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
+
+/**
+ * Run tools that can be executed client-side for real-time feedback
+ * (block pulsing, logs, stop button). When interactive, the server defers
+ * execution to the browser client instead of running executeWorkflow directly.
+ */
+const CLIENT_EXECUTABLE_RUN_TOOLS = new Set([
+  'run_workflow',
+  'run_workflow_until_block',
+  'run_from_block',
+  'run_block',
+])
 
 // Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
 
@@ -182,6 +199,35 @@ export const sseHandlers: Record<string, SSEHandler> = {
         options.abortSignal
       )
       if (decision?.status === 'accepted' || decision?.status === 'success') {
+        // Client-executable run tools: defer execution to the browser client.
+        // The client calls executeWorkflowWithFullLogging for real-time feedback
+        // (block pulsing, logs, stop button) and reports completion via
+        // /api/copilot/confirm with status success/error. We poll Redis for
+        // that completion signal, then fire-and-forget markToolComplete to Go.
+        if (CLIENT_EXECUTABLE_RUN_TOOLS.has(toolName)) {
+          toolCall.status = 'executing'
+          const completion = await waitForToolCompletion(
+            toolCallId,
+            options.timeout || STREAM_TIMEOUT_MS,
+            options.abortSignal
+          )
+          const success = completion?.status === 'success'
+          toolCall.status = success ? 'success' : 'error'
+          toolCall.endTime = Date.now()
+          const msg =
+            completion?.message || (success ? 'Tool completed' : 'Tool failed or timed out')
+          // Fire-and-forget: tell Go backend the tool is done
+          // (must NOT await — see deadlock note in executeToolAndReport)
+          markToolComplete(toolCall.id, toolCall.name, success ? 200 : 500, msg).catch((err) => {
+            logger.error('markToolComplete fire-and-forget failed (run tool)', {
+              toolCallId: toolCall.id,
+              toolName: toolCall.name,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          })
+          markToolResultSeen(toolCallId)
+          return
+        }
         await executeToolAndReport(toolCallId, context, execContext, options)
         return
       }
@@ -433,6 +479,30 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
         })
         return
       }
+    }
+
+    // Client-executable run tools in interactive mode: defer to client.
+    // Same pattern as main handler: wait for client completion, then tell Go.
+    if (options.interactive === true && CLIENT_EXECUTABLE_RUN_TOOLS.has(toolName)) {
+      toolCall.status = 'executing'
+      const completion = await waitForToolCompletion(
+        toolCallId,
+        options.timeout || STREAM_TIMEOUT_MS,
+        options.abortSignal
+      )
+      const success = completion?.status === 'success'
+      toolCall.status = success ? 'success' : 'error'
+      toolCall.endTime = Date.now()
+      const msg = completion?.message || (success ? 'Tool completed' : 'Tool failed or timed out')
+      markToolComplete(toolCall.id, toolCall.name, success ? 200 : 500, msg).catch((err) => {
+        logger.error('markToolComplete fire-and-forget failed (subagent run tool)', {
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
+      markToolResultSeen(toolCallId)
+      return
     }
 
     if (options.autoExecuteTools !== false) {
