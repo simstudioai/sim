@@ -14,7 +14,7 @@ import { mistralParserTool } from '@/tools/mistral/parser'
 const logger = createLogger('DocumentProcessor')
 
 const TIMEOUTS = {
-  FILE_DOWNLOAD: 180000,
+  FILE_DOWNLOAD: 600000,
   MISTRAL_OCR_API: 120000,
 } as const
 
