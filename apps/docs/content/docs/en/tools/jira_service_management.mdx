@@ -173,6 +173,7 @@ Get a single service request from Jira Service Management
 |   ↳ `value` | json | Field value |
 |   ↳ `renderedValue` | json | HTML-rendered field value |
 | `url` | string | URL to the request |
+| `request` | json | The service request object |
 
 ### `jsm_get_requests`
 
@@ -329,7 +330,8 @@ Add customers to a service desk in Jira Service Management
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `cloudId` | string | No | Jira Cloud ID for the instance |
 | `serviceDeskId` | string | Yes | Service Desk ID \(e.g., "1", "2"\) |
-| `accountIds` | string | Yes | Comma-separated Atlassian account IDs to add as customers |
+| `accountIds` | string | No | Comma-separated Atlassian account IDs to add as customers |
+| `emails` | string | No | Comma-separated email addresses to add as customers |
 
 #### Output
 
@@ -639,6 +641,7 @@ Approve or decline an approval request in Jira Service Management
 |   ↳ `approverDecision` | string | Individual approver decision |
 | `createdDate` | json | Approval creation date |
 | `completedDate` | json | Approval completion date |
+| `approval` | json | The approval object |
 | `success` | boolean | Whether the operation succeeded |
 
 ### `jsm_get_request_type_fields`

@@ -153,6 +153,11 @@ export const jsmAnswerApprovalTool: ToolConfig<JsmAnswerApprovalParams, JsmAnswe
       },
       createdDate: { type: 'json', description: 'Approval creation date', optional: true },
       completedDate: { type: 'json', description: 'Approval completion date', optional: true },
+      approval: {
+        type: 'json',
+        description: 'The approval object',
+        optional: true,
+      },
       success: { type: 'boolean', description: 'Whether the operation succeeded' },
     },
   }

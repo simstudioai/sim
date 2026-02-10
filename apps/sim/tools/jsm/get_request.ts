@@ -144,5 +144,9 @@ export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestRes
       },
     },
     url: { type: 'string', description: 'URL to the request' },
+    request: {
+      type: 'json',
+      description: 'The service request object',
+    },
   },
 }

@@ -183,6 +183,7 @@ export async function POST(request: NextRequest) {
           }),
           createdDate: data.createdDate ?? null,
           completedDate: data.completedDate ?? null,
+          approval: data,
           success: true,
         },
       })

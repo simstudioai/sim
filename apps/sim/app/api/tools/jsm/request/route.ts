@@ -215,6 +215,7 @@ export async function POST(request: NextRequest) {
           value: fv.value ?? null,
         })),
         url: `https://${domain}/browse/${data.issueKey}`,
+        request: data,
       },
     })
   } catch (error) {

@@ -459,7 +459,8 @@ export interface JsmGetCustomersParams extends JsmBaseParams {
 
 export interface JsmAddCustomerParams extends JsmBaseParams {
   serviceDeskId: string
-  accountIds: string
+  accountIds?: string
+  emails?: string
 }
 
 export interface JsmGetOrganizationsParams extends JsmBaseParams {
@@ -592,6 +593,7 @@ export interface JsmGetRequestResponse extends ToolResponse {
     } | null
     requestFieldValues: Array<{ fieldId: string; label: string; value: unknown }>
     url: string
+    request?: Record<string, unknown>
   }
 }
 
@@ -759,6 +761,7 @@ export interface JsmAnswerApprovalResponse extends ToolResponse {
     }> | null
     createdDate: { iso8601: string; friendly: string; epochMillis: number } | null
     completedDate: { iso8601: string; friendly: string; epochMillis: number } | null
+    approval?: Record<string, unknown>
     success: boolean
   }
 }

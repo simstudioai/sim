@@ -593,13 +593,14 @@ Return ONLY the comment text - no explanations.`,
             if (!params.serviceDeskId) {
               throw new Error('Service Desk ID is required')
             }
-            if (!params.accountIds) {
-              throw new Error('At least one account ID is required')
+            if (!params.accountIds && !params.emails) {
+              throw new Error('Account IDs or emails are required')
             }
             return {
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
               accountIds: params.accountIds,
+              emails: params.emails,
             }
           }
           case 'get_organizations':
@@ -749,6 +750,10 @@ Return ONLY the comment text - no explanations.`,
     commentBody: { type: 'string', description: 'Comment text' },
     isPublic: { type: 'string', description: 'Whether comment is public or internal' },
     accountIds: { type: 'string', description: 'Comma-separated Atlassian account IDs' },
+    emails: {
+      type: 'string',
+      description: 'Comma-separated email addresses',
+    },
     customerQuery: { type: 'string', description: 'Customer search query' },
     transitionId: { type: 'string', description: 'Transition ID' },
     transitionComment: { type: 'string', description: 'Transition comment' },
@@ -799,6 +804,7 @@ Return ONLY the comment text - no explanations.`,
     transitionId: { type: 'string', description: 'Applied transition ID' },
     participants: { type: 'json', description: 'Array of participants' },
     approvals: { type: 'json', description: 'Array of approvals' },
+    approval: { type: 'json', description: 'Approval object' },
     approvalId: { type: 'string', description: 'Approval ID' },
     decision: { type: 'string', description: 'Approval decision' },
     total: { type: 'number', description: 'Total count' },

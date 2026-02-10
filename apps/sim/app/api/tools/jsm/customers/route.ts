@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       start,
       limit,
       accountIds,
+      emails,
     } = body
 
     if (!domain) {
@@ -56,14 +57,15 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const parsedAccountIds = accountIds
-      ? typeof accountIds === 'string'
-        ? accountIds
+    const rawIds = accountIds || emails
+    const parsedAccountIds = rawIds
+      ? typeof rawIds === 'string'
+        ? rawIds
             .split(',')
             .map((id: string) => id.trim())
             .filter((id: string) => id)
-        : Array.isArray(accountIds)
-          ? accountIds
+        : Array.isArray(rawIds)
+          ? rawIds
           : []
       : []
 
