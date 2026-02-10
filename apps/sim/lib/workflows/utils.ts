@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { permissions, userStats, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getWorkspaceWithOwner, type PermissionType } from '@/lib/workspaces/permissions/utils'
@@ -13,6 +13,53 @@ export async function getWorkflowById(id: string) {
   const rows = await db.select().from(workflowTable).where(eq(workflowTable.id, id)).limit(1)
 
   return rows[0]
+}
+
+export async function resolveWorkflowIdForUser(
+  userId: string,
+  workflowId?: string,
+  workflowName?: string
+): Promise<{ workflowId: string; workflowName?: string } | null> {
+  if (workflowId) {
+    return { workflowId }
+  }
+
+  const workspaceIds = await db
+    .select({ entityId: permissions.entityId })
+    .from(permissions)
+    .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+
+  const workspaceIdList = workspaceIds.map((row) => row.entityId)
+
+  const workflowConditions = [eq(workflowTable.userId, userId)]
+  if (workspaceIdList.length > 0) {
+    workflowConditions.push(inArray(workflowTable.workspaceId, workspaceIdList))
+  }
+
+  const workflows = await db
+    .select()
+    .from(workflowTable)
+    .where(or(...workflowConditions))
+    .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt), asc(workflowTable.id))
+
+  if (workflows.length === 0) {
+    return null
+  }
+
+  if (workflowName) {
+    const match = workflows.find(
+      (w) =>
+        String(w.name || '')
+          .trim()
+          .toLowerCase() === workflowName.toLowerCase()
+    )
+    if (match) {
+      return { workflowId: match.id, workflowName: match.name || undefined }
+    }
+    return null
+  }
+
+  return { workflowId: workflows[0].id, workflowName: workflows[0].name || undefined }
 }
 
 type WorkflowRecord = ReturnType<typeof getWorkflowById> extends Promise<infer R>

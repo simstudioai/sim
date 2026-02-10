@@ -139,7 +139,6 @@ describe('Copilot Confirm API Route', () => {
         status: 'success',
       })
 
-      expect(mockRedisExists).toHaveBeenCalled()
       expect(mockRedisSet).toHaveBeenCalled()
     })
 
@@ -256,11 +255,11 @@ describe('Copilot Confirm API Route', () => {
       expect(responseData.error).toBe('Failed to update tool call status or tool call not found')
     })
 
-    it('should return 400 when tool call is not found in Redis', async () => {
+    it('should return 400 when Redis set fails', async () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      mockRedisExists.mockResolvedValue(0)
+      mockRedisSet.mockRejectedValueOnce(new Error('Redis set failed'))
 
       const req = createMockRequest('POST', {
         toolCallId: 'non-existent-tool',
@@ -279,7 +278,7 @@ describe('Copilot Confirm API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      mockRedisExists.mockRejectedValue(new Error('Redis connection failed'))
+      mockRedisSet.mockRejectedValueOnce(new Error('Redis connection failed'))
 
       const req = createMockRequest('POST', {
         toolCallId: 'tool-call-123',

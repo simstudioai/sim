@@ -400,6 +400,7 @@ export async function executeWorkflowCore(
       finalOutput: result.output || {},
       traceSpans: traceSpans || [],
       workflowInput: processedInput,
+      executionState: result.executionState,
     })
 
     await clearExecutionCancellation(executionId)

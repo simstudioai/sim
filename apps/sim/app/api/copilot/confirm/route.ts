@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { REDIS_TOOL_CALL_PREFIX, REDIS_TOOL_CALL_TTL_SECONDS } from '@/lib/copilot/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -23,7 +24,8 @@ const ConfirmationSchema = z.object({
 })
 
 /**
- * Update tool call status in Redis
+ * Write the user's tool decision to Redis. The server-side orchestrator's
+ * waitForToolDecision() polls Redis for this value.
  */
 async function updateToolCallStatus(
   toolCallId: string,
@@ -32,57 +34,24 @@ async function updateToolCallStatus(
 ): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
-    logger.warn('updateToolCallStatus: Redis client not available')
+    logger.warn('Redis client not available for tool confirmation')
     return false
   }
 
   try {
-    const key = `tool_call:${toolCallId}`
-    const timeout = 600000 // 10 minutes timeout for user confirmation
-    const pollInterval = 100 // Poll every 100ms
-    const startTime = Date.now()
-
-    logger.info('Polling for tool call in Redis', { toolCallId, key, timeout })
-
-    // Poll until the key exists or timeout
-    while (Date.now() - startTime < timeout) {
-      const exists = await redis.exists(key)
-      if (exists) {
-        break
-      }
-
-      // Wait before next poll
-      await new Promise((resolve) => setTimeout(resolve, pollInterval))
-    }
-
-    // Final check if key exists after polling
-    const exists = await redis.exists(key)
-    if (!exists) {
-      logger.warn('Tool call not found in Redis after polling timeout', {
-        toolCallId,
-        key,
-        timeout,
-        pollDuration: Date.now() - startTime,
-      })
-      return false
-    }
-
-    // Store both status and message as JSON
-    const toolCallData = {
+    const key = `${REDIS_TOOL_CALL_PREFIX}${toolCallId}`
+    const payload = {
       status,
       message: message || null,
       timestamp: new Date().toISOString(),
     }
-
-    await redis.set(key, JSON.stringify(toolCallData), 'EX', 86400) // Keep 24 hour expiry
-
+    await redis.set(key, JSON.stringify(payload), 'EX', REDIS_TOOL_CALL_TTL_SECONDS)
     return true
   } catch (error) {
-    logger.error('Failed to update tool call status in Redis', {
+    logger.error('Failed to update tool call status', {
       toolCallId,
       status,
-      message,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: error instanceof Error ? error.message : String(error),
     })
     return false
   }

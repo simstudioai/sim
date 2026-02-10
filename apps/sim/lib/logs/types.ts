@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
 import type { DeploymentStatus } from '@/stores/workflows/registry/types'
 import type { Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -111,6 +112,7 @@ export interface WorkflowExecutionLog {
         tokens?: { input?: number; output?: number; total?: number }
       }
     >
+    executionState?: SerializableExecutionState
     finalOutput?: any
     errorDetails?: {
       blockId: string

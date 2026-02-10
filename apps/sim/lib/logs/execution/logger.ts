@@ -34,6 +34,7 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 
 export interface ToolCall {
   name: string
@@ -188,6 +189,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
     workflowInput?: any
+    executionState?: SerializableExecutionState
     isResume?: boolean
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
@@ -200,6 +202,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       finalOutput,
       traceSpans,
       workflowInput,
+      executionState,
       isResume,
       level: levelOverride,
       status: statusOverride,
@@ -287,6 +290,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
             total: executionCost.tokens.total,
           },
           models: executionCost.models,
+          ...(executionState ? { executionState } : {}),
         },
         cost: executionCost,
       })
