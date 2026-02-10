@@ -389,7 +389,7 @@ export function getEffectiveBlockOutputs(
   if (blockType === 'evaluator') {
     const metricOutputs = getEvaluatorMetricOutputs(subBlocks)
     if (metricOutputs) {
-      return { ...baseOutputs, ...metricOutputs }
+      return metricOutputs
     }
   }
 
