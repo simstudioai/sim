@@ -233,7 +233,11 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           const resolvedToolId = resolveToolIdForOperation(blockConfig, opId)
           const toolCfg = resolvedToolId ? toolsRegistry[resolvedToolId] : undefined
           const toolParams: Record<string, any> = toolCfg?.params || {}
-          const toolOutputs: Record<string, any> = toolCfg?.outputs || {}
+          const toolOutputs: Record<string, any> = toolCfg?.outputs
+            ? Object.fromEntries(
+                Object.entries(toolCfg.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
+              )
+            : {}
           const filteredToolParams: Record<string, any> = {}
           for (const [k, v] of Object.entries(toolParams)) {
             if (!(k in blockInputs)) filteredToolParams[k] = v

@@ -14,15 +14,9 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
-  extractFieldsFromSchema,
-  parseResponseFormatSafely,
-} from '@/lib/core/utils/response-format'
-import {
-  getBlockOutputPaths,
-  getBlockOutputType,
+  getEffectiveBlockOutputPaths,
+  getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
-  getToolOutputPaths,
-  getToolOutputType,
 } from '@/lib/workflows/blocks/block-outputs'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import { KeyboardNavigationHandler } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/components/keyboard-navigation-handler'
@@ -214,43 +208,18 @@ const getOutputTypeForPath = (
   outputPath: string,
   mergedSubBlocksOverride?: Record<string, any>
 ): string => {
-  if (block?.triggerMode && blockConfig?.triggers?.enabled) {
-    return getBlockOutputType(block.type, outputPath, mergedSubBlocksOverride, true)
-  }
-  if (block?.type === 'starter') {
-    const startWorkflowValue =
-      mergedSubBlocksOverride?.startWorkflow?.value ?? getSubBlockValue(blockId, 'startWorkflow')
-
-    if (startWorkflowValue === 'chat') {
-      const chatModeTypes: Record<string, string> = {
-        input: 'string',
-        conversationId: 'string',
-        files: 'file[]',
-      }
-      return chatModeTypes[outputPath] || 'any'
-    }
-    const inputFormatValue =
-      mergedSubBlocksOverride?.inputFormat?.value ?? getSubBlockValue(blockId, 'inputFormat')
-    if (inputFormatValue && Array.isArray(inputFormatValue)) {
-      const field = inputFormatValue.find(
-        (f: { name?: string; type?: string }) => f.name === outputPath
-      )
-      if (field?.type) return field.type
-    }
-  } else if (blockConfig?.category === 'triggers') {
-    const blockState = useWorkflowStore.getState().blocks[blockId]
-    const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
-    return getBlockOutputType(block.type, outputPath, subBlocks)
-  } else if (blockConfig?.tools?.config?.tool) {
-    const blockState = useWorkflowStore.getState().blocks[blockId]
-    const subBlocks = mergedSubBlocksOverride ?? (blockState?.subBlocks || {})
-    return getToolOutputType(blockConfig, subBlocks, outputPath)
+  if (block?.type === 'variables') {
+    return 'any'
   }
 
   const subBlocks =
     mergedSubBlocksOverride ?? useWorkflowStore.getState().blocks[blockId]?.subBlocks
-  const triggerMode = block?.triggerMode && blockConfig?.triggers?.enabled
-  return getBlockOutputType(block?.type ?? '', outputPath, subBlocks, triggerMode)
+  const triggerMode = Boolean(block?.triggerMode && blockConfig?.triggers?.enabled)
+
+  return getEffectiveBlockOutputType(block?.type ?? '', outputPath, subBlocks, {
+    triggerMode,
+    preferToolOutputs: !triggerMode,
+  })
 }
 
 /**
@@ -1088,24 +1057,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const normalizedBlockName = normalizeName(blockName)
 
       const mergedSubBlocks = getMergedSubBlocks(activeSourceBlockId)
-      const responseFormatValue = mergedSubBlocks?.responseFormat?.value
-      const responseFormat = parseResponseFormatSafely(responseFormatValue, activeSourceBlockId)
-
       let blockTags: string[]
 
-      if (sourceBlock.type === 'evaluator') {
-        const metricsValue = getSubBlockValue(activeSourceBlockId, 'metrics')
-
-        if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
-          const validMetrics = metricsValue.filter((metric: { name?: string }) => metric?.name)
-          blockTags = validMetrics.map(
-            (metric: { name: string }) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
-          )
-        } else {
-          const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
-          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-        }
-      } else if (sourceBlock.type === 'variables') {
+      if (sourceBlock.type === 'variables') {
         const variablesValue = getSubBlockValue(activeSourceBlockId, 'variables')
 
         if (variablesValue && Array.isArray(variablesValue) && variablesValue.length > 0) {
@@ -1119,106 +1073,21 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         } else {
           blockTags = [normalizedBlockName]
         }
-      } else if (responseFormat) {
-        const schemaFields = extractFieldsFromSchema(responseFormat)
-        if (schemaFields.length > 0) {
-          blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
-        } else {
-          const outputPaths = getBlockOutputPaths(
-            sourceBlock.type,
-            mergedSubBlocks,
-            sourceBlock.triggerMode
-          )
-          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-        }
-      } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
-        if (sourceBlock.type === 'starter') {
-          const startWorkflowValue = mergedSubBlocks?.startWorkflow?.value
-
-          if (startWorkflowValue === 'chat') {
-            blockTags = [
-              `${normalizedBlockName}.input`,
-              `${normalizedBlockName}.conversationId`,
-              `${normalizedBlockName}.files`,
-            ]
-          } else {
-            const inputFormatValue = mergedSubBlocks?.inputFormat?.value
-
-            if (
-              inputFormatValue &&
-              Array.isArray(inputFormatValue) &&
-              inputFormatValue.length > 0
-            ) {
-              blockTags = inputFormatValue
-                .filter((field: { name?: string }) => field.name && field.name.trim() !== '')
-                .map((field: { name: string }) => `${normalizedBlockName}.${field.name}`)
-            } else {
-              blockTags = [normalizedBlockName]
-            }
-          }
-        } else if (sourceBlock.type === 'api_trigger' || sourceBlock.type === 'input_trigger') {
-          const inputFormatValue = mergedSubBlocks?.inputFormat?.value
-
-          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
-            blockTags = inputFormatValue
-              .filter((field: { name?: string }) => field.name && field.name.trim() !== '')
-              .map((field: { name: string }) => `${normalizedBlockName}.${field.name}`)
-          } else {
-            blockTags = []
-          }
-        } else {
-          blockTags = [normalizedBlockName]
-        }
       } else {
-        if (blockConfig.category === 'triggers' || sourceBlock.type === 'starter') {
-          const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
-          if (dynamicOutputs.length > 0) {
-            blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-          } else if (sourceBlock.type === 'starter') {
-            blockTags = [normalizedBlockName]
-          } else if (sourceBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK) {
-            blockTags = [normalizedBlockName]
-          } else {
-            blockTags = []
-          }
-        } else if (sourceBlock?.triggerMode && blockConfig.triggers?.enabled) {
-          const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks, true)
-          if (dynamicOutputs.length > 0) {
-            blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-          } else {
-            const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks, true)
-            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-          }
-        } else if (sourceBlock.type === 'human_in_the_loop') {
-          const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
+        const outputPaths = getEffectiveBlockOutputPaths(sourceBlock.type, mergedSubBlocks, {
+          triggerMode: Boolean(sourceBlock.triggerMode),
+          preferToolOutputs: !sourceBlock.triggerMode,
+        })
+        const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 
-          const isSelfReference = activeSourceBlockId === blockId
-
-          if (dynamicOutputs.length > 0) {
-            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-            blockTags = isSelfReference
-              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
-              : allTags
-          } else {
-            const outputPaths = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
-            const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-            blockTags = isSelfReference
-              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
-              : allTags
-          }
+        if (sourceBlock.type === 'human_in_the_loop' && activeSourceBlockId === blockId) {
+          blockTags = allTags.filter(
+            (tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint')
+          )
+        } else if (allTags.length === 0) {
+          blockTags = [normalizedBlockName]
         } else {
-          const toolOutputPaths = getToolOutputPaths(blockConfig, mergedSubBlocks)
-
-          if (toolOutputPaths.length > 0) {
-            blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
-          } else {
-            const outputPaths = getBlockOutputPaths(
-              sourceBlock.type,
-              mergedSubBlocks,
-              sourceBlock.triggerMode
-            )
-            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-          }
+          blockTags = allTags
         }
       }
 
@@ -1432,45 +1301,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const normalizedBlockName = normalizeName(blockName)
 
       const mergedSubBlocks = getMergedSubBlocks(accessibleBlockId)
-      const responseFormatValue = mergedSubBlocks?.responseFormat?.value
-      const responseFormat = parseResponseFormatSafely(responseFormatValue, accessibleBlockId)
 
       let blockTags: string[]
 
-      if (blockConfig.category === 'triggers' || accessibleBlock.type === 'starter') {
-        const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
-
-        if (dynamicOutputs.length > 0) {
-          blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-        } else if (accessibleBlock.type === 'starter') {
-          const startWorkflowValue = mergedSubBlocks?.startWorkflow?.value
-          if (startWorkflowValue === 'chat') {
-            blockTags = [
-              `${normalizedBlockName}.input`,
-              `${normalizedBlockName}.conversationId`,
-              `${normalizedBlockName}.files`,
-            ]
-          } else {
-            blockTags = [normalizedBlockName]
-          }
-        } else if (accessibleBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK) {
-          blockTags = [normalizedBlockName]
-        } else {
-          blockTags = []
-        }
-      } else if (accessibleBlock.type === 'evaluator') {
-        const metricsValue = getSubBlockValue(accessibleBlockId, 'metrics')
-
-        if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
-          const validMetrics = metricsValue.filter((metric: { name?: string }) => metric?.name)
-          blockTags = validMetrics.map(
-            (metric: { name: string }) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
-          )
-        } else {
-          const outputPaths = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
-          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-        }
-      } else if (accessibleBlock.type === 'variables') {
+      if (accessibleBlock.type === 'variables') {
         const variablesValue = getSubBlockValue(accessibleBlockId, 'variables')
 
         if (variablesValue && Array.isArray(variablesValue) && variablesValue.length > 0) {
@@ -1484,57 +1318,21 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         } else {
           blockTags = [normalizedBlockName]
         }
-      } else if (responseFormat) {
-        const schemaFields = extractFieldsFromSchema(responseFormat)
-        if (schemaFields.length > 0) {
-          blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
-        } else {
-          const outputPaths = getBlockOutputPaths(
-            accessibleBlock.type,
-            mergedSubBlocks,
-            accessibleBlock.triggerMode
-          )
-          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-        }
-      } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
-        blockTags = [normalizedBlockName]
       } else {
-        const blockState = blocks[accessibleBlockId]
-        if (blockState?.triggerMode && blockConfig.triggers?.enabled) {
-          const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, true)
-          if (dynamicOutputs.length > 0) {
-            blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-          } else {
-            const outputPaths = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, true)
-            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-          }
-        } else if (accessibleBlock.type === 'human_in_the_loop') {
-          const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks)
+        const outputPaths = getEffectiveBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, {
+          triggerMode: Boolean(accessibleBlock.triggerMode),
+          preferToolOutputs: !accessibleBlock.triggerMode,
+        })
+        const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 
-          const isSelfReference = accessibleBlockId === blockId
-
-          if (dynamicOutputs.length > 0) {
-            const allTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-            blockTags = isSelfReference
-              ? allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
-              : allTags
-          } else {
-            blockTags = [`${normalizedBlockName}.url`, `${normalizedBlockName}.resumeEndpoint`]
-          }
+        if (accessibleBlock.type === 'human_in_the_loop' && accessibleBlockId === blockId) {
+          blockTags = allTags.filter(
+            (tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint')
+          )
+        } else if (allTags.length === 0) {
+          blockTags = [normalizedBlockName]
         } else {
-          const toolOutputPaths = getToolOutputPaths(blockConfig, mergedSubBlocks)
-
-          if (toolOutputPaths.length > 0) {
-            blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
-          } else {
-            const outputPaths = getBlockOutputPaths(
-              accessibleBlock.type,
-              mergedSubBlocks,
-              accessibleBlock.triggerMode
-            )
-
-            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-          }
+          blockTags = allTags
         }
       }
 

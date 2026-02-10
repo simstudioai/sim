@@ -33,6 +33,12 @@ interface SubBlockWithValue {
   value?: unknown
 }
 
+interface EffectiveOutputOptions {
+  triggerMode?: boolean
+  preferToolOutputs?: boolean
+  includeHidden?: boolean
+}
+
 type ConditionValue = string | number | boolean
 
 /**
@@ -96,12 +102,13 @@ function evaluateOutputCondition(
  */
 function filterOutputsByCondition(
   outputs: OutputDefinition,
-  subBlocks: Record<string, SubBlockWithValue> | undefined
+  subBlocks: Record<string, SubBlockWithValue> | undefined,
+  includeHidden = false
 ): OutputDefinition {
   const filtered: OutputDefinition = {}
 
   for (const [key, value] of Object.entries(outputs)) {
-    if (isHiddenFromDisplay(value)) continue
+    if (!includeHidden && isHiddenFromDisplay(value)) continue
 
     if (!value || typeof value !== 'object' || !('condition' in value)) {
       filtered[key] = value
@@ -112,8 +119,13 @@ function filterOutputsByCondition(
     const passes = !condition || evaluateOutputCondition(condition, subBlocks)
 
     if (passes) {
-      const { condition: _, hiddenFromDisplay: __, ...rest } = value
-      filtered[key] = rest
+      if (includeHidden) {
+        const { condition: _, ...rest } = value
+        filtered[key] = rest
+      } else {
+        const { condition: _, hiddenFromDisplay: __, ...rest } = value
+        filtered[key] = rest
+      }
     }
   }
 
@@ -243,8 +255,10 @@ function applyInputFormatToOutputs(
 export function getBlockOutputs(
   blockType: string,
   subBlocks?: Record<string, SubBlockWithValue>,
-  triggerMode?: boolean
+  triggerMode?: boolean,
+  options?: { includeHidden?: boolean }
 ): OutputDefinition {
+  const includeHidden = options?.includeHidden ?? false
   const blockConfig = getBlock(blockType)
   if (!blockConfig) return {}
 
@@ -269,7 +283,8 @@ export function getBlockOutputs(
     // Start with block config outputs (respects hiddenFromDisplay via filterOutputsByCondition)
     const baseOutputs = filterOutputsByCondition(
       { ...(blockConfig.outputs || {}) } as OutputDefinition,
-      subBlocks
+      subBlocks,
+      includeHidden
     )
 
     // Add inputFormat fields (resume form fields)
@@ -313,8 +328,110 @@ export function getBlockOutputs(
   }
 
   const baseOutputs = { ...(blockConfig.outputs || {}) }
-  const filteredOutputs = filterOutputsByCondition(baseOutputs, subBlocks)
+  const filteredOutputs = filterOutputsByCondition(baseOutputs, subBlocks, includeHidden)
   return applyInputFormatToOutputs(blockType, blockConfig, subBlocks, filteredOutputs)
+}
+
+export function getResponseFormatOutputs(
+  subBlocks?: Record<string, SubBlockWithValue>,
+  blockId = 'block'
+): OutputDefinition | undefined {
+  const responseFormatValue = subBlocks?.responseFormat?.value
+  if (!responseFormatValue) return undefined
+
+  const parsed = parseResponseFormatSafely(responseFormatValue, blockId)
+  if (!parsed) return undefined
+
+  const fields = extractFieldsFromSchema(parsed)
+  if (fields.length === 0) return undefined
+
+  const outputs: OutputDefinition = {}
+  for (const field of fields) {
+    outputs[field.name] = {
+      type: (field.type || 'any') as any,
+      description: field.description || `Field from Agent: ${field.name}`,
+    }
+  }
+
+  return outputs
+}
+
+export function getEvaluatorMetricOutputs(
+  subBlocks?: Record<string, SubBlockWithValue>
+): OutputDefinition | undefined {
+  const metricsValue = subBlocks?.metrics?.value
+  if (!metricsValue || !Array.isArray(metricsValue) || metricsValue.length === 0) return undefined
+
+  const validMetrics = metricsValue.filter((metric: { name?: string }) => metric?.name)
+  if (validMetrics.length === 0) return undefined
+
+  const outputs: OutputDefinition = {}
+  for (const metric of validMetrics as Array<{ name: string }>) {
+    outputs[metric.name.toLowerCase()] = {
+      type: 'number',
+      description: `Metric score: ${metric.name}`,
+    }
+  }
+
+  return outputs
+}
+
+export function getEffectiveBlockOutputs(
+  blockType: string,
+  subBlocks?: Record<string, SubBlockWithValue>,
+  options?: EffectiveOutputOptions
+): OutputDefinition {
+  const triggerMode = options?.triggerMode ?? false
+  const preferToolOutputs = options?.preferToolOutputs ?? !triggerMode
+  const includeHidden = options?.includeHidden ?? false
+
+  if (blockType === 'agent') {
+    const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
+    if (responseFormatOutputs) return responseFormatOutputs
+  }
+
+  let baseOutputs: OutputDefinition
+  if (triggerMode) {
+    baseOutputs = getBlockOutputs(blockType, subBlocks, true, { includeHidden })
+  } else if (preferToolOutputs) {
+    const blockConfig = getBlock(blockType)
+    const toolOutputs = blockConfig
+      ? (getToolOutputs(blockConfig, subBlocks, { includeHidden }) as OutputDefinition)
+      : {}
+    baseOutputs =
+      toolOutputs && Object.keys(toolOutputs).length > 0
+        ? toolOutputs
+        : getBlockOutputs(blockType, subBlocks, false, { includeHidden })
+  } else {
+    baseOutputs = getBlockOutputs(blockType, subBlocks, false, { includeHidden })
+  }
+
+  if (blockType === 'evaluator') {
+    const metricOutputs = getEvaluatorMetricOutputs(subBlocks)
+    if (metricOutputs) {
+      return { ...baseOutputs, ...metricOutputs }
+    }
+  }
+
+  return baseOutputs
+}
+
+export function getEffectiveBlockOutputPaths(
+  blockType: string,
+  subBlocks?: Record<string, SubBlockWithValue>,
+  options?: EffectiveOutputOptions
+): string[] {
+  const outputs = getEffectiveBlockOutputs(blockType, subBlocks, options)
+  const paths = generateOutputPaths(outputs)
+
+  if (blockType === TRIGGER_TYPES.START) {
+    return paths.filter((path) => {
+      const key = path.split('.')[0]
+      return !shouldFilterReservedField(blockType, key, '', subBlocks)
+    })
+  }
+
+  return paths
 }
 
 function shouldFilterReservedField(
@@ -473,6 +590,26 @@ export function getBlockOutputType(
   return extractType(value)
 }
 
+export function getEffectiveBlockOutputType(
+  blockType: string,
+  outputPath: string,
+  subBlocks?: Record<string, SubBlockWithValue>,
+  options?: EffectiveOutputOptions
+): string {
+  const outputs = getEffectiveBlockOutputs(blockType, subBlocks, options)
+
+  const cleanPath = outputPath.replace(/\[(\d+)\]/g, '')
+  const pathParts = cleanPath.split('.').filter(Boolean)
+
+  const filePropertyType = getFilePropertyType(outputs, pathParts)
+  if (filePropertyType) {
+    return filePropertyType
+  }
+
+  const value = traverseOutputPath(outputs, pathParts)
+  return extractType(value)
+}
+
 /**
  * Recursively generates all output paths from an outputs schema.
  *
@@ -594,8 +731,10 @@ function generateOutputPathsWithTypes(
  */
 export function getToolOutputs(
   blockConfig: BlockConfig,
-  subBlocks?: Record<string, SubBlockWithValue>
+  subBlocks?: Record<string, SubBlockWithValue>,
+  options?: { includeHidden?: boolean }
 ): Record<string, any> {
+  const includeHidden = options?.includeHidden ?? false
   if (!blockConfig?.tools?.config?.tool) return {}
 
   try {
@@ -613,8 +752,12 @@ export function getToolOutputs(
 
     const toolConfig = getTool(toolId)
     if (!toolConfig?.outputs) return {}
-
-    return toolConfig.outputs
+    if (includeHidden) {
+      return toolConfig.outputs
+    }
+    return Object.fromEntries(
+      Object.entries(toolConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
+    )
   } catch (error) {
     logger.warn('Failed to get tool outputs', { error })
     return {}

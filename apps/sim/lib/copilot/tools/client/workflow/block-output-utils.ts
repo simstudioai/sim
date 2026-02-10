@@ -1,9 +1,7 @@
 import {
-  extractFieldsFromSchema,
-  parseResponseFormatSafely,
-} from '@/lib/core/utils/response-format'
-import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
-import { getBlock } from '@/blocks'
+  getEffectiveBlockOutputPaths,
+  getEvaluatorMetricOutputs,
+} from '@/lib/workflows/blocks/block-outputs'
 import { normalizeName } from '@/executor/constants'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
@@ -92,7 +90,6 @@ export function getSubflowInsidePaths(
 
 export function computeBlockOutputPaths(block: BlockState, ctx: WorkflowContext): string[] {
   const { blocks, loops, parallels, subBlockValues } = ctx
-  const blockConfig = getBlock(block.type)
   const mergedSubBlocks = getMergedSubBlocks(blocks, subBlockValues, block.id)
 
   if (block.type === 'loop' || block.type === 'parallel') {
@@ -101,12 +98,14 @@ export function computeBlockOutputPaths(block: BlockState, ctx: WorkflowContext)
   }
 
   if (block.type === 'evaluator') {
-    const metricsValue = getSubBlockValue(blocks, subBlockValues, block.id, 'metrics')
-    if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
-      const validMetrics = metricsValue.filter((metric: { name?: string }) => metric?.name)
-      return validMetrics.map((metric: { name: string }) => metric.name.toLowerCase())
+    const metricOutputs = getEvaluatorMetricOutputs(mergedSubBlocks)
+    if (metricOutputs) {
+      return Object.keys(metricOutputs)
     }
-    return getBlockOutputPaths(block.type, mergedSubBlocks)
+    return getEffectiveBlockOutputPaths(block.type, mergedSubBlocks, {
+      triggerMode: Boolean(block.triggerMode),
+      preferToolOutputs: !block.triggerMode,
+    })
   }
 
   if (block.type === 'variables') {
@@ -122,18 +121,10 @@ export function computeBlockOutputPaths(block: BlockState, ctx: WorkflowContext)
     return []
   }
 
-  if (blockConfig) {
-    const responseFormatValue = mergedSubBlocks?.responseFormat?.value
-    const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
-    if (responseFormat) {
-      const schemaFields = extractFieldsFromSchema(responseFormat)
-      if (schemaFields.length > 0) {
-        return schemaFields.map((field) => field.name)
-      }
-    }
-  }
-
-  return getBlockOutputPaths(block.type, mergedSubBlocks, block.triggerMode)
+  return getEffectiveBlockOutputPaths(block.type, mergedSubBlocks, {
+    triggerMode: Boolean(block.triggerMode),
+    preferToolOutputs: !block.triggerMode,
+  })
 }
 
 export function formatOutputsWithPrefix(paths: string[], blockName: string): string[] {

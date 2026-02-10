@@ -4,11 +4,7 @@ import type React from 'react'
 import { useMemo } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
-import {
-  extractFieldsFromSchema,
-  parseResponseFormatSafely,
-} from '@/lib/core/utils/response-format'
-import { getToolOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -124,41 +120,24 @@ export function OutputSelect({
           : `block-${block.id}`
 
       const blockConfig = getBlock(block.type)
-      const responseFormatValue =
-        shouldUseBaseline && baselineWorkflow
-          ? baselineWorkflow.blocks?.[block.id]?.subBlocks?.responseFormat?.value
-          : subBlockValues?.[block.id]?.responseFormat
-      const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
 
       let outputsToProcess: Record<string, unknown> = {}
-
-      if (responseFormat) {
-        const schemaFields = extractFieldsFromSchema(responseFormat)
-        if (schemaFields.length > 0) {
-          schemaFields.forEach((field) => {
-            outputsToProcess[field.name] = { type: field.type }
-          })
-        } else {
-          outputsToProcess = blockConfig?.outputs || {}
+      const rawSubBlockValues =
+        shouldUseBaseline && baselineWorkflow
+          ? baselineWorkflow.blocks?.[block.id]?.subBlocks
+          : subBlockValues?.[block.id]
+      const subBlocks: Record<string, { value: unknown }> = {}
+      if (rawSubBlockValues && typeof rawSubBlockValues === 'object') {
+        for (const [key, val] of Object.entries(rawSubBlockValues)) {
+          // Handle both { value: ... } and raw value formats
+          subBlocks[key] = val && typeof val === 'object' && 'value' in val ? val : { value: val }
         }
-      } else {
-        // Build subBlocks object for tool selector
-        const rawSubBlockValues =
-          shouldUseBaseline && baselineWorkflow
-            ? baselineWorkflow.blocks?.[block.id]?.subBlocks
-            : subBlockValues?.[block.id]
-        const subBlocks: Record<string, { value: unknown }> = {}
-        if (rawSubBlockValues && typeof rawSubBlockValues === 'object') {
-          for (const [key, val] of Object.entries(rawSubBlockValues)) {
-            // Handle both { value: ... } and raw value formats
-            subBlocks[key] = val && typeof val === 'object' && 'value' in val ? val : { value: val }
-          }
-        }
-
-        const toolOutputs = blockConfig ? getToolOutputs(blockConfig, subBlocks) : {}
-        outputsToProcess =
-          Object.keys(toolOutputs).length > 0 ? toolOutputs : blockConfig?.outputs || {}
       }
+
+      outputsToProcess = getEffectiveBlockOutputs(block.type, subBlocks, {
+        triggerMode: Boolean(block.triggerMode),
+        preferToolOutputs: !block.triggerMode,
+      }) as Record<string, unknown>
 
       if (Object.keys(outputsToProcess).length === 0) return
 
