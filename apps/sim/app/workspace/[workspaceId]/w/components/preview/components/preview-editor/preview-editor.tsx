@@ -37,6 +37,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
@@ -1141,7 +1142,7 @@ function PreviewEditorContent({
     hasAdvancedValues(blockConfig.subBlocks, rawValues, canonicalIndex)
 
   const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
-  const effectiveTrigger = block.triggerMode === true || block.type === 'starter'
+  const effectiveTrigger = TriggerUtils.isTriggerBlock(block)
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
