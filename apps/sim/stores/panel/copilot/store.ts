@@ -1500,6 +1500,7 @@ export const useCopilotStore = create<CopilotStore>()(
         else if (newState === 'success' || newState === 'accepted')
           norm = ClientToolCallState.success
         else if (newState === 'aborted') norm = ClientToolCallState.aborted
+        else if (newState === 'background') norm = ClientToolCallState.background
         else if (typeof newState === 'number') norm = newState as unknown as ClientToolCallState
         map[id] = {
           ...current,

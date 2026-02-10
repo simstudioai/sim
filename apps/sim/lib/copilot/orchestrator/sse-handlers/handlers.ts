@@ -211,6 +211,24 @@ export const sseHandlers: Record<string, SSEHandler> = {
             options.timeout || STREAM_TIMEOUT_MS,
             options.abortSignal
           )
+          if (completion?.status === 'background') {
+            toolCall.status = 'skipped'
+            toolCall.endTime = Date.now()
+            markToolComplete(
+              toolCall.id,
+              toolCall.name,
+              202,
+              completion.message || 'Tool execution moved to background',
+              { background: true }
+            ).catch((err) => {
+              logger.error('markToolComplete fire-and-forget failed (run tool background)', {
+                toolCallId: toolCall.id,
+                error: err instanceof Error ? err.message : String(err),
+              })
+            })
+            markToolResultSeen(toolCallId)
+            return
+          }
           const success = completion?.status === 'success'
           toolCall.status = success ? 'success' : 'error'
           toolCall.endTime = Date.now()
@@ -235,48 +253,40 @@ export const sseHandlers: Record<string, SSEHandler> = {
       if (decision?.status === 'rejected' || decision?.status === 'error') {
         toolCall.status = 'rejected'
         toolCall.endTime = Date.now()
-        await markToolComplete(
+        // Fire-and-forget: must NOT await — see deadlock note in executeToolAndReport
+        markToolComplete(
           toolCall.id,
           toolCall.name,
           400,
           decision.message || 'Tool execution rejected',
           { skipped: true, reason: 'user_rejected' }
-        )
-        markToolResultSeen(toolCall.id)
-        await options.onEvent?.({
-          type: 'tool_result',
-          toolCallId: toolCall.id,
-          data: {
-            id: toolCall.id,
-            name: toolCall.name,
-            success: false,
-            result: { skipped: true, reason: 'user_rejected' },
-          },
+        ).catch((err) => {
+          logger.error('markToolComplete fire-and-forget failed (rejected)', {
+            toolCallId: toolCall.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
         })
+        markToolResultSeen(toolCall.id)
         return
       }
 
       if (decision?.status === 'background') {
         toolCall.status = 'skipped'
         toolCall.endTime = Date.now()
-        await markToolComplete(
+        // Fire-and-forget: must NOT await — see deadlock note in executeToolAndReport
+        markToolComplete(
           toolCall.id,
           toolCall.name,
           202,
           decision.message || 'Tool execution moved to background',
           { background: true }
-        )
-        markToolResultSeen(toolCall.id)
-        await options.onEvent?.({
-          type: 'tool_result',
-          toolCallId: toolCall.id,
-          data: {
-            id: toolCall.id,
-            name: toolCall.name,
-            success: true,
-            result: { background: true },
-          },
+        ).catch((err) => {
+          logger.error('markToolComplete fire-and-forget failed (background)', {
+            toolCallId: toolCall.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
         })
+        markToolResultSeen(toolCall.id)
         return
       }
     }
@@ -436,47 +446,39 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       if (decision?.status === 'rejected' || decision?.status === 'error') {
         toolCall.status = 'rejected'
         toolCall.endTime = Date.now()
-        await markToolComplete(
+        // Fire-and-forget: must NOT await — see deadlock note in executeToolAndReport
+        markToolComplete(
           toolCall.id,
           toolCall.name,
           400,
           decision.message || 'Tool execution rejected',
           { skipped: true, reason: 'user_rejected' }
-        )
-        markToolResultSeen(toolCall.id)
-        await options?.onEvent?.({
-          type: 'tool_result',
-          toolCallId: toolCall.id,
-          data: {
-            id: toolCall.id,
-            name: toolCall.name,
-            success: false,
-            result: { skipped: true, reason: 'user_rejected' },
-          },
+        ).catch((err) => {
+          logger.error('markToolComplete fire-and-forget failed (subagent rejected)', {
+            toolCallId: toolCall.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
         })
+        markToolResultSeen(toolCall.id)
         return
       }
       if (decision?.status === 'background') {
         toolCall.status = 'skipped'
         toolCall.endTime = Date.now()
-        await markToolComplete(
+        // Fire-and-forget: must NOT await — see deadlock note in executeToolAndReport
+        markToolComplete(
           toolCall.id,
           toolCall.name,
           202,
           decision.message || 'Tool execution moved to background',
           { background: true }
-        )
-        markToolResultSeen(toolCall.id)
-        await options?.onEvent?.({
-          type: 'tool_result',
-          toolCallId: toolCall.id,
-          data: {
-            id: toolCall.id,
-            name: toolCall.name,
-            success: true,
-            result: { background: true },
-          },
+        ).catch((err) => {
+          logger.error('markToolComplete fire-and-forget failed (subagent background)', {
+            toolCallId: toolCall.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
         })
+        markToolResultSeen(toolCall.id)
         return
       }
     }
@@ -500,6 +502,24 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
           completion.message || 'Tool execution rejected'
         ).catch((err) => {
           logger.error('markToolComplete fire-and-forget failed (subagent run tool rejected)', {
+            toolCallId: toolCall.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
+        markToolResultSeen(toolCallId)
+        return
+      }
+      if (completion?.status === 'background') {
+        toolCall.status = 'skipped'
+        toolCall.endTime = Date.now()
+        markToolComplete(
+          toolCall.id,
+          toolCall.name,
+          202,
+          completion.message || 'Tool execution moved to background',
+          { background: true }
+        ).catch((err) => {
+          logger.error('markToolComplete fire-and-forget failed (subagent run tool background)', {
             toolCallId: toolCall.id,
             error: err instanceof Error ? err.message : String(err),
           })

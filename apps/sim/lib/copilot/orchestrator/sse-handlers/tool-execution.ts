@@ -172,7 +172,8 @@ export async function waitForToolCompletion(
     if (
       decision?.status === 'success' ||
       decision?.status === 'error' ||
-      decision?.status === 'rejected'
+      decision?.status === 'rejected' ||
+      decision?.status === 'background'
     ) {
       return decision
     }
