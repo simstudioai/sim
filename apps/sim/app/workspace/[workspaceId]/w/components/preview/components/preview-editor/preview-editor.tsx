@@ -1140,9 +1140,20 @@ function PreviewEditorContent({
     (block.advancedMode ?? false) ||
     hasAdvancedValues(blockConfig.subBlocks, rawValues, canonicalIndex)
 
+  const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
+  const effectiveTrigger = block.triggerMode === true || block.type === 'starter'
+
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
-    if (subBlock.mode === 'trigger' && blockConfig.category !== 'triggers') return false
+
+    if (effectiveTrigger) {
+      const isValidTriggerSubblock = isPureTriggerBlock
+        ? subBlock.mode === 'trigger' || !subBlock.mode
+        : subBlock.mode === 'trigger'
+      if (!isValidTriggerSubblock) return false
+    } else {
+      if (subBlock.mode === 'trigger' && blockConfig.category !== 'triggers') return false
+    }
     if (!isSubBlockFeatureEnabled(subBlock)) return false
     if (
       !isSubBlockVisibleForMode(
