@@ -9,7 +9,7 @@ import {
   validateAuthToken,
 } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { hasAdminPermission } from '@/lib/workspaces/permissions/utils'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('ChatAuthUtils')
 
@@ -24,29 +24,23 @@ export function setChatAuthCookie(
 
 /**
  * Check if user has permission to create a chat for a specific workflow
- * Either the user owns the workflow directly OR has admin permission for the workflow's workspace
  */
 export async function checkWorkflowAccessForChatCreation(
   workflowId: string,
   userId: string
 ): Promise<{ hasAccess: boolean; workflow?: any }> {
-  const workflowData = await db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1)
+  const authorization = await authorizeWorkflowByWorkspacePermission({
+    workflowId,
+    userId,
+    action: 'admin',
+  })
 
-  if (workflowData.length === 0) {
+  if (!authorization.workflow) {
     return { hasAccess: false }
   }
 
-  const workflowRecord = workflowData[0]
-
-  if (workflowRecord.userId === userId) {
-    return { hasAccess: true, workflow: workflowRecord }
-  }
-
-  if (workflowRecord.workspaceId) {
-    const hasAdmin = await hasAdminPermission(userId, workflowRecord.workspaceId)
-    if (hasAdmin) {
-      return { hasAccess: true, workflow: workflowRecord }
-    }
+  if (authorization.allowed) {
+    return { hasAccess: true, workflow: authorization.workflow }
   }
 
   return { hasAccess: false }
@@ -54,7 +48,6 @@ export async function checkWorkflowAccessForChatCreation(
 
 /**
  * Check if user has access to view/edit/delete a specific chat
- * Either the user owns the chat directly OR has admin permission for the workflow's workspace
  */
 export async function checkChatAccess(
   chatId: string,
@@ -75,19 +68,17 @@ export async function checkChatAccess(
   }
 
   const { chat: chatRecord, workflowWorkspaceId } = chatData[0]
-
-  if (chatRecord.userId === userId) {
-    return { hasAccess: true, chat: chatRecord }
+  if (!workflowWorkspaceId) {
+    return { hasAccess: false }
   }
 
-  if (workflowWorkspaceId) {
-    const hasAdmin = await hasAdminPermission(userId, workflowWorkspaceId)
-    if (hasAdmin) {
-      return { hasAccess: true, chat: chatRecord }
-    }
-  }
+  const authorization = await authorizeWorkflowByWorkspacePermission({
+    workflowId: chatRecord.workflowId,
+    userId,
+    action: 'admin',
+  })
 
-  return { hasAccess: false }
+  return authorization.allowed ? { hasAccess: true, chat: chatRecord } : { hasAccess: false }
 }
 
 export async function validateChatAuth(

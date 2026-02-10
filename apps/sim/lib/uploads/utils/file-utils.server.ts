@@ -1,6 +1,7 @@
 'use server'
 
 import type { Logger } from '@sim/logger'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -135,7 +136,10 @@ export async function resolveFileInputToUrl(
  * For internal URLs, uses direct storage access (server-side only)
  * For external URLs, validates DNS/SSRF and uses secure fetch with IP pinning
  */
-export async function downloadFileFromUrl(fileUrl: string, timeoutMs = 180000): Promise<Buffer> {
+export async function downloadFileFromUrl(
+  fileUrl: string,
+  timeoutMs = getMaxExecutionTimeout()
+): Promise<Buffer> {
   const { parseInternalFileUrl } = await import('./file-utils')
 
   if (isInternalFileUrl(fileUrl)) {

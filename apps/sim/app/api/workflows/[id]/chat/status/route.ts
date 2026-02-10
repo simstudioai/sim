@@ -2,7 +2,10 @@ import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatStatusAPI')
@@ -10,11 +13,28 @@ const logger = createLogger('ChatStatusAPI')
 /**
  * GET endpoint to check if a workflow has an active chat deployment
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const requestId = generateRequestId()
 
   try {
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return createErrorResponse('Unauthorized', 401)
+    }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId: id,
+      userId: auth.userId,
+      action: 'read',
+    })
+    if (!authorization.allowed) {
+      return createErrorResponse(
+        authorization.message || 'Access denied',
+        authorization.status || 403
+      )
+    }
+
     logger.debug(`[${requestId}] Checking chat deployment status for workflow: ${id}`)
 
     // Find any active chat deployments for this workflow

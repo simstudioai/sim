@@ -3,6 +3,7 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { desc, eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('GetWorkflowConsoleServerTool')
 
@@ -223,7 +224,7 @@ function deriveExecutionErrorSummary(params: {
 
 export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs, any> = {
   name: 'get_workflow_console',
-  async execute(rawArgs: GetWorkflowConsoleArgs): Promise<any> {
+  async execute(rawArgs: GetWorkflowConsoleArgs, context?: { userId: string }): Promise<any> {
     const {
       workflowId,
       limit = 2,
@@ -232,6 +233,18 @@ export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs
 
     if (!workflowId || typeof workflowId !== 'string') {
       throw new Error('workflowId is required')
+    }
+    if (!context?.userId) {
+      throw new Error('Unauthorized workflow access')
+    }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: context.userId,
+      action: 'read',
+    })
+    if (!authorization.allowed) {
+      throw new Error(authorization.message || 'Unauthorized workflow access')
     }
 
     logger.info('Fetching workflow console logs', { workflowId, limit, includeDetails })

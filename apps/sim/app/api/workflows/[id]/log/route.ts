@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import type { ExecutionResult } from '@/executor/types'
@@ -69,15 +70,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const triggerType = isChatExecution ? 'chat' : 'manual'
       const loggingSession = new LoggingSession(id, executionId, triggerType, requestId)
 
-      const userId = accessValidation.workflow.userId
       const workspaceId = accessValidation.workflow.workspaceId
       if (!workspaceId) {
         logger.error(`[${requestId}] Workflow ${id} has no workspaceId`)
         return createErrorResponse('Workflow has no associated workspace', 500)
       }
+      const billedAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
+      if (!billedAccountUserId) {
+        logger.error(`[${requestId}] Unable to resolve billed account for workspace ${workspaceId}`)
+        return createErrorResponse('Unable to resolve billing account for this workspace', 500)
+      }
 
       await loggingSession.safeStart({
-        userId,
+        userId: billedAccountUserId,
         workspaceId,
         variables: {},
       })

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
+import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -20,7 +20,7 @@ import {
   configureRssPolling,
   syncWebhooksForCredentialSet,
 } from '@/lib/webhooks/utils.server'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 
 const logger = createLogger('WebhooksAPI')
@@ -57,15 +57,12 @@ export async function GET(request: NextRequest) {
       }
 
       const wfRecord = wf[0]
-      let canRead = wfRecord.userId === session.user.id
-      if (!canRead && wfRecord.workspaceId) {
-        const permission = await getUserEntityPermissions(
-          session.user.id,
-          'workspace',
-          wfRecord.workspaceId
-        )
-        canRead = permission === 'read' || permission === 'write' || permission === 'admin'
-      }
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId: wfRecord.id,
+        userId: session.user.id,
+        action: 'read',
+      })
+      const canRead = authorization.allowed
 
       if (!canRead) {
         logger.warn(
@@ -114,8 +111,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ webhooks: [] }, { status: 200 })
     }
 
-    // Default: list webhooks owned by the session user
-    logger.debug(`[${requestId}] Fetching user-owned webhooks for ${session.user.id}`)
+    logger.debug(`[${requestId}] Fetching workspace-accessible webhooks for ${session.user.id}`)
+    const workspacePermissionRows = await db
+      .select({ workspaceId: permissions.entityId })
+      .from(permissions)
+      .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace')))
+
+    const workspaceIds = workspacePermissionRows.map((row) => row.workspaceId)
+    if (workspaceIds.length === 0) {
+      return NextResponse.json({ webhooks: [] }, { status: 200 })
+    }
+
     const webhooks = await db
       .select({
         webhook: webhook,
@@ -126,9 +132,9 @@ export async function GET(request: NextRequest) {
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(eq(workflow.userId, session.user.id))
+      .where(inArray(workflow.workspaceId, workspaceIds))
 
-    logger.info(`[${requestId}] Retrieved ${webhooks.length} user-owned webhooks`)
+    logger.info(`[${requestId}] Retrieved ${webhooks.length} workspace-accessible webhooks`)
     return NextResponse.json({ webhooks }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching webhooks`, error)
@@ -237,25 +243,12 @@ export async function POST(request: NextRequest) {
 
     const workflowRecord = workflowData[0]
 
-    // Check if user has permission to modify this workflow
-    let canModify = false
-
-    // Case 1: User owns the workflow
-    if (workflowRecord.userId === userId) {
-      canModify = true
-    }
-
-    // Case 2: Workflow belongs to a workspace and user has write or admin permission
-    if (!canModify && workflowRecord.workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        userId,
-        'workspace',
-        workflowRecord.workspaceId
-      )
-      if (userPermission === 'write' || userPermission === 'admin') {
-        canModify = true
-      }
-    }
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: 'write',
+    })
+    const canModify = authorization.allowed
 
     if (!canModify) {
       logger.warn(

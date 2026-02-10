@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   deleteDocument,
@@ -54,13 +54,14 @@ export async function GET(
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
       logger.warn(`[${requestId}] Unauthorized document access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = auth.userId
 
-    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
+    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
 
     if (!accessCheck.hasAccess) {
       if (accessCheck.notFound) {
@@ -70,7 +71,7 @@ export async function GET(
         return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
       }
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted unauthorized document access: ${accessCheck.reason}`
+        `[${requestId}] User ${userId} attempted unauthorized document access: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -97,13 +98,14 @@ export async function PUT(
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
       logger.warn(`[${requestId}] Unauthorized document update attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = auth.userId
 
-    const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, session.user.id)
+    const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
 
     if (!accessCheck.hasAccess) {
       if (accessCheck.notFound) {
@@ -113,7 +115,7 @@ export async function PUT(
         return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
       }
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted unauthorized document update: ${accessCheck.reason}`
+        `[${requestId}] User ${userId} attempted unauthorized document update: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -227,13 +229,14 @@ export async function DELETE(
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
       logger.warn(`[${requestId}] Unauthorized document delete attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = auth.userId
 
-    const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, session.user.id)
+    const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
 
     if (!accessCheck.hasAccess) {
       if (accessCheck.notFound) {
@@ -243,7 +246,7 @@ export async function DELETE(
         return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
       }
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted unauthorized document deletion: ${accessCheck.reason}`
+        `[${requestId}] User ${userId} attempted unauthorized document deletion: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

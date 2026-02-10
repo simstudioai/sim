@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
@@ -22,23 +22,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const requestId = generateRequestId()
   const startTime = Date.now()
 
-  const session = await getSession()
-  if (!session?.user?.id) {
+  const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+  if (!auth.success || !auth.userId) {
     logger.warn(`[${requestId}] Unauthorized workflow duplication attempt for ${sourceWorkflowId}`)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const userId = auth.userId
 
   try {
     const body = await req.json()
     const { name, description, color, workspaceId, folderId } = DuplicateRequestSchema.parse(body)
 
-    logger.info(
-      `[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${session.user.id}`
-    )
+    logger.info(`[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${userId}`)
 
     const result = await duplicateWorkflow({
       sourceWorkflowId,
-      userId: session.user.id,
+      userId,
       name,
       description,
       color,
@@ -72,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       if (error.message === 'Source workflow not found or access denied') {
         logger.warn(
-          `[${requestId}] User ${session.user.id} denied access to source workflow ${sourceWorkflowId}`
+          `[${requestId}] User ${userId} denied access to source workflow ${sourceWorkflowId}`
         )
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }

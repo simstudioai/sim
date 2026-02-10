@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workspace } from '@sim/db/schema'
-import { and, asc, desc, eq, inArray, or } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 
 type WorkflowRecord = typeof workflow.$inferSelect
 
@@ -20,25 +20,25 @@ export async function ensureWorkflowAccess(
     throw new Error(`Workflow ${workflowId} not found`)
   }
 
-  if (workflowRecord.userId === userId) {
-    return { workflow: workflowRecord, workspaceId: workflowRecord.workspaceId }
+  if (!workflowRecord.workspaceId) {
+    throw new Error(
+      'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be accessed.'
+    )
   }
 
-  if (workflowRecord.workspaceId) {
-    const [permissionRow] = await db
-      .select({ permissionType: permissions.permissionType })
-      .from(permissions)
-      .where(
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workflowRecord.workspaceId),
-          eq(permissions.userId, userId)
-        )
+  const [permissionRow] = await db
+    .select({ permissionType: permissions.permissionType })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workflowRecord.workspaceId),
+        eq(permissions.userId, userId)
       )
-      .limit(1)
-    if (permissionRow) {
-      return { workflow: workflowRecord, workspaceId: workflowRecord.workspaceId }
-    }
+    )
+    .limit(1)
+  if (permissionRow) {
+    return { workflow: workflowRecord, workspaceId: workflowRecord.workspaceId }
   }
 
   throw new Error('Unauthorized workflow access')
@@ -69,10 +69,8 @@ export async function ensureWorkspaceAccess(
   const [row] = await db
     .select({
       permissionType: permissions.permissionType,
-      ownerId: workspace.ownerId,
     })
     .from(permissions)
-    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
     .where(
       and(
         eq(permissions.entityType, 'workspace'),
@@ -86,9 +84,8 @@ export async function ensureWorkspaceAccess(
     throw new Error(`Workspace ${workspaceId} not found`)
   }
 
-  const isOwner = row.ownerId === userId
   const permissionType = row.permissionType
-  const canWrite = isOwner || permissionType === 'admin' || permissionType === 'write'
+  const canWrite = permissionType === 'admin' || permissionType === 'write'
 
   if (requireWrite && !canWrite) {
     throw new Error('Write or admin access required for this workspace')
@@ -109,11 +106,15 @@ export async function getAccessibleWorkflowsForUser(
     .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
 
   const workspaceIdList = workspaceIds.map((row) => row.entityId)
-
-  const workflowConditions = [eq(workflow.userId, userId)]
-  if (workspaceIdList.length > 0) {
-    workflowConditions.push(inArray(workflow.workspaceId, workspaceIdList))
+  if (workspaceIdList.length === 0) {
+    return []
   }
+
+  if (options?.workspaceId && !workspaceIdList.includes(options.workspaceId)) {
+    return []
+  }
+
+  const workflowConditions = [inArray(workflow.workspaceId, workspaceIdList)]
   if (options?.workspaceId) {
     workflowConditions.push(eq(workflow.workspaceId, options.workspaceId))
   }
@@ -124,6 +125,6 @@ export async function getAccessibleWorkflowsForUser(
   return db
     .select()
     .from(workflow)
-    .where(or(...workflowConditions))
+    .where(and(...workflowConditions))
     .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
 }

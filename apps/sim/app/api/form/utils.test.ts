@@ -22,8 +22,8 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isProd: false,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  hasAdminPermission: vi.fn(),
+vi.mock('@/lib/workflows/utils', () => ({
+  authorizeWorkflowByWorkspacePermission: vi.fn(),
 }))
 
 describe('Form API Utils', () => {

@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mockGetSession = vi.fn()
 const mockLoadWorkflowFromNormalizedTables = vi.fn()
 const mockGetWorkflowById = vi.fn()
-const mockGetWorkflowAccessContext = vi.fn()
+const mockAuthorizeWorkflowByWorkspacePermission = vi.fn()
 const mockDbDelete = vi.fn()
 const mockDbUpdate = vi.fn()
 const mockDbSelect = vi.fn()
@@ -35,8 +35,11 @@ vi.mock('@/lib/workflows/utils', async () => {
   return {
     ...actual,
     getWorkflowById: (workflowId: string) => mockGetWorkflowById(workflowId),
-    getWorkflowAccessContext: (workflowId: string, userId?: string) =>
-      mockGetWorkflowAccessContext(workflowId, userId),
+    authorizeWorkflowByWorkspacePermission: (params: {
+      workflowId: string
+      userId: string
+      action?: 'read' | 'write' | 'admin'
+    }) => mockAuthorizeWorkflowByWorkspacePermission(params),
   }
 })
 
@@ -86,13 +89,6 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(null)
-      mockGetWorkflowAccessContext.mockResolvedValue({
-        workflow: null,
-        workspaceOwnerId: null,
-        workspacePermission: null,
-        isOwner: false,
-        isWorkspaceOwner: false,
-      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/nonexistent')
       const params = Promise.resolve({ id: 'nonexistent' })
@@ -104,12 +100,12 @@ describe('Workflow By ID API Route', () => {
       expect(data.error).toBe('Workflow not found')
     })
 
-    it.concurrent('should allow access when user owns the workflow', async () => {
+    it.concurrent('should allow access when user has admin workspace permission', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
         name: 'Test Workflow',
-        workspaceId: null,
+        workspaceId: 'workspace-456',
       }
 
       const mockNormalizedData = {
@@ -125,12 +121,11 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
         workflow: mockWorkflow,
-        workspaceOwnerId: null,
-        workspacePermission: null,
-        isOwner: true,
-        isWorkspaceOwner: false,
+        workspacePermission: 'admin',
       })
 
       mockLoadWorkflowFromNormalizedTables.mockResolvedValue(mockNormalizedData)
@@ -166,12 +161,11 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
         workflow: mockWorkflow,
-        workspaceOwnerId: 'workspace-456',
         workspacePermission: 'read',
-        isOwner: false,
-        isWorkspaceOwner: false,
       })
 
       mockLoadWorkflowFromNormalizedTables.mockResolvedValue(mockNormalizedData)
@@ -199,12 +193,12 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: false,
+        status: 403,
+        message: 'Unauthorized: Access denied to read this workflow',
         workflow: mockWorkflow,
-        workspaceOwnerId: 'workspace-456',
         workspacePermission: null,
-        isOwner: false,
-        isWorkspaceOwner: false,
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
@@ -214,7 +208,7 @@ describe('Workflow By ID API Route', () => {
 
       expect(response.status).toBe(403)
       const data = await response.json()
-      expect(data.error).toBe('Access denied')
+      expect(data.error).toBe('Unauthorized: Access denied to read this workflow')
     })
 
     it.concurrent('should use normalized tables when available', async () => {
@@ -222,7 +216,7 @@ describe('Workflow By ID API Route', () => {
         id: 'workflow-123',
         userId: 'user-123',
         name: 'Test Workflow',
-        workspaceId: null,
+        workspaceId: 'workspace-456',
       }
 
       const mockNormalizedData = {
@@ -238,12 +232,11 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
         workflow: mockWorkflow,
-        workspaceOwnerId: null,
-        workspacePermission: null,
-        isOwner: true,
-        isWorkspaceOwner: false,
+        workspacePermission: 'admin',
       })
 
       mockLoadWorkflowFromNormalizedTables.mockResolvedValue(mockNormalizedData)
@@ -261,12 +254,12 @@ describe('Workflow By ID API Route', () => {
   })
 
   describe('DELETE /api/workflows/[id]', () => {
-    it('should allow owner to delete workflow', async () => {
+    it('should allow admin to delete workflow', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
         name: 'Test Workflow',
-        workspaceId: null,
+        workspaceId: 'workspace-456',
       }
 
       mockGetSession.mockResolvedValue({
@@ -274,12 +267,17 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
         workflow: mockWorkflow,
-        workspaceOwnerId: null,
-        workspacePermission: null,
-        isOwner: true,
-        isWorkspaceOwner: false,
+        workspacePermission: 'admin',
+      })
+
+      mockDbSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }, { id: 'workflow-456' }]),
+        }),
       })
 
       mockDbDelete.mockReturnValue({
@@ -315,12 +313,11 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
         workflow: mockWorkflow,
-        workspaceOwnerId: 'workspace-456',
         workspacePermission: 'admin',
-        isOwner: false,
-        isWorkspaceOwner: false,
       })
 
       // Mock db.select() to return multiple workflows so deletion is allowed
@@ -363,12 +360,11 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
         workflow: mockWorkflow,
-        workspaceOwnerId: 'workspace-456',
         workspacePermission: 'admin',
-        isOwner: true,
-        isWorkspaceOwner: false,
       })
 
       // Mock db.select() to return only 1 workflow (the one being deleted)
@@ -403,12 +399,12 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: false,
+        status: 403,
+        message: 'Unauthorized: Access denied to admin this workflow',
         workflow: mockWorkflow,
-        workspaceOwnerId: 'workspace-456',
         workspacePermission: null,
-        isOwner: false,
-        isWorkspaceOwner: false,
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -420,17 +416,17 @@ describe('Workflow By ID API Route', () => {
 
       expect(response.status).toBe(403)
       const data = await response.json()
-      expect(data.error).toBe('Access denied')
+      expect(data.error).toBe('Unauthorized: Access denied to admin this workflow')
     })
   })
 
   describe('PUT /api/workflows/[id]', () => {
-    it('should allow owner to update workflow', async () => {
+    it('should allow user with write permission to update workflow', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
         name: 'Test Workflow',
-        workspaceId: null,
+        workspaceId: 'workspace-456',
       }
 
       const updateData = { name: 'Updated Workflow' }
@@ -441,12 +437,11 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
         workflow: mockWorkflow,
-        workspaceOwnerId: null,
-        workspacePermission: null,
-        isOwner: true,
-        isWorkspaceOwner: false,
+        workspacePermission: 'write',
       })
 
       mockDbUpdate.mockReturnValue({
@@ -486,12 +481,11 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
         workflow: mockWorkflow,
-        workspaceOwnerId: 'workspace-456',
         workspacePermission: 'write',
-        isOwner: false,
-        isWorkspaceOwner: false,
       })
 
       mockDbUpdate.mockReturnValue({
@@ -530,12 +524,12 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: false,
+        status: 403,
+        message: 'Unauthorized: Access denied to write this workflow',
         workflow: mockWorkflow,
-        workspaceOwnerId: 'workspace-456',
         workspacePermission: 'read',
-        isOwner: false,
-        isWorkspaceOwner: false,
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -548,7 +542,7 @@ describe('Workflow By ID API Route', () => {
 
       expect(response.status).toBe(403)
       const data = await response.json()
-      expect(data.error).toBe('Access denied')
+      expect(data.error).toBe('Unauthorized: Access denied to write this workflow')
     })
 
     it.concurrent('should validate request data', async () => {
@@ -556,7 +550,7 @@ describe('Workflow By ID API Route', () => {
         id: 'workflow-123',
         userId: 'user-123',
         name: 'Test Workflow',
-        workspaceId: null,
+        workspaceId: 'workspace-456',
       }
 
       mockGetSession.mockResolvedValue({
@@ -564,12 +558,11 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockGetWorkflowAccessContext.mockResolvedValue({
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
         workflow: mockWorkflow,
-        workspaceOwnerId: null,
-        workspacePermission: null,
-        isOwner: true,
-        isWorkspaceOwner: false,
+        workspacePermission: 'write',
       })
 
       const invalidData = { name: '' }

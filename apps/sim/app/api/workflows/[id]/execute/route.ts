@@ -29,7 +29,11 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
-import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  createHttpResponseFromBlock,
+  workflowHasResponseBlock,
+} from '@/lib/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -340,6 +344,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : validatedInput
 
     const shouldUseDraftState = useDraftState ?? auth.authType === 'session'
+    const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: shouldUseDraftState ? 'write' : 'read',
+    })
+    if (!workflowAuthorization.allowed) {
+      return NextResponse.json(
+        { error: workflowAuthorization.message || 'Access denied' },
+        { status: workflowAuthorization.status }
+      )
+    }
 
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true

@@ -2,13 +2,15 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
   EDGE_OPERATIONS,
   EDGES_OPERATIONS,
+  SUBBLOCK_OPERATIONS,
   SUBFLOW_OPERATIONS,
+  VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@/socket/constants'
 
@@ -42,6 +44,10 @@ const WRITE_OPERATIONS: string[] = [
   EDGES_OPERATIONS.BATCH_REMOVE_EDGES,
   // Subflow operations
   SUBFLOW_OPERATIONS.UPDATE,
+  // Subblock operations
+  SUBBLOCK_OPERATIONS.UPDATE,
+  // Variable operations
+  VARIABLE_OPERATIONS.UPDATE,
   // Workflow operations
   WORKFLOW_OPERATIONS.REPLACE_STATE,
 ]
@@ -76,19 +82,6 @@ export function checkRolePermission(
   return { allowed: true }
 }
 
-async function verifyWorkspaceMembership(
-  userId: string,
-  workspaceId: string
-): Promise<string | null> {
-  try {
-    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-    return permission
-  } catch (error) {
-    logger.error(`Error verifying workspace permissions for ${userId} in ${workspaceId}:`, error)
-    return null
-  }
-}
-
 export async function verifyWorkflowAccess(
   userId: string,
   workflowId: string
@@ -96,7 +89,6 @@ export async function verifyWorkflowAccess(
   try {
     const workflowData = await db
       .select({
-        userId: workflow.userId,
         workspaceId: workflow.workspaceId,
         name: workflow.name,
       })
@@ -109,34 +101,28 @@ export async function verifyWorkflowAccess(
       return { hasAccess: false }
     }
 
-    const { userId: workflowUserId, workspaceId, name: workflowName } = workflowData[0]
+    const { workspaceId, name: workflowName } = workflowData[0]
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: 'read',
+    })
 
-    // Check if user owns the workflow - treat as admin
-    if (workflowUserId === userId) {
-      logger.debug(
-        `User ${userId} has admin access to workflow ${workflowId} (${workflowName}) as owner`
-      )
-      return { hasAccess: true, role: 'admin', workspaceId: workspaceId || undefined }
-    }
-
-    // Check workspace membership if workflow belongs to a workspace
-    if (workspaceId) {
-      const userRole = await verifyWorkspaceMembership(userId, workspaceId)
-      if (userRole) {
-        logger.debug(
-          `User ${userId} has ${userRole} access to workflow ${workflowId} via workspace ${workspaceId}`
-        )
-        return { hasAccess: true, role: userRole, workspaceId }
-      }
+    if (!authorization.allowed || !authorization.workspacePermission) {
       logger.warn(
-        `User ${userId} is not a member of workspace ${workspaceId} for workflow ${workflowId}`
+        `User ${userId} is not permitted to access workflow ${workflowId}: ${authorization.message}`
       )
       return { hasAccess: false }
     }
 
-    // Workflow doesn't belong to a workspace and user doesn't own it
-    logger.warn(`User ${userId} has no access to workflow ${workflowId} (no workspace, not owner)`)
-    return { hasAccess: false }
+    logger.debug(
+      `User ${userId} has ${authorization.workspacePermission} access to workflow ${workflowId} (${workflowName}) via workspace ${workspaceId}`
+    )
+    return {
+      hasAccess: true,
+      role: authorization.workspacePermission,
+      workspaceId: workspaceId || undefined,
+    }
   } catch (error) {
     logger.error(
       `Error verifying workflow access for user ${userId}, workflow ${workflowId}:`,

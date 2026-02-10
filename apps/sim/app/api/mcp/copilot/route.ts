@@ -32,7 +32,10 @@ import {
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  resolveWorkflowIdForUser,
+} from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotMcpAPI')
 const mcpRateLimiter = new RateLimiter()
@@ -627,7 +630,16 @@ async function handleBuildToolCall(
     const { model } = getCopilotModel('chat')
     const workflowId = args.workflowId as string | undefined
 
-    const resolved = workflowId ? { workflowId } : await resolveWorkflowIdForUser(userId)
+    const resolved = workflowId
+      ? await (async () => {
+          const authorization = await authorizeWorkflowByWorkspacePermission({
+            workflowId,
+            userId,
+            action: 'read',
+          })
+          return authorization.allowed ? { workflowId } : null
+        })()
+      : await resolveWorkflowIdForUser(userId)
 
     if (!resolved?.workflowId) {
       return {

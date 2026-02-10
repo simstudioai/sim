@@ -104,6 +104,8 @@ describe('Knowledge Search API Route', () => {
 
   const mockGetUserId = vi.fn()
   const mockFetch = vi.fn()
+  const mockCheckSessionOrInternalAuth = vi.fn()
+  const mockAuthorizeWorkflowByWorkspacePermission = vi.fn()
 
   const mockEmbedding = [0.1, 0.2, 0.3, 0.4, 0.5]
   const mockSearchResults = [
@@ -132,8 +134,12 @@ describe('Knowledge Search API Route', () => {
       db: mockDbChain,
     }))
 
-    vi.doMock('@/app/api/auth/oauth/utils', () => ({
-      getUserId: mockGetUserId,
+    vi.doMock('@/lib/auth/hybrid', () => ({
+      checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
+    }))
+
+    vi.doMock('@/lib/workflows/utils', () => ({
+      authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
     }))
 
     Object.values(mockDbChain).forEach((fn) => {
@@ -157,6 +163,15 @@ describe('Knowledge Search API Route', () => {
       doc2: 'Document 2',
     })
     mockGetDocumentTagDefinitions.mockClear()
+    mockCheckSessionOrInternalAuth.mockClear().mockResolvedValue({
+      success: true,
+      userId: 'user-123',
+      authType: 'session',
+    })
+    mockAuthorizeWorkflowByWorkspacePermission.mockClear().mockResolvedValue({
+      allowed: true,
+      status: 200,
+    })
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
@@ -311,11 +326,18 @@ describe('Knowledge Search API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(mockGetUserId).toHaveBeenCalledWith(expect.any(String), 'workflow-123')
+      expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
+        workflowId: 'workflow-123',
+        userId: 'user-123',
+        action: 'read',
+      })
     })
 
     it.concurrent('should return unauthorized for unauthenticated request', async () => {
-      mockGetUserId.mockResolvedValue(null)
+      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+        success: false,
+        error: 'Unauthorized',
+      })
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -332,7 +354,11 @@ describe('Knowledge Search API Route', () => {
         workflowId: 'nonexistent-workflow',
       }
 
-      mockGetUserId.mockResolvedValue(null)
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+        allowed: false,
+        status: 404,
+        message: 'Workflow not found',
+      })
 
       const req = createMockRequest('POST', workflowData)
       const { POST } = await import('@/app/api/knowledge/search/route')

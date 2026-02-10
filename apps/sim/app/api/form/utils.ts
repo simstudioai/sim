@@ -9,7 +9,7 @@ import {
   validateAuthToken,
 } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { hasAdminPermission } from '@/lib/workspaces/permissions/utils'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('FormAuthUtils')
 
@@ -24,29 +24,23 @@ export function setFormAuthCookie(
 
 /**
  * Check if user has permission to create a form for a specific workflow
- * Either the user owns the workflow directly OR has admin permission for the workflow's workspace
  */
 export async function checkWorkflowAccessForFormCreation(
   workflowId: string,
   userId: string
 ): Promise<{ hasAccess: boolean; workflow?: any }> {
-  const workflowData = await db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1)
+  const authorization = await authorizeWorkflowByWorkspacePermission({
+    workflowId,
+    userId,
+    action: 'admin',
+  })
 
-  if (workflowData.length === 0) {
+  if (!authorization.workflow) {
     return { hasAccess: false }
   }
 
-  const workflowRecord = workflowData[0]
-
-  if (workflowRecord.userId === userId) {
-    return { hasAccess: true, workflow: workflowRecord }
-  }
-
-  if (workflowRecord.workspaceId) {
-    const hasAdmin = await hasAdminPermission(userId, workflowRecord.workspaceId)
-    if (hasAdmin) {
-      return { hasAccess: true, workflow: workflowRecord }
-    }
+  if (authorization.allowed) {
+    return { hasAccess: true, workflow: authorization.workflow }
   }
 
   return { hasAccess: false }
@@ -54,17 +48,13 @@ export async function checkWorkflowAccessForFormCreation(
 
 /**
  * Check if user has access to view/edit/delete a specific form
- * Either the user owns the form directly OR has admin permission for the workflow's workspace
  */
 export async function checkFormAccess(
   formId: string,
   userId: string
 ): Promise<{ hasAccess: boolean; form?: any }> {
   const formData = await db
-    .select({
-      form: form,
-      workflowWorkspaceId: workflow.workspaceId,
-    })
+    .select({ form: form, workflowWorkspaceId: workflow.workspaceId })
     .from(form)
     .innerJoin(workflow, eq(form.workflowId, workflow.id))
     .where(eq(form.id, formId))
@@ -75,19 +65,17 @@ export async function checkFormAccess(
   }
 
   const { form: formRecord, workflowWorkspaceId } = formData[0]
-
-  if (formRecord.userId === userId) {
-    return { hasAccess: true, form: formRecord }
+  if (!workflowWorkspaceId) {
+    return { hasAccess: false }
   }
 
-  if (workflowWorkspaceId) {
-    const hasAdmin = await hasAdminPermission(userId, workflowWorkspaceId)
-    if (hasAdmin) {
-      return { hasAccess: true, form: formRecord }
-    }
-  }
+  const authorization = await authorizeWorkflowByWorkspacePermission({
+    workflowId: formRecord.workflowId,
+    userId,
+    action: 'admin',
+  })
 
-  return { hasAccess: false }
+  return authorization.allowed ? { hasAccess: true, form: formRecord } : { hasAccess: false }
 }
 
 export async function validateFormAuth(
