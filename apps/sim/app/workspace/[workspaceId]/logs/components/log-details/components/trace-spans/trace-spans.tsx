@@ -16,7 +16,7 @@ import {
   PopoverItem,
   Tooltip,
 } from '@/components/emcn'
-import { WorkflowIcon } from '@/components/icons'
+import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
@@ -118,6 +118,10 @@ function getBlockIconAndColor(
 
   // Check for tool by name first (most specific)
   if (lowerType === 'tool' && toolName) {
+    // Handle load_skill tool with the AgentSkillsIcon
+    if (toolName === 'load_skill') {
+      return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
+    }
     const toolBlock = getBlockByToolName(toolName)
     if (toolBlock) {
       return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
