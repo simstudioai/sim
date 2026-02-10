@@ -8,7 +8,7 @@ import {
 } from '@/lib/copilot/tools/shared/workflow-utils'
 import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
-import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import {
   loadDeployedWorkflowState,
@@ -343,7 +343,11 @@ export async function executeGetBlockOutputs(
         continue
       }
 
-      const outputs = getBlockOutputPaths(block.type, block.subBlocks, block.triggerMode)
+      const triggerMode = Boolean(block.triggerMode)
+      const outputs = getEffectiveBlockOutputPaths(block.type, block.subBlocks, {
+        triggerMode,
+        preferToolOutputs: !triggerMode,
+      })
       results.push({
         blockId,
         blockName,
@@ -485,7 +489,11 @@ export async function executeGetBlockUpstreamReferences(
             ? getSubflowInsidePaths(block.type, accessibleBlockId, loops, parallels)
             : ['results']
         } else {
-          outputPaths = getBlockOutputPaths(block.type, block.subBlocks, block.triggerMode)
+          const triggerMode = Boolean(block.triggerMode)
+          outputPaths = getEffectiveBlockOutputPaths(block.type, block.subBlocks, {
+            triggerMode,
+            preferToolOutputs: !triggerMode,
+          })
         }
 
         const formattedOutputs = formatOutputsWithPrefix(outputPaths, blockName)
