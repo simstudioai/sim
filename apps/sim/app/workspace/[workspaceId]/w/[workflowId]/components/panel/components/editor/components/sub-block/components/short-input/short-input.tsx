@@ -373,7 +373,8 @@ export const ShortInput = memo(function ShortInput({
                   ref={overlayRef}
                   className={cn(
                     'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] pr-3 font-medium font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-                    isPreview || disabled ? 'opacity-50' : 'pointer-events-none'
+                    (isPreview || disabled) && 'opacity-50',
+                    !(isPreview || disabled) && 'pointer-events-none'
                   )}
                 >
                   <div className='min-w-fit whitespace-pre'>{formattedText}</div>
