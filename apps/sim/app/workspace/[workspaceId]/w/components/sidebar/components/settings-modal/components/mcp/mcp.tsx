@@ -894,14 +894,14 @@ export function MCP({ initialServerId }: MCPProps) {
                           disabled={!hasParams}
                         >
                           <div className='flex-1'>
-                            <div className='flex items-center gap-[8px]'>
-                              <p className='font-medium text-[13px] text-[var(--text-primary)]'>
+                            <div className='flex h-[16px] items-center gap-[6px]'>
+                              <p className='font-medium text-[13px] text-[var(--text-primary)] leading-none'>
                                 {tool.name}
                               </p>
                               {issues.length > 0 && (
                                 <Tooltip.Root>
                                   <Tooltip.Trigger asChild>
-                                    <div>
+                                    <div className='flex items-center'>
                                       <Badge
                                         variant={getIssueBadgeVariant(issues[0].issue)}
                                         size='sm'

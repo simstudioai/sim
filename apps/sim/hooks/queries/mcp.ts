@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
@@ -358,4 +359,66 @@ export function useStoredMcpTools(workspaceId: string) {
     enabled: !!workspaceId,
     staleTime: 60 * 1000,
   })
+}
+
+/**
+ * Shared EventSource connections keyed by workspaceId.
+ * Reference-counted so the connection is closed when the last consumer unmounts.
+ * Attached to `globalThis` so connections survive HMR in development.
+ */
+const SSE_KEY = '__mcp_sse_connections' as const
+
+type SseEntry = { source: EventSource; refs: number }
+
+const sseConnections: Map<string, SseEntry> =
+  ((globalThis as Record<string, unknown>)[SSE_KEY] as Map<string, SseEntry>) ??
+  ((globalThis as Record<string, unknown>)[SSE_KEY] = new Map<string, SseEntry>())
+
+/**
+ * Subscribe to MCP tool-change SSE events for a workspace.
+ * On each `tools_changed` event, invalidates the relevant React Query caches
+ * so the UI refreshes automatically.
+ */
+export function useMcpToolsEvents(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!workspaceId) return
+
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: mcpKeys.tools(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.servers(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.storedTools(workspaceId) })
+    }
+
+    let entry = sseConnections.get(workspaceId)
+
+    if (!entry) {
+      const source = new EventSource(`/api/mcp/events?workspaceId=${workspaceId}`)
+
+      source.addEventListener('tools_changed', () => {
+        invalidate()
+      })
+
+      source.onerror = () => {
+        logger.warn(`SSE connection error for workspace ${workspaceId}`)
+      }
+
+      entry = { source, refs: 0 }
+      sseConnections.set(workspaceId, entry)
+    }
+
+    entry.refs++
+
+    return () => {
+      const current = sseConnections.get(workspaceId)
+      if (!current) return
+
+      current.refs--
+      if (current.refs <= 0) {
+        current.source.close()
+        sseConnections.delete(workspaceId)
+      }
+    }
+  }, [workspaceId, queryClient])
 }
