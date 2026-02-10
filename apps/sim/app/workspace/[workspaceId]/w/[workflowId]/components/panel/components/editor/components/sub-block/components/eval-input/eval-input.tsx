@@ -226,7 +226,10 @@ export function EvalInput({
                         ref={(el) => {
                           if (el) descriptionOverlayRefs.current[metric.id] = el
                         }}
-                        className='pointer-events-none absolute inset-0 overflow-auto bg-transparent px-[8px] py-[8px] font-medium font-sans text-[#eeeeee] text-sm'
+                        className={cn(
+                          'absolute inset-0 overflow-auto bg-transparent px-[8px] py-[8px] font-medium font-sans text-[#eeeeee] text-sm',
+                          !(isPreview || disabled) && 'pointer-events-none'
+                        )}
                       >
                         <div className='whitespace-pre-wrap'>
                           {formatDisplayText(metric.description || '', {

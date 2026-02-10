@@ -273,7 +273,10 @@ function InputMappingField({
                 ref={(el) => {
                   if (el) overlayRefs.current.set(fieldId, el)
                 }}
-                className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+                className={cn(
+                  'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+                  !disabled && 'pointer-events-none'
+                )}
                 style={{ overflowX: 'auto' }}
               >
                 <div

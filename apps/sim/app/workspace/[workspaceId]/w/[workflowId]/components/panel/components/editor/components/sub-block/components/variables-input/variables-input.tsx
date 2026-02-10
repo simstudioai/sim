@@ -452,7 +452,10 @@ export function VariablesInput({
                             ref={(el) => {
                               if (el) overlayRefs.current[assignment.id] = el
                             }}
-                            className='pointer-events-none absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm'
+                            className={cn(
+                              'absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm',
+                              !isReadOnly && 'pointer-events-none'
+                            )}
                             style={{ scrollbarWidth: 'none' }}
                           >
                             <div className='w-full whitespace-pre-wrap break-words'>
@@ -514,7 +517,10 @@ export function VariablesInput({
                             ref={(el) => {
                               if (el) overlayRefs.current[assignment.id] = el
                             }}
-                            className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm'
+                            className={cn(
+                              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+                              !isReadOnly && 'pointer-events-none'
+                            )}
                             style={{ scrollbarWidth: 'none' }}
                           >
                             <div
