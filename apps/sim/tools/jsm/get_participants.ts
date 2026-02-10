@@ -1,4 +1,5 @@
 import type { JsmGetParticipantsParams, JsmGetParticipantsResponse } from '@/tools/jsm/types'
+import { PARTICIPANT_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetParticipantsTool: ToolConfig<
@@ -110,7 +111,14 @@ export const jsmGetParticipantsTool: ToolConfig<
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
     issueIdOrKey: { type: 'string', description: 'Issue ID or key' },
-    participants: { type: 'json', description: 'Array of participants' },
+    participants: {
+      type: 'array',
+      description: 'List of participants',
+      items: {
+        type: 'object',
+        properties: PARTICIPANT_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of participants' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

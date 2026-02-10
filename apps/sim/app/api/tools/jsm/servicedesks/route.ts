@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { domain, accessToken, cloudId: cloudIdParam, start, limit } = body
+    const { domain, accessToken, cloudId: cloudIdParam, expand, start, limit } = body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
     const params = new URLSearchParams()
+    if (expand) params.append('expand', expand)
     if (start) params.append('start', start)
     if (limit) params.append('limit', limit)
 

@@ -1,26 +1,7 @@
+import type { JiraCreateIssueLinkParams, JiraCreateIssueLinkResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-export interface JiraCreateIssueLinkParams {
-  accessToken: string
-  domain: string
-  inwardIssueKey: string
-  outwardIssueKey: string
-  linkType: string
-  comment?: string
-  cloudId?: string
-}
-
-export interface JiraCreateIssueLinkResponse extends ToolResponse {
-  output: {
-    ts: string
-    inwardIssue: string
-    outwardIssue: string
-    linkType: string
-    linkId?: string
-    success: boolean
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const jiraCreateIssueLinkTool: ToolConfig<
   JiraCreateIssueLinkParams,
@@ -84,7 +65,6 @@ export const jiraCreateIssueLinkTool: ToolConfig<
 
   request: {
     url: (_params: JiraCreateIssueLinkParams) => {
-      // Always discover first; actual POST happens in transformResponse
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
     method: () => 'GET',
@@ -99,10 +79,8 @@ export const jiraCreateIssueLinkTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params?: JiraCreateIssueLinkParams) => {
-    // Resolve cloudId
     const cloudId = params?.cloudId || (await getJiraCloudId(params!.domain, params!.accessToken))
 
-    // Fetch and resolve link type by id/name/inward/outward (case-insensitive)
     const typesResp = await fetch(
       `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLinkType`,
       {
@@ -136,7 +114,6 @@ export const jiraCreateIssueLinkTool: ToolConfig<
       throw new Error(`Unknown issue link type "${params!.linkType}". Available: ${available}`)
     }
 
-    // Create issue link
     const linkUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLink`
     const linkResponse = await fetch(linkUrl, {
       method: 'POST',
@@ -179,21 +156,26 @@ export const jiraCreateIssueLinkTool: ToolConfig<
       throw new Error(message)
     }
 
-    // Try to extract the newly created link ID from the Location header
-    const location = linkResponse.headers.get('location') || linkResponse.headers.get('Location')
-    let linkId: string | undefined
-    if (location) {
-      const match = location.match(/\/issueLink\/(\d+)/)
-      if (match) linkId = match[1]
+    let linkId: string | null = null
+
+    try {
+      const linkData = await linkResponse.json()
+      if (linkData?.id) linkId = String(linkData.id)
+    } catch {
+      const location = linkResponse.headers.get('location') || linkResponse.headers.get('Location')
+      if (location) {
+        const match = location.match(/\/issueLink\/(\d+)/)
+        if (match) linkId = match[1]
+      }
     }
 
     return {
       success: true,
       output: {
         ts: new Date().toISOString(),
-        inwardIssue: params?.inwardIssueKey || 'unknown',
-        outwardIssue: params?.outwardIssueKey || 'unknown',
-        linkType: params?.linkType || 'unknown',
+        inwardIssue: params!.inwardIssueKey || 'unknown',
+        outwardIssue: params!.outwardIssueKey || 'unknown',
+        linkType: params!.linkType || 'unknown',
         linkId,
         success: true,
       },
@@ -201,7 +183,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     inwardIssue: { type: 'string', description: 'Inward issue key' },
     outwardIssue: { type: 'string', description: 'Outward issue key' },
     linkType: { type: 'string', description: 'Type of issue link' },

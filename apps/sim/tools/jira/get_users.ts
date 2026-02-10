@@ -1,38 +1,20 @@
+import type { JiraGetUsersParams, JiraGetUsersResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { ToolConfig } from '@/tools/types'
 
-export interface JiraGetUsersParams {
-  accessToken: string
-  domain: string
-  accountId?: string
-  startAt?: number
-  maxResults?: number
-  cloudId?: string
-}
-
-export interface JiraUser {
-  accountId: string
-  accountType?: string
-  active: boolean
-  displayName: string
-  emailAddress?: string
-  avatarUrls?: {
-    '16x16'?: string
-    '24x24'?: string
-    '32x32'?: string
-    '48x48'?: string
-  }
-  timeZone?: string
-  self?: string
-}
-
-export interface JiraGetUsersResponse extends ToolResponse {
-  output: {
-    ts: string
-    users: JiraUser[]
-    total?: number
-    startAt?: number
-    maxResults?: number
+/**
+ * Transforms a raw Jira user API object into typed output.
+ */
+function transformUserOutput(user: any) {
+  return {
+    accountId: user.accountId ?? '',
+    accountType: user.accountType ?? null,
+    active: user.active ?? false,
+    displayName: user.displayName ?? '',
+    emailAddress: user.emailAddress ?? null,
+    avatarUrl: user.avatarUrls?.['48x48'] ?? null,
+    timeZone: user.timeZone ?? null,
   }
 }
 
@@ -112,9 +94,7 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
   },
 
   transformResponse: async (response: Response, params?: JiraGetUsersParams) => {
-    if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-
+    const fetchUsers = async (cloudId: string) => {
       let usersUrl: string
       if (params!.accountId) {
         usersUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/user?accountId=${encodeURIComponent(params!.accountId)}`
@@ -144,41 +124,25 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
         throw new Error(message)
       }
 
-      const data = await usersResponse.json()
+      return usersResponse.json()
+    }
 
-      const users = params!.accountId ? [data] : data
+    let data: any
 
-      return {
-        success: true,
-        output: {
-          ts: new Date().toISOString(),
-          users: users.map((user: any) => ({
-            accountId: user.accountId,
-            accountType: user.accountType,
-            active: user.active,
-            displayName: user.displayName,
-            emailAddress: user.emailAddress,
-            avatarUrls: user.avatarUrls,
-            timeZone: user.timeZone,
-            self: user.self,
-          })),
-          total: params!.accountId ? 1 : users.length,
-          startAt: params!.startAt || 0,
-          maxResults: params!.maxResults || 50,
-        },
+    if (!params?.cloudId) {
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      data = await fetchUsers(cloudId)
+    } else {
+      if (!response.ok) {
+        let message = `Failed to get Jira users (${response.status})`
+        try {
+          const err = await response.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } catch (_e) {}
+        throw new Error(message)
       }
+      data = await response.json()
     }
-
-    if (!response.ok) {
-      let message = `Failed to get Jira users (${response.status})`
-      try {
-        const err = await response.json()
-        message = err?.errorMessages?.join(', ') || err?.message || message
-      } catch (_e) {}
-      throw new Error(message)
-    }
-
-    const data = await response.json()
 
     const users = params?.accountId ? [data] : data
 
@@ -186,29 +150,23 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
       success: true,
       output: {
         ts: new Date().toISOString(),
-        users: users.map((user: any) => ({
-          accountId: user.accountId,
-          accountType: user.accountType,
-          active: user.active,
-          displayName: user.displayName,
-          emailAddress: user.emailAddress,
-          avatarUrls: user.avatarUrls,
-          timeZone: user.timeZone,
-          self: user.self,
-        })),
+        users: users.map(transformUserOutput),
         total: params?.accountId ? 1 : users.length,
-        startAt: params?.startAt || 0,
-        maxResults: params?.maxResults || 50,
+        startAt: params?.startAt ?? 0,
+        maxResults: params?.maxResults ?? 50,
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     users: {
-      type: 'json',
-      description:
-        'Array of users with accountId, displayName, emailAddress, active status, and avatarUrls',
+      type: 'array',
+      description: 'Array of Jira users',
+      items: {
+        type: 'object',
+        properties: USER_OUTPUT_PROPERTIES,
+      },
     },
     total: { type: 'number', description: 'Total number of users returned' },
     startAt: { type: 'number', description: 'Pagination start index' },

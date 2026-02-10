@@ -1,4 +1,5 @@
 import type { JsmGetCustomersParams, JsmGetCustomersResponse } from '@/tools/jsm/types'
+import { CUSTOMER_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetCustomersTool: ToolConfig<JsmGetCustomersParams, JsmGetCustomersResponse> = {
@@ -110,7 +111,14 @@ export const jsmGetCustomersTool: ToolConfig<JsmGetCustomersParams, JsmGetCustom
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    customers: { type: 'json', description: 'Array of customers' },
+    customers: {
+      type: 'array',
+      description: 'List of customers',
+      items: {
+        type: 'object',
+        properties: CUSTOMER_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of customers' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

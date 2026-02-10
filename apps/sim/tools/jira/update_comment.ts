@@ -1,6 +1,23 @@
 import type { JiraUpdateCommentParams, JiraUpdateCommentResponse } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
+import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Transforms an update comment API response into typed output.
+ */
+function transformUpdateCommentResponse(data: any, params: JiraUpdateCommentParams) {
+  return {
+    ts: new Date().toISOString(),
+    issueKey: params.issueKey ?? 'unknown',
+    commentId: data?.id ?? params.commentId ?? 'unknown',
+    body: data?.body ? (extractAdfText(data.body) ?? params.body ?? '') : (params.body ?? ''),
+    author: transformUser(data?.author) ?? { accountId: '', displayName: '' },
+    created: data?.created ?? '',
+    updated: data?.updated ?? '',
+    success: true,
+  }
+}
 
 export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpdateCommentResponse> =
   {
@@ -45,6 +62,13 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
         visibility: 'user-or-llm',
         description: 'Updated comment text',
       },
+      visibility: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Restrict comment visibility. Object with "type" ("role" or "group") and "value" (role/group name).',
+      },
       cloudId: {
         type: 'string',
         required: false,
@@ -71,55 +95,48 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
       },
       body: (params: JiraUpdateCommentParams) => {
         if (!params.cloudId) return undefined as any
-        return {
+        const payload: Record<string, any> = {
           body: {
             type: 'doc',
             version: 1,
             content: [
               {
                 type: 'paragraph',
-                content: [
-                  {
-                    type: 'text',
-                    text: params.body,
-                  },
-                ],
+                content: [{ type: 'text', text: params.body }],
               },
             ],
           },
         }
+        if (params.visibility) payload.visibility = params.visibility
+        return payload
       },
     },
 
     transformResponse: async (response: Response, params?: JiraUpdateCommentParams) => {
-      if (!params?.cloudId) {
-        const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-        // Make the actual request with the resolved cloudId
-        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/comment/${params?.commentId}`
+      const payload: Record<string, any> = {
+        body: {
+          type: 'doc',
+          version: 1,
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: params?.body ?? '' }],
+            },
+          ],
+        },
+      }
+      if (params?.visibility) payload.visibility = params.visibility
+
+      const makeRequest = async (cloudId: string) => {
+        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/comment/${params!.commentId}`
         const commentResponse = await fetch(commentUrl, {
           method: 'PUT',
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${params?.accessToken}`,
+            Authorization: `Bearer ${params!.accessToken}`,
           },
-          body: JSON.stringify({
-            body: {
-              type: 'doc',
-              version: 1,
-              content: [
-                {
-                  type: 'paragraph',
-                  content: [
-                    {
-                      type: 'text',
-                      text: params?.body,
-                    },
-                  ],
-                },
-              ],
-            },
-          }),
+          body: JSON.stringify(payload),
         })
 
         if (!commentResponse.ok) {
@@ -131,48 +148,46 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
           throw new Error(message)
         }
 
-        const data = await commentResponse.json()
+        return commentResponse.json()
+      }
 
-        return {
-          success: true,
-          output: {
-            ts: new Date().toISOString(),
-            issueKey: params?.issueKey || 'unknown',
-            commentId: data?.id || params?.commentId || 'unknown',
-            body: params?.body || '',
-            success: true,
-          },
+      let data: any
+
+      if (!params?.cloudId) {
+        const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+        data = await makeRequest(cloudId)
+      } else {
+        if (!response.ok) {
+          let message = `Failed to update comment on Jira issue (${response.status})`
+          try {
+            const err = await response.json()
+            message = err?.errorMessages?.join(', ') || err?.message || message
+          } catch (_e) {}
+          throw new Error(message)
         }
+        data = await response.json()
       }
-
-      // If cloudId was provided, process the response
-      if (!response.ok) {
-        let message = `Failed to update comment on Jira issue (${response.status})`
-        try {
-          const err = await response.json()
-          message = err?.errorMessages?.join(', ') || err?.message || message
-        } catch (_e) {}
-        throw new Error(message)
-      }
-
-      const data = await response.json()
 
       return {
         success: true,
-        output: {
-          ts: new Date().toISOString(),
-          issueKey: params?.issueKey || 'unknown',
-          commentId: data?.id || params?.commentId || 'unknown',
-          body: params?.body || '',
-          success: true,
-        },
+        output: transformUpdateCommentResponse(data, params!),
       }
     },
 
     outputs: {
-      ts: { type: 'string', description: 'Timestamp of the operation' },
+      ts: TIMESTAMP_OUTPUT,
       issueKey: { type: 'string', description: 'Issue key' },
       commentId: { type: 'string', description: 'Updated comment ID' },
       body: { type: 'string', description: 'Updated comment text' },
+      author: {
+        type: 'object',
+        description: 'Comment author',
+        properties: USER_OUTPUT_PROPERTIES,
+      },
+      created: { type: 'string', description: 'ISO 8601 timestamp when the comment was created' },
+      updated: {
+        type: 'string',
+        description: 'ISO 8601 timestamp when the comment was last updated',
+      },
     },
   }

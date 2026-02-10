@@ -1,4 +1,5 @@
 import type { JsmGetRequestsParams, JsmGetRequestsResponse } from '@/tools/jsm/types'
+import { REQUEST_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequestsResponse> = {
@@ -42,19 +43,32 @@ export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequests
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, ORGANIZATION, ALL_REQUESTS',
+        'Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, APPROVER, ALL_REQUESTS',
     },
     requestStatus: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by status: OPEN, CLOSED, ALL',
+      description: 'Filter by status: OPEN_REQUESTS, CLOSED_REQUESTS, ALL_REQUESTS',
+    },
+    requestTypeId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by request type ID',
     },
     searchTerm: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Search term to filter requests (e.g., "password reset", "laptop")',
+    },
+    expand: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action',
     },
     start: {
       type: 'number',
@@ -83,7 +97,9 @@ export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequests
       serviceDeskId: params.serviceDeskId,
       requestOwnership: params.requestOwnership,
       requestStatus: params.requestStatus,
+      requestTypeId: params.requestTypeId,
       searchTerm: params.searchTerm,
+      expand: params.expand,
       start: params.start,
       limit: params.limit,
     }),
@@ -125,8 +141,15 @@ export const jsmGetRequestsTool: ToolConfig<JsmGetRequestsParams, JsmGetRequests
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    requests: { type: 'json', description: 'Array of service requests' },
-    total: { type: 'number', description: 'Total number of requests' },
+    requests: {
+      type: 'array',
+      description: 'List of service requests',
+      items: {
+        type: 'object',
+        properties: REQUEST_ITEM_PROPERTIES,
+      },
+    },
+    total: { type: 'number', description: 'Total number of requests in current page' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },
 }

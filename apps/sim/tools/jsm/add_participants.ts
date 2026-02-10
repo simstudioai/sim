@@ -1,4 +1,5 @@
 import type { JsmAddParticipantsParams, JsmAddParticipantsResponse } from '@/tools/jsm/types'
+import { PARTICIPANT_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmAddParticipantsTool: ToolConfig<
@@ -101,7 +102,14 @@ export const jsmAddParticipantsTool: ToolConfig<
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
     issueIdOrKey: { type: 'string', description: 'Issue ID or key' },
-    participants: { type: 'json', description: 'Array of added participants' },
+    participants: {
+      type: 'array',
+      description: 'List of added participants',
+      items: {
+        type: 'object',
+        properties: PARTICIPANT_ITEM_PROPERTIES,
+      },
+    },
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
   },
 }

@@ -1,6 +1,24 @@
 import type { JiraGetAttachmentsParams, JiraGetAttachmentsResponse } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { ATTACHMENT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
+import { getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Transforms a raw Jira attachment object into typed output.
+ */
+function transformAttachment(att: any) {
+  return {
+    id: att.id ?? '',
+    filename: att.filename ?? '',
+    mimeType: att.mimeType ?? '',
+    size: att.size ?? 0,
+    content: att.content ?? '',
+    thumbnail: att.thumbnail ?? null,
+    author: transformUser(att.author),
+    created:
+      typeof att.created === 'number' ? new Date(att.created).toISOString() : (att.created ?? ''),
+  }
+}
 
 export const jiraGetAttachmentsTool: ToolConfig<
   JiraGetAttachmentsParams,
@@ -61,15 +79,13 @@ export const jiraGetAttachmentsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params?: JiraGetAttachmentsParams) => {
-    if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      // Make the actual request with the resolved cloudId
-      const attachmentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}?fields=attachment`
+    const fetchAttachments = async (cloudId: string) => {
+      const attachmentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}?fields=attachment`
       const attachmentsResponse = await fetch(attachmentsUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${params?.accessToken}`,
+          Authorization: `Bearer ${params!.accessToken}`,
         },
       })
 
@@ -82,60 +98,46 @@ export const jiraGetAttachmentsTool: ToolConfig<
         throw new Error(message)
       }
 
-      const data = await attachmentsResponse.json()
+      return attachmentsResponse.json()
+    }
 
-      return {
-        success: true,
-        output: {
-          ts: new Date().toISOString(),
-          issueKey: params?.issueKey || 'unknown',
-          attachments: (data?.fields?.attachment || []).map((att: any) => ({
-            id: att.id,
-            filename: att.filename,
-            size: att.size,
-            mimeType: att.mimeType,
-            created: att.created,
-            author: att.author?.displayName || att.author?.accountId || 'Unknown',
-          })),
-        },
+    let data: any
+
+    if (!params?.cloudId) {
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      data = await fetchAttachments(cloudId)
+    } else {
+      if (!response.ok) {
+        let message = `Failed to get attachments from Jira issue (${response.status})`
+        try {
+          const err = await response.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } catch (_e) {}
+        throw new Error(message)
       }
+      data = await response.json()
     }
-
-    // If cloudId was provided, process the response
-    if (!response.ok) {
-      let message = `Failed to get attachments from Jira issue (${response.status})`
-      try {
-        const err = await response.json()
-        message = err?.errorMessages?.join(', ') || err?.message || message
-      } catch (_e) {}
-      throw new Error(message)
-    }
-
-    const data = await response.json()
 
     return {
       success: true,
       output: {
         ts: new Date().toISOString(),
-        issueKey: params?.issueKey || 'unknown',
-        attachments: (data?.fields?.attachment || []).map((att: any) => ({
-          id: att.id,
-          filename: att.filename,
-          size: att.size,
-          mimeType: att.mimeType,
-          created: att.created,
-          author: att.author?.displayName || att.author?.accountId || 'Unknown',
-        })),
+        issueKey: params?.issueKey ?? 'unknown',
+        attachments: (data?.fields?.attachment ?? []).map(transformAttachment),
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     issueKey: { type: 'string', description: 'Issue key' },
     attachments: {
       type: 'array',
-      description: 'Array of attachments with id, filename, size, mimeType, created, author',
+      description: 'Array of attachments',
+      items: {
+        type: 'object',
+        properties: ATTACHMENT_ITEM_PROPERTIES,
+      },
     },
   },
 }

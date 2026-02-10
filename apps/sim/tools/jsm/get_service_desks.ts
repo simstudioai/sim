@@ -1,4 +1,5 @@
 import type { JsmGetServiceDesksParams, JsmGetServiceDesksResponse } from '@/tools/jsm/types'
+import { SERVICE_DESK_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetServiceDesksTool: ToolConfig<
@@ -34,6 +35,12 @@ export const jsmGetServiceDesksTool: ToolConfig<
       visibility: 'hidden',
       description: 'Jira Cloud ID for the instance',
     },
+    expand: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated fields to expand in the response',
+    },
     start: {
       type: 'number',
       required: false,
@@ -58,6 +65,7 @@ export const jsmGetServiceDesksTool: ToolConfig<
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,
+      expand: params.expand,
       start: params.start,
       limit: params.limit,
     }),
@@ -99,7 +107,14 @@ export const jsmGetServiceDesksTool: ToolConfig<
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    serviceDesks: { type: 'json', description: 'Array of service desks' },
+    serviceDesks: {
+      type: 'array',
+      description: 'List of service desks',
+      items: {
+        type: 'object',
+        properties: SERVICE_DESK_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of service desks' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

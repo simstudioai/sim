@@ -70,7 +70,7 @@ export function isLikelyReferenceSegment(segment: string): boolean {
     if (INVALID_REFERENCE_CHARS.test(beforeDot) || INVALID_REFERENCE_CHARS.test(afterDot)) {
       return false
     }
-  } else if (INVALID_REFERENCE_CHARS.test(inner) || inner.match(/^\d/) || inner.match(/\s\d/)) {
+  } else if (INVALID_REFERENCE_CHARS.test(inner) || inner.match(/^\d+$/) || inner.match(/\s\d/)) {
     return false
   }
 

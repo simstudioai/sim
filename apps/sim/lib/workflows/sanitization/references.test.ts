@@ -43,4 +43,13 @@ describe('isLikelyReferenceSegment', () => {
   it('should return false when leading content is not comparator characters', () => {
     expect(isLikelyReferenceSegment('<foo<bar>')).toBe(false)
   })
+
+  it('should return true for references starting with a digit', () => {
+    expect(isLikelyReferenceSegment('<1password1>')).toBe(true)
+    expect(isLikelyReferenceSegment('<1password1.secret>')).toBe(true)
+  })
+
+  it('should return false for purely numeric references', () => {
+    expect(isLikelyReferenceSegment('<123>')).toBe(false)
+  })
 })

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { domain, accessToken, cloudId: cloudIdParam, issueIdOrKey } = body
+    const { domain, accessToken, cloudId: cloudIdParam, issueIdOrKey, start, limit } = body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -47,7 +47,11 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const url = `${baseUrl}/request/${issueIdOrKey}/transition`
+    const params = new URLSearchParams()
+    if (start) params.append('start', start)
+    if (limit) params.append('limit', limit)
+
+    const url = `${baseUrl}/request/${issueIdOrKey}/transition${params.toString() ? `?${params.toString()}` : ''}`
 
     logger.info('Fetching transitions from:', url)
 
@@ -78,6 +82,8 @@ export async function POST(request: NextRequest) {
         ts: new Date().toISOString(),
         issueIdOrKey,
         transitions: data.values || [],
+        total: data.size || 0,
+        isLastPage: data.isLastPage ?? true,
       },
     })
   } catch (error) {

@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       issueIdOrKey,
       isPublic,
       internal,
+      expand,
       start,
       limit,
     } = body
@@ -57,8 +58,9 @@ export async function POST(request: NextRequest) {
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
     const params = new URLSearchParams()
-    if (isPublic) params.append('public', isPublic)
-    if (internal) params.append('internal', internal)
+    if (isPublic !== undefined) params.append('public', String(isPublic))
+    if (internal !== undefined) params.append('internal', String(internal))
+    if (expand) params.append('expand', expand)
     if (start) params.append('start', start)
     if (limit) params.append('limit', limit)
 

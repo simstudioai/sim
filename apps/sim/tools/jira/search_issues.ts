@@ -1,6 +1,72 @@
 import type { JiraSearchIssuesParams, JiraSearchIssuesResponse } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { SEARCH_ISSUE_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
+import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Transforms a raw Jira search result issue into typed output.
+ */
+function transformSearchIssue(issue: any) {
+  const fields = issue?.fields ?? {}
+  return {
+    id: issue.id ?? '',
+    key: issue.key ?? '',
+    self: issue.self ?? '',
+    summary: fields.summary ?? '',
+    description: extractAdfText(fields.description),
+    status: {
+      id: fields.status?.id ?? '',
+      name: fields.status?.name ?? '',
+      description: fields.status?.description ?? null,
+      statusCategory: fields.status?.statusCategory
+        ? {
+            id: fields.status.statusCategory.id,
+            key: fields.status.statusCategory.key ?? '',
+            name: fields.status.statusCategory.name ?? '',
+            colorName: fields.status.statusCategory.colorName ?? '',
+          }
+        : null,
+    },
+    issuetype: {
+      id: fields.issuetype?.id ?? '',
+      name: fields.issuetype?.name ?? '',
+      description: fields.issuetype?.description ?? null,
+      subtask: fields.issuetype?.subtask ?? false,
+      iconUrl: fields.issuetype?.iconUrl ?? null,
+    },
+    project: {
+      id: fields.project?.id ?? '',
+      key: fields.project?.key ?? '',
+      name: fields.project?.name ?? '',
+      projectTypeKey: fields.project?.projectTypeKey ?? null,
+    },
+    priority: fields.priority
+      ? {
+          id: fields.priority.id ?? '',
+          name: fields.priority.name ?? '',
+          iconUrl: fields.priority.iconUrl ?? null,
+        }
+      : null,
+    assignee: transformUser(fields.assignee),
+    reporter: transformUser(fields.reporter),
+    labels: fields.labels ?? [],
+    components: (fields.components ?? []).map((c: any) => ({
+      id: c.id ?? '',
+      name: c.name ?? '',
+      description: c.description ?? null,
+    })),
+    resolution: fields.resolution
+      ? {
+          id: fields.resolution.id ?? '',
+          name: fields.resolution.name ?? '',
+          description: fields.resolution.description ?? null,
+        }
+      : null,
+    duedate: fields.duedate ?? null,
+    created: fields.created ?? '',
+    updated: fields.updated ?? '',
+  }
+}
 
 export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearchIssuesResponse> = {
   id: 'jira_search_issues',
@@ -33,24 +99,24 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       description:
         'JQL query string to search for issues (e.g., "project = PROJ AND status = Open")',
     },
-    startAt: {
-      type: 'number',
+    nextPageToken: {
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The index of the first result to return (for pagination)',
+      description: 'Cursor token for the next page of results. Omit for the first page.',
     },
     maxResults: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (default: 50)',
+      description: 'Maximum number of results to return per page (default: 50)',
     },
     fields: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Array of field names to return (default: ['summary', 'status', 'assignee', 'created', 'updated'])",
+        'Array of field names to return (default: all navigable). Use "*all" for every field.',
     },
     cloudId: {
       type: 'string',
@@ -66,7 +132,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       if (params.cloudId) {
         const query = new URLSearchParams()
         if (params.jql) query.set('jql', params.jql)
-        if (typeof params.startAt === 'number') query.set('startAt', String(params.startAt))
+        if (params.nextPageToken) query.set('nextPageToken', params.nextPageToken)
         if (typeof params.maxResults === 'number')
           query.set('maxResults', String(params.maxResults))
         if (Array.isArray(params.fields) && params.fields.length > 0)
@@ -77,22 +143,19 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
     method: () => 'GET',
-    headers: (params: JiraSearchIssuesParams) => {
-      return {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
+    headers: (params: JiraSearchIssuesParams) => ({
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.accessToken}`,
+    }),
     body: () => undefined as any,
   },
 
   transformResponse: async (response: Response, params?: JiraSearchIssuesParams) => {
-    if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+    const performSearch = async (cloudId: string) => {
       const query = new URLSearchParams()
       if (params?.jql) query.set('jql', params.jql)
-      if (typeof params?.startAt === 'number') query.set('startAt', String(params.startAt))
+      if (params?.nextPageToken) query.set('nextPageToken', params.nextPageToken)
       if (typeof params?.maxResults === 'number') query.set('maxResults', String(params.maxResults))
       if (Array.isArray(params?.fields) && params.fields.length > 0)
         query.set('fields', params.fields.join(','))
@@ -103,12 +166,6 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
           Accept: 'application/json',
           Authorization: `Bearer ${params!.accessToken}`,
         },
-        body: JSON.stringify({
-          jql: params?.jql,
-          startAt: params?.startAt ? Number(params.startAt) : 0,
-          maxResults: params?.maxResults ? Number(params.maxResults) : 50,
-          fields: params?.fields || ['summary', 'status', 'assignee', 'created', 'updated'],
-        }),
       })
 
       if (!searchResponse.ok) {
@@ -120,65 +177,58 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         throw new Error(message)
       }
 
-      const data = await searchResponse.json()
+      return searchResponse.json()
+    }
 
-      return {
-        success: true,
-        output: {
-          ts: new Date().toISOString(),
-          total: data?.total || 0,
-          startAt: data?.startAt || 0,
-          maxResults: data?.maxResults || 0,
-          issues: (data?.issues || []).map((issue: any) => ({
-            key: issue.key,
-            summary: issue.fields?.summary,
-            status: issue.fields?.status?.name,
-            assignee: issue.fields?.assignee?.displayName || issue.fields?.assignee?.accountId,
-            created: issue.fields?.created,
-            updated: issue.fields?.updated,
-          })),
-        },
+    let data: any
+
+    if (!params?.cloudId) {
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      data = await performSearch(cloudId)
+    } else {
+      if (!response.ok) {
+        let message = `Failed to search Jira issues (${response.status})`
+        try {
+          const err = await response.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } catch (_e) {}
+        throw new Error(message)
       }
+      data = await response.json()
     }
-
-    if (!response.ok) {
-      let message = `Failed to search Jira issues (${response.status})`
-      try {
-        const err = await response.json()
-        message = err?.errorMessages?.join(', ') || err?.message || message
-      } catch (_e) {}
-      throw new Error(message)
-    }
-
-    const data = await response.json()
 
     return {
       success: true,
       output: {
         ts: new Date().toISOString(),
-        total: data?.total || 0,
-        startAt: data?.startAt || 0,
-        maxResults: data?.maxResults || 0,
-        issues: (data?.issues || []).map((issue: any) => ({
-          key: issue.key,
-          summary: issue.fields?.summary,
-          status: issue.fields?.status?.name,
-          assignee: issue.fields?.assignee?.displayName || issue.fields?.assignee?.accountId,
-          created: issue.fields?.created,
-          updated: issue.fields?.updated,
-        })),
+        issues: (data?.issues ?? []).map(transformSearchIssue),
+        nextPageToken: data?.nextPageToken ?? null,
+        isLast: data?.isLast ?? true,
+        total: data?.total ?? null,
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
-    total: { type: 'number', description: 'Total number of matching issues' },
-    startAt: { type: 'number', description: 'Pagination start index' },
-    maxResults: { type: 'number', description: 'Maximum results per page' },
+    ts: TIMESTAMP_OUTPUT,
     issues: {
       type: 'array',
-      description: 'Array of matching issues with key, summary, status, assignee, created, updated',
+      description: 'Array of matching issues',
+      items: {
+        type: 'object',
+        properties: SEARCH_ISSUE_ITEM_PROPERTIES,
+      },
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Cursor token for the next page. Null when no more results.',
+      optional: true,
+    },
+    isLast: { type: 'boolean', description: 'Whether this is the last page of results' },
+    total: {
+      type: 'number',
+      description: 'Total number of matching issues (may not always be available)',
+      optional: true,
     },
   },
 }

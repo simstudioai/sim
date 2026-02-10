@@ -23,6 +23,7 @@
     "generate-docs": "bun run ../../scripts/generate-docs.ts"
   },
   "dependencies": {
+    "@1password/sdk": "0.3.1",
     "@a2a-js/sdk": "0.3.7",
     "@anthropic-ai/sdk": "0.71.2",
     "@aws-sdk/client-bedrock-runtime": "3.940.0",

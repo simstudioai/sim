@@ -1,20 +1,7 @@
+import type { JiraDeleteIssueLinkParams, JiraDeleteIssueLinkResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-export interface JiraDeleteIssueLinkParams {
-  accessToken: string
-  domain: string
-  linkId: string
-  cloudId?: string
-}
-
-export interface JiraDeleteIssueLinkResponse extends ToolResponse {
-  output: {
-    ts: string
-    linkId: string
-    success: boolean
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const jiraDeleteIssueLinkTool: ToolConfig<
   JiraDeleteIssueLinkParams,
@@ -77,13 +64,12 @@ export const jiraDeleteIssueLinkTool: ToolConfig<
   transformResponse: async (response: Response, params?: JiraDeleteIssueLinkParams) => {
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      // Make the actual request with the resolved cloudId
-      const issueLinkUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLink/${params?.linkId}`
+      const issueLinkUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issueLink/${params!.linkId}`
       const issueLinkResponse = await fetch(issueLinkUrl, {
         method: 'DELETE',
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${params?.accessToken}`,
+          Authorization: `Bearer ${params!.accessToken}`,
         },
       })
 
@@ -100,13 +86,12 @@ export const jiraDeleteIssueLinkTool: ToolConfig<
         success: true,
         output: {
           ts: new Date().toISOString(),
-          linkId: params?.linkId || 'unknown',
+          linkId: params!.linkId || 'unknown',
           success: true,
         },
       }
     }
 
-    // If cloudId was provided, process the response
     if (!response.ok) {
       let message = `Failed to delete issue link (${response.status})`
       try {
@@ -120,14 +105,14 @@ export const jiraDeleteIssueLinkTool: ToolConfig<
       success: true,
       output: {
         ts: new Date().toISOString(),
-        linkId: params?.linkId || 'unknown',
+        linkId: params!.linkId || 'unknown',
         success: true,
       },
     }
   },
 
   outputs: {
-    ts: { type: 'string', description: 'Timestamp of the operation' },
+    ts: TIMESTAMP_OUTPUT,
     linkId: { type: 'string', description: 'Deleted link ID' },
   },
 }

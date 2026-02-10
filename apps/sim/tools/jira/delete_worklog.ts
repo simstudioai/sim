@@ -1,22 +1,7 @@
+import type { JiraDeleteWorklogParams, JiraDeleteWorklogResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-export interface JiraDeleteWorklogParams {
-  accessToken: string
-  domain: string
-  issueKey: string
-  worklogId: string
-  cloudId?: string
-}
-
-export interface JiraDeleteWorklogResponse extends ToolResponse {
-  output: {
-    ts: string
-    issueKey: string
-    worklogId: string
-    success: boolean
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDeleteWorklogResponse> =
   {
@@ -83,13 +68,12 @@ export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDele
     transformResponse: async (response: Response, params?: JiraDeleteWorklogParams) => {
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-        // Make the actual request with the resolved cloudId
-        const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/worklog/${params?.worklogId}`
+        const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/worklog/${params!.worklogId}`
         const worklogResponse = await fetch(worklogUrl, {
           method: 'DELETE',
           headers: {
             Accept: 'application/json',
-            Authorization: `Bearer ${params?.accessToken}`,
+            Authorization: `Bearer ${params!.accessToken}`,
           },
         })
 
@@ -106,14 +90,13 @@ export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDele
           success: true,
           output: {
             ts: new Date().toISOString(),
-            issueKey: params?.issueKey || 'unknown',
-            worklogId: params?.worklogId || 'unknown',
+            issueKey: params!.issueKey || 'unknown',
+            worklogId: params!.worklogId || 'unknown',
             success: true,
           },
         }
       }
 
-      // If cloudId was provided, process the response
       if (!response.ok) {
         let message = `Failed to delete worklog from Jira issue (${response.status})`
         try {
@@ -127,15 +110,15 @@ export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDele
         success: true,
         output: {
           ts: new Date().toISOString(),
-          issueKey: params?.issueKey || 'unknown',
-          worklogId: params?.worklogId || 'unknown',
+          issueKey: params!.issueKey || 'unknown',
+          worklogId: params!.worklogId || 'unknown',
           success: true,
         },
       }
     },
 
     outputs: {
-      ts: { type: 'string', description: 'Timestamp of the operation' },
+      ts: TIMESTAMP_OUTPUT,
       issueKey: { type: 'string', description: 'Issue key' },
       worklogId: { type: 'string', description: 'Deleted worklog ID' },
     },

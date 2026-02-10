@@ -1,4 +1,5 @@
 import type { JsmGetQueuesParams, JsmGetQueuesResponse } from '@/tools/jsm/types'
+import { QUEUE_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetQueuesTool: ToolConfig<JsmGetQueuesParams, JsmGetQueuesResponse> = {
@@ -110,7 +111,14 @@ export const jsmGetQueuesTool: ToolConfig<JsmGetQueuesParams, JsmGetQueuesRespon
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    queues: { type: 'json', description: 'Array of queues' },
+    queues: {
+      type: 'array',
+      description: 'List of queues',
+      items: {
+        type: 'object',
+        properties: QUEUE_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of queues' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },
