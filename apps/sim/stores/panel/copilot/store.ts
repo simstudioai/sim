@@ -299,6 +299,12 @@ type InitiateStreamResult =
   | { kind: 'success'; result: Awaited<ReturnType<typeof sendStreamingMessage>> }
   | { kind: 'error'; error: unknown }
 
+/** Look up the provider for the currently selected model from the available models list. */
+function getSelectedProvider(get: CopilotGet): string | undefined {
+  const selectedModel = get().selectedModel
+  return get().availableModels.find((m) => m.id === selectedModel)?.provider
+}
+
 function prepareSendContext(
   get: CopilotGet,
   set: CopilotSet,
@@ -489,6 +495,7 @@ async function initiateStream(
       workflowId: prepared.workflowId || undefined,
       mode: apiMode,
       model: get().selectedModel,
+      provider: getSelectedProvider(get),
       prefetch: get().agentPrefetch,
       createNewChat: !prepared.currentChat,
       stream: prepared.stream,
@@ -866,6 +873,7 @@ async function resumeFromLiveStream(
       chatId: resume.nextStream.chatId || get().currentChat?.id || undefined,
       mode: get().mode === 'ask' ? 'ask' : get().mode === 'plan' ? 'plan' : 'agent',
       model: get().selectedModel,
+      provider: getSelectedProvider(get),
       prefetch: get().agentPrefetch,
       stream: true,
       resumeFromEventId: resume.resumeFromEventId,
@@ -1437,6 +1445,7 @@ export const useCopilotStore = create<CopilotStore>()(
           workflowId,
           mode: apiMode,
           model: selectedModel,
+          provider: getSelectedProvider(get),
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,
           stream: true,

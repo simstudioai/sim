@@ -14,6 +14,7 @@ export interface BuildPayloadParams {
   userMessageId: string
   mode: string
   model: string
+  provider?: string
   conversationHistory?: unknown[]
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
@@ -58,6 +59,7 @@ export async function buildCopilotRequestPayload(
     userId,
     userMessageId,
     mode,
+    provider,
     contexts,
     fileAttachments,
     commands,
@@ -146,6 +148,7 @@ export async function buildCopilotRequestPayload(
     workflowId,
     userId,
     model: selectedModel,
+    ...(provider ? { provider } : {}),
     mode: transportMode,
     messageId: userMessageId,
     version: SIM_AGENT_VERSION,

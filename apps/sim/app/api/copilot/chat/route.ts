@@ -50,7 +50,7 @@ const ChatMessageSchema = z.object({
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
-  provider: z.string().optional().default('openai'),
+  provider: z.string().optional(),
   conversationId: z.string().optional(),
   contexts: z
     .array(
@@ -205,6 +205,7 @@ export async function POST(req: NextRequest) {
         userMessageId: userMessageIdToUse,
         mode,
         model: selectedModel,
+        provider,
         conversationHistory,
         contexts: agentContexts,
         fileAttachments,
