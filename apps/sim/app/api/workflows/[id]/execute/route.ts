@@ -33,7 +33,11 @@ import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/wor
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
+import type {
+  ExecutionMetadata,
+  IterationContext,
+  SerializableExecutionState,
+} from '@/executor/execution/types'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
@@ -276,24 +280,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     } = validation.data
 
     // Resolve runFromBlock snapshot from executionId if needed
-    let runFromBlock = rawRunFromBlock
-    if (runFromBlock && !runFromBlock.sourceSnapshot && runFromBlock.executionId) {
-      const { getExecutionState, getLatestExecutionState } = await import(
-        '@/lib/workflows/executor/execution-state'
-      )
-      const snapshot =
-        runFromBlock.executionId === 'latest'
-          ? await getLatestExecutionState(workflowId)
-          : await getExecutionState(runFromBlock.executionId)
-      if (!snapshot) {
+    let resolvedRunFromBlock:
+      | { startBlockId: string; sourceSnapshot: SerializableExecutionState }
+      | undefined
+    if (rawRunFromBlock) {
+      if (rawRunFromBlock.sourceSnapshot) {
+        resolvedRunFromBlock = {
+          startBlockId: rawRunFromBlock.startBlockId,
+          sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
+        }
+      } else if (rawRunFromBlock.executionId) {
+        const { getExecutionState, getLatestExecutionState } = await import(
+          '@/lib/workflows/executor/execution-state'
+        )
+        const snapshot =
+          rawRunFromBlock.executionId === 'latest'
+            ? await getLatestExecutionState(workflowId)
+            : await getExecutionState(rawRunFromBlock.executionId)
+        if (!snapshot) {
+          return NextResponse.json(
+            {
+              error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first.`,
+            },
+            { status: 400 }
+          )
+        }
+        resolvedRunFromBlock = {
+          startBlockId: rawRunFromBlock.startBlockId,
+          sourceSnapshot: snapshot,
+        }
+      } else {
         return NextResponse.json(
-          {
-            error: `No execution state found for ${runFromBlock.executionId === 'latest' ? 'workflow' : `execution ${runFromBlock.executionId}`}. Run the full workflow first.`,
-          },
+          { error: 'runFromBlock requires either sourceSnapshot or executionId' },
           { status: 400 }
         )
       }
-      runFromBlock = { startBlockId: runFromBlock.startBlockId, sourceSnapshot: snapshot }
     }
 
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
@@ -520,7 +541,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           includeFileBase64,
           base64MaxBytes,
           stopAfterBlockId,
-          runFromBlock,
+          runFromBlock: resolvedRunFromBlock,
           abortSignal: timeoutController.signal,
         })
 
@@ -861,7 +882,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             includeFileBase64,
             base64MaxBytes,
             stopAfterBlockId,
-            runFromBlock,
+            runFromBlock: resolvedRunFromBlock,
           })
 
           if (result.status === 'paused') {
