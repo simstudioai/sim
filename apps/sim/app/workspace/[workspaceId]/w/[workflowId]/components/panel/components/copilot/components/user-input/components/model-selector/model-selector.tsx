@@ -67,9 +67,14 @@ export function ModelSelector({ selectedModel, isNearTop, onModelSelect }: Model
     }))
   }, [availableModels])
 
-  /** Look up the provider for a model id from the available-models list */
-  const getProviderForModel = (modelId: string): string | undefined => {
-    return availableModels.find((m) => m.id === modelId)?.provider
+  /**
+   * Extract the provider from a composite model key (e.g. "bedrock/claude-opus-4-6" → "bedrock").
+   * This mirrors the agent block pattern where model IDs are provider-prefixed.
+   */
+  const getProviderForModel = (compositeKey: string): string | undefined => {
+    const slashIdx = compositeKey.indexOf('/')
+    if (slashIdx === -1) return undefined
+    return compositeKey.slice(0, slashIdx)
   }
 
   const getCollapsedModeLabel = () => {

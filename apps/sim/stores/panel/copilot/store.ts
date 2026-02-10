@@ -299,10 +299,21 @@ type InitiateStreamResult =
   | { kind: 'success'; result: Awaited<ReturnType<typeof sendStreamingMessage>> }
   | { kind: 'error'; error: unknown }
 
-/** Look up the provider for the currently selected model from the available models list. */
+/**
+ * Parse a composite model key (e.g. "bedrock/claude-opus-4-6") into provider and raw model ID.
+ * This mirrors the agent block pattern in providers/models.ts where model IDs are prefixed
+ * with the provider (e.g. "azure-anthropic/claude-sonnet-4-5", "bedrock/claude-opus-4-6").
+ */
+function parseModelKey(compositeKey: string): { provider: string; modelId: string } {
+  const slashIdx = compositeKey.indexOf('/')
+  if (slashIdx === -1) return { provider: '', modelId: compositeKey }
+  return { provider: compositeKey.slice(0, slashIdx), modelId: compositeKey.slice(slashIdx + 1) }
+}
+
+/** Look up the provider for the currently selected model from the composite key. */
 function getSelectedProvider(get: CopilotGet): string | undefined {
-  const selectedModel = get().selectedModel
-  return get().availableModels.find((m) => m.id === selectedModel)?.provider
+  const { provider } = parseModelKey(get().selectedModel)
+  return provider || undefined
 }
 
 function prepareSendContext(
@@ -488,14 +499,17 @@ async function initiateStream(
       }) as string[] | undefined
     const filteredContexts = contexts?.filter((c) => c.kind !== 'slash_command')
 
+    const { provider: selectedProvider, modelId: selectedModelId } = parseModelKey(
+      get().selectedModel
+    )
     const result = await sendStreamingMessage({
       message: messageToSend,
       userMessageId: prepared.userMessage.id,
       chatId: prepared.currentChat?.id,
       workflowId: prepared.workflowId || undefined,
       mode: apiMode,
-      model: get().selectedModel,
-      provider: getSelectedProvider(get),
+      model: selectedModelId,
+      provider: selectedProvider || undefined,
       prefetch: get().agentPrefetch,
       createNewChat: !prepared.currentChat,
       stream: prepared.stream,
@@ -866,14 +880,15 @@ async function resumeFromLiveStream(
       assistantMessageId: resume.nextStream.assistantMessageId,
       chatId: resume.nextStream.chatId,
     })
+    const { provider: resumeProvider, modelId: resumeModelId } = parseModelKey(get().selectedModel)
     const result = await sendStreamingMessage({
       message: resume.nextStream.userMessageContent || '',
       userMessageId: resume.nextStream.userMessageId,
       workflowId: resume.nextStream.workflowId,
       chatId: resume.nextStream.chatId || get().currentChat?.id || undefined,
       mode: get().mode === 'ask' ? 'ask' : get().mode === 'plan' ? 'plan' : 'agent',
-      model: get().selectedModel,
-      provider: getSelectedProvider(get),
+      model: resumeModelId,
+      provider: resumeProvider || undefined,
       prefetch: get().agentPrefetch,
       stream: true,
       resumeFromEventId: resume.resumeFromEventId,
@@ -920,7 +935,7 @@ const cachedAutoAllowedTools = readAutoAllowedToolsFromStorage()
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'build' as const,
-  selectedModel: 'claude-4.6-opus' as CopilotStore['selectedModel'],
+  selectedModel: 'anthropic/claude-opus-4-6' as CopilotStore['selectedModel'],
   agentPrefetch: false,
   enabledModels: null as string[] | null, // Null means not loaded yet, empty array means all disabled
   availableModels: [] as AvailableModel[],
@@ -1439,13 +1454,14 @@ export const useCopilotStore = create<CopilotStore>()(
       try {
         const apiMode: 'ask' | 'agent' | 'plan' =
           mode === 'ask' ? 'ask' : mode === 'plan' ? 'plan' : 'agent'
+        const { provider: fbProvider, modelId: fbModelId } = parseModelKey(selectedModel)
         const result = await sendStreamingMessage({
           message: 'Please continue your response.',
           chatId: currentChat?.id,
           workflowId,
           mode: apiMode,
-          model: selectedModel,
-          provider: getSelectedProvider(get),
+          model: fbModelId,
+          provider: fbProvider || undefined,
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,
           stream: true,
@@ -2226,16 +2242,34 @@ export const useCopilotStore = create<CopilotStore>()(
               typeof (model as { id: unknown }).id === 'string'
             )
           })
-          .map((model: AvailableModel) => ({
-            id: model.id,
-            friendlyName: model.friendlyName || model.id,
-            provider: model.provider || 'unknown',
-          }))
+          .map((model: AvailableModel) => {
+            const provider = model.provider || 'unknown'
+            // Use composite provider/modelId keys (matching agent block pattern in providers/models.ts)
+            // so models with the same raw ID from different providers are uniquely identified.
+            const compositeId = provider ? `${provider}/${model.id}` : model.id
+            return {
+              id: compositeId,
+              friendlyName: model.friendlyName || model.id,
+              provider,
+            }
+          })
 
         const { selectedModel } = get()
         const selectedModelExists = normalizedModels.some((model) => model.id === selectedModel)
-        const nextSelectedModel =
-          selectedModelExists || normalizedModels.length === 0 ? selectedModel : normalizedModels[0].id
+
+        // Pick the best default: prefer claude-opus-4-6 with provider priority:
+        // direct anthropic > bedrock > azure-anthropic > any other.
+        let nextSelectedModel = selectedModel
+        if (!selectedModelExists && normalizedModels.length > 0) {
+          const providerPriority = ['anthropic', 'bedrock', 'azure-anthropic']
+          let opus46: AvailableModel | undefined
+          for (const prov of providerPriority) {
+            opus46 = normalizedModels.find((m) => m.id === `${prov}/claude-opus-4-6`)
+            if (opus46) break
+          }
+          if (!opus46) opus46 = normalizedModels.find((m) => m.id.endsWith('/claude-opus-4-6'))
+          nextSelectedModel = opus46 ? opus46.id : normalizedModels[0].id
+        }
 
         set({
           availableModels: normalizedModels,
