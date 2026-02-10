@@ -8,9 +8,6 @@ import type {
   VaultOverview,
   Website,
 } from '@1password/sdk'
-import { createLogger } from '@sim/logger'
-
-const logger = createLogger('OnePasswordRouteUtils')
 
 /** Connect-format field type strings returned by normalization. */
 type ConnectFieldType =
@@ -262,8 +259,6 @@ export async function connectRequest(options: {
     headers['Content-Type'] = 'application/json'
   }
 
-  logger.info(`Connect request: ${options.method} ${options.path}`)
-
   return fetch(url, {
     method: options.method,
     headers,
@@ -295,7 +290,7 @@ export function normalizeSdkItemOverview(item: ItemOverview): NormalizedItemOver
     title: item.title,
     vault: { id: item.vaultId },
     category: SDK_TO_CONNECT_CATEGORY[item.category] ?? 'CUSTOM',
-    urls: item.websites.map((w: Website) => ({
+    urls: (item.websites ?? []).map((w: Website) => ({
       href: w.url,
       label: w.label ?? null,
       primary: false,
@@ -319,7 +314,7 @@ export function normalizeSdkItem(item: Item): NormalizedItem {
     title: item.title,
     vault: { id: item.vaultId },
     category: SDK_TO_CONNECT_CATEGORY[item.category] ?? 'CUSTOM',
-    urls: item.websites.map((w: Website) => ({
+    urls: (item.websites ?? []).map((w: Website) => ({
       href: w.url,
       label: w.label ?? null,
       primary: false,
@@ -328,7 +323,7 @@ export function normalizeSdkItem(item: Item): NormalizedItem {
     tags: item.tags ?? [],
     version: item.version ?? 0,
     state: null,
-    fields: item.fields.map((field: ItemField) => ({
+    fields: (item.fields ?? []).map((field: ItemField) => ({
       id: field.id,
       label: field.title,
       type: SDK_TO_CONNECT_FIELD_TYPE[field.fieldType] ?? 'STRING',
@@ -339,7 +334,7 @@ export function normalizeSdkItem(item: Item): NormalizedItem {
       recipe: null,
       entropy: null,
     })),
-    sections: item.sections.map((section: ItemSection) => ({
+    sections: (item.sections ?? []).map((section: ItemSection) => ({
       id: section.id,
       label: section.title,
     })),
