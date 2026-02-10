@@ -42,7 +42,6 @@ import {
   saveMessageCheckpoint,
 } from '@/lib/copilot/messages'
 import type { CopilotTransportMode } from '@/lib/copilot/models'
-import type { AvailableModel } from '@/lib/copilot/types'
 import { parseSSEStream } from '@/lib/copilot/orchestrator/sse-parser'
 import {
   abortAllInProgressTools,
@@ -52,6 +51,7 @@ import {
   stripTodoTags,
 } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import type { AvailableModel } from '@/lib/copilot/types'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import type {
@@ -577,7 +577,7 @@ async function finalizeStream(
       errorType = 'usage_limit'
     } else if (result.status === 403) {
       errorContent =
-        '_Provider config not allowed for non-enterprise users. Please remove the provider config and try again_'
+        '_Access denied by the Copilot backend. Please verify your API key and server configuration._'
       errorType = 'forbidden'
     } else if (result.status === 426) {
       errorContent =
@@ -2246,7 +2246,7 @@ export const useCopilotStore = create<CopilotStore>()(
             const provider = model.provider || 'unknown'
             // Use composite provider/modelId keys (matching agent block pattern in providers/models.ts)
             // so models with the same raw ID from different providers are uniquely identified.
-            const compositeId = provider ? `${provider}/${model.id}` : model.id
+            const compositeId = `${provider}/${model.id}`
             return {
               id: compositeId,
               friendlyName: model.friendlyName || model.id,

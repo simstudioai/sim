@@ -9,7 +9,6 @@ import { buildConversationHistory } from '@/lib/copilot/chat-context'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import { generateChatTitle } from '@/lib/copilot/chat-title'
-import { getCopilotModel } from '@/lib/copilot/config'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import {
@@ -24,7 +23,6 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
-import { env } from '@/lib/core/config/env'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotChatAPI')
@@ -43,7 +41,7 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().optional(),
   workflowName: z.string().optional(),
-  model: z.string().optional().default('claude-4.6-opus'),
+  model: z.string().optional().default('claude-opus-4-6'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
@@ -173,14 +171,14 @@ export async function POST(req: NextRequest) {
     let currentChat: any = null
     let conversationHistory: any[] = []
     let actualChatId = chatId
+    const selectedModel = model || 'claude-opus-4-6'
 
     if (chatId || createNewChat) {
-      const defaultsForChatRow = getCopilotModel('chat')
       const chatResult = await resolveOrCreateChat({
         chatId,
         userId: authenticatedUserId,
         workflowId,
-        model: defaultsForChatRow.model,
+        model: selectedModel,
       })
       currentChat = chatResult.chat
       actualChatId = chatResult.chatId || chatId
@@ -191,8 +189,6 @@ export async function POST(req: NextRequest) {
       conversationHistory = history.history
     }
 
-    const defaults = getCopilotModel('chat')
-    const selectedModel = model || defaults.model
     const effectiveMode = mode === 'agent' ? 'build' : mode
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
@@ -284,7 +280,7 @@ export async function POST(req: NextRequest) {
           }
 
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            generateChatTitle(message)
+            generateChatTitle({ message, model: selectedModel, provider })
               .then(async (title) => {
                 if (title) {
                   await db
@@ -373,10 +369,7 @@ export async function POST(req: NextRequest) {
       content: nonStreamingResult.content,
       toolCalls: nonStreamingResult.toolCalls,
       model: selectedModel,
-      provider:
-        (requestPayload?.provider as Record<string, unknown>)?.provider ||
-        env.COPILOT_PROVIDER ||
-        'openai',
+      provider: typeof requestPayload?.provider === 'string' ? requestPayload.provider : undefined,
     }
 
     logger.info(`[${tracker.requestId}] Non-streaming response from orchestrator:`, {
@@ -414,7 +407,7 @@ export async function POST(req: NextRequest) {
       // Start title generation in parallel if this is first message (non-streaming)
       if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
         logger.info(`[${tracker.requestId}] Starting title generation for non-streaming response`)
-        generateChatTitle(message)
+        generateChatTitle({ message, model: selectedModel, provider })
           .then(async (title) => {
             if (title) {
               await db

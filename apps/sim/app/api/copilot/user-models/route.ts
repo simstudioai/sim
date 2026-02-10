@@ -9,28 +9,12 @@ import { settings } from '@/../../packages/db/schema'
 const logger = createLogger('CopilotUserModelsAPI')
 
 const DEFAULT_ENABLED_MODELS: Record<CopilotModelId, boolean> = {
-  'gpt-4o': false,
-  'gpt-4.1': false,
-  'gpt-5-fast': false,
-  'gpt-5': true,
-  'gpt-5-medium': false,
-  'gpt-5-high': false,
-  'gpt-5.1-fast': false,
-  'gpt-5.1': false,
-  'gpt-5.1-medium': false,
-  'gpt-5.1-high': false,
-  'gpt-5-codex': false,
-  'gpt-5.1-codex': false,
-  'gpt-5.2': false,
+  'claude-opus-4-6': true,
+  'claude-opus-4-5': true,
+  'claude-sonnet-4-5': true,
+  'claude-haiku-4-5': true,
+  'gpt-5.2': true,
   'gpt-5.2-codex': true,
-  'gpt-5.2-pro': true,
-  o3: true,
-  'claude-4-sonnet': false,
-  'claude-4.5-haiku': true,
-  'claude-4.5-sonnet': true,
-  'claude-4.6-opus': true,
-  'claude-4.5-opus': true,
-  'claude-4.1-opus': false,
   'gemini-3-pro': true,
 }
 

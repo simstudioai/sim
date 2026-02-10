@@ -6,23 +6,6 @@ import type { ProviderId } from '@/providers/types'
 const logger = createLogger('CopilotConfig')
 
 /**
- * Valid provider IDs for validation
- */
-const VALID_PROVIDER_IDS: readonly ProviderId[] = [
-  'openai',
-  'azure-openai',
-  'anthropic',
-  'azure-anthropic',
-  'google',
-  'deepseek',
-  'xai',
-  'cerebras',
-  'mistral',
-  'groq',
-  'ollama',
-] as const
-
-/**
  * Configuration validation constraints
  */
 const VALIDATION_CONSTRAINTS = {
@@ -76,11 +59,6 @@ export interface CopilotConfig {
   }
 }
 
-function validateProviderId(value: string | undefined): ProviderId | null {
-  if (!value) return null
-  return VALID_PROVIDER_IDS.includes(value as ProviderId) ? (value as ProviderId) : null
-}
-
 function parseFloatEnv(value: string | undefined, name: string): number | null {
   if (!value) return null
   const parsed = Number.parseFloat(value)
@@ -131,19 +109,6 @@ export const DEFAULT_COPILOT_CONFIG: CopilotConfig = {
 }
 
 function applyEnvironmentOverrides(config: CopilotConfig): void {
-  const chatProvider = validateProviderId(process.env.COPILOT_CHAT_PROVIDER)
-  if (chatProvider) {
-    config.chat.defaultProvider = chatProvider
-  } else if (process.env.COPILOT_CHAT_PROVIDER) {
-    logger.warn(
-      `Invalid COPILOT_CHAT_PROVIDER: ${process.env.COPILOT_CHAT_PROVIDER}. Valid providers: ${VALID_PROVIDER_IDS.join(', ')}`
-    )
-  }
-
-  if (process.env.COPILOT_CHAT_MODEL) {
-    config.chat.defaultModel = process.env.COPILOT_CHAT_MODEL
-  }
-
   const chatTemperature = parseFloatEnv(
     process.env.COPILOT_CHAT_TEMPERATURE,
     'COPILOT_CHAT_TEMPERATURE'
@@ -155,19 +120,6 @@ function applyEnvironmentOverrides(config: CopilotConfig): void {
   const chatMaxTokens = parseIntEnv(process.env.COPILOT_CHAT_MAX_TOKENS, 'COPILOT_CHAT_MAX_TOKENS')
   if (chatMaxTokens !== null) {
     config.chat.maxTokens = chatMaxTokens
-  }
-
-  const ragProvider = validateProviderId(process.env.COPILOT_RAG_PROVIDER)
-  if (ragProvider) {
-    config.rag.defaultProvider = ragProvider
-  } else if (process.env.COPILOT_RAG_PROVIDER) {
-    logger.warn(
-      `Invalid COPILOT_RAG_PROVIDER: ${process.env.COPILOT_RAG_PROVIDER}. Valid providers: ${VALID_PROVIDER_IDS.join(', ')}`
-    )
-  }
-
-  if (process.env.COPILOT_RAG_MODEL) {
-    config.rag.defaultModel = process.env.COPILOT_RAG_MODEL
   }
 
   const ragTemperature = parseFloatEnv(

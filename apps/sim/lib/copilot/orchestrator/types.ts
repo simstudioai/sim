@@ -1,5 +1,3 @@
-import type { CopilotProviderConfig } from '@/lib/copilot/types'
-
 export type SSEEventType =
   | 'chat_id'
   | 'title_updated'
@@ -104,7 +102,7 @@ export interface OrchestratorRequest {
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: FileAttachment[]
   commands?: string[]
-  provider?: CopilotProviderConfig
+  provider?: string
   streamToolCalls?: boolean
   version?: string
   prefetch?: boolean
