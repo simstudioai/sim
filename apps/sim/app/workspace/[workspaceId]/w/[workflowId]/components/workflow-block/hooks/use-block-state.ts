@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { DiffStatus } from '@/lib/workflows/diff/types'
 import { hasDiffStatus } from '@/lib/workflows/diff/types'
-import { useExecutionStore } from '@/stores/execution'
+import { useIsBlockActive } from '@/stores/execution'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import type { CurrentWorkflow } from '../../../hooks/use-current-workflow'
 import type { WorkflowBlockProps } from '../types'
@@ -67,7 +67,7 @@ export function useBlockState(
   const isDeletedBlock = !isShowingDiff && diffAnalysis?.deleted_blocks?.includes(blockId)
 
   // Execution state
-  const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(blockId))
+  const isActiveBlock = useIsBlockActive(blockId)
   const isActive = data.isActive || isActiveBlock
 
   return {

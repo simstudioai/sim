@@ -3,7 +3,7 @@ import { useBlockState } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlockRingStyles } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-ring-utils'
-import { useExecutionStore } from '@/stores/execution'
+import { useLastRunPath } from '@/stores/execution'
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -64,7 +64,7 @@ export function useBlockVisual({
   )
   const isEditorOpen = !isPreview && isThisBlockInEditor && activeTabIsEditor
 
-  const lastRunPath = useExecutionStore((state) => state.lastRunPath)
+  const lastRunPath = useLastRunPath()
   const runPathStatus = isPreview ? undefined : lastRunPath.get(blockId)
 
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)

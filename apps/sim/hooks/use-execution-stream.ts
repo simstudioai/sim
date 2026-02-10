@@ -133,22 +133,26 @@ export interface ExecuteFromBlockOptions {
 }
 
 /**
- * Hook for executing workflows via server-side SSE streaming
+ * Hook for executing workflows via server-side SSE streaming.
+ * Supports concurrent executions via per-workflow AbortController maps.
  */
 export function useExecutionStream() {
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const currentExecutionRef = useRef<{ workflowId: string; executionId: string } | null>(null)
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
+  const currentExecutionsRef = useRef<Map<string, { workflowId: string; executionId: string }>>(
+    new Map()
+  )
 
   const execute = useCallback(async (options: ExecuteStreamOptions) => {
     const { workflowId, callbacks = {}, ...payload } = options
 
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
+    const existing = abortControllersRef.current.get(workflowId)
+    if (existing) {
+      existing.abort()
     }
 
     const abortController = new AbortController()
-    abortControllerRef.current = abortController
-    currentExecutionRef.current = null
+    abortControllersRef.current.set(workflowId, abortController)
+    currentExecutionsRef.current.delete(workflowId)
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
@@ -163,7 +167,6 @@ export function useExecutionStream() {
       if (!response.ok) {
         const errorResponse = await response.json()
         const error = new Error(errorResponse.error || 'Failed to start execution')
-        // Attach the execution result from server response for error handling
         if (errorResponse && typeof errorResponse === 'object') {
           Object.assign(error, { executionResult: errorResponse })
         }
@@ -176,7 +179,7 @@ export function useExecutionStream() {
 
       const executionId = response.headers.get('X-Execution-Id')
       if (executionId) {
-        currentExecutionRef.current = { workflowId, executionId }
+        currentExecutionsRef.current.set(workflowId, { workflowId, executionId })
       }
 
       const reader = response.body.getReader()
@@ -194,21 +197,22 @@ export function useExecutionStream() {
       }
       throw error
     } finally {
-      abortControllerRef.current = null
-      currentExecutionRef.current = null
+      abortControllersRef.current.delete(workflowId)
+      currentExecutionsRef.current.delete(workflowId)
     }
   }, [])
 
   const executeFromBlock = useCallback(async (options: ExecuteFromBlockOptions) => {
     const { workflowId, startBlockId, sourceSnapshot, input, callbacks = {} } = options
 
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
+    const existing = abortControllersRef.current.get(workflowId)
+    if (existing) {
+      existing.abort()
     }
 
     const abortController = new AbortController()
-    abortControllerRef.current = abortController
-    currentExecutionRef.current = null
+    abortControllersRef.current.set(workflowId, abortController)
+    currentExecutionsRef.current.delete(workflowId)
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
@@ -244,7 +248,7 @@ export function useExecutionStream() {
 
       const executionId = response.headers.get('X-Execution-Id')
       if (executionId) {
-        currentExecutionRef.current = { workflowId, executionId }
+        currentExecutionsRef.current.set(workflowId, { workflowId, executionId })
       }
 
       const reader = response.body.getReader()
@@ -262,24 +266,39 @@ export function useExecutionStream() {
       }
       throw error
     } finally {
-      abortControllerRef.current = null
-      currentExecutionRef.current = null
+      abortControllersRef.current.delete(workflowId)
+      currentExecutionsRef.current.delete(workflowId)
     }
   }, [])
 
-  const cancel = useCallback(() => {
-    const execution = currentExecutionRef.current
-    if (execution) {
-      fetch(`/api/workflows/${execution.workflowId}/executions/${execution.executionId}/cancel`, {
-        method: 'POST',
-      }).catch(() => {})
-    }
+  const cancel = useCallback((workflowId?: string) => {
+    if (workflowId) {
+      const execution = currentExecutionsRef.current.get(workflowId)
+      if (execution) {
+        fetch(`/api/workflows/${execution.workflowId}/executions/${execution.executionId}/cancel`, {
+          method: 'POST',
+        }).catch(() => {})
+      }
 
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-      abortControllerRef.current = null
+      const controller = abortControllersRef.current.get(workflowId)
+      if (controller) {
+        controller.abort()
+        abortControllersRef.current.delete(workflowId)
+      }
+      currentExecutionsRef.current.delete(workflowId)
+    } else {
+      for (const [, execution] of currentExecutionsRef.current) {
+        fetch(`/api/workflows/${execution.workflowId}/executions/${execution.executionId}/cancel`, {
+          method: 'POST',
+        }).catch(() => {})
+      }
+
+      for (const [, controller] of abortControllersRef.current) {
+        controller.abort()
+      }
+      abortControllersRef.current.clear()
+      currentExecutionsRef.current.clear()
     }
-    currentExecutionRef.current = null
   }, [])
 
   return {
