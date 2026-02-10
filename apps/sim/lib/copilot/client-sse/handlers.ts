@@ -16,10 +16,7 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { appendTextBlock, beginThinkingBlock, finalizeThinkingBlock } from './content-blocks'
-import {
-  CLIENT_EXECUTABLE_RUN_TOOLS,
-  executeRunToolOnClient,
-} from './run-tool-execution'
+import { CLIENT_EXECUTABLE_RUN_TOOLS, executeRunToolOnClient } from './run-tool-execution'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSseHandlers')
@@ -425,8 +422,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
               (input?.workflowId as string) || useWorkflowRegistry.getState().activeWorkflowId
             const apiKey = (resultPayload?.apiKey || resultPayload?.key) as string | undefined
             if (workflowId) {
-              const existingStatus =
-                useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)
+              const existingStatus = useWorkflowRegistry
+                .getState()
+                .getWorkflowDeploymentStatus(workflowId)
               useWorkflowRegistry
                 .getState()
                 .setDeploymentStatus(

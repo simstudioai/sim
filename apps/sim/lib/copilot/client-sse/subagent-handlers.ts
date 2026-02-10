@@ -15,10 +15,7 @@ import {
   sseHandlers,
   updateStreamingMessage,
 } from './handlers'
-import {
-  CLIENT_EXECUTABLE_RUN_TOOLS,
-  executeRunToolOnClient,
-} from './run-tool-execution'
+import { CLIENT_EXECUTABLE_RUN_TOOLS, executeRunToolOnClient } from './run-tool-execution'
 import type { ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSubagentHandlers')

@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
-import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { resolveToolDisplay } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useCopilotStore } from '@/stores/panel/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -73,7 +73,8 @@ async function doExecuteRunTool(
     | undefined
 
   const stopAfterBlockId = (() => {
-    if (toolName === 'run_workflow_until_block') return params.stopAfterBlockId as string | undefined
+    if (toolName === 'run_workflow_until_block')
+      return params.stopAfterBlockId as string | undefined
     if (toolName === 'run_block') return params.blockId as string | undefined
     return undefined
   })()

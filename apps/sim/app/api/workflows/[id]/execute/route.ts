@@ -278,13 +278,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Resolve runFromBlock snapshot from executionId if needed
     let runFromBlock = rawRunFromBlock
     if (runFromBlock && !runFromBlock.sourceSnapshot && runFromBlock.executionId) {
-      const {
-        getExecutionState,
-        getLatestExecutionState,
-      } = await import('@/lib/workflows/executor/execution-state')
-      const snapshot = runFromBlock.executionId === 'latest'
-        ? await getLatestExecutionState(workflowId)
-        : await getExecutionState(runFromBlock.executionId)
+      const { getExecutionState, getLatestExecutionState } = await import(
+        '@/lib/workflows/executor/execution-state'
+      )
+      const snapshot =
+        runFromBlock.executionId === 'latest'
+          ? await getLatestExecutionState(workflowId)
+          : await getExecutionState(runFromBlock.executionId)
       if (!snapshot) {
         return NextResponse.json(
           {

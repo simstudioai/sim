@@ -148,12 +148,14 @@ function toUiConfig(metadata?: ToolMetadata): ToolUIConfig | undefined {
   const legacy = metadata?.uiConfig
   const subagent = legacy?.subagent
   const dynamicText = metadata?.getDynamicText
-  if (!legacy && !dynamicText) return undefined
+  // Check both nested uiConfig.interrupt AND top-level interrupt
+  const hasInterrupt = !!legacy?.interrupt || !!metadata?.interrupt
+  if (!legacy && !dynamicText && !hasInterrupt) return undefined
 
   const config: ToolUIConfig = {
     isSpecial: legacy?.isSpecial === true,
     subagent: !!legacy?.subagent,
-    interrupt: !!legacy?.interrupt,
+    interrupt: hasInterrupt,
     customRenderer: legacy?.customRenderer,
     paramsTable: legacy?.paramsTable,
     dynamicText,
@@ -1180,12 +1182,16 @@ const META_knowledge: ToolMetadata = {
 const META_knowledge_base: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Accessing knowledge base', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Accessing knowledge base', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Access knowledge base?', icon: Database },
     [ClientToolCallState.executing]: { text: 'Accessing knowledge base', icon: Loader2 },
     [ClientToolCallState.success]: { text: 'Accessed knowledge base', icon: Database },
     [ClientToolCallState.error]: { text: 'Failed to access knowledge base', icon: XCircle },
     [ClientToolCallState.aborted]: { text: 'Aborted knowledge base access', icon: MinusCircle },
     [ClientToolCallState.rejected]: { text: 'Skipped knowledge base access', icon: MinusCircle },
+  },
+  interrupt: {
+    accept: { text: 'Allow', icon: Database },
+    reject: { text: 'Skip', icon: MinusCircle },
   },
   getDynamicText: (params: Record<string, any>, state: ClientToolCallState) => {
     const operation = params?.operation as string | undefined

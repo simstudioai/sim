@@ -7,6 +7,10 @@ import { ChevronUp, LayoutList } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { Button, Code, getCodeEditorProps, highlight, languages } from '@/components/emcn'
 import {
+  CLIENT_EXECUTABLE_RUN_TOOLS,
+  executeRunToolOnClient,
+} from '@/lib/copilot/client-sse/run-tool-execution'
+import {
   ClientToolCallState,
   TOOL_DISPLAY_REGISTRY,
 } from '@/lib/copilot/tools/client/tool-display-registry'
@@ -18,10 +22,6 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks/registry'
-import {
-  CLIENT_EXECUTABLE_RUN_TOOLS,
-  executeRunToolOnClient,
-} from '@/lib/copilot/client-sse/run-tool-execution'
 import type { CopilotToolCall } from '@/stores/panel'
 import { useCopilotStore } from '@/stores/panel'
 import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
@@ -1238,7 +1238,7 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
     return false
   }
 
-  const hasInterrupt = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.interrupt === true
+  const hasInterrupt = !!TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.interrupt
   if (hasInterrupt) {
     return true
   }
