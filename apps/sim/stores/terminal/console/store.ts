@@ -16,7 +16,7 @@ const logger = createLogger('TerminalConsoleStore')
  * Maximum number of console entries to keep per workflow.
  * Keeps the stored data size reasonable and improves performance.
  */
-const MAX_ENTRIES_PER_WORKFLOW = 1000
+const MAX_ENTRIES_PER_WORKFLOW = 5000
 
 const updateBlockOutput = (
   existingOutput: NormalizedBlockOutput | undefined,
