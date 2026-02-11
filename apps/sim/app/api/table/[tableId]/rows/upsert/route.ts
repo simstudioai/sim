@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData, TableSchema } from '@/lib/table'
 import { getUniqueColumns, validateRowData } from '@/lib/table'
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
   const { tableId } = await params
 
   try {
-    const authResult = await checkHybridAuth(request)
+    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }

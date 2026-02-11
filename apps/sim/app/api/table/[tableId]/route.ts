@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteTable, type TableSchema } from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn, verifyTableWorkspace } from '../utils'
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
   const { tableId } = await params
 
   try {
-    const authResult = await checkHybridAuth(request)
+    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized table access attempt`)
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -92,7 +92,7 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
   const { tableId } = await params
 
   try {
-    const authResult = await checkHybridAuth(request)
+    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized table delete attempt`)
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
