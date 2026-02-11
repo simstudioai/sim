@@ -38,6 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const isInternalCall = auth.authType === 'internal_jwt'
     const userId = auth.userId || null
 
     let workflowData = await getWorkflowById(workflowId)
@@ -47,29 +48,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    // Check if user has access to this workflow
-    if (!userId) {
+    if (isInternalCall && !userId) {
+      // Internal system calls (e.g. workflow-in-workflow executor) may not carry a userId.
+      // These are already authenticated via internal JWT; allow read access.
+      logger.info(`[${requestId}] Internal API call for workflow ${workflowId}`)
+    } else if (!userId) {
       logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    } else {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'read',
+      })
+      if (!authorization.workflow) {
+        logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
 
-    const authorization = await authorizeWorkflowByWorkspacePermission({
-      workflowId,
-      userId,
-      action: 'read',
-    })
-    if (!authorization.workflow) {
-      logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
-      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-    }
-
-    workflowData = authorization.workflow
-    if (!authorization.allowed) {
-      logger.warn(`[${requestId}] User ${userId} denied access to workflow ${workflowId}`)
-      return NextResponse.json(
-        { error: authorization.message || 'Access denied' },
-        { status: authorization.status }
-      )
+      workflowData = authorization.workflow
+      if (!authorization.allowed) {
+        logger.warn(`[${requestId}] User ${userId} denied access to workflow ${workflowId}`)
+        return NextResponse.json(
+          { error: authorization.message || 'Access denied' },
+          { status: authorization.status }
+        )
+      }
     }
 
     logger.debug(`[${requestId}] Attempting to load workflow ${workflowId} from normalized tables`)
