@@ -10,6 +10,7 @@ import {
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
+  MODELS_WITH_DEEP_RESEARCH,
   MODELS_WITH_REASONING_EFFORT,
   MODELS_WITH_THINKING,
   MODELS_WITH_VERBOSITY,
@@ -412,12 +413,22 @@ Return ONLY the JSON array.`,
       title: 'Tools',
       type: 'tool-input',
       defaultValue: [],
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_DEEP_RESEARCH,
+        not: true,
+      },
     },
     {
       id: 'skills',
       title: 'Skills',
       type: 'skill-input',
       defaultValue: [],
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_DEEP_RESEARCH,
+        not: true,
+      },
     },
     {
       id: 'memoryType',
@@ -477,9 +488,13 @@ Return ONLY the JSON array.`,
       condition: () => ({
         field: 'model',
         value: (() => {
+          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
           const allModels = Object.keys(getBaseModelProviders())
           return allModels.filter(
-            (model) => supportsTemperature(model) && getMaxTemperature(model) === 1
+            (model) =>
+              supportsTemperature(model) &&
+              getMaxTemperature(model) === 1 &&
+              !deepResearch.has(model.toLowerCase())
           )
         })(),
       }),
@@ -495,9 +510,13 @@ Return ONLY the JSON array.`,
       condition: () => ({
         field: 'model',
         value: (() => {
+          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
           const allModels = Object.keys(getBaseModelProviders())
           return allModels.filter(
-            (model) => supportsTemperature(model) && getMaxTemperature(model) === 2
+            (model) =>
+              supportsTemperature(model) &&
+              getMaxTemperature(model) === 2 &&
+              !deepResearch.has(model.toLowerCase())
           )
         })(),
       }),
@@ -508,6 +527,11 @@ Return ONLY the JSON array.`,
       type: 'short-input',
       placeholder: 'Enter max tokens (e.g., 4096)...',
       mode: 'advanced',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_DEEP_RESEARCH,
+        not: true,
+      },
     },
     {
       id: 'responseFormat',
@@ -515,6 +539,11 @@ Return ONLY the JSON array.`,
       type: 'code',
       placeholder: 'Enter JSON schema...',
       language: 'json',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_DEEP_RESEARCH,
+        not: true,
+      },
       wandConfig: {
         enabled: true,
         maintainHistory: true,
