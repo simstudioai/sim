@@ -310,6 +310,50 @@ function parseModelKey(compositeKey: string): { provider: string; modelId: strin
   return { provider: compositeKey.slice(0, slashIdx), modelId: compositeKey.slice(slashIdx + 1) }
 }
 
+/**
+ * Convert legacy/variant Claude IDs into the canonical ID shape used by the model catalog.
+ *
+ * Examples:
+ * - claude-4.5-opus -> claude-opus-4-5
+ * - claude-opus-4.6 -> claude-opus-4-6
+ * - anthropic.claude-opus-4-5-20251101-v1:0 -> claude-opus-4-5 (match key only)
+ */
+function canonicalizeModelMatchKey(modelId: string): string {
+  if (!modelId) return modelId
+  const normalized = modelId.trim().toLowerCase()
+
+  const toCanonicalClaude = (tier: string, version: string): string => {
+    const normalizedVersion = version.replace(/\./g, '-')
+    return `claude-${tier}-${normalizedVersion}`
+  }
+
+  const tierFirstExact = normalized.match(/^claude-(opus|sonnet|haiku)-(\d+(?:[.-]\d+)?)$/)
+  if (tierFirstExact) {
+    const [, tier, version] = tierFirstExact
+    return toCanonicalClaude(tier, version)
+  }
+
+  const versionFirstExact = normalized.match(/^claude-(\d+(?:[.-]\d+)?)-(opus|sonnet|haiku)$/)
+  if (versionFirstExact) {
+    const [, version, tier] = versionFirstExact
+    return toCanonicalClaude(tier, version)
+  }
+
+  const tierFirstEmbedded = normalized.match(/claude-(opus|sonnet|haiku)-(\d+(?:[.-]\d+)?)/)
+  if (tierFirstEmbedded) {
+    const [, tier, version] = tierFirstEmbedded
+    return toCanonicalClaude(tier, version)
+  }
+
+  const versionFirstEmbedded = normalized.match(/claude-(\d+(?:[.-]\d+)?)-(opus|sonnet|haiku)/)
+  if (versionFirstEmbedded) {
+    const [, version, tier] = versionFirstEmbedded
+    return toCanonicalClaude(tier, version)
+  }
+
+  return normalized
+}
+
 const MODEL_PROVIDER_PRIORITY = [
   'anthropic',
   'bedrock',
@@ -350,12 +394,21 @@ function normalizeSelectedModelKey(selectedModel: string, models: AvailableModel
 
   const { provider, modelId } = parseModelKey(selectedModel)
   const targetModelId = modelId || selectedModel
+  const targetMatchKey = canonicalizeModelMatchKey(targetModelId)
 
-  const matches = models.filter((m) => m.id.endsWith(`/${targetModelId}`))
+  const matches = models.filter((m) => {
+    const candidateModelId = parseModelKey(m.id).modelId || m.id
+    const candidateMatchKey = canonicalizeModelMatchKey(candidateModelId)
+    return (
+      candidateModelId === targetModelId ||
+      m.id.endsWith(`/${targetModelId}`) ||
+      candidateMatchKey === targetMatchKey
+    )
+  })
   if (matches.length === 0) return selectedModel
 
   if (provider) {
-    const sameProvider = matches.find((m) => m.provider === provider)
+    const sameProvider = matches.find((m) => m.provider === provider || m.id.startsWith(`${provider}/`))
     if (sameProvider) return sameProvider.id
   }
 
@@ -1093,11 +1146,12 @@ export const useCopilotStore = create<CopilotStore>()(
       const chatConfig = chat.config ?? {}
       const chatMode = chatConfig.mode || get().mode
       const chatModel = chatConfig.model || get().selectedModel
+      const normalizedChatModel = normalizeSelectedModelKey(chatModel, get().availableModels)
 
       logger.debug('[Chat] Restoring chat config', {
         chatId: chat.id,
         mode: chatMode,
-        model: chatModel,
+        model: normalizedChatModel,
         hasPlanArtifact: !!planArtifact,
       })
 
@@ -1119,7 +1173,7 @@ export const useCopilotStore = create<CopilotStore>()(
         showPlanTodos: false,
         streamingPlanContent: planArtifact,
         mode: chatMode,
-        selectedModel: chatModel as CopilotStore['selectedModel'],
+        selectedModel: normalizedChatModel as CopilotStore['selectedModel'],
         suppressAutoSelect: false,
       })
 
@@ -1292,6 +1346,10 @@ export const useCopilotStore = create<CopilotStore>()(
                 const refreshedConfig = updatedCurrentChat.config ?? {}
                 const refreshedMode = refreshedConfig.mode || get().mode
                 const refreshedModel = refreshedConfig.model || get().selectedModel
+                const normalizedRefreshedModel = normalizeSelectedModelKey(
+                  refreshedModel,
+                  get().availableModels
+                )
                 const toolCallsById = buildToolCallsById(normalizedMessages)
 
                 set({
@@ -1300,7 +1358,7 @@ export const useCopilotStore = create<CopilotStore>()(
                   toolCallsById,
                   streamingPlanContent: refreshedPlanArtifact,
                   mode: refreshedMode,
-                  selectedModel: refreshedModel as CopilotStore['selectedModel'],
+                  selectedModel: normalizedRefreshedModel as CopilotStore['selectedModel'],
                 })
               }
               try {
@@ -1320,11 +1378,15 @@ export const useCopilotStore = create<CopilotStore>()(
               const chatConfig = mostRecentChat.config ?? {}
               const chatMode = chatConfig.mode || get().mode
               const chatModel = chatConfig.model || get().selectedModel
+              const normalizedChatModel = normalizeSelectedModelKey(
+                chatModel,
+                get().availableModels
+              )
 
               logger.info('[Chat] Auto-selecting most recent chat with config', {
                 chatId: mostRecentChat.id,
                 mode: chatMode,
-                model: chatModel,
+                model: normalizedChatModel,
                 hasPlanArtifact: !!planArtifact,
               })
 
@@ -1336,7 +1398,7 @@ export const useCopilotStore = create<CopilotStore>()(
                 toolCallsById,
                 streamingPlanContent: planArtifact,
                 mode: chatMode,
-                selectedModel: chatModel as CopilotStore['selectedModel'],
+                selectedModel: normalizedChatModel as CopilotStore['selectedModel'],
               })
               try {
                 await get().loadMessageCheckpoints(mostRecentChat.id)
@@ -2268,7 +2330,8 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     setSelectedModel: async (model) => {
-      set({ selectedModel: model })
+      const normalizedModel = normalizeSelectedModelKey(model, get().availableModels)
+      set({ selectedModel: normalizedModel as CopilotStore['selectedModel'] })
     },
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
     loadAvailableModels: async () => {

@@ -8,8 +8,9 @@ import { getSession } from '@/lib/auth'
 import { buildConversationHistory } from '@/lib/copilot/chat-context'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
+import { generateChatTitle } from '@/lib/copilot/chat-title'
+import { getCopilotModel } from '@/lib/copilot/config'
+import { COPILOT_MODEL_IDS, COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import {
   createStreamEventWriter,
@@ -28,49 +29,6 @@ import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotChatAPI')
 
-async function requestChatTitleFromCopilot(params: {
-  message: string
-  model: string
-  provider?: string
-}): Promise<string | null> {
-  const { message, model, provider } = params
-  if (!message || !model) return null
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (env.COPILOT_API_KEY) {
-    headers['x-api-key'] = env.COPILOT_API_KEY
-  }
-
-  try {
-    const response = await fetch(`${SIM_AGENT_API_URL}/api/generate-chat-title`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        message,
-        model,
-        ...(provider ? { provider } : {}),
-      }),
-    })
-
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      logger.warn('Failed to generate chat title via copilot backend', {
-        status: response.status,
-        error: payload,
-      })
-      return null
-    }
-
-    const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
-    return title || null
-  } catch (error) {
-    logger.error('Error generating chat title:', error)
-    return null
-  }
-}
-
 const FileAttachmentSchema = z.object({
   id: z.string(),
   key: z.string(),
@@ -85,14 +43,14 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().optional(),
   workflowName: z.string().optional(),
-  model: z.string().optional().default('claude-opus-4-6'),
+  model: z.enum(COPILOT_MODEL_IDS).optional().default('claude-4.6-opus'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
-  provider: z.string().optional(),
+  provider: z.string().optional().default('openai'),
   conversationId: z.string().optional(),
   contexts: z
     .array(
@@ -113,7 +71,6 @@ const ChatMessageSchema = z.object({
         workflowId: z.string().optional(),
         knowledgeId: z.string().optional(),
         blockId: z.string().optional(),
-        blockIds: z.array(z.string()).optional(),
         templateId: z.string().optional(),
         executionId: z.string().optional(),
         // For workflow_block, provide both workflowId and blockId
@@ -160,20 +117,6 @@ export async function POST(req: NextRequest) {
       commands,
     } = ChatMessageSchema.parse(body)
 
-    const normalizedContexts = Array.isArray(contexts)
-      ? contexts.map((ctx) => {
-          if (ctx.kind !== 'blocks') return ctx
-          if (Array.isArray(ctx.blockIds) && ctx.blockIds.length > 0) return ctx
-          if (ctx.blockId) {
-            return {
-              ...ctx,
-              blockIds: [ctx.blockId],
-            }
-          }
-          return ctx
-        })
-      : contexts
-
     // Resolve workflowId - if not provided, use first workflow or find by name
     const resolved = await resolveWorkflowIdForUser(
       authenticatedUserId,
@@ -191,10 +134,10 @@ export async function POST(req: NextRequest) {
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
     try {
       logger.info(`[${tracker.requestId}] Received chat POST`, {
-        hasContexts: Array.isArray(normalizedContexts),
-        contextsCount: Array.isArray(normalizedContexts) ? normalizedContexts.length : 0,
-        contextsPreview: Array.isArray(normalizedContexts)
-          ? normalizedContexts.map((c: any) => ({
+        hasContexts: Array.isArray(contexts),
+        contextsCount: Array.isArray(contexts) ? contexts.length : 0,
+        contextsPreview: Array.isArray(contexts)
+          ? contexts.map((c: any) => ({
               kind: c?.kind,
               chatId: c?.chatId,
               workflowId: c?.workflowId,
@@ -206,25 +149,17 @@ export async function POST(req: NextRequest) {
     } catch {}
     // Preprocess contexts server-side
     let agentContexts: Array<{ type: string; content: string }> = []
-    if (Array.isArray(normalizedContexts) && normalizedContexts.length > 0) {
+    if (Array.isArray(contexts) && contexts.length > 0) {
       try {
         const { processContextsServer } = await import('@/lib/copilot/process-contents')
-        const processed = await processContextsServer(
-          normalizedContexts as any,
-          authenticatedUserId,
-          message
-        )
+        const processed = await processContextsServer(contexts as any, authenticatedUserId, message)
         agentContexts = processed
         logger.info(`[${tracker.requestId}] Contexts processed for request`, {
           processedCount: agentContexts.length,
           kinds: agentContexts.map((c) => c.type),
           lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
         })
-        if (
-          Array.isArray(normalizedContexts) &&
-          normalizedContexts.length > 0 &&
-          agentContexts.length === 0
-        ) {
+        if (Array.isArray(contexts) && contexts.length > 0 && agentContexts.length === 0) {
           logger.warn(
             `[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`
           )
@@ -238,14 +173,14 @@ export async function POST(req: NextRequest) {
     let currentChat: any = null
     let conversationHistory: any[] = []
     let actualChatId = chatId
-    const selectedModel = model || 'claude-opus-4-6'
 
     if (chatId || createNewChat) {
+      const defaultsForChatRow = getCopilotModel('chat')
       const chatResult = await resolveOrCreateChat({
         chatId,
         userId: authenticatedUserId,
         workflowId,
-        model: selectedModel,
+        model: defaultsForChatRow.model,
       })
       currentChat = chatResult.chat
       actualChatId = chatResult.chatId || chatId
@@ -256,6 +191,8 @@ export async function POST(req: NextRequest) {
       conversationHistory = history.history
     }
 
+    const defaults = getCopilotModel('chat')
+    const selectedModel = model || defaults.model
     const effectiveMode = mode === 'agent' ? 'build' : mode
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
@@ -268,14 +205,11 @@ export async function POST(req: NextRequest) {
         userMessageId: userMessageIdToUse,
         mode,
         model: selectedModel,
-        provider,
-        conversationId: effectiveConversationId,
         conversationHistory,
         contexts: agentContexts,
         fileAttachments,
         commands,
         chatId: actualChatId,
-        prefetch,
         implicitFeedback,
       },
       {
@@ -349,7 +283,7 @@ export async function POST(req: NextRequest) {
           }
 
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            requestChatTitleFromCopilot({ message, model: selectedModel, provider })
+            generateChatTitle(message)
               .then(async (title) => {
                 if (title) {
                   await db
@@ -438,7 +372,10 @@ export async function POST(req: NextRequest) {
       content: nonStreamingResult.content,
       toolCalls: nonStreamingResult.toolCalls,
       model: selectedModel,
-      provider: typeof requestPayload?.provider === 'string' ? requestPayload.provider : undefined,
+      provider:
+        (requestPayload?.provider as Record<string, unknown>)?.provider ||
+        env.COPILOT_PROVIDER ||
+        'openai',
     }
 
     logger.info(`[${tracker.requestId}] Non-streaming response from orchestrator:`, {
@@ -457,14 +394,10 @@ export async function POST(req: NextRequest) {
         content: message,
         timestamp: new Date().toISOString(),
         ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
-        ...(Array.isArray(normalizedContexts) && normalizedContexts.length > 0 && {
-          contexts: normalizedContexts,
-        }),
-        ...(Array.isArray(normalizedContexts) &&
-          normalizedContexts.length > 0 && {
-            contentBlocks: [
-              { type: 'contexts', contexts: normalizedContexts as any, timestamp: Date.now() },
-            ],
+        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
+        ...(Array.isArray(contexts) &&
+          contexts.length > 0 && {
+            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
           }),
       }
 
@@ -480,7 +413,7 @@ export async function POST(req: NextRequest) {
       // Start title generation in parallel if this is first message (non-streaming)
       if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
         logger.info(`[${tracker.requestId}] Starting title generation for non-streaming response`)
-        requestChatTitleFromCopilot({ message, model: selectedModel, provider })
+        generateChatTitle(message)
           .then(async (title) => {
             if (title) {
               await db

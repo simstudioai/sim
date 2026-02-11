@@ -57,6 +57,15 @@ function inferToolSuccess(data: Record<string, unknown> | undefined): {
   return { success, hasResultData, hasError }
 }
 
+function hasPendingToolCalls(context: StreamingContext): boolean {
+  for (const toolCall of context.toolCalls.values()) {
+    if (toolCall.status === 'pending' || toolCall.status === 'executing') {
+      return true
+    }
+  }
+  return false
+}
+
 export type SSEHandler = (
   event: SSEEvent,
   context: StreamingContext,
@@ -353,6 +362,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const d = asRecord(event.data)
     if (d.responseId) {
       context.conversationId = d.responseId as string
+    }
+    // Preserve parity with the legacy stream-forwarding behavior:
+    // don't finalize the stream on a `done` event while tools are still active.
+    // Some event sequences may include an early `done` before tail tool events.
+    if (hasPendingToolCalls(context)) {
+      return
     }
     context.streamComplete = true
   },

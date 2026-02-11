@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
+import { customTools, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import type {
   ExecutionContext,
@@ -12,6 +12,7 @@ import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { getTool, resolveToolId } from '@/tools/utils'
 import {
   executeCheckDeploymentStatus,
@@ -75,6 +76,245 @@ import {
 } from './workflow-tools'
 
 const logger = createLogger('CopilotToolExecutor')
+
+type ManageCustomToolOperation = 'add' | 'edit' | 'delete' | 'list'
+
+interface ManageCustomToolSchema {
+  type: 'function'
+  function: {
+    name: string
+    description?: string
+    parameters: Record<string, unknown>
+  }
+}
+
+interface ManageCustomToolParams {
+  operation?: string
+  toolId?: string
+  schema?: ManageCustomToolSchema
+  code?: string
+  title?: string
+  workspaceId?: string
+}
+
+async function executeManageCustomTool(
+  rawParams: Record<string, unknown>,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  const params = rawParams as ManageCustomToolParams
+  const operation = String(params.operation || '').toLowerCase() as ManageCustomToolOperation
+  const workspaceId = params.workspaceId || context.workspaceId
+
+  if (!operation) {
+    return { success: false, error: "Missing required 'operation' argument" }
+  }
+
+  try {
+    if (operation === 'list') {
+      const toolsForUser = workspaceId
+        ? await db
+            .select()
+            .from(customTools)
+            .where(
+              or(
+                eq(customTools.workspaceId, workspaceId),
+                and(isNull(customTools.workspaceId), eq(customTools.userId, context.userId))
+              )
+            )
+            .orderBy(desc(customTools.createdAt))
+        : await db
+            .select()
+            .from(customTools)
+            .where(and(isNull(customTools.workspaceId), eq(customTools.userId, context.userId)))
+            .orderBy(desc(customTools.createdAt))
+
+      return {
+        success: true,
+        output: {
+          success: true,
+          operation,
+          tools: toolsForUser,
+          count: toolsForUser.length,
+        },
+      }
+    }
+
+    if (operation === 'add') {
+      if (!workspaceId) {
+        return {
+          success: false,
+          error: "workspaceId is required for operation 'add'",
+        }
+      }
+      if (!params.schema || !params.code) {
+        return {
+          success: false,
+          error: "Both 'schema' and 'code' are required for operation 'add'",
+        }
+      }
+
+      const title = params.title || params.schema.function?.name
+      if (!title) {
+        return { success: false, error: "Missing tool title or schema.function.name for 'add'" }
+      }
+
+      const resultTools = await upsertCustomTools({
+        tools: [
+          {
+            title,
+            schema: params.schema,
+            code: params.code,
+          },
+        ],
+        workspaceId,
+        userId: context.userId,
+      })
+      const created = resultTools.find((tool) => tool.title === title)
+
+      return {
+        success: true,
+        output: {
+          success: true,
+          operation,
+          toolId: created?.id,
+          title,
+          message: `Created custom tool "${title}"`,
+        },
+      }
+    }
+
+    if (operation === 'edit') {
+      if (!workspaceId) {
+        return {
+          success: false,
+          error: "workspaceId is required for operation 'edit'",
+        }
+      }
+      if (!params.toolId) {
+        return { success: false, error: "'toolId' is required for operation 'edit'" }
+      }
+      if (!params.schema && !params.code) {
+        return {
+          success: false,
+          error: "At least one of 'schema' or 'code' is required for operation 'edit'",
+        }
+      }
+
+      const workspaceTool = await db
+        .select()
+        .from(customTools)
+        .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, workspaceId)))
+        .limit(1)
+
+      const legacyTool =
+        workspaceTool.length === 0
+          ? await db
+              .select()
+              .from(customTools)
+              .where(
+                and(
+                  eq(customTools.id, params.toolId),
+                  isNull(customTools.workspaceId),
+                  eq(customTools.userId, context.userId)
+                )
+              )
+              .limit(1)
+          : []
+
+      const existing = workspaceTool[0] || legacyTool[0]
+      if (!existing) {
+        return { success: false, error: `Custom tool not found: ${params.toolId}` }
+      }
+
+      const mergedSchema = params.schema || (existing.schema as ManageCustomToolSchema)
+      const mergedCode = params.code || existing.code
+      const title = params.title || mergedSchema.function?.name || existing.title
+
+      await upsertCustomTools({
+        tools: [
+          {
+            id: params.toolId,
+            title,
+            schema: mergedSchema,
+            code: mergedCode,
+          },
+        ],
+        workspaceId,
+        userId: context.userId,
+      })
+
+      return {
+        success: true,
+        output: {
+          success: true,
+          operation,
+          toolId: params.toolId,
+          title,
+          message: `Updated custom tool "${title}"`,
+        },
+      }
+    }
+
+    if (operation === 'delete') {
+      if (!params.toolId) {
+        return { success: false, error: "'toolId' is required for operation 'delete'" }
+      }
+
+      const workspaceDelete =
+        workspaceId != null
+          ? await db
+              .delete(customTools)
+              .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, workspaceId)))
+              .returning({ id: customTools.id })
+          : []
+
+      const legacyDelete =
+        workspaceDelete.length === 0
+          ? await db
+              .delete(customTools)
+              .where(
+                and(
+                  eq(customTools.id, params.toolId),
+                  isNull(customTools.workspaceId),
+                  eq(customTools.userId, context.userId)
+                )
+              )
+              .returning({ id: customTools.id })
+          : []
+
+      const deleted = workspaceDelete[0] || legacyDelete[0]
+      if (!deleted) {
+        return { success: false, error: `Custom tool not found: ${params.toolId}` }
+      }
+
+      return {
+        success: true,
+        output: {
+          success: true,
+          operation,
+          toolId: params.toolId,
+          message: 'Deleted custom tool',
+        },
+      }
+    }
+
+    return {
+      success: false,
+      error: `Unsupported operation for manage_custom_tool: ${operation}`,
+    }
+  } catch (error) {
+    logger.error('manage_custom_tool execution failed', {
+      operation,
+      workspaceId,
+      userId: context.userId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to manage custom tool',
+    }
+  }
+}
 
 const SERVER_TOOLS = new Set<string>([
   'get_blocks_and_tools',
@@ -161,6 +401,19 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
       }
     }
   },
+  oauth_request_access: async (p, _c) => {
+    const providerName = (p.providerName || p.provider_name || 'the provider') as string
+    return {
+      success: true,
+      output: {
+        success: true,
+        status: 'requested',
+        providerName,
+        message: `Requested ${providerName} OAuth connection. The user should complete the OAuth modal in the UI, then retry credential-dependent actions.`,
+      },
+    }
+  },
+  manage_custom_tool: (p, c) => executeManageCustomTool(p, c),
 }
 
 /**
