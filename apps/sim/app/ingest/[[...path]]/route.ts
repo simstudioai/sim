@@ -21,18 +21,12 @@ function buildTargetUrl(pathname: string, search: string): { url: string; hostna
 
 /**
  * Builds forwarding headers for the PostHog request.
- * Sets the Host header, forwards client IP for geolocation,
- * and strips cookies/connection headers that shouldn't be forwarded.
+ * Sets the Host header and strips cookies/connection headers
+ * that shouldn't be forwarded.
  */
 function buildHeaders(request: NextRequest, hostname: string): Headers {
   const headers = new Headers(request.headers)
   headers.set('host', hostname)
-
-  const forwardedFor = request.headers.get('x-forwarded-for')
-  if (forwardedFor) {
-    headers.set('x-forwarded-for', forwardedFor)
-  }
-
   headers.delete('cookie')
   headers.delete('connection')
 
@@ -54,6 +48,7 @@ async function handler(request: NextRequest) {
 
     const responseHeaders = new Headers(response.headers)
     responseHeaders.delete('content-encoding')
+    responseHeaders.delete('content-length')
     responseHeaders.delete('transfer-encoding')
 
     return new NextResponse(response.body, {
