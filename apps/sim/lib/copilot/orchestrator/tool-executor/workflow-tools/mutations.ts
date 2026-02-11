@@ -172,7 +172,7 @@ export async function executeRunWorkflow(
       generateRequestId(),
       params.workflow_input || params.input || undefined,
       context.userId,
-      { enabled: true, useDraftState }
+      { enabled: true, useDraftState, workflowTriggerType: 'copilot' }
     )
 
     return {
@@ -408,7 +408,12 @@ export async function executeRunWorkflowUntilBlock(
       generateRequestId(),
       params.workflow_input || params.input || undefined,
       context.userId,
-      { enabled: true, useDraftState, stopAfterBlockId: params.stopAfterBlockId }
+      {
+        enabled: true,
+        useDraftState,
+        stopAfterBlockId: params.stopAfterBlockId,
+        workflowTriggerType: 'copilot',
+      }
     )
 
     return {
@@ -540,6 +545,7 @@ export async function executeRunFromBlock(
       {
         enabled: true,
         useDraftState,
+        workflowTriggerType: 'copilot',
         runFromBlock: { startBlockId: params.startBlockId, sourceSnapshot: snapshot },
       }
     )
@@ -602,6 +608,7 @@ export async function executeRunBlock(
       {
         enabled: true,
         useDraftState,
+        workflowTriggerType: 'copilot',
         runFromBlock: { startBlockId: params.blockId, sourceSnapshot: snapshot },
         stopAfterBlockId: params.blockId,
       }

@@ -189,6 +189,7 @@ export const CORE_TRIGGER_TYPES = [
   'webhook',
   'mcp',
   'a2a',
+  'copilot',
 ] as const
 
 export type CoreTriggerType = (typeof CORE_TRIGGER_TYPES)[number]
