@@ -720,7 +720,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             }
           }
           if (event.type !== 'stream:chunk' && event.type !== 'stream:done') {
-            eventWriter.write(event as unknown as Record<string, unknown>).catch(() => {})
+            eventWriter.write(event).catch(() => {})
           }
         }
 

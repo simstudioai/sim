@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
+import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionEventBuffer')
 
@@ -34,11 +35,11 @@ export interface ExecutionStreamMeta {
 export interface ExecutionEventEntry {
   eventId: number
   executionId: string
-  event: Record<string, unknown>
+  event: ExecutionEvent
 }
 
 export interface ExecutionEventWriter {
-  write: (event: Record<string, unknown>) => Promise<ExecutionEventEntry>
+  write: (event: ExecutionEvent) => Promise<ExecutionEventEntry>
   flush: () => Promise<void>
   close: () => Promise<void>
 }
@@ -199,7 +200,7 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
     }
   }
 
-  const write = async (event: Record<string, unknown>) => {
+  const write = async (event: ExecutionEvent) => {
     if (closed) return { eventId: 0, executionId, event }
     if (nextEventId === 0 || nextEventId > maxReservedId) {
       await reserveIds(1)

@@ -7,7 +7,7 @@ import {
   getExecutionMeta,
   readExecutionEvents,
 } from '@/lib/execution/event-buffer'
-import { type ExecutionEvent, formatSSEEvent } from '@/lib/workflows/executor/execution-events'
+import { formatSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('ExecutionStreamReconnectAPI')
@@ -88,7 +88,7 @@ export async function GET(
           const events = await readExecutionEvents(executionId, lastEventId)
           for (const entry of events) {
             if (closed) return
-            enqueue(formatSSEEvent(entry.event as unknown as ExecutionEvent))
+            enqueue(formatSSEEvent(entry.event))
             lastEventId = entry.eventId
           }
 
@@ -108,7 +108,7 @@ export async function GET(
             const newEvents = await readExecutionEvents(executionId, lastEventId)
             for (const entry of newEvents) {
               if (closed) return
-              enqueue(formatSSEEvent(entry.event as unknown as ExecutionEvent))
+              enqueue(formatSSEEvent(entry.event))
               lastEventId = entry.eventId
             }
 
@@ -118,7 +118,7 @@ export async function GET(
               const finalEvents = await readExecutionEvents(executionId, lastEventId)
               for (const entry of finalEvents) {
                 if (closed) return
-                enqueue(formatSSEEvent(entry.event as unknown as ExecutionEvent))
+                enqueue(formatSSEEvent(entry.event))
                 lastEventId = entry.eventId
               }
               enqueue('data: [DONE]\n\n')
