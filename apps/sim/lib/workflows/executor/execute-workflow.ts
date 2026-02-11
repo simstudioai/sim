@@ -13,7 +13,7 @@ export interface ExecuteWorkflowOptions {
   enabled: boolean
   selectedOutputs?: string[]
   isSecureMode?: boolean
-  workflowTriggerType?: string
+  workflowTriggerType?: 'api' | 'chat' | 'copilot'
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
   skipLoggingComplete?: boolean
