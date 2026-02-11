@@ -1,10 +1,8 @@
 import { useShallow } from 'zustand/react/shallow'
-import {
-  extractFieldsFromSchema,
-  parseResponseFormatSafely,
-} from '@/lib/core/utils/response-format'
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getBlock } from '@/blocks'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -20,18 +18,7 @@ export interface ConnectedBlock {
   type: string
   outputType: string | string[]
   name: string
-  responseFormat?: {
-    // Support both formats
-    fields?: Field[]
-    name?: string
-    schema?: {
-      type: string
-      properties: Record<string, any>
-      required?: string[]
-    }
-  }
   outputs?: Record<string, any>
-  operation?: string
 }
 
 export function useBlockConnections(blockId: string) {
@@ -102,47 +89,32 @@ export function useBlockConnections(blockId: string) {
 
       // Get merged subblocks for this source block
       const mergedSubBlocks = getMergedSubBlocks(sourceId)
+      const blockConfig = getBlock(sourceBlock.type)
+      const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+      const effectiveTriggerMode = Boolean(sourceBlock.triggerMode && isTriggerCapable)
 
-      // Get the response format from the subblock store
-      const responseFormatValue = useSubBlockStore.getState().getValue(sourceId, 'responseFormat')
+      const blockOutputs = getEffectiveBlockOutputs(sourceBlock.type, mergedSubBlocks, {
+        triggerMode: effectiveTriggerMode,
+        preferToolOutputs: !effectiveTriggerMode,
+      })
 
-      // Safely parse response format with proper error handling
-      const responseFormat = parseResponseFormatSafely(responseFormatValue, sourceId)
-
-      // Get operation value for tool-based blocks
-      const operationValue = useSubBlockStore.getState().getValue(sourceId, 'operation')
-
-      // Use getBlockOutputs to properly handle dynamic outputs from inputFormat
-      const blockOutputs = getBlockOutputs(
-        sourceBlock.type,
-        mergedSubBlocks,
-        sourceBlock.triggerMode
-      )
-
-      // Extract fields from the response format if available, otherwise use block outputs
-      let outputFields: Field[]
-      if (responseFormat) {
-        outputFields = extractFieldsFromSchema(responseFormat)
-      } else {
-        // Convert block outputs to field format
-        outputFields = Object.entries(blockOutputs).map(([key, value]: [string, any]) => ({
+      const outputFields: Field[] = Object.entries(blockOutputs).map(
+        ([key, value]: [string, any]) => ({
           name: key,
           type: value && typeof value === 'object' && 'type' in value ? value.type : 'string',
           description:
             value && typeof value === 'object' && 'description' in value
               ? value.description
               : undefined,
-        }))
-      }
+        })
+      )
 
       return {
         id: sourceBlock.id,
         type: sourceBlock.type,
         outputType: outputFields.map((field: Field) => field.name),
         name: sourceBlock.name,
-        responseFormat,
         outputs: blockOutputs,
-        operation: operationValue,
         distance: nodeDistances.get(sourceId) || Number.POSITIVE_INFINITY,
       }
     })

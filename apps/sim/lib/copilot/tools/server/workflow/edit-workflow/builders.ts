@@ -1,8 +1,9 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
@@ -39,6 +40,8 @@ export function createBlockFromParams(
 
   // Determine outputs based on trigger mode
   const triggerMode = params.triggerMode || false
+  const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+  const effectiveTriggerMode = Boolean(triggerMode && isTriggerCapable)
   let outputs: Record<string, any>
 
   if (params.outputs) {
@@ -54,7 +57,10 @@ export function createBlockFromParams(
         subBlocks[key] = { id: key, type: 'short-input', value: value }
       })
     }
-    outputs = getBlockOutputs(params.type, subBlocks, triggerMode)
+    outputs = getEffectiveBlockOutputs(params.type, subBlocks, {
+      triggerMode: effectiveTriggerMode,
+      preferToolOutputs: !effectiveTriggerMode,
+    })
   } else {
     outputs = {}
   }

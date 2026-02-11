@@ -17,7 +17,6 @@ import {
   type Resolver,
 } from '@/executor/variables/resolvers/reference'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { getTool } from '@/tools/utils'
 
 export class BlockResolver implements Resolver {
   private nameToBlockId: Map<string, string>
@@ -68,9 +67,7 @@ export class BlockResolver implements Resolver {
       blockData[blockId] = output
     }
 
-    const toolId = block.config?.tool
-    const toolConfig = toolId ? getTool(toolId) : undefined
-    const outputSchema = getBlockSchema(block, toolConfig)
+    const outputSchema = getBlockSchema(block)
 
     if (outputSchema && Object.keys(outputSchema).length > 0) {
       blockOutputSchemas[blockId] = outputSchema

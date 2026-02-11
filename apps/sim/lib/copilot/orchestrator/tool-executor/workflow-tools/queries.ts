@@ -8,13 +8,15 @@ import {
 } from '@/lib/copilot/tools/shared/workflow-utils'
 import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
-import { getBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import {
@@ -343,7 +345,13 @@ export async function executeGetBlockOutputs(
         continue
       }
 
-      const outputs = getBlockOutputPaths(block.type, block.subBlocks, block.triggerMode)
+      const blockConfig = getBlock(block.type)
+      const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+      const triggerMode = Boolean(block.triggerMode && isTriggerCapable)
+      const outputs = getEffectiveBlockOutputPaths(block.type, block.subBlocks, {
+        triggerMode,
+        preferToolOutputs: !triggerMode,
+      })
       results.push({
         blockId,
         blockName,
@@ -485,7 +493,13 @@ export async function executeGetBlockUpstreamReferences(
             ? getSubflowInsidePaths(block.type, accessibleBlockId, loops, parallels)
             : ['results']
         } else {
-          outputPaths = getBlockOutputPaths(block.type, block.subBlocks, block.triggerMode)
+          const blockConfig = getBlock(block.type)
+          const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+          const triggerMode = Boolean(block.triggerMode && isTriggerCapable)
+          outputPaths = getEffectiveBlockOutputPaths(block.type, block.subBlocks, {
+            triggerMode,
+            preferToolOutputs: !triggerMode,
+          })
         }
 
         const formattedOutputs = formatOutputsWithPrefix(outputPaths, blockName)

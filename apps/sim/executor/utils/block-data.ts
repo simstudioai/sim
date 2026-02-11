@@ -1,8 +1,6 @@
-import {
-  extractFieldsFromSchema,
-  parseResponseFormatSafely,
-} from '@/lib/core/utils/response-format'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getBlock } from '@/blocks/registry'
 import { isTriggerBehavior, normalizeName } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { OutputSchema } from '@/executor/utils/block-reference'
@@ -12,8 +10,6 @@ import {
   isBranchNodeId,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock } from '@/serializer/types'
-import type { ToolConfig } from '@/tools/types'
-import { getTool } from '@/tools/utils'
 
 export interface BlockDataCollection {
   blockData: Record<string, unknown>
@@ -21,118 +17,44 @@ export interface BlockDataCollection {
   blockOutputSchemas: Record<string, OutputSchema>
 }
 
-/**
- * Block types where inputFormat fields should be merged into outputs schema.
- * These are blocks where users define custom fields via inputFormat that become
- * valid output paths (e.g., <start.myField>, <webhook1.customField>, <hitl1.resumeField>).
- *
- * Note: This includes non-trigger blocks like 'starter' and 'human_in_the_loop' which
- * have category 'blocks' but still need their inputFormat exposed as outputs.
- */
-const BLOCKS_WITH_INPUT_FORMAT_OUTPUTS = [
-  'start_trigger',
-  'starter',
-  'api_trigger',
-  'input_trigger',
-  'generic_webhook',
-  'human_in_the_loop',
-] as const
-
-function getInputFormatFields(block: SerializedBlock): OutputSchema {
-  const inputFormat = normalizeInputFormatValue(block.config?.params?.inputFormat)
-  if (inputFormat.length === 0) {
-    return {}
-  }
-
-  const schema: OutputSchema = {}
-  for (const field of inputFormat) {
-    if (!field.name) continue
-    schema[field.name] = { type: field.type || 'any' }
-  }
-
-  return schema
+interface SubBlockWithValue {
+  value?: unknown
 }
 
-function getEvaluatorMetricsSchema(block: SerializedBlock): OutputSchema | undefined {
-  if (block.metadata?.id !== 'evaluator') return undefined
+function paramsToSubBlocks(
+  params: Record<string, unknown> | undefined
+): Record<string, SubBlockWithValue> {
+  if (!params) return {}
 
-  const metrics = block.config?.params?.metrics
-  if (!Array.isArray(metrics) || metrics.length === 0) return undefined
-
-  const validMetrics = metrics.filter(
-    (m: { name?: string }) => m?.name && typeof m.name === 'string'
-  )
-  if (validMetrics.length === 0) return undefined
-
-  const schema: OutputSchema = { ...(block.outputs as OutputSchema) }
-  for (const metric of validMetrics) {
-    schema[metric.name.toLowerCase()] = { type: 'number' }
+  const subBlocks: Record<string, SubBlockWithValue> = {}
+  for (const [key, value] of Object.entries(params)) {
+    subBlocks[key] = { value }
   }
-  return schema
+  return subBlocks
 }
 
-function getResponseFormatSchema(block: SerializedBlock): OutputSchema | undefined {
-  const responseFormatValue = block.config?.params?.responseFormat
-  if (!responseFormatValue) return undefined
-
-  const parsed = parseResponseFormatSafely(responseFormatValue, block.id)
-  if (!parsed) return undefined
-
-  const fields = extractFieldsFromSchema(parsed)
-  if (fields.length === 0) return undefined
-
-  const schema: OutputSchema = {}
-  for (const field of fields) {
-    schema[field.name] = { type: field.type || 'any' }
-  }
-  return schema
-}
-
-export function getBlockSchema(
-  block: SerializedBlock,
-  toolConfig?: ToolConfig
-): OutputSchema | undefined {
+function getRegistrySchema(block: SerializedBlock): OutputSchema | undefined {
   const blockType = block.metadata?.id
+  if (!blockType) return undefined
 
-  if (
-    blockType &&
-    BLOCKS_WITH_INPUT_FORMAT_OUTPUTS.includes(
-      blockType as (typeof BLOCKS_WITH_INPUT_FORMAT_OUTPUTS)[number]
-    )
-  ) {
-    const baseOutputs = (block.outputs as OutputSchema) || {}
-    const inputFormatFields = getInputFormatFields(block)
-    const merged = { ...baseOutputs, ...inputFormatFields }
-    if (Object.keys(merged).length > 0) {
-      return merged
-    }
+  const subBlocks = paramsToSubBlocks(block.config?.params)
+  const blockConfig = getBlock(blockType)
+  const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
+  const triggerMode = Boolean(isTriggerBehavior(block) && isTriggerCapable)
+  const outputs = getEffectiveBlockOutputs(blockType, subBlocks, {
+    triggerMode,
+    preferToolOutputs: !triggerMode,
+    includeHidden: true,
+  }) as OutputSchema
+
+  if (!outputs || Object.keys(outputs).length === 0) {
+    return undefined
   }
+  return outputs
+}
 
-  const evaluatorSchema = getEvaluatorMetricsSchema(block)
-  if (evaluatorSchema) {
-    return evaluatorSchema
-  }
-
-  const responseFormatSchema = getResponseFormatSchema(block)
-  if (responseFormatSchema) {
-    return responseFormatSchema
-  }
-
-  const isTrigger = isTriggerBehavior(block)
-
-  if (isTrigger && block.outputs && Object.keys(block.outputs).length > 0) {
-    return block.outputs as OutputSchema
-  }
-
-  if (toolConfig?.outputs && Object.keys(toolConfig.outputs).length > 0) {
-    return toolConfig.outputs as OutputSchema
-  }
-
-  if (block.outputs && Object.keys(block.outputs).length > 0) {
-    return block.outputs as OutputSchema
-  }
-
-  return undefined
+export function getBlockSchema(block: SerializedBlock): OutputSchema | undefined {
+  return getRegistrySchema(block)
 }
 
 export function collectBlockData(
@@ -170,9 +92,7 @@ export function collectBlockData(
       blockNameMapping[normalizeName(block.metadata.name)] = id
     }
 
-    const toolId = block.config?.tool
-    const toolConfig = toolId ? getTool(toolId) : undefined
-    const schema = getBlockSchema(block, toolConfig)
+    const schema = getBlockSchema(block)
     if (schema && Object.keys(schema).length > 0) {
       blockOutputSchemas[id] = schema
     }
