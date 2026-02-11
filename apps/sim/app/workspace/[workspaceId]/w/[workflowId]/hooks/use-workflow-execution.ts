@@ -1968,7 +1968,7 @@ export function useWorkflowExecution() {
       logger.info('Starting run-until-block execution', { workflowId, stopAfterBlockId: blockId })
 
       setExecutionResult(null)
-      setIsExecuting(activeWorkflowId!, true)
+      setIsExecuting(workflowId, true)
 
       const executionId = uuidv4()
       try {
@@ -1987,9 +1987,9 @@ export function useWorkflowExecution() {
         const errorResult = handleExecutionError(error, { executionId })
         return errorResult
       } finally {
-        setIsExecuting(activeWorkflowId!, false)
-        setIsDebugging(activeWorkflowId!, false)
-        setActiveBlocks(activeWorkflowId!, new Set())
+        setIsExecuting(workflowId, false)
+        setIsDebugging(workflowId, false)
+        setActiveBlocks(workflowId, new Set())
       }
     },
     [activeWorkflowId, setExecutionResult, setIsExecuting, setIsDebugging, setActiveBlocks]
