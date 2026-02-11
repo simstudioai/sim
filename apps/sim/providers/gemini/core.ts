@@ -396,6 +396,10 @@ function sleep(ms: number): Promise<void> {
 /**
  * Collapses a ProviderRequest into a single input string and optional system instruction
  * for the Interactions API, which takes a flat input rather than a messages array.
+ *
+ * Deep research is single-turn only — it takes one research query and returns a report.
+ * Memory/conversation history is hidden in the UI for deep research models, so only
+ * the last user message is used as input. System messages are passed via system_instruction.
  */
 function collapseMessagesToInput(request: ProviderRequest): {
   input: string

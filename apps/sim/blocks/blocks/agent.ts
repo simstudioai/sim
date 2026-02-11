@@ -442,6 +442,11 @@ Return ONLY the JSON array.`,
         { label: 'Sliding window (tokens)', id: 'sliding_window_tokens' },
       ],
       defaultValue: 'none',
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_DEEP_RESEARCH,
+        not: true,
+      },
     },
     {
       id: 'conversationId',
