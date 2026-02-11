@@ -58,7 +58,8 @@ export async function GET(
     }
 
     const fromParam = req.nextUrl.searchParams.get('from')
-    const fromEventId = fromParam ? Number.parseInt(fromParam, 10) : 0
+    const parsed = fromParam ? Number.parseInt(fromParam, 10) : 0
+    const fromEventId = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
 
     logger.info('Reconnection stream requested', {
       workflowId,
