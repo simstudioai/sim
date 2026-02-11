@@ -12,6 +12,7 @@ import { jsmGetOrganizationsTool } from '@/tools/jsm/get_organizations'
 import { jsmGetParticipantsTool } from '@/tools/jsm/get_participants'
 import { jsmGetQueuesTool } from '@/tools/jsm/get_queues'
 import { jsmGetRequestTool } from '@/tools/jsm/get_request'
+import { jsmGetRequestTypeFieldsTool } from '@/tools/jsm/get_request_type_fields'
 import { jsmGetRequestTypesTool } from '@/tools/jsm/get_request_types'
 import { jsmGetRequestsTool } from '@/tools/jsm/get_requests'
 import { jsmGetServiceDesksTool } from '@/tools/jsm/get_service_desks'
@@ -34,6 +35,7 @@ export {
   jsmGetParticipantsTool,
   jsmGetQueuesTool,
   jsmGetRequestTool,
+  jsmGetRequestTypeFieldsTool,
   jsmGetRequestsTool,
   jsmGetRequestTypesTool,
   jsmGetServiceDesksTool,

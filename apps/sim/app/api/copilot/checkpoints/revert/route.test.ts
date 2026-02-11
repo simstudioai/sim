@@ -25,6 +25,13 @@ describe('Copilot Checkpoints Revert API Route', () => {
       getEmailDomain: vi.fn(() => 'localhost:3000'),
     }))
 
+    vi.doMock('@/lib/workflows/utils', () => ({
+      authorizeWorkflowByWorkspacePermission: vi.fn().mockResolvedValue({
+        allowed: true,
+        status: 200,
+      }),
+    }))
+
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
     mockWhere.mockReturnValue({ then: mockThen })
@@ -211,6 +218,12 @@ describe('Copilot Checkpoints Revert API Route', () => {
       mockThen
         .mockResolvedValueOnce(mockCheckpoint) // Checkpoint found
         .mockResolvedValueOnce(mockWorkflow) // Workflow found but different user
+
+      const { authorizeWorkflowByWorkspacePermission } = await import('@/lib/workflows/utils')
+      vi.mocked(authorizeWorkflowByWorkspacePermission).mockResolvedValueOnce({
+        allowed: false,
+        status: 403,
+      })
 
       const req = createMockRequest('POST', {
         checkpointId: 'checkpoint-123',

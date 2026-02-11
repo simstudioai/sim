@@ -29,7 +29,6 @@ describe('Copilot Auth Permissions', () => {
     vi.doMock('@sim/db/schema', () => ({
       workflow: {
         id: 'id',
-        userId: 'userId',
         workspaceId: 'workspaceId',
       },
     }))
@@ -58,49 +57,11 @@ describe('Copilot Auth Permissions', () => {
       expect(result).toEqual({
         hasAccess: false,
         userPermission: null,
-        isOwner: false,
       })
     })
 
-    it('should return admin access for workflow owner', async () => {
+    it('should check workspace permissions for workflow with workspace', async () => {
       const workflowData = {
-        userId: 'user-123',
-        workspaceId: 'workspace-456',
-      }
-      mockLimit.mockResolvedValueOnce([workflowData])
-
-      const { verifyWorkflowAccess } = await import('@/lib/copilot/auth/permissions')
-      const result = await verifyWorkflowAccess('user-123', 'workflow-789')
-
-      expect(result).toEqual({
-        hasAccess: true,
-        userPermission: 'admin',
-        workspaceId: 'workspace-456',
-        isOwner: true,
-      })
-    })
-
-    it('should return admin access for workflow owner without workspace', async () => {
-      const workflowData = {
-        userId: 'user-123',
-        workspaceId: null,
-      }
-      mockLimit.mockResolvedValueOnce([workflowData])
-
-      const { verifyWorkflowAccess } = await import('@/lib/copilot/auth/permissions')
-      const result = await verifyWorkflowAccess('user-123', 'workflow-789')
-
-      expect(result).toEqual({
-        hasAccess: true,
-        userPermission: 'admin',
-        workspaceId: undefined,
-        isOwner: true,
-      })
-    })
-
-    it('should check workspace permissions for non-owner with workspace', async () => {
-      const workflowData = {
-        userId: 'other-user',
         workspaceId: 'workspace-456',
       }
       mockLimit.mockResolvedValueOnce([workflowData])
@@ -115,7 +76,6 @@ describe('Copilot Auth Permissions', () => {
         hasAccess: true,
         userPermission: 'write',
         workspaceId: 'workspace-456',
-        isOwner: false,
       })
 
       expect(getUserEntityPermissions).toHaveBeenCalledWith(
@@ -127,7 +87,6 @@ describe('Copilot Auth Permissions', () => {
 
     it('should return read permission through workspace', async () => {
       const workflowData = {
-        userId: 'other-user',
         workspaceId: 'workspace-456',
       }
       mockLimit.mockResolvedValueOnce([workflowData])
@@ -142,13 +101,11 @@ describe('Copilot Auth Permissions', () => {
         hasAccess: true,
         userPermission: 'read',
         workspaceId: 'workspace-456',
-        isOwner: false,
       })
     })
 
     it('should return admin permission through workspace', async () => {
       const workflowData = {
-        userId: 'other-user',
         workspaceId: 'workspace-456',
       }
       mockLimit.mockResolvedValueOnce([workflowData])
@@ -163,13 +120,11 @@ describe('Copilot Auth Permissions', () => {
         hasAccess: true,
         userPermission: 'admin',
         workspaceId: 'workspace-456',
-        isOwner: false,
       })
     })
 
-    it('should return no access for non-owner without workspace permissions', async () => {
+    it('should return no access without workspace permissions', async () => {
       const workflowData = {
-        userId: 'other-user',
         workspaceId: 'workspace-456',
       }
       mockLimit.mockResolvedValueOnce([workflowData])
@@ -184,13 +139,11 @@ describe('Copilot Auth Permissions', () => {
         hasAccess: false,
         userPermission: null,
         workspaceId: 'workspace-456',
-        isOwner: false,
       })
     })
 
-    it('should return no access for non-owner of workflow without workspace', async () => {
+    it('should return no access for workflow without workspace', async () => {
       const workflowData = {
-        userId: 'other-user',
         workspaceId: null,
       }
       mockLimit.mockResolvedValueOnce([workflowData])
@@ -202,7 +155,6 @@ describe('Copilot Auth Permissions', () => {
         hasAccess: false,
         userPermission: null,
         workspaceId: undefined,
-        isOwner: false,
       })
     })
 
@@ -215,7 +167,6 @@ describe('Copilot Auth Permissions', () => {
       expect(result).toEqual({
         hasAccess: false,
         userPermission: null,
-        isOwner: false,
       })
     })
 
@@ -237,7 +188,6 @@ describe('Copilot Auth Permissions', () => {
       expect(result).toEqual({
         hasAccess: false,
         userPermission: null,
-        isOwner: false,
       })
     })
   })

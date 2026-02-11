@@ -47,16 +47,9 @@ export async function POST(request: NextRequest) {
       (await getJiraCloudId(validatedData.domain, validatedData.accessToken))
 
     const formData = new FormData()
-    const filesOutput: Array<{ name: string; mimeType: string; data: string; size: number }> = []
 
     for (const file of userFiles) {
       const buffer = await downloadFileFromStorage(file, requestId, logger)
-      filesOutput.push({
-        name: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        data: buffer.toString('base64'),
-        size: buffer.length,
-      })
       const blob = new Blob([new Uint8Array(buffer)], {
         type: file.type || 'application/octet-stream',
       })
@@ -90,18 +83,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const attachments = await response.json()
-    const attachmentIds = Array.isArray(attachments)
-      ? attachments.map((attachment) => attachment.id).filter(Boolean)
-      : []
+    const jiraAttachments = await response.json()
+    const attachmentsList = Array.isArray(jiraAttachments) ? jiraAttachments : []
+
+    const attachmentIds = attachmentsList.map((att: any) => att.id).filter(Boolean)
+    const attachments = attachmentsList.map((att: any) => ({
+      id: att.id ?? '',
+      filename: att.filename ?? '',
+      mimeType: att.mimeType ?? '',
+      size: att.size ?? 0,
+      content: att.content ?? '',
+    }))
 
     return NextResponse.json({
       success: true,
       output: {
         ts: new Date().toISOString(),
         issueKey: validatedData.issueKey,
+        attachments,
         attachmentIds,
-        files: filesOutput,
+        files: userFiles,
       },
     })
   } catch (error) {

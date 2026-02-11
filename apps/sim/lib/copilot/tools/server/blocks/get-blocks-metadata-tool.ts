@@ -2,10 +2,7 @@ import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import {
-  type GetBlocksMetadataInput,
-  GetBlocksMetadataResult,
-} from '@/lib/copilot/tools/shared/schemas'
+import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -105,6 +102,8 @@ export const getBlocksMetadataServerTool: BaseServerTool<
   ReturnType<typeof GetBlocksMetadataResult.parse>
 > = {
   name: 'get_blocks_metadata',
+  inputSchema: GetBlocksMetadataInput,
+  outputSchema: GetBlocksMetadataResult,
   async execute(
     { blockIds }: ReturnType<typeof GetBlocksMetadataInput.parse>,
     context?: { userId: string }
@@ -233,7 +232,11 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           const resolvedToolId = resolveToolIdForOperation(blockConfig, opId)
           const toolCfg = resolvedToolId ? toolsRegistry[resolvedToolId] : undefined
           const toolParams: Record<string, any> = toolCfg?.params || {}
-          const toolOutputs: Record<string, any> = toolCfg?.outputs || {}
+          const toolOutputs: Record<string, any> = toolCfg?.outputs
+            ? Object.fromEntries(
+                Object.entries(toolCfg.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
+              )
+            : {}
           const filteredToolParams: Record<string, any> = {}
           for (const [k, v] of Object.entries(toolParams)) {
             if (!(k in blockInputs)) filteredToolParams[k] = v
@@ -288,7 +291,11 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         if (existsSync(docPath)) {
           metadata.yamlDocumentation = readFileSync(docPath, 'utf-8')
         }
-      } catch {}
+      } catch (error) {
+        logger.warn('Failed to read YAML documentation file', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
 
       if (metadata) {
         result[blockId] = removeNullish(metadata) as CopilotBlockMetadata
@@ -951,7 +958,12 @@ function resolveToolIdForOperation(blockConfig: BlockConfig, opId: string): stri
       const maybeToolId = toolSelector({ operation: opId })
       if (typeof maybeToolId === 'string') return maybeToolId
     }
-  } catch {}
+  } catch (error) {
+    const toolLogger = createLogger('GetBlocksMetadataServerTool')
+    toolLogger.warn('Failed to resolve tool ID for operation', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
   return undefined
 }
 

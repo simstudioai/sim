@@ -11,7 +11,7 @@ const logger = createLogger('CopilotPermissions')
  *
  * @param userId - The authenticated user ID
  * @param workflowId - The workflow ID to check access for
- * @returns Promise<{ hasAccess: boolean; userPermission: PermissionType | null; workspaceId?: string; isOwner: boolean }>
+ * @returns Promise<{ hasAccess: boolean; userPermission: PermissionType | null; workspaceId?: string }>
  */
 export async function verifyWorkflowAccess(
   userId: string,
@@ -20,12 +20,10 @@ export async function verifyWorkflowAccess(
   hasAccess: boolean
   userPermission: PermissionType | null
   workspaceId?: string
-  isOwner: boolean
 }> {
   try {
     const workflowData = await db
       .select({
-        userId: workflow.userId,
         workspaceId: workflow.workspaceId,
       })
       .from(workflow)
@@ -37,37 +35,35 @@ export async function verifyWorkflowAccess(
         workflowId,
         userId,
       })
-      return { hasAccess: false, userPermission: null, isOwner: false }
+      return { hasAccess: false, userPermission: null }
     }
 
-    const { userId: workflowOwnerId, workspaceId } = workflowData[0]
-
-    if (workflowOwnerId === userId) {
-      logger.debug('User has direct ownership of workflow', { workflowId, userId })
+    const { workspaceId } = workflowData[0]
+    if (!workspaceId) {
+      logger.warn('Workflow is not attached to a workspace; access denied', {
+        workflowId,
+        userId,
+      })
       return {
-        hasAccess: true,
-        userPermission: 'admin',
-        workspaceId: workspaceId || undefined,
-        isOwner: true,
+        hasAccess: false,
+        userPermission: null,
+        workspaceId: undefined,
       }
     }
 
-    if (workspaceId && userId) {
-      const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
 
-      if (userPermission !== null) {
-        logger.debug('User has workspace permission for workflow', {
-          workflowId,
-          userId,
-          workspaceId,
-          userPermission,
-        })
-        return {
-          hasAccess: true,
-          userPermission,
-          workspaceId: workspaceId || undefined,
-          isOwner: false,
-        }
+    if (userPermission !== null) {
+      logger.debug('User has workspace permission for workflow', {
+        workflowId,
+        userId,
+        workspaceId,
+        userPermission,
+      })
+      return {
+        hasAccess: true,
+        userPermission,
+        workspaceId,
       }
     }
 
@@ -75,17 +71,15 @@ export async function verifyWorkflowAccess(
       workflowId,
       userId,
       workspaceId,
-      workflowOwnerId,
     })
     return {
       hasAccess: false,
       userPermission: null,
       workspaceId: workspaceId || undefined,
-      isOwner: false,
     }
   } catch (error) {
     logger.error('Error verifying workflow access', { error, workflowId, userId })
-    return { hasAccess: false, userPermission: null, isOwner: false }
+    return { hasAccess: false, userPermission: null }
   }
 }
 

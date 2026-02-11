@@ -33,13 +33,39 @@ vi.mock('@/stores/terminal', () => ({
 vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
     getState: vi.fn().mockReturnValue({
+      getWorkflowExecution: vi.fn().mockReturnValue({
+        isExecuting: false,
+        isDebugging: false,
+        activeBlockIds: new Set(),
+        pendingBlocks: [],
+        executor: null,
+        debugContext: null,
+        lastRunPath: new Map(),
+        lastRunEdges: new Map(),
+      }),
       setIsExecuting: vi.fn(),
       setIsDebugging: vi.fn(),
       setPendingBlocks: vi.fn(),
       reset: vi.fn(),
       setActiveBlocks: vi.fn(),
+      setBlockRunStatus: vi.fn(),
+      setEdgeRunStatus: vi.fn(),
+      clearRunPath: vi.fn(),
     }),
   },
+  useCurrentWorkflowExecution: vi.fn().mockReturnValue({
+    isExecuting: false,
+    isDebugging: false,
+    activeBlockIds: new Set(),
+    pendingBlocks: [],
+    executor: null,
+    debugContext: null,
+    lastRunPath: new Map(),
+    lastRunEdges: new Map(),
+  }),
+  useIsBlockActive: vi.fn().mockReturnValue(false),
+  useLastRunPath: vi.fn().mockReturnValue(new Map()),
+  useLastRunEdges: vi.fn().mockReturnValue(new Map()),
 }))
 
 vi.mock('@/blocks/registry', () => ({

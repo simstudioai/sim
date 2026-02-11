@@ -15,6 +15,8 @@ export const getTriggerBlocksServerTool: BaseServerTool<
   ReturnType<typeof GetTriggerBlocksResult.parse>
 > = {
   name: 'get_trigger_blocks',
+  inputSchema: GetTriggerBlocksInput,
+  outputSchema: GetTriggerBlocksResult,
   async execute(_args: unknown, context?: { userId: string }) {
     const logger = createLogger('GetTriggerBlocksServerTool')
     logger.debug('Executing get_trigger_blocks')

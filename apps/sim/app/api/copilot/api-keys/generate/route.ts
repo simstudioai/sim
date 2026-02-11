@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/copilot/constants'
+import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { env } from '@/lib/core/config/env'
 
 const GenerateApiKeySchema = z.object({
@@ -16,9 +16,6 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = session.user.id
-
-    // Move environment variable access inside the function
-    const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
     const body = await req.json().catch(() => ({}))
     const validationResult = GenerateApiKeySchema.safeParse(body)

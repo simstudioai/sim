@@ -19,6 +19,7 @@ describe('Copilot API Keys API Route', () => {
 
     vi.doMock('@/lib/copilot/constants', () => ({
       SIM_AGENT_API_URL_DEFAULT: 'https://agent.sim.example.com',
+      SIM_AGENT_API_URL: 'https://agent.sim.example.com',
     }))
 
     vi.doMock('@/lib/core/config/env', async () => {

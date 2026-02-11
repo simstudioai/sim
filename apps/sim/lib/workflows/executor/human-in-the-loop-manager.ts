@@ -739,7 +739,6 @@ export class PauseResumeManager {
       skipUsageLimits: true, // Resume is continuation of authorized execution - don't recheck limits
       workspaceId: baseSnapshot.metadata.workspaceId,
       loggingSession,
-      isResumeContext: true, // Enable billing fallback for paused workflow resumes
     })
 
     if (!preprocessingResult.success) {

@@ -1,4 +1,5 @@
 import type { JsmGetOrganizationsParams, JsmGetOrganizationsResponse } from '@/tools/jsm/types'
+import { ORGANIZATION_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetOrganizationsTool: ToolConfig<
@@ -106,7 +107,14 @@ export const jsmGetOrganizationsTool: ToolConfig<
 
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
-    organizations: { type: 'json', description: 'Array of organizations' },
+    organizations: {
+      type: 'array',
+      description: 'List of organizations',
+      items: {
+        type: 'object',
+        properties: ORGANIZATION_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of organizations' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

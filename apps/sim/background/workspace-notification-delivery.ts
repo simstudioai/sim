@@ -24,6 +24,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceNotificationDelivery')
 
@@ -72,14 +73,20 @@ async function buildPayload(
   if (!log.workflowId) return null
 
   const workflowData = await db
-    .select({ name: workflowTable.name, userId: workflowTable.userId })
+    .select({
+      name: workflowTable.name,
+      workspaceId: workflowTable.workspaceId,
+    })
     .from(workflowTable)
     .where(eq(workflowTable.id, log.workflowId))
     .limit(1)
 
   const timestamp = Date.now()
   const executionData = (log.executionData || {}) as Record<string, unknown>
-  const userId = workflowData[0]?.userId
+  const workflowRecord = workflowData[0]
+  const userId = workflowRecord?.workspaceId
+    ? await getWorkspaceBilledAccountUserId(workflowRecord.workspaceId)
+    : null
 
   const payload: NotificationPayload = {
     id: `evt_${uuidv4()}`,

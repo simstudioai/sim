@@ -39,6 +39,7 @@ export function getTriggerOptions(): TriggerOption[] {
     { value: 'webhook', label: 'Webhook', color: '#ea580c' },
     { value: 'mcp', label: 'MCP', color: '#dc2626' },
     { value: 'a2a', label: 'A2A', color: '#14b8a6' },
+    { value: 'copilot', label: 'Copilot', color: '#ec4899' },
   ]
 
   for (const trigger of triggers) {

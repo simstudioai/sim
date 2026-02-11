@@ -44,7 +44,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       id: 'domain',
       title: 'Domain',
       type: 'short-input',
-      placeholder: 'Enter Confluence domain (e.g., simstudio.atlassian.net)',
+      placeholder: 'Enter Confluence domain (e.g., company.atlassian.net)',
       required: true,
     },
     {
@@ -462,7 +462,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       id: 'domain',
       title: 'Domain',
       type: 'short-input',
-      placeholder: 'Enter Confluence domain (e.g., simstudio.atlassian.net)',
+      placeholder: 'Enter Confluence domain (e.g., company.atlassian.net)',
       required: true,
     },
     {

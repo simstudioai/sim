@@ -4,7 +4,9 @@ import { createLogger } from '@sim/logger'
 import { eq, inArray, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
 
@@ -155,6 +157,8 @@ export const POST = withMcpAuth('write')(
           const toolDescription =
             workflowRecord.description || `Execute ${workflowRecord.name} workflow`
 
+          const parameterSchema = await generateParameterSchemaForWorkflow(workflowRecord.id)
+
           const toolId = crypto.randomUUID()
           await db.insert(workflowMcpTool).values({
             id: toolId,
@@ -162,7 +166,7 @@ export const POST = withMcpAuth('write')(
             workflowId: workflowRecord.id,
             toolName,
             toolDescription,
-            parameterSchema: {},
+            parameterSchema,
             createdAt: new Date(),
             updatedAt: new Date(),
           })
@@ -174,6 +178,10 @@ export const POST = withMcpAuth('write')(
           `[${requestId}] Added ${addedTools.length} tools to server ${serverId}:`,
           addedTools.map((t) => t.toolName)
         )
+
+        if (addedTools.length > 0) {
+          mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
+        }
       }
 
       logger.info(

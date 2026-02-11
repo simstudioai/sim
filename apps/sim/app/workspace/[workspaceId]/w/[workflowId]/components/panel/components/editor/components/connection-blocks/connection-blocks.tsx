@@ -61,8 +61,6 @@ function ConnectionItem({
     blockId: connection.id,
     blockType: connection.type,
     mergedSubBlocks,
-    responseFormat: connection.responseFormat,
-    operation: connection.operation,
     triggerMode: sourceBlock?.triggerMode,
   })
   const hasFields = fields.length > 0

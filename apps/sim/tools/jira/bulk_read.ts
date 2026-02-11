@@ -1,10 +1,12 @@
 import type { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
+import { extractAdfText } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrieveResponseBulk> = {
   id: 'jira_bulk_read',
   name: 'Jira Bulk Read',
-  description: 'Retrieve multiple Jira issues in bulk',
+  description: 'Retrieve multiple Jira issues from a project in bulk',
   version: '1.0.0',
 
   oauth: {
@@ -41,44 +43,18 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
   },
 
   request: {
-    url: (params: JiraRetrieveBulkParams) => {
-      // Always return accessible resources endpoint; transformResponse will build search URLs
-      return 'https://api.atlassian.com/oauth/token/accessible-resources'
-    },
+    url: () => 'https://api.atlassian.com/oauth/token/accessible-resources',
     method: 'GET',
     headers: (params: JiraRetrieveBulkParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
       Accept: 'application/json',
     }),
-    body: (params: JiraRetrieveBulkParams) =>
-      params.cloudId
-        ? {
-            jql: '', // Will be set in transformResponse when we know the resolved project key
-            startAt: 0,
-            maxResults: 100,
-            fields: ['summary', 'description', 'created', 'updated'],
-          }
-        : {},
   },
 
   transformResponse: async (response: Response, params?: JiraRetrieveBulkParams) => {
     const MAX_TOTAL = 1000
     const PAGE_SIZE = 100
 
-    // Helper to extract description text safely (ADF can be nested)
-    const extractDescription = (desc: any): string => {
-      try {
-        return (
-          desc?.content?.[0]?.content?.[0]?.text ||
-          desc?.content?.flatMap((c: any) => c?.content || [])?.find((c: any) => c?.text)?.text ||
-          ''
-        )
-      } catch (_e) {
-        return ''
-      }
-    }
-
-    // Helper to resolve a project reference (id or key) to its canonical key
     const resolveProjectKey = async (cloudId: string, accessToken: string, ref: string) => {
       const refTrimmed = (ref || '').trim()
       if (!refTrimmed) return refTrimmed
@@ -87,128 +63,166 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
         method: 'GET',
         headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
       })
-      if (!resp.ok) {
-        // If can't resolve, fall back to original ref (JQL can still work with id or key)
-        return refTrimmed
-      }
+      if (!resp.ok) return refTrimmed
       const project = await resp.json()
       return project?.key || refTrimmed
     }
 
-    // If we don't have a cloudId, look it up first
-    if (!params?.cloudId) {
+    const resolveCloudId = async () => {
+      if (params?.cloudId) return params.cloudId
       const accessibleResources = await response.json()
       const normalizedInput = `https://${params?.domain}`.toLowerCase()
       const matchedResource = accessibleResources.find(
         (r: any) => r.url.toLowerCase() === normalizedInput
       )
-
-      const projectKey = await resolveProjectKey(
-        matchedResource.id,
-        params!.accessToken,
-        params!.projectId
-      )
-      const jql = `project = ${projectKey} ORDER BY updated DESC`
-
-      let startAt = 0
-      let collected: any[] = []
-      let total = 0
-
-      while (startAt < MAX_TOTAL) {
-        const queryParams = new URLSearchParams({
-          jql,
-          fields: 'summary,description,created,updated',
-          maxResults: String(PAGE_SIZE),
-        })
-        if (startAt > 0) {
-          queryParams.set('startAt', String(startAt))
-        }
-        const url = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/search/jql?${queryParams.toString()}`
-        const pageResponse = await fetch(url, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${params?.accessToken}`,
-            Accept: 'application/json',
-          },
-        })
-
-        const pageData = await pageResponse.json()
-        const issues = pageData.issues || []
-        total = pageData.total || issues.length
-        collected = collected.concat(issues)
-
-        if (collected.length >= Math.min(total, MAX_TOTAL) || issues.length === 0) break
-        startAt += PAGE_SIZE
-      }
-
-      return {
-        success: true,
-        output: collected.slice(0, MAX_TOTAL).map((issue: any) => ({
-          ts: new Date().toISOString(),
-          summary: issue.fields?.summary,
-          description: extractDescription(issue.fields?.description),
-          created: issue.fields?.created,
-          updated: issue.fields?.updated,
-        })),
-      }
+      if (matchedResource) return matchedResource.id
+      if (Array.isArray(accessibleResources) && accessibleResources.length > 0)
+        return accessibleResources[0].id
+      throw new Error('No Jira resources found')
     }
 
-    // cloudId present: resolve project and paginate using the Search API
-    // Resolve to canonical project key for consistent JQL
-    const projectKey = await resolveProjectKey(
-      params!.cloudId!,
-      params!.accessToken,
-      params!.projectId
-    )
-
+    const cloudId = await resolveCloudId()
+    const projectKey = await resolveProjectKey(cloudId, params!.accessToken, params!.projectId)
     const jql = `project = ${projectKey} ORDER BY updated DESC`
 
-    // Always do full pagination with resolved key
     let collected: any[] = []
-    let total = 0
-    let startAt = 0
-    while (startAt < MAX_TOTAL) {
+    let nextPageToken: string | undefined
+    let total: number | null = null
+
+    while (collected.length < MAX_TOTAL) {
       const queryParams = new URLSearchParams({
         jql,
-        fields: 'summary,description,created,updated',
+        fields: 'summary,description,status,issuetype,priority,assignee,created,updated',
         maxResults: String(PAGE_SIZE),
       })
-      if (startAt > 0) {
-        queryParams.set('startAt', String(startAt))
-      }
-      const url = `https://api.atlassian.com/ex/jira/${params?.cloudId}/rest/api/3/search/jql?${queryParams.toString()}`
+      if (nextPageToken) queryParams.set('nextPageToken', nextPageToken)
+
+      const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${queryParams.toString()}`
       const pageResponse = await fetch(url, {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${params?.accessToken}`,
+          Authorization: `Bearer ${params!.accessToken}`,
           Accept: 'application/json',
         },
       })
+
+      if (!pageResponse.ok) {
+        let message = `Failed to bulk read Jira issues (${pageResponse.status})`
+        try {
+          const err = await pageResponse.json()
+          message = err?.errorMessages?.join(', ') || err?.message || message
+        } catch (_e) {}
+        throw new Error(message)
+      }
+
       const pageData = await pageResponse.json()
       const issues = pageData.issues || []
-      total = pageData.total || issues.length
+      if (pageData.total != null) total = pageData.total
       collected = collected.concat(issues)
-      if (issues.length === 0 || collected.length >= Math.min(total, MAX_TOTAL)) break
-      startAt += PAGE_SIZE
+
+      if (pageData.isLast || !pageData.nextPageToken || issues.length === 0) break
+      nextPageToken = pageData.nextPageToken
     }
 
     return {
       success: true,
-      output: collected.slice(0, MAX_TOTAL).map((issue: any) => ({
+      output: {
         ts: new Date().toISOString(),
-        summary: issue.fields?.summary,
-        description: extractDescription(issue.fields?.description),
-        created: issue.fields?.created,
-        updated: issue.fields?.updated,
-      })),
+        total,
+        issues: collected.slice(0, MAX_TOTAL).map((issue: any) => ({
+          id: issue.id ?? '',
+          key: issue.key ?? '',
+          self: issue.self ?? '',
+          summary: issue.fields?.summary ?? '',
+          description: extractAdfText(issue.fields?.description),
+          status: {
+            id: issue.fields?.status?.id ?? '',
+            name: issue.fields?.status?.name ?? '',
+          },
+          issuetype: {
+            id: issue.fields?.issuetype?.id ?? '',
+            name: issue.fields?.issuetype?.name ?? '',
+          },
+          priority: issue.fields?.priority
+            ? { id: issue.fields.priority.id ?? '', name: issue.fields.priority.name ?? '' }
+            : null,
+          assignee: issue.fields?.assignee
+            ? {
+                accountId: issue.fields.assignee.accountId ?? '',
+                displayName: issue.fields.assignee.displayName ?? '',
+              }
+            : null,
+          created: issue.fields?.created ?? '',
+          updated: issue.fields?.updated ?? '',
+        })),
+        nextPageToken: nextPageToken ?? null,
+        isLast: !nextPageToken || collected.length >= MAX_TOTAL,
+      },
     }
   },
 
   outputs: {
+    ts: TIMESTAMP_OUTPUT,
+    total: {
+      type: 'number',
+      description: 'Total number of issues in the project (may not always be available)',
+      optional: true,
+    },
     issues: {
       type: 'array',
-      description:
-        'Array of Jira issues with ts, summary, description, created, and updated timestamps',
+      description: 'Array of Jira issues',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Issue ID' },
+          key: { type: 'string', description: 'Issue key (e.g., PROJ-123)' },
+          self: { type: 'string', description: 'REST API URL for this issue' },
+          summary: { type: 'string', description: 'Issue summary' },
+          description: { type: 'string', description: 'Issue description text', optional: true },
+          status: {
+            type: 'object',
+            description: 'Issue status',
+            properties: {
+              id: { type: 'string', description: 'Status ID' },
+              name: { type: 'string', description: 'Status name' },
+            },
+          },
+          issuetype: {
+            type: 'object',
+            description: 'Issue type',
+            properties: {
+              id: { type: 'string', description: 'Issue type ID' },
+              name: { type: 'string', description: 'Issue type name' },
+            },
+          },
+          priority: {
+            type: 'object',
+            description: 'Issue priority',
+            properties: {
+              id: { type: 'string', description: 'Priority ID' },
+              name: { type: 'string', description: 'Priority name' },
+            },
+            optional: true,
+          },
+          assignee: {
+            type: 'object',
+            description: 'Assigned user',
+            properties: {
+              accountId: { type: 'string', description: 'Atlassian account ID' },
+              displayName: { type: 'string', description: 'Display name' },
+            },
+            optional: true,
+          },
+          created: { type: 'string', description: 'ISO 8601 creation timestamp' },
+          updated: { type: 'string', description: 'ISO 8601 last updated timestamp' },
+        },
+      },
     },
+    nextPageToken: {
+      type: 'string',
+      description: 'Cursor token for the next page. Null when no more results.',
+      optional: true,
+    },
+    isLast: { type: 'boolean', description: 'Whether this is the last page of results' },
   },
 }

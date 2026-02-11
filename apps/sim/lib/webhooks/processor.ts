@@ -1,5 +1,5 @@
 import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
-import { credentialSet, subscription } from '@sim/db/schema'
+import { account, credentialSet, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -990,6 +990,15 @@ export async function queueWebhookExecution(
     // Note: Each webhook now has its own credentialId (credential sets are fanned out at save time)
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
+    let credentialAccountUserId: string | undefined
+    if (credentialId) {
+      const [credentialRecord] = await db
+        .select({ userId: account.userId })
+        .from(account)
+        .where(eq(account.id, credentialId))
+        .limit(1)
+      credentialAccountUserId = credentialRecord?.userId
+    }
     // credentialSetId is a direct field on webhook table, not in providerConfig
     const credentialSetId = foundWebhook.credentialSetId as string | undefined
 
@@ -1027,6 +1036,7 @@ export async function queueWebhookExecution(
       path: options.path || foundWebhook.path,
       blockId: foundWebhook.blockId,
       ...(credentialId ? { credentialId } : {}),
+      ...(credentialAccountUserId ? { credentialAccountUserId } : {}),
     }
 
     const jobQueue = await getJobQueue()

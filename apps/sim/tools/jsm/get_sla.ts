@@ -1,4 +1,5 @@
 import type { JsmGetSlaParams, JsmGetSlaResponse } from '@/tools/jsm/types'
+import { SLA_ITEM_PROPERTIES } from '@/tools/jsm/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jsmGetSlaTool: ToolConfig<JsmGetSlaParams, JsmGetSlaResponse> = {
@@ -106,7 +107,14 @@ export const jsmGetSlaTool: ToolConfig<JsmGetSlaParams, JsmGetSlaResponse> = {
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
     issueIdOrKey: { type: 'string', description: 'Issue ID or key' },
-    slas: { type: 'json', description: 'Array of SLA information' },
+    slas: {
+      type: 'array',
+      description: 'List of SLA metrics',
+      items: {
+        type: 'object',
+        properties: SLA_ITEM_PROPERTIES,
+      },
+    },
     total: { type: 'number', description: 'Total number of SLAs' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
   },

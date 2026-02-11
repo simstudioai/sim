@@ -446,15 +446,46 @@ export async function PUT(
             })
             .where(eq(workspaceInvitation.id, wsInvitation.id))
 
-          await tx.insert(permissions).values({
-            id: randomUUID(),
-            entityType: 'workspace',
-            entityId: wsInvitation.workspaceId,
-            userId: session.user.id,
-            permissionType: wsInvitation.permissions || 'read',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
+          const existingPermission = await tx
+            .select({ id: permissions.id, permissionType: permissions.permissionType })
+            .from(permissions)
+            .where(
+              and(
+                eq(permissions.entityId, wsInvitation.workspaceId),
+                eq(permissions.entityType, 'workspace'),
+                eq(permissions.userId, session.user.id)
+              )
+            )
+            .then((rows) => rows[0])
+
+          if (existingPermission) {
+            const PERMISSION_RANK = { read: 0, write: 1, admin: 2 } as const
+            type PermissionLevel = keyof typeof PERMISSION_RANK
+            const existingRank =
+              PERMISSION_RANK[existingPermission.permissionType as PermissionLevel] ?? 0
+            const newPermission = (wsInvitation.permissions || 'read') as PermissionLevel
+            const newRank = PERMISSION_RANK[newPermission] ?? 0
+
+            if (newRank > existingRank) {
+              await tx
+                .update(permissions)
+                .set({
+                  permissionType: newPermission,
+                  updatedAt: new Date(),
+                })
+                .where(eq(permissions.id, existingPermission.id))
+            }
+          } else {
+            await tx.insert(permissions).values({
+              id: randomUUID(),
+              entityType: 'workspace',
+              entityId: wsInvitation.workspaceId,
+              userId: session.user.id,
+              permissionType: wsInvitation.permissions || 'read',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            })
+          }
         }
       } else if (status === 'cancelled') {
         await tx

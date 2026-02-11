@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
       environment,
       customFieldId,
       customFieldValue,
+      components,
+      fixVersions,
     } = await request.json()
 
     if (!domain) {
@@ -73,10 +75,9 @@ export async function POST(request: NextRequest) {
 
     logger.info('Creating Jira issue at:', url)
 
+    const isNumericProjectId = /^\d+$/.test(projectId)
     const fields: Record<string, any> = {
-      project: {
-        id: projectId,
-      },
+      project: isNumericProjectId ? { id: projectId } : { key: projectId },
       issuetype: {
         name: normalizedIssueType,
       },
@@ -114,13 +115,31 @@ export async function POST(request: NextRequest) {
       fields.labels = labels
     }
 
+    if (
+      components !== undefined &&
+      components !== null &&
+      Array.isArray(components) &&
+      components.length > 0
+    ) {
+      fields.components = components.map((name: string) => ({ name }))
+    }
+
     if (duedate !== undefined && duedate !== null && duedate !== '') {
       fields.duedate = duedate
     }
 
+    if (
+      fixVersions !== undefined &&
+      fixVersions !== null &&
+      Array.isArray(fixVersions) &&
+      fixVersions.length > 0
+    ) {
+      fields.fixVersions = fixVersions.map((name: string) => ({ name }))
+    }
+
     if (reporter !== undefined && reporter !== null && reporter !== '') {
       fields.reporter = {
-        id: reporter,
+        accountId: reporter,
       }
     }
 
@@ -220,8 +239,10 @@ export async function POST(request: NextRequest) {
       success: true,
       output: {
         ts: new Date().toISOString(),
+        id: responseData.id || '',
         issueKey: issueKey,
-        summary: responseData.fields?.summary || 'Issue created',
+        self: responseData.self || '',
+        summary: responseData.fields?.summary || summary || 'Issue created',
         success: true,
         url: `https://${domain}/browse/${issueKey}`,
         ...(assigneeId && { assigneeId }),

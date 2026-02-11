@@ -43,7 +43,7 @@ import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/p
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
-import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockIcon, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 import { useWorkflowState } from '@/hooks/queries/workflows'
@@ -1140,9 +1140,17 @@ function PreviewEditorContent({
     (block.advancedMode ?? false) ||
     hasAdvancedValues(blockConfig.subBlocks, rawValues, canonicalIndex)
 
+  const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
+  const effectiveTrigger = block.triggerMode === true
+
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
-    if (subBlock.mode === 'trigger' && blockConfig.category !== 'triggers') return false
+
+    if (subBlock.type === ('trigger-config' as SubBlockType)) {
+      return effectiveTrigger || isPureTriggerBlock
+    }
+    if (subBlock.mode === 'trigger' && !effectiveTrigger) return false
+    if (effectiveTrigger && subBlock.mode !== 'trigger') return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
     if (
       !isSubBlockVisibleForMode(

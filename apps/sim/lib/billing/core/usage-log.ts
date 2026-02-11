@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { usageLog, workflow } from '@sim/db/schema'
+import { usageLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -14,7 +14,7 @@ export type UsageLogCategory = 'model' | 'fixed'
 /**
  * Usage log source types
  */
-export type UsageLogSource = 'workflow' | 'wand' | 'copilot'
+export type UsageLogSource = 'workflow' | 'wand' | 'copilot' | 'mcp_copilot'
 
 /**
  * Metadata for 'model' category charges
@@ -395,27 +395,5 @@ export async function getUserUsageLogs(
       options,
     })
     throw error
-  }
-}
-
-/**
- * Get the user ID associated with a workflow
- * Helper function for cases where we only have a workflow ID
- */
-export async function getUserIdFromWorkflow(workflowId: string): Promise<string | null> {
-  try {
-    const [workflowRecord] = await db
-      .select({ userId: workflow.userId })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
-
-    return workflowRecord?.userId ?? null
-  } catch (error) {
-    logger.error('Failed to get user ID from workflow', {
-      error: error instanceof Error ? error.message : String(error),
-      workflowId,
-    })
-    return null
   }
 }

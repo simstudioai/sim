@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflow, workflowSchedule } from '@sim/db/schema'
+import { workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('ScheduleAPI')
 
@@ -57,31 +57,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
-    const [workflowRecord] = await db
-      .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
-      .from(workflow)
-      .where(eq(workflow.id, schedule.workflowId))
-      .limit(1)
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId: schedule.workflowId,
+      userId: session.user.id,
+      action: 'write',
+    })
 
-    if (!workflowRecord) {
+    if (!authorization.workflow) {
       logger.warn(`[${requestId}] Workflow not found for schedule: ${scheduleId}`)
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    let isAuthorized = workflowRecord.userId === session.user.id
-
-    if (!isAuthorized && workflowRecord.workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workflowRecord.workspaceId
-      )
-      isAuthorized = userPermission === 'write' || userPermission === 'admin'
-    }
-
-    if (!isAuthorized) {
+    if (!authorization.allowed) {
       logger.warn(`[${requestId}] User not authorized to modify this schedule: ${scheduleId}`)
-      return NextResponse.json({ error: 'Not authorized to modify this schedule' }, { status: 403 })
+      return NextResponse.json(
+        { error: authorization.message || 'Not authorized to modify this schedule' },
+        { status: authorization.status }
+      )
     }
 
     if (schedule.status === 'active') {

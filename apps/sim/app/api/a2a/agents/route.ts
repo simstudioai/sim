@@ -16,7 +16,7 @@ import { sanitizeAgentName } from '@/lib/a2a/utils'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
-import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('A2AAgentsAPI')
 
@@ -39,9 +39,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
     }
 
-    const ws = await getWorkspaceById(workspaceId)
-    if (!ws) {
+    const workspaceAccess = await checkWorkspaceAccess(workspaceId, auth.userId)
+    if (!workspaceAccess.exists) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+    if (!workspaceAccess.hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const agents = await db
@@ -101,6 +104,14 @@ export async function POST(request: NextRequest) {
         { error: 'workspaceId and workflowId are required' },
         { status: 400 }
       )
+    }
+
+    const workspaceAccess = await checkWorkspaceAccess(workspaceId, auth.userId)
+    if (!workspaceAccess.exists) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+    if (!workspaceAccess.canWrite) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const [wf] = await db

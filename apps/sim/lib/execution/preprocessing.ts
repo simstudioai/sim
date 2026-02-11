@@ -19,94 +19,6 @@ const BILLING_ERROR_MESSAGES = {
   BILLING_ERROR_GENERIC: 'Error resolving billing account',
 } as const
 
-/**
- * Attempts to resolve billing actor with fallback for resume contexts.
- * Returns the resolved actor user ID or null if resolution fails and should block execution.
- *
- * For resume contexts, this function allows fallback to the workflow owner if workspace
- * billing cannot be resolved, ensuring users can complete their paused workflows even
- * if billing configuration changes mid-execution.
- *
- * @returns Object containing actorUserId (null if should block) and shouldBlock flag
- */
-async function resolveBillingActorWithFallback(params: {
-  requestId: string
-  workflowId: string
-  workspaceId: string
-  executionId: string
-  triggerType: string
-  workflowRecord: WorkflowRecord
-  userId: string
-  isResumeContext: boolean
-  baseActorUserId: string | null
-  failureReason: 'null' | 'error'
-  error?: unknown
-  loggingSession?: LoggingSession
-}): Promise<
-  { actorUserId: string; shouldBlock: false } | { actorUserId: null; shouldBlock: true }
-> {
-  const {
-    requestId,
-    workflowId,
-    workspaceId,
-    executionId,
-    triggerType,
-    workflowRecord,
-    userId,
-    isResumeContext,
-    baseActorUserId,
-    failureReason,
-    error,
-    loggingSession,
-  } = params
-
-  if (baseActorUserId) {
-    return { actorUserId: baseActorUserId, shouldBlock: false }
-  }
-
-  const workflowOwner = workflowRecord.userId?.trim()
-  if (isResumeContext && workflowOwner) {
-    const logMessage =
-      failureReason === 'null'
-        ? '[BILLING_FALLBACK] Workspace billing account is null. Using workflow owner for billing.'
-        : '[BILLING_FALLBACK] Exception during workspace billing resolution. Using workflow owner for billing.'
-
-    logger.warn(`[${requestId}] ${logMessage}`, {
-      workflowId,
-      workspaceId,
-      fallbackUserId: workflowOwner,
-      ...(error ? { error } : {}),
-    })
-
-    return { actorUserId: workflowOwner, shouldBlock: false }
-  }
-
-  const fallbackUserId = workflowRecord.userId || userId || 'unknown'
-  const errorMessage =
-    failureReason === 'null'
-      ? BILLING_ERROR_MESSAGES.BILLING_REQUIRED
-      : BILLING_ERROR_MESSAGES.BILLING_ERROR_GENERIC
-
-  logger.warn(`[${requestId}] ${errorMessage}`, {
-    workflowId,
-    workspaceId,
-    ...(error ? { error } : {}),
-  })
-
-  await logPreprocessingError({
-    workflowId,
-    executionId,
-    triggerType,
-    requestId,
-    userId: fallbackUserId,
-    workspaceId,
-    errorMessage,
-    loggingSession,
-  })
-
-  return { actorUserId: null, shouldBlock: true }
-}
-
 export interface PreprocessExecutionOptions {
   // Required fields
   workflowId: string
@@ -123,7 +35,7 @@ export interface PreprocessExecutionOptions {
   // Context information
   workspaceId?: string // If known, used for billing resolution
   loggingSession?: LoggingSession // If provided, will be used for error logging
-  isResumeContext?: boolean // If true, allows fallback billing on resolution failure (for paused workflow resumes)
+  isResumeContext?: boolean // Deprecated: no billing fallback is allowed
   useAuthenticatedUserAsActor?: boolean // If true, use the authenticated userId as actorUserId (for client-side executions and personal API keys)
   /** @deprecated No longer used - background/async executions always use deployed state */
   useDraftState?: boolean
@@ -170,7 +82,7 @@ export async function preprocessExecution(
     skipUsageLimits = false,
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
-    isResumeContext = false,
+    isResumeContext: _isResumeContext = false,
     useAuthenticatedUserAsActor = false,
   } = options
 
@@ -238,6 +150,19 @@ export async function preprocessExecution(
 
   const workspaceId = workflowRecord.workspaceId || providedWorkspaceId || ''
 
+  if (!workspaceId) {
+    logger.warn(`[${requestId}] Workflow ${workflowId} has no workspaceId; execution blocked`)
+    return {
+      success: false,
+      error: {
+        message:
+          'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot execute.',
+        statusCode: 403,
+        logCreated: false,
+      },
+    }
+  }
+
   // ========== STEP 2: Check Deployment Status ==========
   // If workflow is not deployed and deployment is required, reject without logging.
   // No log entry or cost should be created for calls to undeployed workflows
@@ -274,68 +199,54 @@ export async function preprocessExecution(
     }
 
     if (!actorUserId) {
-      actorUserId = workflowRecord.userId || userId
-      logger.info(`[${requestId}] Using workflow owner as actor: ${actorUserId}`)
-    }
-
-    if (!actorUserId) {
-      const result = await resolveBillingActorWithFallback({
-        requestId,
+      const fallbackUserId = userId || 'unknown'
+      logger.warn(`[${requestId}] ${BILLING_ERROR_MESSAGES.BILLING_REQUIRED}`, {
         workflowId,
         workspaceId,
+      })
+
+      await logPreprocessingError({
+        workflowId,
         executionId,
         triggerType,
-        workflowRecord,
-        userId,
-        isResumeContext,
-        baseActorUserId: actorUserId,
-        failureReason: 'null',
+        requestId,
+        userId: fallbackUserId,
+        workspaceId,
+        errorMessage: BILLING_ERROR_MESSAGES.BILLING_REQUIRED,
         loggingSession: providedLoggingSession,
       })
 
-      if (result.shouldBlock) {
-        return {
-          success: false,
-          error: {
-            message: 'Unable to resolve billing account',
-            statusCode: 500,
-            logCreated: true,
-          },
-        }
-      }
-
-      actorUserId = result.actorUserId
-    }
-  } catch (error) {
-    logger.error(`[${requestId}] Error resolving billing actor`, { error, workflowId })
-
-    const result = await resolveBillingActorWithFallback({
-      requestId,
-      workflowId,
-      workspaceId,
-      executionId,
-      triggerType,
-      workflowRecord,
-      userId,
-      isResumeContext,
-      baseActorUserId: null,
-      failureReason: 'error',
-      error,
-      loggingSession: providedLoggingSession,
-    })
-
-    if (result.shouldBlock) {
       return {
         success: false,
         error: {
-          message: 'Error resolving billing account',
+          message: 'Unable to resolve billing account',
           statusCode: 500,
           logCreated: true,
         },
       }
     }
+  } catch (error) {
+    logger.error(`[${requestId}] Error resolving billing actor`, { error, workflowId })
+    const fallbackUserId = userId || 'unknown'
+    await logPreprocessingError({
+      workflowId,
+      executionId,
+      triggerType,
+      requestId,
+      userId: fallbackUserId,
+      workspaceId,
+      errorMessage: BILLING_ERROR_MESSAGES.BILLING_ERROR_GENERIC,
+      loggingSession: providedLoggingSession,
+    })
 
-    actorUserId = result.actorUserId
+    return {
+      success: false,
+      error: {
+        message: 'Error resolving billing account',
+        statusCode: 500,
+        logCreated: true,
+      },
+    }
   }
 
   // ========== STEP 4: Get User Subscription ==========

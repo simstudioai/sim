@@ -45,6 +45,12 @@ interface McpDeployProps {
   onCanSaveChange?: (canSave: boolean) => void
 }
 
+function haveSameServerSelection(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const bSet = new Set(b)
+  return a.every((id) => bSet.has(id))
+}
+
 /**
  * Generate JSON Schema from input format with optional descriptions
  */
@@ -143,6 +149,7 @@ export function McpDeploy({
   })
   const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
   const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(new Set())
+  const [saveErrors, setSaveErrors] = useState<string[]>([])
 
   const parameterSchema = useMemo(
     () => generateParameterSchema(inputFormat, parameterDescriptions),
@@ -179,6 +186,7 @@ export function McpDeploy({
     }
     return ids
   }, [servers, serverToolsMap])
+  const [draftSelectedServerIds, setDraftSelectedServerIds] = useState<string[] | null>(null)
 
   const hasLoadedInitialData = useRef(false)
 
@@ -238,9 +246,10 @@ export function McpDeploy({
     }
   }, [toolName, toolDescription, parameterDescriptions, savedValues])
 
-  const hasDeployedTools = selectedServerIds.length > 0
-  const hasChanges = useMemo(() => {
-    if (!savedValues || !hasDeployedTools) return false
+  const selectedServerIdsForForm = draftSelectedServerIds ?? selectedServerIds
+
+  const hasToolConfigurationChanges = useMemo(() => {
+    if (!savedValues) return false
     if (toolName !== savedValues.toolName) return true
     if (toolDescription !== savedValues.toolDescription) return true
     if (
@@ -249,11 +258,18 @@ export function McpDeploy({
       return true
     }
     return false
-  }, [toolName, toolDescription, parameterDescriptions, hasDeployedTools, savedValues])
+  }, [toolName, toolDescription, parameterDescriptions, savedValues])
+  const hasServerSelectionChanges = useMemo(
+    () => !haveSameServerSelection(selectedServerIdsForForm, selectedServerIds),
+    [selectedServerIdsForForm, selectedServerIds]
+  )
+  const hasChanges =
+    hasServerSelectionChanges ||
+    (hasToolConfigurationChanges && selectedServerIdsForForm.length > 0)
 
   useEffect(() => {
-    onCanSaveChange?.(hasChanges && hasDeployedTools && !!toolName.trim())
-  }, [hasChanges, hasDeployedTools, toolName, onCanSaveChange])
+    onCanSaveChange?.(hasChanges && !!toolName.trim())
+  }, [hasChanges, toolName, onCanSaveChange])
 
   /**
    * Save tool configuration to all deployed servers
@@ -261,74 +277,25 @@ export function McpDeploy({
   const handleSave = useCallback(async () => {
     if (!toolName.trim()) return
 
-    const toolsToUpdate: Array<{ serverId: string; toolId: string }> = []
-    for (const server of servers) {
-      const toolInfo = serverToolsMap[server.id]
-      if (toolInfo?.tool) {
-        toolsToUpdate.push({ serverId: server.id, toolId: toolInfo.tool.id })
-      }
-    }
+    const currentIds = new Set(selectedServerIds)
+    const nextIds = new Set(selectedServerIdsForForm)
+    const toAdd = new Set(selectedServerIdsForForm.filter((id) => !currentIds.has(id)))
+    const toRemove = selectedServerIds.filter((id) => !nextIds.has(id))
+    const shouldUpdateExisting = hasToolConfigurationChanges
 
-    if (toolsToUpdate.length === 0) return
+    if (toAdd.size === 0 && toRemove.length === 0 && !shouldUpdateExisting) return
 
     onSubmittingChange?.(true)
+    setSaveErrors([])
     try {
-      for (const { serverId, toolId } of toolsToUpdate) {
-        await updateToolMutation.mutateAsync({
-          workspaceId,
-          serverId,
-          toolId,
-          toolName: toolName.trim(),
-          toolDescription: toolDescription.trim() || undefined,
-          parameterSchema,
-        })
-      }
-      // Update saved values after successful save (triggers re-render → hasChanges becomes false)
-      setSavedValues({
-        toolName,
-        toolDescription,
-        parameterDescriptions: { ...parameterDescriptions },
-      })
-      onCanSaveChange?.(false)
-      onSubmittingChange?.(false)
-    } catch (error) {
-      logger.error('Failed to save tool configuration:', error)
-      onSubmittingChange?.(false)
-    }
-  }, [
-    toolName,
-    toolDescription,
-    parameterDescriptions,
-    parameterSchema,
-    servers,
-    serverToolsMap,
-    workspaceId,
-    updateToolMutation,
-    onSubmittingChange,
-    onCanSaveChange,
-  ])
-
-  const serverOptions: ComboboxOption[] = useMemo(() => {
-    return servers.map((server) => ({
-      label: server.name,
-      value: server.id,
-    }))
-  }, [servers])
-
-  const handleServerSelectionChange = useCallback(
-    async (newSelectedIds: string[]) => {
-      if (!toolName.trim()) return
-
-      const currentIds = new Set(selectedServerIds)
-      const newIds = new Set(newSelectedIds)
-
-      const toAdd = newSelectedIds.filter((id) => !currentIds.has(id))
-      const toRemove = selectedServerIds.filter((id) => !newIds.has(id))
+      const errors: string[] = []
+      const addedEntries: Record<string, { tool: WorkflowMcpTool; isLoading: boolean }> = {}
+      const removedIds: string[] = []
 
       for (const serverId of toAdd) {
         setPendingServerChanges((prev) => new Set(prev).add(serverId))
         try {
-          await addToolMutation.mutateAsync({
+          const addedTool = await addToolMutation.mutateAsync({
             workspaceId,
             serverId,
             workflowId,
@@ -336,10 +303,13 @@ export function McpDeploy({
             toolDescription: toolDescription.trim() || undefined,
             parameterSchema,
           })
+          addedEntries[serverId] = { tool: addedTool, isLoading: false }
           onAddedToServer?.()
           logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
         } catch (error) {
-          logger.error('Failed to add tool:', error)
+          const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+          errors.push(`Failed to add to ${serverName}`)
+          logger.error(`Failed to add tool to server ${serverId}:`, error)
         } finally {
           setPendingServerChanges((prev) => {
             const next = new Set(prev)
@@ -351,54 +321,115 @@ export function McpDeploy({
 
       for (const serverId of toRemove) {
         const toolInfo = serverToolsMap[serverId]
-        if (toolInfo?.tool) {
-          setPendingServerChanges((prev) => new Set(prev).add(serverId))
+        if (!toolInfo?.tool) continue
+
+        setPendingServerChanges((prev) => new Set(prev).add(serverId))
+        try {
+          await deleteToolMutation.mutateAsync({
+            workspaceId,
+            serverId,
+            toolId: toolInfo.tool.id,
+          })
+          removedIds.push(serverId)
+        } catch (error) {
+          const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+          errors.push(`Failed to remove from ${serverName}`)
+          logger.error(`Failed to remove tool from server ${serverId}:`, error)
+        } finally {
+          setPendingServerChanges((prev) => {
+            const next = new Set(prev)
+            next.delete(serverId)
+            return next
+          })
+        }
+      }
+
+      if (shouldUpdateExisting) {
+        for (const serverId of selectedServerIdsForForm) {
+          if (toAdd.has(serverId)) continue
+          const toolInfo = serverToolsMap[serverId]
+          if (!toolInfo?.tool) continue
+
           try {
-            await deleteToolMutation.mutateAsync({
+            await updateToolMutation.mutateAsync({
               workspaceId,
               serverId,
               toolId: toolInfo.tool.id,
-            })
-            setServerToolsMap((prev) => {
-              const next = { ...prev }
-              delete next[serverId]
-              return next
+              toolName: toolName.trim(),
+              toolDescription: toolDescription.trim() || undefined,
+              parameterSchema,
             })
           } catch (error) {
-            logger.error('Failed to remove tool:', error)
-          } finally {
-            setPendingServerChanges((prev) => {
-              const next = new Set(prev)
-              next.delete(serverId)
-              return next
-            })
+            const serverName = servers.find((s) => s.id === serverId)?.name || serverId
+            errors.push(`Failed to update on ${serverName}`)
+            logger.error(`Failed to update tool on server ${serverId}:`, error)
           }
         }
       }
-    },
-    [
-      selectedServerIds,
-      serverToolsMap,
-      toolName,
-      toolDescription,
-      workspaceId,
-      workflowId,
-      parameterSchema,
-      addToolMutation,
-      deleteToolMutation,
-      onAddedToServer,
-    ]
-  )
+
+      setServerToolsMap((prev) => {
+        const next = { ...prev, ...addedEntries }
+        for (const id of removedIds) {
+          delete next[id]
+        }
+        return next
+      })
+      if (errors.length > 0) {
+        setSaveErrors(errors)
+      } else {
+        setDraftSelectedServerIds(null)
+        setSavedValues({
+          toolName,
+          toolDescription,
+          parameterDescriptions: { ...parameterDescriptions },
+        })
+        onCanSaveChange?.(false)
+      }
+      onSubmittingChange?.(false)
+    } catch (error) {
+      logger.error('Failed to save tool configuration:', error)
+      onSubmittingChange?.(false)
+    }
+  }, [
+    toolName,
+    toolDescription,
+    parameterDescriptions,
+    parameterSchema,
+    selectedServerIds,
+    selectedServerIdsForForm,
+    hasToolConfigurationChanges,
+    serverToolsMap,
+    workspaceId,
+    workflowId,
+    servers,
+    addToolMutation,
+    deleteToolMutation,
+    updateToolMutation,
+    onAddedToServer,
+    onSubmittingChange,
+    onCanSaveChange,
+  ])
+
+  const serverOptions: ComboboxOption[] = useMemo(() => {
+    return servers.map((server) => ({
+      label: server.name,
+      value: server.id,
+    }))
+  }, [servers])
+
+  const handleServerSelectionChange = useCallback((newSelectedIds: string[]) => {
+    setDraftSelectedServerIds(newSelectedIds)
+  }, [])
 
   const selectedServersLabel = useMemo(() => {
-    const count = selectedServerIds.length
+    const count = selectedServerIdsForForm.length
     if (count === 0) return 'Select servers...'
     if (count === 1) {
-      const server = servers.find((s) => s.id === selectedServerIds[0])
+      const server = servers.find((s) => s.id === selectedServerIdsForForm[0])
       return server?.name || '1 server'
     }
     return `${count} servers selected`
-  }, [selectedServerIds, servers])
+  }, [selectedServerIdsForForm, servers])
 
   const isPending = pendingServerChanges.size > 0
 
@@ -544,7 +575,7 @@ export function McpDeploy({
         <Combobox
           options={serverOptions}
           multiSelect
-          multiSelectValues={selectedServerIds}
+          multiSelectValues={selectedServerIdsForForm}
           onMultiSelectChange={handleServerSelectionChange}
           placeholder='Select servers...'
           searchable
@@ -561,10 +592,14 @@ export function McpDeploy({
         )}
       </div>
 
-      {addToolMutation.isError && (
-        <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>
-          {addToolMutation.error?.message || 'Failed to add tool'}
-        </p>
+      {saveErrors.length > 0 && (
+        <div className='mt-[6.5px] flex flex-col gap-[2px]'>
+          {saveErrors.map((error) => (
+            <p key={error} className='text-[12px] text-[var(--text-error)]'>
+              {error}
+            </p>
+          ))}
+        </div>
       )}
     </form>
   )

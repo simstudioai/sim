@@ -76,7 +76,7 @@ export async function GET(
     }
 
     if (job.status === JOB_STATUS.PROCESSING || job.status === JOB_STATUS.PENDING) {
-      response.estimatedDuration = 180000
+      response.estimatedDuration = 300000
     }
 
     return NextResponse.json(response)

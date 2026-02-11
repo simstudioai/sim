@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -23,21 +23,21 @@ const ReorderSchema = z.object({
 
 export async function PUT(req: NextRequest) {
   const requestId = generateRequestId()
-  const session = await getSession()
-
-  if (!session?.user?.id) {
+  const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+  if (!auth.success || !auth.userId) {
     logger.warn(`[${requestId}] Unauthorized reorder attempt`)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const userId = auth.userId
 
   try {
     const body = await req.json()
     const { workspaceId, updates } = ReorderSchema.parse(body)
 
-    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permission || permission === 'read') {
       logger.warn(
-        `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
+        `[${requestId}] User ${userId} lacks write permission for workspace ${workspaceId}`
       )
       return NextResponse.json({ error: 'Write access required' }, { status: 403 })
     }

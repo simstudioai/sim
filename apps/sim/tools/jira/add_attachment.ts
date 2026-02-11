@@ -1,4 +1,5 @@
 import type { JiraAddAttachmentParams, JiraAddAttachmentResponse } from '@/tools/jira/types'
+import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraAddAttachmentTool: ToolConfig<JiraAddAttachmentParams, JiraAddAttachmentResponse> =
@@ -75,9 +76,28 @@ export const jiraAddAttachmentTool: ToolConfig<JiraAddAttachmentParams, JiraAddA
     },
 
     outputs: {
-      ts: { type: 'string', description: 'Timestamp of the operation' },
+      ts: TIMESTAMP_OUTPUT,
       issueKey: { type: 'string', description: 'Issue key' },
-      attachmentIds: { type: 'json', description: 'IDs of uploaded attachments' },
+      attachments: {
+        type: 'array',
+        description: 'Uploaded attachments',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Attachment ID' },
+            filename: { type: 'string', description: 'Attachment file name' },
+            mimeType: { type: 'string', description: 'MIME type' },
+            size: { type: 'number', description: 'File size in bytes' },
+            content: { type: 'string', description: 'URL to download the attachment' },
+          },
+        },
+      },
+      attachmentIds: {
+        type: 'array',
+        description: 'Array of attachment IDs',
+        items: { type: 'string' },
+        optional: true,
+      },
       files: { type: 'file[]', description: 'Uploaded attachment files' },
     },
   }

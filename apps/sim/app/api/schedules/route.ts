@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
-import { workflow, workflowDeploymentVersion, workflowSchedule } from '@sim/db/schema'
+import { workflowDeploymentVersion, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('ScheduledAPI')
 
@@ -29,29 +29,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workflowId parameter' }, { status: 400 })
     }
 
-    const [workflowRecord] = await db
-      .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: session.user.id,
+      action: 'read',
+    })
 
-    if (!workflowRecord) {
+    if (!authorization.workflow) {
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    let isAuthorized = workflowRecord.userId === session.user.id
-
-    if (!isAuthorized && workflowRecord.workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workflowRecord.workspaceId
+    if (!authorization.allowed) {
+      return NextResponse.json(
+        { error: authorization.message || 'Not authorized to view this workflow' },
+        { status: authorization.status }
       )
-      isAuthorized = userPermission !== null
-    }
-
-    if (!isAuthorized) {
-      return NextResponse.json({ error: 'Not authorized to view this workflow' }, { status: 403 })
     }
 
     logger.info(`[${requestId}] Getting schedule for workflow ${workflowId}`)

@@ -1,22 +1,7 @@
+import type { JiraRemoveWatcherParams, JiraRemoveWatcherResponse } from '@/tools/jira/types'
+import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-export interface JiraRemoveWatcherParams {
-  accessToken: string
-  domain: string
-  issueKey: string
-  accountId: string
-  cloudId?: string
-}
-
-export interface JiraRemoveWatcherResponse extends ToolResponse {
-  output: {
-    ts: string
-    issueKey: string
-    watcherAccountId: string
-    success: boolean
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemoveWatcherResponse> =
   {
@@ -83,13 +68,12 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     transformResponse: async (response: Response, params?: JiraRemoveWatcherParams) => {
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-        // Make the actual request with the resolved cloudId
-        const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/watchers?accountId=${params?.accountId}`
+        const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/watchers?accountId=${params!.accountId}`
         const watcherResponse = await fetch(watcherUrl, {
           method: 'DELETE',
           headers: {
             Accept: 'application/json',
-            Authorization: `Bearer ${params?.accessToken}`,
+            Authorization: `Bearer ${params!.accessToken}`,
           },
         })
 
@@ -106,14 +90,13 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
           success: true,
           output: {
             ts: new Date().toISOString(),
-            issueKey: params?.issueKey || 'unknown',
-            watcherAccountId: params?.accountId || 'unknown',
+            issueKey: params!.issueKey || 'unknown',
+            watcherAccountId: params!.accountId || 'unknown',
             success: true,
           },
         }
       }
 
-      // If cloudId was provided, process the response
       if (!response.ok) {
         let message = `Failed to remove watcher from Jira issue (${response.status})`
         try {
@@ -127,15 +110,16 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
         success: true,
         output: {
           ts: new Date().toISOString(),
-          issueKey: params?.issueKey || 'unknown',
-          watcherAccountId: params?.accountId || 'unknown',
+          issueKey: params!.issueKey || 'unknown',
+          watcherAccountId: params!.accountId || 'unknown',
           success: true,
         },
       }
     },
 
     outputs: {
-      ts: { type: 'string', description: 'Timestamp of the operation' },
+      ts: TIMESTAMP_OUTPUT,
+      success: SUCCESS_OUTPUT,
       issueKey: { type: 'string', description: 'Issue key' },
       watcherAccountId: { type: 'string', description: 'Removed watcher account ID' },
     },

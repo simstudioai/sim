@@ -29,11 +29,19 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
-import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  createHttpResponseFromBlock,
+  workflowHasResponseBlock,
+} from '@/lib/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionMetadata, IterationContext } from '@/executor/execution/types'
+import type {
+  ExecutionMetadata,
+  IterationContext,
+  SerializableExecutionState,
+} from '@/executor/execution/types'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
@@ -62,20 +70,23 @@ const ExecuteWorkflowSchema = z.object({
   runFromBlock: z
     .object({
       startBlockId: z.string().min(1, 'Start block ID is required'),
-      sourceSnapshot: z.object({
-        blockStates: z.record(z.any()),
-        executedBlocks: z.array(z.string()),
-        blockLogs: z.array(z.any()),
-        decisions: z.object({
-          router: z.record(z.string()),
-          condition: z.record(z.string()),
-        }),
-        completedLoops: z.array(z.string()),
-        loopExecutions: z.record(z.any()).optional(),
-        parallelExecutions: z.record(z.any()).optional(),
-        parallelBlockMapping: z.record(z.any()).optional(),
-        activeExecutionPath: z.array(z.string()),
-      }),
+      sourceSnapshot: z
+        .object({
+          blockStates: z.record(z.any()),
+          executedBlocks: z.array(z.string()),
+          blockLogs: z.array(z.any()),
+          decisions: z.object({
+            router: z.record(z.string()),
+            condition: z.record(z.string()),
+          }),
+          completedLoops: z.array(z.string()),
+          loopExecutions: z.record(z.any()).optional(),
+          parallelExecutions: z.record(z.any()).optional(),
+          parallelBlockMapping: z.record(z.any()).optional(),
+          activeExecutionPath: z.array(z.string()),
+        })
+        .optional(),
+      executionId: z.string().optional(),
     })
     .optional(),
 })
@@ -269,8 +280,46 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       base64MaxBytes,
       workflowStateOverride,
       stopAfterBlockId,
-      runFromBlock,
+      runFromBlock: rawRunFromBlock,
     } = validation.data
+
+    // Resolve runFromBlock snapshot from executionId if needed
+    let resolvedRunFromBlock:
+      | { startBlockId: string; sourceSnapshot: SerializableExecutionState }
+      | undefined
+    if (rawRunFromBlock) {
+      if (rawRunFromBlock.sourceSnapshot) {
+        resolvedRunFromBlock = {
+          startBlockId: rawRunFromBlock.startBlockId,
+          sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
+        }
+      } else if (rawRunFromBlock.executionId) {
+        const { getExecutionState, getLatestExecutionState } = await import(
+          '@/lib/workflows/executor/execution-state'
+        )
+        const snapshot =
+          rawRunFromBlock.executionId === 'latest'
+            ? await getLatestExecutionState(workflowId)
+            : await getExecutionState(rawRunFromBlock.executionId)
+        if (!snapshot) {
+          return NextResponse.json(
+            {
+              error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first.`,
+            },
+            { status: 400 }
+          )
+        }
+        resolvedRunFromBlock = {
+          startBlockId: rawRunFromBlock.startBlockId,
+          sourceSnapshot: snapshot,
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'runFromBlock requires either sourceSnapshot or executionId' },
+          { status: 400 }
+        )
+      }
+    }
 
     // For API key and internal JWT auth, the entire body is the input (except for our control fields)
     // For session auth, the input is explicitly provided in the input field
@@ -295,6 +344,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : validatedInput
 
     const shouldUseDraftState = useDraftState ?? auth.authType === 'session'
+    const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: shouldUseDraftState ? 'write' : 'read',
+    })
+    if (!workflowAuthorization.allowed) {
+      return NextResponse.json(
+        { error: workflowAuthorization.message || 'Access denied' },
+        { status: workflowAuthorization.status }
+      )
+    }
 
     const streamHeader = req.headers.get('X-Stream-Response') === 'true'
     const enableSSE = streamHeader || streamParam === true
@@ -496,7 +556,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           includeFileBase64,
           base64MaxBytes,
           stopAfterBlockId,
-          runFromBlock,
+          runFromBlock: resolvedRunFromBlock,
           abortSignal: timeoutController.signal,
         })
 
@@ -687,6 +747,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   iterationCurrent: iterationContext.iterationCurrent,
                   iterationTotal: iterationContext.iterationTotal,
                   iterationType: iterationContext.iterationType,
+                  iterationContainerId: iterationContext.iterationContainerId,
                 }),
               },
             })
@@ -727,6 +788,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     iterationCurrent: iterationContext.iterationCurrent,
                     iterationTotal: iterationContext.iterationTotal,
                     iterationType: iterationContext.iterationType,
+                    iterationContainerId: iterationContext.iterationContainerId,
                   }),
                 },
               })
@@ -755,6 +817,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     iterationCurrent: iterationContext.iterationCurrent,
                     iterationTotal: iterationContext.iterationTotal,
                     iterationType: iterationContext.iterationType,
+                    iterationContainerId: iterationContext.iterationContainerId,
                   }),
                 },
               })
@@ -837,7 +900,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             includeFileBase64,
             base64MaxBytes,
             stopAfterBlockId,
-            runFromBlock,
+            runFromBlock: resolvedRunFromBlock,
           })
 
           if (result.status === 'paused') {

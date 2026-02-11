@@ -4,15 +4,8 @@
  * @vitest-environment node
  */
 
-import { createSession, loggerMock } from '@sim/testing'
+import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mockSession = createSession({ userId: 'test-user-id' })
-const mockGetSession = vi.fn()
-
-vi.mock('@/lib/auth', () => ({
-  getSession: () => mockGetSession(),
-}))
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -37,7 +30,6 @@ import { db } from '@sim/db'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getCredential,
-  getUserId,
   refreshAccessTokenIfNeeded,
   refreshTokenIfNeeded,
 } from '@/app/api/auth/oauth/utils'
@@ -48,48 +40,11 @@ const mockRefreshOAuthToken = refreshOAuthToken as any
 describe('OAuth Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue(mockSession)
     mockDbTyped.limit.mockReturnValue([])
   })
 
   afterEach(() => {
     vi.clearAllMocks()
-  })
-
-  describe('getUserId', () => {
-    it('should get user ID from session when no workflowId is provided', async () => {
-      const userId = await getUserId('request-id')
-
-      expect(userId).toBe('test-user-id')
-    })
-
-    it('should get user ID from workflow when workflowId is provided', async () => {
-      mockDbTyped.limit.mockReturnValueOnce([{ userId: 'workflow-owner-id' }])
-
-      const userId = await getUserId('request-id', 'workflow-id')
-
-      expect(mockDbTyped.select).toHaveBeenCalled()
-      expect(mockDbTyped.from).toHaveBeenCalled()
-      expect(mockDbTyped.where).toHaveBeenCalled()
-      expect(mockDbTyped.limit).toHaveBeenCalledWith(1)
-      expect(userId).toBe('workflow-owner-id')
-    })
-
-    it('should return undefined if no session is found', async () => {
-      mockGetSession.mockResolvedValueOnce(null)
-
-      const userId = await getUserId('request-id')
-
-      expect(userId).toBeUndefined()
-    })
-
-    it('should return undefined if workflow is not found', async () => {
-      mockDbTyped.limit.mockReturnValueOnce([])
-
-      const userId = await getUserId('request-id', 'nonexistent-workflow-id')
-
-      expect(userId).toBeUndefined()
-    })
   })
 
   describe('getCredential', () => {

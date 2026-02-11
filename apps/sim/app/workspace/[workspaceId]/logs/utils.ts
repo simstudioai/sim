@@ -72,6 +72,7 @@ const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['va
   webhook: 'orange',
   mcp: 'cyan',
   a2a: 'teal',
+  copilot: 'pink',
 }
 
 interface StatusBadgeProps {

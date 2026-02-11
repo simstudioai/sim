@@ -1,6 +1,7 @@
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -111,6 +112,8 @@ export interface BlockLog {
   output?: any
   input?: any
   error?: string
+  /** Whether this error was handled by an error handler path (error port) */
+  errorHandled?: boolean
   loopId?: string
   parallelId?: string
   iterationIndex?: number
@@ -302,6 +305,7 @@ export interface ExecutionResult {
   output: NormalizedBlockOutput
   error?: string
   logs?: BlockLog[]
+  executionState?: SerializableExecutionState
   metadata?: ExecutionMetadata
   status?: 'completed' | 'paused' | 'cancelled'
   pausePoints?: PausePoint[]

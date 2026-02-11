@@ -17,7 +17,7 @@ mockDrizzleOrm()
 mockConsoleLogger()
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: vi.fn().mockResolvedValue({ role: 'owner' }),
+  getUserEntityPermissions: vi.fn().mockResolvedValue('admin'),
 }))
 
 describe('Knowledge Base API Route', () => {

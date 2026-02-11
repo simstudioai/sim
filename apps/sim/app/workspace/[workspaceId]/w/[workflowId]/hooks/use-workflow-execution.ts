@@ -34,7 +34,7 @@ import { coerceValue } from '@/executor/utils/start-block'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
-import { useExecutionStore } from '@/stores/execution'
+import { useCurrentWorkflowExecution, useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import { useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
@@ -55,7 +55,7 @@ interface DebugValidationResult {
 interface BlockEventHandlerConfig {
   workflowId?: string
   executionId?: string
-  workflowEdges: Array<{ id: string; target: string }>
+  workflowEdges: Array<{ id: string; target: string; sourceHandle?: string | null }>
   activeBlocksSet: Set<string>
   accumulatedBlockLogs: BlockLog[]
   accumulatedBlockStates: Map<string, BlockState>
@@ -112,24 +112,19 @@ export function useWorkflowExecution() {
     useTerminalConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
-  const {
-    isExecuting,
-    isDebugging,
-    pendingBlocks,
-    executor,
-    debugContext,
-    setIsExecuting,
-    setIsDebugging,
-    setPendingBlocks,
-    setExecutor,
-    setDebugContext,
-    setActiveBlocks,
-    setBlockRunStatus,
-    setEdgeRunStatus,
-    setLastExecutionSnapshot,
-    getLastExecutionSnapshot,
-    clearLastExecutionSnapshot,
-  } = useExecutionStore()
+  const { isExecuting, isDebugging, pendingBlocks, executor, debugContext } =
+    useCurrentWorkflowExecution()
+  const setIsExecuting = useExecutionStore((s) => s.setIsExecuting)
+  const setIsDebugging = useExecutionStore((s) => s.setIsDebugging)
+  const setPendingBlocks = useExecutionStore((s) => s.setPendingBlocks)
+  const setExecutor = useExecutionStore((s) => s.setExecutor)
+  const setDebugContext = useExecutionStore((s) => s.setDebugContext)
+  const setActiveBlocks = useExecutionStore((s) => s.setActiveBlocks)
+  const setBlockRunStatus = useExecutionStore((s) => s.setBlockRunStatus)
+  const setEdgeRunStatus = useExecutionStore((s) => s.setEdgeRunStatus)
+  const setLastExecutionSnapshot = useExecutionStore((s) => s.setLastExecutionSnapshot)
+  const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
+  const clearLastExecutionSnapshot = useExecutionStore((s) => s.clearLastExecutionSnapshot)
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
   const currentChatExecutionIdRef = useRef<string | null>(null)
@@ -158,13 +153,15 @@ export function useWorkflowExecution() {
    * Resets all debug-related state
    */
   const resetDebugState = useCallback(() => {
-    setIsExecuting(false)
-    setIsDebugging(false)
-    setDebugContext(null)
-    setExecutor(null)
-    setPendingBlocks([])
-    setActiveBlocks(new Set())
+    if (!activeWorkflowId) return
+    setIsExecuting(activeWorkflowId, false)
+    setIsDebugging(activeWorkflowId, false)
+    setDebugContext(activeWorkflowId, null)
+    setExecutor(activeWorkflowId, null)
+    setPendingBlocks(activeWorkflowId, [])
+    setActiveBlocks(activeWorkflowId, new Set())
   }, [
+    activeWorkflowId,
     setIsExecuting,
     setIsDebugging,
     setDebugContext,
@@ -312,18 +309,21 @@ export function useWorkflowExecution() {
       } = config
 
       const updateActiveBlocks = (blockId: string, isActive: boolean) => {
+        if (!workflowId) return
         if (isActive) {
           activeBlocksSet.add(blockId)
         } else {
           activeBlocksSet.delete(blockId)
         }
-        setActiveBlocks(new Set(activeBlocksSet))
+        setActiveBlocks(workflowId, new Set(activeBlocksSet))
       }
 
       const markIncomingEdges = (blockId: string) => {
+        if (!workflowId) return
         const incomingEdges = workflowEdges.filter((edge) => edge.target === blockId)
         incomingEdges.forEach((edge) => {
-          setEdgeRunStatus(edge.id, 'success')
+          const status = edge.sourceHandle === 'error' ? 'error' : 'success'
+          setEdgeRunStatus(workflowId, edge.id, status)
         })
       }
 
@@ -366,6 +366,7 @@ export function useWorkflowExecution() {
           iterationCurrent: data.iterationCurrent,
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
+          iterationContainerId: data.iterationContainerId,
         })
       }
 
@@ -388,6 +389,7 @@ export function useWorkflowExecution() {
           iterationCurrent: data.iterationCurrent,
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
+          iterationContainerId: data.iterationContainerId,
         })
       }
 
@@ -395,6 +397,7 @@ export function useWorkflowExecution() {
         updateConsole(
           data.blockId,
           {
+            executionOrder: data.executionOrder,
             input: data.input || {},
             replaceOutput: data.output,
             success: true,
@@ -405,6 +408,7 @@ export function useWorkflowExecution() {
             iterationCurrent: data.iterationCurrent,
             iterationTotal: data.iterationTotal,
             iterationType: data.iterationType,
+            iterationContainerId: data.iterationContainerId,
           },
           executionId
         )
@@ -414,6 +418,7 @@ export function useWorkflowExecution() {
         updateConsole(
           data.blockId,
           {
+            executionOrder: data.executionOrder,
             input: data.input || {},
             replaceOutput: {},
             success: false,
@@ -425,6 +430,7 @@ export function useWorkflowExecution() {
             iterationCurrent: data.iterationCurrent,
             iterationTotal: data.iterationTotal,
             iterationType: data.iterationType,
+            iterationContainerId: data.iterationContainerId,
           },
           executionId
         )
@@ -454,12 +460,13 @@ export function useWorkflowExecution() {
           iterationCurrent: data.iterationCurrent,
           iterationTotal: data.iterationTotal,
           iterationType: data.iterationType,
+          iterationContainerId: data.iterationContainerId,
         })
       }
 
       const onBlockCompleted = (data: BlockCompletedData) => {
         updateActiveBlocks(data.blockId, false)
-        setBlockRunStatus(data.blockId, 'success')
+        if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'success')
 
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
@@ -489,7 +496,7 @@ export function useWorkflowExecution() {
 
       const onBlockError = (data: BlockErrorData) => {
         updateActiveBlocks(data.blockId, false)
-        setBlockRunStatus(data.blockId, 'error')
+        if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'error')
 
         executedBlockIds.add(data.blockId)
         accumulatedBlockStates.set(data.blockId, {
@@ -547,19 +554,20 @@ export function useWorkflowExecution() {
    */
   const handleDebugSessionContinuation = useCallback(
     (result: ExecutionResult) => {
+      if (!activeWorkflowId) return
       logger.info('Debug step completed, next blocks pending', {
         nextPendingBlocks: result.metadata?.pendingBlocks?.length || 0,
       })
 
       // Update debug context and pending blocks
       if (result.metadata?.context) {
-        setDebugContext(result.metadata.context)
+        setDebugContext(activeWorkflowId, result.metadata.context)
       }
       if (result.metadata?.pendingBlocks) {
-        setPendingBlocks(result.metadata.pendingBlocks)
+        setPendingBlocks(activeWorkflowId, result.metadata.pendingBlocks)
       }
     },
-    [setDebugContext, setPendingBlocks]
+    [activeWorkflowId, setDebugContext, setPendingBlocks]
   )
 
   /**
@@ -663,11 +671,11 @@ export function useWorkflowExecution() {
 
       // Reset execution result and set execution state
       setExecutionResult(null)
-      setIsExecuting(true)
+      setIsExecuting(activeWorkflowId, true)
 
       // Set debug mode only if explicitly requested
       if (enableDebug) {
-        setIsDebugging(true)
+        setIsDebugging(activeWorkflowId, true)
       }
 
       // Determine if this is a chat execution
@@ -921,6 +929,7 @@ export function useWorkflowExecution() {
                       useTerminalConsoleStore.getState().updateConsole(
                         log.blockId,
                         {
+                          executionOrder: log.executionOrder,
                           replaceOutput: log.output,
                           success: true,
                         },
@@ -965,9 +974,9 @@ export function useWorkflowExecution() {
                 controller.close()
               }
               if (currentChatExecutionIdRef.current === executionId) {
-                setIsExecuting(false)
-                setIsDebugging(false)
-                setActiveBlocks(new Set())
+                setIsExecuting(activeWorkflowId, false)
+                setIsDebugging(activeWorkflowId, false)
+                setActiveBlocks(activeWorkflowId, new Set())
               }
             }
           },
@@ -989,16 +998,16 @@ export function useWorkflowExecution() {
           'manual'
         )
         if (result && 'metadata' in result && result.metadata?.isDebugSession) {
-          setDebugContext(result.metadata.context || null)
+          setDebugContext(activeWorkflowId, result.metadata.context || null)
           if (result.metadata.pendingBlocks) {
-            setPendingBlocks(result.metadata.pendingBlocks)
+            setPendingBlocks(activeWorkflowId, result.metadata.pendingBlocks)
           }
         } else if (result && 'success' in result) {
           setExecutionResult(result)
           // Reset execution state after successful non-debug execution
-          setIsExecuting(false)
-          setIsDebugging(false)
-          setActiveBlocks(new Set())
+          setIsExecuting(activeWorkflowId, false)
+          setIsDebugging(activeWorkflowId, false)
+          setActiveBlocks(activeWorkflowId, new Set())
 
           if (isChatExecution) {
             if (!result.metadata) {
@@ -1179,7 +1188,7 @@ export function useWorkflowExecution() {
         logger.error('No trigger blocks found for manual run', {
           allBlockTypes: Object.values(filteredStates).map((b) => b.type),
         })
-        setIsExecuting(false)
+        if (activeWorkflowId) setIsExecuting(activeWorkflowId, false)
         throw error
       }
 
@@ -1195,7 +1204,7 @@ export function useWorkflowExecution() {
           'Workflow Validation'
         )
         logger.error('Multiple API triggers found')
-        setIsExecuting(false)
+        if (activeWorkflowId) setIsExecuting(activeWorkflowId, false)
         throw error
       }
 
@@ -1220,7 +1229,7 @@ export function useWorkflowExecution() {
             'Workflow Validation'
           )
           logger.error('Trigger has no outgoing connections', { triggerName, startBlockId })
-          setIsExecuting(false)
+          if (activeWorkflowId) setIsExecuting(activeWorkflowId, false)
           throw error
         }
       }
@@ -1251,7 +1260,7 @@ export function useWorkflowExecution() {
         'Workflow Validation'
       )
       logger.error('No startBlockId found after trigger search')
-      setIsExecuting(false)
+      if (activeWorkflowId) setIsExecuting(activeWorkflowId, false)
       throw error
     }
 
@@ -1457,8 +1466,10 @@ export function useWorkflowExecution() {
           logger.info('Execution aborted by user')
 
           // Reset execution state
-          setIsExecuting(false)
-          setActiveBlocks(new Set())
+          if (activeWorkflowId) {
+            setIsExecuting(activeWorkflowId, false)
+            setActiveBlocks(activeWorkflowId, new Set())
+          }
 
           // Return gracefully without error
           return {
@@ -1533,9 +1544,11 @@ export function useWorkflowExecution() {
     }
 
     setExecutionResult(errorResult)
-    setIsExecuting(false)
-    setIsDebugging(false)
-    setActiveBlocks(new Set())
+    if (activeWorkflowId) {
+      setIsExecuting(activeWorkflowId, false)
+      setIsDebugging(activeWorkflowId, false)
+      setActiveBlocks(activeWorkflowId, new Set())
+    }
 
     let notificationMessage = WORKFLOW_EXECUTION_FAILURE_MESSAGE
     if (isRecord(error) && isRecord(error.request) && sanitizeMessage(error.request.url)) {
@@ -1706,8 +1719,8 @@ export function useWorkflowExecution() {
   const handleCancelExecution = useCallback(() => {
     logger.info('Workflow execution cancellation requested')
 
-    // Cancel the execution stream (server-side)
-    executionStream.cancel()
+    // Cancel the execution stream for this workflow (server-side)
+    executionStream.cancel(activeWorkflowId ?? undefined)
 
     // Mark current chat execution as superseded so its cleanup won't affect new executions
     currentChatExecutionIdRef.current = null
@@ -1715,12 +1728,12 @@ export function useWorkflowExecution() {
     // Mark all running entries as canceled in the terminal
     if (activeWorkflowId) {
       cancelRunningEntries(activeWorkflowId)
-    }
 
-    // Reset execution state - this triggers chat stream cleanup via useEffect in chat.tsx
-    setIsExecuting(false)
-    setIsDebugging(false)
-    setActiveBlocks(new Set())
+      // Reset execution state - this triggers chat stream cleanup via useEffect in chat.tsx
+      setIsExecuting(activeWorkflowId, false)
+      setIsDebugging(activeWorkflowId, false)
+      setActiveBlocks(activeWorkflowId, new Set())
+    }
 
     // If in debug mode, also reset debug state
     if (isDebugging) {
@@ -1833,7 +1846,7 @@ export function useWorkflowExecution() {
         }
       }
 
-      setIsExecuting(true)
+      setIsExecuting(workflowId, true)
       const executionId = uuidv4()
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
@@ -1929,8 +1942,8 @@ export function useWorkflowExecution() {
           logger.error('Run-from-block failed:', error)
         }
       } finally {
-        setIsExecuting(false)
-        setActiveBlocks(new Set())
+        setIsExecuting(workflowId, false)
+        setActiveBlocks(workflowId, new Set())
       }
     },
     [
@@ -1962,7 +1975,7 @@ export function useWorkflowExecution() {
       logger.info('Starting run-until-block execution', { workflowId, stopAfterBlockId: blockId })
 
       setExecutionResult(null)
-      setIsExecuting(true)
+      setIsExecuting(workflowId, true)
 
       const executionId = uuidv4()
       try {
@@ -1981,9 +1994,9 @@ export function useWorkflowExecution() {
         const errorResult = handleExecutionError(error, { executionId })
         return errorResult
       } finally {
-        setIsExecuting(false)
-        setIsDebugging(false)
-        setActiveBlocks(new Set())
+        setIsExecuting(workflowId, false)
+        setIsDebugging(workflowId, false)
+        setActiveBlocks(workflowId, new Set())
       }
     },
     [activeWorkflowId, setExecutionResult, setIsExecuting, setIsDebugging, setActiveBlocks]

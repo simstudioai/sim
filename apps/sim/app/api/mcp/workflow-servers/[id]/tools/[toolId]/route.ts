@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 
@@ -115,6 +116,8 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
 
       logger.info(`[${requestId}] Successfully updated tool ${toolId}`)
 
+      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
+
       return createMcpSuccessResponse({ tool: updatedTool })
     } catch (error) {
       logger.error(`[${requestId}] Error updating tool:`, error)
@@ -159,6 +162,8 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
       }
 
       logger.info(`[${requestId}] Successfully deleted tool ${toolId}`)
+
+      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
 
       return createMcpSuccessResponse({ message: `Tool ${toolId} deleted successfully` })
     } catch (error) {

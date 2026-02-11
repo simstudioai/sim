@@ -100,11 +100,17 @@ function handleWorkspaceInvitationAPI(
  */
 function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   const userAgent = request.headers.get('user-agent') || ''
-  const isWebhookEndpoint = request.nextUrl.pathname.startsWith('/api/webhooks/trigger/')
+  const { pathname } = request.nextUrl
+  const isWebhookEndpoint = pathname.startsWith('/api/webhooks/trigger/')
+  const isMcpEndpoint = pathname.startsWith('/api/mcp/')
+  const isMcpOauthDiscoveryEndpoint =
+    pathname.startsWith('/.well-known/oauth-authorization-server') ||
+    pathname.startsWith('/.well-known/oauth-protected-resource')
   const isSuspicious = SUSPICIOUS_UA_PATTERNS.some((pattern) => pattern.test(userAgent))
 
-  // Block suspicious requests, but exempt webhook endpoints from User-Agent validation
-  if (isSuspicious && !isWebhookEndpoint) {
+  // Block suspicious requests, but exempt machine-to-machine endpoints that may
+  // legitimately omit User-Agent headers (webhooks and MCP protocol discovery/calls).
+  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpOauthDiscoveryEndpoint) {
     logger.warn('Blocked suspicious request', {
       userAgent,
       ip: request.headers.get('x-forwarded-for') || 'unknown',
@@ -133,24 +139,6 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
 
 export async function proxy(request: NextRequest) {
   const url = request.nextUrl
-
-  if (url.pathname.startsWith('/ingest/')) {
-    const hostname = url.pathname.startsWith('/ingest/static/')
-      ? 'us-assets.i.posthog.com'
-      : 'us.i.posthog.com'
-
-    const targetPath = url.pathname.replace(/^\/ingest/, '')
-    const targetUrl = `https://${hostname}${targetPath}${url.search}`
-
-    return NextResponse.rewrite(new URL(targetUrl), {
-      request: {
-        headers: new Headers({
-          ...Object.fromEntries(request.headers),
-          host: hostname,
-        }),
-      },
-    })
-  }
 
   const sessionCookie = getSessionCookie(request)
   const hasActiveSession = isAuthDisabled || !!sessionCookie
@@ -213,7 +201,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/ingest/:path*', // PostHog proxy for session recording
     '/', // Root path for self-hosted redirect logic
     '/terms', // Whitelabel terms redirect
     '/privacy', // Whitelabel privacy redirect
@@ -224,6 +211,6 @@ export const config = {
     '/signup',
     '/invite/:path*', // Match invitation routes
     // Catch-all for other pages, excluding static assets and public directories
-    '/((?!_next/static|_next/image|favicon.ico|logo/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
+    '/((?!_next/static|_next/image|ingest|favicon.ico|logo/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],
 }

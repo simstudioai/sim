@@ -719,7 +719,10 @@ export function MessagesInput({
                     ref={(el) => {
                       overlayRefs.current[fieldId] = el
                     }}
-                    className='pointer-events-none absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-[8px] py-[8px] font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+                    className={cn(
+                      'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-[8px] py-[8px] font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                      !(isPreview || disabled) && 'pointer-events-none'
+                    )}
                   >
                     {formatDisplayText(message.content, {
                       accessiblePrefixes,

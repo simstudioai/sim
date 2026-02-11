@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
     let workspaceId: string | null = null
     if (workflowId) {
       const [workflowRecord] = await db
-        .select({ workspaceId: workflow.workspaceId, userId: workflow.userId })
+        .select({ workspaceId: workflow.workspaceId })
         .from(workflow)
         .where(eq(workflow.id, workflowId))
         .limit(1)
@@ -183,9 +183,18 @@ export async function POST(req: NextRequest) {
           )
           return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 })
         }
-      } else if (workflowRecord.userId !== session.user.id) {
-        logger.warn(`[${requestId}] User ${session.user.id} does not own workflow ${workflowId}`)
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 })
+      } else {
+        logger.warn(
+          `[${requestId}] Workflow ${workflowId} has no workspaceId; wand request blocked`
+        )
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be accessed.',
+          },
+          { status: 403 }
+        )
       }
     }
 

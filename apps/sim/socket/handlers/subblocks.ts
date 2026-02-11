@@ -2,7 +2,9 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
+import { SUBBLOCK_OPERATIONS } from '@/socket/constants'
 import type { AuthenticatedSocket } from '@/socket/middleware/auth'
+import { checkRolePermission } from '@/socket/middleware/permissions'
 import type { IRoomManager } from '@/socket/rooms'
 
 const logger = createLogger('SubblocksHandlers')
@@ -109,6 +111,43 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
           blockId,
           subblockId,
         })
+        return
+      }
+
+      const users = await roomManager.getWorkflowUsers(workflowId)
+      const userPresence = users.find((user) => user.socketId === socket.id)
+      if (!userPresence) {
+        socket.emit('operation-forbidden', {
+          type: 'SESSION_ERROR',
+          message: 'User session not found',
+          operation: SUBBLOCK_OPERATIONS.UPDATE,
+          target: 'subblock',
+        })
+        if (operationId) {
+          socket.emit('operation-failed', {
+            operationId,
+            error: 'User session not found',
+            retryable: false,
+          })
+        }
+        return
+      }
+
+      const permissionCheck = checkRolePermission(userPresence.role, SUBBLOCK_OPERATIONS.UPDATE)
+      if (!permissionCheck.allowed) {
+        socket.emit('operation-forbidden', {
+          type: 'INSUFFICIENT_PERMISSIONS',
+          message: permissionCheck.reason || 'Insufficient permissions',
+          operation: SUBBLOCK_OPERATIONS.UPDATE,
+          target: 'subblock',
+        })
+        if (operationId) {
+          socket.emit('operation-failed', {
+            operationId,
+            error: permissionCheck.reason || 'Insufficient permissions',
+            retryable: false,
+          })
+        }
         return
       }
 
