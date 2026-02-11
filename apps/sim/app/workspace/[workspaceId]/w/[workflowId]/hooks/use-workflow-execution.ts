@@ -114,19 +114,17 @@ export function useWorkflowExecution() {
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const { isExecuting, isDebugging, pendingBlocks, executor, debugContext } =
     useCurrentWorkflowExecution()
-  const {
-    setIsExecuting,
-    setIsDebugging,
-    setPendingBlocks,
-    setExecutor,
-    setDebugContext,
-    setActiveBlocks,
-    setBlockRunStatus,
-    setEdgeRunStatus,
-    setLastExecutionSnapshot,
-    getLastExecutionSnapshot,
-    clearLastExecutionSnapshot,
-  } = useExecutionStore()
+  const setIsExecuting = useExecutionStore((s) => s.setIsExecuting)
+  const setIsDebugging = useExecutionStore((s) => s.setIsDebugging)
+  const setPendingBlocks = useExecutionStore((s) => s.setPendingBlocks)
+  const setExecutor = useExecutionStore((s) => s.setExecutor)
+  const setDebugContext = useExecutionStore((s) => s.setDebugContext)
+  const setActiveBlocks = useExecutionStore((s) => s.setActiveBlocks)
+  const setBlockRunStatus = useExecutionStore((s) => s.setBlockRunStatus)
+  const setEdgeRunStatus = useExecutionStore((s) => s.setEdgeRunStatus)
+  const setLastExecutionSnapshot = useExecutionStore((s) => s.setLastExecutionSnapshot)
+  const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
+  const clearLastExecutionSnapshot = useExecutionStore((s) => s.clearLastExecutionSnapshot)
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
   const currentChatExecutionIdRef = useRef<string | null>(null)

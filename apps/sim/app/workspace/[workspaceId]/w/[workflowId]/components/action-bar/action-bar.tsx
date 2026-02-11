@@ -115,7 +115,7 @@ export const ActionBar = memo(
 
     const { activeWorkflowId } = useWorkflowRegistry()
     const { isExecuting } = useCurrentWorkflowExecution()
-    const { getLastExecutionSnapshot } = useExecutionStore()
+    const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
     const userPermissions = useUserPermissionsContext()
     const edges = useWorkflowStore((state) => state.edges)
 

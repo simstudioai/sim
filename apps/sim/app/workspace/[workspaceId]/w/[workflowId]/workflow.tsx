@@ -741,7 +741,7 @@ const WorkflowContent = React.memo(() => {
   )
 
   const { activeBlockIds, pendingBlocks, isDebugging, isExecuting } = useCurrentWorkflowExecution()
-  const { getLastExecutionSnapshot } = useExecutionStore()
+  const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
 
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
