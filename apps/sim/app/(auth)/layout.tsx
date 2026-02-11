@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import AuthBackground from '@/app/(auth)/components/auth-background'
+import { UtmCookieSetter } from '@/app/(auth)/components/utm-cookie-setter'
 import Nav from '@/app/(landing)/components/nav/nav'
 
 // Helper to detect if a color is dark
@@ -28,6 +29,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }, [])
   return (
     <AuthBackground>
+      <Suspense>
+        <UtmCookieSetter />
+      </Suspense>
       <main className='relative flex min-h-screen flex-col text-foreground'>
         {/* Header - Nav handles all conditional logic */}
         <Nav hideAuthButtons={true} variant='auth' />
