@@ -743,7 +743,6 @@ export const referralCampaigns = pgTable(
   },
   (table) => ({
     activeIdx: index('referral_campaigns_active_idx').on(table.isActive),
-    codeIdx: uniqueIndex('referral_campaigns_code_idx').on(table.code),
   })
 )
 

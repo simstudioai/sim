@@ -7,7 +7,12 @@ const logger = createLogger('ReferralAttribution')
 
 const COOKIE_NAME = 'sim_utm'
 
-const TERMINAL_REASONS = new Set(['account_predates_cookie', 'invalid_cookie'])
+const TERMINAL_REASONS = new Set([
+  'account_predates_cookie',
+  'invalid_cookie',
+  'no_utm_cookie',
+  'no_matching_campaign',
+])
 
 /**
  * Fires a one-shot `POST /api/attribution` when a `sim_utm` cookie is present.
