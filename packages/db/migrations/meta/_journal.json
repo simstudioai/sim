@@ -1023,13 +1023,6 @@
       "when": 1768867605608,
       "tag": "0146_cultured_ikaris",
       "breakpoints": true
-    },
-    {
-      "idx": 147,
-      "version": "7",
-      "when": 1769042037138,
-      "tag": "0147_gifted_gauntlet",
-      "breakpoints": true
     }
   ]
 }
