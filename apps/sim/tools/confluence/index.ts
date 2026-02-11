@@ -5,11 +5,14 @@ import { confluenceCreatePageTool } from '@/tools/confluence/create_page'
 import { confluenceCreatePagePropertyTool } from '@/tools/confluence/create_page_property'
 import { confluenceDeleteAttachmentTool } from '@/tools/confluence/delete_attachment'
 import { confluenceDeleteCommentTool } from '@/tools/confluence/delete_comment'
+import { confluenceDeleteLabelTool } from '@/tools/confluence/delete_label'
 import { confluenceDeletePageTool } from '@/tools/confluence/delete_page'
+import { confluenceDeletePagePropertyTool } from '@/tools/confluence/delete_page_property'
 import { confluenceGetBlogPostTool } from '@/tools/confluence/get_blogpost'
 import { confluenceGetPageAncestorsTool } from '@/tools/confluence/get_page_ancestors'
 import { confluenceGetPageChildrenTool } from '@/tools/confluence/get_page_children'
 import { confluenceGetPageVersionTool } from '@/tools/confluence/get_page_version'
+import { confluenceGetPagesByLabelTool } from '@/tools/confluence/get_pages_by_label'
 import { confluenceGetSpaceTool } from '@/tools/confluence/get_space'
 import { confluenceListAttachmentsTool } from '@/tools/confluence/list_attachments'
 import { confluenceListBlogPostsTool } from '@/tools/confluence/list_blogposts'
@@ -19,6 +22,7 @@ import { confluenceListLabelsTool } from '@/tools/confluence/list_labels'
 import { confluenceListPagePropertiesTool } from '@/tools/confluence/list_page_properties'
 import { confluenceListPageVersionsTool } from '@/tools/confluence/list_page_versions'
 import { confluenceListPagesInSpaceTool } from '@/tools/confluence/list_pages_in_space'
+import { confluenceListSpaceLabelsTool } from '@/tools/confluence/list_space_labels'
 import { confluenceListSpacesTool } from '@/tools/confluence/list_spaces'
 import { confluenceRetrieveTool } from '@/tools/confluence/retrieve'
 import { confluenceSearchTool } from '@/tools/confluence/search'
@@ -78,6 +82,7 @@ export {
   // Page Properties Tools
   confluenceListPagePropertiesTool,
   confluenceCreatePagePropertyTool,
+  confluenceDeletePagePropertyTool,
   // Blog Post Tools
   confluenceListBlogPostsTool,
   confluenceGetBlogPostTool,
@@ -98,6 +103,9 @@ export {
   // Label Tools
   confluenceListLabelsTool,
   confluenceAddLabelTool,
+  confluenceDeleteLabelTool,
+  confluenceGetPagesByLabelTool,
+  confluenceListSpaceLabelsTool,
   // Space Tools
   confluenceGetSpaceTool,
   confluenceListSpacesTool,
