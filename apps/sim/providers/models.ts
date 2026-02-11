@@ -47,6 +47,8 @@ export interface ModelCapabilities {
     default?: string
   }
   deepResearch?: boolean
+  /** Whether this model supports conversation memory. Defaults to true if omitted. */
+  memory?: boolean
 }
 
 export interface ModelDefinition {
@@ -938,6 +940,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           deepResearch: true,
+          memory: false,
         },
         contextWindow: 1000000,
       },
@@ -1060,6 +1063,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           deepResearch: true,
+          memory: false,
         },
         contextWindow: 1000000,
       },
@@ -2513,6 +2517,22 @@ export function getModelsWithDeepResearch(): string[] {
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
     for (const model of provider.models) {
       if (model.capabilities.deepResearch) {
+        models.push(model.id)
+      }
+    }
+  }
+  return models
+}
+
+/**
+ * Get all models that explicitly disable memory support (memory: false).
+ * Models without this capability default to supporting memory.
+ */
+export function getModelsWithoutMemory(): string[] {
+  const models: string[] = []
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    for (const model of provider.models) {
+      if (model.capabilities.memory === false) {
         models.push(model.id)
       }
     }
