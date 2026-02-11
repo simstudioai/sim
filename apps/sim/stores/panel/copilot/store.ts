@@ -408,7 +408,9 @@ function normalizeSelectedModelKey(selectedModel: string, models: AvailableModel
   if (matches.length === 0) return selectedModel
 
   if (provider) {
-    const sameProvider = matches.find((m) => m.provider === provider || m.id.startsWith(`${provider}/`))
+    const sameProvider = matches.find(
+      (m) => m.provider === provider || m.id.startsWith(`${provider}/`)
+    )
     if (sameProvider) return sameProvider.id
   }
 
