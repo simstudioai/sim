@@ -434,7 +434,7 @@ export function TeamManagement() {
 
         {/* Team Information */}
         <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-          <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] transition-colors hover:bg-white/[0.04] group-open:rounded-b-none'>
+          <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
             <span>Team Information</span>
             <svg
               className='h-4 w-4 transition-transform group-open:rotate-180'
@@ -473,7 +473,7 @@ export function TeamManagement() {
         {/* Team Billing Information (only show for Team Plan, not Enterprise) */}
         {hasTeamPlan && !hasEnterprisePlan && (
           <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-            <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] transition-colors hover:bg-white/[0.04] group-open:rounded-b-none'>
+            <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[14px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
               <span>Billing Information</span>
               <svg
                 className='h-4 w-4 transition-transform group-open:rotate-180'

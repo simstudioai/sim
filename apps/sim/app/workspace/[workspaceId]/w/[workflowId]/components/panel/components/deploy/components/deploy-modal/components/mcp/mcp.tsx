@@ -288,8 +288,9 @@ export function McpDeploy({
     onSubmittingChange?.(true)
     setSaveErrors([])
     try {
-      const nextServerToolsMap = { ...serverToolsMap }
       const errors: string[] = []
+      const addedEntries: Record<string, { tool: WorkflowMcpTool; isLoading: boolean }> = {}
+      const removedIds: string[] = []
 
       for (const serverId of toAdd) {
         setPendingServerChanges((prev) => new Set(prev).add(serverId))
@@ -302,7 +303,7 @@ export function McpDeploy({
             toolDescription: toolDescription.trim() || undefined,
             parameterSchema,
           })
-          nextServerToolsMap[serverId] = { tool: addedTool, isLoading: false }
+          addedEntries[serverId] = { tool: addedTool, isLoading: false }
           onAddedToServer?.()
           logger.info(`Added workflow ${workflowId} as tool to server ${serverId}`)
         } catch (error) {
@@ -319,7 +320,7 @@ export function McpDeploy({
       }
 
       for (const serverId of toRemove) {
-        const toolInfo = nextServerToolsMap[serverId]
+        const toolInfo = serverToolsMap[serverId]
         if (!toolInfo?.tool) continue
 
         setPendingServerChanges((prev) => new Set(prev).add(serverId))
@@ -329,7 +330,7 @@ export function McpDeploy({
             serverId,
             toolId: toolInfo.tool.id,
           })
-          delete nextServerToolsMap[serverId]
+          removedIds.push(serverId)
         } catch (error) {
           const serverName = servers.find((s) => s.id === serverId)?.name || serverId
           errors.push(`Failed to remove from ${serverName}`)
@@ -346,7 +347,7 @@ export function McpDeploy({
       if (shouldUpdateExisting) {
         for (const serverId of selectedServerIdsForForm) {
           if (toAdd.has(serverId)) continue
-          const toolInfo = nextServerToolsMap[serverId]
+          const toolInfo = serverToolsMap[serverId]
           if (!toolInfo?.tool) continue
 
           try {
@@ -366,7 +367,13 @@ export function McpDeploy({
         }
       }
 
-      setServerToolsMap(nextServerToolsMap)
+      setServerToolsMap((prev) => {
+        const next = { ...prev, ...addedEntries }
+        for (const id of removedIds) {
+          delete next[id]
+        }
+        return next
+      })
       if (errors.length > 0) {
         setSaveErrors(errors)
       } else {
