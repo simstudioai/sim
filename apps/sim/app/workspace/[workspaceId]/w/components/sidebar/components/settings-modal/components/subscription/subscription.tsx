@@ -550,7 +550,6 @@ export function Subscription() {
         />
       )}
 
-      {/* Referral Code — hidden from enterprise users */}
       {!subscription.isEnterprise && (
         <ReferralCode onRedeemComplete={() => refetchSubscription()} />
       )}

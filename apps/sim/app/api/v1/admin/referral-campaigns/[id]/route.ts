@@ -1,6 +1,21 @@
 /**
- * GET   /api/v1/admin/referral-campaigns/:id — Get a single campaign
- * PATCH /api/v1/admin/referral-campaigns/:id — Update campaign fields
+ * GET   /api/v1/admin/referral-campaigns/:id
+ *
+ * Get a single referral campaign by ID.
+ *
+ * PATCH /api/v1/admin/referral-campaigns/:id
+ *
+ * Update campaign fields. All fields are optional.
+ *
+ * Body:
+ *   - name?: string — Campaign name (non-empty)
+ *   - bonusCreditAmount?: number — Bonus credits in dollars (> 0)
+ *   - isActive?: boolean — Enable/disable the campaign
+ *   - code?: string | null — Redeemable code (min 6 chars, auto-uppercased, null to remove)
+ *   - utmSource?: string | null — UTM source match (null = wildcard)
+ *   - utmMedium?: string | null — UTM medium match (null = wildcard)
+ *   - utmCampaign?: string | null — UTM campaign match (null = wildcard)
+ *   - utmContent?: string | null — UTM content match (null = wildcard)
  */
 
 import { db } from '@sim/db'
@@ -85,13 +100,17 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
     }
 
     if (body.code !== undefined) {
-      if (body.code !== null && typeof body.code !== 'string') {
-        return badRequestResponse('code must be a string or null')
+      if (body.code !== null) {
+        if (typeof body.code !== 'string') {
+          return badRequestResponse('code must be a string or null')
+        }
+        if (body.code.trim().length < 6) {
+          return badRequestResponse('code must be at least 6 characters')
+        }
       }
       updates.code = body.code ? body.code.trim().toUpperCase() : null
     }
 
-    // UTM fields can be set to string or null (null = wildcard)
     for (const field of ['utmSource', 'utmMedium', 'utmCampaign', 'utmContent'] as const) {
       if (body[field] !== undefined) {
         if (body[field] !== null && typeof body[field] !== 'string') {

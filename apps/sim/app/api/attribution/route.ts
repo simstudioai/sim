@@ -1,3 +1,15 @@
+/**
+ * POST /api/attribution
+ *
+ * Automatic UTM-based referral attribution for new signups.
+ *
+ * Reads the `sim_utm` cookie (set by proxy on auth pages), verifies the user
+ * account was created after the cookie was set, matches a campaign by UTM
+ * specificity, and atomically inserts an attribution record + applies bonus credits.
+ *
+ * Idempotent — the unique constraint on `userId` prevents double-attribution.
+ */
+
 import { db } from '@sim/db'
 import { DEFAULT_REFERRAL_BONUS_CREDITS } from '@sim/db/constants'
 import { referralAttribution, referralCampaigns, user, userStats } from '@sim/db/schema'
@@ -12,19 +24,11 @@ import { applyBonusCredits } from '@/lib/billing/credits/bonus'
 const logger = createLogger('AttributionAPI')
 
 const COOKIE_NAME = 'sim_utm'
-
-/**
- * Maximum allowed gap between when the UTM cookie was set and when the user
- * account was created. Accounts for client/server clock skew. If the user's
- * `createdAt` is more than this amount *before* the cookie timestamp, the
- * attribution is rejected (the user already existed before visiting the link).
- */
 const CLOCK_DRIFT_TOLERANCE_MS = 60 * 1000
 
 /**
  * Finds the most specific active campaign matching the given UTM params.
- * Specificity = number of non-null UTM fields that match. A null field on
- * the campaign acts as a wildcard (matches anything).
+ * Null fields on a campaign act as wildcards. Ties broken by newest campaign.
  */
 async function findMatchingCampaign(utmData: Record<string, string>) {
   const campaigns = await db
@@ -87,17 +91,20 @@ export async function POST() {
 
     let utmData: Record<string, string>
     try {
-      utmData = JSON.parse(decodeURIComponent(utmCookie.value))
+      // Decode first, falling back to raw value if UTM params contain bare %
+      let decoded: string
+      try {
+        decoded = decodeURIComponent(utmCookie.value)
+      } catch {
+        decoded = utmCookie.value
+      }
+      utmData = JSON.parse(decoded)
     } catch {
       logger.warn('Failed to parse UTM cookie', { userId: session.user.id })
       cookieStore.delete(COOKIE_NAME)
       return NextResponse.json({ attributed: false, reason: 'invalid_cookie' })
     }
 
-    // Verify user was created AFTER visiting the UTM link.
-    // The cookie embeds a `created_at` timestamp from when the UTM link was
-    // visited. If `user.createdAt` predates that timestamp (minus a small
-    // clock-drift tolerance), the user already existed and is not eligible.
     const cookieCreatedAt = Number(utmData.created_at)
     if (!cookieCreatedAt || !Number.isFinite(cookieCreatedAt)) {
       logger.warn('UTM cookie missing created_at timestamp', { userId: session.user.id })
@@ -126,7 +133,6 @@ export async function POST() {
       return NextResponse.json({ attributed: false, reason: 'account_predates_cookie' })
     }
 
-    // Ensure userStats record exists (may not yet for brand-new signups)
     const [existingStats] = await db
       .select({ id: userStats.id })
       .from(userStats)
@@ -140,15 +146,11 @@ export async function POST() {
       })
     }
 
-    // Look up the matching campaign to determine bonus amount
     const matchedCampaign = await findMatchingCampaign(utmData)
     const bonusAmount = matchedCampaign
       ? Number(matchedCampaign.bonusCreditAmount)
       : DEFAULT_REFERRAL_BONUS_CREDITS
 
-    // Attribution insert + credit application in a single transaction.
-    // If the credit update fails, the attribution record rolls back so
-    // the client can safely retry on next workspace load.
     let attributed = false
     await db.transaction(async (tx) => {
       const result = await tx

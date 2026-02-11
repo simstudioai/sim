@@ -7,9 +7,12 @@ const logger = createLogger('ReferralAttribution')
 
 const COOKIE_NAME = 'sim_utm'
 
-/** Terminal reasons that should not be retried. */
 const TERMINAL_REASONS = new Set(['account_predates_cookie', 'invalid_cookie'])
 
+/**
+ * Fires a one-shot `POST /api/attribution` when a `sim_utm` cookie is present.
+ * Retries on transient failures; stops on terminal outcomes.
+ */
 export function useReferralAttribution() {
   const calledRef = useRef(false)
 
@@ -25,10 +28,8 @@ export function useReferralAttribution() {
         if (data.attributed) {
           logger.info('Referral attribution successful', { bonusAmount: data.bonusAmount })
         } else if (data.error || TERMINAL_REASONS.has(data.reason)) {
-          // Terminal — don't retry
           logger.info('Referral attribution skipped', { reason: data.reason || data.error })
         } else {
-          // Non-terminal (e.g. transient failure) — allow retry on next mount
           calledRef.current = false
         }
       })

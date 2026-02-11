@@ -1,6 +1,25 @@
 /**
- * GET  /api/v1/admin/referral-campaigns — List all campaigns (optional ?active=true filter)
- * POST /api/v1/admin/referral-campaigns — Create a new campaign
+ * GET  /api/v1/admin/referral-campaigns
+ *
+ * List referral campaigns with optional filtering and pagination.
+ *
+ * Query params:
+ *   - active?: 'true' | 'false' — Filter by active status
+ *   - limit?: number — Page size (default 50)
+ *   - offset?: number — Offset for pagination
+ *
+ * POST /api/v1/admin/referral-campaigns
+ *
+ * Create a new referral campaign.
+ *
+ * Body:
+ *   - name: string — Campaign name (required)
+ *   - bonusCreditAmount: number — Bonus credits in dollars (required, > 0)
+ *   - code?: string | null — Redeemable code (min 6 chars, auto-uppercased)
+ *   - utmSource?: string | null — UTM source match (null = wildcard)
+ *   - utmMedium?: string | null — UTM medium match (null = wildcard)
+ *   - utmCampaign?: string | null — UTM campaign match (null = wildcard)
+ *   - utmContent?: string | null — UTM content match (null = wildcard)
  */
 
 import { db } from '@sim/db'
@@ -35,7 +54,6 @@ export const GET = withAdminAuth(async (request) => {
 
     const rows = await query.limit(limit).offset(offset)
 
-    // Count total for pagination
     let countQuery = db.select().from(referralCampaigns).$dynamic()
     if (activeFilter === 'true') {
       countQuery = countQuery.where(eq(referralCampaigns.isActive, true))
@@ -69,8 +87,13 @@ export const POST = withAdminAuth(async (request) => {
       return badRequestResponse('bonusCreditAmount must be a positive number')
     }
 
-    if (code !== undefined && code !== null && typeof code !== 'string') {
-      return badRequestResponse('code must be a string or null')
+    if (code !== undefined && code !== null) {
+      if (typeof code !== 'string') {
+        return badRequestResponse('code must be a string or null')
+      }
+      if (code.trim().length < 6) {
+        return badRequestResponse('code must be at least 6 characters')
+      }
     }
 
     const id = nanoid()

@@ -1,3 +1,19 @@
+/**
+ * POST /api/referral-code/redeem
+ *
+ * Redeem a referral/promo code to receive bonus credits.
+ *
+ * Body:
+ *   - code: string — The referral code to redeem
+ *
+ * Response: { redeemed: boolean, bonusAmount?: number, error?: string }
+ *
+ * Constraints:
+ *   - Enterprise users cannot redeem codes
+ *   - One redemption per user, ever (unique constraint on userId)
+ *   - One redemption per organization for team users (partial unique on organizationId)
+ */
+
 import { db } from '@sim/db'
 import { referralAttribution, referralCampaigns, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -24,7 +40,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Code is required' }, { status: 400 })
     }
 
-    // Determine the user's plan — enterprise users cannot redeem codes
     const subscription = await getHighestPrioritySubscription(session.user.id)
 
     if (subscription?.plan === 'enterprise') {
@@ -37,7 +52,6 @@ export async function POST(request: Request) {
     const isTeam = subscription?.plan === 'team'
     const orgId = isTeam ? subscription.referenceId : null
 
-    // Look up the campaign by code directly (codes are stored uppercased)
     const normalizedCode = code.trim().toUpperCase()
 
     const [campaign] = await db
@@ -54,7 +68,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid or expired code' }, { status: 404 })
     }
 
-    // Check 1: Has this user already redeemed? (one per user, ever)
     const [existingUserAttribution] = await db
       .select({ id: referralAttribution.id })
       .from(referralAttribution)
@@ -68,8 +81,6 @@ export async function POST(request: Request) {
       })
     }
 
-    // Check 2: For team users, has any member of this org already redeemed?
-    // Credits pool to the org, so only one redemption per org is allowed.
     if (orgId) {
       const [existingOrgAttribution] = await db
         .select({ id: referralAttribution.id })
@@ -85,7 +96,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Ensure userStats record exists
     const [existingStats] = await db
       .select({ id: userStats.id })
       .from(userStats)
@@ -101,7 +111,6 @@ export async function POST(request: Request) {
 
     const bonusAmount = Number(campaign.bonusCreditAmount)
 
-    // Attribution insert + credit application in a single transaction
     let redeemed = false
     await db.transaction(async (tx) => {
       const result = await tx
