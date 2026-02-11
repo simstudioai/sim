@@ -457,9 +457,10 @@ export async function POST(req: NextRequest) {
         content: message,
         timestamp: new Date().toISOString(),
         ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
-        ...(Array.isArray(normalizedContexts) && normalizedContexts.length > 0 && {
-          contexts: normalizedContexts,
-        }),
+        ...(Array.isArray(normalizedContexts) &&
+          normalizedContexts.length > 0 && {
+            contexts: normalizedContexts,
+          }),
         ...(Array.isArray(normalizedContexts) &&
           normalizedContexts.length > 0 && {
             contentBlocks: [

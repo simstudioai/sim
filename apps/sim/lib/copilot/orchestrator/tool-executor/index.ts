@@ -264,7 +264,9 @@ async function executeManageCustomTool(
         workspaceId != null
           ? await db
               .delete(customTools)
-              .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, workspaceId)))
+              .where(
+                and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, workspaceId))
+              )
               .returning({ id: customTools.id })
           : []
 
