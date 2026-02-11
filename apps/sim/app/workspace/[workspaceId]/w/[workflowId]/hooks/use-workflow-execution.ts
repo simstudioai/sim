@@ -2137,10 +2137,17 @@ export function useWorkflowExecution() {
       includeStartConsoleEntry: true,
     })
 
+    // Save original running entries so we can restore them if reconnection is interrupted.
+    // This ensures the next mount can retry reconnection.
+    const originalEntries = runningEntries
+      .filter((e) => e.executionId === executionId)
+      .map((e) => ({ ...e }))
+
     // Defer clearing old entries until the first reconnection event arrives.
     // This keeps hydrated entries visible during the network round-trip,
     // avoiding a flash of empty console.
     let cleared = false
+    let reconnectionComplete = false
     const clearOnce = () => {
       if (!cleared) {
         cleared = true
@@ -2169,12 +2176,14 @@ export function useWorkflowExecution() {
           },
           onExecutionCompleted: () => {
             clearOnce()
+            reconnectionComplete = true
             setCurrentExecutionId(reconnectWorkflowId, null)
             setIsExecuting(reconnectWorkflowId, false)
             setActiveBlocks(reconnectWorkflowId, new Set())
           },
           onExecutionError: (data) => {
             clearOnce()
+            reconnectionComplete = true
             setCurrentExecutionId(reconnectWorkflowId, null)
             setIsExecuting(reconnectWorkflowId, false)
             setActiveBlocks(reconnectWorkflowId, new Set())
@@ -2187,6 +2196,7 @@ export function useWorkflowExecution() {
           },
           onExecutionCancelled: () => {
             clearOnce()
+            reconnectionComplete = true
             setCurrentExecutionId(reconnectWorkflowId, null)
             setIsExecuting(reconnectWorkflowId, false)
             setActiveBlocks(reconnectWorkflowId, new Set())
@@ -2198,9 +2208,10 @@ export function useWorkflowExecution() {
         },
       })
       .catch((error) => {
+        reconnectionComplete = true
         logger.warn('Execution reconnection failed', { executionId, error })
         clearExecutionEntries(executionId)
-        for (const entry of runningEntries.filter((e) => e.executionId === executionId)) {
+        for (const entry of originalEntries) {
           addConsole({
             workflowId: entry.workflowId,
             blockId: entry.blockId,
@@ -2219,10 +2230,18 @@ export function useWorkflowExecution() {
 
     return () => {
       executionStream.cancel(reconnectWorkflowId)
-      // Reset execution state so the SPA guard doesn't block the next reconnection
-      // attempt when the user navigates back to this workflow.
-      // The cancel above causes an AbortError which is swallowed by
-      // isClientDisconnectError, so the .catch() block never fires.
+
+      // If reconnection was interrupted (clearOnce fired but no terminal event arrived),
+      // restore the original running entries so the next mount can retry.
+      // cancel() causes an AbortError which is swallowed by isClientDisconnectError,
+      // so the .catch() block never fires — we must handle cleanup here.
+      if (cleared && !reconnectionComplete) {
+        clearExecutionEntries(executionId)
+        for (const entry of originalEntries) {
+          addConsole(entry)
+        }
+      }
+
       setCurrentExecutionId(reconnectWorkflowId, null)
       setIsExecuting(reconnectWorkflowId, false)
       setActiveBlocks(reconnectWorkflowId, new Set())
