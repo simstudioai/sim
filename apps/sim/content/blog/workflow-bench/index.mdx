@@ -1,0 +1,90 @@
+---
+slug: workflow-bench
+title: 'Introducing Workflow Bench - Benchmarking Natural Language Workflow Building'
+description: 'How we built a benchmark to measure how well AI models translate natural language instructions into executable workflows, and what we learned along the way'
+date: 2026-02-11
+updated: 2026-02-11
+authors:
+  - sid
+readingTime: 10
+tags: [Benchmark, Evaluation, Workflows, Natural Language]
+ogImage: /studio/workflow-bench/cover.png
+ogAlt: 'Workflow Bench benchmark overview'
+about: ['Benchmarking', 'Workflow Building', 'Natural Language']
+timeRequired: PT10M
+canonical: https://sim.ai/studio/workflow-bench
+featured: false
+draft: true
+---
+
+Building workflows from natural language sounds straightforward until you try to measure it. When a user says "send me a Slack message every morning with a summary of my unread emails," how do you evaluate whether the resulting workflow is correct? Is partial credit fair? What about workflows that are functionally equivalent but structurally different?
+
+We built Workflow Bench to answer these questions. This post covers why we needed a dedicated benchmark, how we designed it, and what the results tell us about the current state of natural language workflow building.
+
+## Why a Workflow Benchmark?
+
+<!-- TODO: Motivation for building Workflow Bench -->
+<!-- - Gap in existing benchmarks (code gen benchmarks don't capture workflow semantics) -->
+<!-- - Need to track progress as we iterate on the copilot / natural language builder -->
+<!-- - Workflows are structured artifacts, not just code — they have topology, block types, connections, configs -->
+
+## What We're Measuring
+
+<!-- TODO: Define the core evaluation dimensions -->
+<!-- - Structural correctness (right blocks, right connections) -->
+<!-- - Configuration accuracy (correct params, API mappings) -->
+<!-- - Functional equivalence (does it do the same thing even if shaped differently?) -->
+<!-- - Edge cases: loops, conditionals, parallel branches, error handling -->
+
+## Benchmark Design
+
+<!-- TODO: How the benchmark dataset is constructed -->
+<!-- - Task categories and complexity tiers -->
+<!-- - How ground truth workflows are defined -->
+<!-- - Natural language prompt variations (terse vs. detailed, ambiguous vs. precise) -->
+
+### Task Categories
+
+<!-- TODO: Break down the types of workflows in the benchmark -->
+<!-- - Simple linear (A → B → C) -->
+<!-- - Branching / conditional -->
+<!-- - Looping / iterative -->
+<!-- - Parallel fan-out / fan-in -->
+<!-- - Multi-trigger -->
+
+### Scoring
+
+<!-- TODO: Explain the scoring methodology -->
+<!-- - How partial credit works -->
+<!-- - Structural similarity metrics -->
+<!-- - Config-level accuracy -->
+<!-- - Overall composite score -->
+
+## Evaluation Pipeline
+
+<!-- TODO: How we run the benchmark end to end -->
+<!-- - Prompt → model → workflow JSON → evaluator → score -->
+<!-- - Automation and reproducibility -->
+<!-- - How we handle non-determinism across runs -->
+
+## Results
+
+<!-- TODO: Present the benchmark results -->
+<!-- - Model comparisons -->
+<!-- - Performance by task category -->
+<!-- - Where models struggle most -->
+<!-- - Trends over time as we iterate -->
+
+## What We Learned
+
+<!-- TODO: Key takeaways from running the benchmark -->
+<!-- - Surprising strengths and weaknesses -->
+<!-- - How benchmark results influenced product decisions -->
+<!-- - Common failure modes -->
+
+## What's Next
+
+<!-- TODO: Future directions -->
+<!-- - Expanding the benchmark (more tasks, more complexity) -->
+<!-- - Community contributions / open-sourcing -->
+<!-- - Using the benchmark to guide copilot improvements -->
