@@ -502,11 +502,7 @@ export function buildTraceSpans(result: ExecutionResult): {
     }
     addRelativeTimestamps(groupedRootSpans, earliestStart)
 
-    const containerTypes = new Set(['loop', 'loop-iteration', 'parallel', 'parallel-iteration'])
     const checkForUnhandledErrors = (s: TraceSpan): boolean => {
-      if (containerTypes.has(s.type?.toLowerCase() || '')) {
-        return s.children ? s.children.some(checkForUnhandledErrors) : false
-      }
       if (s.status === 'error' && !s.errorHandled) return true
       return s.children ? s.children.some(checkForUnhandledErrors) : false
     }
@@ -711,6 +707,8 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           const iterDuration = iterLatestEnd - iterEarliestStart
 
           const hasErrors = spans.some((span) => span.status === 'error')
+          const allErrorsHandled =
+            hasErrors && spans.every((span) => span.status !== 'error' || span.errorHandled)
 
           const iterationSpan: TraceSpan = {
             id: `${containerId}-iteration-${iterationIndex}`,
@@ -720,6 +718,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
             startTime: new Date(iterEarliestStart).toISOString(),
             endTime: new Date(iterLatestEnd).toISOString(),
             status: hasErrors ? 'error' : 'success',
+            ...(allErrorsHandled && { errorHandled: true }),
             children: spans.map((span) => ({
               ...span,
               name: span.name.replace(/ \(iteration \d+\)$/, ''),
@@ -730,6 +729,9 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
         })
 
         const hasErrors = allIterationSpans.some((span) => span.status === 'error')
+        const allErrorsHandled =
+          hasErrors &&
+          iterationChildren.every((span) => span.status !== 'error' || span.errorHandled)
         const parallelContainer: TraceSpan = {
           id: `parallel-execution-${containerId}`,
           name: containerName,
@@ -738,6 +740,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           startTime: new Date(earliestStart).toISOString(),
           endTime: new Date(latestEnd).toISOString(),
           status: hasErrors ? 'error' : 'success',
+          ...(allErrorsHandled && { errorHandled: true }),
           children: iterationChildren,
         }
 
@@ -763,6 +766,8 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           const iterDuration = iterLatestEnd - iterEarliestStart
 
           const hasErrors = spans.some((span) => span.status === 'error')
+          const allErrorsHandled =
+            hasErrors && spans.every((span) => span.status !== 'error' || span.errorHandled)
 
           const iterationSpan: TraceSpan = {
             id: `${containerId}-iteration-${iterationIndex}`,
@@ -772,6 +777,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
             startTime: new Date(iterEarliestStart).toISOString(),
             endTime: new Date(iterLatestEnd).toISOString(),
             status: hasErrors ? 'error' : 'success',
+            ...(allErrorsHandled && { errorHandled: true }),
             children: spans.map((span) => ({
               ...span,
               name: span.name.replace(/ \(iteration \d+\)$/, ''),
@@ -782,6 +788,9 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
         })
 
         const hasErrors = allIterationSpans.some((span) => span.status === 'error')
+        const allErrorsHandled =
+          hasErrors &&
+          iterationChildren.every((span) => span.status !== 'error' || span.errorHandled)
         const loopContainer: TraceSpan = {
           id: `loop-execution-${containerId}`,
           name: containerName,
@@ -790,6 +799,7 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
           startTime: new Date(earliestStart).toISOString(),
           endTime: new Date(latestEnd).toISOString(),
           status: hasErrors ? 'error' : 'success',
+          ...(allErrorsHandled && { errorHandled: true }),
           children: iterationChildren,
         }
 

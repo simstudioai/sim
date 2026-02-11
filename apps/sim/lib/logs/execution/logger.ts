@@ -222,14 +222,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // Determine if workflow failed by checking trace spans for unhandled errors
     // Errors handled by error handler paths (errorHandled: true) don't count as workflow failures
     // Use the override if provided (for cost-only fallback scenarios)
-    const containerTypes = ['loop', 'loop-iteration', 'parallel', 'parallel-iteration']
     const hasErrors = traceSpans?.some((span: any) => {
       const checkSpanForErrors = (s: any): boolean => {
-        if (containerTypes.includes(s.type?.toLowerCase() || '')) {
-          return s.children && Array.isArray(s.children)
-            ? s.children.some(checkSpanForErrors)
-            : false
-        }
         if (s.status === 'error' && !s.errorHandled) return true
         if (s.children && Array.isArray(s.children)) {
           return s.children.some(checkSpanForErrors)

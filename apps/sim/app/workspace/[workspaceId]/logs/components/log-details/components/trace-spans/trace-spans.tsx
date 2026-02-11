@@ -82,21 +82,16 @@ function hasErrorInTree(span: TraceSpan): boolean {
 
 /**
  * Checks if a span or any of its descendants has an unhandled error.
- * Container spans (loop, iteration, parallel) are skipped — only leaf
- * block spans with errorHandled are considered. Used only for the root
- * workflow span to match the actual workflow status.
+ * Spans with errorHandled: true (including containers that propagate it)
+ * are skipped. Used only for the root workflow span to match the actual
+ * workflow status.
  */
-const CONTAINER_TYPES = new Set(['loop', 'loop-iteration', 'parallel', 'parallel-iteration'])
 function hasUnhandledErrorInTree(span: TraceSpan): boolean {
-  const type = span.type?.toLowerCase() || ''
-  if (CONTAINER_TYPES.has(type)) {
-    return span.children ? span.children.some(hasUnhandledErrorInTree) : false
-  }
   if (span.status === 'error' && !span.errorHandled) return true
   if (span.children && span.children.length > 0) {
     return span.children.some((child) => hasUnhandledErrorInTree(child))
   }
-  if (span.toolCalls && span.toolCalls.length > 0) {
+  if (span.toolCalls && span.toolCalls.length > 0 && !span.errorHandled) {
     return span.toolCalls.some((tc) => tc.error)
   }
   return false

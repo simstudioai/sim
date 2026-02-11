@@ -299,14 +299,8 @@ export class LoggingSession {
             '@/lib/core/telemetry'
           )
 
-          const containerTypes = ['loop', 'loop-iteration', 'parallel', 'parallel-iteration']
           const hasErrors = traceSpans.some((span: any) => {
             const checkForErrors = (s: any): boolean => {
-              if (containerTypes.includes(s.type?.toLowerCase() || '')) {
-                return s.children && Array.isArray(s.children)
-                  ? s.children.some(checkForErrors)
-                  : false
-              }
               if (s.status === 'error' && !s.errorHandled) return true
               if (s.children && Array.isArray(s.children)) {
                 return s.children.some(checkForErrors)
